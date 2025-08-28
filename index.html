@@ -21,7 +21,6 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    border-radius: 0 0 10px 10px;
     overflow: hidden;
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     z-index: 10;
@@ -52,13 +51,62 @@
     z-index: 20;
   }
 
-  .bottom-right-image {
+  /* Separator bar: thin, full width, fixed at bottom just above contact + image */
+  .separator-bar {
     position: fixed;
-    bottom: 10px; /* small padding from bottom */
-    right: 10px;  /* small padding from right */
-    max-width: 150px; /* or whatever size fits */
-    max-height: 150px;
+    bottom: calc(14.2857vh + 1.5rem); /* height of image + some gap for contact */
+    left: 0;
+    width: 100%;
+    height: 2vh; /* thin bar */
+    background-color: #2f1b41; /* 6th color */
     z-index: 30;
+  }
+
+  /* Container below separator bar for contact + image */
+  .bottom-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px 10px 20px;
+    box-sizing: border-box;
+    z-index: 31;
+    /* Ensure background doesn't cover beige background, so transparent */
+  }
+
+  /* Contact info on left */
+  .contact-info {
+    color: #2f1b41; /* dark color for good contrast on beige background */
+    font-size: 1.6vh;
+    line-height: 1.4;
+    text-align: left;
+    max-width: 300px;
+    white-space: pre-line;
+  }
+
+  /* Image on right */
+  .bottom-image {
+    height: 14.2857vh; /* 1/7 viewport height */
+    width: auto;
+    max-width: 40vw; /* max width limit so it doesn't get too wide */
+  }
+
+  /* Responsive tweak: stack vertically on narrow screens */
+  @media (max-width: 500px) {
+    .bottom-container {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px 20px;
+      gap: 10px;
+    }
+    .bottom-image {
+      max-width: 100%;
+      height: auto;
+      width: 50vw;
+    }
   }
 </style>
 </head>
@@ -77,8 +125,22 @@
   Under Construction
 </div>
 
-<!-- Replace src below with your PNG path or URL -->
-<img src="jek.png" alt="Decorative" class="bottom-right-image" />
+<!-- Wrapper to hold separator and content -->
+<div class="bottom-wrapper" style="position: fixed; bottom: 0; left: 0; width: 100%; display: flex; flex-direction: column;">
 
-</body>
-</html>
+  <!-- Separator bar -->
+  <div class="separator-bar" style="height: 2vh; background-color: #2f1b41; width: 100%;"></div>
+
+  <!-- Contact info left + image right container -->
+  <div class="bottom-container" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; box-sizing: border-box; background: transparent;">
+    <div class="contact-info" style="color: #2f1b41; font-size: 1.6vh; line-height: 1.1; max-width: 300px; white-space: pre-line;">
+      <strong>Contact Us</strong><br />
+      Tel: <br />
+      Email: <br />
+      Address: 123 Research Lane
+    </div>
+
+    <img src="jek.png" alt="Company Logo" style="height: 10vh; width: auto; max-width: 40vw;" />
+  </div>
+
+</div>

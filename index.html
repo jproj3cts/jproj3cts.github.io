@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Under Construction</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: #e4cbb7; /* beige background */
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+  .top-container {
+    position: fixed;
+    top: 2vh; /* 2% from top */
+    left: 0;
+    width: 100%;
+    height: 8vh; /* total height for all bars */
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    border-radius: 0 0 10px 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 10;
+  }
+  .bar {
+    flex: 1; /* each bar equally divides the 8vh */
+  }
+  /* Each colored bar */
+  .bar1 { background: #ffb347; }
+  .bar2 { background: #f47742; }
+  .bar3 { background: #db3550; }
+  .bar4 { background: #73b9ca; }
+  .bar5 { background: #0092b2; }
+  .bar6 { background: #2f1b41; }
+
+  .text-overlay {
+    position: fixed;
+    top: 2vh; /* same top offset */
+    left: 0;
+    width: 100%;
+    height: 8vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3vh;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .bottom-right-image {
+    position: fixed;
+    bottom: 10px; /* small padding from bottom */
+    right: 10px;  /* small padding from right */
+    max-width: 150px; /* or whatever size fits */
+    max-height: 150px;
+    z-index: 30;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+  <div class="bar bar6"></div>
+</div>
+
+<div class="text-overlay">
+  Under Construction
+</div>
+
+<!-- Replace src below with your PNG path or URL -->
+<img src="jek.png" alt="Decorative" class="bottom-right-image" />
+
+</body>
+</html>

@@ -1,146 +1,191 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Under Construction</title>
-<style>
-  html, body {
-    margin: 0;
-    height: 100%;
-    background-color: #e4cbb7; /* beige background */
-    font-family: Arial, sans-serif;
-    color: white;
-  }
-  .top-container {
-    position: fixed;
-    top: 2vh; /* 2% from top */
-    left: 0;
-    width: 100%;
-    height: 8vh; /* total height for all bars */
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    z-index: 10;
-  }
-  .bar {
-    flex: 1; /* each bar equally divides the 8vh */
-  }
-  /* Each colored bar */
-  .bar1 { background: #ffb347; }
-  .bar2 { background: #f47742; }
-  .bar3 { background: #db3550; }
-  .bar4 { background: #73b9ca; }
-  .bar5 { background: #0092b2; }
-  .bar6 { background: #2f1b41; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JEK Systems</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: #e4cbb7;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
 
-  .text-overlay {
-    position: fixed;
-    top: 2vh; /* same top offset */
-    left: 0;
-    width: 100%;
-    height: 8vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 3vh;
-    font-weight: bold;
-    pointer-events: none;
-    z-index: 20;
-  }
-
-  /* Separator bar: thin, full width, fixed at bottom just above contact + image */
-  .separator-bar {
-    position: fixed;
-    bottom: calc(14.2857vh + 1.5rem); /* height of image + some gap for contact */
-    left: 0;
-    width: 100%;
-    height: 2vh; /* thin bar */
-    background-color: #2f1b41; /* 6th color */
-    z-index: 30;
-  }
-
-  /* Container below separator bar for contact + image */
-  .bottom-container {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 20px 10px 20px;
-    box-sizing: border-box;
-    z-index: 31;
-    /* Ensure background doesn't cover beige background, so transparent */
-  }
-
-  /* Contact info on left */
-  .contact-info {
-    color: #2f1b41; /* dark color for good contrast on beige background */
-    font-size: 1.6vh;
-    line-height: 1.4;
-    text-align: left;
-    max-width: 300px;
-    white-space: pre-line;
-  }
-
-  /* Image on right */
-  .bottom-image {
-    height: 14.2857vh; /* 1/7 viewport height */
-    width: auto;
-    max-width: 40vw; /* max width limit so it doesn't get too wide */
-  }
-
-  /* Responsive tweak: stack vertically on narrow screens */
-  @media (max-width: 500px) {
-    .bottom-container {
+    body {
+      display: flex;
       flex-direction: column;
-      align-items: flex-start;
+    }
+
+    /* Top Color Bars */
+    .top-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      height: 8vh;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 10;
+    }
+
+    .bar {
+      flex: 1;
+    }
+
+    .bar1 { background: #ffb347; }
+    .bar2 { background: #f47742; }
+    .bar3 { background: #db3550; }
+    .bar4 { background: #73b9ca; }
+    .bar5 { background: #0092b2; }
+
+    .bar6 {
+      background: #2f1b41;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5vh;
+      padding: 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .bar6 a {
+      color: white;
+      text-decoration: none;
+      margin: 0 5px;
+    }
+
+    .bar6 a:hover {
+      text-decoration: underline;
+    }
+
+    .text-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 3vh;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      box-sizing: border-box;
+      color: #2f1b41;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .main-content p {
+      max-width: 700px;
+      margin-bottom: 1rem;
+    }
+
+    /* Footer */
+    footer {
+      width: 100%;
+      background: transparent;
       padding: 10px 20px;
-      gap: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
     }
+
+    .contact-info {
+      color: #2f1b41;
+      font-size: 1.3vh; /* smaller font */
+      line-height: 1.4;
+      max-width: 300px;
+      white-space: pre-line;
+    }
+
     .bottom-image {
-      max-width: 100%;
-      height: auto;
-      width: 50vw;
+      height: 8vh; /* smaller logo */
+      width: auto;
+      max-width: 30vw;
     }
-  }
-</style>
+
+    @media (max-width: 500px) {
+      footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .bottom-image {
+        width: 50vw;
+        height: auto;
+      }
+    }
+  </style>
 </head>
 <body>
 
-<div class="top-container">
-  <div class="bar bar1"></div>
-  <div class="bar bar2"></div>
-  <div class="bar bar3"></div>
-  <div class="bar bar4"></div>
-  <div class="bar bar5"></div>
-  <div class="bar bar6"></div>
-</div>
+  <!-- Top with Overlay -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="#">Home</a> |
+      <a href="#">About</a> |
+      <a href="#">Services</a> |
+      <a href="#">People</a> |
+      <a href="#">Contact</a>
+    </div>
+    <div class="text-overlay">JEK Systems</div>
+  </div>
 
-<div class="text-overlay">
-  Under Construction
-</div>
+  <!-- Scrollable Content Area -->
+  <main class="main-content">
+    <p>Welcome to JEK Systems. This site is currently under development.</p>
+	<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec gravida bibendum rutrum. Praesent egestas sed ipsum sit amet hendrerit. Vivamus eget fringilla enim. Mauris erat magna, tristique vel vestibulum id, rhoncus et tortor. Curabitur velit justo, imperdiet in auctor at, iaculis a nisl. Mauris odio turpis, mattis sit amet neque id, fermentum egestas nisi. Etiam nec purus tincidunt, suscipit mauris quis, lobortis neque. Pellentesque et tempor libero, sed laoreet lorem.</p>
 
-<!-- Wrapper to hold separator and content -->
-<div class="bottom-wrapper" style="position: fixed; bottom: 0; left: 0; width: 100%; display: flex; flex-direction: column;">
+<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed id sodales nisi. Nunc molestie lorem metus, ac bibendum risus ultrices vel. Donec pharetra ligula eu enim tincidunt, vitae tristique ex cursus. In mattis iaculis ipsum at luctus. Suspendisse potenti. Praesent semper quis nibh commodo vulputate.</p>
 
-  <!-- Separator bar -->
-  <div class="separator-bar" style="height: 2vh; background-color: #2f1b41; width: 100%;"></div>
+<p>Proin hendrerit sem ut sem efficitur, ac malesuada nisl eleifend. Morbi tincidunt purus mattis, molestie massa vel, pellentesque nibh. Maecenas et pharetra lacus, faucibus consequat purus. Pellentesque fringilla nunc feugiat risus volutpat faucibus. In ex turpis, suscipit at est quis, suscipit convallis ex. Ut eu massa mattis, accumsan felis a, ultricies mauris. Morbi a risus iaculis, bibendum magna finibus, auctor odio.</p>
 
-  <!-- Contact info left + image right container -->
-  <div class="bottom-container" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; box-sizing: border-box; background: transparent;">
-    <div class="contact-info" style="color: #2f1b41; font-size: 1.6vh; line-height: 1.1; max-width: 300px; white-space: pre-line;">
+<p>Proin viverra sodales neque a volutpat. Quisque quis quam sit amet ligula tempor lobortis. Nunc consectetur purus id ligula rhoncus, eu vulputate dolor commodo. In hac habitasse platea dictumst. Etiam sed sapien ultricies, facilisis ligula sed, vulputate massa. Fusce ultrices gravida est sed laoreet. Ut molestie laoreet finibus. Aliquam nec lectus lorem. Quisque eget tellus gravida, porttitor magna quis, ornare nisi. Proin ac interdum augue. Maecenas sit amet ligula id odio semper mattis.</p>
+
+<p>Suspendisse potenti. Nullam sit amet iaculis erat. Nam pretium tincidunt tortor non scelerisque. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris a nulla id lacus blandit hendrerit quis vel orci. Aliquam erat volutpat. Donec nec ultricies nisl. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent in sapien ac elit tincidunt sodales at aliquet metus. Maecenas vitae molestie diam, at condimentum ante. Maecenas hendrerit tellus nec nunc rhoncus, a lacinia turpis elementum. Proin in turpis leo. In quis euismod mi. Proin tincidunt tortor orci, vitae hendrerit lectus imperdiet et. Maecenas est risus, feugiat in auctor in, pulvinar sed ante. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae;</p>
+
+<p>Nullam efficitur feugiat arcu, sed pharetra nulla aliquam non. Pellentesque eleifend augue in nulla ullamcorper accumsan. Vestibulum vel quam a odio consectetur mattis. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Proin feugiat neque ut neque sollicitudin volutpat. Vestibulum id vehicula risus, sit amet posuere ipsum. Nunc id magna venenatis, bibendum risus ut, mollis risus. Fusce sed tempus ipsum.</p>
+
+<p>Proin ac pulvinar augue. Cras mattis enim magna, sed facilisis velit vestibulum vitae. Ut scelerisque fringilla vulputate. Praesent eget egestas eros, in congue odio. Nulla sed placerat leo. Donec lacinia urna libero, gravida pharetra erat volutpat nec. Maecenas blandit convallis massa sed sodales. Donec felis justo, rutrum quis mi id, tristique cursus dolor. Vestibulum tristique ornare tellus in egestas. Pellentesque malesuada metus sit amet condimentum venenatis.</p>
+
+<p>Aenean massa mi, fringilla at blandit sed, venenatis vel ligula. Sed ornare nulla vitae justo tempor viverra nec eu lacus. Aenean et accumsan ante, ut bibendum ex. Cras rutrum felis auctor, porttitor est et, sodales justo. Ut sit amet tincidunt lacus, in aliquet diam. Nam condimentum vulputate risus id fermentum. Maecenas vel mi vitae quam bibendum pharetra. Phasellus id faucibus lorem. Curabitur accumsan lectus vel odio accumsan, dignissim sollicitudin nunc dapibus. Donec id feugiat lectus, mattis laoreet metus. Donec aliquet tortor libero, sagittis egestas neque tincidunt ac. Etiam semper est ut justo placerat, sit amet dignissim sem pellentesque. Nulla facilisi. In id mollis nibh.</p>
+
+<p>In nec commodo odio. Cras tincidunt, tortor sit amet varius facilisis, dolor quam euismod diam, et lobortis tellus ligula nec sem. Cras nunc ex, dignissim sit amet dolor vel, porttitor pellentesque tellus. Nulla sit amet magna volutpat, posuere urna in, sodales mi. Pellentesque at urna accumsan, mollis magna commodo, fringilla nunc. Sed lobortis ante non risus mollis, et accumsan velit molestie. Duis non dui mollis, convallis nisl in, porttitor augue. Mauris ac nunc sit amet sem molestie vehicula vehicula eu libero.</p>
+
+<p>Pellentesque suscipit leo id tempus fermentum. Mauris fermentum lobortis sapien, sit amet ullamcorper elit mollis sit amet. Aliquam eget lectus maximus est congue pharetra. Morbi vehicula, metus vulputate accumsan tempor, nunc arcu egestas est, vel egestas dolor nisl at dui. Cras id vehicula massa. Duis laoreet maximus arcu ac pellentesque. Vivamus bibendum risus nec diam placerat, at tempus felis consequat. Vestibulum porttitor viverra pellentesque. Pellentesque tempor, diam eget varius pulvinar, turpis sapien sodales tortor, non laoreet purus augue in nisi. Quisque id est sed sapien feugiat mattis. Sed tincidunt felis et arcu porttitor, ac sodales mauris ultrices.</p>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="contact-info">
       <strong>Contact Us</strong><br />
       Tel: <br />
       Email: <br />
       Address: 123 Research Lane
     </div>
+    <img src="jek.png" alt="Company Logo" class="bottom-image" />
+  </footer>
 
-    <img src="jek.png" alt="Company Logo" style="height: 10vh; width: auto; max-width: 40vw;" />
-  </div>
-
-</div>
+</body>
+</html>

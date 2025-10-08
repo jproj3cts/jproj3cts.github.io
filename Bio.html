@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JEK Systems</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: #e4cbb7;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Color Bars */
+    .top-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      height: 8vh;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 10;
+    }
+
+    .bar {
+      flex: 1;
+    }
+
+    .bar1 { background: #ffb347; }
+    .bar2 { background: #f47742; }
+    .bar3 { background: #db3550; }
+    .bar4 { background: #73b9ca; }
+    .bar5 { background: #0092b2; }
+
+    .bar6 {
+      background: #2f1b41;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5vh;
+      padding: 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .bar6 a {
+      color: white;
+      text-decoration: none;
+      margin: 0 5px;
+    }
+
+    .bar6 a:hover {
+      text-decoration: underline;
+    }
+
+    .text-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 3vh;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      box-sizing: border-box;
+      color: #2f1b41;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .main-content p {
+      max-width: 700px;
+      margin-bottom: 1rem;
+    }
+
+    /* Footer */
+    footer {
+      width: 100%;
+      background: transparent;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .contact-info {
+      color: #2f1b41;
+      font-size: 1.3vh; /* smaller font */
+      line-height: 1.4;
+      max-width: 300px;
+      white-space: pre-line;
+    }
+
+    .bottom-image {
+      height: 8vh; /* smaller logo */
+      width: auto;
+      max-width: 30vw;
+    }
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0rem;
+      width: 100%;
+      max-width: 1000px;
+      box-sizing: border-box;
+    }
+     .image-grid img {
+       width: 100%;   /* fills the cell properly */
+       height: auto;  /* keeps aspect ratio */
+       display: block;
+       transition: filter 0.3s ease;
+    }
+
+    @media (max-width: 500px) {
+      footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .bottom-image {
+        width: 50vw;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top with Overlay -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="Bio">Bio</a> |
+      <a href="#">Products</a> |
+      <a href="#">Projects</a> |
+      <a href="#">Contact</a>
+    </div>
+    <div class="text-overlay">Joe Kelly</div>
+  </div>
+
+  <!-- Scrollable Content Area -->
+  <main class="main-content">
+    <p>Test</p>
+    <p>Publications:</p>
+
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <img style="float: right;" src="jek.png" alt="Company Logo" class="bottom-image" />
+  </footer>
+
+</body>
+</html>
+
+
+
+

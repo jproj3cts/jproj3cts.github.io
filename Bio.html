@@ -132,6 +132,15 @@
        transition: filter 0.3s ease;
     }
 
+    .profile-pic {
+    float: right;          /* Float to the right */
+    margin: 0 0 1rem 1rem; /* Space around the image: top/bottom 0, left 1rem, right 0 */
+    width: 150px;           /* Adjust size as needed */
+    height: auto;           /* Keep aspect ratio */
+    border: 4px solid white; /* White border, 4px */
+    border-radius: 4px;     /* Slight rounding optional */
+  }
+
     @media (max-width: 500px) {
       footer {
         flex-direction: column;
@@ -165,6 +174,18 @@
 
   <!-- Scrollable Content Area -->
   <main class="main-content" style="text-align: left;">
+
+
+  <!-- Profile picture -->
+  <img src="profile.jpg" alt="Dr. Joseph Kelly" class="profile-pic">
+
+  <!-- First paragraph -->
+  <p><strong>Dr. Joseph Kelly</strong></p>
+  <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics, and embedded electronics.
+  Experienced in full-stack system development—from laser-based sensor design to analog/digital circuit prototyping and PCB layout.
+  Strong track record in R&D leadership, cross-functional collaboration, and delivering patented technologies in quantum and optical systems.</p>
+
+    
   <h2 style="text-align: left;">Dr. Joe Kelly</h2>
   <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics, and embedded electronics.
   Experienced in full-stack system development, from laser-based sensor design to analog/digital circuit prototyping and PCB layout.
@@ -201,6 +222,7 @@
 
 </body>
 </html>
+
 
 
 

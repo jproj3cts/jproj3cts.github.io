@@ -29,10 +29,7 @@
       z-index: 10;
     }
 
-    .bar {
-      flex: 1;
-    }
-
+    .bar { flex: 1; }
     .bar1 { background: #ffb347; }
     .bar2 { background: #f47742; }
     .bar3 { background: #db3550; }
@@ -106,17 +103,18 @@
 
     .contact-info {
       color: #2f1b41;
-      font-size: 1.3vh; /* smaller font */
+      font-size: 1.3vh;
       line-height: 1.4;
       max-width: 300px;
       white-space: pre-line;
     }
 
     .bottom-image {
-      height: 8vh; /* smaller logo */
+      height: 8vh;
       width: auto;
       max-width: 30vw;
     }
+
     .image-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -125,23 +123,75 @@
       max-width: 1000px;
       box-sizing: border-box;
     }
-     .image-grid img {
-       width: 100%;   /* fills the cell properly */
-       height: auto;  /* keeps aspect ratio */
-       display: block;
-       transition: filter 0.3s ease;
+
+    .image-grid img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: filter 0.3s ease;
     }
 
     .profile-pic {
-    float: right;          /* Float to the right */
-    margin: 0 0 1rem 1rem; /* Space around the image: top/bottom 0, left 1rem, right 0 */
-    width: 150px;           /* Adjust size as needed */
-    height: auto;           /* Keep aspect ratio */
-    border: 4px solid white; /* White border, 4px */
-    border-radius: 4px;     /* Slight rounding optional */
-  }
+      float: right;
+      margin: 0 0 1rem 1rem;
+      width: 150px;
+      height: auto;
+      border: 4px solid white;
+      border-radius: 4px;
+    }
 
-    @media (max-width: 500px) {
+    /* PDF download image + text section */
+    .pdf-download-section {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.5rem;
+      max-width: 100%;
+      margin: 2rem auto;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+    }
+
+    .pdf-thumb img {
+      width: 100px;
+      height: auto;
+      border-radius: 6px;
+      border: 3px solid #2f1b41;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .pdf-thumb:hover img {
+      transform: scale(1.02);
+      opacity: 0.6;
+    }
+
+    .pdf-text {
+      color: #2f1b41;
+      text-align: left;
+    }
+
+    .pdf-text h3 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 200) {
+      .pdf-download-section {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .pdf-thumb img {
+        width: 100%;
+        max-width: 50px;
+      }
+
+      .pdf-text {
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 600px) {
       footer {
         flex-direction: column;
         align-items: flex-start;
@@ -227,6 +277,19 @@
        <a href="https://github.com/jproj3cts/multi-fit" target="_blank" rel="noopener"> https://github.com/jproj3cts/multi-fit</a>
     </p>
 
+    <h2>Creative Writing</h2>
+    <section class="pdf-download-section">
+      <a href="assets/Lazarus.pdf" download class="pdf-thumb">
+        <img src="bunkerLowRes.png" alt="PDF preview" />
+      </a>
+      <div class="pdf-text">
+        <h3>Lazarus</h3>
+        <p>
+          Details
+        </p>
+      </div>
+    </section>
+
 </main>
 
 
@@ -239,6 +302,7 @@
 
 </body>
 </html>
+
 
 
 

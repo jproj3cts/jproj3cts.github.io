@@ -1,4 +1,163 @@
-.option-group {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>μRPG — Character Creator</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: #0a0a0a;
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+
+  body { display: flex; flex-direction: column; }
+
+  /* Top Bars */
+  .top-container { width: 100%; display: flex; flex-direction: column; height: 8vh; position: relative; }
+  .bar { flex: 1; }
+  .bar1 { background: #ffb347; } .bar2 { background: #f47742; } .bar3 { background: #db3550; }
+  .bar4 { background: #73b9ca; } .bar5 { background: #0092b2; }
+  .bar6 {
+    background: #2f1b41;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5vh;
+    padding: 0 10px;
+    flex-wrap: wrap;
+  }
+  .bar6 a { color: white; text-decoration: none; margin: 0 5px; }
+  .bar6 a:hover { text-decoration: underline; }
+
+  .text-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 8vh;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 3vh; font-weight: bold;
+    pointer-events: none; z-index: 20;
+  }
+
+  /* Main content */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    box-sizing: border-box;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .page-title { font-weight: bold; font-size: 2rem; margin-bottom: 1rem; }
+
+ .character-display {
+  position: relative;
+  width: 1in;
+  height: 1in;
+  margin-bottom: 2rem;
+  border: 2px solid white;
+  background: #1a1a1a;
+  flex-shrink: 0;
+  flex-grow: 0;
+  }
+ .character-display img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1in;
+  height: 1in;
+  image-rendering: pixelated;
+  }
+
+
+  /* Option panels in two columns */
+  .options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem 2rem;
+    justify-items: center;
+    max-width: 8in;
+    margin-bottom: 2rem;
+  }
+
+  .option-group {
+    background: #1a1a1a;
+    border: 2px solid white;
+    border-radius: 0.5in;
+    padding: 1rem 2rem;
+    width: 2in;
+    height: 0.1in;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .option-group.centered {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  .option-group h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    text-align: center;
+    flex-grow: 1;
+  }
+
+  .arrow-button {
+    background: #1a1a1a;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .arrow-button:hover { background: #ffffff; }
+
+  /* Action buttons */
+  .button-bar {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .action-button {
+    background: #db3550;
+    color: white;
+    border: 2px solid white;
+    border-radius: 6px;
+    padding: 0.8rem 2rem;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .action-button:hover { background: #f47742; }
+
+  footer {
+    width: 100%;
+    background: transparent;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .bottom-image {
+    height: 8vh;
+    width: auto;
+    max-width: 30vw;
+  }
+
+ .option-group {
   background: #1a1a1a;
   border: 2px solid white;
   border-radius: 0.5in;
@@ -10,24 +169,147 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap; /* allow content to wrap */
-}
+  }
 
-@media (max-width: 600px) {
+ @media (max-width: 600px) {
   .option-group {
     width: 90%; /* fill almost full width */
     height: auto;
     flex-wrap: wrap;
     margin-bottom: 0.5rem; /* spacing between rows */
-  }
+    }
   .arrow-button {
     width: 30px;
     height: 30px;
     font-size: 1.2rem;
-  }
+    }
   .option-group h3 {
     font-size: 1rem;
     margin: 0.2rem 0;
     flex-basis: 100%; /* title goes full width */
     text-align: center;
+    }
+   }
+
+</style>
+</head>
+<body>
+
+  <!-- Top -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="ucatalogue.html">Catalogue</a> |
+      <a href="uTTRPG.html">About</a>
+    </div>
+    <div class="text-overlay">μRPG</div>
+  </div>
+
+  <!-- Main -->
+  <main class="main-content">
+    <h1 class="page-title">Character Creator</h1>
+
+    <div class="character-display" id="characterDisplay">
+      <img id="backgroundLayer" src="assets/background/background1.png" alt="Background" />
+      <img id="bodyLayer" src="assets/body/body1.png" alt="Body" />
+      <img id="hairLayer" src="assets/hair/hair1.png" alt="Hair" />
+      <img id="topLayer" src="assets/top/top1.png" alt="Top" />
+      <img id="pantLayer" src="assets/pant/pant1.png" alt="Pants" />
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="options-container">
+      <div class="option-group" data-part="body"><button class="arrow-button" onclick="prev('body')">‹</button><h3 id="bodyLabel">Body 1</h3><button class="arrow-button" onclick="next('body')">›</button></div>
+      <div class="option-group" data-part="hair"><button class="arrow-button" onclick="prev('hair')">‹</button><h3 id="hairLabel">Hair 1</h3><button class="arrow-button" onclick="next('hair')">›</button></div>
+      <div class="option-group" data-part="pant"><button class="arrow-button" onclick="prev('pant')">‹</button><h3 id="pantLabel">Pant 1</h3><button class="arrow-button" onclick="next('pant')">›</button></div>
+      <div class="option-group" data-part="top"><button class="arrow-button" onclick="prev('top')">‹</button><h3 id="topLabel">Top 1</h3><button class="arrow-button" onclick="next('top')">›</button></div>
+      <div class="option-group centered" data-part="background"><button class="arrow-button" onclick="prev('background')">‹</button><h3 id="backgroundLabel">Background 1</h3><button class="arrow-button" onclick="next('background')">›</button></div>
+    </div>
+
+    <div class="button-bar">
+      <button class="action-button" id="downloadBtn">Download PNG</button>
+      <button class="action-button" id="buyButton">Buy Stamp</button>
+    </div>
+  </main>
+
+  <footer>
+    <a href="index.html">
+      <img src="../media/JEKBlkBg.png" alt="Company Logo" class="bottom-image" />
+    </a>
+  </footer>
+
+  <script>
+    const partData = {
+      body: 4,
+      hair: 8,
+      top: 9,
+      pant: 5,
+      background: 3
+    };
+
+    const indices = {};
+    for (const key in partData) indices[key] = 0;
+
+    function update(part) {
+      const index = indices[part] + 1;
+      const max = partData[part];
+      const filename = `${part}${index}.png`;
+      const path = `assets/${part}/${filename}`;
+      const layer = document.getElementById(`${part}Layer`);
+      if (layer) layer.src = path;
+      const label = document.getElementById(`${part}Label`);
+      if (label) label.textContent = `${part.charAt(0).toUpperCase() + part.slice(1)} ${index}`;
+    }
+
+    function next(part) {
+      indices[part] = (indices[part] + 1) % partData[part];
+      update(part);
+    }
+
+    function prev(part) {
+      indices[part] = (indices[part] - 1 + partData[part]) % partData[part];
+      update(part);
+    }
+
+    // Download merged image (1 inch @ 300 DPI = 300x300 px)
+  async function downloadComposite() {
+  const canvas = document.createElement("canvas");
+  const size = 512; // Export at 512x512 px
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  const display = document.getElementById("characterDisplay");
+  const images = Array.from(display.querySelectorAll("img"));
+
+  for (const img of images) {
+    await new Promise((resolve) => {
+      if (img.complete) return resolve();
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+
+    // Draw each layer scaled to 512x512
+    ctx.imageSmoothingEnabled = false; // Keep pixelated style
+    ctx.drawImage(img, 0, 0, size, size);
+    }
+
+  const link = document.createElement("a");
+  link.download = "character.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
   }
-}
+
+    document.getElementById("downloadBtn").addEventListener("click", downloadComposite);
+    document.getElementById("buyButton").addEventListener("click", () => {
+      alert("Checkout coming soon!");
+    });
+  </script>
+
+</body>
+</html>
+

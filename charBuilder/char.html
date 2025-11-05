@@ -216,6 +216,7 @@
     <div class="character-display" id="characterDisplay">
       <img id="backgroundLayer" src="assets/background/background1.png" alt="Background" />
       <img id="bodyLayer" src="assets/body/body1.png" alt="Body" />
+      <img id="eyesLayer" src="assets/eyes/eyes1.png" alt="Eyes" />
       <img id="hairLayer" src="assets/hair/hair1.png" alt="Hair" />
       <img id="topLayer" src="assets/top/top1.png" alt="Top" />
       <img id="pantLayer" src="assets/pant/pant1.png" alt="Pants" />
@@ -224,6 +225,7 @@
     <!-- Two-column layout -->
     <div class="options-container">
       <div class="option-group" data-part="body"><button class="arrow-button" onclick="prev('body')">‹</button><h3 id="bodyLabel">Body 1</h3><button class="arrow-button" onclick="next('body')">›</button></div>
+      <div class="option-group" data-part="eyes"><button class="arrow-button" onclick="prev('eyes')">‹</button><h3 id="eyesLabel">Eyes 1</h3><button class="arrow-button" onclick="next('eyes')">›</button></div>
       <div class="option-group" data-part="hair"><button class="arrow-button" onclick="prev('hair')">‹</button><h3 id="hairLabel">Hair 1</h3><button class="arrow-button" onclick="next('hair')">›</button></div>
       <div class="option-group" data-part="pant"><button class="arrow-button" onclick="prev('pant')">‹</button><h3 id="pantLabel">Pant 1</h3><button class="arrow-button" onclick="next('pant')">›</button></div>
       <div class="option-group" data-part="top"><button class="arrow-button" onclick="prev('top')">‹</button><h3 id="topLabel">Top 1</h3><button class="arrow-button" onclick="next('top')">›</button></div>
@@ -244,11 +246,12 @@
 
   <script>
     const partData = {
-      body: 4,
+      body: 14,
+      eyes: 13,
       hair: 8,
       top: 9,
       pant: 5,
-      background: 3
+      background: 6
     };
 
     const indices = {};

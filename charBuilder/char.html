@@ -247,30 +247,33 @@
     }
 
     // Download merged image (1 inch @ 300 DPI = 300x300 px)
-    async function downloadComposite() {
-      const canvas = document.createElement("canvas");
-      const size = 300; // 1 inch at 300 DPI
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
+  async function downloadComposite() {
+  const canvas = document.createElement("canvas");
+  const size = 512; // Export at 512x512 px
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
 
-      const display = document.getElementById("characterDisplay");
-      const images = Array.from(display.querySelectorAll("img"));
+  const display = document.getElementById("characterDisplay");
+  const images = Array.from(display.querySelectorAll("img"));
 
-      for (const img of images) {
-        await new Promise((resolve) => {
-          if (img.complete) return resolve();
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-        ctx.drawImage(img, 0, 0, size, size);
-      }
+  for (const img of images) {
+    await new Promise((resolve) => {
+      if (img.complete) return resolve();
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
 
-      const link = document.createElement("a");
-      link.download = "character.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+    // Draw each layer scaled to 512x512
+    ctx.imageSmoothingEnabled = false; // Keep pixelated style
+    ctx.drawImage(img, 0, 0, size, size);
     }
+
+  const link = document.createElement("a");
+  link.download = "character.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+  }
 
     document.getElementById("downloadBtn").addEventListener("click", downloadComposite);
     document.getElementById("buyButton").addEventListener("click", () => {
@@ -280,5 +283,4 @@
 
 </body>
 </html>
-
 

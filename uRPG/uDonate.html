@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>μRPG</title>
+<link rel="icon" type="image/x-icon" href="../media/uTTRPGlogo.png">
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: #0a0a0a;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Color Bars */
+    .top-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      height: 8vh;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 10;
+    }
+
+    .bar {
+      flex: 1;
+    }
+
+    .bar1 { background: #ffb347; }
+    .bar2 { background: #f47742; }
+    .bar3 { background: #db3550; }
+    .bar4 { background: #73b9ca; }
+    .bar5 { background: #0092b2; }
+
+    .bar6 {
+      background: #2f1b41;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5vh;
+      padding: 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .bar6 a {
+      color: white;
+      text-decoration: none;
+      margin: 0 5px;
+    }
+
+    .bar6 a:hover {
+      text-decoration: underline;
+    }
+
+    .text-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 3vh;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      box-sizing: border-box;
+      color: #2f1b41;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      box-sizing: border-box;
+      color: #ffffff;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .page-title {
+      font-weight: bold;
+      font-size: 2rem;
+      color: #ffffff;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(233px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 700px;
+      box-sizing: border-box;
+    }
+
+    .image-item:hover img {
+      filter: brightness(0.4);
+    }
+
+   .image-item img {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto; /* center the image */
+    border-radius: 8px;
+    transition: filter 0.3s ease;
+    }
+
+    .info-line, 
+    .description {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0.5rem auto;
+    }
+
+    .info-line .price {
+      font-weight: bold;
+      color: #ffffff;
+    }
+
+    .info-line .title {
+      font-weight: bold;
+      color: #ffffff;
+      text-align: right;
+    }
+
+    .description {
+      margin-top: 0.3rem;
+      font-size: 0.9rem;
+      color: #ffffff;
+      text-align: left;
+    }
+
+    /* Footer */
+    footer {
+      width: 100%;
+      background: transparent;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .contact-info {
+      color: #2f1b41;
+      font-size: 1.3vh; /* smaller font */
+      line-height: 1.4;
+      max-width: 300px;
+      white-space: pre-line;
+    }
+
+    .bottom-image {
+      height: 8vh; /* smaller logo */
+      width: auto;
+      max-width: 30vw;
+    }
+
+    @media (max-width: 500px) {
+      footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .bottom-image {
+        width: 50vw;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top with Overlay -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="../ucatalogue.html">Catalogue</a> |
+      <a href="uMakers.html">For Makers</a> |
+      <a href="../uttrpg.html">About</a> |
+      <a href="../uDonate.html">Donations</a>
+    </div>
+    <div class="text-overlay">μRPG</div>
+  </div>
+  <!-- Scrollable Content Area -->
+  <main class="main-content">
+    <h1 class="page-title">Donations</h1>
+    <p align=left> 
+	Pretty much all digitally available parts of this project are provided absolutely free, and we intend to keep it that way. That being said,
+	living costs money so any donations are incredibly appreciated!
+    </p>
+    <script async
+        src="https://js.stripe.com/v3/buy-button.js">
+    </script>
+
+    <stripe-buy-button
+    buy-button-id="buy_btn_1SVBVu3K18Mm3wzNJgjMAFIp"
+    publishable-key="pk_live_51SQrOd3K18Mm3wzNTFBWRQcWBET2la5UhNb2XvImNtHhCsoIPytuh3cIf132W6I18w0IuOD47PKpbI2T182Qpp2p00f14BU5zi"
+    >
+    </stripe-buy-button>
+
+
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <a href="../index.html">
+    <img style="float: right;" src="../media/JEKBlkBg.png" alt="Company Logo" class="bottom-image" />
+    </a>
+  </footer>
+
+</body>
+</html>

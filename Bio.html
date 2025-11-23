@@ -80,16 +80,17 @@
       padding: 2rem;
       box-sizing: border-box;
       color: #2f1b41;
-      text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
     }
 
-    .main-content p {
+    .main-content p, .main-content h2, .main-content h3 {
       max-width: 700px;
       margin-bottom: 1rem;
+      text-align: left;
+      color: #2f1b41;
     }
 
     .page-title {
@@ -100,48 +101,7 @@
       text-align: center;
     }
 
-
-    /* Footer */
-    footer {
-      width: 100%;
-      background: transparent;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-sizing: border-box;
-    }
-
-    .contact-info {
-      color: #2f1b41;
-      font-size: 1.3vh;
-      line-height: 1.4;
-      max-width: 300px;
-      white-space: pre-line;
-    }
-
-    .bottom-image {
-      height: 8vh;
-      width: auto;
-      max-width: 30vw;
-    }
-
-    .image-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 0rem;
-      width: 100%;
-      max-width: 1000px;
-      box-sizing: border-box;
-    }
-
-    .image-grid img {
-      width: 100%;
-      height: auto;
-      display: block;
-      transition: filter 0.3s ease;
-    }
-
+    /* Profile image */
     .profile-pic {
       float: right;
       margin: 0 0 1rem 1rem;
@@ -151,7 +111,7 @@
       border-radius: 4px;
     }
 
-    /* PDF download image + text section */
+    /* PDF download sections */
     .pdf-download-section {
       display: flex;
       align-items: center;
@@ -171,15 +131,10 @@
       transition: transform 0.2s ease, opacity 0.2s ease;
     }
 
-    .pdf-thumb img[alt="PDF preview"][src*="multifit"] {
+    .pdf-thumb img[alt="PDF preview"][src*="multifit"],
+    .pdf-thumb img[alt="PDF preview"][src*="uTTRPGlogo"] {
       border: none;
     }
-    
-    /* Make μTTRPG borderless */
-    .pdf-thumb img[alt="PDF preview"][src*="uTTRPGlogo"] {
-    border: none;
-    }
-
 
     .pdf-thumb:hover img {
       transform: scale(1.02);
@@ -196,15 +151,14 @@
       margin-bottom: 0.5rem;
     }
 
-    @media (max-width: 200) {
+    @media (max-width: 600px) {
       .pdf-download-section {
         flex-direction: column;
         text-align: center;
       }
 
       .pdf-thumb img {
-        width: 100%;
-        max-width: 50px;
+        width: 50%;
       }
 
       .pdf-text {
@@ -212,43 +166,43 @@
       }
     }
 
-    @media (max-width: 600px) {
-      footer {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-      }
+    /* Footer */
+    footer {
+      width: 100%;
+      padding: 20px 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column; /* stack logo and copyright */
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+    }
 
-      .bottom-image {
+    footer a {
+      display: flex;
+      justify-content: center;
+    }
+
+    footer .bottom-image {
+      height: 8vh;
+      width: auto;
+      max-width: 30vw;
+    }
+
+    footer .copyright {
+      font-size: 1rem;
+      color: #2f1b41;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      footer .bottom-image {
         width: 50vw;
         height: auto;
       }
     }
 
-    footer {
-    width: 100%;
-    /* background: #d4bca3;  slightly darker than page background */
-    padding: 10px 20px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: space-between; /* logo left, copyright center */
-    position: relative;
-    }
-
-    footer .bottom-image {
-    height: 8vh;
-    width: auto;
-    max-width: 30vw;
-    }
-
-    footer .copyright {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 1rem;
-    color: #2f1b41;
-    }
   </style>
 </head>
 <body>
@@ -260,7 +214,7 @@
     <div class="bar bar3"></div>
     <div class="bar bar4"></div>
     <div class="bar bar5"></div>
-    <div class="bar bar6">
+    <div class="bar6">
       <a href="Products.html">Products</a> |
       <a href="Bio.html">Bio</a> |
       <a href="Contact.html">Contact</a>
@@ -358,73 +312,13 @@
     </section>
 </main>
 
-
   <!-- Footer -->
-<footer>
-  <a href="index.html">
-    <img src="jek.png" alt="Company Logo" class="bottom-image" />
-  </a>
-  <span class="copyright">© 2025 EJEKT</span>
-</footer>
+  <footer>
+    <a href="index.html">
+      <img src="jek.png" alt="Company Logo" class="bottom-image" />
+    </a>
+    <span class="copyright">© 2025 EJEKT</span>
+  </footer>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

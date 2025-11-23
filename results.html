@@ -98,7 +98,6 @@
       background: transparent;
       padding: 0; 
       margin-bottom: 0.5rem; 
-      border-radius: 0;
     }
 
     .result a { 
@@ -122,43 +121,32 @@
     /* Footer */
     footer {
       width: 100%;
-      background: transparent;
-      padding: 10px 20px;
+      padding: 20px 0;
       display: flex;
-      justify-content: space-between;
+      flex-direction: column; /* stack logo + copyright */
       align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
       box-sizing: border-box;
     }
 
-    .bottom-image {
+    footer a { display: flex; justify-content: center; }
+
+    footer .bottom-image {
       height: 8vh;
       width: auto;
       max-width: 30vw;
     }
 
-    footer {
-    width: 100%;
-    /* background: #d4bca3;  slightly darker than page background */
-    padding: 10px 20px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: space-between; /* logo left, copyright center */
-    position: relative;
-    }
-
-    footer .bottom-image {
-    height: 8vh;
-    width: auto;
-    max-width: 30vw;
-    }
-
     footer .copyright {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 1rem;
-    color: #2f1b41;
+      font-size: 1rem;
+      color: #2f1b41;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      footer .bottom-image { width: 50vw; height: auto; }
     }
 
   </style>
@@ -188,13 +176,12 @@
   </main>
 
   <!-- Footer -->
-<footer>
-  <a href="index.html">
-    <img src="jek.png" alt="Company Logo" class="bottom-image" />
-  </a>
-  <span class="copyright">© 2025 EJEKT</span>
-</footer>
-
+  <footer>
+    <a href="index.html">
+      <img src="jek.png" alt="Company Logo" class="bottom-image" />
+    </a>
+    <span class="copyright">© 2025 EJEKT</span>
+  </footer>
 
   <script>
     // Retrieve results and query from sessionStorage
@@ -223,4 +210,3 @@
 
 </body>
 </html>
-

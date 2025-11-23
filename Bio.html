@@ -224,6 +224,31 @@
         height: auto;
       }
     }
+
+    footer {
+    width: 100%;
+    /* background: #d4bca3;  slightly darker than page background */
+    padding: 10px 20px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* logo left, copyright center */
+    position: relative;
+    }
+
+    footer .bottom-image {
+    height: 8vh;
+    width: auto;
+    max-width: 30vw;
+    }
+
+    footer .copyright {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1rem;
+    color: #2f1b41;
+    }
   </style>
 </head>
 <body>
@@ -335,14 +360,16 @@
 
 
   <!-- Footer -->
-  <footer>
-    <a href="index.html">
-    <img style="float: right;" src="jek.png" alt="Company Logo" class="bottom-image" />
-    </a>
-  </footer>
+<footer>
+  <a href="index.html">
+    <img src="jek.png" alt="Company Logo" class="bottom-image" />
+  </a>
+  <span class="copyright">© 2025 EJEKT</span>
+</footer>
 
 </body>
 </html>
+
 
 
 

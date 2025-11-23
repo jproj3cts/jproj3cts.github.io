@@ -140,68 +140,53 @@
       text-align: left;
     }
 
-    /* Footer */
-    footer {
-      width: 100%;
-      background: transparent;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-sizing: border-box;
-    }
+footer {
+  width: 100%;
+  padding: 10px 20px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* allows items to stack on small screens */
+}
 
-    .contact-info {
-      color: #2f1b41;
-      font-size: 1.3vh;
-      line-height: 1.4;
-      max-width: 300px;
-      white-space: pre-line;
-    }
+footer a {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+}
 
-    .bottom-image {
-      height: 8vh;
-      width: auto;
-      max-width: 30vw;
-    }
+footer .bottom-image {
+  height: 8vh;
+  width: auto;
+  max-width: 30vw;
+}
 
-    @media (max-width: 500px) {
-      footer {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-      }
+footer .copyright {
+  font-size: 1rem;
+  color: #2f1b41;
+  flex: 1;
+  text-align: right;
+}
 
-      .bottom-image {
-        width: 50vw;
-        height: auto;
-      }
-    }
-
-    footer {
-    width: 100%;
-    /* background: #d4bca3;  slightly darker than page background */
-    padding: 10px 20px;
-    box-sizing: border-box;
-    display: flex;
+@media (max-width: 500px) {
+  footer {
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between; /* logo left, copyright center */
-    position: relative;
-    }
+    gap: 5px;
+  }
 
-    footer .bottom-image {
-    height: 8vh;
-    width: auto;
-    max-width: 30vw;
-    }
+  footer a,
+  footer .copyright {
+    flex: unset;
+    text-align: center;
+  }
 
-    footer .copyright {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 1rem;
-    color: #2f1b41;
-    }
+  footer .bottom-image {
+    width: 50vw;
+    height: auto;
+  }
+}
   </style>
 </head>
 <body>
@@ -265,6 +250,7 @@
 
 </body>
 </html>
+
 
 
 

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Single Lens Magnification Calculator</title>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
 <style>
   html, body {
     margin: 0; height: 100%; background-color: #e4cbb7;
@@ -76,10 +77,16 @@
   footer .bottom-image { height:8vh; width:auto; max-width:30vw; }
   footer .copyright { color:#2f1b41; }
 
-  @media (max-width:900px){ .calc-grid{flex-direction:column;align-items:center;} .eq-grid{flex-direction:column;align-items:center;gap:20px;} }
-  @media (max-width:500px){ .calc-card input, .calc-card select{width:100px;} }
+  @media (max-width:900px){
+    .calc-grid{flex-direction:column;align-items:center;}
+    .eq-grid{flex-direction:column;align-items:center;gap:20px;}
+  }
+  @media (max-width:500px){
+    .calc-card input, .calc-card select{width:100px;}
+  }
 </style>
 </head>
+
 <body>
 
 <div class="top-container">
@@ -133,6 +140,12 @@
 
     <!-- Outputs -->
     <div class="diagram-area">
+
+      <!-- DIAGRAM IMAGE -->
+      <img src="thinLensMag.svg"
+           alt="Single Lens Diagram"
+           style="width:100%; height:auto; object-fit:contain; padding:0.3rem 0;" />
+
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$v = \frac{1}{\frac{1}{f} - \frac{1}{u}}$$</div>
@@ -143,7 +156,9 @@
           <div class="eq-box" id="magnificationResult">M = ?</div>
         </div>
       </div>
+
       <div class="eq-box" id="imageHeightResult">hᵢ = ?</div>
+
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Parameters:</strong><br>
@@ -175,23 +190,30 @@ function toMeters(value, unit) {
 }
 
 function computeLens() {
-  const f = toMeters(parseFloat(document.getElementById("focalLength").value), document.getElementById("focalLengthUnit").value);
-  const u = toMeters(parseFloat(document.getElementById("objectDistance").value), document.getElementById("objectDistanceUnit").value);
-  const h0 = toMeters(parseFloat(document.getElementById("objectHeight").value) || 0, document.getElementById("objectHeightUnit").value);
+  const fValue = parseFloat(document.getElementById("focalLength").value);
+  const uValue = parseFloat(document.getElementById("objectDistance").value);
+  const h0Value = parseFloat(document.getElementById("objectHeight").value);
 
-  if (!f || !u) { alert("Enter focal length and object distance."); return; }
+  if (isNaN(fValue) || isNaN(uValue)) {
+    alert("Enter focal length and object distance.");
+    return;
+  }
+
+  const f = toMeters(fValue, document.getElementById("focalLengthUnit").value);
+  const u = toMeters(uValue, document.getElementById("objectDistanceUnit").value);
+  const h0 = isNaN(h0Value) ? null : toMeters(h0Value, document.getElementById("objectHeightUnit").value);
 
   const v = 1 / (1/f - 1/u);
   const M = -v / u;
-  const hi = h0 ? h0 * M : null;
+  const hi = h0 !== null ? h0 * M : null;
 
   document.getElementById("imageDistanceResult").textContent = `v = ${v.toFixed(3)} m`;
   document.getElementById("magnificationResult").textContent = `M = ${M.toFixed(3)}`;
   document.getElementById("imageHeightResult").textContent = hi !== null ? `hᵢ = ${hi.toFixed(3)} m` : "hᵢ = (optional)";
+
   MathJax.typesetPromise();
 }
 </script>
 
 </body>
 </html>
-

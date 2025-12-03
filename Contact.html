@@ -92,13 +92,35 @@
       text-align: center; 
     }
 
+    .contact-block {
+      max-width: 600px;
+      text-align: left;
+      font-size: 1.1rem;
+      line-height: 1.7rem;
+    }
+
+    .contact-block h2 {
+      margin-top: 1.5rem;
+      color: #2f1b41;
+    }
+
+    .contact-block a {
+      color: #2f1b41;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .contact-block a:hover {
+      text-decoration: underline;
+    }
+
     /* Footer */
     footer {
       width: 100%;
       padding: 20px 0;
       box-sizing: border-box;
       display: flex;
-      flex-direction: column; /* stack logo and copyright */
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 8px;
@@ -151,6 +173,23 @@
   <!-- Scrollable Content Area -->
   <main class="main-content">
     <h1 class="page-title">Contact</h1>
+
+    <div class="contact-block">
+      <p>We’re here to help. Whether you're looking for product information, need assistance, or want to explore partnership opportunities, you can reach the right team below:</p>
+
+      <h2>Sales Inquiries</h2>
+      <p>For product questions or pricing:<br>
+      <a href="mailto:sales@ejekt.org">sales@ejekt.org</a></p>
+
+      <h2>Customer Support</h2>
+      <p>Need help with an order, account, or technical issue?<br>
+      <a href="mailto:support@ejekt.org">support@ejekt.org</a></p>
+
+      <h2>Vendor & Partnership Relations</h2>
+      <p>For vendor communication or collaboration proposals:<br>
+      <a href="mailto:vendors@ejekt.org">vendors@ejekt.org</a></p>
+    </div>
+
   </main>
 
   <!-- Footer -->
@@ -163,4 +202,3 @@
 
 </body>
 </html>
-

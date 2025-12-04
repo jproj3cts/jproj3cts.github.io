@@ -8,7 +8,6 @@
 <style>
 html, body {margin:0; height:100%; font-family:Arial,sans-serif; background:#e4cbb7; color:white;}
 body{display:flex; flex-direction:column;}
-
 .top-container{width:100%; display:flex; flex-direction:column; height:8vh; position:relative;}
 .bar{flex:1; height:1.6vh;}
 .bar1{background:#ffb347;} .bar2{background:#f47742;} .bar3{background:#db3550;}
@@ -17,10 +16,8 @@ body{display:flex; flex-direction:column;}
 .bar6 a{color:white; text-decoration:none; margin:0 5px;}
 .bar6 a:hover{text-decoration:underline;}
 .text-overlay{position:absolute;top:0; left:0; width:100%; height:8vh; display:flex; justify-content:center; align-items:center; font-size:3vh; font-weight:bold; pointer-events:none; z-index:10;}
-
 .main-content{flex:1; overflow-y:auto; padding:2rem; display:flex; flex-direction:column; align-items:center; color:#2f1b41;}
 .page-title{font-size:2rem; font-weight:bold; margin-bottom:2rem; text-align:center;}
-
 .calc-grid{display:flex; flex-wrap:wrap; justify-content:center; gap:1rem; width:100%; max-width:1000px;}
 .calc-card, .diagram-area{background:rgba(255,255,255,0.66); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:12px; color:#2f1b41; min-width:280px; max-width:350px;}
 .calc-card input, .calc-card select{padding:6px; font-size:0.95rem; border-radius:5px; border:2px solid #2f1b41; background:white; color:#2f1b41; width:120px;}
@@ -29,7 +26,6 @@ body{display:flex; flex-direction:column;}
 .eq-grid{display:flex; flex-direction:column; gap:20px; justify-content:center; width:100%; align-items:center;}
 .eq-column{display:flex; flex-direction:column; gap:10px; width:100%; text-align:center; align-items:center;}
 .eq-box{width:100%; min-height:50px; background:rgba(255,255,255,1); border-radius:12px; display:flex; justify-content:center; align-items:center; font-size:0.85rem; line-height:1.1;}
-.diagram-image{width:100%; height:150px; border-radius:12px; background:rgba(255,255,255,0.1); display:flex; justify-content:center; align-items:center; color:#2f1b41; font-size:0.9rem; margin-bottom:10px;}
 .param-box-wrapper{width:100%; display:flex; justify-content:center; margin-top:10px;}
 .param-box{background:rgba(255,255,255,1); border-radius:12px; padding:10px; width:90%; text-align:center; font-size:0.85rem; line-height:1.3;}
 .param-box strong{font-weight:bold;}
@@ -48,24 +44,28 @@ footer .copyright{color:#2f1b41;}
   <div class="bar bar3"></div>
   <div class="bar bar4"></div>
   <div class="bar bar5"></div>
-
   <div class="bar6">
     <a href="../Products.html">Products</a> |
     <a href="calculators.html">Calculators</a> |
     <a href="../Bio.html">Bio</a> |
     <a href="../Contact.html">Contact</a>
   </div>
-
   <div class="text-overlay">EJEKT</div>
 </div>
 
 <main class="main-content">
-  <h1 class="page-title">Noise and SNR Calculator</h1>
+  <h1 class="page-title">SNR Calculator</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label>Signal Power (P<sub>signal</sub>)</label>
+      <label>Input Type</label>
+      <select id="inputType" onchange="updateInputLabels()">
+        <option value="power" selected>Power</option>
+        <option value="amplitude">Amplitude</option>
+      </select>
+
+      <label id="signalLabel">Signal Power</label>
       <input id="Psignal" type="number" step="any" value="1">
       <select id="PsignalUnit">
         <option value="W" selected>W</option>
@@ -73,7 +73,7 @@ footer .copyright{color:#2f1b41;}
         <option value="µW">µW</option>
       </select>
 
-      <label>Noise Power (P<sub>noise</sub>)</label>
+      <label id="noiseLabel">Noise Power</label>
       <input id="Pnoise" type="number" step="any" value="0.1">
       <select id="PnoiseUnit">
         <option value="W">W</option>
@@ -81,13 +81,19 @@ footer .copyright{color:#2f1b41;}
         <option value="µW">µW</option>
       </select>
 
+      <label>Output Type</label>
+      <select id="outputType" onchange="compute()">
+        <option value="power" selected>Power Ratio</option>
+        <option value="amplitude">Amplitude Ratio</option>
+      </select>
+
       <button onclick="compute()">Compute</button>
 
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Input Parameters:</strong><br>
-          <strong>P<sub>signal</sub></strong> = Signal Power<br>
-          <strong>P<sub>noise</sub></strong> = Noise Power
+          <strong>Signal</strong> = Signal Power or Amplitude<br>
+          <strong>Noise</strong> = Noise Power or Amplitude
         </div>
       </div>
     </div>
@@ -96,19 +102,16 @@ footer .copyright{color:#2f1b41;}
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box">$$ \text{SNR (linear)} = \frac{P_{signal}}{P_{noise}} $$</div>
-          <div class="eq-box" id="snrLinearOut">SNR (linear) = ?</div>
-
-          <div class="eq-box">$$ \text{SNR (dB)} = 10 \log_{10} \frac{P_{signal}}{P_{noise}} $$</div>
-          <div class="eq-box" id="snrDbOut">SNR (dB) = ?</div>
+          <div class="eq-box" id="snrLinearBox">SNR (linear) = ?</div>
+          <div class="eq-box" id="snrDbBox">SNR (dB) = ?</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Output Parameters:</strong><br>
-          <strong>SNR (linear)</strong> = Signal-to-noise ratio (linear scale)<br>
-          <strong>SNR (dB)</strong> = Signal-to-noise ratio (decibels)
+          <strong>SNR</strong> = Signal-to-noise ratio (linear scale or amplitude ratio)<br>
+          <strong>SNR (dB)</strong> = Signal-to-noise ratio in dB (matches output type)
         </div>
       </div>
     </div>
@@ -123,28 +126,66 @@ footer .copyright{color:#2f1b41;}
 <script>
 const P = { "W":1, "mW":1e-3, "µW":1e-6 };
 
-function toWatts(val, unit){ return val*P[unit]; }
+// Update labels and units dynamically
+function updateInputLabels(){
+  const type = document.getElementById("inputType").value;
+  const signalLabel = document.getElementById("signalLabel");
+  const noiseLabel = document.getElementById("noiseLabel");
+  const signalUnit = document.getElementById("PsignalUnit");
+  const noiseUnit = document.getElementById("PnoiseUnit");
 
-function formatPower(W){
-  if(W>=1) return W.toFixed(3)+" W";
-  if(W>=1e-3) return (W*1e3).toFixed(3)+" mW";
-  return (W*1e6).toFixed(3)+" µW";
+  if(type === "power"){
+    signalLabel.textContent = "Signal Power";
+    noiseLabel.textContent = "Noise Power";
+    signalUnit.innerHTML = '<option value="W" selected>W</option><option value="mW">mW</option><option value="µW">µW</option>';
+    noiseUnit.innerHTML = '<option value="W">W</option><option value="mW" selected>mW</option><option value="µW">µW</option>';
+  } else {
+    signalLabel.textContent = "Signal Amplitude";
+    noiseLabel.textContent = "Noise Amplitude";
+    signalUnit.innerHTML = '<option value="W" selected>√W</option><option value="mW">√mW</option><option value="µW">√µW</option>';
+    noiseUnit.innerHTML = '<option value="W">√W</option><option value="mW" selected>√mW</option><option value="µW">√µW</option>';
+  }
+}
+
+// Convert input to numeric value
+function convertInput(val, unit){
+  return val * P[unit];
 }
 
 function compute(){
-  const Psig = toWatts(parseFloat(Psignal.value), PsignalUnit.value);
-  const Pn = toWatts(parseFloat(Pnoise.value), PnoiseUnit.value);
+  const inputType = document.getElementById("inputType").value;
+  const outputType = document.getElementById("outputType").value;
 
-  if([Psig,Pn].some(isNaN)){ alert("Please fill in all fields"); return; }
+  let signal = parseFloat(document.getElementById("Psignal").value);
+  let noise = parseFloat(document.getElementById("Pnoise").value);
+  const signalUnit = document.getElementById("PsignalUnit").value;
+  const noiseUnit = document.getElementById("PnoiseUnit").value;
 
-  const snrLinear = Psig/Pn;
-  const snrDb = 10*Math.log10(snrLinear);
+  if([signal, noise].some(isNaN)){ alert("Please fill in all fields"); return; }
 
-  snrLinearOut.textContent = "SNR (linear) = "+snrLinear.toFixed(3);
-  snrDbOut.textContent = "SNR (dB) = "+snrDb.toFixed(3)+" dB";
+  signal = convertInput(signal, signalUnit);
+  noise = convertInput(noise, noiseUnit);
+
+  // Compute power ratio SNR
+  let snrPower = (inputType === "power") ? signal/noise : Math.pow(signal/noise,2);
+
+  // Compute output linear ratio
+  let snrLinear = (outputType === "power") ? snrPower : Math.sqrt(snrPower);
+
+  // Compute dB according to output type
+  const snrDb = (outputType === "power") ? 10*Math.log10(snrPower) : 20*Math.log10(Math.sqrt(snrPower));
+
+  // Display
+  document.getElementById("snrLinearBox").textContent =
+    "SNR (" + (outputType==="power"?"Power Ratio":"Amplitude Ratio") + ") = " + snrLinear.toFixed(3);
+  document.getElementById("snrDbBox").textContent =
+    "SNR (dB, " + (outputType==="power"?"power":"amplitude") + ") = " + snrDb.toFixed(3) + " dB";
 
   MathJax.typeset();
 }
+
+// Initialize labels
+updateInputLabels();
 </script>
 
 </body>

@@ -8,183 +8,99 @@
   <style>
     html, body {
       margin: 0;
-      height: 100%;
-      background-color: #e4cbb7;
       font-family: Arial, sans-serif;
-      color: white;
+      background-color: #e4cbb7;
+      color: #2f1b41;
     }
 
-    body {
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Top Color Bars */
-    .top-container {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      height: 8vh;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      position: relative;
-      z-index: 10;
-    }
-
+    /* Top bars */
+    .top-container { width: 100%; height: 8vh; position: relative; }
     .bar { flex: 1; }
-    .bar1 { background: #ffb347; }
-    .bar2 { background: #f47742; }
-    .bar3 { background: #db3550; }
-    .bar4 { background: #73b9ca; }
-    .bar5 { background: #0092b2; }
-
+    .bar1 { background: #ffb347; height: 16.66%; }
+    .bar2 { background: #f47742; height: 16.66%; }
+    .bar3 { background: #db3550; height: 16.66%; }
+    .bar4 { background: #73b9ca; height: 16.66%; }
+    .bar5 { background: #0092b2; height: 16.66%; }
     .bar6 {
       background: #2f1b41;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       font-size: 1.5vh;
-      padding: 0 10px;
-      flex-wrap: wrap;
     }
-
-    .bar6 a {
-      color: white;
-      text-decoration: none;
-      margin: 0 5px;
-    }
-
-    .bar6 a:hover {
-      text-decoration: underline;
-    }
-
+    .bar6 a { color:white; text-decoration:none; margin:0 5px; }
+    .bar6 a:hover { text-decoration: underline; }
     .text-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 8vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 3vh;
-      font-weight: bold;
-      pointer-events: none;
-      z-index: 20;
+      position:absolute;
+      top:0; left:0;
+      width:100%; height:8vh;
+      display:flex; justify-content:center; align-items:center;
+      font-size:3vh; font-weight:bold; pointer-events:none; color:white;
     }
 
-    /* Main Content */
+    /* Main content */
     .main-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 2rem;
-      box-sizing: border-box;
-      color: #2f1b41;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
+      padding:2rem;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    .page-title { font-size:2rem; margin-bottom:2rem; }
+
+    /* Big container box around all columns */
+    .columns-box {
+      background:#f8e8dc;
+      padding:2rem;
+      border-radius:12px;
+      display:flex;
+      gap:2rem;
+      justify-content:center;
+      flex-wrap: wrap;
+      max-width:1000px;
+      margin-bottom:3rem;
+      border-bottom: 4px solid #2f1b41; /* subtle underline at the bottom */
     }
 
-    .page-title {
-      font-weight: bold;
-      font-size: 2rem;
-      color: #2f1b41;
-      margin-bottom: 2rem;
-      text-align: center;
+    .column-box {
+      width:220px;
+      text-align:center;
     }
-
-    /* Three-column link section */
-    .link-columns {
-      width: 100%;
-      max-width: 1000px;
-      margin: 0 auto 3rem auto;
-      padding: 2rem;
-      border-bottom: 3px solid #2f1b41;
-      background: #f8e8dc;
-      border-radius: 12px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 2rem;
-      color: #2f1b41;
+    .column-box h2 {
+      margin-top:0; margin-bottom:1rem;
+      border-bottom:2px solid #2f1b41;
+      padding-bottom:0.5rem;
     }
-
-    .column {
-      padding: 0;
-      background: none;
-      box-shadow: none;
-      border-radius: 0;
-      color: #2f1b41;
+    .column-box a {
+      display:block;
+      text-decoration:none;
+      font-weight:bold;
+      margin:0.4rem 0;
+      color:#2f1b41;
     }
+    .column-box a:hover { text-decoration:underline; }
 
-    .column h2 {
-      margin-top: 0;
-      font-size: 1.4rem;
-      padding-bottom: 0.5rem;
-      margin-bottom: 1rem;
-      border-bottom: 2px solid #2f1b41;
-    }
-
-    .column a {
-      display: block;
-      color: inherit;
-      text-decoration: none;
-      margin: 0.4rem 0;
-      font-weight: bold;
-    }
-
-    .column a:hover {
-      text-decoration: underline;
+    /* Images above each column */
+    .column-image {
+      width:120px;
+      height:auto;
+      border-radius:8px;
+      margin-bottom:10px;
+      border:4px solid white; /* white border around image */
     }
 
     /* Footer */
     footer {
-      width: 100%;
-      padding: 20px 0;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      text-align:center;
+      padding:20px 0;
+      color:#2f1b41;
     }
-
-    footer a {
-      display: flex;
-      justify-content: center;
-    }
-
-    footer .bottom-image {
-      height: 8vh;
-      width: auto;
-      max-width: 30vw;
-    }
-
-    footer .copyright {
-      font-size: 1rem;
-      color: #2f1b41;
-      text-align: center;
-    }
-
-    @media (max-width: 500px) {
-      footer .bottom-image {
-        width: 50vw;
-        height: auto;
-      }
-    }
-  .column-img {
-      width: 100%;
-      height: auto;
-      border: 4px solid white;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-    }
+    footer img { height:8vh; width:auto; max-width:30vw; }
+    @media(max-width:500px){ footer img{ width:50vw; height:auto; } }
   </style>
 </head>
+
 <body>
 
-  <!-- Top with Overlay -->
   <div class="top-container">
     <div class="bar bar1"></div>
     <div class="bar bar2"></div>
@@ -200,23 +116,24 @@
     <div class="text-overlay">EJEKT</div>
   </div>
 
-  <!-- Scrollable Content Area -->
   <main class="main-content">
     <h1 class="page-title">Products</h1>
 
-    <!-- Three Column Link Section -->
-    <div class="link-columns">
+    <!-- Big box containing all columns with bottom underline -->
+    <div class="columns-box">
 
-      <div class="column">
-        <img src="placeholder.png" alt="Category Image" class="column-img" />
+
+
+      <div class="column-box">
+        <img src="media/opticsMount.jpg" class="column-image" />
         <h2>Photodetectors</h2>
         <a href="#">Amplified Photodetectors</a>
         <a href="#">Biased Photodetectors</a>
         <a href="#">High-Speed Receivers</a>
       </div>
 
-      <div class="column">
-        <img src="placeholder.png" alt="Category Image" class="column-img" />
+      <div class="column-box">
+        <img src="media/opticsMount.jpg" class="column-image" />
         <h2>Signal Processing</h2>
         <a href="#">RF Filters</a>
         <a href="#">Mixers</a>
@@ -224,26 +141,25 @@
         <a href="#">Active Control Systems</a>
       </div>
 
-      <div class="column">
-        <img src="media/opticsMount.jpg" alt="Category Image" class="column-img" />
+      <div class="column-box">
+        <img src="media/opticsMount.jpg" class="column-image" />
         <h2>Lab Accessories</h2>
         <a href="#">Optical Mounts</a>
         <a href="#">Beam Blocks</a>
         <a href="#">Alignment Tools</a>
-	<a href="#">LaSc Sensor Watch</a>
+        <a href="#">LaSc Sensor Watch</a>
       </div>
 
     </div>
 
+  </main>
 
-  <!-- Footer -->
   <footer>
     <a href="index.html">
-      <img src="jek.png" alt="Company Logo" class="bottom-image" />
+      <img src="jek.png" alt="Company Logo" />
     </a>
-    <span class="copyright">© 2025 EJEKT</span>
+    <div>© 2025 EJEKT</div>
   </footer>
 
 </body>
 </html>
-

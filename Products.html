@@ -8,46 +8,91 @@
   <style>
     html, body {
       margin: 0;
-      font-family: Arial, sans-serif;
+      height: 100%;
       background-color: #e4cbb7;
-      color: #2f1b41;
+      font-family: Arial, sans-serif;
+      color: white;
     }
 
-    /* Top bars */
-    .top-container { width: 100%; height: 8vh; position: relative; }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Color Bars */
+    .top-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      height: 8vh;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 10;
+    }
+
     .bar { flex: 1; }
-    .bar1 { background: #ffb347; height: 16.66%; }
-    .bar2 { background: #f47742; height: 16.66%; }
-    .bar3 { background: #db3550; height: 16.66%; }
-    .bar4 { background: #73b9ca; height: 16.66%; }
-    .bar5 { background: #0092b2; height: 16.66%; }
+    .bar1 { background: #ffb347; }
+    .bar2 { background: #f47742; }
+    .bar3 { background: #db3550; }
+    .bar4 { background: #73b9ca; }
+    .bar5 { background: #0092b2; }
+
     .bar6 {
       background: #2f1b41;
       display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5vh;
+      padding: 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .bar6 a {
+      color: white;
+      text-decoration: none;
+      margin: 0 5px;
+    }
+
+    .bar6 a:hover { text-decoration: underline; }
+
+    .text-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8vh;
+      display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 1.5vh;
-    }
-    .bar6 a { color:white; text-decoration:none; margin:0 5px; }
-    .bar6 a:hover { text-decoration: underline; }
-    .text-overlay {
-      position:absolute;
-      top:0; left:0;
-      width:100%; height:8vh;
-      display:flex; justify-content:center; align-items:center;
-      font-size:3vh; font-weight:bold; pointer-events:none; color:white;
+      font-size: 3vh;
+      font-weight: bold;
+      pointer-events: none;
+      z-index: 20;
     }
 
-    /* Main content */
+    /* Main Content */
     .main-content {
-      padding:2rem;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      box-sizing: border-box;
+      color: #2f1b41;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
     }
-    .page-title { font-size:2rem; margin-bottom:2rem; }
 
-    /* Big container box around all columns */
+    .page-title {
+      font-weight: bold;
+      font-size: 2rem;
+      color: #2f1b41;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    /* Products page specific */
     .columns-box {
       background:#f8e8dc;
       padding:2rem;
@@ -58,18 +103,22 @@
       flex-wrap: wrap;
       max-width:1000px;
       margin-bottom:3rem;
-      border-bottom: 4px solid #2f1b41; /* subtle underline at the bottom */
+      border-bottom: 4px solid #2f1b41;
     }
 
     .column-box {
       width:220px;
       text-align:center;
     }
+
     .column-box h2 {
-      margin-top:0; margin-bottom:1rem;
+      margin-top:0;
+      margin-bottom:1rem;
       border-bottom:2px solid #2f1b41;
       padding-bottom:0.5rem;
+      color: #2f1b41;
     }
+
     .column-box a {
       display:block;
       text-decoration:none;
@@ -77,30 +126,59 @@
       margin:0.4rem 0;
       color:#2f1b41;
     }
+
     .column-box a:hover { text-decoration:underline; }
 
-    /* Images above each column */
     .column-image {
       width:120px;
       height:auto;
       border-radius:8px;
       margin-bottom:10px;
-      border:4px solid white; /* white border around image */
+      border:4px solid white;
     }
 
     /* Footer */
     footer {
-      text-align:center;
-      padding:20px 0;
-      color:#2f1b41;
+      width: 100%;
+      padding: 20px 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
     }
-    footer img { height:8vh; width:auto; max-width:30vw; }
-    @media(max-width:500px){ footer img{ width:50vw; height:auto; } }
+
+    footer a {
+      display: flex;
+      justify-content: center;
+    }
+
+    footer .bottom-image {
+      height: 8vh;
+      width: auto;
+      max-width: 30vw;
+    }
+
+    footer .copyright {
+      font-size: 1rem;
+      color: #2f1b41;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      footer .bottom-image {
+        width: 50vw;
+        height: auto;
+      }
+    }
   </style>
 </head>
 
 <body>
 
+  <!-- Header -->
   <div class="top-container">
     <div class="bar bar1"></div>
     <div class="bar bar2"></div>
@@ -116,13 +194,11 @@
     <div class="text-overlay">EJEKT</div>
   </div>
 
+  <!-- Content -->
   <main class="main-content">
     <h1 class="page-title">Products</h1>
 
-    <!-- Big box containing all columns with bottom underline -->
     <div class="columns-box">
-
-
 
       <div class="column-box">
         <img src="media/opticsMount.jpg" class="column-image" />
@@ -154,13 +230,13 @@
 
   </main>
 
+  <!-- Footer -->
   <footer>
     <a href="index.html">
-      <img src="jek.png" alt="Company Logo" />
+      <img src="jek.png" alt="Company Logo" class="bottom-image" />
     </a>
-    <div>© 2025 EJEKT</div>
+    <span class="copyright">© 2025 EJEKT</span>
   </footer>
 
 </body>
 </html>
-

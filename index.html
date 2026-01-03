@@ -59,33 +59,26 @@
     form#searchForm { display: flex; max-width: 400px; width: 100%; margin-bottom: 2rem; }
     #searchInput { flex: 1; padding: 8px 10px; border-radius: 4px; border: none; outline: none; font-size: 1rem; }
     #searchButton { margin-left: 6px; padding: 8px 12px; border-radius: 4px; border: none; background: #2f1b41; color: white; font-weight: bold; cursor: pointer; }
+/* Footer */
+footer {
+  width: 100%;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
-    /* Footer */
-    footer {
-      width: 100%;
-      padding: 20px 0;
-      display: flex;
-      flex-direction: column; /* stack logo + copyright */
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      background: transparent;
-      box-sizing: border-box;
-    }
+footer .bottom-image {
+  height: 8vh;
+  max-height: 60px;
+  width: auto;
+  max-width: 30vw;
+}
 
-    footer a { display: flex; justify-content: center; }
-
-    footer .bottom-image {
-      height: 8vh;
-      width: auto;
-      max-width: 30vw;
-    }
-
-    footer .copyright {
-      font-size: 1rem;
-      color: #2f1b41;
-      text-align: center;
-    }
+footer .copyright {
+  font-size: 1rem;
+  color: #2f1b41;
+}
 
     @media (max-width: 500px) {
       footer .bottom-image { width: 50vw; height: auto; }
@@ -176,6 +169,7 @@
 
 </body>
 </html>
+
 
 
 

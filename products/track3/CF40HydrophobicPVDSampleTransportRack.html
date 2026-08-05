@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>EJEKT | Lab Accessory</title>
-<link rel="icon" type="image/x-icon" href="../assets/jekicon.png">
+<title>EJEKT | CF40 Hydrophobic PVD Sample Transport Rack</title>
+<link rel="icon" type="image/x-icon" href="../../assets/jekicon.png">
 
 <style>
 html, body {
@@ -208,10 +208,60 @@ footer .copyright {
   line-height: 1.55;
 }
 
+.product-description p {
+  margin: 0 0 0.9rem 0;
+}
+
+.product-description p:last-child {
+  margin-bottom: 0;
+}
+
 .product-description h2 {
   font-size: 1.15rem;
   margin: 0 0 0.4rem 0;
   color: #000000;
+}
+
+/* Key features / applications columns */
+.features-columns {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.features-column {
+  flex: 1 1 320px;
+  min-width: 280px;
+  max-width: 520px;
+  background: #ffffffaa;
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  box-sizing: border-box;
+  color: #000000;
+  text-align: left;
+}
+
+.features-column h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.6rem 0;
+  color: #000000;
+}
+
+.features-column ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.features-column li {
+  margin-bottom: 0.3rem;
+}
+
+.features-column li:last-child {
+  margin-bottom: 0;
 }
 
 /* Right column: gallery */
@@ -349,10 +399,10 @@ footer .copyright {
   <div class="bar bar4"></div>
   <div class="bar bar5"></div>
   <div class="bar6">
-    <a href="../Products.html">Products</a> |
-    <a href="../calculators/calculators.html">Calculators</a> |
-    <a href="../Bio.html">Bio</a> |
-    <a href="../Contact.html">Contact</a>
+    <a href="../../Products.html">Products</a> |
+    <a href="../../calculators/calculators.html">Calculators</a> |
+    <a href="../../Bio.html">Bio</a> |
+    <a href="../../Contact.html">Contact</a>
   </div>
   <div class="text-overlay">EJEKT</div>
 </div>
@@ -364,29 +414,63 @@ footer .copyright {
       <!-- Right side: image gallery -->
       <div class="product-gallery">
         <div class="gallery-frame">
-          <img id="galleryImage" src="assets/product-1.jpg" alt="Product image 1">
+          <img id="galleryImage" src="../../assets/product-1.jpg" alt="Product image 1">
         </div>
         <div class="gallery-pips" id="galleryPips">
-          <button class="pip active" data-src="assets/product-1.jpg" aria-label="Image 1"></button>
-          <button class="pip" data-src="assets/product-2.jpg" aria-label="Image 2"></button>
-          <button class="pip" data-src="assets/product-3.jpg" aria-label="Image 3"></button>
+          <button class="pip active" data-src="../../assets/product-1.jpg" aria-label="Image 1"></button>
+          <button class="pip" data-src="../../assets/product-2.jpg" aria-label="Image 2"></button>
+          <button class="pip" data-src="../../assets/product-3.jpg" aria-label="Image 3"></button>
         </div>
       </div>
 
       <!-- Left side: title, price, buy, description -->
       <div class="product-info">
-        <h1>Lab Accessory</h1>
-        <p class="product-price">$59.00</p>
+        <h1>CF40 Vacuum-Compatible Hydrophobic Sample Transport Rack - 16 (30 x 30 x 1 mm)</h1>
+        <p class="product-price">£249.00 + VAT</p>
         <a href="#" class="buy-button">Buy</a>
 
         <div class="product-description">
           <h2>Description</h2>
           <p>
-            Placeholder description for the Lab Accessories track. Replace this text with the specific optical mount, alignment tool, or LaSc Sensor Watch this page represents — dimensions, materials, and any other details a customer needs before purchasing.
+            A compact, reusable sample carrier designed for the handling, transport, and storage of thin-film deposition substrates in vacuum environments.
+          </p>
+          <p>
+            The holder accommodates up to 16 individual 30 mm × 30 mm × 2 mm substrates, providing a high-density solution for perovskite and other thin-film research workflows. Designed to fit within standard CF40 vacuum tubing, the carrier enables protected transfer of multiple samples between deposition systems, gloveboxes, vacuum storage vessels, and characterisation equipment.
+          </p>
+          <p>
+            Manufactured from high-purity polypropylene (PP), the holder provides excellent chemical resistance and a naturally low surface energy, helping minimise contamination and unwanted interaction with sensitive surfaces.
           </p>
         </div>
       </div>
 
+    </div>
+
+    <!-- Key features / applications, in two balanced columns -->
+    <div class="features-columns">
+      <div class="features-column">
+        <h2>Key Features</h2>
+        <ul>
+          <li>Holds 16 × 3 cm × 3 cm × 2 mm substrates</li>
+          <li>Compatible with CF40 vacuum transport systems</li>
+          <li>Designed for vacuum-compatible sample handling</li>
+          <li>Hydrophobic polypropylene construction</li>
+          <li>Low contamination risk for sensitive thin films</li>
+          <li>Enables batch processing and transport of multiple samples</li>
+          <li>Reusable laboratory accessory</li>
+          <li>Suitable for perovskite, semiconductor, optical coating, and thin-film research applications</li>
+        </ul>
+      </div>
+      <div class="features-column">
+        <h2>Typical Applications</h2>
+        <ul>
+          <li>Perovskite photovoltaic research</li>
+          <li>Thin-film semiconductor deposition</li>
+          <li>Physical vapour deposition (PVD)</li>
+          <li>Vacuum sample transfer</li>
+          <li>Glovebox-to-chamber sample handling</li>
+          <li>Optical coating development</li>
+        </ul>
+      </div>
     </div>
 
     <!-- Central technical info section -->
@@ -400,8 +484,8 @@ footer .copyright {
         </button>
         <div class="dropdown-panel">
           <div class="dropdown-panel-inner">
-            <a href="assets/datasheet.pdf" target="_blank">Product Datasheet (PDF)</a>
-            <a href="assets/wiring-diagram.pdf" target="_blank">Wiring Diagram (PDF)</a>
+            <a href="../../assets/datasheet.pdf" target="_blank">Product Datasheet (PDF)</a>
+            <a href="../../assets/wiring-diagram.pdf" target="_blank">Wiring Diagram (PDF)</a>
           </div>
         </div>
       </div>
@@ -413,8 +497,8 @@ footer .copyright {
         </button>
         <div class="dropdown-panel">
           <div class="dropdown-panel-inner">
-            <a href="assets/user-manual.pdf" target="_blank">User Manual (PDF)</a>
-            <a href="assets/quickstart.pdf" target="_blank">Quick Start Guide (PDF)</a>
+            <a href="../../assets/user-manual.pdf" target="_blank">User Manual (PDF)</a>
+            <a href="../../assets/quickstart.pdf" target="_blank">Quick Start Guide (PDF)</a>
           </div>
         </div>
       </div>
@@ -426,8 +510,8 @@ footer .copyright {
         </button>
         <div class="dropdown-panel">
           <div class="dropdown-panel-inner">
-            <a href="assets/ce-certificate.pdf" target="_blank">CE Certificate (PDF)</a>
-            <a href="assets/rohs.pdf" target="_blank">RoHS Compliance (PDF)</a>
+            <a href="../../assets/ce-certificate.pdf" target="_blank">CE Certificate (PDF)</a>
+            <a href="../../assets/rohs.pdf" target="_blank">RoHS Compliance (PDF)</a>
           </div>
         </div>
       </div>
@@ -438,8 +522,8 @@ footer .copyright {
 <footer style="position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; padding-bottom: 4.5vh;">
 
   <!-- Main footer content -->
-  <a href="../index.html">
-    <img src="../jek.png" class="bottom-image" style="height: 8vh; width: auto;">
+  <a href="../../index.html">
+    <img src="../../jek.png" class="bottom-image" style="height: 8vh; width: auto;">
   </a>
   <span class="copyright" style="font-size: 0.8rem; color: #2f1b41; text-align: center; margin-top: 0vh;">
     © 2025 EJEKT

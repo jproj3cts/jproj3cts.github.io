@@ -70,11 +70,11 @@
        id="linearGradient7"
        inkscape:collect="always">
       <stop
-         style="stop-color:#2f1b41;stop-opacity:1;"
+         style="stop-color:#000000;stop-opacity:1;"
          offset="0"
          id="stop7" />
       <stop
-         style="stop-color:#2f1b41;stop-opacity:0;"
+         style="stop-color:#000000;stop-opacity:0;"
          offset="1"
          id="stop8" />
     </linearGradient>
@@ -237,7 +237,7 @@
        id="g2"
        transform="translate(0,0.27995114)">
       <path
-         style="fill:none;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
+         style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
          id="path1"
          sodipodi:type="arc"
          sodipodi:cx="23.702"
@@ -250,7 +250,7 @@
          d="m 138.37399,68.160823 a 115.35833,115.35833 0 0 1 0.0442,24.719535"
          sodipodi:open="true" />
       <path
-         style="fill:none;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
+         style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
          id="path1-8"
          sodipodi:type="arc"
          sodipodi:cx="-253.04597"
@@ -265,7 +265,7 @@
          transform="scale(-1,1)" />
     </g>
     <path
-       style="fill:none;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:0.75,0.25;stroke-opacity:1;stroke-dashoffset:0"
+       style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:0.75,0.25;stroke-opacity:1;stroke-dashoffset:0"
        d="m 125.18764,80.7258 h 25"
        id="path3" />
     <path
@@ -279,79 +279,79 @@
        id="path6"
        sodipodi:nodetypes="cccc" />
     <circle
-       style="fill:#2f1b41;fill-opacity:1;stroke:#2f1b41;stroke-width:0.108676;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.108676;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
        id="path7"
        cx="132.91162"
        cy="80.7258"
        r="0.47974354" />
     <circle
-       style="fill:#2f1b41;fill-opacity:1;stroke:#2f1b41;stroke-width:0.108676;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.108676;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1"
        id="path7-5"
        cx="143.7645"
        cy="80.7258"
        r="0.47974354" />
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        x="135.49214"
        y="78.01519"
        id="text7"><tspan
          sodipodi:role="line"
          id="tspan7"
-         style="font-size:5.64444px;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
+         style="font-size:5.64444px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
          x="135.49214"
          y="78.01519">f</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        x="130.15822"
        y="79.120384"
        id="text7-7"><tspan
          sodipodi:role="line"
          id="tspan7-6"
-         style="font-size:5.64444px;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
+         style="font-size:5.64444px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
          x="130.15822"
          y="79.120384">u</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        x="128.37112"
        y="71.716774"
        id="text7-7-8"><tspan
          sodipodi:role="line"
          id="tspan7-6-6"
-         style="font-size:5.64444px;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
+         style="font-size:5.64444px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
          x="128.37112"
          y="71.716774">h<tspan
    style="font-size:65%;baseline-shift:sub"
    id="tspan14">o</tspan></tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        x="148.56133"
        y="92.122459"
        id="text7-7-8-8"><tspan
          sodipodi:role="line"
          id="tspan7-6-6-6"
-         style="font-size:5.64444px;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
+         style="font-size:5.64444px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
          x="148.56133"
          y="92.122459">h<tspan
    style="font-size:65%;baseline-shift:sub"
    id="tspan14-0">i</tspan></tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        x="140.87843"
        y="78.01519"
        id="text7-2"><tspan
          sodipodi:role="line"
          id="tspan7-1"
-         style="font-size:5.64444px;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
+         style="font-size:5.64444px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-dasharray:none"
          x="140.87843"
          y="78.01519">f</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#2f1b41;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:0.25, 0.750001;stroke-dashoffset:0;stroke-opacity:1"
+       style="font-size:5.64444px;font-family:'Microsoft Yi Baiti';-inkscape-font-specification:'Microsoft Yi Baiti';text-align:center;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:0.25, 0.750001;stroke-dashoffset:0;stroke-opacity:1"
        x="146.33777"
        y="79.131409"
        id="text8"><tspan
@@ -361,39 +361,39 @@
          x="146.33777"
          y="79.131409">v</tspan></text>
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide);marker-end:url(#marker10-7-3-2)"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide);marker-end:url(#marker10-7-3-2)"
        d="m 127.73628,79.768248 h 10.59879"
        id="path8"
        sodipodi:nodetypes="cc" />
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide-9);marker-end:url(#marker10-7)"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide-9);marker-end:url(#marker10-7)"
        d="m 132.92873,78.709914 h 5.46066"
        id="path8-4"
        sodipodi:nodetypes="cc" />
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide-9-2);marker-end:url(#marker10-7-3)"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#ArrowWide-9-2);marker-end:url(#marker10-7-3)"
        d="m 138.38939,78.709914 h 5.40279"
        id="path8-4-1"
        sodipodi:nodetypes="cc" />
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker10-7-3-2);marker-start:url(#ArrowWide)"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker10-7-3-2);marker-start:url(#ArrowWide)"
        d="m 138.33507,79.768248 h 10.64956"
        id="path8-4-1-9"
        sodipodi:nodetypes="cc" />
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        d="M 132.92873,78.709914 V 80.7258"
        id="path11" />
     <path
-       style="fill:none;fill-opacity:1;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        d="M 143.79218,78.709914 V 80.7258"
        id="path12" />
     <path
-       style="fill:none;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle)"
+       style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle)"
        d="M 127.56889,80.7258 V 73.120592"
        id="path4" />
     <path
-       style="fill:none;stroke:#2f1b41;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle-4)"
+       style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:butt;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle-4)"
        d="m 149.04206,80.7258 v 7.49099"
        id="path4-1"
        sodipodi:nodetypes="cc" />

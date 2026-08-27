@@ -4,7 +4,7 @@ compatibility_date = "2025-05-01"
 
 # Non-secret config. Secrets go in via `wrangler secret put` — never here.
 [vars]
-FROM_EMAIL = "uRPG <uRPG@jeksys.net>"
+FROM_EMAIL = "urpg@jeksys.net"
 SUPPORT_EMAIL = "support@jeksys.net"
 ALERT_EMAIL   = "support@jeksys.net"
 

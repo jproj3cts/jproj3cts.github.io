@@ -20,6 +20,11 @@ const encoder = new TextEncoder();
  * Returns the parsed event on success, throws on failure.
  */
 export async function constructEvent(rawBody, signatureHeader, secret, toleranceSeconds = 300) {
+  // Defensive trim: a stray space or newline picked up when pasting the
+  // secret into `wrangler secret put` changes the HMAC and produces an
+  // indistinguishable "signature mismatch".
+  secret = String(secret ?? '').trim();
+
   if (!signatureHeader) {
     throw new Error('missing Stripe-Signature header');
   }
@@ -85,7 +90,10 @@ export async function fetchLineItems(sessionId, secretKey) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Stripe line_items ${res.status}: ${body}`);
+    throw new Error(
+      `Stripe line_items ${res.status} for ${sessionId}: ` +
+        `${body || '(empty body)'} [key prefix: ${String(secretKey).slice(0, 8)}]`,
+    );
   }
 
   const json = await res.json();

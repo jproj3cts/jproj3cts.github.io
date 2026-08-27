@@ -16,7 +16,7 @@ export async function sendEmail(env, { to, subject, html, attachments = [] }) {
     },
     body: JSON.stringify({
       from: env.FROM_EMAIL,
-      reply_to: env.SUPPORT_EMAIL,
+      replyTo: env.SUPPORT_EMAIL,
       to: [to],
       subject,
       html,
@@ -26,7 +26,10 @@ export async function sendEmail(env, { to, subject, html, attachments = [] }) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Resend ${res.status}: ${body}`);
+    throw new Error(
+      `Resend ${res.status}: ${body || '(empty body)'} ` +
+        `[from: ${env.FROM_EMAIL} | to: ${to} | attachments: ${attachments.length}]`,
+    );
   }
 
   return res.json();

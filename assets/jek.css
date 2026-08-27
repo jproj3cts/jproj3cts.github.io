@@ -1,0 +1,1608 @@
+/* ==========================================================================
+   JEK Systems — site-wide stylesheet
+   Governs every page on the site. Edit here, not in the pages.
+   ========================================================================== */
+
+:root {
+  /* Brand spectrum — warm to cool, as used in the masthead bars */
+  --jek-amber:  #ffb347;
+  --jek-orange: #f47742;
+  --jek-red:    #db3550;
+  --jek-sky:    #73b9ca;
+  --jek-cyan:   #0092b2;
+
+  /* Surfaces */
+  --jek-sand:   #e4cbb7;   /* page background */
+  --jek-panel:  #fffdfa;   /* card / panel fill */
+  --jek-well:   #f6f1ea;   /* recessed areas: notes, diagrams */
+  --jek-bar:    #000000;   /* nav + contact bars, matches the rest of the site */
+
+  /* Ink */
+  --jek-ink:      #1a1a1a;
+  --jek-ink-soft: #5b5651;
+
+  /* Lines & shadow */
+  --jek-line:   rgba(0, 0, 0, 0.10);
+  --jek-line-2: rgba(0, 0, 0, 0.22);
+  --jek-shadow: 0 1px 2px rgba(60, 40, 25, 0.06), 0 6px 18px rgba(60, 40, 25, 0.09);
+
+  /* Product accent — overridden per category on product pages.
+     --jek-accent      the brand colour itself (borders, solid fill)
+     --jek-accent-ink  a darkened variant, readable as text on white
+     --jek-accent-on   text colour that sits on top of the solid fill */
+  --jek-accent: #0092b2;
+  --jek-accent-ink: #007893;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #007893;
+
+  /* Interaction */
+  --jek-cyan-dark: #007893;
+  --jek-focus: 0 0 0 3px rgba(0, 146, 178, 0.32);
+
+  /* Type */
+  --jek-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+              "Helvetica Neue", Arial, sans-serif;
+  --jek-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
+              Consolas, "Liberation Mono", monospace;
+
+  --jek-radius: 10px;
+
+  /* Reading measure for prose pages */
+  --jek-measure: 46rem;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--jek-sand);
+  font-family: var(--jek-sans);
+  color: var(--jek-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Masthead — five brand bars, black nav strip, wordmark overlay
+   -------------------------------------------------------------------------- */
+
+.top-container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 72px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.bar  { flex: 1; min-height: 7px; }
+.bar1 { background: var(--jek-amber); }
+.bar2 { background: var(--jek-orange); }
+.bar3 { background: var(--jek-red); }
+.bar4 { background: var(--jek-sky); }
+.bar5 { background: var(--jek-cyan); }
+
+.bar6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.1rem;
+  min-height: 34px;
+  padding: 0.35rem 0.75rem;
+  background: var(--jek-bar);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.bar6 a {
+  margin: 0 0.45rem;
+  padding: 0.15rem 0.1rem;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+}
+
+.bar6 a:hover { border-bottom-color: var(--jek-sky); }
+
+.bar6 a:focus-visible {
+  outline: 2px solid var(--jek-sky);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Wordmark sits over the colour bars, clear of the nav strip */
+.text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 38px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: clamp(1rem, 0.85rem + 0.6vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  /* White wordmark, as on the rest of the site; shadow lifts it off the bars */
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* --------------------------------------------------------------------------
+   Page shell
+   -------------------------------------------------------------------------- */
+
+.main-content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--jek-ink);
+  text-align: center;
+}
+
+.page-title {
+  margin: 0 0 1.75rem;
+  max-width: 26ch;
+  font-size: clamp(1.4rem, 1.1rem + 1.3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: var(--jek-ink);
+}
+
+/* Rule under the title, drawn in the brand spectrum */
+.page-title::after {
+  content: "";
+  display: block;
+  width: 88px;
+  height: 3px;
+  margin: 0.75rem auto 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--jek-amber) 0%, var(--jek-amber) 20%,
+    var(--jek-orange) 20%, var(--jek-orange) 40%,
+    var(--jek-red) 40%, var(--jek-red) 60%,
+    var(--jek-sky) 60%, var(--jek-sky) 80%,
+    var(--jek-cyan) 80%, var(--jek-cyan) 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Calculator layout — inputs left, equations and results right
+   -------------------------------------------------------------------------- */
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(300px, 480px);
+  align-items: start;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.calc-card,
+.diagram-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  min-width: 0;
+}
+
+/* The results panel carries the spectrum on its top edge */
+.diagram-area {
+  position: relative;
+  overflow: hidden;
+}
+
+.diagram-area::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--jek-amber) 0%, var(--jek-amber) 20%,
+    var(--jek-orange) 20%, var(--jek-orange) 40%,
+    var(--jek-red) 40%, var(--jek-red) 60%,
+    var(--jek-sky) 60%, var(--jek-sky) 80%,
+    var(--jek-cyan) 80%, var(--jek-cyan) 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Form controls
+   -------------------------------------------------------------------------- */
+
+.calc-card label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--jek-ink-soft);
+  letter-spacing: 0.01em;
+}
+
+/* Pull each label tight to the control beneath it */
+.calc-card label + input,
+.calc-card label + select,
+.calc-card label + .input-row {
+  margin-top: -0.45rem;
+}
+
+.calc-card input,
+.calc-card select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-family: var(--jek-mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 6px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.calc-card select {
+  font-family: var(--jek-sans);
+  cursor: pointer;
+}
+
+.calc-card input:hover,
+.calc-card select:hover { border-color: rgba(0, 0, 0, 0.38); }
+
+.calc-card input:focus-visible,
+.calc-card select:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* Fallback for browsers without :focus-visible */
+.calc-card input:focus,
+.calc-card select:focus {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* Value + unit pairs */
+.input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.input-row input { flex: 1 1 auto; min-width: 0; }
+.input-row select { flex: 0 0 auto; width: auto; min-width: 5.25rem; }
+
+.calc-card button {
+  margin-top: 0.35rem;
+  padding: 0.6rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--jek-cyan);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+.calc-card button:hover { background: var(--jek-cyan-dark); }
+.calc-card button:active { transform: translateY(1px); }
+
+.calc-card button:focus-visible {
+  outline: none;
+  box-shadow: var(--jek-focus);
+}
+
+/* --------------------------------------------------------------------------
+   Equations and results
+   -------------------------------------------------------------------------- */
+
+.eq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.eq-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+/* Formula boxes (no id) — quiet, recessed */
+.eq-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.5rem 0.75rem;
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-x: auto;
+}
+
+/* Result boxes (carry an id) — the answer, set in tabular mono */
+.eq-box[id] {
+  justify-content: flex-start;
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-left: 3px solid var(--jek-cyan);
+  font-family: var(--jek-mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--jek-ink);
+}
+
+/* Diagrams / placeholders */
+.diagram-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 140px;
+  margin-bottom: 0.25rem;
+  padding: 0.75rem;
+  background: var(--jek-well);
+  border: 1px dashed var(--jek-line-2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+.diagram-image img,
+.diagram-image svg { max-width: 100%; height: auto; }
+
+/* --------------------------------------------------------------------------
+   Parameter notes
+   -------------------------------------------------------------------------- */
+
+.param-box-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.param-box {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--jek-ink-soft);
+  text-align: left;
+}
+
+.param-box strong { font-weight: 600; color: var(--jek-ink); }
+
+/* First strong in the box is the heading */
+.param-box > strong:first-child {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+/* --------------------------------------------------------------------------
+   Calculator index — grouped link lists
+   -------------------------------------------------------------------------- */
+
+.link-section {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 0 1.25rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.link-section h2 {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.link-section h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.link-section h3:first-of-type { margin-top: 0.25rem; }
+
+.link-section a {
+  display: block;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  margin: 0.1rem 0;
+  color: var(--jek-ink);
+  text-decoration: none;
+  border-left: 2px solid var(--jek-line);
+  border-radius: 0 4px 4px 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.link-section a:hover {
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  text-decoration: underline;
+}
+
+.link-section a:focus-visible {
+  outline: none;
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+
+footer {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+footer .bottom-image {
+  height: auto;
+  width: auto;
+  max-height: 56px;
+  max-width: 40vw;
+  margin: 1.5rem 0 0.5rem;
+}
+
+footer .copyright {
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+/* Contact strip reuses the nav bar treatment, full-bleed */
+footer .bar6 {
+  width: 100%;
+  align-self: stretch;
+  min-height: 38px;
+}
+
+
+/* --------------------------------------------------------------------------
+   Prose — body copy on Bio, Contact, product descriptions
+   -------------------------------------------------------------------------- */
+
+/* Prose shares one reading column so headings and body align.
+   A rem value (not ch) keeps the column identical across font sizes. */
+.main-content > h2,
+.main-content > h3 {
+  width: 100%;
+  max-width: var(--jek-measure);
+  margin: 1.75rem 0 0.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+.main-content > h2 { font-size: 1.25rem; }
+.main-content > h3 { font-size: 1.05rem; }
+
+.main-content > p {
+  width: 100%;
+  margin: 0 0 1rem;
+  max-width: var(--jek-measure);
+  line-height: 1.65;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+/* Prose links only — component links keep their own colours */
+.main-content > p a,
+.main-content > ul a,
+article.mb-4 a {
+  color: var(--jek-cyan-dark);
+  overflow-wrap: anywhere;
+}
+
+.main-content > p a:hover,
+.main-content > ul a:hover,
+article.mb-4 a:hover { text-decoration: underline; }
+
+.main-content > p a:focus-visible,
+article.mb-4 a:focus-visible {
+  outline: 2px solid var(--jek-cyan);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Publication entries on Bio */
+article.mb-4 {
+  width: 100%;
+  max-width: var(--jek-measure);
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-left: 3px solid var(--jek-sky);
+  border-radius: 0 8px 8px 0;
+}
+
+article.mb-4 p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.profile-pic {
+  width: 180px;
+  height: 180px;
+  margin: 0 0 1.5rem;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid var(--jek-panel);
+  box-shadow: var(--jek-shadow);
+}
+
+/* --------------------------------------------------------------------------
+   Contact
+   -------------------------------------------------------------------------- */
+
+.contact-block {
+  width: 100%;
+  max-width: 620px;
+  padding: 1.5rem 1.75rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  font-size: 1rem;
+  line-height: 1.65;
+  text-align: left;
+}
+
+.contact-block h2 {
+  margin: 1.5rem 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.contact-block h2:first-of-type { margin-top: 1.25rem; }
+
+.contact-block p { margin: 0 0 0.5rem; max-width: none; }
+
+.contact-block a {
+  font-weight: 600;
+  color: var(--jek-cyan-dark);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.contact-block a:hover { text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+   Site search — home page form and results page
+   -------------------------------------------------------------------------- */
+
+form#searchForm {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 520px;
+  margin-top: 0.5rem;
+}
+
+#searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 6px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+#searchInput:focus,
+#searchInput:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+#searchButton {
+  flex: 0 0 auto;
+  padding: 0.65rem 1.35rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--jek-cyan);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+#searchButton:hover { background: var(--jek-cyan-dark); }
+#searchButton:active { transform: translateY(1px); }
+#searchButton:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+#results { width: 100%; max-width: 620px; }
+
+.result {
+  margin: 0 0 0.5rem;
+  padding: 0.85rem 1rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-left: 3px solid var(--jek-cyan);
+  border-radius: 0 8px 8px 0;
+  text-align: left;
+}
+
+.result a {
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+}
+
+.result a:hover { color: var(--jek-cyan-dark); text-decoration: underline; }
+
+.noresults {
+  padding: 1.25rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+.return {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line-2);
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
+}
+
+.return:hover { background: var(--jek-well); text-decoration: none; }
+.return:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+/* --------------------------------------------------------------------------
+   Products index — category columns with expanding sub-category lists
+   -------------------------------------------------------------------------- */
+
+.columns-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+}
+
+.column-box {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.column-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.category-tile {
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--jek-ink);
+  text-align: left;
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.subcat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.75rem;
+}
+
+/* Each sub-category is colour-keyed to its product family */
+.subcat-box {
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--jek-cyan);
+}
+
+.category-orange { background: var(--jek-orange); }
+.category-red    { background: var(--jek-red); }
+.category-blue   { background: var(--jek-cyan); }
+
+.subcat-box + .subcat-box { margin-top: 0.5rem; }
+
+.subcat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.subcat-toggle:hover { background: rgba(0, 0, 0, 0.10); }
+
+.subcat-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
+.subcat-box .chevron {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #fff;
+  transition: transform 0.2s ease;
+}
+
+.subcat-box.open .chevron { transform: rotate(90deg); }
+
+.subcat-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.subcat-box.open .subcat-panel {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.subcat-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.8rem 0.7rem;
+  text-align: left;
+}
+
+.subcat-panel-inner a {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 4px;
+}
+
+.subcat-panel-inner a:hover { background: #fff; text-decoration: underline; }
+
+.subcat-panel-inner a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Product detail — gallery, purchase info, technical documents
+   -------------------------------------------------------------------------- */
+
+.product-wrap {
+  display: grid;
+  grid-template-columns: minmax(280px, 440px) minmax(280px, 1fr);
+  align-items: start;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  text-align: left;
+}
+
+.product-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.gallery-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  padding: 1rem;
+  overflow: hidden;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.gallery-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.gallery-pips {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.pip {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.pip:hover { background: rgba(0, 0, 0, 0.4); }
+.pip.active { background: var(--jek-cyan); transform: scale(1.25); }
+
+.pip:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.product-info { min-width: 0; }
+
+.product-info h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.85rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+.product-price {
+  margin: 0 0 1rem;
+  font-family: var(--jek-mono);
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--jek-ink);
+}
+
+.buy-button {
+  display: inline-block;
+  padding: 0.7rem 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  text-decoration: none;
+  background: var(--jek-cyan);
+  border-radius: 6px;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+.buy-button:hover { background: var(--jek-cyan-dark); text-decoration: none; }
+.buy-button:active { transform: translateY(1px); }
+.buy-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.product-description { margin-top: 1.75rem; }
+
+.product-description h2 {
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.product-description p { margin: 0 0 0.85rem; font-size: 0.9375rem; }
+.product-description p:last-child { margin-bottom: 0; }
+
+/* Key features / applications */
+.features-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  text-align: left;
+}
+
+.features-column {
+  padding: 1.25rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.features-column h2 {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.features-column ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: square;
+}
+
+.features-column li {
+  margin-bottom: 0.45rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+}
+
+.features-column li::marker { color: var(--jek-sky); }
+.features-column li:last-child { margin-bottom: 0; }
+
+/* Technical information accordions */
+.tech-section {
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.tech-section h2 {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.dropdown {
+  overflow: hidden;
+  border: 1px solid var(--jek-line);
+  border-radius: 6px;
+}
+
+.dropdown + .dropdown { margin-top: 0.6rem; }
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-align: left;
+  background: var(--jek-well);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.dropdown-toggle:hover { background: #ece4da; }
+.dropdown-toggle:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: -2px; }
+
+.dropdown-toggle .chevron {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--jek-ink-soft);
+  transition: transform 0.2s ease;
+}
+
+.dropdown.open .dropdown-toggle .chevron { transform: rotate(180deg); }
+
+.dropdown-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.dropdown.open .dropdown-panel { max-height: 300px; }
+
+.dropdown-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 1rem 0.9rem;
+}
+
+.dropdown-panel-inner a {
+  display: block;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--jek-ink);
+  text-decoration: none;
+  border-left: 2px solid var(--jek-line);
+  border-radius: 0 4px 4px 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.dropdown-panel-inner a:hover {
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  text-decoration: underline;
+}
+
+.dropdown-panel-inner a:focus-visible {
+  outline: none;
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* PDF download callout */
+.pdf-download-section {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.pdf-thumb img {
+  display: block;
+  width: 90px;
+  height: auto;
+  border: 1px solid var(--jek-line);
+  border-radius: 4px;
+  transition: transform 0.15s ease;
+}
+
+.pdf-thumb:hover img { transform: translateY(-2px); }
+
+.pdf-text h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+}
+
+.pdf-text p { margin: 0; font-size: 0.9rem; color: var(--jek-ink-soft); }
+
+
+/* --------------------------------------------------------------------------
+   Quote cart — nav link, product buttons, cart table
+   -------------------------------------------------------------------------- */
+
+/* Cart sits hard right in the nav strip, clear of the centred links */
+.top-container .bar6 { position: relative; }
+
+.top-container .bar6 .nav-cart {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.cart-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.35em;
+  padding: 0 0.35em;
+  font-family: var(--jek-mono);
+  font-size: 0.78em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+  background: var(--jek-cyan);
+  border-radius: 999px;
+}
+
+.cart-count[data-empty="true"] {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Product page: add / quote pair */
+.product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.quote-button {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--jek-accent-ink);
+  text-decoration: none;
+  background: transparent;
+  border: 2px solid var(--jek-accent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+}
+
+.quote-button:hover { background: color-mix(in srgb, var(--jek-accent) 12%, transparent); }
+.quote-button:active { transform: translateY(1px); }
+.quote-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.quote-button.is-added {
+  color: var(--jek-accent-on);
+  background: var(--jek-accent);
+  border-color: var(--jek-accent);
+}
+
+/* "Quote now" is the primary action and reuses the solid treatment */
+button.buy-button {
+  font-family: inherit;
+  border: 2px solid var(--jek-accent);
+  cursor: pointer;
+}
+
+/* Inside a product page the Buy/Quote button follows the category accent */
+.product-actions .buy-button {
+  color: var(--jek-accent-on);
+  background: var(--jek-accent);
+  border-color: var(--jek-accent);
+}
+
+.product-actions .buy-button:hover {
+  background: var(--jek-accent-hover);
+  border-color: var(--jek-accent-hover);
+}
+
+/* Category accents, matching the sub-category colours on Products.html. */
+.product-actions.accent-orange {
+  --jek-accent: #f47742;
+  --jek-accent-ink: #f47742;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #e35f27;
+}
+
+.product-actions.accent-red {
+  --jek-accent: #db3550;
+  --jek-accent-ink: #b8283f;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #b8283f;
+}
+
+.product-actions.accent-blue {
+  --jek-accent: #0092b2;
+  --jek-accent-ink: #007893;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #007893;
+}
+
+.part-number {
+  margin: 0 0 0.75rem;
+  font-family: var(--jek-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--jek-ink-soft);
+}
+
+.part-number strong { font-weight: 600; color: var(--jek-ink); }
+
+/* Cart page */
+.cart-panel {
+  width: 100%;
+  max-width: 900px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.cart-empty { padding: 1.5rem 0; text-align: center; }
+.cart-empty p { margin: 0 0 1rem; color: var(--jek-ink-soft); }
+
+.cart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.cart-table th {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  text-align: left;
+  border-bottom: 2px solid var(--jek-cyan);
+  white-space: nowrap;
+}
+
+.cart-table td {
+  padding: 0.7rem 0.6rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.cart-table .num { text-align: right; }
+.cart-table th.num { text-align: right; }
+
+.cart-table .part,
+.cart-table td.num {
+  font-family: var(--jek-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-table .part { font-weight: 600; white-space: nowrap; }
+
+.cart-table td a { color: var(--jek-ink); text-decoration: none; }
+.cart-table td a:hover { color: var(--jek-cyan-dark); text-decoration: underline; }
+
+.qty-input {
+  width: 4.25rem;
+  padding: 0.35rem 0.4rem;
+  font-family: var(--jek-mono);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 5px;
+}
+
+.qty-input:focus,
+.qty-input:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+.row-remove {
+  padding: 0.3rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--jek-red);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.row-remove:hover { background: rgba(219, 53, 80, 0.10); border-color: rgba(219, 53, 80, 0.3); }
+.row-remove:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.cart-totals { margin-top: 1rem; }
+
+.cart-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9375rem;
+}
+
+.cart-total-row span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.cart-total-row strong {
+  font-family: var(--jek-mono);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--jek-ink);
+}
+
+.cart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 1.25rem;
+}
+
+.cart-actions .return { margin-top: 0; }
+
+.cart-note {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--jek-ink-soft);
+}
+
+.cart-note a { color: var(--jek-cyan-dark); }
+
+.cart-fallback { margin-top: 1.5rem; }
+
+.cart-fallback h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+}
+
+.cart-fallback p { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
+
+#fallbackText {
+  width: 100%;
+  padding: 0.75rem;
+  font-family: var(--jek-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line-2);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .calc-grid {
+    grid-template-columns: minmax(0, 460px);
+    justify-content: center;
+  }
+  .product-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .bar6 { font-size: 0.75rem; }
+  .bar6 a { margin: 0 0.3rem; }
+  .calc-card,
+  .diagram-area { padding: 1rem; }
+  .link-section { padding: 1rem 1.1rem 1.25rem; }
+  .input-row { flex-wrap: wrap; }
+  .input-row select { width: 100%; }
+  footer .bottom-image { max-width: 55vw; }
+  .contact-block { padding: 1.1rem 1.2rem; }
+  .tech-section,
+  .features-column { padding: 1rem 1.1rem 1.25rem; }
+  form#searchForm { flex-wrap: wrap; }
+  #searchInput, #searchButton { width: 100%; flex: 1 1 100%; }
+  .profile-pic { width: 140px; height: 140px; }
+  .pdf-download-section { flex-direction: column; align-items: flex-start; gap: 0.9rem; }
+  .top-container .bar6 .nav-cart {
+    position: static;
+    transform: none;
+    margin: 0 0.3rem;
+  }
+  .cart-panel { padding: 1rem 1.1rem 1.25rem; }
+  .cart-table { font-size: 0.85rem; }
+  .cart-table th, .cart-table td { padding: 0.5rem 0.35rem; }
+  .product-actions .quote-button,
+  .product-actions .buy-button { flex: 1 1 100%; text-align: center; }
+}
+
+/* --------------------------------------------------------------------------
+   Preferences
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .bar6, footer .bar6 { background: #000 !important; -webkit-print-color-adjust: exact; }
+  .calc-card, .diagram-area, .link-section { box-shadow: none; }
+}
+
+/* Diagram images sit flush inside their frame */
+.diagram-image > img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  padding: 0.3rem 0;
+}
+
+/* --------------------------------------------------------------------------
+   Cart table on small screens — six columns cannot fit, so each row
+   becomes a labelled card instead of being clipped or scrolled sideways.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 620px) {
+  .cart-table thead { display: none; }
+
+  .cart-table,
+  .cart-table tbody,
+  .cart-table tr,
+  .cart-table td { display: block; width: 100%; }
+
+  .cart-table tr {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--jek-well);
+    border: 1px solid var(--jek-line);
+    border-radius: 8px;
+  }
+
+  .cart-table td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    text-align: right;
+    border-bottom: none;
+  }
+
+  .cart-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--jek-sans);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--jek-ink-soft);
+    text-align: left;
+  }
+
+  .cart-table td.part {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    border-bottom: 1px solid var(--jek-line);
+  }
+
+  .cart-table td.row-actions { justify-content: flex-end; padding-top: 0.5rem; }
+  .cart-table td.row-actions::before { content: none; }
+
+  .cart-total-row { justify-content: space-between; }
+}
+
+/* Preview / storage-unavailable notice */
+.cart-env-notice {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 0 1.25rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+  background: #fdf3e3;
+  border: 1px solid rgba(244, 119, 66, 0.45);
+  border-left: 3px solid var(--jek-orange);
+  border-radius: 0 8px 8px 0;
+  text-align: left;
+}
+
+.cart-panel .cart-env-notice { max-width: none; }

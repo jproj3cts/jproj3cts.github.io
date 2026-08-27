@@ -1,44 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Coherence Length Calculator</title>
+<link rel="icon" type="image/png" href="../assets/jekicon.png">
+<link rel="stylesheet" href="../assets/jek.css">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-<style>
-html, body {margin:0; height:100%; font-family:Arial,sans-serif; background:#e4cbb7; color:white; max-width:100%; overflow-x:hidden;}
-body{display:flex; flex-direction:column;}
-
-.top-container{width:100%; display:flex; flex-direction:column; height:10vh; box-shadow:0 2px 5px rgba(0,0,0,0.3); position:relative; z-index:10;}
-.bar{flex:1; height:1.6vh;}
-.bar1{background:#ffb347;} .bar2{background:#f47742;} .bar3{background:#db3550;}
-.bar4{background:#73b9ca;} .bar5{background:#0092b2;}
-.bar6{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; font-size:1.5vh; padding:0 10px; background:#000000; max-width:100vw; overflow-x:hidden;}
-.bar6 a{color:white; text-decoration:none; margin:0 5px;}
-.bar6 a:hover{text-decoration:underline;}
-.text-overlay{position:absolute;top:0; left:0; width:100%; height:10vh; display:flex; justify-content:center; align-items:center; font-size:3vh; font-weight:bold; pointer-events:none; z-index:10;}
-
-.main-content{flex:1; overflow-y:auto; padding:2rem; display:flex; flex-direction:column; align-items:center; color:#000000; width:100%; max-width:100vw; overflow-x:hidden;}
-.page-title{font-size:2rem; font-weight:bold; margin-bottom:2rem; text-align:center;}
-
-.calc-grid{display:flex; flex-wrap:wrap; justify-content:center; gap:1rem; width:100%; max-width:1000px;}
-.calc-card, .diagram-area{background:rgba(255,255,255,0.66); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:12px; color:#000000; min-width:280px; max-width:350px;}
-.calc-card input, .calc-card select{padding:6px; font-size:0.95rem; border-radius:5px; border:2px solid #000000; background:white; color:#000000; width:120px;}
-.calc-card button{background:#0092b2; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;}
-.calc-card button:hover{background:#73b9ca;}
-.eq-grid{display:flex; flex-direction:column; gap:20px; justify-content:center; width:100%; align-items:center;}
-.eq-column{display:flex; flex-direction:column; gap:10px; width:100%; text-align:center; align-items:center;}
-.eq-box{width:100%; min-height:50px; background:rgba(255,255,255,1); border-radius:12px; display:flex; justify-content:center; align-items:center; font-size:0.85rem; line-height:1.1;}
-.diagram-image{width:100%; height:150px; border-radius:12px; background:rgba(255,255,255,0.1); display:flex; justify-content:center; align-items:center; color:#000000; font-size:0.9rem; margin-bottom:10px;}
-.param-box-wrapper{width:100%; display:flex; justify-content:center; margin-top:10px;}
-.param-box{background:rgba(255,255,255,1); border-radius:12px; padding:10px; width:90%; text-align:center; font-size:0.85rem; line-height:1.3;}
-.param-box strong{font-weight:bold;}
-footer{width:100%; padding:20px 0; display:flex; flex-direction:column; align-items:center; gap:8px;}
-footer .bottom-image{height:8vh; width:auto; max-width:30vw;}
-footer .copyright{color:#000000;}
-@media(max-width:900px){ .calc-grid{flex-direction:column;align-items:center;} }
-@media(max-width:500px){ .calc-card input, .calc-card select{width:100px;} .param-box{max-width:95%;} }
-</style>
 </head>
 <body>
 
@@ -54,9 +22,10 @@ footer .copyright{color:#000000;}
     <a href="calculators.html">Calculators</a> |
     <a href="../Bio.html">Bio</a> |
     <a href="../Contact.html">Contact</a>
+    <a class="nav-cart" href="../cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
   </div>
 
-  <div class="text-overlay">EJEKT</div>
+  <div class="text-overlay">JEK Systems</div>
 </div>
 
 <main class="main-content">
@@ -111,33 +80,16 @@ footer .copyright{color:#000000;}
   </div>
 </main>
 
-<footer style="position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; padding-bottom: 4.5vh;">
-
-  <!-- Main footer content -->
+<footer>
   <a href="../index.html">
-    <img src="../jek.png" class="bottom-image" style="height: 8vh; width: auto;">
+    <img src="../jek.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright" style="font-size: 0.8rem; color:#000000; text-align: center; margin-top: 0vh;">
-    © 2025 EJEKT
-  </span>
-
-  <!-- Black bar at the bottom -->
-  <div class="bar6" style="
-      background: black; 
-      display: flex; 
-      justify-content: center; 
-      flex-wrap: wrap; 
-      padding: 1vh 0; 
-      width: 100%; 
-      position: absolute; 
-      bottom: 0; 
-      left: 0;
-  ">
-    <a href="mailto:sales@ejekt.org" style="color: white; margin: 0 5px;">sales@ejekt.org</a> |
-    <a href="mailto:support@ejekt.org" style="color: white; margin: 0 5px;">support@ejekt.org</a> |
-    <a href="mailto:vendors@ejekt.org" style="color: white; margin: 0 5px;">vendors@ejekt.org</a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
   </div>
-
 </footer>
 
 <script>
@@ -166,6 +118,7 @@ function compute(){
 }
 </script>
 
+<script src="../assets/cart.js"></script>
+
 </body>
 </html>
-

@@ -4,8 +4,194 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>μRPG - Character Creator</title>
-<link rel="icon" type="image/png" href="../assets/jekicon.png">
-<link rel="stylesheet" href="../assets/urpg.css">
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: #0a0a0a;
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+
+  body { display: flex; flex-direction: column; }
+
+  /* Top Bars */
+  .top-container { width: 100%; display: flex; flex-direction: column; height: 8vh; position: relative; }
+  .bar { flex: 1; }
+  .bar1 { background: #ffb347; } .bar2 { background: #f47742; } .bar3 { background: #db3550; }
+  .bar4 { background: #73b9ca; } .bar5 { background: #0092b2; }
+  .bar6 {
+    background: #2f1b41;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5vh;
+    padding: 0 10px;
+    flex-wrap: wrap;
+  }
+  .bar6 a { color: white; text-decoration: none; margin: 0 5px; }
+  .bar6 a:hover { text-decoration: underline; }
+
+  .text-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 8vh;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 3vh; font-weight: bold;
+    pointer-events: none; z-index: 20;
+  }
+
+  /* Main content */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    box-sizing: border-box;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .page-title { font-weight: bold; font-size: 2rem; margin-bottom: 1rem; }
+
+ .character-display {
+  position: relative;
+  width: 1in;
+  height: 1in;
+  margin-bottom: 2rem;
+  border: 2px solid white;
+  background: #0a0a0a;
+  flex-shrink: 0;
+  flex-grow: 0;
+  }
+ .character-display img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1in;
+  height: 1in;
+  image-rendering: pixelated;
+  }
+
+
+  /* Option panels in two columns */
+  .options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem 2rem;
+    justify-items: center;
+    max-width: 700px;
+    margin-bottom: 2rem;
+  }
+
+  .option-group {
+    background: #0a0a0a;
+    border: 2px solid white;
+    border-radius: 0.5in;
+    padding: 1rem 2rem;
+    width: 2in;
+    height: 0.1in;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .option-group.centered {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  .option-group h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    text-align: center;
+    flex-grow: 1;
+  }
+
+  .arrow-button {
+    background: #0a0a0a;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .arrow-button:hover { background: #ffffff; }
+
+  /* Action buttons */
+  .button-bar {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .action-button {
+    background: #db3550;
+    color: white;
+    border: 2px solid white;
+    border-radius: 6px;
+    padding: 0.8rem 2rem;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .action-button:hover { background: #f47742; }
+
+  footer {
+    width: 100%;
+    background: transparent;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .bottom-image {
+    height: 8vh;
+    width: auto;
+    max-width: 30vw;
+  }
+
+ .option-group {
+  background: #0a0a0a;
+  border: 2px solid white;
+  border-radius: 50px;
+  padding: 0.5rem 1rem; /* smaller padding */
+  width: 256px; /* default desktop width */
+  height: auto; /* let height adjust */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* allow content to wrap */
+  }
+
+ @media (max-width: 600px) {
+  .option-group {
+    width: 90%; /* fill almost full width */
+    height: auto;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem; /* spacing between rows */
+    }
+  .arrow-button {
+    width: 30px;
+    height: 30px;
+    font-size: 1.2rem;
+    }
+  .option-group h3 {
+    font-size: 1rem;
+    margin: 0.2rem 0;
+    flex-basis: 100%; /* title goes full width */
+    text-align: center;
+    }
+   }
+
+</style>
 </head>
 <body>
 
@@ -18,9 +204,7 @@
     <div class="bar bar5"></div>
     <div class="bar bar6">
       <a href="../ucatalogue.html">Catalogue</a> |
-      <a href="../uRPG/uMakers.html">For Makers</a> |
-      <a href="../uttrpg.html">About</a> |
-      <a href="../uRPG/uDonate.html">Donations</a>
+      <a href="../uTTRPG.html">About</a> |
     </div>
     <div class="text-overlay">μRPG</div>
   </div>
@@ -57,6 +241,7 @@
 <footer>
   <a href="../uttrpg.html">
     <img
+      style="float: right; border: 3px solid white; border-radius: 50%;"
       src="../media/uTTRPGlogo.png"
       alt="Company Logo"
       class="bottom-image"
@@ -135,3 +320,10 @@
 
 </body>
 </html>
+
+
+
+
+
+
+

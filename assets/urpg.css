@@ -1,0 +1,493 @@
+/* ==========================================================================
+   μRPG — shared stylesheet
+   The dark sibling of assets/jek.css. Same five-colour spectrum, same
+   structural conventions (rem type scale, visible focus, spectrum rule),
+   but tuned for a dark ground.
+
+   Background colours are deliberately left exactly as they were: the page
+   ground stays #0a0a0a (#0041ba on the Echo Station page), the masthead
+   bars keep their colours, panels stay unfilled and the footer stays
+   transparent. Structure here is carried by borders, spacing and type
+   rather than by surface fills.
+   ========================================================================== */
+
+:root {
+  /* Brand spectrum — shared with the JEK side */
+  --urpg-amber:  #ffb347;
+  --urpg-orange: #f47742;
+  --urpg-red:    #db3550;
+  --urpg-sky:    #73b9ca;
+  --urpg-cyan:   #0092b2;
+
+  /* Ground — unchanged from the original pages */
+  --urpg-bg:  #0a0a0a;
+  --urpg-bar: #000000;
+
+  /* Ink on a dark ground */
+  --urpg-ink:      #ffffff;
+  --urpg-ink-soft: rgba(255, 255, 255, 0.64);
+
+  /* Hairlines. On dark, structure comes from borders, not fills. */
+  --urpg-line:   rgba(255, 255, 255, 0.16);
+  --urpg-line-2: rgba(255, 255, 255, 0.34);
+
+  /* Amber is the μRPG accent — distinct from JEK's cyan, same palette */
+  --urpg-accent: #ffb347;
+  --urpg-focus:  0 0 0 3px rgba(255, 179, 71, 0.45);
+
+  --urpg-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  --urpg-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
+               Consolas, "Liberation Mono", monospace;
+
+  --urpg-measure: 44rem;
+  --urpg-radius: 10px;
+}
+
+/* The Echo Station page keeps its own blue ground */
+body.ground-echo { --urpg-bg: #0041ba; }
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--urpg-bg);
+  font-family: var(--urpg-sans);
+  color: var(--urpg-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Masthead
+   -------------------------------------------------------------------------- */
+
+.top-container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 72px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.bar  { flex: 1; min-height: 7px; }
+.bar1 { background: var(--urpg-amber); }
+.bar2 { background: var(--urpg-orange); }
+.bar3 { background: var(--urpg-red); }
+.bar4 { background: var(--urpg-sky); }
+.bar5 { background: var(--urpg-cyan); }
+
+.bar6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.1rem;
+  min-height: 34px;
+  padding: 0.35rem 0.75rem;
+  background: var(--urpg-bar);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.bar6 a {
+  margin: 0 0.45rem;
+  padding: 0.15rem 0.1rem;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+}
+
+.bar6 a:hover { border-bottom-color: var(--urpg-accent); text-decoration: none; }
+
+.bar6 a:focus-visible {
+  outline: 2px solid var(--urpg-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* μRPG wordmark over the spectrum bars */
+.text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 38px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: clamp(1rem, 0.85rem + 0.6vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* --------------------------------------------------------------------------
+   Page shell
+   -------------------------------------------------------------------------- */
+
+.main-content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--urpg-ink);
+  text-align: center;
+}
+
+.page-title {
+  margin: 0 0 1.75rem;
+  max-width: 26ch;
+  font-size: clamp(1.4rem, 1.1rem + 1.3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--urpg-ink);
+  text-align: center;
+}
+
+/* The spectrum rule, as on the JEK side */
+.page-title::after {
+  content: "";
+  display: block;
+  width: 88px;
+  height: 3px;
+  margin: 0.75rem auto 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--urpg-amber) 0%, var(--urpg-amber) 20%,
+    var(--urpg-orange) 20%, var(--urpg-orange) 40%,
+    var(--urpg-red) 40%, var(--urpg-red) 60%,
+    var(--urpg-sky) 60%, var(--urpg-sky) 80%,
+    var(--urpg-cyan) 80%, var(--urpg-cyan) 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Prose — one reading column, matching the JEK side's measure
+   -------------------------------------------------------------------------- */
+
+.main-content > h2,
+.main-content > h3 {
+  width: 100%;
+  max-width: var(--urpg-measure);
+  margin: 1.75rem 0 0.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--urpg-ink);
+  text-align: left;
+}
+
+.main-content > h2 {
+  padding-bottom: 0.4rem;
+  font-size: 1.25rem;
+  border-bottom: 1px solid var(--urpg-line);
+}
+
+.main-content > h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--urpg-accent);
+}
+
+.main-content > p,
+.main-content p {
+  width: 100%;
+  max-width: var(--urpg-measure);
+  margin: 0 0 1rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+  text-align: left;
+}
+
+.main-content a { color: var(--urpg-accent); }
+.main-content a:hover { text-decoration: underline; }
+
+.main-content a:focus-visible {
+  outline: 2px solid var(--urpg-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Catalogue / For Makers grid
+   -------------------------------------------------------------------------- */
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(233px, 1fr));
+  gap: 1.75rem;
+  width: 100%;
+  max-width: 760px;
+}
+
+/* No fill — the card is drawn with a hairline and a spectrum top edge */
+.image-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0.85rem;
+  overflow: hidden;
+  border: 1px solid var(--urpg-line);
+  border-radius: var(--urpg-radius);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.image-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    var(--urpg-amber), var(--urpg-orange), var(--urpg-red),
+    var(--urpg-sky), var(--urpg-cyan));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.image-item:hover { border-color: var(--urpg-line-2); transform: translateY(-2px); }
+.image-item:hover::before { opacity: 1; }
+
+.image-item a { display: block; border-radius: 8px; }
+
+.image-item a:focus-visible {
+  outline: none;
+  box-shadow: var(--urpg-focus);
+}
+
+.image-item img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 8px;
+  transition: filter 0.3s ease;
+}
+
+.image-item:hover img { filter: brightness(0.55); }
+
+.info-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  width: 100%;
+  margin: 0.75rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--urpg-line);
+}
+
+.info-line .price {
+  font-family: var(--urpg-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--urpg-accent);
+}
+
+.info-line .title {
+  width: 100%;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--urpg-ink);
+  text-align: left;
+}
+
+.description {
+  width: 100%;
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--urpg-ink-soft);
+  text-align: left;
+}
+
+/* --------------------------------------------------------------------------
+   Character builder
+   -------------------------------------------------------------------------- */
+
+.character-display {
+  position: relative;
+  width: 1in;
+  height: 1in;
+  margin-bottom: 2rem;
+  flex-shrink: 0;
+  flex-grow: 0;
+  background: #0a0a0a;
+  border: 2px solid var(--urpg-line-2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.character-display img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1in;
+  height: 1in;
+  image-rendering: pixelated;
+}
+
+.options-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.9rem 1.75rem;
+  justify-items: center;
+  width: 100%;
+  max-width: 700px;
+  margin-bottom: 2rem;
+}
+
+.option-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 2.4in;
+  min-height: 2.9rem;
+  padding: 0.5rem 0.9rem;
+  background: #0a0a0a;
+  border: 1px solid var(--urpg-line-2);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.option-group.centered { grid-column: 1 / -1; justify-self: center; }
+
+.option-group h3 {
+  flex-grow: 1;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  color: var(--urpg-ink);
+}
+
+.arrow-button {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: #fff;
+  background: #0a0a0a;
+  border: 1px solid var(--urpg-line-2);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.arrow-button:hover { background: #ffffff; color: #0a0a0a; border-color: #ffffff; }
+.arrow-button:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+
+.button-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.action-button {
+  padding: 0.6rem 1.4rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: #db3550;
+  border: 2px solid #db3550;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+
+.action-button:hover { background: #f47742; border-color: #f47742; }
+.action-button:active { transform: translateY(1px); }
+.action-button:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+
+/* --------------------------------------------------------------------------
+   Footer — stays transparent
+   -------------------------------------------------------------------------- */
+
+footer {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 1.25rem 1.5rem 1.75rem;
+  background: transparent;
+}
+
+footer .bottom-image {
+  height: auto;
+  width: auto;
+  max-height: 62px;
+  max-width: 30vw;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  display: block;
+}
+
+footer a:focus-visible {
+  outline: 2px solid var(--urpg-accent);
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 520px) {
+  .bar6 { font-size: 0.75rem; }
+  .bar6 a { margin: 0 0.3rem; }
+  .image-grid { gap: 1.25rem; }
+  .option-group { width: 100%; max-width: 18rem; }
+  footer { justify-content: center; padding: 1.25rem 1rem 1.5rem; }
+  footer .bottom-image { max-width: 45vw; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

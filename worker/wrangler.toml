@@ -1,0 +1,28 @@
+name = "jek-fulfilment"
+main = "src/index.js"
+compatibility_date = "2025-05-01"
+
+# Non-secret config. Secrets go in via `wrangler secret put` — never here.
+[vars]
+FROM_EMAIL = "uRPG <uRPG@jeksys.net>"
+SUPPORT_EMAIL = "support@jeksys.net"
+ALERT_EMAIL   = "support@jeksys.net"
+
+# R2 bucket holding the deliverable files.
+[[r2_buckets]]
+binding     = "PRODUCTS"
+bucket_name = "jek-products"
+
+# KV namespace used for webhook idempotency.
+# Replace the id with the one `wrangler kv namespace create FULFILMENT` prints.
+[[kv_namespaces]]
+binding = "FULFILMENT"
+id      = "edcab4d0058243919530b6452463a1fb"
+
+# Custom domain route. Needs api.jeksys.net to exist as a DNS record in the
+# same Cloudflare zone (a proxied AAAA to 100:: is the usual placeholder).
+# You can skip this entirely at first and use the workers.dev URL.
+# [[routes]]
+# pattern = "api.jeksys.net/*"
+# zone_name = "jeksys.net"
+# custom_domain = false

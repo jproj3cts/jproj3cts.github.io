@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>μRPG</title>
+<title>Terror of Echo Station — μRPG</title>
 <link rel="icon" type="image/png" href="../assets/jekicon.png">
 <link rel="stylesheet" href="../assets/urpg.css">
 </head>
@@ -24,27 +24,96 @@
     </div>
     <div class="text-overlay">μRPG</div>
   </div>
+
   <!-- Scrollable Content Area -->
   <main class="main-content">
-    <h1 class="page-title">For Makers</h1>
-    <div class="image-grid">
 
-      <div class="image-item">
-  	<a href="assets/forMakers/Tetrominoes.zip" download>
-    	<img src="assets/forMakers/tetrominoFiles.png" alt="Tetrominoes">
-  	</a>
-  	<div class="info-line">
-    	<span class="price">Free</span>
-    	<span class="title">Tetromino .stl Files</span>
-  	</div>
-  	<p class="description">3D printable files for the inventory management tetrominoes.</p>
-	</div>
+    <div class="product-layout">
 
-		
-
+      <!-- ============ LEFT: image gallery ============
+           To add an image: drop one more <img> in .gallery-stage below.
+           A pip is generated automatically for each one. Keep the first
+           image marked class="is-active".                              -->
+      <div class="product-gallery">
+        <div class="gallery-stage" id="galleryStage">
+          <img class="is-active"
+               src="assets/TerrorofEchoStation.png"
+               alt="Terror of Echo Station — cover">
+          <img src="assets/TerrorofEchoStation_slide2_PLACEHOLDER.png"
+               alt="Terror of Echo Station — interior spread" loading="lazy">
+          <img src="assets/TerrorofEchoStation_slide3_PLACEHOLDER.png"
+               alt="Terror of Echo Station — station map" loading="lazy">
+        </div>
+        <div class="gallery-pips" id="galleryPips" role="tablist"
+             aria-label="Product images"></div>
       </div>
 
-     </div>
+      <!-- ============ RIGHT: buy + description ============ -->
+      <div class="product-detail">
+
+        <h1 class="product-title">Terror of Echo Station</h1>
+        <p class="product-price">£4.99 — digital</p>
+
+        <!-- STRIPE: replace the href with your Payment Link URL -->
+        <a class="buy-button"
+           href="https://buy.stripe.com/3cIfZa8TG0hX3SL9HIgbm04">
+          Buy (digital)
+        </a>
+
+        <p class="buy-note">
+          Secure checkout via Stripe. A PDF download is emailed to you
+          automatically once payment clears.
+        </p>
+
+        <div class="product-description">
+          <h2>The Module</h2>
+          <p>
+            Echo Station is a polar research base sunk over a fresh impact
+            crater, built in secret by the High Commission to study the
+            meteorite buried beneath the ice. Weeks ago, it stopped answering.
+          </p>
+          <p>
+            Restore communications. Account for the staff. Recover anything
+            interesting. Touch nothing that seems out of place.
+          </p>
+          <p>
+            Eight people wintered here. Three of them are already dead, and the
+            survivors have a story that doesn't match the blood on the floor.
+            Cold, close, and built on not knowing who to trust — horror in the
+            vein of <em>The Thing</em>.
+          </p>
+
+          <h2>What's Inside</h2>
+          <ul>
+            <li>Three keyed locations — the Boathouse, Base Camp and the
+                Crater Summit — plus an overview map of the site</li>
+            <li>Room plans for the barracks, dog shed, washroom, basement,
+                lift platform, lab and medical unit</li>
+            <li>A minute-by-minute timeline of the morning it went wrong, so
+                the station plays as an unfolding scene rather than a set of
+                empty rooms</li>
+            <li>Eight named personnel, and what's left of them</li>
+            <li>A statblock for the thing out on the ice</li>
+            <li>A sunken ship, a frozen basement door, and a dog team loose in
+                the snow</li>
+          </ul>
+
+          <h2>You'll Need</h2>
+          <p>
+            The μRPG <a href="../ucatalogue.html">Basic Rules</a> (free), a
+            character sheet per player, and dice.
+          </p>
+
+          <h2>Format</h2>
+          <p>
+            Two pages, print-ready PDF. Digital only — nothing is shipped.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <p class="product-back"><a href="../ucatalogue.html">← Back to catalogue</a></p>
 
   </main>
 
@@ -58,6 +127,52 @@
     />
   </a>
 </footer>
+
+<script>
+(function () {
+  var stage = document.getElementById('galleryStage');
+  var pips  = document.getElementById('galleryPips');
+  if (!stage || !pips) return;
+
+  var slides = Array.prototype.slice.call(stage.querySelectorAll('img'));
+  if (slides.length < 2) { pips.hidden = true; return; }
+
+  var current = Math.max(0, slides.findIndex(function (s) {
+    return s.classList.contains('is-active');
+  }));
+
+  function show(i) {
+    current = (i + slides.length) % slides.length;
+    slides.forEach(function (s, n) {
+      s.classList.toggle('is-active', n === current);
+    });
+    buttons.forEach(function (b, n) {
+      b.setAttribute('aria-selected', n === current ? 'true' : 'false');
+      b.tabIndex = n === current ? 0 : -1;
+    });
+  }
+
+  var buttons = slides.map(function (slide, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pip';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', 'Image ' + (i + 1) + ' of ' + slides.length);
+    b.addEventListener('click', function () { show(i); });
+    b.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault(); show(current + 1); buttons[current].focus();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault(); show(current - 1); buttons[current].focus();
+      }
+    });
+    pips.appendChild(b);
+    return b;
+  });
+
+  show(current);
+})();
+</script>
 
 </body>
 </html>

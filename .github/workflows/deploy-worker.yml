@@ -1,0 +1,38 @@
+# Deploys the fulfilment worker to Cloudflare when anything under worker/
+# changes on main. GitHub Pages handles the static site separately — this
+# workflow has nothing to do with that.
+#
+# Requires one repository secret:
+#   CLOUDFLARE_API_TOKEN — Cloudflare dashboard > My Profile > API Tokens,
+#                          using the "Edit Cloudflare Workers" template.
+#
+# The worker's own secrets (Stripe, Resend) are NOT needed here. They live
+# in Cloudflare and persist across deploys.
+
+name: Deploy fulfilment worker
+
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: worker
+        run: npm install
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: worker

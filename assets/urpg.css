@@ -491,3 +491,184 @@ footer a:focus-visible {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Product page — image gallery (left) + buy panel (right)
+   Used by uRPG/TerrorofEchoStationProductPage.html
+   -------------------------------------------------------------------------- */
+
+.product-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+  width: 100%;
+  max-width: 1000px;
+  text-align: left;
+}
+
+/* --- Left: gallery ------------------------------------------------------- */
+
+.gallery-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 559 / 795;      /* the cover's ratio; edit if art differs */
+  border: 1px solid var(--urpg-line);
+  border-radius: var(--urpg-radius);
+  overflow: hidden;
+}
+
+.gallery-stage img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.gallery-stage img.is-active { opacity: 1; }
+
+.gallery-pips {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.gallery-pips[hidden] { display: none; }
+
+.pip {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--urpg-line-2);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pip:hover { border-color: #fff; }
+
+.pip[aria-selected="true"] {
+  background: var(--urpg-accent);
+  border-color: var(--urpg-accent);
+}
+
+.pip:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+
+/* --- Right: buy panel ---------------------------------------------------- */
+
+.product-detail { display: flex; flex-direction: column; }
+
+.product-title {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 1.1rem + 1.1vw, 1.85rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--urpg-ink);
+  text-align: left;
+}
+
+.product-price {
+  margin: 0 0 1.25rem;
+  font-family: var(--urpg-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--urpg-accent);
+}
+
+.main-content .buy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.9rem 1.5rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #0a0a0a;
+  background: var(--urpg-accent);
+  border: 2px solid var(--urpg-accent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease,
+              color 0.12s ease, transform 0.06s ease;
+}
+
+.main-content .buy-button:hover {
+  background: var(--urpg-orange);
+  border-color: var(--urpg-orange);
+  color: #fff;
+  text-decoration: none;
+}
+
+.main-content .buy-button:active { transform: translateY(1px); }
+.main-content .buy-button:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+
+.buy-note {
+  margin: 0.7rem 0 0;
+  font-family: var(--urpg-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--urpg-ink-soft);
+  text-align: left;
+}
+
+.product-description {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--urpg-line);
+}
+
+.product-description h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--urpg-accent);
+  text-align: left;
+}
+
+.product-description h2:first-child { margin-top: 0; }
+
+.product-description p {
+  margin: 0 0 0.9rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.88);
+  text-align: left;
+}
+
+.product-description ul {
+  margin: 0 0 0.9rem;
+  padding-left: 1.15rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.88);
+  text-align: left;
+}
+
+.product-description li { margin-bottom: 0.35rem; }
+
+.product-back {
+  width: 100%;
+  max-width: 1000px;
+  margin: 2.25rem 0 0;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+@media (max-width: 860px) {
+  .product-layout { grid-template-columns: minmax(0, 1fr); }
+  .gallery-stage  { max-width: 380px; margin: 0 auto; }
+  .gallery-pips   { margin-bottom: 0.5rem; }
+}

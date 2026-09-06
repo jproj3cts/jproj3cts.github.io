@@ -6,6 +6,28 @@
 <title>JEK Systems</title>
 <link rel="icon" type="image/png" href="assets/jekicon.png">
 <link rel="stylesheet" href="assets/jek.css">
+
+<!-- Bio-only overrides. Kept here so this page can be updated on its own;
+     move into assets/jek.css whenever convenient. -->
+<style>
+  /* Section accents: amber for the bio, red for publications, cyan for outreach.
+     Only the border-left colour is changed, so width, fill and radius still
+     come from article.mb-4 in jek.css. */
+  article.mb-4.bio-amber { border-left-color: var(--jek-amber); }
+  article.mb-4.bio-red   { border-left-color: var(--jek-red); }
+  article.mb-4.bio-blue  { border-left-color: var(--jek-cyan); }
+
+  /* Rectangular portrait rather than a circle */
+  .profile-pic {
+    width: 200px;
+    height: 250px;
+    border-radius: 8px;
+  }
+
+  @media (max-width: 520px) {
+    .profile-pic { width: 160px; height: 200px; }
+  }
+</style>
 </head>
 <body>
 
@@ -33,30 +55,31 @@
   <!-- Profile picture -->
   <img src="media/Profile.jpeg" alt="Dr. Joseph Kelly" class="profile-pic">
 
-  <!-- First paragraph -->
   <h2>Dr. Joe Kelly</h2>
-  <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics, and embedded electronics.
-  Experienced in full-stack system development, from laser-based sensor design to analog/digital circuit prototyping and PCB layout.
-  Strong track record in R&D leadership, cross-functional collaboration, and delivering patented technologies in quantum and optical systems.</p>
 
-  <!-- Section Headings as actual headings -->
+  <article class="mb-4 bio-amber">
+    <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics, and embedded electronics.
+    Experienced in full-stack system development, from laser-based sensor design to analog/digital circuit prototyping and PCB layout.
+    Strong track record in R&amp;D leadership, cross-functional collaboration, and delivering patented technologies in quantum and optical systems.</p>
+  </article>
+
   <h2>Publications</h2>
-    
-  <article class="mb-4"> 
+
+  <article class="mb-4 bio-red"> 
     <p>
       Zhenan Chen, Sophie Sanghera, Yanhui Hu, Maryam Nikkhou, Alex Gee, David Burt, Qiongyuan Wu, <strong>Joseph Kelly</strong>, and James Millen.
       (2026). Optomechanical Levitation and Control of High Aspect Ratio Silicon Nanorods. <em>arXiv preprint arXiv:2608.07415</em>.
     </p> 
   </article>
 
-<article class="mb-4">
-  <p> <strong>Joseph Kelly</strong>, James Millen, Andrew Chew, Hannah Vandenwijngaerden. (2025).
-    Nanoobject trap and method of confining a nanoobject. <em>UK Patent Application GB2500417.7</em>,
-    filed 13 January 2025. UK Intellectual Property Office.
-  </p>
-</article>
+  <article class="mb-4 bio-red">
+    <p> <strong>Joseph Kelly</strong>, James Millen, Andrew Chew, Hannah Vandenwijngaerden. (2025).
+      Nanoobject trap and method of confining a nanoobject. <em>UK Patent Application GB2500417.7</em>,
+      filed 13 January 2025. UK Intellectual Property Office.
+    </p>
+  </article>
     
-  <article class="mb-4">
+  <article class="mb-4 bio-red">
     <p>
       <strong>Joseph Kelly</strong>, Eleanor Fradgley, Lida Zhang, and Vincent Boyer. 
       (2025). Mode hitching in traveling-wave optical parametric amplification. 
@@ -66,7 +89,8 @@
       </a>
     </p>
   </article>
-  <article class="mb-4">
+
+  <article class="mb-4 bio-red">
     <p>
       <strong>Joseph Kelly</strong>. (2024). Propagation effects within an Extended Optical Amplifier and their impact on the Spatial Distribution of squeezing: towards Quantum Imaging. 
       <em>University of Birmingham</em>. PhD Thesis.
@@ -74,14 +98,17 @@
   </article>
 
   <h2>Media and Outreach</h2>
-    <p>
+
+  <p>
     I believe that science communication and outreach are vital for inspiring optimism about research and encouraging investment in it. Below, I have listed some of my activities in this space.
-    </p>
-  <!-- Add media content here -->
+  </p>
+
+  <article class="mb-4 bio-blue">
     <p>
       <strong>Joseph Kelly</strong>. (2024). Interview on <em>Sun, sea... and science</em>. <em>BBC Radio 4</em>, July 4, 2024. 
       <a href="https://www.bbc.co.uk/programmes/m0020pfy" target="_blank" rel="noopener">https://www.bbc.co.uk/programmes/m0020pfy</a>
     </p>
+  </article>
 
 </main>
 

@@ -45,7 +45,7 @@
   --jek-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
               Consolas, "Liberation Mono", monospace;
 
-  --jek-radius: 10px;
+  --jek-radius: 3px;
 
   /* Reading measure for prose pages */
   --jek-measure: 46rem;

@@ -6,6 +6,35 @@
 <title>JEK Systems</title>
 <link rel="icon" type="image/png" href="assets/jekicon.png">
 <link rel="stylesheet" href="assets/jek.css">
+
+<!-- Products-only overrides. Move into assets/jek.css whenever convenient. -->
+<style>
+  /* Sub-categories join into one continuous colour-keyed stack per column
+     instead of sitting in separate floating boxes. */
+  .subcat-grid { gap: 0; }
+
+  .subcat-box { border-radius: 0; }
+
+  .subcat-box + .subcat-box {
+    margin-top: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.30);
+  }
+
+  /* Only the ends of the stack are rounded. Tracks --jek-radius so it stays
+     in step with the rest of the site. */
+  .subcat-grid .subcat-box:first-child {
+    border-top-left-radius: var(--jek-radius);
+    border-top-right-radius: var(--jek-radius);
+  }
+
+  .subcat-grid .subcat-box:last-child {
+    border-bottom-left-radius: var(--jek-radius);
+    border-bottom-right-radius: var(--jek-radius);
+  }
+
+  /* jek.css still hardcodes 4px on these link chips */
+  .subcat-panel-inner a { border-radius: 2px; }
+</style>
 </head>
 
 <body>

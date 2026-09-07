@@ -17,11 +17,9 @@
 export const CATALOGUE = {
   // ---- μRPG -------------------------------------------------------------
   'price_1U8rAc3K18Mm3wzNHMXAKuwG': {
-    name: 'Terror of Echo Station',
-    // Object key inside the R2 bucket
-    r2Key: 'urpg/terror-of-echo-station-v1.pdf',
-    // Filename the customer sees on the attachment
-    filename: 'Terror of Echo Station - uRPG.pdf',
+    name: 'Outpost 32',
+    r2Key: 'urpg/outpost32-v1.pdf',
+    filename: 'Outpost32.pdf',
   },
 
   // ---- add further products here ---------------------------------------

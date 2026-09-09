@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Q-Switched Pulse Energy Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
+  <div class="bar bar4"></div><div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Q-Switched Pulse Energy Calculator</h1>
+
+  <div class="calc-grid">
+
+    <div class="calc-card">
+      <label>Average Power</label>
+      <div class="input-row">
+        <input type="number" id="avg-power" step="0.01"/>
+        <select id="power-prefix">
+          <option value="1">W</option>
+          <option value="1e-3">mW</option>
+          <option value="1e-6">µW</option>
+        </select>
+      </div>
+
+      <label>Repetition Rate</label>
+      <div class="input-row">
+        <input type="number" id="rep-rate" step="1"/>
+        <select id="rep-prefix">
+          <option value="1">Hz</option>
+          <option value="1e3">kHz</option>
+          <option value="1e6">MHz</option>
+          <option value="1e9">GHz</option>
+          <option value="1e12">THz</option>
+        </select>
+      </div>
+
+      <button onclick="calculatePulseEnergy()">Calculate</button>
+    </div>
+
+    <div class="diagram-area">
+      <div class="eq-grid">
+        <div class="eq-column">
+          <!-- Static equation -->
+          <div class="eq-box">\(E_{\rm pulse} = \frac{P_{\rm avg}}{f_{\rm rep}}\)</div>
+          <!-- Dynamic result -->
+          <div class="eq-box" id="pulse-energy-result">\(E_{\rm pulse} = ?\)</div>
+        </div>
+      </div>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Parameter Key:</strong>
+          <span>\(P_{\rm avg}\) = Average Power</span>
+          <span>\(f_{\rm rep}\) = Repetition Rate</span>
+          <span>\(E_{\rm pulse}\) = Pulse Energy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+function calculatePulseEnergy() {
+  let P_avg = parseFloat(document.getElementById('avg-power').value);
+  const powerPrefix = parseFloat(document.getElementById('power-prefix').value);
+  let f_rep = parseFloat(document.getElementById('rep-rate').value);
+  const repPrefix = parseFloat(document.getElementById('rep-prefix').value);
+
+  if (!P_avg || P_avg <= 0 || !f_rep || f_rep <= 0) {
+    alert("Please enter valid positive numbers for power and repetition rate.");
+    return;
+  }
+
+  // Apply prefix scaling
+  P_avg *= powerPrefix;
+  f_rep *= repPrefix;
+
+  const E_pulse = P_avg / f_rep;
+
+  let displayValue = E_pulse;
+  let unit = "J";
+
+  if (E_pulse < 1e-6) { displayValue *= 1e9; unit = "nJ"; }
+  else if (E_pulse < 1e-3) { displayValue *= 1e6; unit = "µJ"; }
+  else if (E_pulse < 1) { displayValue *= 1e3; unit = "mJ"; }
+
+  // Use innerHTML with \( ... \) for inline MathJax parsing
+  document.getElementById('pulse-energy-result').innerHTML =
+    `\\(E_{\\rm pulse} = ${displayValue.toFixed(3)}\\,${unit}\\)`;
+
+  MathJax.typesetPromise();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

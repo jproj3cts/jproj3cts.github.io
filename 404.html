@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Page not found &mdash; JEK Systems</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+  /* This page is served for misses on both sides of the site, so it stays
+     neutral: no masthead, no nav, nothing that implies you are in one half
+     or the other. */
+  .notfound { max-width: var(--jek-measure); }
+  .notfound ul { list-style: none; padding: 0; }
+  .notfound li { margin: 0.35rem 0; }
+</style>
+</head>
+<body>
+
+  <main class="main-content notfound">
+    <h1 class="page-title">Page not found</h1>
+
+    <p id="forwarding" hidden>Taking you to the new address for this page&hellip;</p>
+
+    <div id="missing">
+      <p>That address doesn&rsquo;t exist. The two halves of the site start here:</p>
+      <ul>
+        <li><a href="/jek/">JEK Systems</a> &mdash; instrumentation, custom design work and the optics calculators</li>
+        <li><a href="/urpg/">&#956;RPG</a> &mdash; the tabletop roleplaying game, its catalogue and tools</li>
+      </ul>
+    </div>
+  </main>
+
+<script>
+/* The site was reorganised into /jek/ and /urpg/. GitHub Pages has no
+   server-side redirect table, so old addresses are forwarded from here.
+   Delete an entry once you're confident nothing links to it any more. */
+(function () {
+  var moved = {
+    "/index.html":                            "/jek/",
+    "/Products.html":                         "/jek/products.html",
+    "/CustomSolutions.html":                  "/jek/custom-solutions.html",
+    "/Bio.html":                              "/jek/bio.html",
+    "/Contact.html":                          "/jek/contact.html",
+    "/cart.html":                             "/jek/cart.html",
+    "/results.html":                          "/jek/search-results.html",
+    "/comingSoon.html":                       "/jek/coming-soon.html",
+    "/calculators/calculators.html":          "/jek/calculators/",
+    "/products/track1/track1.html":           "/jek/products/photodetectors/",
+    "/products/track2/track2.html":           "/jek/products/signal-processing/",
+    "/products/track3/track3.html":           "/jek/products/lab-accessories/",
+    "/products/track3/CF40HydrophobicPVDSampleTransportRack.html":
+      "/jek/products/lab-accessories/cf40-sample-transport-rack/",
+    "/uttrpg.html":                           "/urpg/",
+    "/ucatalogue.html":                       "/urpg/catalogue.html",
+    "/uRPG/uMakers.html":                     "/urpg/makers.html",
+    "/uRPG/uDonate.html":                     "/urpg/donate.html",
+    "/uRPG/thanks.html":                      "/urpg/thanks.html",
+    "/uRPG/TerrorofOutpost32ProductPage.html":"/urpg/products/terror-of-outpost-32.html",
+    "/charBuilder/char.html":                 "/urpg/character-builder/"
+  };
+
+  var path = window.location.pathname;
+  var target = moved[path];
+
+  /* Anything still under /calculators/ is a calculator page that kept its
+     filename, so it can be forwarded without listing all 26 by hand. */
+  if (!target && /^\/calculators\/[^/]+\.html$/.test(path)) {
+    target = "/jek" + path;
+  }
+
+  if (target) {
+    document.getElementById("missing").hidden = true;
+    document.getElementById("forwarding").hidden = false;
+    window.location.replace(target + window.location.search + window.location.hash);
+  }
+})();
+</script>
+
+</body>
+</html>

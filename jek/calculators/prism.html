@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prism Deviation Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Prism Deviation Calculator</h1>
+
+  <div class="calc-grid">
+    <!-- Input Card -->
+    <div class="calc-card">
+      <label>Refractive Index (n)</label>
+      <input id="n" type="number" step="any" value="1.5">
+
+      <label>Apex Angle (A)</label>
+      <input id="A" type="number" step="any" value="60">
+      <select id="AUnit">
+        <option value="deg" selected>°</option>
+        <option value="rad">rad</option>
+      </select>
+
+      <label>Incidence Angle (i)</label>
+      <input id="i" type="number" step="any" value="45">
+      <select id="iUnit">
+        <option value="deg" selected>°</option>
+        <option value="rad">rad</option>
+      </select>
+
+      <button onclick="compute()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>n</strong> = Refractive index<br>
+          <strong>A</strong> = Apex angle<br>
+          <strong>i</strong> = Incidence angle
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Card -->
+    <div class="diagram-area">
+      <div class="diagram-image">[Prism Diagram Placeholder]</div>
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$ r_1 = \arcsin\left(\frac{\sin i}{n}\right) $$</div>
+          <div class="eq-box" id="r1Out">r₁ = ?</div>
+
+          <div class="eq-box">$$ r_2 = A - r_1 $$</div>
+          <div class="eq-box" id="r2Out">r₂ = ?</div>
+
+          <div class="eq-box">$$ e = \arcsin(n \sin r_2) $$</div>
+          <div class="eq-box" id="eOut">e = ?</div>
+
+          <div class="eq-box">$$ \delta = i + e - A $$</div>
+          <div class="eq-box" id="deltaOut">δ = ?</div>
+        </div>
+      </div>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameters:</strong><br>
+          <strong>r₁</strong> = First refraction angle<br>
+          <strong>r₂</strong> = Second internal angle<br>
+          <strong>e</strong> = Emergence angle<br>
+          <strong>δ</strong> = Deviation angle
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+function toRad(val, unit){ return unit==="deg" ? val*Math.PI/180 : val; }
+function toDeg(rad){ return rad*180/Math.PI; }
+
+function compute(){
+  const nVal = parseFloat(n.value);
+  const AVal = toRad(parseFloat(A.value), AUnit.value);
+  const iVal = toRad(parseFloat(i.value), iUnit.value);
+
+  if([nVal,AVal,iVal].some(isNaN)){ alert("Please fill in all fields"); return; }
+
+  const r1 = Math.asin(Math.sin(iVal)/nVal);
+  const r2 = AVal - r1;
+  const e = Math.asin(nVal*Math.sin(r2));
+  const delta = iVal + e - AVal;
+
+  r1Out.textContent = "r₁ = "+toDeg(r1).toFixed(3)+" °";
+  r2Out.textContent = "r₂ = "+toDeg(r2).toFixed(3)+" °";
+  eOut.textContent = "e = "+toDeg(e).toFixed(3)+" °";
+  deltaOut.textContent = "δ = "+toDeg(delta).toFixed(3)+" °";
+
+  MathJax.typeset();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

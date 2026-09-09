@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 200"
+     role="img" aria-label="A photon travelling as a wave, with its wavelength lambda marked between two crests">
+  <title>Photon wavelength</title>
+
+  <g font-family="ui-sans-serif, system-ui, 'Segoe UI', Roboto, Arial, sans-serif">
+
+    <!-- Propagation axis -->
+    <line x1="24" y1="118" x2="470" y2="118"
+          stroke="#1a1a1a" stroke-opacity="0.22" stroke-width="1.5"/>
+    <path d="M470 118 l-9 -5 v10 z" fill="#1a1a1a" fill-opacity="0.35"/>
+
+    <!-- The wave itself: four full cycles of 96 px -->
+    <path d="M40 118
+             q24 -52 48 0 q24 52 48 0
+             q24 -52 48 0 q24 52 48 0
+             q24 -52 48 0 q24 52 48 0
+             q24 -52 48 0 q24 52 48 0"
+          fill="none" stroke="#0092b2" stroke-width="3"
+          stroke-linecap="round"/>
+
+    <!-- Wavelength span, crest to crest -->
+    <g stroke="#db3550" stroke-width="1.5">
+      <line x1="64" y1="60" x2="64" y2="98" stroke-dasharray="3 3"/>
+      <line x1="160" y1="60" x2="160" y2="98" stroke-dasharray="3 3"/>
+      <line x1="64" y1="72" x2="160" y2="72"/>
+    </g>
+    <path d="M64 72 l9 -4 v8 z" fill="#db3550"/>
+    <path d="M160 72 l-9 -4 v8 z" fill="#db3550"/>
+    <text x="112" y="58" text-anchor="middle" fill="#db3550"
+          font-size="19" font-style="italic">&#955;</text>
+
+    <!-- Direction of travel -->
+    <text x="440" y="140" text-anchor="middle" fill="#5b5651" font-size="13">c</text>
+
+    <!-- Energy relation -->
+    <text x="260" y="182" text-anchor="middle" fill="#5b5651" font-size="15">
+      <tspan font-style="italic">E</tspan> = <tspan font-style="italic">hc</tspan> / <tspan font-style="italic">&#955;</tspan>
+    </text>
+
+  </g>
+</svg>

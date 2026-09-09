@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mode-Locked Pulse Duration Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
+  <div class="bar bar4"></div><div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Mode-Locked Pulse Duration Calculator</h1>
+
+  <div class="calc-grid">
+    <!-- Input Card -->
+    <div class="calc-card">
+      <label>Spectral Bandwidth Δf</label>
+      <input id="bandwidth" type="number" step="any"/>
+      <select id="bwUnit">
+        <option value="THz">THz</option>
+        <option value="GHz">GHz</option>
+        <option value="MHz">MHz</option>
+      </select>
+
+      <label>Time-Bandwidth Product K (optional)</label>
+      <input id="Kfactor" type="number" step="any" placeholder="0.44 for Gaussian"/>
+
+      <button onclick="computePulseDuration()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>Δf</strong> = Spectral bandwidth<br>
+          <strong>K</strong> = Time-bandwidth product (optional, default 0.44)
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Card -->
+    <div class="diagram-area">
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$\tau_\mathrm{pulse} = \frac{K}{\Delta f}$$</div>
+          <div class="eq-box" id="pulseDuration">Pulse Duration = ?</div>
+        </div>
+      </div>
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameter:</strong><br>
+          <strong>τ<sub>pulse</sub></strong> = Mode-locked pulse duration
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+const bwPrefixes = { "THz":1e12, "GHz":1e9, "MHz":1e6 };
+
+function toSI(value, unit, dict){ return value*dict[unit]; }
+
+function computePulseDuration(){
+  const bw = toSI(parseFloat(document.getElementById("bandwidth").value), document.getElementById("bwUnit").value, bwPrefixes);
+  let K = parseFloat(document.getElementById("Kfactor").value);
+  if(isNaN(K)) K = 0.44; // default Gaussian pulse
+
+  if(isNaN(bw) || bw <= 0){
+    alert("Please enter a valid spectral bandwidth.");
+    return;
+  }
+
+  let tau = K / bw; // pulse duration in seconds
+
+  // Choose appropriate output prefix
+  let displayTau = tau;
+  let unit = "s";
+  if(tau<1e-12){ displayTau = tau*1e15; unit="fs"; }
+  else if(tau<1e-9){ displayTau = tau*1e12; unit="ps"; }
+  else if(tau<1e-6){ displayTau = tau*1e9; unit="ns"; }
+  else if(tau<1e-3){ displayTau = tau*1e6; unit="µs"; }
+  else if(tau<1){ displayTau = tau*1e3; unit="ms"; }
+
+  document.getElementById("pulseDuration").textContent = `τ = ${displayTau.toExponential(3)} ${unit}`;
+  MathJax.typesetPromise();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

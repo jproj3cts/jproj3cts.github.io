@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cavity Finesse Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Cavity Finesse Calculator</h1>
+
+  <div class="calc-grid">
+    <!-- Input Card -->
+    <div class="calc-card">
+      <label><strong>Free Spectral Range FSR</strong></label>
+      <input id="fsr" type="number" step="any" value="10">
+      <select id="fsrUnit">
+        <option value="1">Hz</option>
+        <option value="1e3">kHz</option>
+        <option value="1e6" selected>MHz</option>
+        <option value="1e9">GHz</option>
+        <option value="1e12">THz</option>
+      </select>
+
+      <label><strong>FWHM Bandwidth Δν</strong></label>
+      <input id="deltaNu" type="number" step="any" value="0.1">
+      <select id="deltaNuUnit">
+        <option value="1">Hz</option>
+        <option value="1e3">kHz</option>
+        <option value="1e6" selected>MHz</option>
+        <option value="1e9">GHz</option>
+        <option value="1e12">THz</option>
+      </select>
+
+      <button onclick="computeFinesse()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>FSR</strong> = Free Spectral Range<br>
+          <strong>Δν</strong> = FWHM bandwidth
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Card -->
+    <div class="diagram-area">
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$ \mathcal{F} = \frac{\text{FSR}}{\Delta \nu} $$</div>
+          <div class="eq-box" id="finesseOut">Finesse = ?</div>
+        </div>
+      </div>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameter:</strong><br>
+          <strong>𝓕</strong> = Cavity Finesse
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+// Function to format numbers with SI prefixes
+function formatSI(value, unit="") {
+  const prefixes = [
+    { value:1e12, symbol:"T" },
+    { value:1e9, symbol:"G" },
+    { value:1e6, symbol:"M" },
+    { value:1e3, symbol:"k" },
+    { value:1, symbol:"" },
+    { value:1e-3, symbol:"m" },
+    { value:1e-6, symbol:"µ" },
+    { value:1e-9, symbol:"n" },
+    { value:1e-12, symbol:"p" }
+  ];
+  for (let p of prefixes) {
+    if (Math.abs(value) >= p.value) {
+      return (value/p.value).toFixed(3)+" "+p.symbol+unit;
+    }
+  }
+  return value.toExponential(3)+" "+unit;
+}
+
+function computeFinesse(){
+  const fsrVal = parseFloat(fsr.value) * parseFloat(fsrUnit.value);
+  const deltaVal = parseFloat(deltaNu.value) * parseFloat(deltaNuUnit.value);
+
+  if([fsrVal, deltaVal].some(isNaN) || deltaVal===0){ alert("Please fill valid numbers"); return; }
+
+  const finesse = fsrVal/deltaVal;
+
+  finesseOut.textContent = "Finesse = "+formatSI(finesse);
+  MathJax.typeset();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+
+</html>

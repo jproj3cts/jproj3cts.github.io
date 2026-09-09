@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lens Aberration Estimator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
+  <div class="bar bar4"></div><div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Spherical Lens Aberration Estimator</h1>
+
+  <div class="calc-grid">
+    <!-- Inputs -->
+    <div class="calc-card">
+      <label>Focal Length (f)</label>
+      <input id="focalLength" type="number" step="any"/>
+      <select id="fUnit"><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option></select>
+
+      <label>Aperture (f-number, N)</label>
+      <input id="fNumber" type="number" step="any"/>
+
+      <label>Wavelength (λ)</label>
+      <input id="wavelength" type="number" step="any"/>
+      <select id="lambdaUnit"><option value="nm">nm</option><option value="µm">µm</option><option value="mm">mm</option></select>
+
+      <label>Δλ (Optional for Chromatic Aberration)</label>
+      <input id="deltaLambda" type="number" step="any" placeholder="nm"/>
+      <select id="deltaLambdaUnit"><option value="nm">nm</option><option value="µm">µm</option><option value="mm">mm</option></select>
+
+      <button onclick="computeAberrations()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>f</strong> = Focal length<br>
+          <strong>N</strong> = Aperture f-number<br>
+          <strong>λ</strong> = Wavelength<br>
+          <strong>Δλ</strong> = Wavelength range for chromatic aberration (optional)
+        </div>
+      </div>
+    </div>
+
+    <!-- Outputs -->
+    <div class="diagram-area">
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box" id="spherical">Spherical Aberration = ?</div>
+          <div class="eq-box" id="chromatic">Chromatic Aberration = ?</div>
+        </div>
+      </div>
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameters:</strong><br>
+          <strong>Spherical Aberration</strong> ~ approximate<br>
+          <strong>Chromatic Aberration</strong> ~ computed if Δλ provided
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+function toMeters(value, unit){
+  if(unit==="m") return value;
+  if(unit==="cm") return value/100;
+  if(unit==="mm") return value/1000;
+  if(unit==="µm") return value/1e6;
+  if(unit==="nm") return value/1e9;
+}
+
+function computeAberrations(){
+  let f = toMeters(parseFloat(document.getElementById("focalLength").value), document.getElementById("fUnit").value);
+  let N = parseFloat(document.getElementById("fNumber").value);
+  let lambda = toMeters(parseFloat(document.getElementById("wavelength").value), document.getElementById("lambdaUnit").value);
+
+  if(isNaN(f) || isNaN(N) || isNaN(lambda)){
+    alert("Please fill focal length, aperture, and wavelength.");
+    return;
+  }
+
+  // Spherical Aberration (approx.)
+  let spherical = lambda * Math.pow(N,3) / f; // meters
+
+  // Chromatic Aberration (optional)
+  let deltaLambdaVal = parseFloat(document.getElementById("deltaLambda").value);
+  let deltaLambdaUnit = document.getElementById("deltaLambdaUnit").value;
+  let chromatic = null;
+
+  if(!isNaN(deltaLambdaVal) && deltaLambdaVal>0){
+    let deltaLambdaMeters = toMeters(deltaLambdaVal, deltaLambdaUnit);
+    chromatic = f * deltaLambdaMeters / lambda;
+  }
+
+  // Display outputs (meters → mm if <1m)
+  function display(val){
+    if(val>=1) return val.toFixed(3) + " m";
+    else if(val>=1e-3) return (val*1e3).toFixed(3) + " mm";
+    else if(val>=1e-6) return (val*1e6).toFixed(3) + " µm";
+    else return (val*1e9).toFixed(3) + " nm";
+  }
+
+  document.getElementById("spherical").textContent = `Spherical Aberration ≈ ${display(spherical)}`;
+  document.getElementById("chromatic").textContent = chromatic!==null ? `Chromatic Aberration ≈ ${display(chromatic)}` : "Chromatic Aberration = (Δλ not provided)";
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

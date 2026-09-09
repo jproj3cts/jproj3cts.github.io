@@ -1,0 +1,7 @@
+# GitHub Pages build settings.
+#
+# Keeps build-only directories out of the published site. The repo is public
+# either way — this is tidiness, not security.
+exclude:
+  - worker
+  - README.md

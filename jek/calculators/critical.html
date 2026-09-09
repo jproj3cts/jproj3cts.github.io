@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Critical Angle & Total Internal Reflection Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Critical Angle & Total Internal Reflection</h1>
+
+  <div class="calc-grid">
+    <!-- Input Card -->
+    <div class="calc-card">
+      <label>Incident Medium Index (n₁)</label>
+      <input id="n1" type="number" step="any" value="1.5">
+
+      <label>Transmission Medium Index (n₂)</label>
+      <input id="n2" type="number" step="any" value="1.0">
+
+      <button onclick="compute()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>n₁</strong> = Incident medium index<br>
+          <strong>n₂</strong> = Transmission medium index
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Card -->
+    <div class="diagram-area">
+      <div class="diagram-image">[TIR Diagram Placeholder]</div>
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$ \theta_c = \arcsin\left(\frac{n_2}{n_1}\right) $$</div>
+          <div class="eq-box" id="thetaCOut">θ<sub>c</sub> = ?</div>
+        </div>
+      </div>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameters:</strong><br>
+          <strong>θc</strong> = Critical angle<br>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+function compute(){
+  const n1Val = parseFloat(n1.value);
+  const n2Val = parseFloat(n2.value);
+
+  if([n1Val,n2Val].some(isNaN)){
+    alert("Please fill in all fields");
+    return;
+  }
+
+  if(n1Val <= n2Val){
+    thetaCOut.textContent = "θc = No critical angle (n₁ ≤ n₂)";
+    MathJax.typeset();
+    return;
+  }
+
+  const thetaC = Math.asin(n2Val/n1Val);
+  thetaCOut.innerHTML = "θ<sub>c</sub> = " + (thetaC * 180 / Math.PI).toFixed(3) + " °";
+
+  MathJax.typeset();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

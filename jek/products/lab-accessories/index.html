@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEK Systems | Lab Accessory</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+</head>
+
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+  <main class="main-content">
+
+    <div class="product-wrap">
+
+      <!-- Right side: image gallery -->
+      <div class="product-gallery">
+        <div class="gallery-frame">
+          <img id="galleryImage" src="/jek/assets/img/product-placeholder.svg" alt="Product image 1">
+        </div>
+        <div class="gallery-pips" id="galleryPips">
+          <button class="pip active" data-src="/jek/assets/img/product-placeholder.svg" aria-label="Image 1"></button>
+          <button class="pip" data-src="/jek/assets/img/product-placeholder.svg" aria-label="Image 2"></button>
+          <button class="pip" data-src="/jek/assets/img/product-placeholder.svg" aria-label="Image 3"></button>
+        </div>
+      </div>
+
+      <!-- Left side: title, price, buy, description -->
+      <div class="product-info">
+        <h1>Lab Accessory</h1>
+        <p class="product-price">$59.00</p>
+        <p class="part-number">Part number <strong>JEK-LA-3000</strong></p>
+        <div class="product-actions accent-blue">
+          <button type="button" class="quote-button" data-add-to-quote data-part="JEK-LA-3000" data-name="Lab Accessory" data-price="59.00" data-currency="$">Add to quote</button>
+          <button type="button" class="buy-button" data-quote-now data-part="JEK-LA-3000" data-name="Lab Accessory" data-price="59.00" data-currency="$">Quote now</button>
+        </div>
+
+        <div class="product-description">
+          <h2>Description</h2>
+          <p>
+            Placeholder description for the Lab Accessories track. Replace this text with the specific optical mount, alignment tool, or LaSc Sensor Watch this page represents — dimensions, materials, and any other details a customer needs before purchasing.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Central technical info section -->
+    <div class="tech-section">
+      <h2>Technical Information</h2>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Datasheets
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel">
+          <div class="dropdown-panel-inner">
+            <!-- Drop the PDF into /jek/assets/docs/ and uncomment the
+                 matching line to publish it:
+                 <a href="/jek/assets/docs/datasheet.pdf" target="_blank">Product Datasheet (PDF)</a>
+                 <a href="/jek/assets/docs/wiring-diagram.pdf" target="_blank">Wiring Diagram (PDF)</a>
+            -->
+            <p class="doc-pending">No datasheet published for this product yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Manuals & Guides
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel">
+          <div class="dropdown-panel-inner">
+            <!-- Drop the PDF into /jek/assets/docs/ and uncomment the
+                 matching line to publish it:
+                 <a href="/jek/assets/docs/user-manual.pdf" target="_blank">User Manual (PDF)</a>
+                 <a href="/jek/assets/docs/quickstart.pdf" target="_blank">Quick Start Guide (PDF)</a>
+            -->
+            <p class="doc-pending">No manuals published for this product yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Certifications & Compliance
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel">
+          <div class="dropdown-panel-inner">
+            <!-- Drop the PDF into /jek/assets/docs/ and uncomment the
+                 matching line to publish it:
+                 <a href="/jek/assets/docs/ce-certificate.pdf" target="_blank">CE Certificate (PDF)</a>
+                 <a href="/jek/assets/docs/rohs.pdf" target="_blank">RoHS Compliance (PDF)</a>
+            -->
+            <p class="doc-pending">No certification documents published for this product yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+  // Gallery pip switching
+  const galleryImage = document.getElementById('galleryImage');
+  const pips = document.querySelectorAll('.pip');
+  pips.forEach(pip => {
+    pip.addEventListener('click', () => {
+      galleryImage.src = pip.getAttribute('data-src');
+      pips.forEach(p => p.classList.remove('active'));
+      pip.classList.add('active');
+    });
+  });
+
+  // Dropdown toggles
+  document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      toggle.closest('.dropdown').classList.toggle('open');
+    });
+  });
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

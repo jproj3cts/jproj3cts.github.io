@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Double Lens System Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+<main class="main-content">
+  <h1 class="page-title">Double Lens System Calculator</h1>
+  <div class="calc-grid">
+    <div class="calc-card">
+      <label>Lens 1 Focal Length (f₁)</label>
+      <input id="f1" type="number" step="any" value="50">
+      <select id="f1Unit">
+        <option value="m">m</option>
+        <option value="cm" selected>cm</option>
+        <option value="mm">mm</option>
+      </select>
+      <label>Lens 2 Focal Length (f₂)</label>
+      <input id="f2" type="number" step="any" value="50">
+      <select id="f2Unit">
+        <option value="m">m</option>
+        <option value="cm" selected>cm</option>
+        <option value="mm">mm</option>
+      </select>
+      <label>Lens Separation (d)</label>
+      <input id="d" type="number" step="any" value="10">
+      <select id="dUnit">
+        <option value="m">m</option>
+        <option value="cm" selected>cm</option>
+        <option value="mm">mm</option>
+      </select>
+      <button onclick="compute()">Compute</button>
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>f₁</strong> = Focal Length of Lens 1<br>
+          <strong>f₂</strong> = Focal Length of Lens 2<br>
+          <strong>d</strong> = Distance Between Lenses
+        </div>
+      </div>
+    </div>
+    <div class="diagram-area">
+      <div class="diagram-image">[Double Lens Diagram Placeholder]</div>
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$ \frac{1}{f_{eq}} = \frac{1}{f_1} + \frac{1}{f_2} - \frac{d}{f_1 f_2} $$</div>
+          <div class="eq-box" id="feqOut">\( f_{eq} \) = ?</div>
+        </div>
+      </div>
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameter:</strong><br>
+          <strong>f<sub>eq</sub></strong> = Equivalent Focal Length
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+<script>
+const LENGTH_UNITS = { "m":1, "cm":0.01, "mm":0.001 };
+function toMeters(val, unit){ return val * LENGTH_UNITS[unit]; }
+
+// Automatically choose m, cm, or mm based on magnitude
+function formatAutoUnit(L){
+  if(Math.abs(L) >= 1) return L.toFixed(3) + " m";
+  if(Math.abs(L) >= 1e-3) return (L*100).toFixed(3) + " cm";
+  return (L*1000).toFixed(3) + " mm";
+}
+
+function compute(){
+  const f1v = toMeters(parseFloat(f1.value), f1Unit.value);
+  const f2v = toMeters(parseFloat(f2.value), f2Unit.value);
+  const dv = toMeters(parseFloat(d.value), dUnit.value);
+  if([f1v,f2v,dv].some(isNaN)){
+    alert("Please fill in all fields with valid numbers");
+    return;
+  }
+  const invFeq = 1/f1v + 1/f2v - dv/(f1v*f2v);
+  if(invFeq === 0){
+    feqOut.innerHTML = "\\( f_{eq} = \\infty \\text{ (collimated)} \\)";
+    MathJax.typesetPromise();
+    return;
+  }
+  const feq = 1 / invFeq;
+  feqOut.innerHTML = "\\( f_{eq} = " + formatAutoUnit(feq) + " \\)";
+  MathJax.typesetPromise();
+}
+
+// Render initial placeholder on page load
+window.addEventListener('load', compute);
+</script>
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

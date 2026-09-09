@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEK Systems</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+</head>
+<body>
+
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <a href="/jek/calculators/">Calculators</a> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <div class="text-overlay">JEK Systems</div>
+  </div>
+
+  <main class="main-content">
+    <h1 class="page-title">Search the Site</h1>
+    <form id="searchForm" onsubmit="handleSubmit(event)">
+      <input id="searchInput" type="search" placeholder="Search..." />
+      <button type="submit" id="searchButton">Search</button>
+    </form>
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+  <script>
+    // Pages the site search reads. Add a line here when you add a page.
+    const searchablePages = [
+      { title: "Home",                    url: "/jek/" },
+      { title: "Products",                url: "/jek/products.html" },
+      { title: "Custom Solutions",        url: "/jek/custom-solutions.html" },
+      { title: "Calculators",             url: "/jek/calculators/" },
+      { title: "Bio",                     url: "/jek/bio.html" },
+      { title: "Contact",                 url: "/jek/contact.html" },
+      { title: "Photodetectors",          url: "/jek/products/photodetectors/" },
+      { title: "Signal Processing",       url: "/jek/products/signal-processing/" },
+      { title: "Lab Accessories",         url: "/jek/products/lab-accessories/" },
+      { title: "CF40 Sample Transport Rack",
+        url: "/jek/products/lab-accessories/cf40-sample-transport-rack/" }
+    ];
+
+    async function fetchPageText(url) {
+      try {
+        const res = await fetch(url, { cache: "no-cache" });
+        if (!res.ok) return "";
+        const html = await res.text();
+        return html.toLowerCase();
+      } catch {
+        return "";
+      }
+    }
+
+    async function performSearch(query) {
+      query = query.toLowerCase().trim();
+      const results = [];
+      for (const page of searchablePages) {
+        const html = await fetchPageText(page.url);
+        if (html.includes(query)) results.push(page);
+      }
+      return results;
+    }
+
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const query = document.getElementById('searchInput').value.trim();
+      if (!query) return;
+      const results = await performSearch(query);
+      sessionStorage.setItem('siteSearchResults', JSON.stringify(results));
+      sessionStorage.setItem('siteSearchQuery', query);
+      window.location.href = '/jek/search-results.html?q=' + encodeURIComponent(query);
+    }
+  </script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gaussian Beam Calculator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <a href="/jek/calculators/">Calculators</a> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">Gaussian Beam Calculator</h1>
+
+  <div class="calc-grid">
+    <!-- Input Card -->
+    <div class="calc-card">
+      <label>Wavelength (λ)</label>
+      <input id="lambda" type="number" step="any" value="1550">
+      <select id="lambdaUnit">
+        <option value="nm" selected>nm</option>
+        <option value="µm">µm</option>
+        <option value="mm">mm</option>
+	<option value="m">m</option>
+      </select>
+
+      <label>Beam Waist (w₀)</label>
+      <input id="w0" type="number" step="any" value="2.5">
+      <select id="w0Unit">
+        <option value="µm" selected>µm</option>
+        <option value="nm">nm</option>
+        <option value="mm">mm</option>
+	<option value="m">m</option>
+      </select>
+
+      <label>Propagation Distance (z)</label>
+      <input id="z" type="number" step="any" value="10">
+      <select id="zUnit">
+        <option value="mm" selected>mm</option>
+        <option value="µm">µm</option>
+        <option value="mm">mm</option>
+        <option value="m">m</option>
+      </select>
+
+      <button onclick="compute()">Compute</button>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Input Parameters:</strong><br>
+          <strong>λ</strong> = Wavelength<br>
+          <strong>w₀</strong> = Beam waist radius<br>
+          <strong>z</strong> = Propagation distance
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Card -->
+    <div class="diagram-area">
+      <div class="diagram-image">[Gaussian Beam Diagram Placeholder]</div>
+      <div class="eq-grid">
+        <div class="eq-column">
+          <div class="eq-box">$$ z_R = \frac{\pi w_0^2}{\lambda} $$</div>
+          <div class="eq-box" id="zROut">z<sub>R</sub> = ?</div>
+
+          <div class="eq-box">$$ w(z) = w_0 \sqrt{1 + \left(\frac{z}{z_R}\right)^2} $$</div>
+          <div class="eq-box" id="wzOut">w(z) = ?</div>
+
+          <div class="eq-box">$$ \theta = \frac{\lambda}{\pi w_0} $$</div>
+          <div class="eq-box" id="thetaOut">θ = ?</div>
+
+          <div class="eq-box">$$ R(z) = z \left[1 + \left(\frac{z_R}{z}\right)^2 \right] $$</div>
+          <div class="eq-box" id="RzOut">R(z) = ?</div>
+
+          <div class="eq-box">$$ \omega_R = \sqrt{2} \, w_0 $$</div>
+          <div class="eq-box" id="omegaROut">ω<sub>R</sub> = ?</div>
+        </div>
+      </div>
+
+      <div class="param-box-wrapper">
+        <div class="param-box">
+          <strong>Output Parameters:</strong><br>
+          <strong>zR</strong> = Rayleigh range<br>
+          <strong>w(z)</strong> = Beam radius at distance z<br>
+          <strong>θ</strong> = Beam divergence<br>
+          <strong>R(z)</strong> = Radius of curvature at z<br>
+          <strong>ωR</strong> = Rayleigh Half Diameter
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+const L = { "nm":1e-9, "µm":1e-6, "mm":1e-3, "m":1 };
+
+function toMeters(val, unit){ return val*L[unit]; }
+
+function formatLength(m){
+  if(m<1e-6) return (m*1e9).toFixed(3)+" nm";
+  if(m<1e-3) return (m*1e6).toFixed(3)+" µm";
+  if(m<1) return (m*1e3).toFixed(3)+" mm";
+  return m.toFixed(6)+" m";
+}
+
+function formatAngle(rad){
+  return (rad*180/Math.PI).toFixed(3)+" °";
+}
+
+function compute(){
+  const λ = toMeters(parseFloat(lambda.value), lambdaUnit.value);
+  const w0m = toMeters(parseFloat(w0.value), w0Unit.value);
+  const zm = toMeters(parseFloat(z.value), zUnit.value);
+
+  if([λ,w0m,zm].some(isNaN)){ alert("Please fill in all fields"); return; }
+
+  const zR = Math.PI*w0m*w0m/λ;
+  const wz = w0m*Math.sqrt(1 + (zm/zR)**2);
+  const theta = λ/(Math.PI*w0m);
+  const Rz = zm*(1 + (zR/zm)**2);
+  const omegaR = Math.SQRT2*w0m;
+
+  zROut.textContent = "zR = "+formatLength(zR);
+  wzOut.textContent = "w(z) = "+formatLength(wz);
+  thetaOut.textContent = "θ = "+formatAngle(theta);
+  RzOut.textContent = "R(z) = "+formatLength(Rz);
+  omegaROut.textContent = "ωR = "+formatLength(omegaR);
+
+  MathJax.typeset();
+}
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

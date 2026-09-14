@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Highbury card — business</title>
+<meta name="theme-color" content="#f7f3e8" />
+<link rel="stylesheet" href="/highbury/assets/css/highbury.css" />
+</head>
+<body>
+<div class="wrap wide">
+
+  <header class="hb-head">
+    <h1>Highbury card</h1>
+    <p id="strap">Business dashboard</p>
+    <div class="punch-rule" aria-hidden="true">
+      <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+    </div>
+  </header>
+
+  <section class="panel" id="step-login">
+    <h2>Sign in</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" />
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" />
+    <button id="go">Sign in</button>
+    <p class="error" id="login-error" hidden role="alert"></p>
+  </section>
+
+  <section id="step-dash" hidden>
+    <div class="figures">
+      <div class="figure"><span class="n" id="f-stamps">0</span><span class="k">Stamps</span></div>
+      <div class="figure"><span class="n" id="f-redeem">0</span><span class="k">Rewards claimed</span></div>
+      <div class="figure"><span class="n" id="f-cards">0</span><span class="k">Cards seen</span></div>
+      <div class="figure"><span class="n" id="f-repeat">0%</span><span class="k">Came back</span></div>
+      <div class="figure"><span class="n" id="f-waiting">0</span><span class="k">Reward due</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Stamps per day</h2>
+      <div class="bars" id="bars" role="img" aria-label="Daily stamp counts"></div>
+      <p class="hint" id="bars-empty" hidden>No activity in this period yet.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Reward</h2>
+      <p class="hint" id="rule-now"></p>
+
+      <label for="target">Stamps needed</label>
+      <input id="target" type="number" min="1" max="10" step="1" />
+      <p class="hint">Between 1 and 10. The reader draws ten slots, so that
+         is a limit of the hardware rather than a preference.</p>
+
+      <label for="reward_label">What they get</label>
+      <input id="reward_label" maxlength="60" placeholder="Free coffee" />
+
+      <label for="reward_short">Short version <span class="opt">— for the reader screen</span></label>
+      <input id="reward_short" maxlength="16" placeholder="FREE COFFEE" />
+      <p class="hint">16 characters. Left blank, we shorten the line above.</p>
+
+      <button id="preview">Check what this changes</button>
+      <div id="impact" hidden></div>
+      <p class="error" id="rule-error" hidden role="alert"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Stamps to go</h2>
+      <div class="bars" id="ladder" role="img" aria-label="How many cards sit at each number of stamps"></div>
+      <p class="hint" id="ladder-note"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Your readers</h2>
+      <ul class="devices" id="devices"></ul>
+      <p class="hint">A reader that hasn't checked in for over an hour may have
+         lost its wi-fi. Stamps carry on working offline and sync when it returns.</p>
+    </div>
+
+    <button class="link" id="signout">Sign out</button>
+  </section>
+
+  <footer class="hb-foot">
+    <p><a href="/highbury/">Cardholder sign in</a></p>
+  </footer>
+
+</div>
+
+<script type="module">
+import { call } from "/highbury/assets/js/api.js";
+
+const $ = (id) => document.getElementById(id);
+
+async function login() {
+  $("login-error").hidden = true;
+  try {
+    await call("/v1/business/login", { method: "POST", body: {
+      email: $("email").value.trim(), password: $("password").value,
+    }});
+    await loadDash();
+    await loadSettings();
+  } catch (e) {
+    $("login-error").textContent = e.message;
+    $("login-error").hidden = false;
+  }
+}
+
+async function loadDash() {
+  const d = await call("/v1/business/summary?days=30");
+
+  $("f-stamps").textContent = d.stamps;
+  $("f-redeem").textContent = d.redemptions;
+  $("f-cards").textContent = d.unique_cards;
+  $("f-repeat").textContent = d.repeat_rate + "%";
+  $("f-waiting").textContent = d.awaiting_reward;
+  $("strap").textContent = `${d.shop.name} — last 30 days`;
+
+  // How close customers are to a reward. Aggregate: a histogram, not a list
+  // of who is nearly there.
+  const ladder = $("ladder");
+  ladder.innerHTML = "";
+  const byBalance = new Map(d.ladder.map((x) => [x.balance, x.cards]));
+  const tallest = Math.max(1, ...d.ladder.map((x) => x.cards));
+  for (let i = 0; i <= d.target; i++) {
+    const n = byBalance.get(i) || 0;
+    const bar = document.createElement("div");
+    bar.style.height = Math.max(2, (n / tallest) * 100) + "%";
+    bar.title = `${n} card${n === 1 ? "" : "s"} on ${i} stamp${i === 1 ? "" : "s"}`;
+    ladder.appendChild(bar);
+  }
+  $("ladder-note").textContent =
+    `Left to right: 0 to ${d.target} stamps. ${d.awaiting_reward} card` +
+    `${d.awaiting_reward === 1 ? " has" : "s have"} earned ${d.reward}.`;
+
+  // Bars are scaled to the busiest day, so the shape is readable even when
+  // the absolute numbers are small.
+  const bars = $("bars");
+  bars.innerHTML = "";
+  const peak = Math.max(1, ...d.daily.map((x) => x.stamps));
+  for (const day of d.daily) {
+    const b = document.createElement("div");
+    b.style.height = Math.max(2, (day.stamps / peak) * 100) + "%";
+    b.title = `${new Date(day.day * 1000).toLocaleDateString("en-GB")}: ${day.stamps} stamps`;
+    bars.appendChild(b);
+  }
+  $("bars-empty").hidden = d.daily.length > 0;
+
+  const list = $("devices");
+  list.innerHTML = "";
+  const now = Date.now() / 1000;
+  for (const dev of d.devices) {
+    const up = dev.last_seen_at && now - dev.last_seen_at < 3600;
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.innerHTML = `<span class="dot ${up ? "up" : "down"}"></span>`;
+    name.append(dev.label || dev.id);
+    const seen = document.createElement("span");
+    seen.className = "when";
+    seen.textContent = dev.last_seen_at
+      ? new Date(dev.last_seen_at * 1000).toLocaleString("en-GB",
+          { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+      : "never seen";
+    li.append(name, seen);
+    list.appendChild(li);
+  }
+
+  $("step-login").hidden = true;
+  $("step-dash").hidden = false;
+}
+
+async function loadSettings() {
+  const s = await call("/v1/business/settings");
+  $("target").value = s.target;
+  $("reward_label").value = s.reward_label;
+  $("reward_short").value = s.reward_short || "";
+  $("rule-now").textContent =
+    `Currently ${s.target} stamps for ${s.reward_label}.`;
+}
+
+/* Two steps on purpose. Lowering the target can make a pile of customers
+   eligible the instant it is saved, and raising it moves a nearly-full card
+   further away. The owner should see that number before it happens, not
+   after the queue forms. */
+async function previewChange() {
+  $("rule-error").hidden = true;
+  const body = {
+    target: parseInt($("target").value, 10),
+    reward_label: $("reward_label").value.trim(),
+    reward_short: $("reward_short").value.trim(),
+  };
+  try {
+    const r = await call("/v1/business/settings", { method: "POST", body: { ...body, preview: true } });
+    showImpact(r.effect, body);
+  } catch (e) {
+    $("rule-error").textContent = e.message;
+    $("rule-error").hidden = false;
+  }
+}
+
+function showImpact(effect, body) {
+  const box = $("impact");
+  box.innerHTML = "";
+  box.hidden = false;
+
+  const lines = [];
+  if (effect.from.target !== effect.to.target) {
+    lines.push(`Stamps needed: ${effect.from.target} \u2192 ${effect.to.target}`);
+  }
+  if (effect.from.reward_label !== effect.to.reward_label) {
+    lines.push(`Reward: ${effect.from.reward_label} \u2192 ${effect.to.reward_label}`);
+  }
+  if (effect.newly_eligible > 0) {
+    lines.push(`${effect.newly_eligible} card${effect.newly_eligible === 1 ? "" : "s"} ` +
+               `will be able to claim straight away.`);
+  }
+  if (effect.no_longer_eligible > 0) {
+    lines.push(`${effect.no_longer_eligible} card${effect.no_longer_eligible === 1 ? "" : "s"} ` +
+               `that could claim today will have to wait.`);
+  }
+  if (!lines.length) lines.push("Nothing changes.");
+
+  const p = document.createElement("p");
+  p.className = "hint";
+  p.innerHTML = lines.join("<br>");
+  box.appendChild(p);
+
+  const confirm = document.createElement("button");
+  confirm.textContent = "Save this";
+  confirm.addEventListener("click", async () => {
+    confirm.disabled = true;
+    try {
+      await call("/v1/business/settings", { method: "POST", body });
+      box.hidden = true;
+      await loadSettings();
+      await loadDash();
+    } catch (e) {
+      $("rule-error").textContent = e.message;
+      $("rule-error").hidden = false;
+      confirm.disabled = false;
+    }
+  });
+  box.appendChild(confirm);
+}
+
+$("preview").addEventListener("click", previewChange);
+$("go").addEventListener("click", login);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !$("step-login").hidden) login();
+});
+$("signout").addEventListener("click", async () => {
+  await call("/v1/business/logout", { method: "POST" }).catch(() => {});
+  location.reload();
+});
+
+loadDash().then(loadSettings).catch(() => { $("step-login").hidden = false; });
+</script>
+</body>
+</html>

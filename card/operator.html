@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scheme overview</title>
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#e4cbb7" />
+<link rel="stylesheet" href="/card/assets/css/card.css" />
+</head>
+<body>
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/card/">Cardholder</a>
+      <span class="sep">|</span>
+      <a href="/card/business.html">Shop</a>
+    </div>
+  </div>
+
+  <main class="main-content">
+  <div class="wrap wide">
+
+    <h1 class="page-title">Scheme overview</h1>
+    <p class="strap" id="strap">Every shop</p>
+
+  <section class="panel" id="step-login">
+    <h2>Operator sign in</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" />
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" />
+    <button id="go">Sign in</button>
+    <p class="error" id="login-error" hidden role="alert"></p>
+  </section>
+
+  <section id="step-view" hidden>
+    <div class="figures">
+      <div class="figure"><span class="n" id="f-stamps">0</span><span class="k">Stamps</span></div>
+      <div class="figure"><span class="n" id="f-redeem">0</span><span class="k">Rewards claimed</span></div>
+      <div class="figure"><span class="n" id="f-shops">0</span><span class="k">Shops active</span></div>
+      <div class="figure"><span class="n" id="f-cards">0</span><span class="k">Cards active</span></div>
+      <div class="figure"><span class="n" id="f-activation">0%</span><span class="k">Cards activated</span></div>
+      <div class="figure"><span class="n" id="f-rejected">0</span><span class="k">Events rejected</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Shops</h2>
+      <div class="tablewrap"><table class="grid" id="shops"></table></div>
+    </div>
+
+    <div class="panel">
+      <h2>Card batches</h2>
+      <p class="hint">Cards posted against cards ever used. This is the number
+         that decides where the next door-drop goes.</p>
+      <div class="tablewrap"><table class="grid" id="batches"></table></div>
+    </div>
+
+    <div class="panel">
+      <h2>Environment by location</h2>
+      <p class="hint">Last 7 days. Read from the telemetry database, which
+         holds no card data and cannot be joined to any.</p>
+      <div class="tablewrap"><table class="grid" id="telemetry"></table></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="stale-head">Readers needing attention</h2>
+      <ul class="devices" id="stale"></ul>
+      <p class="hint" id="stale-none" hidden>Every reader has checked in within the hour.</p>
+    </div>
+
+    <button class="link" id="signout">Sign out</button>
+  </section>
+
+  </div>
+  </main>
+
+  <footer>
+    <p class="copyright">Operator view. Reads across every shop.</p>
+  </footer>
+
+<script type="module">
+import { call } from "/card/assets/js/api.js";
+
+const $ = (id) => document.getElementById(id);
+const ago = (t) => {
+  if (!t) return "never";
+  const h = Math.floor((Date.now() / 1000 - t) / 3600);
+  if (h < 1) return "under an hour";
+  if (h < 48) return `${h} h ago`;
+  return `${Math.floor(h / 24)} d ago`;
+};
+
+/* Builds a table from an array of rows and a column spec. Keeps the three
+   tables below to their data rather than repeating DOM plumbing. */
+function table(el, cols, rows, empty) {
+  el.innerHTML = "";
+  if (!rows.length) {
+    const p = el.insertRow();
+    const c = p.insertCell();
+    c.colSpan = cols.length;
+    c.className = "empty";
+    c.textContent = empty;
+    return;
+  }
+  const head = el.createTHead().insertRow();
+  for (const c of cols) {
+    const th = document.createElement("th");
+    th.textContent = c.label;
+    if (c.numeric) th.className = "num";
+    head.appendChild(th);
+  }
+  const body = el.createTBody();
+  for (const row of rows) {
+    const tr = body.insertRow();
+    for (const c of cols) {
+      const td = tr.insertCell();
+      td.textContent = c.get(row);
+      if (c.numeric) td.className = "num";
+    }
+  }
+}
+
+async function login() {
+  $("login-error").hidden = true;
+  try {
+    await call("/v1/operator/login", { method: "POST", body: {
+      email: $("email").value.trim(), password: $("password").value,
+    }});
+    await loadAll();
+  } catch (e) {
+    $("login-error").textContent = e.message;
+    $("login-error").hidden = false;
+  }
+}
+
+async function loadAll() {
+  const [ov, batches, telem] = await Promise.all([
+    call("/v1/operator/overview?days=30"),
+    call("/v1/operator/batches"),
+    call("/v1/operator/telemetry?days=7"),
+  ]);
+
+  $("strap").textContent =
+    (ov.scheme === "all" ? "Every scheme" : ov.scheme) + " — last 30 days";
+  $("f-stamps").textContent = ov.stamps;
+  $("f-redeem").textContent = ov.redemptions;
+  $("f-shops").textContent = ov.active_shops;
+  $("f-cards").textContent = ov.active_cards;
+  $("f-activation").textContent = ov.activation_rate + "%";
+  $("f-rejected").textContent = ov.rejected;
+
+  table($("shops"), [
+    { label: "Shop",     get: (s) => s.name },
+    { label: "Reward",   get: (s) => `${s.target} → ${s.reward_label}` },
+    { label: "Stamps",   get: (s) => s.stamps || 0,      numeric: true },
+    { label: "Claimed",  get: (s) => s.redemptions || 0, numeric: true },
+    { label: "Cards",    get: (s) => s.cards || 0,       numeric: true },
+    { label: "Last seen",get: (s) => ago(s.last_activity) },
+  ], ov.shops, "No shops yet.");
+
+  table($("batches"), [
+    { label: "Batch",    get: (b) => b.label || b.id },
+    { label: "Area",     get: (b) => b.area || "—" },
+    { label: "Posted",   get: (b) => b.minted,    numeric: true },
+    { label: "Used",     get: (b) => b.activated, numeric: true },
+    { label: "Rate",     get: (b) => b.activation_rate + "%", numeric: true },
+  ], batches.batches, "No batches minted yet.");
+
+  table($("telemetry"), [
+    { label: "Location", get: (t) => t.location_name || t.location_id || "unassigned" },
+    { label: "Shop",     get: (t) => t.shop_name || t.shop_id },
+    { label: "Sector",   get: (t) => t.postcode_sector || "—" },
+    { label: "Metric",   get: (t) => t.metric },
+    { label: "Mean",     get: (t) => t.mean_value == null ? "—"
+                                    : t.mean_value.toFixed(1) + (t.unit || ""), numeric: true },
+    { label: "Range",    get: (t) => t.min_value == null ? "—"
+                                    : `${t.min_value.toFixed(1)}–${t.max_value.toFixed(1)}`, numeric: true },
+    { label: "Windows",  get: (t) => t.windows, numeric: true },
+  ], telem.readings, "No readings in the last 7 days.");
+
+  const stale = $("stale");
+  stale.innerHTML = "";
+  for (const d of ov.stale_devices) {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.innerHTML = `<span class="dot down"></span>`;
+    name.append(`${d.label || d.id} — ${d.shop_name}`);
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = ago(d.last_seen_at);
+    li.append(name, when);
+    stale.appendChild(li);
+  }
+  $("stale-none").hidden = ov.stale_devices.length > 0;
+  $("stale-head").textContent =
+    `Readers needing attention (${ov.stale_devices.length})`;
+
+  $("step-login").hidden = true;
+  $("step-view").hidden = false;
+}
+
+$("go").addEventListener("click", login);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !$("step-login").hidden) login();
+});
+$("signout").addEventListener("click", async () => {
+  await call("/v1/operator/logout", { method: "POST" }).catch(() => {});
+  location.reload();
+});
+
+loadAll().catch(() => { $("step-login").hidden = false; });
+</script>
+</body>
+</html>

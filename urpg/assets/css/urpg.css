@@ -189,6 +189,16 @@ body {
     var(--urpg-cyan) 80%, var(--urpg-cyan) 100%);
 }
 
+/* One-line page lede, sitting under the title and its spectrum rule */
+.main-content > .page-lede {
+  margin: -0.85rem 0 2rem;
+  max-width: 52ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--urpg-ink-soft);
+  text-align: center;
+}
+
 /* --------------------------------------------------------------------------
    Prose — one reading column, matching the JEK side's measure
    -------------------------------------------------------------------------- */

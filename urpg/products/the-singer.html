@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Singer — μRPG</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/urpg/assets/css/urpg.css">
+</head>
+<body class="ground-singer">
+
+  <!-- Top with Overlay -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="/urpg/core.html">Core</a> |
+      <a href="/urpg/cryptids.html">Cryptids</a> |
+      <a href="/urpg/makers.html">For Makers</a> |
+      <a href="/urpg/">About</a> |
+	  <a href="/urpg/donate.html">Donations</a>
+    </div>
+    <div class="text-overlay">μRPG</div>
+  </div>
+
+  <!-- Scrollable Content Area -->
+  <main class="main-content">
+
+    <div class="product-layout">
+
+      <!-- ============ LEFT: image gallery ============
+           To add an image: drop one more <img> in .gallery-stage below.
+           A pip is generated automatically for each one. Keep the first
+           image marked class="is-active".                              -->
+      <div class="product-gallery">
+        <div class="gallery-stage" id="galleryStage">
+          <img class="is-active"
+               src="/urpg/assets/img/the-singer-1.svg"
+               alt="The Singer — cover">
+          <!-- Add the town map and an interior spread here when you have them:
+          <img src="/urpg/assets/img/the-singer-2.png"
+               alt="The Singer — map of Breitenwil" loading="lazy">
+          <img src="/urpg/assets/img/the-singer-3.png"
+               alt="The Singer — interior spread" loading="lazy">
+          -->
+        </div>
+        <div class="gallery-pips" id="galleryPips" role="tablist"
+             aria-label="Product images"></div>
+      </div>
+
+      <!-- ============ RIGHT: buy + description ============ -->
+      <div class="product-detail">
+
+        <h1 class="product-title">The Singer</h1>
+        <p class="product-price">£7.99 — digital</p>
+
+        <!-- STRIPE: replace the href with your Payment Link URL -->
+        <a class="buy-button"
+           href="#REPLACE-WITH-STRIPE-PAYMENT-LINK">
+          Buy (digital)
+        </a>
+
+        <p class="buy-note">
+          Secure checkout via Stripe. A PDF download is emailed to you
+          automatically once payment clears.
+        </p>
+
+        <div class="product-description">
+          <h2>The Module</h2>
+          <p>
+            Breitenwil is a town high in the Swiss Alps, a long way from
+            anywhere. Above it sits the Echo Array: nine radio dishes
+            that have spent the last month listening to something they should
+            not.
+          </p>
+          <p>
+            You are a travelling mystery gang, hired by two worried parents to
+            find their daughter. She is a radio astronomer stationed at the
+            Array, and her letters home stopped a month ago.
+          </p>
+          <p>
+            What you find is a town that is quietly disappearing, and a
+            population grieving for people they can no longer name.
+          </p>
+          <p>
+            Inspired by the False Hydra, the homebrew monster the tabletop
+            community has been building on for over a decade.
+          </p>
+
+          <h2>What's Inside</h2>
+          <ul>
+            <li>Seven keyed locations, plus a map of the town</li>
+            <li>A cast of townsfolk being eaten one at a time, with a nightly
+                feeding order that keeps the pressure on while the party
+                investigate</li>
+            <li>A statblock for the Singer, adjustable for party size and
+                level</li>
+            <li>A two-handed finale that splits the party across a mountainside
+                and gives both halves something to do</li>
+            <li>Eleven omens to drop in as you go</li>
+          </ul>
+
+          <h2>Content Warning</h2>
+          <p>
+            Contains depictions of suicide, gore, violent death, grief, and
+            memory loss. Clear this with your
+            players before you begin.
+          </p>
+
+          <h2>You'll Need</h2>
+          <p>
+            The μRPG <a href="/urpg/core.html">Basic Rules</a> (free), a
+            character sheet per player, and dice.
+          </p>
+
+          <h2>Format</h2>
+          <p>
+            <!-- check the page count against your final PDF -->
+            Thirteen pages, print-ready PDF. DIGITAL ONLY.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <p class="product-back"><a href="/urpg/cryptids.html">← Back to catalogue</a></p>
+
+  </main>
+
+  <!-- Footer -->
+<footer>
+  <a href="/urpg/">
+    <img
+      src="/urpg/assets/img/urpg-logo.png"
+      alt="Company Logo"
+      class="bottom-image"
+    />
+  </a>
+</footer>
+
+<script>
+(function () {
+  var stage = document.getElementById('galleryStage');
+  var pips  = document.getElementById('galleryPips');
+  if (!stage || !pips) return;
+
+  var slides = Array.prototype.slice.call(stage.querySelectorAll('img'));
+  if (slides.length < 2) { pips.hidden = true; return; }
+
+  var current = Math.max(0, slides.findIndex(function (s) {
+    return s.classList.contains('is-active');
+  }));
+
+  function show(i) {
+    current = (i + slides.length) % slides.length;
+    slides.forEach(function (s, n) {
+      s.classList.toggle('is-active', n === current);
+    });
+    buttons.forEach(function (b, n) {
+      b.setAttribute('aria-selected', n === current ? 'true' : 'false');
+      b.tabIndex = n === current ? 0 : -1;
+    });
+  }
+
+  var buttons = slides.map(function (slide, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pip';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', 'Image ' + (i + 1) + ' of ' + slides.length);
+    b.addEventListener('click', function () { show(i); });
+    b.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault(); show(current + 1); buttons[current].focus();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault(); show(current - 1); buttons[current].focus();
+      }
+    });
+    pips.appendChild(b);
+    return b;
+  });
+
+  show(current);
+})();
+</script>
+
+</body>
+</html>

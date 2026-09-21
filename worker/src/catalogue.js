@@ -22,6 +22,18 @@ export const CATALOGUE = {
     filename: 'Outpost32.pdf',
   },
 
+  'price_1UID8f3K18Mm3wzNKAIOMk9s': {
+    name: 'Terror of Outpost 32',
+    r2Key: 'urpg/outpost32-v1.pdf',
+    filename: 'Outpost32.pdf',
+  },
+
+  'price_1UIDhy3K18Mm3wzN9Y1uZuk6': {
+    name: 'The Singer',
+    r2Key: 'urpg/the-singer-v1.pdf',
+    filename: 'The_Singer.pdf',
+  },
+
   // ---- add further products here ---------------------------------------
   // 'price_xxx': {
   //   name: 'Perk Pack: One',

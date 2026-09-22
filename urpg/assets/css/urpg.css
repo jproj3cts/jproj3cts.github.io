@@ -73,6 +73,44 @@ body.ground-singer::before {
   background-size: cover, cover;
 }
 
+/* Cryptids: pixel-art alpine valley, fixed behind the page.
+   The image is drawn at 1872 x 1053 (16:9). It is never shown smaller than
+   that: downscaling pixel art makes the dithering shimmer and drops pixels.
+   Big screens scale it up just enough to cover; smaller screens (laptops,
+   tablets, phones) show it at 1:1 and crop into the middle, so the edge
+   cryptids only turn up once the window is big enough. */
+body.ground-cryptids {
+  --urpg-bg: #1d4f8c;               /* matches the flat zenith at the top of the image */
+  isolation: isolate;
+}
+body.ground-cryptids::before {
+  content: "";
+  position: fixed;
+  top: 0; right: 0; left: 0;
+  height: 100vh;
+  height: 100lvh;                   /* stays put while mobile toolbars slide in and out */
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(10, 30, 50, 0.35), rgba(10, 30, 50, 0) 35%),
+    url("/urpg/assets/img/cryptids-bg.png") center bottom / cover no-repeat,
+    #1d4f8c;
+  /* cover, but never below native size (browsers without max() keep plain cover) */
+  background-size: auto, max(100vw, 177.78vh, 1872px) auto, auto;
+  background-size: auto, max(100vw, 177.78lvh, 1872px) auto, auto;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: pixelated;
+}
+body.ground-cryptids .page-title,
+body.ground-cryptids .page-lede {
+  text-shadow: 0 1px 3px rgba(0, 20, 40, 0.55);
+}
+body.ground-cryptids .image-item {
+  background: rgba(4, 12, 9, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
 /* --------------------------------------------------------------------------
    Base
    -------------------------------------------------------------------------- */

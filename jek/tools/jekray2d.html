@@ -23,6 +23,15 @@
     text-align: left;
   }
 
+  .rt-examples {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0.9rem auto 0;
+    text-align: left;
+    font-size: 0.875rem;
+    color: var(--jek-ink-soft);
+  }
+  .rt-examples .rt-link { font-size: 0.875rem; margin-left: 0.5rem; }
   .rt-about {
     width: 100%;
     max-width: 1440px;
@@ -541,6 +550,12 @@
     </div>
   </dialog>
 
+  <p class="rt-examples">Examples:
+    <button type="button" class="rt-link" data-demo="mach-zehnder">Mach-Zehnder interferometer</button>
+    <button type="button" class="rt-link" data-demo="rainbow">Rainbow in a raindrop</button>
+    <button type="button" class="rt-link" data-demo="eye">The eye, accommodating</button>
+  </p>
+
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
@@ -948,6 +963,7 @@ function normElementBase(e) {
       return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), absorb: e.absorb !== false,
         R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
         binWidth: Math.max(0, num(e.binWidth, 0)),
+        binInterp: e.binInterp !== false,
         mtfFreq: Math.max(0, num(e.mtfFreq, 50)) });
     case 'waveplate':
       return Object.assign(base, {
@@ -1419,6 +1435,7 @@ function traceScene() {
 
   statsCache.clear();
   diffCache.clear();
+  binCache.clear();
   const rays = [], screens = {}, beams = [], probes = [];
   const probeSrc = project.elements.find(e => e.type === 'source');
   let probeLast = null;
@@ -2868,9 +2885,10 @@ function numInput(id, get, onValue, opts = {}) {
     else { v = Number(raw); if (!isFinite(v)) return; }
     beginEdit(); onValue(v); changed(false);
   });
-  inp.addEventListener('change', () => { endEdit(); inp.value = fmtNum(get()); });
+  const show = opts.fmt || fmtNum;
+  inp.addEventListener('change', () => { endEdit(); inp.value = show(get()); });
   inp.addEventListener('blur', endEdit);
-  bindSync(inp, () => { inp.value = fmtNum(get()); });
+  bindSync(inp, () => { inp.value = show(get()); });
   return inp;
 }
 
@@ -3121,7 +3139,7 @@ function screenPanel(el) {
 
 let rayView = 'bins';
 const RAY_PLOTS = [
-  ['bins', 'Binned power'],
+  ['bins', 'Binned intensity'],
   ['power', 'Power of each ray against position'],
   ['phase', 'Phase against position'],
   ['wave', 'Wavefront error against position'],
@@ -3136,8 +3154,18 @@ function rayPlots(el) {
   sel.value = rayView;
   sel.addEventListener('change', () => { rayView = sel.value; renderPanel(); });
   const rows = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel));
-  if (rayView === 'bins') rows.append(param('Bin width (mm, 0 for automatic)', el, 'binWidth', { wide: true }));
+  if (rayView === 'bins') {
+    rows.append(param('Bin width (mm)', el, 'binWidth',
+      { blank: 0, placeholder: 'leave blank for 96 bins', wide: true, fmt: v => v ? fmtNum(v) : '' }));
+  }
   panel.append(rows);
+  if (rayView === 'bins') {
+    const ip = h('input', { type: 'checkbox' });
+    ip.checked = el.binInterp !== false;
+    ip.addEventListener('change', () => { checkpoint(); el.binInterp = ip.checked; changed(false); });
+    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, ip,
+      'Interpolate each beam across the bins'));
+  }
 
   const cv = h('canvas', { height: '150', style: 'width:100%;display:block;margin-top:0.35rem' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
@@ -3147,20 +3175,96 @@ function rayPlots(el) {
     h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
 }
 
-/* Power collected into bins across the screen. Width 0 picks a sensible one. */
-function powerBins(el) {
+/* The field across the screen, in bins.
+   Rays of one source, one wavelength and one path form a beam, and a beam is a sampled
+   wavefront: with interpolation on, each beam is laid onto the bin centres before the
+   fields are added, which is what stops the fringes aliasing against the ray spacing.
+   Wavelengths and separate sources add as intensities, never as fields. */
+const binCache = new Map();
+/* the key carries the binning settings, so a change shows up at once */
+const binKey = el => el.id + '|' + el.binWidth + '|' + (el.binInterp !== false);
+function binnedField(el) {
+  const key = binKey(el);
+  if (binCache.has(key)) return binCache.get(key);
+  const out = binnedFieldRaw(el);
+  binCache.set(key, out);
+  return out;
+}
+function binnedFieldRaw(el) {
   const all = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
   if (!all.length) return null;
   let lo = Infinity, hi = -Infinity;
   for (const t of all) { if (t.y < lo) lo = t.y; if (t.y > hi) hi = t.y; }
   let span = hi - lo;
   if (!(span > 0)) { lo -= 0.005; hi += 0.005; span = hi - lo; }
-  let width = el.binWidth > 0 ? el.binWidth : span / 48;
-  const n = Math.min(4000, Math.max(1, Math.ceil(span / width)));
-  width = span / n;
-  const bins = new Float64Array(n);
-  for (const t of all) bins[Math.min(n - 1, Math.floor((t.y - lo) / width))] += t.w;
-  return { lo, hi, width, bins, n, total: all.reduce((a, t) => a + t.w, 0) };
+
+  const n = el.binWidth > 0 ? Math.min(4000, Math.max(1, Math.round(span / el.binWidth))) : 96;
+  const width = span / n;
+  const interp = el.binInterp !== false;
+
+  const coh = new Float64Array(n), inc = new Float64Array(n);
+  const byNm = new Map();
+  for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, []); byNm.get(t.nm).push(t); }
+
+  for (const [nm, list] of byNm) {
+    const lam = nm * 1e-6;
+    const acc = new Float64Array(n * 4);
+    const fams = new Map();
+    for (const t of list) {
+      const key = t.fam + '|' + t.path;
+      if (!fams.has(key)) fams.set(key, []);
+      fams.get(key).push(t);
+    }
+    const deposit = (b, sr, si, pr, pi, opl) => {
+      const ph = 2 * Math.PI * (opl / lam);
+      const c = Math.cos(ph), s2 = Math.sin(ph);
+      acc[b * 4] += sr * c - si * s2; acc[b * 4 + 1] += sr * s2 + si * c;
+      acc[b * 4 + 2] += pr * c - pi * s2; acc[b * 4 + 3] += pr * s2 + pi * c;
+      inc[b] += sr * sr + si * si + pr * pr + pi * pi;
+    };
+    for (const fam of fams.values()) {
+      if (!interp || fam.length < 2) {
+        for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl);
+        continue;
+      }
+      fam.sort((a, b) => a.y - b.y);
+      let j = 0;
+      for (let b = 0; b < n; b++) {
+        const yb = lo + width * (b + 0.5);
+        if (yb < fam[0].y || yb > fam[fam.length - 1].y) continue;
+        while (j < fam.length - 2 && fam[j + 1].y < yb) j++;
+        const a = fam[j], c2 = fam[j + 1];
+        const dy0 = c2.y - a.y;
+        const u = dy0 === 0 ? 0 : (yb - a.y) / dy0;
+        const L = (p0, p1) => p0 + (p1 - p0) * u;
+        deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl));
+      }
+    }
+    for (let b = 0; b < n; b++) {
+      coh[b] += acc[b*4]*acc[b*4] + acc[b*4+1]*acc[b*4+1] + acc[b*4+2]*acc[b*4+2] + acc[b*4+3]*acc[b*4+3];
+    }
+  }
+
+  let cMax = 0, iMax = 0, sumC = 0, sumI = 0;
+  for (let b = 0; b < n; b++) {
+    sumC += coh[b]; sumI += inc[b];
+    if (coh[b] > cMax) cMax = coh[b];
+    if (inc[b] > iMax) iMax = inc[b];
+  }
+  let vis = null;
+  if (cMax > 0.05 * iMax) {
+    let vlo = Infinity, vhi = 0, lit = 0;
+    for (let b = 0; b < n; b++) {
+      if (inc[b] < 0.05 * iMax) continue;
+      lit++;
+      if (coh[b] < vlo) vlo = coh[b];
+      if (coh[b] > vhi) vhi = coh[b];
+    }
+    if (lit > 2 && vhi > 0) vis = (vhi - vlo) / (vhi + vlo);
+  }
+  return { lo, hi, width, n, interp, coh, inc, max: cMax, incMax: iMax,
+    visibility: vis, interference: sumI > 0 ? sumC / sumI : null,
+    total: all.reduce((a, t) => a + t.w, 0) };
 }
 
 function drawRayPlot(cv, note, el) {
@@ -3178,25 +3282,32 @@ function drawRayPlot(cv, note, el) {
   const centroid = st.centroid;
 
   if (rayView === 'bins') {
-    const B = powerBins(el);
+    const B = binnedField(el);
     if (!B) { note.textContent = 'Nothing has reached this screen.'; return; }
-    const peak = Math.max(...B.bins) || 1;
+    const peak = Math.max(B.max, B.incMax) || 1;
     const X = v => 2 + (v - B.lo) / ((B.hi - B.lo) || 1) * (w - 4);
     const Y = v => hgt - 20 - (v / peak) * (hgt - 32);
+    // the incoherent sum behind, as a reference, and the coherent bins in front
+    c.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let i = 0; i < B.n; i++) {
+      const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.inc[i]);
+      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
+    }
     c.fillStyle = getCss('--jek-cyan');
     for (let i = 0; i < B.n; i++) {
-      const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width);
-      const y = Y(B.bins[i]);
+      const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.coh[i]);
       c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
     }
     c.fillStyle = getCss('--jek-ink-soft');
     c.font = '10px ' + getCss('--jek-mono');
     c.textAlign = 'left';
-    c.fillText((+(100 * peak / Math.max(1, lastTrace.emitted)).toPrecision(3)) + '% per bin', 0, 9);
+    c.fillText('peak bin', 0, 9);
     c.fillText(fmtLen(B.lo), 0, hgt - 4);
     c.textAlign = 'right'; c.fillText(fmtLen(B.hi), w, hgt - 4);
     note.textContent = B.n + ' bins of ' + fmtLen(B.width) + ' across ' + fmtLen(B.hi - B.lo) +
-      ', holding ' + (+(100 * B.total / Math.max(1, lastTrace.emitted)).toPrecision(4)) + '% of the emitted power.';
+      (B.interp ? ', interpolated' : ', rays dropped straight in') +
+      '. Fields add within a beam and a wavelength; the grey behind is the incoherent sum' +
+      (B.interference !== null ? ', and the coherent total is ' + (+(100 * B.interference).toPrecision(4)) + '% of it' : '') + '.';
     return;
   }
 
@@ -3881,9 +3992,10 @@ function diffractionRaw(el) {
    Shared by the readout panel and the optimiser's merit function. */
 const statsCache = new Map();
 function screenStats(el) {
-  if (statsCache.has(el.id)) return statsCache.get(el.id);
+  const key = el.type === 'screen' ? binKey(el) : el.id;
+  if (statsCache.has(key)) return statsCache.get(key);
   const out = screenStatsRaw(el);
-  statsCache.set(el.id, out);
+  statsCache.set(key, out);
   return out;
 }
 function screenStatsRaw(el) {
@@ -3941,69 +4053,16 @@ function screenStatsRaw(el) {
     return { nm: k, centroid: c, rms: Math.sqrt(q / w0), count: v.length };
   }).sort((a, b) => a.nm - b.nm);
 
-  // Coherent sum in bins along the screen. Each beam (one source, one wavelength,
-  // one path through the bench) is a sampled wavefront, so interpolate it onto the
-  // bins rather than dropping rays in: otherwise the fringes alias against the fan.
-  const nb = 96;
-  const span = (hi - lo) || 1;
-  const binC = new Float64Array(nb), binI = new Float64Array(nb);
-  const acc = new Float64Array(nb * 4);
-  const fams = new Map();
-  for (const t of set) {
-    const key = t.fam + '|' + t.path;
-    if (!fams.has(key)) fams.set(key, []);
-    fams.get(key).push(t);
-  }
-  const deposit = (b, sr0, si0, pr0, pi0, opl0, nm0, weight) => {
-    const ph = 2 * Math.PI * (opl0 / (nm0 * 1e-6));
-    const c = Math.cos(ph), sn = Math.sin(ph);
-    acc[b * 4] += (sr0 * c - si0 * sn) * weight; acc[b * 4 + 1] += (sr0 * sn + si0 * c) * weight;
-    acc[b * 4 + 2] += (pr0 * c - pi0 * sn) * weight; acc[b * 4 + 3] += (pr0 * sn + pi0 * c) * weight;
-    binI[b] += (sr0 * sr0 + si0 * si0 + pr0 * pr0 + pi0 * pi0) * weight * weight;
-  };
-  for (const list of fams.values()) {
-    if (list.length < 2) {
-      for (const t of list) deposit(Math.min(nb - 1, Math.floor((t.y - lo) / span * nb)), t.sr, t.si, t.pr, t.pi, t.opl, t.nm, 1);
-      continue;
-    }
-    list.sort((a, b) => a.y - b.y);
-    let j = 0;
-    for (let b = 0; b < nb; b++) {
-      const yb = lo + span * (b + 0.5) / nb;
-      if (yb < list[0].y || yb > list[list.length - 1].y) continue;
-      while (j < list.length - 2 && list[j + 1].y < yb) j++;
-      const a = list[j], c2 = list[j + 1];
-      const dy0 = c2.y - a.y;
-      const u = dy0 === 0 ? 0 : (yb - a.y) / dy0;
-      const L = (p0, p1) => p0 + (p1 - p0) * u;
-      deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl), a.nm, 1);
-    }
-  }
-  let iMax = 0, cMax = 0, sumC = 0, sumI = 0;
-  for (let b = 0; b < nb; b++) {
-    binC[b] = acc[b*4]*acc[b*4] + acc[b*4+1]*acc[b*4+1] + acc[b*4+2]*acc[b*4+2] + acc[b*4+3]*acc[b*4+3];
-    sumC += binC[b]; sumI += binI[b];
-    if (binI[b] > iMax) iMax = binI[b];
-    if (binC[b] > cMax) cMax = binC[b];
-  }
-  const interference = sumI > 0 ? sumC / sumI : null;
-  let vis = null;
-  if (cMax > 0.05 * iMax) {     // a port that is simply dark has no fringes to measure
-    let vlo = Infinity, vhi = 0, lit = 0;
-    for (let b = 0; b < nb; b++) {
-      if (binI[b] < 0.05 * iMax) continue;
-      lit++;
-      if (binC[b] < vlo) vlo = binC[b];
-      if (binC[b] > vhi) vhi = binC[b];
-    }
-    if (lit > 2 && vhi > 0) vis = (vhi - vlo) / (vhi + vlo);
-  }
+  const field = binnedField(el);
+  const profile = field ? { lo: field.lo, hi: field.hi, binC: field.coh, binI: field.inc, nb: field.n, max: field.max } : null;
+  const vis = field ? field.visibility : null;
+  const interference = field ? field.interference : null;
 
   return {
     count: hits.length,
     power: W0,
     stokes: { S0, S1, S2, S3 },
-    profile: { lo, hi, binC, binI, nb, max: cMax },
+    profile,
     visibility: vis,
     interference,
     beam,
@@ -4232,20 +4291,13 @@ function exportScreen(el) {
     L.push([t.y, t.w, t.opl, t.nm, t.sr * t.sr + t.si * t.si, t.pr * t.pr + t.pi * t.pi]
       .map(v => (+v.toPrecision(9))).join(','));
   }
-  const B = powerBins(el);
+  const B = binnedField(el);
   if (B) {
     L.push('');
-    L.push('section,binned power');
-    L.push('bin_centre_mm,power');
-    for (let i = 0; i < B.n; i++) L.push((+(B.lo + (i + 0.5) * B.width).toPrecision(9)) + ',' + (+B.bins[i].toPrecision(6)));
-  }
-  if (st.profile && st.profile.max > 0) {
-    L.push('');
-    L.push('section,intensity profile (coherent)');
-    L.push('position_mm,intensity');
-    const P = st.profile;
-    for (let i = 0; i < P.nb; i++) {
-      L.push((+(P.lo + (P.hi - P.lo) * (i + 0.5) / P.nb).toPrecision(9)) + ',' + (+(P.binC[i] / P.max).toPrecision(6)));
+    L.push('section,binned intensity' + (B.interp ? ' (interpolated)' : ''));
+    L.push('bin_centre_mm,coherent,incoherent');
+    for (let i = 0; i < B.n; i++) {
+      L.push([+(B.lo + (i + 0.5) * B.width).toPrecision(9), +B.coh[i].toPrecision(6), +B.inc[i].toPrecision(6)].join(','));
     }
   }
   const D = diffraction(el);
@@ -4580,6 +4632,23 @@ document.getElementById('fileZmx').addEventListener('change', e => { const f = e
     }
   });
 }
+document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', async () => {
+  try {
+    const res = await fetch('demos/' + btn.dataset.demo + '.jekray');
+    if (!res.ok) throw new Error('that example could not be fetched');
+    const data = await res.json();
+    pauseAll();
+    loadProject(data);
+    playing.clear(); updateSweepButtons();
+    history = []; future = []; selectedId = null;
+    document.getElementById('projName').value = project.name;
+    changed(true);
+    fitView();
+    toast('Opened ' + project.name);
+  } catch (err) {
+    toast('Could not open that example (' + err.message + ').', true);
+  }
+}));
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);

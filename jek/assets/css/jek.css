@@ -161,7 +161,7 @@ body {
   border-radius: 2px;
 }
 .nav-drop-menu {
-  position: absolute;
+  position: absolute;      /* script upgrades this to fixed, so no ancestor can clip it */
   top: calc(100% + 0.35rem);
   left: 50%;
   transform: translateX(-50%);
@@ -184,6 +184,7 @@ body {
   border-bottom: none;
 }
 .nav-drop-menu a:hover { background: rgba(255, 255, 255, 0.12); border-bottom-color: transparent; }
+.nav-drop-menu.fixed { position: fixed; top: auto; left: auto; }
 @media (hover: none) {
   .nav-drop:hover .nav-drop-menu { display: none; }
   .nav-drop.open .nav-drop-menu { display: flex; }
@@ -1250,7 +1251,9 @@ form#searchForm {
 /* Cart sits hard right in the nav strip, clear of the centred links */
 .top-container .bar6 {
   position: relative;
-  overflow: visible;   /* the nav bar clips its overflow, which would swallow the dropdown */
+  /* The bar clips overflow-x, and a browser cannot clip one axis alone: it turns the
+     other into a scroll area, which would trap the dropdown inside the bar. */
+  overflow: visible;
   z-index: 20;
 }
 

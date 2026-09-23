@@ -355,7 +355,28 @@
     if (e.key === KEY) refreshCount();
   });
 
-  // Nav dropdowns: hover handles the desktop, a tap handles everything else
+  // Nav dropdowns. The menu is placed with fixed coordinates while it is open, so
+  // it floats over the page however its ancestors are clipped or scrolled.
+  function placeNavMenu(drop) {
+    var btn = drop.querySelector(".nav-drop-btn");
+    var menu = drop.querySelector(".nav-drop-menu");
+    if (!btn || !menu) return;
+    menu.classList.add("fixed");
+    var r = btn.getBoundingClientRect();
+    var half = menu.offsetWidth / 2;
+    var x = r.left + r.width / 2;
+    var margin = 8;
+    x = Math.min(Math.max(x, margin + half), window.innerWidth - margin - half);
+    menu.style.top = Math.round(r.bottom + 6) + "px";
+    menu.style.left = Math.round(x) + "px";
+  }
+  function closeNavMenu(drop) {
+    var menu = drop.querySelector(".nav-drop-menu");
+    var btn = drop.querySelector(".nav-drop-btn");
+    drop.classList.remove("open");
+    if (menu) { menu.classList.remove("fixed"); menu.style.top = ""; menu.style.left = ""; }
+    if (btn) { btn.setAttribute("aria-expanded", "false"); btn.blur(); }
+  }
   function initNavDrops() {
     var drops = document.querySelectorAll("[data-nav-drop]");
     Array.prototype.forEach.call(drops, function (drop) {
@@ -363,28 +384,34 @@
       if (!btn) return;
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
-        var open = drop.classList.toggle("open");
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (drop.classList.contains("open")) {
+          closeNavMenu(drop);
+        } else {
+          drop.classList.add("open");
+          btn.setAttribute("aria-expanded", "true");
+          placeNavMenu(drop);
+        }
+      });
+      // hovering opens it too, and the menu still needs placing
+      drop.addEventListener("mouseenter", function () { placeNavMenu(drop); });
+      drop.addEventListener("mouseleave", function () {
+        if (!drop.classList.contains("open")) {
+          var menu = drop.querySelector(".nav-drop-menu");
+          if (menu) { menu.classList.remove("fixed"); menu.style.top = ""; menu.style.left = ""; }
+        }
       });
       drop.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") {
-          drop.classList.remove("open");
-          btn.setAttribute("aria-expanded", "false");
-          btn.focus();
-        }
+        if (e.key === "Escape") { closeNavMenu(drop); btn.focus(); }
       });
     });
-    document.addEventListener("click", function () {
+    function closeAll() {
       Array.prototype.forEach.call(drops, function (drop) {
-        if (!drop.classList.contains("open")) return;
-        drop.classList.remove("open");
-        var btn = drop.querySelector(".nav-drop-btn");
-        if (btn) {
-          btn.setAttribute("aria-expanded", "false");
-          btn.blur();
-        }
+        if (drop.classList.contains("open")) closeNavMenu(drop);
       });
-    });
+    }
+    document.addEventListener("click", closeAll);
+    window.addEventListener("resize", closeAll);
+    window.addEventListener("scroll", closeAll, { passive: true });
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initNavDrops);

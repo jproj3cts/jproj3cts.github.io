@@ -354,4 +354,41 @@
   window.addEventListener("storage", function (e) {
     if (e.key === KEY) refreshCount();
   });
+
+  // Nav dropdowns: hover handles the desktop, a tap handles everything else
+  function initNavDrops() {
+    var drops = document.querySelectorAll("[data-nav-drop]");
+    Array.prototype.forEach.call(drops, function (drop) {
+      var btn = drop.querySelector(".nav-drop-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var open = drop.classList.toggle("open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      drop.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+          drop.classList.remove("open");
+          btn.setAttribute("aria-expanded", "false");
+          btn.focus();
+        }
+      });
+    });
+    document.addEventListener("click", function () {
+      Array.prototype.forEach.call(drops, function (drop) {
+        if (!drop.classList.contains("open")) return;
+        drop.classList.remove("open");
+        var btn = drop.querySelector(".nav-drop-btn");
+        if (btn) {
+          btn.setAttribute("aria-expanded", "false");
+          btn.blur();
+        }
+      });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initNavDrops);
+  } else {
+    initNavDrops();
+  }
 })(window, document);

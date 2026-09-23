@@ -130,6 +130,65 @@ body {
   border-radius: 2px;
 }
 
+/* Nav dropdown (Tools) */
+.nav-drop { position: relative; display: inline-flex; }
+.nav-drop-btn {
+  margin: 0 0.45rem;
+  padding: 0.15rem 0.1rem;
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: #fff;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nav-drop-btn::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.4em;
+  border: 0.28em solid transparent;
+  border-top-color: currentColor;
+  transform: translateY(0.15em);
+}
+.nav-drop-btn:hover { border-bottom-color: var(--jek-sky); }
+.nav-drop-btn:focus-visible {
+  outline: 2px solid var(--jek-sky);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.nav-drop-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.3rem 0;
+  background: var(--jek-bar);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+.nav-drop.open .nav-drop-menu,
+.nav-drop:hover .nav-drop-menu { display: flex; }
+.nav-drop-menu a {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  text-align: left;
+  border-bottom: none;
+}
+.nav-drop-menu a:hover { background: rgba(255, 255, 255, 0.12); border-bottom-color: transparent; }
+@media (hover: none) {
+  .nav-drop:hover .nav-drop-menu { display: none; }
+  .nav-drop.open .nav-drop-menu { display: flex; }
+}
+
 /* Wordmark sits over the colour bars, clear of the nav strip */
 .text-overlay {
   position: absolute;
@@ -1495,6 +1554,7 @@ button.buy-button {
 @media (max-width: 520px) {
   .bar6 { font-size: 0.75rem; }
   .bar6 a { margin: 0 0.3rem; }
+  .nav-drop-btn { margin: 0 0.3rem; }
   .calc-card,
   .diagram-area { padding: 1rem; }
   .link-section { padding: 1rem 1.1rem 1.25rem; }

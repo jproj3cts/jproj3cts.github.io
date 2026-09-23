@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>JEKray2D regression tests</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+  .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
+  .tt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 0.75rem;
+    background: var(--jek-panel);
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+  }
+  .tt-btn {
+    padding: 0.4rem 0.7rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--jek-cyan);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .tt-btn:hover { background: var(--jek-cyan-dark); }
+  .tt-btn:disabled { opacity: 0.5; cursor: default; }
+  .tt-summary { font-weight: 600; }
+  .tt-summary.pass { color: var(--jek-green, #2e7d32); }
+  .tt-summary.fail { color: var(--jek-red); }
+  .tt-time { margin-left: auto; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+
+  table.tt {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--jek-panel);
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+    overflow: hidden;
+    font-size: 0.875rem;
+  }
+  table.tt th, table.tt td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  table.tt th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jek-ink-soft); }
+  table.tt td.num { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.tt tr.group td {
+    background: var(--jek-well);
+    font-weight: 700;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--jek-ink-soft);
+  }
+  .tt-flag { font-weight: 700; white-space: nowrap; }
+  .tt-flag.ok { color: #2e7d32; }
+  .tt-flag.no { color: var(--jek-red); }
+  tr.failed td { background: rgba(200, 40, 40, 0.06); }
+  .tt-note { font-size: 0.8125rem; color: var(--jek-ink-soft); margin: 0.75rem 0 1.25rem; max-width: 46rem; }
+  .tt-src { font-size: 0.75rem; color: var(--jek-ink-soft); }
+  iframe.tt-rig { position: absolute; width: 1200px; height: 800px; left: -4000px; top: 0; border: 0; }
+</style>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
+  <div class="bar bar4"></div><div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <span class="nav-drop" data-nav-drop>
+      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+      <span class="nav-drop-menu">
+        <a href="/jek/calculators/">Calculators</a>
+        <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+      </span>
+    </span> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">JEKray2D regression tests</h1>
+
+  <div class="tt-wrap">
+    <p class="tt-note">Each check compares the tracer against a closed-form result, or against a value measured once and recorded as a baseline. The suite drives a hidden copy of <a href="/jek/tools/jekray2d.html">JEKray2D</a> in test mode, so it neither reads nor writes your saved bench.</p>
+
+    <div class="tt-bar">
+      <button class="tt-btn" id="run">Run again</button>
+      <span class="tt-summary" id="summary">Loading the tracer\u2026</span>
+      <span class="tt-time" id="time"></span>
+    </div>
+
+    <table class="tt">
+      <thead>
+        <tr><th>Check</th><th>Expected</th><th>Got</th><th>Tolerance</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <iframe class="tt-rig" id="rig" src="/jek/tools/jekray2d.html#test" title="Test rig"></iframe>
+</main>
+
+<footer>
+  <span class="copyright" style="margin-top:1.5rem">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+'use strict';
+
+const C = 299792458;
+const NM = 633, LAM = NM * 1e-6;           // mm
+
+/* ---------- Benches used by the checks ---------- */
+
+const bench = (name, elements, extra = {}) => Object.assign({
+  format: 'jekray', version: 1, name,
+  view: { cx: 0, cy: 0, scale: 6 }, snap: 0,
+  maxBounces: 400, minPower: 0.1, ghosts: false,
+  elements,
+}, extra);
+
+const src = o => Object.assign({
+  type: 'source', name: 'Src', x: -60, y: 0, angle: 0, wavelength: NM,
+  width: 10, divergence: 0, rays: 15, pol: 'p', colourAuto: true,
+}, o);
+const screen = o => Object.assign({ type: 'screen', name: 'Screen', x: 60, y: 0, angle: 180, length: 40 }, o);
+const bk7Lens = o => Object.assign({
+  type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25.4,
+  surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }],
+}, o);
+
+/* A one-surface-pair window, used for the Fresnel checks */
+const windowBlock = (angle, coat) => ({
+  type: 'prism', name: 'Window', shape: 'window', x: 0, y: 0, angle,
+  size: 40, thickness: 5, material: { glass: 'N-BK7' },
+  coat: coat || { mode: 'bare', R: 4 },
+});
+
+/* A clean f/N focus: a small collimated beam through the singlet, screen at best focus */
+const diffBench = (width, rays) => bench('diff', [
+  src({ name: 'Beam', x: -200, width, rays, wavelength: NM, pol: 's' }),
+  bk7Lens({ name: 'Lens', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
+  screen({ name: 'Focus', x: 51.19, angle: 180, length: 6 }),
+], { minPower: 1e-4 });
+
+/* One coated face, the other perfectly AR, so no etalon forms between them */
+const coatedPlate = coat => ({
+  type: 'lens', name: 'Plate', x: 0, y: 0, angle: 0, diameter: 40,
+  surfaces: [{ R: null, coat }, { R: null, coat: { mode: 'custom', R: 0 } }],
+  gaps: [4], materials: [{ glass: 'N-BK7' }],
+});
+const QW = (n, design) => design / (4 * n);
+
+/* A synthetic Zemax file: two surfaces of glass, one an even asphere */
+const ZMX = [
+  'VERS 1', 'MODE SEQ', 'NAME TESTLENS', 'UNIT MM X W X CM MR CPMM',
+  'SURF 0', '  CURV 0', '  DISZ INFINITY',
+  'SURF 1', '  TYPE EVENASPH', '  CURV 5.0E-2', '  CONI -0.75',
+  '  PARM 2 -1.5E-5', '  DISZ 4.2', '  GLAS N-BK7 0 0 1.5168 64.17', '  DIAM 6.35 1',
+  'SURF 2', '  TYPE STANDARD', '  CURV 0', '  DISZ 40', '  DIAM 6.35 1',
+  'SURF 3', '  CURV 0', '  DISZ 0',
+].join('\r\n');
+
+/* ---------- The checks ----------
+   want: the expected value; tol: absolute unless rel is true. */
+
+const TESTS = [
+  { group: 'Materials and dispersion' },
+  {
+    name: 'N-BK7 index at the d line',
+    why: 'Schott catalogue value 1.51680',
+    want: 1.51680, tol: 2e-4, unit: '',
+    run: J => J.index({ glass: 'N-BK7' }, 587.5618),
+  },
+  {
+    name: 'Fused silica index at 1550 nm',
+    why: 'Malitson fit, 1.44402',
+    want: 1.44402, tol: 5e-4, unit: '',
+    run: J => J.index({ glass: 'Fused silica' }, 1550),
+  },
+  {
+    name: 'Abbe number of N-SF11 from the model',
+    why: 'catalogue 25.68',
+    want: 25.68, tol: 0.05, unit: '',
+    run: J => {
+      const n = l => J.index({ glass: 'N-SF11' }, l);
+      return (n(587.5618) - 1) / (n(486.1327) - n(656.2725));
+    },
+  },
+
+  { group: 'Paraxial optics' },
+  {
+    name: 'Thick-lens EFL of the biconvex singlet',
+    why: 'lensmaker, thick form, at 633 nm',
+    want: null, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('efl', [src({}), bk7Lens({}), screen({})]));
+      const n = J.index({ glass: 'N-BK7' }, NM), R = 51.5, t = 3.6;
+      const P1 = (n - 1) / R, P2 = (n - 1) / R;
+      TESTS_EXPECT.efl = 1 / (P1 + P2 - t * P1 * P2 / n);
+      return J.paraxial('Lens', NM).efl;
+    },
+    wantFrom: () => TESTS_EXPECT.efl,
+  },
+  {
+    name: 'Chromatic focal shift, 486 nm against 633 nm',
+    why: 'same formula at the blue line',
+    want: null, tol: 2e-3, rel: true, unit: ' mm',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, 486.1327), R = 51.5, t = 3.6;
+      const P = (n - 1) / R;
+      TESTS_EXPECT.eflBlue = 1 / (2 * P - t * P * P / n);
+      return J.paraxial('Lens', 486.1327).efl;
+    },
+    wantFrom: () => TESTS_EXPECT.eflBlue,
+  },
+
+  { group: 'Geometric tracing' },
+  {
+    name: 'Off-axis parabola is stigmatic',
+    why: 'a parabola focuses a collimated beam perfectly',
+    want: 0, tol: 1e-5, unit: ' waves RMS',
+    run: J => {
+      J.load(bench('oap', [
+        src({ name: 'Beam', x: -90, width: 20, rays: 21 }),
+        { type: 'mirror', name: 'OAP', x: 0, y: 0, angle: 180, R: 101.6, k: -1, offset: 25.4, length: 25.4, reflect: 100 },
+        screen({ name: 'Focus', x: -47.625, y: 25.4, angle: 0, length: 10 }),
+      ]));
+      return J.metric('Focus', 'wfRMS');
+    },
+  },
+  {
+    name: 'Spherical aberration of the f/5 singlet',
+    why: 'baseline: 3.178 waves P\u2013V at the paraxial focus',
+    want: 3.178, tol: 0.02, unit: ' waves P\u2013V',
+    run: J => {
+      J.load(bench('sa', [
+        src({ name: 'HeNe', x: -60, width: 10, rays: 15, wavelength: 632.8 }),
+        bk7Lens({}),
+        { type: 'mirror', name: 'Fold', x: 25, y: 0, angle: 135, length: 25.4, reflect: 100 },
+        screen({ name: 'Screen', x: 25, y: 26.2, angle: -90, length: 12 }),
+      ]));
+      return J.metric('Screen', 'wfPV');
+    },
+  },
+  {
+    name: 'Aperture vignetting of a uniform fan',
+    why: '61 of 101 evenly spaced rays clear a 6.05 mm stop',
+    want: 100 * 61 / 101, tol: 0.1, unit: '%',
+    run: J => {
+      J.load(bench('vig', [
+        src({ width: 10, rays: 101 }),
+        { type: 'stop', name: 'Iris', x: -20, y: 0, angle: 0, aperture: 6.05, outer: 25.4 },
+        screen({ x: 20 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+  },
+
+  { group: 'Fresnel, coatings and polarisation' },
+  {
+    name: 'Normal-incidence transmission through a bare window',
+    why: 'two surfaces, each (n\u22121)\u00b2/(n+1)\u00b2',
+    want: null, tol: 5e-3, rel: true, unit: '%',
+    run: J => {
+      J.load(bench('fresnel', [src({ width: 4, rays: 5, pol: 'unpolarised' }), windowBlock(0), screen({ x: 40 })]));
+      const n = J.index({ glass: 'N-BK7' }, NM);
+      const R = ((n - 1) / (n + 1)) ** 2;
+      TESTS_EXPECT.tx = 100 * (1 - R) * (1 - R);
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.tx,
+  },
+  {
+    name: 'AR coating at 0.5% per surface',
+    why: '(1 \u2212 0.005)\u00b2 = 99.0025%',
+    want: 99.0025, tol: 0.01, unit: '%',
+    run: J => {
+      J.load(bench('ar', [
+        src({ width: 4, rays: 5 }),
+        windowBlock(0, { mode: 'ar', R: 0.5 }),
+        screen({ x: 40 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+  },
+  {
+    name: 'Brewster angle passes p untouched',
+    why: 'p transmits in full, s keeps (1-Rs) at each face, fixing the transmitted p share',
+    want: null, tol: 2e-3, rel: true, unit: '% p',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, NM);
+      const br = Math.atan(n) * 180 / Math.PI;
+      const Rs = ((n * n - 1) / (n * n + 1)) ** 2;       // s reflectance at Brewster
+      const ts = (1 - Rs) * (1 - Rs);                     // two parallel faces
+      TESTS_EXPECT.brewster = 100 / (1 + ts);
+      J.load(bench('brewster', [
+        src({ width: 2, rays: 3, pol: 'unpolarised', x: -60, y: 0 }),
+        windowBlock(br, { mode: 'bare', R: 4 }),   // the face normal tilted to Brewster
+        screen({ x: 60, length: 80 }),
+      ]));
+      const st = J.stats('Screen');
+      if (!st || !st.stokes.S0) return NaN;
+      return 100 * (1 + st.stokes.S1 / st.stokes.S0) / 2; // p share of what got through
+    },
+    wantFrom: () => TESTS_EXPECT.brewster,
+  },
+  {
+    name: 'Total internal reflection loses no power',
+    why: 'a right-angle prism folds the beam by 90 degrees and keeps all of it',
+    want: 100, tol: 0.1, unit: '%',
+    run: J => {
+      J.load(bench('tir', [
+        src({ name: 'Src', x: -60, y: 5, width: 2, rays: 3, pol: 'p' }),
+        { type: 'prism', name: 'Prism', shape: 'right', x: 0, y: 0, angle: 0, size: 30,
+          material: { glass: 'N-BK7' }, coat: { mode: 'ar', R: 0 } },
+        screen({ name: 'Below', x: -5, y: -40, angle: 90, length: 40 }),
+      ]));
+      return J.metric('Below', 'power');
+    },
+  },
+  {
+    name: 'Quarter wave at 45\u00b0 makes circular light',
+    why: 'p through a QWP is fully circular',
+    want: 100, tol: 0.01, unit: '% circular',
+    run: J => {
+      J.load(bench('qwp', [
+        src({ width: 2, rays: 3, pol: 'p' }),
+        { type: 'waveplate', name: 'QWP', x: -20, y: 0, angle: 0, retard: 0.25, axis: 45, length: 25.4 },
+        screen({ x: 20 }),
+      ]));
+      return J.metric('Screen', 'circ');
+    },
+  },
+  {
+    name: 'Half wave at 45\u00b0 turns p into s',
+    why: 'a half wave rotates linear light by twice its axis angle',
+    want: 100, tol: 0.01, unit: '% s',
+    run: J => {
+      J.load(bench('hwp', [
+        src({ width: 2, rays: 3, pol: 'p' }),
+        { type: 'waveplate', name: 'HWP', x: -20, y: 0, angle: 0, retard: 0.5, axis: 45, length: 25.4 },
+        screen({ x: 20 }),
+      ]));
+      const st = J.stats('Screen');
+      return 100 * (1 - st.stokes.S1 / st.stokes.S0) / 2;
+    },
+  },
+  {
+    name: 'Malus law through a polariser',
+    why: 'linear at 30\u00b0 through an axis at 0\u00b0 gives cos\u00b230',
+    want: 75, tol: 0.05, unit: '%',
+    run: J => {
+      J.load(bench('malus', [
+        src({ width: 2, rays: 3, pol: 'linear', polAngle: 30 }),
+        { type: 'polariser', name: 'Pol', x: -20, y: 0, angle: 0, axis: 0, length: 25.4 },
+        screen({ x: 20 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+  },
+  {
+    name: 'Polarising cube splits s from p',
+    why: 'defaults reflect 99% of s and 1% of p',
+    want: 99, tol: 0.2, unit: '% s in the reflected arm',
+    run: J => {
+      J.load(bench('pbs', [
+        src({ x: -40, width: 6, rays: 5, pol: 'unpolarised' }),
+        { type: 'cube', name: 'PBS', x: 0, y: 0, angle: 0, size: 12.7, mode: 'pbs',
+          reflectS: 99, reflectP: 1, material: { glass: 'N-BK7' }, coat: { mode: 'ar', R: 0 } },
+        screen({ name: 'Refl', x: 0, y: 40, angle: -90, length: 25 }),
+      ]));
+      const st = J.stats('Refl');
+      return 100 * (1 - st.stokes.S1 / st.stokes.S0) / 2;
+    },
+  },
+
+  { group: 'Thin-film coatings' },
+  {
+    name: 'Quarter-wave MgF2 on N-BK7',
+    why: 'R = ((n0*ns - n1^2)/(n0*ns + n1^2))^2 at the design wavelength',
+    want: null, tol: 2e-3, rel: true, unit: '% transmitted',
+    run: J => {
+      const ns = J.index({ glass: 'N-BK7' }, 550), n1 = 1.38;
+      const R = ((ns - n1 * n1) / (ns + n1 * n1)) ** 2;
+      TESTS_EXPECT.mgf2 = 100 * (1 - R);
+      J.load(bench('mgf2', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 550, pol: 's' }),
+        coatedPlate({ mode: 'stack', design: 550, layers: [{ n: 1.38, d: QW(1.38, 550) }] }),
+        screen({ x: 40 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.mgf2,
+  },
+  {
+    name: 'A half-wave layer is invisible',
+    why: 'an absentee layer leaves the bare Fresnel reflectance',
+    want: null, tol: 1e-3, rel: true, unit: '% transmitted',
+    run: J => {
+      const ns = J.index({ glass: 'N-BK7' }, 550);
+      TESTS_EXPECT.absentee = 100 * (1 - ((ns - 1) / (ns + 1)) ** 2);
+      J.load(bench('absentee', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 550, pol: 's' }),
+        coatedPlate({ mode: 'stack', design: 550, layers: [{ n: 1.38, d: 2 * QW(1.38, 550) }] }),
+        screen({ x: 40 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.absentee,
+  },
+  {
+    name: 'Two-layer V-coat at its design wavelength',
+    why: 'n1^2*ns = n2^2*n0 cancels the reflection exactly',
+    want: 100, tol: 0.01, unit: '% transmitted',
+    run: J => {
+      const ns = J.index({ glass: 'N-BK7' }, 550);
+      const n1 = 1.38, n2 = n1 * Math.sqrt(ns);
+      J.load(bench('vcoat', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 550, pol: 's' }),
+        coatedPlate({ mode: 'stack', design: 550, layers: [{ n: n1, d: QW(n1, 550) }, { n: n2, d: QW(n2, 550) }] }),
+        screen({ x: 40 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+  },
+  {
+    name: 'Quarter-wave HR stack, six pairs',
+    why: 'Y = (nH/nL)^2N * nH^2/ns gives R = ((n0-Y)/(n0+Y))^2',
+    want: null, tol: 2e-3, rel: true, unit: '% reflected',
+    run: J => {
+      const ns = J.index({ glass: 'N-BK7' }, 550), nH = 2.10, nL = 1.46, N = 6;
+      const Y = (nH / nL) ** (2 * N) * nH * nH / ns;
+      TESTS_EXPECT.hr = 100 * ((1 - Y) / (1 + Y)) ** 2;
+      const layers = [];
+      for (let i = 0; i < N; i++) layers.push({ n: nH, d: QW(nH, 550) }, { n: nL, d: QW(nL, 550) });
+      layers.push({ n: nH, d: QW(nH, 550) });
+      J.load(bench('hr', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 550, pol: 's' }),
+        coatedPlate({ mode: 'stack', design: 550, layers }),
+        screen({ x: 40 }),
+      ], { minPower: 1e-4 }));
+      return 100 - J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.hr,
+  },
+  {
+    name: 'A stack works the same way round',
+    why: 'reciprocity: the same coating seen through the glass reflects the same',
+    want: 0, tol: 1e-6, unit: ' difference',
+    run: J => {
+      const ns = J.index({ glass: 'N-BK7' }, 550);
+      const layers = [{ n: 1.38, d: QW(1.38, 550) }, { n: 1.70, d: QW(1.70, 550) }];
+      const fwd = J.stackAmp(layers, 1, ns, 1, 550, 's');
+      const rev = J.stackAmp(layers.slice().reverse(), ns, 1, 1, 550, 's');
+      return Math.abs((fwd[0] ** 2 + fwd[1] ** 2) - (rev[0] ** 2 + rev[1] ** 2));
+    },
+  },
+
+  {
+    name: 'A -C part imports with its AR band',
+    why: 'the suffix says 1050 to 1700 nm at 0.5%',
+    want: 1, tol: 0, unit: ' (1 = all four right)',
+    run: J => {
+      const zmx = ['VERS 1', 'MODE SEQ', 'NAME A240TM-C', 'UNIT MM',
+        'SURF 0', ' CURV 0', ' DISZ INFINITY',
+        'SURF 1', ' CURV 3.125E-1', ' DISZ 2.97', ' GLAS N-BK7 0 0 1.5168 64.17', ' DIAM 4 1', ' COAT AR',
+        'SURF 2', ' CURV -1.25E-1', ' DISZ 4', ' DIAM 4 1', ' COAT AR',
+        'SURF 9', ' CURV 0', ' DISZ 0'].join('\r\n');
+      const el = J.importZmxText(zmx, 'A240TM-C.zmx', 'lens');
+      const c = el.surfaces[0].coat;
+      return (c.mode === 'band' && c.R === 0.5 && c.lo === 1050 && c.hi === 1700) ? 1 : 0;
+    },
+  },
+  {
+    name: 'A band coating works inside its band',
+    why: '0.5% per face means 99.0025% through two of them',
+    want: 99.0025, tol: 0.02, unit: '%',
+    run: J => {
+      J.load(bench('band-in', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 1550, pol: 's' }),
+        Object.assign(windowBlock(0), { coat: { mode: 'band', R: 0.5, lo: 1050, hi: 1700 } }),
+        screen({ x: 40 }),
+      ]));
+      return J.metric('Screen', 'power');
+    },
+  },
+  {
+    name: 'Outside its band it is bare glass again',
+    why: 'a C-band coating does nothing at 532 nm',
+    want: null, tol: 2e-3, rel: true, unit: '%',
+    run: J => {
+      J.load(bench('band-out', [
+        src({ x: -40, width: 2, rays: 3, wavelength: 532, pol: 's' }),
+        Object.assign(windowBlock(0), { coat: { mode: 'band', R: 0.5, lo: 1050, hi: 1700 } }),
+        screen({ x: 40 }),
+      ]));
+      const n = J.index({ glass: 'N-BK7' }, 532);
+      const R = ((n - 1) / (n + 1)) ** 2;
+      TESTS_EXPECT.bandOut = 100 * (1 - R) * (1 - R);
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.bandOut,
+  },
+  {
+    name: 'A -P01 mirror imports as protected silver',
+    why: 'nominal 97.5% rather than a perfect mirror',
+    want: 97.5, tol: 1e-9, unit: '%',
+    run: J => {
+      const zmx = ['VERS 1', 'MODE SEQ', 'NAME PF10-03-P01', 'UNIT MM',
+        'SURF 0', ' CURV 0', ' DISZ INFINITY',
+        'SURF 1', ' CURV 0', ' DISZ -50', ' GLAS MIRROR', ' DIAM 12.7 1', ' COAT P01',
+        'SURF 9', ' CURV 0', ' DISZ 0'].join('\r\n');
+      return J.importZmxText(zmx, 'PF10-03-P01.zmx', 'mirror').reflect;
+    },
+  },
+
+  { group: 'Optical path and interference' },
+  {
+    name: 'Confocal cavity round trip',
+    why: 'two mirrors 100 mm apart: 200 mm per round trip',
+    want: 200, tol: 0.01, unit: ' mm',
+    run: J => {
+      J.load(bench('cavity', [
+        { type: 'mirror', name: 'M1', x: -50, y: 0, angle: 0, R: 100, length: 25.4, reflect: 100 },
+        { type: 'mirror', name: 'M2', x: 50, y: 0, angle: 180, R: 100, length: 25.4, reflect: 100 },
+        src({ name: 'Seed', x: -20, y: 2, angle: 3, width: 0, rays: 1, wavelength: 1064 }),
+        screen({ name: 'Pickoff', x: 0, y: 0, angle: 180, length: 30, absorb: false }),
+      ]));
+      return J.metric('Pickoff', 'rt');
+    },
+  },
+  {
+    name: 'Free spectral range of that cavity',
+    why: 'c / 200 mm = 1498.96 MHz',
+    want: C / 0.2 / 1e6, tol: 0.1, unit: ' MHz',
+    run: J => J.metric('Pickoff', 'fsr'),
+  },
+  {
+    name: 'Michelson with equal arms',
+    why: 'the arms add: twice the incoherent sum',
+    want: 200, tol: 0.5, unit: '%',
+    run: J => {
+      J.load(michelson(0));
+      return J.metric('Output', 'interf');
+    },
+  },
+  {
+    name: 'Michelson after a quarter-wave mirror shift',
+    why: 'half a wave of path difference: the port goes dark',
+    want: 0, tol: 0.5, unit: '%',
+    run: J => {
+      J.load(michelson(LAM / 4));
+      return J.metric('Output', 'interf');
+    },
+  },
+  {
+    name: 'Fringe visibility with one mirror tilted',
+    why: 'equal-amplitude arms interfere fully',
+    want: 100, tol: 1, unit: '%',
+    run: J => {
+      J.load(michelson(0, 0.01));
+      return J.metric('Output', 'vis');
+    },
+  },
+
+  { group: 'Gaussian beams' },
+  {
+    name: 'Rayleigh range of a 1 mm waist',
+    why: '\u03c0w\u2080\u00b2/\u03bb',
+    want: Math.PI * 1 / LAM, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('gauss', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0 }),
+        screen({ name: 'S1', x: -50, angle: 180, absorb: false }),
+        bk7Lens({ name: 'f50' }),
+        screen({ name: 'Focus', x: 49.4, angle: 180 }),
+      ]));
+      return J.stats('S1').beam.zR;
+    },
+  },
+  {
+    name: 'Beam radius past the Rayleigh range',
+    why: 'w(z) = w0*sqrt(1+(z/zR)^2), with the waist one Rayleigh range behind the source',
+    want: null, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      const zR = Math.PI / LAM;
+      J.setParam('Beam', 'z0', -zR);          // put the waist a Rayleigh range behind
+      J.trace();
+      const z = zR + 50;                      // the probe screen is 50 mm along
+      TESTS_EXPECT.wz = Math.sqrt(1 + (z / zR) ** 2);
+      return J.stats('S1').beam.w;
+    },
+    wantFrom: () => TESTS_EXPECT.wz,
+  },
+  {
+    name: 'Waist after the singlet',
+    why: '\u03bbf/\u03c0w\u2080 for the lens\u2019s own focal length',
+    want: null, tol: 5e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.setParam('Beam', 'z0', 0);
+      J.trace();
+      const f = J.paraxial('f50', NM).efl;
+      TESTS_EXPECT.w0 = LAM * f / (Math.PI * 1);
+      return J.stats('Focus').beam.w0;
+    },
+    wantFrom: () => TESTS_EXPECT.w0,
+  },
+  {
+    name: 'The ray fan follows the beam',
+    why: 'a 2 mm collimated fan is a 1 mm waist at the source',
+    want: 1, tol: 1e-6, unit: ' mm',
+    run: J => {
+      J.setParam('Beam', 'width', 2);
+      J.setParam('Beam', 'divergence', 0);
+      return J.getParam('Beam', 'w0');
+    },
+  },
+
+  { group: 'Diffraction and MTF' },
+  {
+    name: 'The Airy ring lands where it should',
+    why: 'first dark ring at 0.61*lambda/NA',
+    want: null, tol: 0.02, rel: true, unit: ' mm',
+    run: J => {
+      J.load(diffBench(2, 81));
+      const D = J.diffraction('Focus');
+      TESTS_EXPECT.D = D;
+      TESTS_EXPECT.airy = 0.61 * 633e-6 / D.NA;
+      for (let i = 2; i < D.psf.length - 1; i++) if (D.psf[i] < D.psf[i - 1] && D.psf[i] <= D.psf[i + 1]) return D.rho[i];
+      return NaN;
+    },
+    wantFrom: () => TESTS_EXPECT.airy,
+  },
+  {
+    name: 'A near-perfect wavefront gives Strehl 1',
+    why: 'an f/25 singlet is diffraction limited',
+    want: 1, tol: 0.005, unit: '',
+    run: () => TESTS_EXPECT.D.strehl,
+  },
+  {
+    name: 'PSF width at half maximum',
+    why: '1.029*lambda/(2*NA) for a clear circular pupil',
+    want: null, tol: 0.02, rel: true, unit: ' mm',
+    run: () => { TESTS_EXPECT.fwhm = 1.029 * 633e-6 / (2 * TESTS_EXPECT.D.NA); return TESTS_EXPECT.D.fwhm; },
+    wantFrom: () => TESTS_EXPECT.fwhm,
+  },
+  {
+    name: 'Encircled energy inside the first ring',
+    why: 'an Airy pattern holds 83.8% inside its first dark ring',
+    want: 0.838, tol: 0.02, unit: '',
+    run: () => {
+      const D = TESTS_EXPECT.D;
+      for (let i = 1; i < D.rho.length; i++) if (D.rho[i] >= D.airy) return D.ee[i];
+      return NaN;
+    },
+  },
+  {
+    name: 'MTF matches the diffraction-limited curve',
+    why: '(2/pi)(acos x - x sqrt(1-x^2)) at a quarter, a half and three quarters of cut-off',
+    want: 0, tol: 0.02, unit: ' worst difference',
+    run: () => {
+      const D = TESTS_EXPECT.D;
+      const ana = x => (2 / Math.PI) * (Math.acos(x) - x * Math.sqrt(1 - x * x));
+      let worst = 0;
+      for (const x of [0.25, 0.5, 0.75]) worst = Math.max(worst, Math.abs(D.mtfAt(D.cutoff * x) - ana(x)));
+      return worst;
+    },
+  },
+  {
+    name: 'Strehl follows the wavefront error',
+    why: 'Marechal: Strehl is about exp(-(2*pi*sigma)^2) for small errors',
+    want: null, tol: 0.03, unit: '',
+    run: J => {
+      J.load(diffBench(5, 81));
+      const sigma = J.metric('Focus', 'wfRMS');            // in waves
+      TESTS_EXPECT.marechal = Math.exp(-((2 * Math.PI * sigma) ** 2));
+      return J.diffraction('Focus').strehl;
+    },
+    wantFrom: () => TESTS_EXPECT.marechal,
+  },
+  {
+    name: 'An off-axis pupil is not treated as symmetric',
+    why: 'an off-axis parabola gets the tangential answer, not the 2D one',
+    want: 0, tol: 0, unit: ' (0 = tangential)',
+    run: J => {
+      J.load(bench('oap-diff', [
+        src({ name: 'Beam', x: -90, width: 20, rays: 41 }),
+        { type: 'mirror', name: 'OAP', x: 0, y: 0, angle: 180, R: 101.6, k: -1, offset: 25.4, length: 25.4, reflect: 100 },
+        screen({ name: 'Focus', x: -47.625, y: 25.4, angle: 0, length: 10 }),
+      ]));
+      const D = J.diffraction('Focus');
+      return D && D.symmetric ? 1 : 0;
+    },
+  },
+
+  { group: 'Tolerancing' },
+  {
+    name: 'Sensitivity ranks the dominant term first',
+    why: 'a millimetre of lens despace beats a fifth of a degree of mirror tilt',
+    want: 1, tol: 0, unit: ' (1 = ranked first)',
+    run: J => {
+      J.load(bench('sens', [
+        src({ name: 'HeNe', width: 10, rays: 15 }),
+        bk7Lens({ sweeps: { x: { min: -1, max: 1, freq: 0.25, phase: 0, wave: 'sine' } } }),
+        { type: 'mirror', name: 'Fold', x: 25, y: 0, angle: 135, length: 25.4, reflect: 100,
+          sweeps: { angle: { min: 134.8, max: 135.2, freq: 0.25, phase: 0, wave: 'sine' } } },
+        screen({ name: 'Screen', x: 25, y: 26.2, angle: -90, length: 12 }),
+      ]));
+      const S = J.sensitivity([['Lens', 'x'], ['Fold', 'angle']], 'Screen', 'rms');
+      TESTS_EXPECT.sens = S;
+      return S.rows[0].el.name === 'Lens' ? 1 : 0;
+    },
+  },
+  {
+    name: 'Sensitivity leaves the bench where it found it',
+    why: 'the study restores every value it moved',
+    want: 0, tol: 1e-12, unit: ' mm',
+    run: J => Math.abs(J.getParam('Lens', 'x') - 0),
+  },
+  {
+    name: 'Quadrature total is below the arithmetic sum',
+    why: 'independent tolerances add in quadrature',
+    want: 1, tol: 0, unit: ' (1 = true)',
+    run: () => {
+      const S = TESTS_EXPECT.sens;
+      const sum = S.rows.reduce((a, r) => a + r.worst, 0);
+      return S.rss <= sum + 1e-12 && S.rss > 0 ? 1 : 0;
+    },
+  },
+
+  { group: 'System, absorption and screens' },
+  {
+    name: 'System focal length from the probe rays',
+    why: 'it must match the lens it contains',
+    want: null, tol: 1e-4, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('sys', [src({ name: 'S', x: -100, width: 10, rays: 9 }), bk7Lens({ name: 'Lens' })]));
+      TESTS_EXPECT.sysEfl = J.paraxial('Lens', NM).efl;
+      return J.system().efl;
+    },
+    wantFrom: () => TESTS_EXPECT.sysEfl,
+  },
+  {
+    name: 'Back focal distance from the probe rays',
+    why: 'the same as the lens BFL, measured from its rear vertex',
+    want: null, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => { TESTS_EXPECT.sysBfd = J.paraxial('Lens', NM).bfl; return J.system().bfd; },
+    wantFrom: () => TESTS_EXPECT.sysBfd,
+  },
+  {
+    name: 'A collimated system reports as collimated',
+    why: 'parallel in, parallel out',
+    want: 1, tol: 0, unit: ' (1 = collimated)',
+    run: J => {
+      J.load(bench('collim', [src({ name: 'S', x: -60, width: 4, rays: 5 }), screen({ x: 60 })]));
+      const S = J.system();
+      return S && S.collimated ? 1 : 0;
+    },
+  },
+  {
+    name: 'Absorption follows Beer and Lambert',
+    why: 'exp(-alpha * path) through 5 mm at 0.1 per mm',
+    want: null, tol: 1e-4, rel: true, unit: '%',
+    run: J => {
+      TESTS_EXPECT.abs = 100 * Math.exp(-0.5);
+      J.load(bench('abs', [
+        src({ x: -40, width: 2, rays: 3, pol: 's' }),
+        Object.assign(windowBlock(0, { mode: 'custom', R: 0 }), { material: { glass: 'N-BK7', abs: 0.1 } }),
+        screen({ x: 40 }),
+      ], { minPower: 1e-6 }));
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.abs,
+  },
+  {
+    name: 'A curved screen changes the paths it records',
+    why: 'a screen curving away from the source lengthens the edge rays',
+    want: 1, tol: 0, unit: ' (1 = longer)',
+    run: J => {
+      const go = R => {
+        J.load(bench('curve', [
+          src({ x: -40, width: 0, divergence: 30, rays: 21, pol: 's' }),
+          screen({ x: 0, angle: 180, length: 60, R }),
+        ]));
+        return J.stats('Screen').oplMean;
+      };
+      const flat = go(null), away = go(-40);
+      return away > flat ? 1 : 0;
+    },
+  },
+
+  {
+    name: 'Each material absorbs over its own thickness',
+    why: 'a cemented pair: exp(-0.2*3) then exp(-0.05*7)',
+    want: null, tol: 1e-4, rel: true, unit: '%',
+    run: J => {
+      TESTS_EXPECT.doublet = 100 * Math.exp(-0.2 * 3) * Math.exp(-0.05 * 7);
+      J.load(bench('doublet', [
+        src({ x: -40, width: 1, rays: 3, pol: 's' }),
+        { type: 'lens', name: 'D', x: 0, y: 0, angle: 0, diameter: 25.4,
+          surfaces: [{ R: null, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } },
+            { R: null, coat: { mode: 'custom', R: 0 } }],
+          gaps: [3, 7], materials: [{ glass: 'N-BK7', abs: 0.2 }, { glass: 'N-SF11', abs: 0.05 }] },
+        screen({ x: 40 }),
+      ], { minPower: 1e-8 }));
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.doublet,
+  },
+  {
+    name: 'An imported material is used at the right wavelength',
+    why: 'linear interpolation between the tabulated points',
+    want: 2.3507, tol: 1e-3, unit: '',
+    run: J => J.index({ glass: 'ZnS', table: { wl: [0.6, 1.0, 1.55], n: [2.356, 2.2918, 2.2646], k: [] } }, 632.8),
+  },
+  {
+    name: 'Measured k becomes absorption',
+    why: 'alpha = 4*pi*k/lambda, so a small k eats a known share',
+    want: null, tol: 2e-3, rel: true, unit: '%',
+    run: J => {
+      const k = 1e-6, lam = 633e-6, alpha = 4 * Math.PI * k / lam;
+      TESTS_EXPECT.kabs = 100 * Math.exp(-alpha * 5);
+      J.load(bench('kabs', [
+        src({ x: -40, width: 1, rays: 3, pol: 's' }),
+        Object.assign(windowBlock(0, { mode: 'custom', R: 0 }), {
+          material: { glass: 'Test', table: { wl: [0.4, 0.8], n: [1.5, 1.5], k: [k, k] } } }),
+        screen({ x: 40 }),
+      ], { minPower: 1e-8 }));
+      return J.metric('Screen', 'power');
+    },
+    wantFrom: () => TESTS_EXPECT.kabs,
+  },
+  {
+    name: 'A probe ray is never drawn as light',
+    why: 'the partial mirror must not spawn measuring rays into the picture',
+    want: 0, tol: 0, unit: ' stray beams',
+    run: J => {
+      J.load(bench('probe', [
+        src({ x: -40, width: 4, rays: 5, pol: 's' }),
+        { type: 'mirror', name: 'M', x: 20, y: 0, angle: 180, length: 25.4, reflect: 95 },
+        screen({ name: 'Screen', x: 40, angle: 180 }),
+      ]));
+      return J.lastTrace().beams.length;
+    },
+  },
+
+  { group: 'Import, files and tools' },
+  {
+    name: 'Zemax import reads the radius',
+    why: 'CURV 5.0E-2 is R = 20 mm',
+    want: 20, tol: 1e-9, unit: ' mm',
+    run: J => {
+      const el = J.importZmxText(ZMX, 'TESTLENS.zmx', 'lens');
+      TESTS_EXPECT.zmx = el;
+      return el.surfaces[0].R;
+    },
+  },
+  {
+    name: 'Zemax import reads the conic and the A4 term',
+    why: 'CONI \u22120.75 and PARM 2 = \u22121.5e-5',
+    want: -0.75, tol: 1e-12, unit: '',
+    run: () => TESTS_EXPECT.zmx.surfaces[0].k,
+    extra: () => Math.abs(TESTS_EXPECT.zmx.surfaces[0].A[0] + 1.5e-5) < 1e-18 ? '' : ' (A4 wrong)',
+  },
+  {
+    name: 'Zemax import reads the centre thickness',
+    why: 'DISZ 4.2',
+    want: 4.2, tol: 1e-9, unit: ' mm',
+    run: () => TESTS_EXPECT.zmx.gaps[0],
+  },
+  {
+    name: 'Save and reopen leaves the answer alone',
+    why: 'a .jekray round trip is lossless',
+    want: 0, tol: 1e-9, unit: ' mm difference',
+    run: J => {
+      J.load(bench('roundtrip', [src({ name: 'HeNe', width: 10, rays: 15 }), bk7Lens({}), screen({ x: 51.2 })]));
+      const before = J.metric('Screen', 'rms');
+      const saved = JSON.parse(JSON.stringify(J.serialize()));
+      J.load(saved);
+      return Math.abs(J.metric('Screen', 'rms') - before);
+    },
+  },
+  {
+    name: 'The optimiser finds the circle of least confusion',
+    why: 'baseline 50.66 mm, half a millimetre short of the 51.19 mm paraxial focus',
+    want: 50.655, tol: 0.05, unit: ' mm',
+    run: J => {
+      const p = bench('opt', [src({ name: 'HeNe', width: 10, rays: 15 }), bk7Lens({}),
+        screen({ x: 45, sweeps: { x: { min: 40, max: 60, freq: 0.25, phase: 0, wave: 'sine' } } })]);
+      J.load(p);
+      const r = J.optimise('Screen', 'x', 'Screen', 'rms', 'min', 0);
+      return r.best;
+    },
+  },
+];
+
+const TESTS_EXPECT = {};
+
+function michelson(armShift, tilt = 0) {
+  return bench('michelson', [
+    src({ name: 'Laser', x: -60, width: 6, rays: 41, pol: 'p' }),
+    { type: 'cube', name: 'BS', x: 0, y: 0, angle: 0, size: 12.7, mode: 'npbs', reflect: 50,
+      material: { glass: 'N-BK7' }, coat: { mode: 'ar', R: 0 } },
+    { type: 'mirror', name: 'M1', x: 40 + armShift, y: 0, angle: 180, length: 25.4, reflect: 100 },
+    { type: 'mirror', name: 'M2', x: 0, y: 40, angle: 270 + tilt, length: 25.4, reflect: 100 },
+    screen({ name: 'Output', x: 0, y: -40, angle: 90, length: 14 }),
+  ]);
+}
+
+/* ---------- Running and reporting ---------- */
+
+const rows = document.getElementById('rows');
+const summary = document.getElementById('summary');
+const timeEl = document.getElementById('time');
+const runBtn = document.getElementById('run');
+
+const fmt = (v, unit) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return 'n/a';
+  if (typeof v !== 'number') return String(v);
+  const a = Math.abs(v);
+  const s = (a !== 0 && (a < 1e-3 || a >= 1e6)) ? v.toExponential(4) : String(+v.toPrecision(7));
+  return s + (unit || '');
+};
+
+function runAll() {
+  const J = document.getElementById('rig').contentWindow.JEKray2D;
+  rows.replaceChildren();
+  if (!J) {
+    summary.textContent = 'The tracer did not load its test hook.';
+    summary.className = 'tt-summary fail';
+    return;
+  }
+  const t0 = performance.now();
+  let pass = 0, fail = 0;
+
+  for (const t of TESTS) {
+    if (t.group) {
+      const tr = document.createElement('tr');
+      tr.className = 'group';
+      const td = document.createElement('td');
+      td.colSpan = 5; td.textContent = t.group;
+      tr.append(td); rows.append(tr);
+      continue;
+    }
+    let got, err = null;
+    try { got = t.run(J); } catch (e) { err = e; got = NaN; }
+    const want = t.wantFrom ? t.wantFrom() : t.want;
+    const tol = t.rel ? Math.abs(want * t.tol) : t.tol;
+    let ok = typeof got === 'number' && Number.isFinite(got) && Math.abs(got - want) <= tol;
+    let note = t.extra ? t.extra() : '';
+    if (note) ok = false;
+    ok ? pass++ : fail++;
+
+    const tr = document.createElement('tr');
+    if (!ok) tr.className = 'failed';
+    const cells = [
+      `<div>${t.name}${note}</div><div class="tt-src">${err ? 'threw: ' + err.message : t.why}</div>`,
+      fmt(want, t.unit),
+      fmt(got, t.unit),
+      (t.rel ? '\u00b1' + (t.tol * 100).toPrecision(2) + '%' : '\u00b1' + fmt(t.tol, t.unit)),
+      `<span class="tt-flag ${ok ? 'ok' : 'no'}">${ok ? 'pass' : 'FAIL'}</span>`,
+    ];
+    cells.forEach((html, i) => {
+      const td = document.createElement('td');
+      if (i > 0 && i < 4) td.className = 'num';
+      td.innerHTML = html;
+      tr.append(td);
+    });
+    rows.append(tr);
+  }
+
+  const ms = Math.round(performance.now() - t0);
+  summary.textContent = fail ? `${fail} failed, ${pass} passed` : `all ${pass} checks passed`;
+  summary.className = 'tt-summary ' + (fail ? 'fail' : 'pass');
+  timeEl.textContent = ms + ' ms';
+}
+
+runBtn.addEventListener('click', () => { runBtn.disabled = true; setTimeout(() => { runAll(); runBtn.disabled = false; }, 10); });
+document.getElementById('rig').addEventListener('load', () => setTimeout(runAll, 150));
+})();
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+</body>
+</html>

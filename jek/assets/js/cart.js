@@ -367,7 +367,7 @@
     var x = r.left + r.width / 2;
     var margin = 8;
     x = Math.min(Math.max(x, margin + half), window.innerWidth - margin - half);
-    menu.style.top = Math.round(r.bottom + 6) + "px";
+    menu.style.top = Math.round(r.bottom) + "px";   // flush, so the pointer never crosses a gap
     menu.style.left = Math.round(x) + "px";
   }
   function closeNavMenu(drop) {
@@ -393,12 +393,19 @@
         }
       });
       // hovering opens it too, and the menu still needs placing
-      drop.addEventListener("mouseenter", function () { placeNavMenu(drop); });
+      var leaveTimer = null;
+      drop.addEventListener("mouseenter", function () {
+        clearTimeout(leaveTimer);
+        placeNavMenu(drop);
+      });
       drop.addEventListener("mouseleave", function () {
-        if (!drop.classList.contains("open")) {
+        clearTimeout(leaveTimer);
+        // a moment's grace, so a wandering pointer doesn't snatch the menu away
+        leaveTimer = setTimeout(function () {
+          if (drop.classList.contains("open") || drop.matches(":hover")) return;
           var menu = drop.querySelector(".nav-drop-menu");
           if (menu) { menu.classList.remove("fixed"); menu.style.top = ""; menu.style.left = ""; }
-        }
+        }, 300);
       });
       drop.addEventListener("keydown", function (e) {
         if (e.key === "Escape") { closeNavMenu(drop); btn.focus(); }

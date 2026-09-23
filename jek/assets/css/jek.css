@@ -1248,7 +1248,11 @@ form#searchForm {
    -------------------------------------------------------------------------- */
 
 /* Cart sits hard right in the nav strip, clear of the centred links */
-.top-container .bar6 { position: relative; }
+.top-container .bar6 {
+  position: relative;
+  overflow: visible;   /* the nav bar clips its overflow, which would swallow the dropdown */
+  z-index: 20;
+}
 
 .top-container .bar6 .nav-cart {
   position: absolute;

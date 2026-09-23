@@ -162,16 +162,17 @@ body {
 }
 .nav-drop-menu {
   position: absolute;      /* script upgrades this to fixed, so no ancestor can clip it */
-  top: calc(100% + 0.35rem);
+  top: 100%;               /* flush with the bar: a gap would break the hover path */
   left: 50%;
   transform: translateX(-50%);
   display: none;
   flex-direction: column;
   min-width: 11rem;
-  padding: 0.3rem 0;
+  padding: 0.45rem 0;
   background: var(--jek-bar);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
   z-index: 40;
 }

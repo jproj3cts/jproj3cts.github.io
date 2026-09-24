@@ -246,6 +246,50 @@ const retro = (el, pol) => bench('retro', [
   src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, pol: pol || 's' }), el,
 ], { ghosts: true });
 
+/* Behind a slit from a to b across a Gaussian of radius w with its waist on the slit: the
+   exact in-plane intensity at distance z, a 1D Fresnel integral (the slit has no height) */
+function slitFresnel(w, a, b, z, x) {
+  const k = 2 * Math.PI / LAM, M = 4000;
+  let re = 0, im = 0;
+  for (let i = 0; i <= M; i++) {
+    const u = a + (b - a) * i / M, wt = i === 0 || i === M ? 0.5 : 1, A = Math.exp(-u * u / (w * w)), ph = -k * (x - u) ** 2 / (2 * z);
+    re += wt * A * Math.cos(ph); im += wt * A * Math.sin(ph);
+  }
+  return re * re + im * im;
+}
+/* Largest difference between a sampled profile and an exact one, both scaled to their peaks */
+function shapeError(P, f, xs) {
+  const pk = Math.max(...P.I), at = x => { const r = P.r; let lo = 0, hi = r.length - 1; if (x <= r[0] || x >= r[hi]) return 0;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (r[m] <= x) lo = m; else hi = m; } return P.I[lo] + (P.I[hi] - P.I[lo]) * (x - r[lo]) / (r[hi] - r[lo]); };
+  let fp = 0; for (let x = xs[0]; x <= xs[xs.length - 1]; x += (xs[xs.length - 1] - xs[0]) / 400) fp = Math.max(fp, f(x));
+  return Math.max(...xs.map(x => Math.abs(at(x) / pk - f(x) / fp)));
+}
+const offSlitBench = (off, wid) => bench('offslit', [
+  src({ name: 'Beam', x: -50, width: 4, rays: 3, gauss: true, w0: 2, z0: 50, popN: 256 }),
+  { type: 'stop', name: 'Slit', x: 0, y: 0, angle: 0, shape: 'slit', aperture: wid, offset: off, outer: 25.4 },
+]);
+
+/* Behind slits of half-width a centred at cs across a Gaussian of radius w with its waist on
+   them: the exact in-plane intensity at distance z (slits of unlimited height) */
+function slitsFresnel(w, cs, a, z, x) {
+  const k = 2 * Math.PI / LAM, M = 800;
+  let re = 0, im = 0;
+  for (const c of cs) for (let i = 0; i <= M; i++) {
+    const u = c - a + 2 * a * i / M, wt = i === 0 || i === M ? 0.5 : 1, A = Math.exp(-u * u / (w * w)), ph = -k * (x - u) ** 2 / (2 * z);
+    re += wt * A * Math.cos(ph); im += wt * A * Math.sin(ph);
+  }
+  return re * re + im * im;
+}
+/* Bright peaks above a fraction of the highest, across [x0, x1] */
+function peaksOf(f, x0, x1, dx, frac) {
+  let top = 0; for (let x = x0; x <= x1; x += dx) top = Math.max(top, f(x));
+  const out = []; let p2 = f(x0), p1 = f(x0 + dx);
+  for (let x = x0 + 2 * dx; x <= x1; x += dx) { const v = f(x); if (p1 > p2 && p1 >= v && p1 > frac * top) out.push(x - dx); p2 = p1; p1 = v; }
+  return out;
+}
+const profileAt = (g, z) => { const P = g.profile(z), r = P.r, I = P.I;
+  return x => { let lo = 0, hi = r.length - 1; if (x <= r[0] || x >= r[hi]) return 0; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (r[m] <= x) lo = m; else hi = m; } return I[lo] + (I[hi] - I[lo]) * (x - r[lo]) / (r[hi] - r[lo]); }; };
+
 /* ---------- The checks ----------
    want: the expected value; tol: absolute unless rel is true. */
 
@@ -1302,7 +1346,7 @@ const TESTS = [
   {
     name: 'A binary \u03c0 phase grating suppresses the zero order',
     why: 'half-wave steps at 50% duty average to nothing: far off, no light on the axis',
-    want: 0, tol: 0.01, unit: ' (of the ungrated axis)',
+    want: 0, tol: 1e-4, unit: ' (of the ungrated axis)',
     run: J => {
       const g = m => { J.load(oneEl(m, { popN: 512 })); return after(J, 'G').at(5000).axis; };
       const on = g({ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, amp: '1', delay: '0.5*step(sin(2*pi*x/0.5))' });
@@ -1427,6 +1471,170 @@ const TESTS = [
       return J.stats('Out').beam ? J.stats('Out').beam.w : NaN;
     },
     wantFrom: () => TESTS_EXPECT.bwOn,
+  },
+
+
+  { group: 'Off-axis apertures, near and far' },
+  {
+    name: 'An off-axis slit, close behind it',
+    why: 'a 0.4 mm slit 1.2 mm off a 2 mm beam, 200 mm on: the field against the exact Fresnel integral, shapes scaled to their peaks',
+    want: 0, tol: 0.01, unit: ' (largest difference)',
+    run: J => {
+      J.load(offSlitBench(1.2, 0.4));
+      const g = J.popSegments().find(x => x.el === 'Slit'), xs = [];
+      for (let q = -1; q <= 1.0001; q += 0.1) xs.push(1.2 + q * 1.2);
+      return shapeError(g.profile(200), x => slitFresnel(2, 1.0, 1.4, 200, x), xs);
+    },
+  },
+  {
+    name: 'and far from it',
+    why: 'the same at 2 m, where the slit\u2019s light has spread well past its own width: the grid must follow it out rather than wrap it round',
+    want: 0, tol: 0.01, unit: ' (largest difference)',
+    run: J => {
+      J.load(offSlitBench(1.2, 0.4));
+      const g = J.popSegments().find(x => x.el === 'Slit'), xs = [];
+      for (let q = -1; q <= 1.0001; q += 0.1) xs.push(1.2 + q * 6);
+      return shapeError(g.profile(2000), x => slitFresnel(2, 1.0, 1.4, 2000, x), xs);
+    },
+  },
+  {
+    name: 'A small disc off the axis blocks its share',
+    why: 'a 0.2 mm obscuring disc 1 mm off a 2 mm beam: the power it takes against the Gaussian inside it, which is only 0.3%',
+    want: 1, tol: 0.08, unit: ' (of the true share)',
+    run: J => {
+      J.load(bench('offdisc', [
+        src({ name: 'Beam', x: -50, width: 4, rays: 3, gauss: true, w0: 2, z0: 50, popN: 256 }),
+        { type: 'stop', name: 'Disc', x: 0, y: 0, angle: 0, shape: 'disc', aperture: 0.2, offset: 1, outer: 25.4 },
+      ]));
+      let sIn = 0, sAll = 0; const M = 800, R = 8;
+      for (let i = 0; i < M; i++) for (let j = 0; j < M; j++) {
+        const x = -R + 2 * R * (i + 0.5) / M, y = -R + 2 * R * (j + 0.5) / M, I = Math.exp(-(x * x + y * y) / 2);
+        sAll += I; if (Math.hypot(x - 1, y) < 0.1) sIn += I;
+      }
+      return (1 - J.popSegments().find(x => x.el === 'Disc').start.power) / (sIn / sAll);
+    },
+  },
+
+  {
+    name: 'Clipping one side of a beam leaves edge fringes',
+    why: 'a knife 1 mm off a 2 mm beam, screen 200 mm on: the first bright fringe inside the edge against the exact Fresnel integral, 1.20 times the unclipped level 0.32 mm in',
+    want: 0, tol: 0.05, unit: ' (worst relative error, height and place)',
+    run: J => {
+      J.load(bench('fringe', [
+        src({ name: 'Beam', x: -50, width: 4, rays: 3, gauss: true, w0: 2, z0: 50, popN: 512 }),
+        { type: 'stop', name: 'Knife', x: 0, y: 0, angle: 0, shape: 'knife', offset: 1, side: 1, outer: 25.4 },
+        screen({ name: 'S', x: 200, angle: 180, length: 40 }),
+      ]));
+      const z = 200, P = J.popSegments().find(x => x.el === 'Knife').profile(z), r = P.r, I = P.I;
+      const at = x => { let lo = 0, hi = r.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (r[m] <= x) lo = m; else hi = m; } return I[lo] + (I[hi] - I[lo]) * (x - r[lo]) / (r[hi] - r[lo]); };
+      const ex = x => slitFresnel(2, -8, 1, z, x);
+      let sxy = 0, sxx = 0;
+      for (let x = -2; x <= 1.5; x += 0.004) { const e = ex(x), p = at(x); sxy += p * e; sxx += p * p; }
+      const scale = sxx / sxy;
+      const first = f => { let p2 = f(1), p1 = f(0.999); for (let x = 0.998; x > -1; x -= 0.001) { const v = f(x); if (p1 > p2 && p1 > v) return [1 - x - 0.001, p1 / (Math.exp(-(x * x) / 2) * ex(-3) / Math.exp(-4.5))]; p2 = p1; p1 = v; } return [NaN, NaN]; };
+      const [xe, he] = first(ex), [xp, hp] = first(x => at(x) / scale);
+      return Math.max(Math.abs(xp / xe - 1), Math.abs(hp / he - 1));
+    },
+  },
+  {
+    name: 'Detail finer than the grid is flagged',
+    why: 'a 0.1 mm disc across a 2 mm beam on 256 points: the grid cannot span the beam and resolve the disc, and says so',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('tinydisc', [
+        src({ name: 'Beam', x: -50, width: 4, rays: 3, gauss: true, w0: 2, z0: 50, popN: 256 }),
+        { type: 'stop', name: 'Disc', x: 0, y: 0, angle: 0, shape: 'disc', aperture: 0.1, offset: 1.5, outer: 25.4 },
+      ]));
+      return J.popNotes().coarse.includes('Disc') ? 1 : 0;
+    },
+  },
+
+
+  { group: 'Double slits, slit combs and hard-edged masks' },
+  {
+    name: 'Young\u2019s fringes behind a double slit',
+    why: '0.1 mm slits 0.5 mm apart, 20 m on: the spacing of the bright fringes against the exact pattern\u2019s (\u03bbz/s = 25.3 mm, pulled in a little by the single-slit envelope)',
+    want: null, tol: 0.01, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('young', [
+        src({ name: 'Beam', x: -50, width: 8, rays: 3, gauss: true, w0: 4, z0: 50, popN: 256 }),
+        { type: 'stop', name: 'St', x: 0, y: 0, angle: 0, shape: 'double', aperture: 0.1, sep: 0.5, offset: 0, outer: 25.4 },
+      ]));
+      const at = profileAt(J.popSegments().find(x => x.el === 'St'), 20000);
+      const ex = peaksOf(x => slitsFresnel(4, [-0.25, 0.25], 0.05, 20000, x), -60, 60, 0.05, 0.3);
+      const got = peaksOf(at, -60, 60, 0.05, 0.3);
+      TESTS_EXPECT.young = (ex[ex.length - 1] - ex[0]) / (ex.length - 1);
+      return (got[got.length - 1] - got[0]) / (got.length - 1);
+    },
+    wantFrom: () => TESTS_EXPECT.young,
+  },
+  {
+    name: 'Young\u2019s fringes a metre on',
+    why: 'the demo: 0.1 mm slits 0.5 mm apart in a 3 mm beam, screen 1 m on, where the slits\u2019 own spread outruns the pattern\u2019s width: the fringe spacing against the exact pattern\u2019s',
+    want: null, tol: 0.005, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('young1m', [
+        src({ name: 'Laser', x: -100, width: 3, rays: 3, gauss: true, w0: 1.5, z0: 100, popN: 256 }),
+        { type: 'stop', name: 'St', x: 0, y: 0, angle: 0, shape: 'double', aperture: 0.1, sep: 0.5, offset: 0, outer: 25.4 },
+        screen({ name: 'S', x: 1000, angle: 180, length: 40 }),
+      ]));
+      const at = profileAt(J.popSegments().find(x => x.el === 'St'), 1000);
+      const ex = peaksOf(x => slitsFresnel(1.5, [-0.25, 0.25], 0.05, 1000, x), -8, 8, 0.005, 0.05);
+      const got = peaksOf(at, -8, 8, 0.005, 0.05);
+      TESTS_EXPECT.y1m = (ex[ex.length - 1] - ex[0]) / (ex.length - 1);
+      return got.length === ex.length ? (got[got.length - 1] - got[0]) / (got.length - 1) : NaN;
+    },
+    wantFrom: () => TESTS_EXPECT.y1m,
+  },
+  {
+    name: 'A slit comb puts its first order at \u03bbz/p',
+    why: 'five 0.1 mm slits at a 0.2 mm pitch, 2 m on: the first diffraction order 6.33 mm off axis',
+    want: LAM * 2000 / 0.2, tol: 0.005, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('comb', [
+        src({ name: 'Beam', x: -50, width: 4, rays: 3, gauss: true, w0: 2, z0: 50, popN: 256 }),
+        { type: 'stop', name: 'St', x: 0, y: 0, angle: 0, shape: 'comb', aperture: 0.1, pitch: 0.2, count: 5, offset: 0, outer: 25.4 },
+      ]));
+      const at = profileAt(J.popSegments().find(x => x.el === 'St'), 2000), x1 = LAM * 2000 / 0.2;
+      TESTS_EXPECT.combAt = at;
+      let b = 0, bx = 0; for (let x = x1 - 1.5; x <= x1 + 1.5; x += 0.005) { const v = at(x); if (v > b) { b = v; bx = x; } }
+      TESTS_EXPECT.comb1 = b;
+      return bx;
+    },
+  },
+  {
+    name: 'and at half duty it has no second order',
+    why: 'slits half the pitch wide cancel the even orders: the level at 2\u03bbz/p against the first order\u2019s',
+    want: 0, tol: 0.01, unit: '',
+    run: () => { const x2 = 2 * LAM * 2000 / 0.2; let b = 0; for (let x = x2 - 1; x <= x2 + 1; x += 0.005) b = Math.max(b, TESTS_EXPECT.combAt(x)); return b / TESTS_EXPECT.comb1; },
+  },
+  {
+    name: 'Rays pass only through the slits',
+    why: 'a 2 mm fan of 201 rays onto the same comb: the rays that reach the screen, against the share of the fan the slits leave open',
+    want: 0, tol: 2, unit: ' rays off',
+    run: J => {
+      J.load(bench('combrays', [
+        src({ name: 'Fan', x: -50, width: 2, rays: 201 }),
+        { type: 'stop', name: 'St', x: 0, y: 0, angle: 0, shape: 'comb', aperture: 0.1, pitch: 0.2, count: 5, offset: 0, outer: 25.4 },
+        screen({ name: 'S', x: 50, angle: 180, length: 30 }),
+      ]));
+      return J.stats('S').count - Math.round(201 * 0.5 / 2);
+    },
+  },
+  {
+    name: 'A hard-edged formula mask: an annulus',
+    why: 'amplitude step(r\u22121)\u00b7step(2\u2212r) on a 2 mm beam, dark where the reference ray crosses it: e^(\u2212\u00bd) \u2212 e^(\u22122) gets through',
+    want: Math.exp(-0.5) - Math.exp(-2), tol: 3e-3, rel: true, unit: '',
+    run: J => {
+      J.load(oneEl({ type: 'mask', name: 'Ann', x: 0, y: 0, angle: 0, amp: 'step(r-1)*step(2-r)', delay: '0' }, { w0: 2, width: 4 }));
+      return after(J, 'Ann').start.power;
+    },
+  },
+  {
+    name: 'and an amplitude grating',
+    why: 'step(sin(2\u03c0x/0.2)), half open: its edges averaged over each sample, it passes half',
+    want: 0.5, tol: 1e-3, rel: true, unit: '',
+    run: J => { J.load(oneEl({ type: 'mask', name: 'AG', x: 0, y: 0, angle: 0, amp: 'step(sin(2*pi*x/0.2))', delay: '0' })); return after(J, 'AG').start.power; },
   },
 
   { group: 'Tolerancing' },

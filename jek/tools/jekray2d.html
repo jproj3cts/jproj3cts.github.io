@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
 <style>
-  /* Ray tracer — page-specific styles. Site tokens come from jek.css. */
+  /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
     --rt-bench: #1f2529;      /* anodised breadboard */
     --rt-hole:  #343d44;      /* M6 tapped holes, 25 mm pitch */
@@ -179,6 +179,16 @@
   .rt-pin.on { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-pin:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned h2 { cursor: pointer; }
+  .rt-zoom { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-zoom span { margin-left: 0.35rem; }
+  .rt-zoom span:first-child { margin-left: 0; }
+  .rt-zb {
+    min-width: 1.6rem; height: 1.5rem; padding: 0 0.35rem; border: 1px solid var(--jek-line); border-radius: 4px;
+    background: transparent; color: var(--jek-ink); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .rt-zb:last-child { margin-left: auto; }
+  .rt-zb:hover { border-color: var(--jek-ink-soft); }
+  .rt-zb:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
   .rt-panel h3 {
     margin: 1rem 0 0.5rem;
@@ -627,11 +637,11 @@ const TEST_MODE = /(^|[#?&])test\b/.test(location.hash + location.search);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
-const FAR = 2e4;          // mm — how far an escaping ray is drawn
+const FAR = 2e4;          // mm: how far an escaping ray is drawn
 const EPS = 1e-6;         // mm
 
 /* ==========================================================================
-   Glass — Sellmeier B1 B2 B3 C1 C2 C3, wavelength in µm
+   Glass: Sellmeier B1 B2 B3 C1 C2 C3, wavelength in µm
    ========================================================================== */
 
 const GLASS = {
@@ -1206,7 +1216,7 @@ function rawDsag(s, y) {
   return v;
 }
 
-/* Local curvature of a sag surface at height y — what a Gaussian beam sees there */
+/* Local curvature of a sag surface at height y: what a Gaussian beam sees there */
 function curvAt(s, y) {
   const h = Math.max(1e-4, s.semi * 1e-3);
   const d1 = dsagFn(s, y);
@@ -1484,7 +1494,7 @@ function stopMargin(el) {
   return (u, v) => Math.max(a - Math.hypot(u - o, v), plate(u, v));
 }
 
-/* Lens edges (the ground rim) absorb light — returned as local line segments */
+/* Lens edges (the ground rim) absorb light, returned as local line segments */
 function lensEdges(el, surfs) {
   const segs = [];
   for (let i = 0; i < surfs.length - 1; i++) {
@@ -2745,7 +2755,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ==========================================================================
-   Parameters — every numeric setting has a path (e.g. "surfaces.0.R"), so the
+   Parameters: every numeric setting has a path (e.g. "surfaces.0.R"), so the
    panel and the sweep animator share one way of reading and writing it
    ========================================================================== */
 
@@ -3211,7 +3221,7 @@ function updateSweepButtons() {
 
 const mainPanel = document.getElementById('panel');
 let panel = mainPanel;  // where the panel builders write: the main panel, or a pinned one
-let refs = [];          // { node, sync() } — refreshed while dragging or animating
+let refs = [];          // { node, sync() }, refreshed while dragging or animating
 /* Tabs and plot choices belong to each element, so two pinned screens can show different plots */
 const viewState = new Map();
 function vs(el) {
@@ -3607,7 +3617,7 @@ function rayPlots(el) {
 
   const cv = h('canvas', { height: '150', style: 'width:100%;display:block;margin-top:0.35rem' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  panel.append(cv, note);
+  panel.append(cv, zoomControls(cv, () => plotZoom(el, 'ray-' + vs(el).rayView), () => drawRayPlot(cv, note, el), () => vs(el).rayView === 'bins' || vs(el).rayView === 'power'), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
@@ -3719,16 +3729,22 @@ function drawRayPlot(cv, note, el) {
   const lam = (st.nm || 633) * 1e-6;
   const centroid = st.centroid;
 
+  const Z = plotZoom(el, 'ray-' + vs(el).rayView);
+  const A = { l: 2, t: 12, w: w - 4, h: hgt - 32 };
+  cv._area = A;
   if (vs(el).rayView === 'bins') {
     const B = binnedField(el);
     if (!B) { note.textContent = 'Nothing has reached this screen.'; return; }
     const peak = Math.max(B.max, B.incMax) || 1;
-    const X = v => 2 + (v - B.lo) / ((B.hi - B.lo) || 1) * (w - 4);
-    const Y = v => hgt - 20 - (v / peak) * (hgt - 32);
+    const [xa, xb] = zoomRange(Z, 'x', B.lo, B.hi), [ya, yb] = zoomRange(Z, 'y', 0, peak);
+    const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
+    const Y = v => A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
+    c.save(); c.beginPath(); c.rect(0, A.t - 2, w, A.h + 2); c.clip();
     // the incoherent sum behind, as a reference, and the coherent bins in front
     c.fillStyle = 'rgba(0,0,0,0.12)';
     for (let i = 0; i < B.n; i++) {
       const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.inc[i]);
+      if (x1 < 0 || x0 > w) continue;
       c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
     }
     c.fillStyle = getCss('--jek-cyan');
@@ -3736,12 +3752,13 @@ function drawRayPlot(cv, note, el) {
       const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.coh[i]);
       c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
     }
+    c.restore();
     c.fillStyle = getCss('--jek-ink-soft');
     c.font = '10px ' + getCss('--jek-mono');
     c.textAlign = 'left';
-    c.fillText('peak bin', 0, 9);
-    c.fillText(fmtLen(B.lo), 0, hgt - 4);
-    c.textAlign = 'right'; c.fillText(fmtLen(B.hi), w, hgt - 4);
+    c.fillText(Z.ky !== 1 ? (+(yb / peak).toPrecision(3)) + ' of the peak bin' : 'peak bin', 0, 9);
+    c.fillText(fmtLen(xa), 0, hgt - 4);
+    c.textAlign = 'right'; c.fillText(fmtLen(xb), w, hgt - 4);
     note.textContent = B.n + ' bins of ' + fmtLen(B.width) + ' across ' + fmtLen(B.hi - B.lo) +
       (B.interp ? ', interpolated' : ', rays dropped straight in') +
       '. Fields add within a beam and a wavelength; the grey behind is the incoherent sum' +
@@ -3774,20 +3791,23 @@ function drawRayPlot(cv, note, el) {
   let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (x1 - x0 < 1e-12) { x0 -= 1; x1 += 1; }
   if (y1 - y0 < 1e-12) { y0 -= Math.abs(y0 || 1) * 0.1 + 1e-9; y1 += Math.abs(y1 || 1) * 0.1 + 1e-9; }
-  const X = v => 2 + (v - x0) / (x1 - x0) * (w - 4);
-  const Y = v => hgt - 20 - (v - y0) / (y1 - y0) * (hgt - 32);
-  if (y0 < 0 && y1 > 0) {
+  const [xa, xb] = zoomRange(Z, 'x', x0, x1), [ya, yb] = zoomRange(Z, 'y', y0, y1);
+  const X = v => A.l + (v - xa) / (xb - xa) * A.w;
+  const Y = v => A.t + A.h - (v - ya) / (yb - ya) * A.h;
+  c.save(); c.beginPath(); c.rect(0, A.t - 3, w, A.h + 6); c.clip();
+  if (ya < 0 && yb > 0) {
     c.strokeStyle = 'rgba(0,0,0,0.15)';
     c.beginPath(); c.moveTo(0, Y(0)); c.lineTo(w, Y(0)); c.stroke();
   }
   c.fillStyle = getCss('--jek-cyan');
-  for (const [x, y] of pts) { c.beginPath(); c.arc(X(x), Y(y), 1.8, 0, Math.PI * 2); c.fill(); }
+  for (const [x, y] of pts) { const px = X(x), py = Y(y); if (px < -3 || px > w + 3) continue; c.beginPath(); c.arc(px, py, 1.8, 0, Math.PI * 2); c.fill(); }
+  c.restore();
   c.fillStyle = getCss('--jek-ink-soft');
   c.font = '10px ' + getCss('--jek-mono');
-  c.textAlign = 'left'; c.fillText(String(fmtY(y1)), 0, 9);
-  c.fillText(String(fmtY(y0)), 0, hgt - 22);
-  c.fillText(String(+x0.toPrecision(4)), 0, hgt - 4);
-  c.textAlign = 'right'; c.fillText(String(+x1.toPrecision(4)), w, hgt - 4);
+  c.textAlign = 'left'; c.fillText(String(fmtY(yb)), 0, 9);
+  c.fillText(String(fmtY(ya)), 0, hgt - 22);
+  c.fillText(String(+xa.toPrecision(4)), 0, hgt - 4);
+  c.textAlign = 'right'; c.fillText(String(+xb.toPrecision(4)), w, hgt - 4);
   note.textContent = yl + ' against ' + xl + ', ' + pts.length + ' rays' +
     (st.mixed && vs(el).rayView !== 'power' ? ', one wavelength only' : '') + '.';
 }
@@ -3998,6 +4018,77 @@ function stopPanel(el) {
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));
 }
 
+
+/* ---------- Zooming a panel plot ----------
+   Each plot of each element keeps its own window: a zoom factor and a centre for each
+   axis, the centre as a fraction of the plot's full range. The wheel zooms about the
+   cursor (Shift: across only, Alt: up and down only), dragging pans, a double click
+   resets, and the buttons under the plot zoom one axis about the middle of the view. */
+const ZOOM_MAXK = 1000;
+function plotZoom(el, plot) {
+  const s = vs(el), z = s.zoom || (s.zoom = {});
+  return z[plot] || (z[plot] = { kx: 1, ky: 1, cx: 0.5, cy: 0.5 });
+}
+/* The visible part of [lo, hi] on one axis, keeping the window inside the full range */
+function zoomRange(Z, axis, lo, hi) {
+  const k = Z['k' + axis], half = 0.5 / k;
+  Z['c' + axis] = clamp(Z['c' + axis], half, 1 - half);
+  const c = Z['c' + axis], r = hi - lo;
+  return [lo + (c - half) * r, lo + (c + half) * r];
+}
+const zoomed = Z => Z.kx !== 1 || Z.ky !== 1;
+/* Zoom one axis by f, keeping the point at fraction p of the view where it is */
+function zoomAxis(Z, axis, f, p) {
+  const k0 = Z['k' + axis], k1 = clamp(k0 * f, 1, ZOOM_MAXK);
+  const at = Z['c' + axis] - 0.5 / k0 + p / k0;        // that point, as a fraction of the full range
+  Z['k' + axis] = k1;
+  Z['c' + axis] = at - p / k1 + 0.5 / k1;
+}
+/* Wheel, drag and double click on a plot canvas, plus the buttons under it. getZ gives the
+   zoom state of whatever the canvas is showing now; the drawing code leaves the plot's
+   area in cv._area as { l, t, w, h } in CSS pixels. */
+function zoomControls(cv, getZ, redraw, yFromBase) {
+  // curves that rise from zero stretch up and down from their baseline, wherever the cursor is
+  const yAt = p => yFromBase && yFromBase() ? 0 : p;
+  const area = () => cv._area || { l: 0, t: 0, w: cv.clientWidth || 1, h: cv.clientHeight || 1 };
+  cv.style.cursor = 'crosshair';
+  cv.addEventListener('wheel', e => {
+    const Z = getZ(); if (!Z) return;
+    e.preventDefault();
+    const A = area(), r = cv.getBoundingClientRect();
+    const px = clamp((e.clientX - r.left - A.l) / A.w, 0, 1), py = clamp(1 - (e.clientY - r.top - A.t) / A.h, 0, 1);
+    const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0025));
+    if (!e.altKey) zoomAxis(Z, 'x', f, px);
+    if (!e.shiftKey) zoomAxis(Z, 'y', f, yAt(py));
+    redraw();
+  }, { passive: false });
+  let drag = null;
+  cv.addEventListener('pointerdown', e => {
+    const Z = getZ(); if (!Z || !zoomed(Z)) return;
+    drag = { x: e.clientX, y: e.clientY, cx: Z.cx, cy: Z.cy };
+    cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const Z = getZ(), A = area();
+    Z.cx = drag.cx - (e.clientX - drag.x) / (A.w * Z.kx);
+    Z.cy = drag.cy + (e.clientY - drag.y) / (A.h * Z.ky);
+    redraw();
+  });
+  const end = () => { drag = null; cv.style.cursor = 'crosshair'; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('dblclick', () => { const Z = getZ(); if (!Z) return; Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 }); redraw(); });
+  const btn = (text, title, fn) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => { const Z = getZ(); if (Z) { fn(Z); redraw(); } } }, text);
+  return h('div', { class: 'rt-zoom', title: 'Scroll on the plot to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan, double-click to reset' },
+    h('span', null, 'Across'),
+    btn('\u2212', 'Zoom out across', Z => zoomAxis(Z, 'x', 1 / 1.5, 0.5)),
+    btn('+', 'Zoom in across', Z => zoomAxis(Z, 'x', 1.5, 0.5)),
+    h('span', null, 'Up'),
+    btn('\u2212', 'Zoom out up and down', Z => zoomAxis(Z, 'y', 1 / 1.5, yAt(0.5))),
+    btn('+', 'Zoom in up and down', Z => zoomAxis(Z, 'y', 1.5, yAt(0.5))),
+    btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })));
+}
+
 const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
   [0.63, 229, 80, 100], [0.75, 251, 135, 97], [0.88, 254, 194, 135], [1, 252, 253, 191]];
 function magma(v) {
@@ -4061,13 +4152,13 @@ function diffractionSection(el) {
     box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
       ...notes.map(t => h('p', { class: 'note' }, t)));
   };
-  panel.append(tabs, scaleRow, cv, box);
+  panel.append(tabs, scaleRow, cv, zoomControls(cv, () => plotZoom(el, vs(el).diffView), () => drawDiff(cv, diffractionLater(el).D, el), () => vs(el).diffView !== 'map'), box);
   bindSync(cv, refresh);
 }
 
 function drawDiff(cv, D, el) {
-  const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth || 280, square = vs(el).diffView === 'map', hgt = square ? Math.round(w) : 130;
+  const dpr = window.devicePixelRatio || 1, view = vs(el).diffView, Z = plotZoom(el, view);
+  const w = cv.clientWidth || 280, square = view === 'map', hgt = square ? Math.round(w) : 130;
   cv.style.height = hgt + 'px';
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
   const c = cv.getContext('2d');
@@ -4093,38 +4184,47 @@ function drawDiff(cv, D, el) {
     const off = document.createElement('canvas'); off.width = M; off.height = M;
     off.getContext('2d').putImageData(img, 0, 0);
     const pad = 14, side = Math.min(w, hgt) - pad;
-    c.imageSmoothingEnabled = true;
-    c.drawImage(off, 0, 0, M, M, w - side, 0, side, side);
-    const half = 0.5 * (D.map.u1 - D.map.u0);
-    c.textAlign = 'left'; c.fillText('\u00b1' + fmtLen(half) + ' along the screen', w - side, hgt - 2);
-    c.save(); c.translate(9, side); c.rotate(-Math.PI / 2); c.fillText('out of the plane', 0, 0); c.restore();
+    cv._area = { l: w - side, t: 0, w: side, h: side };
+    // the part of the map in view, as fractions across and up
+    const [ua, ub] = zoomRange(Z, 'x', 0, 1), [va, vb] = zoomRange(Z, 'y', 0, 1);
+    c.imageSmoothingEnabled = !zoomed(Z) || M / (Z.kx) > side / 3;     // show the samples once they are big
+    c.drawImage(off, ua * M, (1 - vb) * M, (ub - ua) * M, (vb - va) * M, w - side, 0, side, side);
+    const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
+    const lab = (a, b, H) => zoomed(Z) ? fmtLen((2 * a - 1) * H) + ' to ' + fmtLen((2 * b - 1) * H) : '\u00b1' + fmtLen(H);
+    c.textAlign = 'left'; c.fillText(lab(ua, ub, half) + ' along the screen', w - side, hgt - 2);
+    c.save(); c.translate(9, side); c.rotate(-Math.PI / 2); c.fillText((zoomed(Z) ? lab(va, vb, vh) + ' ' : '') + 'out of the plane', 0, 0); c.restore();
     return;
   }
   const series = [];
-  let xs0, xs1, xLabel, top = 1, marker = null;
-  if (vs(el).diffView === 'mtf') {
+  let xs0, xs1, fmtX = fmtLen, top = 1, marker = null, yName = 'of the peak';
+  if (view === 'mtf') {
     series.push({ x: D.freq, y: D.mtf });
     if (!D.symmetric) series.push({ x: D.freq, y: D.mtfY, dash: true });
     if (D.cutoff) {
       const ana = D.freq.map(v => { const x = v / D.cutoff; return x >= 1 ? 0 : (2 / Math.PI) * (Math.acos(x) - x * Math.sqrt(1 - x * x)); });
       series.push({ x: D.freq, y: ana, faint: true });
     }
-    xs0 = 0; xs1 = D.freq[D.freq.length - 1]; xLabel = (+xs1.toPrecision(3)) + ' lp/mm';
-  } else if (vs(el).diffView === 'ee') {
+    xs0 = 0; xs1 = D.freq[D.freq.length - 1]; fmtX = v => (+v.toPrecision(3)) + ' lp/mm'; yName = '';
+  } else if (view === 'ee') {
     series.push({ x: D.rho, y: D.ee });
-    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; xLabel = fmtLen(xs1); marker = D.airy;
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; marker = D.airy; yName = 'of the light';
   } else if (D.symmetric) {
     series.push({ x: D.rho, y: D.psf });
-    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; xLabel = fmtLen(xs1); top = Math.max(...D.psf); marker = D.airy;
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; top = Math.max(...D.psf); marker = D.airy;
   } else {
     series.push({ x: D.cutX.x, y: D.cutX.I }, { x: D.cutY.x, y: D.cutY.I, dash: true });
-    xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; xLabel = '\u00b1' + fmtLen(xs1); top = Math.max(...D.cutX.I, ...D.cutY.I);
+    xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; top = Math.max(...D.cutX.I, ...D.cutY.I);
   }
-  const X = v => 1 + (v - xs0) / ((xs1 - xs0) || 1) * (w - 2);
-  const Y = v => hgt - 16 - (v / (top || 1)) * (hgt - 26);
+  const A = { l: 1, t: 4, w: w - 2, h: hgt - 20 };
+  cv._area = A;
+  const [xa, xb] = zoomRange(Z, 'x', xs0, xs1), [ya, yb] = zoomRange(Z, 'y', 0, top || 1);
+  const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
+  const Y = v => A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
+  c.save();
+  c.beginPath(); c.rect(A.l - 1, A.t - 2, A.w + 2, A.h + 4); c.clip();
   if (marker) {
     c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
-    c.moveTo(X(marker), 2); c.lineTo(X(marker), hgt - 14); c.stroke(); c.setLineDash([]);
+    c.moveTo(X(marker), A.t); c.lineTo(X(marker), A.t + A.h); c.stroke(); c.setLineDash([]);
   }
   for (const S of series) {
     c.strokeStyle = S.faint ? 'rgba(0,0,0,0.25)' : getCss('--jek-cyan');
@@ -4134,11 +4234,17 @@ function drawDiff(cv, D, el) {
     for (let i = 0; i < S.x.length; i++) { const px = X(S.x[i]), py = Y(S.y[i]); i ? c.lineTo(px, py) : c.moveTo(px, py); }
     c.stroke();
   }
+  c.restore();
   c.setLineDash([]);
   c.fillStyle = getCss('--jek-ink-soft');
-  c.textAlign = 'left'; c.fillText(vs(el).diffView === 'psf' && !D.symmetric ? xLabel.replace('\u00b1', '\u2212') : '0', 0, hgt - 3);
-  c.textAlign = 'right'; c.fillText(vs(el).diffView === 'psf' && !D.symmetric ? xLabel.replace('\u00b1', '+') : xLabel, w, hgt - 3);
-  if (!D.symmetric && vs(el).diffView !== 'ee') { c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out of it', w, 10); }
+  c.textAlign = 'left'; c.fillText(fmtX(xa), 0, hgt - 3);
+  c.textAlign = 'right'; c.fillText(fmtX(xb), w, hgt - 3);
+  if (Z.ky !== 1) {
+    // the vertical window, as a share of the full scale
+    const f = v => (+(v / (top || 1)).toPrecision(3));
+    c.textAlign = 'left'; c.fillText(f(yb) + (yName ? ' ' + yName : ''), 2, A.t + 8); c.fillText(String(f(ya)), 2, A.t + A.h - 2);
+  }
+  if (!D.symmetric && view !== 'ee') { c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out of it', w, 10); }
 }
 
 function lensKind(el) {
@@ -4296,6 +4402,7 @@ function renderOverview() {
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
     h('li', null, 'Drag empty space to pan. Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
+    h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
     h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
     h('li', null, h('kbd', null, '←↑→↓'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.'),
   ));
@@ -6317,7 +6424,7 @@ function screenStatsRaw(el) {
     const Is = t.sr * t.sr + t.si * t.si, Ip = t.pr * t.pr + t.pi * t.pi;
     S0 += Is + Ip; S1 += Ip - Is;
     S2 += 2 * (t.pr * t.sr + t.pi * t.si);      // Re(Ep conj(Es))
-    S3 += 2 * (t.pi * t.sr - t.pr * t.si);      // Im(Ep conj(Es)) — positive is right-handed
+    S3 += 2 * (t.pi * t.sr - t.pr * t.si);      // Im(Ep conj(Es)): positive is right-handed
   }
   m /= W0;
   let v2 = 0;
@@ -6968,7 +7075,7 @@ document.getElementById('btnSync').addEventListener('click', syncPhases);
 /* Fill a "measured on" list and keep its metric and goal lists in step */
 function fillTargets(sel) {
   sel.replaceChildren();
-  for (const el of measurable()) sel.append(h('option', { value: el.id }, el.name + ' \u2014 ' + typeLabel(el).toLowerCase()));
+  for (const el of measurable()) sel.append(h('option', { value: el.id }, el.name + ' (' + typeLabel(el).toLowerCase() + ')'));
 }
 /* One tab per kind of measurement the chosen element offers; the metric list shows that
    kind only. The tabs remember their choice across openings. */
@@ -7010,7 +7117,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
     for (const [el, path] of allSweeps()) {
       const cb = h('input', { type: 'checkbox', checked: true, 'data-k': el.id + '|' + path });
       const sw = el.sweeps[path];
-      varsBox.append(h('label', null, cb, el.name + ' \u2014 ' + paramLabel(path),
+      varsBox.append(h('label', null, cb, el.name + ': ' + paramLabel(path),
         h('span', { class: 'r' }, (+sw.min.toPrecision(5)) + ' to ' + (+sw.max.toPrecision(5)))));
     }
     fillTargets(targetSel);
@@ -7037,7 +7144,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
     for (const r of S.rows) {
       const d = v => v === null ? 'no reading' : (v > 0 ? '+' : '') + metricText(key, v);
       table.append(h('tr', null,
-        h('td', null, r.el.name + ' \u2014 ' + paramLabel(r.path)),
+        h('td', null, r.el.name + ': ' + paramLabel(r.path)),
         h('td', { class: 'n' }, d(r.dLo)),
         h('td', { class: 'n' }, d(r.dHi)),
         h('td', { class: 'n' }, metricText(key, r.worst)),
@@ -7110,7 +7217,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
 
   document.getElementById('btnOptimise').addEventListener('click', () => {
     varSel.replaceChildren();
-    for (const [el, path] of allSweeps()) varSel.append(h('option', { value: el.id + '|' + path }, el.name + ' \u2014 ' + paramLabel(path)));
+    for (const [el, path] of allSweeps()) varSel.append(h('option', { value: el.id + '|' + path }, el.name + ': ' + paramLabel(path)));
     fillTargets(targetSel);
     fillMetrics(targetSel, metricSel, famBox);
     tVal.value = '';

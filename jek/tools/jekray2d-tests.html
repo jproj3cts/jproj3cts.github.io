@@ -156,9 +156,13 @@ const windowBlock = (angle, coat) => ({
   coat: coat || { mode: 'bare', R: 4 },
 });
 
-/* A clean f/N focus: a small collimated beam through the singlet, screen at best focus */
+/* A clean f/N focus: a small collimated beam through the singlet, screen at best focus.
+   The fan is a uniform pupil, launched just in front of the lens so it arrives as a clean
+   disc: a top-hat launched far upstream grows Fresnel ripples before it gets there. 512
+   points: the focal grid must reach ten Airy radii, which on 256 leaves the pupil only
+   thirteen samples across, good to about 1%. */
 const diffBench = (width, rays) => bench('diff', [
-  src({ name: 'Beam', x: -200, width, rays, wavelength: NM, pol: 's' }),
+  src({ name: 'Beam', x: -5, width, rays, wavelength: NM, pol: 's', popN: 512 }),
   bk7Lens({ name: 'Lens', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
   screen({ name: 'Focus', x: 51.19, angle: 180, length: 6 }),
 ], { minPower: 1e-4 });
@@ -180,6 +184,67 @@ const ZMX = [
   'SURF 2', '  TYPE STANDARD', '  CURV 0', '  DISZ 40', '  DIAM 6.35 1',
   'SURF 3', '  CURV 0', '  DISZ 0',
 ].join('\r\n');
+
+/* Strehl ratio at the pilot waist after the named element: the axis intensity against an
+   ideal Gaussian focus with the same power and pilot, 2P / (pi wx wy) */
+function popStrehl(J, b, name, n) {
+  J.load(b);
+  const g = J.popSegments().find(x => x.el === name);
+  const t = -g.pilot.x[0], st = g.at(t), lam = LAM / (n || 1);
+  const wx2 = lam * g.pilot.x[1] / Math.PI, wy2 = lam * g.pilot.y[1] / Math.PI;
+  return st.axis / (2 * st.power / (Math.PI * Math.sqrt(wx2 * wy2)));
+}
+/* The same from the pupil: |Int A e^{ikW} r dr|^2 / |Int A r dr|^2, A a Gaussian of radius w */
+function gaussStrehl(w, W, rmax) {
+  const k = 2 * Math.PI / LAM, M = 40000;
+  let re = 0, im = 0, s = 0;
+  for (let i = 0; i <= M; i++) {
+    const r = rmax * i / M, a = Math.exp(-r * r / (w * w)) * r * (i === 0 || i === M ? 0.5 : 1), ph = -k * W(r);
+    re += a * Math.cos(ph); im += a * Math.sin(ph); s += a;
+  }
+  return (re * re + im * im) / (s * s);
+}
+
+/* A Michelson: 50/50 cube, arms along +x and +y, output port down, input port back.
+   dL lengthens the x arm; tilt turns the y-arm mirror (degrees); extra adds elements. */
+const michelsonCube = (dL, tilt, srcOpts, extra) => bench('mich', [
+  src(Object.assign({ name: 'Beam', x: -60, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, pol: 's' }, srcOpts || {})),
+  { type: 'cube', name: 'BS', x: 0, y: 0, angle: 0, size: 12.7, mode: 'npbs', reflect: 50, material: { glass: 'N-BK7' }, coat: { mode: 'custom', R: 0 } },
+  { type: 'mirror', name: 'M1', x: 50 + (dL || 0), y: 0, angle: 180, length: 25, reflect: 100 },
+  { type: 'mirror', name: 'M2', x: 0, y: 50, angle: -90 + (tilt || 0), length: 25, reflect: 100 },
+  screen({ name: 'Out', x: 0, y: -50, angle: 90, length: 20 }),
+  screen({ name: 'Back', x: -30, y: 0, angle: 0, length: 20 }),
+  ...(extra || []),
+]);
+
+/* erf to 1e-7 (Abramowitz and Stegun 7.1.26 is not enough; this is 7.1.28 refined by a series) */
+function erfT(x) {
+  const t = Math.abs(x);
+  let s = 0, term = t, n = 0;
+  if (t < 3) { while (Math.abs(term) > 1e-17 && n < 200) { s += term / (2 * n + 1); n++; term *= -t * t / n; } s *= 2 / Math.sqrt(Math.PI); }
+  else s = 1 - Math.exp(-t * t) / (t * Math.sqrt(Math.PI)) * (1 - 1 / (2 * t * t) + 3 / (4 * t ** 4));
+  return x < 0 ? -s : s;
+}
+/* A Gaussian beam onto one element, nothing else: for stops and masks */
+const oneEl = (el, srcOpts) => bench('one', [
+  src(Object.assign({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 256 }, srcOpts || {})),
+  el,
+]);
+const after = (J, name) => J.popSegments().find(g => g.el === name);
+
+/* Minima along a sampled line, refined by a parabola, and their mean spacing */
+function minSpacing(I, L) {
+  const m = [];
+  for (let i = 1; i < I.length - 1; i++) if (I[i] < I[i - 1] && I[i] <= I[i + 1]) {
+    const a = I[i - 1], b = I[i], c = I[i + 1], off = 0.5 * (a - c) / (a - 2 * b + c);
+    m.push((i + off) * L / (I.length - 1));
+  }
+  return m.length > 1 ? (m[m.length - 1] - m[0]) / (m.length - 1) : NaN;
+}
+const contrastOf = I => { const a = Math.max(...I), b = Math.min(...I); return (a - b) / (a + b); };
+const retro = (el, pol) => bench('retro', [
+  src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, pol: pol || 's' }), el,
+], { ghosts: true });
 
 /* ---------- The checks ----------
    want: the expected value; tol: absolute unless rel is true. */
@@ -637,6 +702,268 @@ const TESTS = [
     },
   },
 
+  { group: 'Physical optics propagation' },
+  {
+    name: 'A Gaussian is its own Hankel transform',
+    why: 'exp(\u2212\u03c0r\u00b2) \u2192 exp(\u2212\u03c0\u03bd\u00b2), largest error over 512 points',
+    want: 0, tol: 1e-10, unit: '',
+    run: J => {
+      const P = J.popCore, Q = P.qdht(512), R = 8, r = P.popRadii(Q, R);
+      const [Fr] = P.hankel(Q, R, r.map(x => Math.exp(-Math.PI * x * x)), new Float64Array(512));
+      let e = 0;
+      for (let m = 0; m < 512; m++) e = Math.max(e, Math.abs(Fr[m] - Math.exp(-Math.PI * (Q.j[m] / (2 * Math.PI * R)) ** 2)));
+      return e;
+    },
+  },
+  {
+    name: 'Field width three Rayleigh ranges out',
+    why: 'the propagated field, through its waist into the far field, against w(z) = w\u2080\u221a(1+(z/z_R)\u00b2)',
+    want: Math.sqrt(10), tol: 1e-5, rel: true, unit: ' mm',
+    run: J => {
+      const zR = Math.PI / LAM;
+      J.load(bench('pop-free', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 512 }),
+        screen({ name: 'Far', x: -100 + 3 * zR, angle: 180, length: 100 }),
+      ]));
+      const S = J.popSegments()[0];
+      return S.at(S.len).w;
+    },
+  },
+  {
+    name: 'Power kept over that leg',
+    why: 'the Hankel steps are unitary',
+    want: 1, tol: 1e-9, rel: true, unit: '',
+    run: J => { const S = J.popSegments()[0]; return S.at(S.len).power / S.start.power; },
+  },
+  {
+    name: 'Field waist after the singlet',
+    why: 'a 0.5 mm beam, too small to feel the lens\u2019s aberration: the field at the focus against the traced Gaussian beam\u2019s waist',
+    want: null, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('pop-lens', [
+        src({ name: 'Beam', x: -100, width: 1, rays: 3, gauss: true, w0: 0.5, z0: 0, popN: 512 }),
+        bk7Lens({ name: 'f50', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
+        screen({ name: 'Focus', x: 49.4, angle: 180 }),
+      ]));
+      const B = J.stats('Focus').beam;
+      TESTS_EXPECT.popw0 = B.w0;
+      const S = J.popSegments().filter(g => g.el === 'f50').pop();
+      return S.at(S.len + B.waistDist).w;
+    },
+    wantFrom: () => TESTS_EXPECT.popw0,
+  },
+  {
+    name: 'On-axis brightening one Fresnel zone past a pinhole',
+    why: 'a 2 mm hole lit by a 20 mm beam, z = a\u00b2/\u03bb: I/I\u2080 = |1 \u2212 e^(\u2212a\u00b2/w\u00b2) e^(\u2212i\u03c0N)|\u00b2 with N = 1',
+    want: (1 + Math.exp(-1 / 400)) ** 2, tol: 5e-3, rel: true, unit: '',
+    run: J => {
+      J.load(bench('pop-hole', [
+        src({ name: 'Beam', x: -100, width: 40, rays: 3, gauss: true, w0: 20, z0: 0, popN: 512 }),
+        { type: 'stop', name: 'Hole', x: 0, y: 0, angle: 0, aperture: 2, outer: 80 },
+        screen({ name: 'Far', x: 2e5, angle: 180, length: 400 }),
+      ]));
+      const S = J.popSegments().find(g => g.el === 'Hole');
+      TESTS_EXPECT.hole = S;
+      return S.at(1 / LAM).axis / S.start.axis;
+    },
+  },
+  {
+    name: 'On-axis dark spot two Fresnel zones past it',
+    why: 'the same with N = 2: (1 \u2212 e^(\u2212a\u00b2/w\u00b2))\u00b2, nearly zero',
+    want: (1 - Math.exp(-1 / 400)) ** 2, tol: 0.01, unit: '',
+    run: J => { const S = TESTS_EXPECT.hole; return S.at(0.5 / LAM).axis / S.start.axis; },
+  },
+  {
+    name: 'First dark ring of the Airy pattern',
+    why: '0.610 \u03bbz/a at z = 200 m, far into the Fraunhofer zone',
+    want: 0.60983 * LAM * 2e5 / 1, tol: 3e-3, rel: true, unit: ' mm',
+    run: J => {
+      const { r, I } = TESTS_EXPECT.hole.profile(2e5);
+      let k = 1;
+      while (k < I.length - 1 && !(I[k] < I[k - 1] && I[k] <= I[k + 1])) k++;
+      const [x0, x1, x2] = [r[k - 1], r[k], r[k + 1]], [y0, y1, y2] = [I[k - 1], I[k], I[k + 1]];
+      return x1 - 0.5 * ((x1 - x0) ** 2 * (y1 - y2) - (x1 - x2) ** 2 * (y1 - y0)) / ((x1 - x0) * (y1 - y2) - (x1 - x2) * (y1 - y0));
+    },
+  },
+  {
+    name: 'Power into the arm a 30% mirror reflects',
+    why: 'the field in each branch carries that branch\u2019s power',
+    want: 0.3, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(bench('pop-split', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 256 }),
+        { type: 'mirror', name: 'Split', x: 0, y: 0, angle: 135, length: 25, reflect: 30 },
+      ]));
+      const S = J.popSegments().find(g => g.el === 'Split' && Math.abs(g.dy) > 0.5);
+      return S.start.power;
+    },
+  },
+  {
+    name: 'A curved partial mirror does not focus what it transmits',
+    why: 'the transmitted beam carries on as if in free space: w at 200 mm from a 1 mm waist',
+    want: Math.sqrt(1 + (200 / (Math.PI / LAM)) ** 2), tol: 1e-6, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('pop-coupler', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0 }),
+        { type: 'mirror', name: 'Coupler', x: 0, y: 0, angle: 180, length: 25, reflect: 50, R: 100 },
+        screen({ name: 'Behind', x: 100, angle: 180 }),
+        screen({ name: 'Back', x: -50, angle: 0 }),
+      ]));
+      return J.stats('Behind').beam.w;
+    },
+  },
+  {
+    name: 'The arm it reflects focuses at R/2',
+    why: 'a collimated 1 mm beam off a 100 mm concave face: the waist lands on the screen 50 mm back',
+    want: 0, tol: 0.01, unit: ' mm',
+    run: J => J.stats('Back').beam.waistDist,
+  },
+
+
+  { group: 'Aberrations and the 2D field' },
+  {
+    name: 'A parabolic mirror focuses perfectly',
+    why: 'Strehl ratio of a 3 mm beam at f/8 off a paraboloid, from the ray-traced phase screen: 1',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => popStrehl(J, bench('pop-par', [
+      src({ name: 'Beam', x: -100, width: 6, rays: 3, gauss: true, w0: 3, z0: 0, popN: 256 }),
+      { type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 100, R: 100, k: -1 },
+    ]), 'M'),
+  },
+  {
+    name: 'A spherical mirror does not',
+    why: 'the same off a sphere, against |\u222bA e^{ikW} r dr|\u00b2 with the exact path difference W to the paraxial focus',
+    want: null, tol: 3e-3, rel: true, unit: '',
+    run: J => {
+      TESTS_EXPECT.sphM = gaussStrehl(3, r => { const R = 100, f = 50, sg = R - Math.sqrt(R * R - r * r); return -sg + Math.hypot(r, f - sg) - f; }, 12.5);
+      return popStrehl(J, bench('pop-sph', [
+        src({ name: 'Beam', x: -100, width: 6, rays: 3, gauss: true, w0: 3, z0: 0, popN: 256 }),
+        { type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 100, R: 100, k: 0 },
+      ]), 'M');
+    },
+    wantFrom: () => TESTS_EXPECT.sphM,
+  },
+  {
+    name: 'The 2D field agrees',
+    why: 'the same spherical mirror with the field forced onto an x\u2013y grid',
+    want: null, tol: 1e-3, rel: true, unit: '',
+    run: J => popStrehl(J, bench('pop-sph2', [
+      src({ name: 'Beam', x: -100, width: 6, rays: 3, gauss: true, w0: 3, z0: 0, popN: 256, popModel: '2d' }),
+      { type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 100, R: 100, k: 0 },
+    ]), 'M'),
+    wantFrom: () => TESTS_EXPECT.sphM,
+  },
+  {
+    name: 'Focusing into glass: a Cartesian ellipsoid is perfect',
+    why: 'conic k = \u22121/n\u00b2 brings a collimated beam to a perfect focus inside the glass',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, NM);
+      return popStrehl(J, bench('pop-ell', [
+        src({ name: 'Beam', x: -100, width: 6, rays: 3, gauss: true, w0: 3, z0: 0, popN: 256 }),
+        { type: 'lens', name: 'Ell', x: 0, y: 0, angle: 0, diameter: 25.4, gaps: [90], materials: [{ glass: 'N-BK7' }],
+          surfaces: [{ R: 20, k: -1 / (n * n), coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }] },
+      ]), 'Ell', n);
+    },
+  },
+  {
+    name: 'and a sphere there is heavily aberrated',
+    why: '7.6 waves of spherical aberration at the 1/e\u00b2 diameter; exact path difference to the paraxial focus in the glass',
+    want: null, tol: 5e-3, rel: true, unit: '',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, NM), R = 20, fg = n * R / (n - 1);
+      TESTS_EXPECT.sphG = gaussStrehl(3, r => { const sg = R - Math.sqrt(R * R - r * r); return sg + n * Math.hypot(r, fg - sg) - n * fg; }, 12.7);
+      return popStrehl(J, bench('pop-sphg', [
+        src({ name: 'Beam', x: -100, width: 6, rays: 3, gauss: true, w0: 3, z0: 0, popN: 256 }),
+        { type: 'lens', name: 'Sph', x: 0, y: 0, angle: 0, diameter: 25.4, gaps: [90], materials: [{ glass: 'N-BK7' }],
+          surfaces: [{ R, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }] },
+      ]), 'Sph', n);
+    },
+    wantFrom: () => TESTS_EXPECT.sphG,
+  },
+  {
+    name: 'Tilted spherical mirror: in-plane focus',
+    why: 'at 22.5\u00b0 the bench-plane focal length is R cos\u03b8/2; the Gaussian waist from 1/q\u2032 = 1/q \u2212 1/f',
+    want: null, tol: 1e-5, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('pop-tilt', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128 }),
+        { type: 'mirror', name: 'Tilt', x: 0, y: 0, angle: 157.5, length: 25, reflect: 100, R: 200 },
+      ]));
+      const th = 22.5 * Math.PI / 180, zR = Math.PI / LAM;
+      const waist = f => { const d = 100 * 100 + zR * zR, ir = 100 / d - 1 / f, ii = -zR / d; return ir / (ir * ir + ii * ii); };
+      TESTS_EXPECT.tiltT = -waist(100 * Math.cos(th)); TESTS_EXPECT.tiltS = -waist(100 / Math.cos(th));
+      TESTS_EXPECT.tiltSeg = J.popSegments().find(g => g.el === 'Tilt');
+      return -TESTS_EXPECT.tiltSeg.pilot.x[0];
+    },
+    wantFrom: () => TESTS_EXPECT.tiltT,
+  },
+  {
+    name: 'and the out-of-plane focus the tracer cannot see',
+    why: 'R/(2 cos\u03b8), found only by tracing rays out of the bench plane through the real surface',
+    want: null, tol: 1e-4, rel: true, unit: ' mm',
+    run: J => -TESTS_EXPECT.tiltSeg.pilot.y[0],
+    wantFrom: () => TESTS_EXPECT.tiltS,
+  },
+  {
+    name: 'A tilted curved mirror switches to the 2D field',
+    why: 'the beam is astigmatic, so a radial profile cannot hold it',
+    want: 1, tol: 0, unit: '',
+    run: J => TESTS_EXPECT.tiltSeg.engine === '2d' ? 1 : 0,
+  },
+  {
+    name: 'An off-axis parabola focuses perfectly',
+    why: 'a 50 mm off-axis segment of a 200 mm paraboloid, beam parallel to its axis: both focal lengths are f + sag, and the focus is ideal',
+    want: 1, tol: 2e-3, unit: '',
+    run: J => {
+      J.load(bench('pop-oap', [
+        src({ name: 'Beam', x: -100, width: 4, rays: 3, gauss: true, w0: 2, z0: 0, popN: 256 }),
+        { type: 'mirror', name: 'OAP', x: 0, y: 0, angle: 180, length: 25, reflect: 100, R: 200, k: -1, offset: 50 },
+      ]));
+      const g = J.popSegments().find(x => x.el === 'OAP');
+      TESTS_EXPECT.oap = g;
+      const t = -g.pilot.x[0], st = g.at(t);
+      const wx2 = LAM * g.pilot.x[1] / Math.PI, wy2 = LAM * g.pilot.y[1] / Math.PI;
+      return st.axis / (2 * st.power / (Math.PI * Math.sqrt(wx2 * wy2)));
+    },
+  },
+  {
+    name: 'and it is stigmatic',
+    why: 'the in-plane and out-of-plane waists land together, 106.25 mm from the mirror',
+    want: 0, tol: 1e-4, unit: ' mm',
+    run: J => TESTS_EXPECT.oap.pilot.x[0] - TESTS_EXPECT.oap.pilot.y[0],
+  },
+  {
+    name: 'A tilted window stretches the beam in the plane only',
+    why: 'inside a plate at 30\u00b0, w_x/w_y = cos\u03b8_t / cos\u03b8_i',
+    want: null, tol: 1e-4, rel: true, unit: '',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, NM), ti = 30 * Math.PI / 180, tt = Math.asin(Math.sin(ti) / n);
+      TESTS_EXPECT.win = Math.cos(tt) / Math.cos(ti);
+      J.load(bench('pop-win', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128 }),
+        { type: 'prism', name: 'Plate', shape: 'window', x: 0, y: 0, angle: 30, size: 30, thickness: 5,
+          material: { glass: 'N-BK7' }, coat: { mode: 'custom', R: 0 } },
+      ]));
+      const g = J.popSegments().find(x => x.el === 'Plate' && x.engine === '2d');
+      return g.start.wx / g.start.wy;
+    },
+    wantFrom: () => TESTS_EXPECT.win,
+  },
+  {
+    name: 'Too coarse a grid for the aberration is flagged',
+    why: 'the glass sphere again on 128 points: the wavefront turns faster than the grid can follow',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('pop-steep', [
+        src({ name: 'Beam', x: -100, width: 8, rays: 3, gauss: true, w0: 4, z0: 0, popN: 128 }),
+        { type: 'lens', name: 'Sph', x: 0, y: 0, angle: 0, diameter: 25.4, gaps: [90], materials: [{ glass: 'N-BK7' }],
+          surfaces: [{ R: 20, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }] },
+      ]));
+      return J.popNotes().steep.includes('Sph') ? 1 : 0;
+    },
+  },
+
   { group: 'Diffraction and MTF' },
   {
     name: 'The Airy ring lands where it should',
@@ -701,7 +1028,7 @@ const TESTS = [
   },
   {
     name: 'An off-axis pupil is not treated as symmetric',
-    why: 'an off-axis parabola gets the tangential answer, not the 2D one',
+    why: 'an off-axis parabola gets the 2D field, not a radial profile',
     want: 0, tol: 0, unit: ' (0 = tangential)',
     run: J => {
       J.load(bench('oap-diff', [
@@ -711,6 +1038,359 @@ const TESTS = [
       ]));
       const D = J.diffraction('Focus');
       return D && D.symmetric ? 1 : 0;
+    },
+  },
+
+
+  { group: 'The field on a screen' },
+  {
+    name: 'A Gaussian beam focused on a screen has Strehl 1',
+    why: 'a 0.5 mm beam through the singlet, screen moved onto the traced waist',
+    want: 1, tol: 2e-3, unit: '',
+    run: J => {
+      const b = () => bench('scr-g', [
+        src({ name: 'Beam', x: -100, width: 1, rays: 3, gauss: true, w0: 0.5, z0: 0, popN: 256 }),
+        bk7Lens({ name: 'f50', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
+        screen({ name: 'Focus', x: TESTS_EXPECT.gx || 49.4, angle: 180 }),
+      ]);
+      TESTS_EXPECT.gx = 49.4; J.load(b());
+      TESTS_EXPECT.gx = 49.4 + J.stats('Focus').beam.waistDist; J.load(b());
+      TESTS_EXPECT.gD = J.diffraction('Focus');
+      return TESTS_EXPECT.gD.strehl;
+    },
+  },
+  {
+    name: 'Its spot is the Gaussian envelope\u2019s',
+    why: 'second-moment radius of the field on the screen against the traced beam\u2019s w there',
+    want: null, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => { TESTS_EXPECT.gw = J.stats('Focus').beam.w; return TESTS_EXPECT.gD.wx; },
+    wantFrom: () => TESTS_EXPECT.gw,
+  },
+  {
+    name: 'and its MTF is a Gaussian',
+    why: 'exp(\u2212\u03c0\u00b2w\u00b2\u03bd\u00b2/2) at \u03bd = 1/(\u03c0w): e^(\u22121/2)',
+    want: Math.exp(-0.5), tol: 5e-3, unit: '',
+    run: () => TESTS_EXPECT.gD.mtfAt(1 / (Math.PI * TESTS_EXPECT.gw)),
+  },
+  {
+    name: 'A point source images to an Airy pattern',
+    why: 'a uniform cone, built from its spectrum, through the singlet to its image: first dark ring at 0.61\u03bb/NA',
+    want: null, tol: 0.02, rel: true, unit: ' mm',
+    run: J => {
+      const b = x => bench('scr-pt', [
+        src({ name: 'Point', x: -100, width: 0, divergence: 1.2, rays: 41, popN: 512 }),
+        bk7Lens({ name: 'f50', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
+        screen({ name: 'Image', x, angle: 180, length: 10 }),
+      ], { minPower: 1e-4 });
+      J.load(b(300));
+      const g = J.popSegments().filter(x => x.el === 'f50').pop();
+      J.load(b(1.8 - g.pilot.x[0]));                         // back vertex plus the distance to the pilot waist
+      const D = J.diffraction('Image');
+      TESTS_EXPECT.pD = D;
+      for (let i = 2; i < D.psf.length - 1; i++) if (D.psf[i] < D.psf[i - 1] && D.psf[i] <= D.psf[i + 1]) return D.rho[i];
+      return NaN;
+    },
+    wantFrom: () => TESTS_EXPECT.pD.airy,
+  },
+  {
+    name: 'with the Airy share of the light inside its first ring',
+    why: '1 \u2212 J\u2080\u00b2(3.832) = 83.8%, against the true total',
+    want: 0.838, tol: 0.01, unit: '',
+    run: () => { const D = TESTS_EXPECT.pD; for (let i = 1; i < D.rho.length; i++) if (D.rho[i] >= D.airy) return D.ee[i]; return NaN; },
+  },
+  {
+    name: 'A tilted mirror gives a line focus',
+    why: 'screen at the in-plane focus of the 22.5\u00b0 mirror: half-maximum widths in and out of the plane in the ratio of the two pilot beams there',
+    want: null, tol: 0.02, rel: true, unit: ' (width ratio)',
+    run: J => {
+      const b = x => bench('scr-line', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128 }),
+        { type: 'mirror', name: 'Tilt', x: 0, y: 0, angle: 157.5, length: 25, reflect: 100, R: 200 },
+        screen({ name: 'Line', x: -x * Math.cos(Math.PI / 4), y: x * Math.sin(Math.PI / 4), angle: -45, length: 20 }),
+      ]);
+      J.load(b(300));
+      const g = J.popSegments().find(x => x.el === 'Tilt');
+      const t = -g.pilot.x[0], wxy = (q, z) => Math.sqrt(LAM * q[1] / Math.PI * (1 + ((q[0] + z) / q[1]) ** 2));
+      TESTS_EXPECT.line = wxy(g.pilot.x, t) / wxy(g.pilot.y, t);
+      J.load(b(t));
+      const D = J.diffraction('Line');
+      TESTS_EXPECT.lD = D;
+      return D.fwhmX / D.fwhmY;
+    },
+    wantFrom: () => TESTS_EXPECT.line,
+  },
+  {
+    name: 'and it is a 2D field',
+    why: 'the screen reports it as not round',
+    want: 0, tol: 0, unit: ' (0 = 2D)',
+    run: () => TESTS_EXPECT.lD.symmetric ? 1 : 0,
+  },
+  {
+    name: 'Power arriving in the arm a 30% mirror reflects',
+    why: 'the screen\u2019s field carries its branch\u2019s power',
+    want: 0.3, tol: 1e-4, unit: '',
+    run: J => {
+      J.load(bench('scr-split', [
+        src({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128 }),
+        { type: 'mirror', name: 'Split', x: 0, y: 0, angle: 135, length: 25, reflect: 30 },
+        screen({ name: 'Up', x: 0, y: 60, angle: -90, length: 20 }),
+      ]));
+      return J.diffraction('Up').power;
+    },
+  },
+
+
+  { group: 'Interference' },
+  {
+    name: 'Michelson with equal arms: all the light leaves by the output port',
+    why: 'both arms take one reflection and one transmission at the cube, so they arrive in phase',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(0)); return J.diffraction('Out').power; },
+  },
+  {
+    name: 'An eighth of a wave on one arm splits it evenly',
+    why: 'a quarter wave of round trip: cos\u00b2(\u03c0/4) = 0.5 at the output',
+    want: 0.5, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(LAM / 8)); return J.diffraction('Out').power; },
+  },
+  {
+    name: 'A quarter wave darkens the output port',
+    why: 'half a wave of round trip',
+    want: 0, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(LAM / 4)); return J.diffraction('Out').power; },
+  },
+  {
+    name: 'The two ports share the light',
+    why: 'at an arbitrary path difference the output and input ports add to the whole beam',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(LAM / 10)); return J.diffraction('Out').power + J.diffraction('Back').power; },
+  },
+  {
+    name: 'Field interference agrees with the rays\u2019',
+    why: 'coherent over incoherent power on the output screen, from the propagated fields and from the ray tracer\u2019s own sum',
+    want: null, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(LAM / 10)); TESTS_EXPECT.rayInt = J.stats('Out').interference; return J.diffraction('Out').interference; },
+    wantFrom: () => TESTS_EXPECT.rayInt,
+  },
+  {
+    name: 'The bench shows the output port as bright as the screen does',
+    why: 'the two branches after the cube are drawn as one, from the power their fields add up to',
+    want: null, tol: 1e-3, unit: '',
+    run: J => {
+      J.load(michelsonCube(LAM / 10));
+      TESTS_EXPECT.outP = J.diffraction('Out').power;
+      const g = J.popGroups().find(x => x.to === 'Out');
+      return g && g.size === 2 ? g.gain : NaN;
+    },
+    wantFrom: () => TESTS_EXPECT.outP,
+  },
+  {
+    name: 'Tilting one mirror gives straight fringes',
+    why: 'a 1 mrad tilt crosses the beams at 2 mrad: period \u03bb/2\u03b5 along the screen, from the fringe term on the map',
+    want: LAM / (2 * 1e-3), tol: 0.01, rel: true, unit: ' mm',
+    run: J => {
+      J.load(michelsonCube(0, 1e-3 * 180 / Math.PI, { w0: 1 }));
+      const D = J.diffraction('Out'), M = D.map, n = M.n, row = n / 2;
+      TESTS_EXPECT.tiltD = D;
+      const u = i => M.u0 + (i + 0.5) / n * (M.u1 - M.u0), c = 0.5 * (M.u0 + M.u1);
+      const f = i => M.v[row * n + i] / (M.inc[row * n + i] || 1);
+      const pk = [];
+      for (let i = 1; i < n - 1; i++) if (f(i) > f(i - 1) && f(i) >= f(i + 1) && Math.abs(u(i) - c) < 1.5) {
+        const a = f(i - 1), b = f(i), d = f(i + 1), off = 0.5 * (a - d) / (a - 2 * b + d);
+        pk.push(u(i) + off * (M.u1 - M.u0) / n);
+      }
+      return (pk[pk.length - 1] - pk[0]) / (pk.length - 1);
+    },
+  },
+  {
+    name: 'with full visibility for balanced arms',
+    why: '(I_max \u2212 I_min)/(I_max + I_min) where the beams overlap',
+    want: 1, tol: 0.01, unit: '',
+    run: () => TESTS_EXPECT.tiltD.visibility,
+  },
+  {
+    name: 'Crossed polarisations do not interfere',
+    why: 'a quarter-wave plate at 45\u00b0 passed twice turns one arm from s to p; the output takes half at any path difference',
+    want: 1, tol: 1e-3, unit: ' (coherent / incoherent)',
+    run: J => {
+      J.load(michelsonCube(LAM / 8, 0, {}, [{ type: 'waveplate', name: 'QWP', x: 25, y: 0, angle: 0, length: 25.4, retard: 0.25, axis: 45 }]));
+      return J.diffraction('Out').interference;
+    },
+  },
+  {
+    name: 'An unpolarised beam interferes with itself',
+    why: 'its two incoherent halves each interfere fully, so equal arms still send it all to the output',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => { J.load(michelsonCube(0, 0, { pol: 'unpolarised' })); return J.diffraction('Out').power; },
+  },
+
+
+  { group: 'Stops and masks on the field' },
+  {
+    name: 'A knife edge through the beam\u2019s centre passes half',
+    why: 'the reference ray passes the blade, so the field carries on behind it with half the power',
+    want: 0.5, tol: 2e-3, unit: '',
+    run: J => { J.load(oneEl({ type: 'stop', name: 'Knife', x: 0, y: 0, angle: 0, shape: 'knife', offset: 0, side: 1, outer: 25.4 })); return after(J, 'Knife').start.power; },
+  },
+  {
+    name: 'A quarter of the light at the edge of its shadow',
+    why: 'Fresnel: at the geometric shadow of a straight edge the intensity is I\u2080/4, here 500 mm on',
+    want: 0.25, tol: 0.03, rel: true, unit: '',
+    run: J => {
+      J.load(oneEl({ type: 'stop', name: 'Knife', x: 0, y: 0, angle: 0, shape: 'knife', offset: 0, side: 1, outer: 25.4 }, { popN: 512 }));
+      const segs = J.popSegments(), i = segs.findIndex(g => g.el === 'Knife'), prev = segs.find(g => g.el === null);
+      return segs[i].at(500).axis / prev.at(prev.len).axis;
+    },
+  },
+  {
+    name: 'An off-centre slit that misses the beam\u2019s centre',
+    why: 'a 0.5 mm slit from 0.75 to 1.25 mm off axis passes \u00bd[erf(\u221a2\u00b71.25) \u2212 erf(\u221a2\u00b70.75)] of a 1 mm beam',
+    want: 0.5 * (erfT(Math.SQRT2 * 1.25) - erfT(Math.SQRT2 * 0.75)), tol: 3e-3, rel: true, unit: '',
+    run: J => { J.load(oneEl({ type: 'stop', name: 'Slit', x: 0, y: 0, angle: 0, shape: 'slit', aperture: 0.5, offset: 1, outer: 25.4 }, { popN: 512 })); return after(J, 'Slit').start.power; },
+  },
+  {
+    name: 'A central obscuration keeps the beam round',
+    why: 'a 1 mm disc on a 1 mm beam passes e^(\u22122\u00b70.5\u00b2) and stays on the radial engine',
+    want: Math.exp(-0.5), tol: 3e-3, rel: true, unit: '',
+    run: J => {
+      J.load(oneEl({ type: 'stop', name: 'Disc', x: 0, y: 0, angle: 0, shape: 'disc', aperture: 1, offset: 0, outer: 25.4 }));
+      const g = after(J, 'Disc');
+      return g.engine === 'round' ? g.start.power : NaN;
+    },
+  },
+  {
+    name: 'A Gaussian apodiser',
+    why: 'amplitude e^(\u2212(r/2)\u00b2) on a 1 mm beam passes a\u00b2/(a\u00b2 + w\u00b2) = 0.8',
+    want: 0.8, tol: 1e-3, rel: true, unit: '',
+    run: J => { J.load(oneEl({ type: 'mask', name: 'Apod', x: 0, y: 0, angle: 0, amp: 'exp(-(r/2)^2)', delay: '0' })); return after(J, 'Apod').start.power; },
+  },
+  {
+    name: 'A phase lens focuses the beam',
+    why: 'delay \u2212r\u00b2/2f\u03bb with f = 100 mm: the waist from 1/q\u2032 = 1/q \u2212 1/f',
+    want: null, tol: 1e-4, rel: true, unit: ' mm',
+    run: J => {
+      J.load(oneEl({ type: 'mask', name: 'PL', x: 0, y: 0, angle: 0, amp: '1', delay: '-r^2/(2*100)/lambda' }));
+      const zR = Math.PI / LAM, d = 100 * 100 + zR * zR, ir = 100 / d - 1 / 100, ii = -zR / d;
+      TESTS_EXPECT.pl = -ir / (ir * ir + ii * ii);
+      return -after(J, 'PL').pilot.x[0];
+    },
+    wantFrom: () => TESTS_EXPECT.pl,
+  },
+  {
+    name: 'and focuses the rays',
+    why: 'rays bend by the slope of the delay, so they cross at f',
+    want: 0, tol: 1e-3, unit: ' mm rms',
+    run: J => {
+      J.load(bench('pl-rays', [
+        src({ name: 'Fan', x: -100, width: 4, rays: 21 }),
+        { type: 'mask', name: 'PL', x: 0, y: 0, angle: 0, amp: '1', delay: '-r^2/(2*100)/lambda' },
+        screen({ name: 'F', x: 100, angle: 180 }),
+      ]));
+      return J.stats('F').rms;
+    },
+  },
+  {
+    name: 'A vortex leaves a dark core',
+    why: 'delay \u03b8/2\u03c0 is a charge-1 vortex: far off, the axis is dark against the ring',
+    want: 0, tol: 1e-3, unit: ' (axis / peak)',
+    run: J => {
+      J.load(oneEl({ type: 'mask', name: 'V', x: 0, y: 0, angle: 0, amp: '1', delay: 'theta/(2*pi)' }, { w0: 0.3, width: 0.6 }));
+      const g = after(J, 'V'), st = g.at(5000);
+      return g.engine === '2d' ? st.axis / st.peak : NaN;
+    },
+  },
+  {
+    name: 'A binary \u03c0 phase grating suppresses the zero order',
+    why: 'half-wave steps at 50% duty average to nothing: far off, no light on the axis',
+    want: 0, tol: 0.01, unit: ' (of the ungrated axis)',
+    run: J => {
+      const g = m => { J.load(oneEl(m, { popN: 512 })); return after(J, 'G').at(5000).axis; };
+      const on = g({ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, amp: '1', delay: '0.5*step(sin(2*pi*x/0.5))' });
+      const off = g({ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, amp: '1', delay: '0*x' });
+      return on / off;
+    },
+  },
+  {
+    name: 'Mask formulas: a power binds tighter than a leading minus',
+    why: '\u22122^2 = \u22124 and 2^3^2 = 512, as written in maths',
+    want: 0, tol: 0, unit: ' mismatches',
+    run: J => (J.maskExpr('-2^2') === -4 ? 0 : 1) + (J.maskExpr('2^3^2') === 512 ? 0 : 1) + (J.maskExpr('x > 0 ? 3 : 4', 1) === 3 ? 0 : 1),
+  },
+  {
+    name: 'Mask formulas cannot name anything else',
+    why: 'only the listed variables and functions exist, so arbitrary code is refused',
+    want: 3, tol: 0, unit: ' refused',
+    run: J => ['alert(1)', 'x.constructor', 'window'].reduce((n, e) => { try { J.maskExpr(e); return n; } catch (err) { return n + 1; } }, 0),
+  },
+
+
+  { group: 'Close-up: standing waves' },
+  {
+    name: 'A standing wave before a mirror repeats every half wave',
+    why: 'a beam and its reflection, sampled along the axis over 2 \u00b5m: minima \u03bb/2 apart',
+    want: LAM / 2, tol: 2e-3, rel: true, unit: ' mm',
+    run: J => { J.load(retro({ type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 100 })); return minSpacing(J.fieldAlong(-0.002, 0, 0, 0, 800), 0.002); },
+  },
+  {
+    name: 'with a node on the mirror\u2019s surface',
+    why: 'a mirror turns the field over, so incident and reflected cancel where they meet it',
+    want: 0, tol: 1e-6, unit: ' (of the peak)',
+    run: J => { const I = J.fieldAlong(-0.001, 0, 0, 0, 400); return I[I.length - 1] / Math.max(...I); },
+  },
+  {
+    name: 'for p light as well as s',
+    why: 'the p field lies along each beam\u2019s own normal, which reverses with the beam, and the fields add as vectors',
+    want: 0, tol: 1e-6, unit: ' (of the peak)',
+    run: J => { J.load(retro({ type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 100 }, 'p')); const I = J.fieldAlong(-0.001, 0, 0, 0, 400); return I[I.length - 1] / Math.max(...I); },
+  },
+  {
+    name: 'A partial reflector gives partial contrast',
+    why: 'R = 30%: (I_max \u2212 I_min)/(I_max + I_min) = 2\u221aR/(1 + R)',
+    want: 2 * Math.sqrt(0.3) / 1.3, tol: 1e-3, unit: '',
+    run: J => { J.load(retro({ type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, length: 25, reflect: 30 })); return contrastOf(J.fieldAlong(-0.002, 0, -0.0005, 0, 400)); },
+  },
+  {
+    name: 'Before bare glass: Fresnel contrast',
+    why: 'one uncoated face, the back one AR coated: 2|r|/(1 + r\u00b2) with r = (1 \u2212 n)/(1 + n)',
+    want: null, tol: 1e-3, unit: '',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, NM), r = (1 - n) / (1 + n);
+      TESTS_EXPECT.glassC = 2 * Math.abs(r) / (1 + r * r);
+      J.load(retro({ type: 'lens', name: 'Plate', x: 2.5, y: 0, angle: 0, diameter: 25.4, gaps: [5], materials: [{ glass: 'N-BK7' }],
+        surfaces: [{ R: null }, { R: null, coat: { mode: 'custom', R: 0 } }] }));
+      return contrastOf(J.fieldAlong(-0.0008, 0, -1e-6, 0, 300));
+    },
+    wantFrom: () => TESTS_EXPECT.glassC,
+  },
+  {
+    name: 'and a minimum at the glass, for p too',
+    why: 'r < 0 going into glass, for either polarisation at normal incidence: where s and p cannot be told apart they reflect alike',
+    want: 0, tol: 1e-3, unit: ' (of the swing)',
+    run: J => {
+      J.load(retro({ type: 'lens', name: 'Plate', x: 2.5, y: 0, angle: 0, diameter: 25.4, gaps: [5], materials: [{ glass: 'N-BK7' }],
+        surfaces: [{ R: null }, { R: null, coat: { mode: 'custom', R: 0 } }] }, 'p'));
+      const I = J.fieldAlong(-0.0008, 0, -1e-6, 0, 300), a = Math.max(...I), b = Math.min(...I);
+      return (I[I.length - 1] - b) / (a - b);
+    },
+  },
+  {
+    name: 'At 45\u00b0 the fringes are \u03bb/(2 cos \u03b8) apart',
+    why: 's light off a mirror at 45\u00b0: the standing wave runs along the mirror\u2019s normal',
+    want: LAM / (2 * Math.SQRT1_2), tol: 2e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(retro({ type: 'mirror', name: 'M', x: 0, y: 0, angle: 135, length: 25, reflect: 100 }));
+      const L = 0.002;
+      return minSpacing(J.fieldAlong(0, 0, -Math.SQRT1_2 * L, Math.SQRT1_2 * L, 800), L);
+    },
+  },
+  {
+    name: 'and for p light there are none',
+    why: 'at 45\u00b0 the incident and reflected p fields are at right angles, so they cannot interfere',
+    want: 0, tol: 1e-3, unit: ' contrast',
+    run: J => {
+      J.load(retro({ type: 'mirror', name: 'M', x: 0, y: 0, angle: 135, length: 25, reflect: 100 }, 'p'));
+      const L = 0.002;
+      return contrastOf(J.fieldAlong(-Math.SQRT1_2 * 1e-5, Math.SQRT1_2 * 1e-5, -Math.SQRT1_2 * L, Math.SQRT1_2 * L, 400));
     },
   },
 
@@ -861,7 +1541,7 @@ const TESTS = [
         { type: 'mirror', name: 'M', x: 20, y: 0, angle: 180, length: 25.4, reflect: 95 },
         screen({ name: 'Screen', x: 40, angle: 180 }),
       ]));
-      return J.lastTrace().beams.length;
+      return J.lastTrace().beams.filter(b => !b.fan).length;     // a ray fan's hidden pilot is never drawn
     },
   },
 

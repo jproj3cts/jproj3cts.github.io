@@ -466,7 +466,7 @@
           <button class="rt-btn" data-add="prism">Prism</button>
           <button class="rt-btn" data-add="waveplate">Waveplate</button>
           <button class="rt-btn" data-add="polariser">Polariser</button>
-          <button class="rt-btn" data-add="stop">Aperture</button>
+          <button class="rt-btn" data-add="stop">Stop</button>
           <button class="rt-btn" data-add="mask">Mask</button>
           <button class="rt-btn" data-add="screen">Screen</button>
         </div>
@@ -578,10 +578,11 @@
     </div>
   </dialog>
 
+  <div class="rt-examples">Examples:<button class="rt-link" type="button" data-demo="youngs-double-slit">Young’s double slit</button><button class="rt-link" type="button" data-demo="poissons-spot">Poisson’s spot</button><button class="rt-link" type="button" data-demo="michelson">Michelson interferometer</button><button class="rt-link" type="button" data-demo="mach-zehnder">Mach–Zehnder interferometer</button><button class="rt-link" type="button" data-demo="plano-convex">Plano-convex: which way round?</button></div>
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one, with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; apertures (round, slit, knife edge or obscuring disc, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 \u00b5m, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one, with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 \u00b5m, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersionn. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -788,7 +789,7 @@ const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 const deg = Math.PI / 180;
 
-const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Aperture',
+const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
   cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
 const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape] : TYPE_LABEL[el.type];
@@ -1016,7 +1017,10 @@ function normElementBase(e) {
       return Object.assign(base, {
         aperture: Math.max(0, num(e.aperture, 5)),
         outer: Math.max(0.2, num(e.outer, 25.4)),
-        shape: ['round', 'slit', 'knife', 'disc'].includes(e.shape) ? e.shape : 'round',
+        shape: STOP_SHAPES.some(s => s[0] === e.shape) ? e.shape : 'round',
+        sep: Math.max(0, num(e.sep, 0.5)),             // a double slit's centre-to-centre separation
+        pitch: Math.max(1e-6, num(e.pitch, 0.2)),      // a comb's slit-to-slit pitch
+        count: Math.round(clamp(num(e.count, 5), 2, 400)),   // and its number of slits
         offset: num(e.offset, 0),                      // along the stop, from its centre
         height: Math.max(0, num(e.height, 0)),         // a slit's height out of the plane; 0 is unlimited
         side: e.side === -1 ? -1 : 1,                  // which side of its edge a knife covers
@@ -1068,7 +1072,7 @@ function makeElement(kind, x, y) {
     case 'polariser':
       return normElement({ type: 'polariser', name: nextName('Polariser'), x, y, angle: 0, axis: 0 });
     case 'stop':
-      return normElement({ type: 'stop', name: nextName('Aperture'), x, y, angle: 0, aperture: 5, outer: 25.4 });
+      return normElement({ type: 'stop', name: nextName('Stop'), x, y, angle: 0, aperture: 5, outer: 25.4 });
     case 'mask':
       return normElement({ type: 'mask', name: nextName('Mask'), x, y, angle: 0, amp: '1', delay: '0', preset: 'clear' });
     case 'cube':
@@ -1447,6 +1451,38 @@ function maskFns(el) {
   maskCache.set(key, out);
   return out;
 }
+/* A mask's complex transmission A e^{-2 pi i D} at a point of its plane, as [re, im] */
+function maskT(fn, u, v, lam) { const [A, D] = fn(u, v, lam), ph = -2 * Math.PI * D; return [A * Math.cos(ph), A * Math.sin(ph)]; }
+/* Where a mask's formula jumps inside a sample, the sample takes the mean transmission over
+   its footprint (du by dv about (u, v)), not the value at its centre: a hard edge in the
+   formula is then anti-aliased the way a stop's edge is, amplitude and phase alike. A whole
+   wave of delay is no jump, so a wrapped phase is left alone. Returns null where it is smooth,
+   else [mean re, mean im, mean power]. */
+function maskFootprint(fn, u, v, du, dv, lam, radial) {
+  const t0 = maskT(fn, u, v, lam), tol = 0.05 * (1 + Math.hypot(t0[0], t0[1]));
+  const probes = radial ? [[0.5 * du, 0], [-0.5 * du, 0]] : [[0.5 * du, 0], [-0.5 * du, 0], [0, 0.5 * dv], [0, -0.5 * dv]];
+  if (!probes.some(([a, b]) => { const t = maskT(fn, u + a, v + b, lam); return Math.hypot(t[0] - t0[0], t[1] - t0[1]) > tol; })) return null;
+  const K = radial ? 64 : 8;          // a ring is one-dimensional, so it can afford a finer average
+  let sr = 0, si = 0, sp = 0, n = 0;
+  for (let a = 0; a < K; a++) for (let b = 0; b < (radial ? 1 : K); b++) {
+    // across a ring, sample at equal areas; across a square, evenly
+    const fa = (a + 0.5) / K;
+    const du1 = radial ? Math.sqrt(Math.max(0, (u - 0.5 * du) ** 2 + fa * ((u + 0.5 * du) ** 2 - (u - 0.5 * du) ** 2))) - u : (fa - 0.5) * du;
+    const t = maskT(fn, u + du1, radial ? v : v + ((b + 0.5) / K - 0.5) * dv, lam);
+    sr += t[0]; si += t[1]; sp += t[0] * t[0] + t[1] * t[1]; n++;
+  }
+  return [sr / n, si / n, sp / n];
+}
+/* Does a mask's formula jump anywhere along a line through the beam? */
+function maskJumps(fn, u0, v0, du, dv, lam) {
+  let prev = null;
+  for (let i = 0; i <= 600; i++) {
+    const f = i / 600 * 2 - 1, t = maskT(fn, u0 + f * du, v0 + f * dv, lam);
+    if (prev && Math.hypot(t[0] - prev[0], t[1] - prev[1]) > 0.2) return true;
+    prev = t;
+  }
+  return false;
+}
 /* Is a mask round about where the beam crosses it? Sampled on rings round the hit point. */
 function popMaskRound(ev) {
   if (Math.abs(ev.cth - 1) > 1e-9) return false;
@@ -1472,6 +1508,17 @@ const MASK_PRESETS = [
   ['agrating', 'Amplitude grating, 0.2 mm', 'step(sin(2*pi*x/0.2))', '0'],
 ];
 
+const STOP_SHAPES = [['round', 'Iris'], ['slit', 'Slit'], ['double', 'Double slit'], ['comb', 'Slit comb'], ['knife', 'Knife edge'], ['disc', 'Beam block']];
+/* The openings of a slit-like stop, as their centres along it: one, two, or a comb's worth */
+function stopSlitCentres(el) {
+  if (el.shape === 'double') return [el.offset - el.sep / 2, el.offset + el.sep / 2];
+  if (el.shape === 'comb') return Array.from({ length: el.count }, (_, i) => el.offset + (i - (el.count - 1) / 2) * el.pitch);
+  return [el.offset];
+}
+const stopSlitLike = el => el.shape === 'slit' || el.shape === 'double' || el.shape === 'comb';
+/* How far the openings reach from the offset, for sizing grids */
+const stopExtent = el => el.shape === 'double' ? el.sep / 2 + el.aperture / 2
+  : el.shape === 'comb' ? (el.count - 1) / 2 * el.pitch + el.aperture / 2 : el.aperture / 2;
 /* The blocking parts of a stop along its length, as [from, to] in its own frame: round
    and slit leave an opening at the offset, a knife covers one side of its edge, a disc
    blocks only itself. Out of the plane a round opening is a circle, a slit has a height. */
@@ -1480,6 +1527,13 @@ function stopBlades(el) {
   const add = (lo, hi) => { lo = Math.max(-b, lo); hi = Math.min(b, hi); if (hi - lo > 1e-9) out.push([lo, hi]); };
   if (el.shape === 'knife') el.side > 0 ? add(o, b) : add(-b, o);
   else if (el.shape === 'disc') add(o - a, o + a);
+  else if (stopSlitLike(el)) {
+    // blades between the openings, merged where openings overlap
+    const open = stopSlitCentres(el).map(c => [c - a, c + a]).sort((p, q) => p[0] - q[0]);
+    let x = -b;
+    for (const [lo, hi] of open) { if (lo > x) add(x, lo); x = Math.max(x, hi); }
+    add(x, b);
+  }
   else { add(-b, o - a); add(o + a, b); }
   return out;
 }
@@ -1490,7 +1544,18 @@ function stopMargin(el) {
   const plate = (u, v) => Math.hypot(u, v) - b;
   if (el.shape === 'knife') return (u, v) => Math.max(-el.side * (u - o), plate(u, v));
   if (el.shape === 'disc') return (u, v) => Math.hypot(u - o, v) - a;
-  if (el.shape === 'slit') return (u, v) => Math.max(Math.min(a - Math.abs(u - o), h > 0 ? h - Math.abs(v) : Infinity), plate(u, v));
+  if (stopSlitLike(el)) {
+    // through any one slit, or past the plate; the nearest slit decides the edge
+    const cs = stopSlitCentres(el), pitch = el.shape === 'comb' ? el.pitch : 0, c0 = cs[0], n = cs.length;
+    return (u, v) => {
+      let best = -Infinity;
+      if (pitch > 0) {
+        const i = clamp(Math.round((u - c0) / pitch), 0, n - 1);
+        for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < n) best = Math.max(best, a - Math.abs(u - (c0 + j * pitch)));
+      } else for (const c of cs) best = Math.max(best, a - Math.abs(u - c));
+      return Math.max(Math.min(best, h > 0 ? h - Math.abs(v) : Infinity), plate(u, v));
+    };
+  }
   return (u, v) => Math.max(a - Math.hypot(u - o, v), plate(u, v));
 }
 
@@ -1792,7 +1857,8 @@ function traceScene() {
           n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
         if (s.kind === 'iris') {
           const m = s.el;
-          evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2 } });
+          evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2,
+            ext: stopExtent(m), slits: stopSlitLike(m) } });
           pts.length -= 2; last = s; continue;
         }
         if (s.kind === 'mask') {
@@ -1812,7 +1878,9 @@ function traceScene() {
             const nr = (qr * dr + qi * di) / den, ni = (qi * dr - qr * di) / den;
             qr = nr; qi = ni;
           }
-          sr *= A; si *= A; pr *= A; pi *= A;
+          // the reference ray is not light: the field takes the mask's amplitude sample by
+          // sample, so a mask dark where the reference crosses it (an annulus) still passes a field
+          if (!isQ) { sr *= A; si *= A; pr *= A; pi *= A; }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
           opl += f0[1] * lam;
           if (w < minW && !chief) { dropped++; break; }
@@ -4003,18 +4071,25 @@ function maskPanel(el) {
 }
 
 function stopPanel(el) {
-  panel.append(h('h3', null, 'Aperture'));
+  panel.append(h('h3', null, 'Stop'));
   const rows = h('div', { class: 'rt-rows' },
-    selectField('Shape', [['round', 'Round iris'], ['slit', 'Slit'], ['knife', 'Knife edge'], ['disc', 'Obscuring disc']],
-      () => el.shape, v => { el.shape = v; }, { wide: true }));
-  if (el.shape !== 'knife') rows.append(param(el.shape === 'disc' ? 'Disc diameter (mm)' : el.shape === 'slit' ? 'Slit width (mm)' : 'Clear aperture (mm)', el, 'aperture'));
-  rows.append(param(el.shape === 'knife' ? 'Edge position (mm)' : 'Offset (mm)', el, 'offset'));
-  if (el.shape === 'slit') rows.append(param('Height out of the plane (mm)', el, 'height', { blank: 0, placeholder: 'unlimited', fmt: v => v ? fmtNum(v) : '' }));
-  if (el.shape === 'knife') rows.append(selectField('Covers', [['1', 'The side above the edge'], ['-1', 'The side below the edge']],
+    selectField('Shape', STOP_SHAPES, () => el.shape, v => {
+      el.shape = v;
+      // slits that would overlap their neighbours get a width that leaves them apart
+      if (v === 'double' && el.aperture >= el.sep) el.aperture = +(el.sep / 4).toPrecision(3);
+      if (v === 'comb' && el.aperture >= el.pitch) el.aperture = +(el.pitch / 2).toPrecision(3);
+    }, { wide: true }));
+  const s = el.shape;
+  if (s !== 'knife') rows.append(param(s === 'disc' ? 'Block diameter (mm)' : stopSlitLike(el) ? 'Slit width (mm)' : 'Clear aperture (mm)', el, 'aperture'));
+  if (s === 'double') rows.append(param('Separation (mm)', el, 'sep'));
+  if (s === 'comb') rows.append(param('Pitch (mm)', el, 'pitch'), param('Number of slits', el, 'count'));
+  rows.append(param(s === 'knife' ? 'Edge position (mm)' : 'Offset (mm)', el, 'offset'));
+  if (stopSlitLike(el)) rows.append(param('Height (mm)', el, 'height', { blank: 0, placeholder: 'unlimited', fmt: v => v ? fmtNum(v) : '' }));
+  if (s === 'knife') rows.append(selectField('Covers', [['1', 'The side above the edge'], ['-1', 'The side below the edge']],
     () => String(el.side), v => { el.side = +v; }));
   rows.append(param('Outer size (mm)', el, 'outer'));
   panel.append(rows);
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Rays through the opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the edge, or the disc) along the stop. Out of the bench plane a round iris and a disc are circles and a slit runs to its height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the clear aperture to watch a system vignette.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An opaque plate of the outer size. Rays through an opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the pair of slits, the comb, the edge or the block) along the stop. A double slit\u2019s separation and a comb\u2019s pitch run centre to centre; a slit\u2019s height is its length out of the bench plane, blank for unlimited. Out of the bench plane an iris and a block are circles and slits run to their height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the width to watch a system vignette, or the separation to walk Young\u2019s fringes.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));
 }
 
@@ -4147,6 +4222,7 @@ function diffractionSection(el) {
     if (D.fine) notes.push('Some fringes here are finer than three map pixels, so the map can alias them: the powers stay right, the picture may not.');
     if (D.tilt > 1) notes.push('The screen is tilted ' + (+D.tilt.toPrecision(3)) + '\u00b0 to the beam: the map is the beam\u2019s cross-section projected onto it, without the extra spread along the tilt.');
     if (D.curved) notes.push('The screen\u2019s curvature is not included in the field.');
+    if (D.coarse.length) notes.push(D.coarse.map(id => (getEl(id) || {}).name).join(', ') + ' has detail finer than three grid samples, so its diffraction here is only roughly right: raise the source\u2019s grid points.');
     if (D.steep.length) notes.push('The wavefront after ' + D.steep.map(id => (getEl(id) || {}).name).join(', ') + ' turns faster than the grid can follow: raise the source\u2019s grid points.');
     if (busy) notes.push('Updating\u2026');
     box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
@@ -4828,7 +4904,7 @@ function popSurface(F, q, ev) {
   const N = F.re.length, Q = qdht(N), G = popGuard(N), lam0 = F.lam0;
   const kIn = 2 * Math.PI * F.n / lam0, lamIn = lam0 / F.n;
   const r = popRadii(Q, F.R);
-  let clipped = false, wFitIn = 0, qr = q[0], qi = q[1];
+  let clipped = false, wFitIn = 0, m2In = 1, qr = q[0], qi = q[1];
   const aIn = isFinite(ev.a) ? ev.a : Infinity;
   // a round opening passes inside its edge; an obscuring disc passes outside it
   const maskOf = rr => ev.disc !== null && ev.disc !== undefined ? popMask(rr, ev.disc).map(v => 1 - v)
@@ -4846,6 +4922,20 @@ function popSurface(F, q, ev) {
     const V = Q.S / (2 * Math.PI * R1);
     clipped = p / (Math.PI * V * V) < popPower(F) * (1 - 1e-4);
     wFitIn = Math.sqrt(2 * m2 / p);
+    // and how fast it spreads: its spectrum, the pilot's curvature taken off (see the 2D step)
+    if (clipped) {
+      const b = 0.5 * kIn * (popInvR([qr, qi]) - (F.sphere ? 1 / F.z : 0));
+      const cr = new Float64Array(N), ci = new Float64Array(N);
+      for (let i = 0; i < N; i++) {
+        const ph = b * r1[i] * r1[i], c = Math.cos(ph), s = Math.sin(ph), a = m[i];
+        cr[i] = (re[i] * c - im[i] * s) * a; ci[i] = (re[i] * s + im[i] * c) * a;
+      }
+      const [Hr, Hi] = hankel(Q, R1, cr, ci);
+      let s0 = 0, s2 = 0;
+      for (let k = 0; k < N; k++) { const nu = Q.j[k] / (2 * Math.PI * R1), P = (Hr[k] ** 2 + Hi[k] ** 2) * Q.inv[k]; s0 += P; s2 += P * nu * nu; }
+      // for a Gaussian <r^2><nu^2> = 1/(4 pi^2): M^2 = 2 pi sqrt(<r^2><nu^2>)
+      m2In = Math.max(1, 2 * Math.PI * Math.sqrt((m2 / p) * (s2 / s0)));
+    }
   }
   // pilot through the surface: q' = A q / (C q + D)
   const A = ev.A, aA = Math.abs(A), C = ev.C, D = ev.D;
@@ -4860,7 +4950,7 @@ function popSurface(F, q, ev) {
     // recompute the pilot from what got through, as Zemax does: its curvature from the
     // pilot, its width from the second moment of the clipped field
     const wFit = aA * wFitIn;
-    const den = qr * qr + qi * qi, invRe = qr / den, invIm = -lam2 / (Math.PI * wFit * wFit);
+    const den = qr * qr + qi * qi, invRe = qr / den, invIm = -m2In * lam2 / (Math.PI * wFit * wFit);
     const d2 = invRe * invRe + invIm * invIm;
     qr = invRe / d2; qi = -invIm / d2;
   }
@@ -4890,6 +4980,14 @@ function popSurface(F, q, ev) {
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
     if (Rn < 3 * wOut) { steep = 1; Rn = 3 * wOut; }
   }
+  // a round edge that cuts the beam: sample for its fringes at the next surface (see the 2D step)
+  const maskEdge = raw && raw.surf && raw.surf.maskFn && maskJumps(raw.surf.maskFn, raw.ly, 0, 3 * wOut, 0, lam0);
+  if (ev.tNext > 0 && isFinite(ev.tNext) && (clipped || ev.disc || maskEdge)) {
+    const C = 3.5 * wOut, t = ev.tNext;
+    const dHold = (C + Math.sqrt(C * C + N * lam2 * t)) / (2 * N);
+    const d = Math.max(Math.sqrt(lam2 * t) / 8, dHold);
+    Rn = Math.min(Rn, Math.max(N * d, 1.2 * aA * (isFinite(aIn) ? aIn : 0)));
+  }
   const rn = popRadii(Q, Rn);
   const x = new Float64Array(N);
   for (let i = 0; i < N; i++) x[i] = rn[i] / aA;
@@ -4902,7 +5000,8 @@ function popSurface(F, q, ev) {
   const g = Math.sqrt(ev.gain === undefined ? 1 : ev.gain) / aA;
   // the real surface, by tracing rays in the plane: what it adds beyond the paraxial
   // quadratic above is the aberration. Only meaningful while the beam stays round.
-  let pArea = 0, pAmp = 0;
+  let pArea = 0, pAmp = 0, pAreaM = 0, pAmpM = 0;
+  const maskFnR = raw && raw.surf && raw.surf.maskFn && !ev.paraxial ? raw.surf.maskFn : null;
   for (let i = 0; i < N; i++) {
     if (mask) { const I = (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i]; pArea += I * mask[i]; pAmp += I * mask[i] * mask[i]; }
     let gm = mask ? g * mask[i] : g;
@@ -4914,13 +5013,25 @@ function popSurface(F, q, ev) {
       // where each ray really lands: smooth, so it can sit on the grid point. The
       // paraxial parts are already in b; swap them for the exact spheres here.
       ab = abAt(x[i], r);
-      gm *= r[5];                                          // a mask element's amplitude
+      let fr = r[5], fi = 0;                               // a mask element's amplitude
+      if (maskFnR) {
+        const lo = i ? 0.5 * (x[i - 1] + x[i]) : 0, hi = i < N - 1 ? 0.5 * (x[i] + x[i + 1]) : x[i] + 0.5 * (x[i] - x[i - 1]);
+        const fp = maskFootprint(maskFnR, r[6] - x[i] + 0.5 * (lo + hi), 0, hi - lo, 0, lam0, true);
+        if (fp) {
+          const ph0 = 2 * Math.PI * maskFnR(r[6], 0, lam0)[1], c0 = Math.cos(ph0), s0 = Math.sin(ph0);
+          fr = fp[0] * c0 - fp[1] * s0; fi = fp[0] * s0 + fp[1] * c0;
+          pAreaM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fp[2]; pAmpM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * (fr * fr + fi * fi);
+        } else { const I0 = (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fr * fr; pAreaM += I0; pAmpM += I0; }
+      }
+      const xr0 = ure[i] * fr - uim[i] * fi, yi0 = ure[i] * fi + uim[i] * fr;
+      ure[i] = xr0; uim[i] = yi0;
     }
     const ph = b * rn[i] * rn[i] + ab, c = Math.cos(ph), s = Math.sin(ph);
     const xr = (ure[i] * c - uim[i] * s) * gm, yi = (ure[i] * s + uim[i] * c) * gm;
     ure[i] = xr; uim[i] = yi;
   }
   if (pAmp > 0 && pArea > pAmp) { const sc = Math.sqrt(pArea / pAmp); for (let i = 0; i < N; i++) { ure[i] *= sc; uim[i] *= sc; } }
+  if (pAmpM > 0 && pAreaM > pAmpM) { const sc = Math.sqrt(pAreaM / pAmpM); for (let i = 0; i < N; i++) { ure[i] *= sc; uim[i] *= sc; } }
   return { field: { R: Rn, re: ure, im: uim, z: qr, zR: qi, n: n2, lam0, sphere: sphereOut }, q: [qr, qi], clipped, steep };
 }
 
@@ -4993,7 +5104,7 @@ function popScreen(ev, invRx, invRy, lam0) {
     const Ex = Px + t2 * wx - Hx, Ey = Py + t2 * wy - Hy, Ez = Pz + t2 * wz;
     let opl = n1 * t + n2 * t2, amp = 1;
     if (fn) { const [A, D] = fn(ly, lz, lam0); amp = A; opl += D * lam0; }   // a mask: amplitude, and delay in waves
-    return [opl, Ex * exox + Ey * exoy, Ez, edge(ly, lz), ok, amp];
+    return [opl, Ex * exox + Ey * exoy, Ez, edge(ly, lz), ok, amp, ly, lz];
   };
 }
 
@@ -5226,7 +5337,7 @@ function interp2(F, x, y) {
    quadratic implies (in the bench plane this is the tracer's own; out of it, it is
    the only way to know); the traced phase less that quadratic is the aberration,
    sampled on the new grid. */
-function popSurface2(F, ev, gain, paraxial) {
+function popSurface2(F, ev, gain, paraxial, tNext) {
   const N = F.N, lam0 = F.lam0, G = Math.sqrt(Math.PI * N);
   const n1 = F.n, n2 = ev.n2, k0 = 2 * Math.PI / lam0, k1 = k0 * n1, k2 = k0 * n2;
   const lam1 = lam0 / n1, lam2 = lam0 / n2;
@@ -5234,6 +5345,8 @@ function popSurface2(F, ev, gain, paraxial) {
   const inv = q => q[0] / (q[0] * q[0] + q[1] * q[1]);
   const wix = popW(qx[0], qx[1], lam1), wiy = popW(qy[0], qy[1], lam1);
   const tr = ev.surf ? popScreen(ev, inv(qx), inv(qy), lam0) : null;
+  const edgeFn = ev.surf ? (ev.surf.maskMargin || ((u, v) => ev.surf.semi - Math.hypot(u, v))) : null;
+  const maskFn = ev.surf && ev.surf.maskFn;
   // the local quadratic and magnification, from four rays close in
   const hh = 1e-3 * Math.min(wix, wiy, Math.max(popClear(ev), 1e-6));
   let bx = 0, by = 0, Ax = 1, Ay = 1;
@@ -5262,9 +5375,18 @@ function popSurface2(F, ev, gain, paraxial) {
   const a = popClear(ev);
   let wxo = Math.max(1e-9, Math.min(popW(qxo[0], qxo[1], lam2), aAx * a));
   const wyo = Math.max(1e-9, Math.min(popW(qyo[0], qyo[1], lam2), aAy * a));
-  // an opening off to one side must still fit on the grid, which stays on the reference ray
+  // An opening off to one side must still fit on the grid, which stays on the reference ray;
+  // so must light that arrives off to one side, where it lands after this surface
   if (ev.mask && ev.mask.shape !== 'knife' && ev.mask.shape !== 'disc')
-    wxo = Math.max(wxo, 2.4 * (Math.abs(ev.ly - ev.mask.o) + ev.mask.a) * ev.cth * aAx / Math.sqrt(Math.PI * N));
+    wxo = Math.max(wxo, 2.4 * (Math.abs(ev.ly - ev.mask.o) + (ev.mask.ext || ev.mask.a)) * ev.cth * aAx / Math.sqrt(Math.PI * N));
+  let wyo2 = wyo;
+  {
+    const Sin = popStats2(F), G2 = Math.sqrt(Math.PI * N);
+    if (Sin.power > 0) {
+      wxo = Math.max(wxo, 2.4 * (Math.abs(Sin.cx) * aAx + 1.5 * Sin.wx * aAx) / G2);
+      wyo2 = Math.max(wyo, 2.4 * (Math.abs(Sin.cy) * aAy + 1.5 * Sin.wy * aAy) / G2);
+    }
+  }
   // the aberration at an input point: traced phase plus the incoming wave, less the
   // outgoing reference at the ray's true landing point; smooth wherever it is sampled
   const abAt = (x, y, r) => -k0 * r[0] - bx * x * x - by * y * y
@@ -5292,7 +5414,48 @@ function popSurface2(F, ev, gain, paraxial) {
     if (L < 5 * w) { steep = 1; L = 5 * w; }
     return L;
   };
-  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo, gy) / N, z: qyo[0], zR: qyo[1] };
+  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo2, gy) / N, z: qyo[0], zR: qyo[1] };
+  // An edge that cuts the beam sends out fringes: the first is sqrt(lam t) wide at the next
+  // surface, t on, and the later ones finer. The guard band that keeps a clean beam well
+  // sampled near and far leaves too few samples inside the beam for them, so here the
+  // sampling is chosen for that distance instead: eight across the first fringe, as far as a
+  // grid that still holds the beam and the light the edge sends out over t allows.
+  if (tNext > 0 && isFinite(tNext)) {
+    const Sin = popStats2(F), lam2 = lam0 / n2;
+    let ex = false, ey = false;
+    if (ev.mask) {
+      const M = ev.mask, off = Math.abs(ev.ly - M.o);
+      const near = M.shape === 'knife' ? off < 3 * wix : M.shape === 'disc' ? off - M.a < 3 * wix : true;
+      if (near) { ex = true; ey = M.shape !== 'knife' && (!M.slits || M.h > 0); }
+    } else if (maskFn) {
+      ex = maskJumps(maskFn, ev.ly, 0, 3 * wix / ev.cth, 0, lam0);
+      ey = maskJumps(maskFn, ev.ly, 0, 0, 3 * wiy, lam0);
+    } else if (isFinite(a) && a < 2.5 * Math.min(wix, wiy)) ex = ey = true;     // a rim that clips
+    const fine = (st, w, c, has) => {
+      if (!has) return;
+      const C = Math.abs(c) + 3.5 * w;
+      // N d / 2 >= C + lam t / (4 d): the smallest d that still holds it all
+      const dHold = (C + Math.sqrt(C * C + N * lam2 * tNext / 2)) / N;
+      const d = Math.max(Math.sqrt(lam2 * tNext) / 8, dHold);
+      if (d < st.d) st.d = d;
+    };
+    fine(ax, Sin.wx * aAx, Sin.cx * aAx, ex);
+    fine(ay, Sin.wy * aAy, Sin.cy * aAy, ey);
+  }
+  // A mask's smallest feature must be resolved: a disc, which leaves the beam its full size,
+  // pulls the sampling in to a quarter of its diameter, as far as a grid that still spans the
+  // beam allows. Whatever is still finer than three samples is flagged, not quietly smeared.
+  let coarse = 0;
+  if (ev.mask && ev.mask.shape !== 'knife') {
+    const M = ev.mask, feat = 2 * M.a;
+    if (M.shape === 'disc') {
+      const Sin = popStats2(F);
+      const spanX = 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
+      ax.d = Math.min(ax.d, Math.max(feat * ev.cth * aAx / 4, spanX / N));
+      ay.d = Math.min(ay.d, Math.max(feat * aAy / 4, spanY / N));
+    }
+    if (feat * ev.cth * aAx < 3 * ax.d || (!M.slits || M.h > 0) && feat * aAy < 3 * ay.d) coarse = 1;
+  }
   const sphXi = !popInside(qx[0], qx[1]), sphYi = !popInside(qy[0], qy[1]);
   const sphXo = !popInside(qxo[0], qxo[1]), sphYo = !popInside(qyo[0], qyo[1]);
   const cx = bx + (sphXi ? -k1 / (2 * qx[0]) : 0) - (sphXo ? -k2 * Ax * Ax / (2 * qxo[0]) : 0);
@@ -5313,22 +5476,44 @@ function popSurface2(F, ev, gain, paraxial) {
       const x = (i - N / 2) * ax.d / Ax;
       const [ur, ui] = interp2(F, x, y);
       if (ur === 0 && ui === 0) { prev = null; continue; }
-      let m = 1, ab = 0;
+      let m = 1, ab = 0, fr = 1, fi = 0;
       if (tr) {
         const r = tr(x, y);
         if (!r[4]) { prev = null; continue; }
-        const cov = Math.min(1, Math.max(0, 0.5 + r[3] / pix));
-        m = cov * r[5];
-        if (m === 0) { prev = null; continue; }
-        const I = (ur * ur + ui * ui) * r[5] * r[5];
-        pArea += I * cov; pAmp += I * cov * cov;
+        // A sample the edge crosses passes the share of it on the open side. For a straight
+        // edge that share ramps across the pixel's own size in the direction the edge cuts,
+        // |dm/du| du + |dm/dv| dv, not across the coarser of the two spacings.
+        let ramp = pix;
+        if (edgeFn && Math.abs(r[3]) < 2 * pix) {
+          const e = 1e-4, pu = ax.d / (aAx * ev.cth), pv = ay.d / aAy;
+          const gu = (edgeFn(r[6] + e, r[7]) - edgeFn(r[6] - e, r[7])) / (2 * e), gv = (edgeFn(r[6], r[7] + e) - edgeFn(r[6], r[7] - e)) / (2 * e);
+          ramp = Math.max(1e-12, Math.abs(gu) * pu + Math.abs(gv) * pv);
+        }
+        const cov = Math.min(1, Math.max(0, 0.5 + r[3] / ramp));
+        // the transmission here: a mask's amplitude (its delay is already in the traced
+        // path), or, where its formula jumps inside the sample, the mean over the sample
+        fr = r[5]; fi = 0;
+        let T2 = r[5] * r[5];
+        if (maskFn) {
+          const fp = maskFootprint(maskFn, r[6], r[7], ax.d / (aAx * ev.cth), ay.d / aAy, lam0, false);
+          if (fp) {
+            const ph0 = 2 * Math.PI * maskFn(r[6], r[7], lam0)[1], c0 = Math.cos(ph0), s0 = Math.sin(ph0);
+            fr = fp[0] * c0 - fp[1] * s0; fi = fp[0] * s0 + fp[1] * c0; T2 = fp[2];
+            if (!traced) { fr = Math.hypot(fr, fi); fi = 0; }
+          }
+        }
+        m = cov;
+        if (m === 0 || (fr === 0 && fi === 0)) { prev = null; continue; }
+        const U = ur * ur + ui * ui;
+        pArea += U * T2 * cov; pAmp += U * (fr * fr + fi * fi) * cov * cov;
         if (traced) ab = abAt(x, y, r);
       }
       // how fast the sampled phase turns from one sample to the next
       if (prev !== null && Math.abs(ab - prev) > 2 && ur * ur + ui * ui > 1e-6 * peakIn && m > 0.01) steep = 1;
       prev = ab;
       const ph = ab + cx * x * x + cy * y * y, amp = m * g, o = j * N + i;
-      const c = Math.cos(ph) * amp, s = Math.sin(ph) * amp;
+      const c0 = Math.cos(ph) * amp, s0 = Math.sin(ph) * amp;
+      const c = c0 * fr - s0 * fi, s = c0 * fi + s0 * fr;
       re[o] = ur * c - ui * s; im[o] = ur * s + ui * c;
     }
   }
@@ -5342,9 +5527,41 @@ function popSurface2(F, ev, gain, paraxial) {
       const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
       return [ir / d2, -ii / d2];
     };
-    // widths about the reference axis, not the light's own centre, so later grids, which
-    // stay on the axis, still reach light that got through off to one side
-    const nx = refit(qxo, Math.hypot(S.wx, 2 * S.cx)), ny = refit(qyo, Math.hypot(S.wy, 2 * S.cy));
+    // Widths about the light's own centre: the pilot decides how fast the light spreads,
+    // and so when to switch to the far-field step. (Measured about the axis instead, a narrow
+    // slit off to one side looks like a wide slow beam, the near-field grid never grows, and
+    // its light wraps round the grid's edges.) Reaching light off to one side is the grid's
+    // job, below and at the next surface, not the pilot's.
+    // The pilot must also spread as fast as the light does. A width alone cannot tell a
+    // clean beam from light with fine structure inside it (two narrow slits far apart, a
+    // comb): their width is set by the whole pattern, their spread by its finest part. So
+    // each axis also gets the light's angular width, from its spectrum with the pilot's own
+    // curvature taken off, and the pilot becomes an embedded Gaussian with that M^2: its
+    // Rayleigh range is divided by M^2, and the switch to the far-field step comes as soon
+    // as the light really spreads.
+    const M2 = axis => {
+      const q = axis === 'x' ? qxo : qyo, st = axis === 'x' ? ax : ay, sph = !popInside(q[0], q[1]);
+      const b = 0.5 * k2 * (popInvR(q) - (sph ? 1 / q[0] : 0));
+      const lr = new Float64Array(N), li = new Float64Array(N), P = new Float64Array(N);
+      for (let j = 0; j < N; j++) {
+        for (let i = 0; i < N; i++) {
+          const o = axis === 'x' ? j * N + i : i * N + j, x = (i - N / 2) * st.d, ph = b * x * x, c = Math.cos(ph), s = Math.sin(ph);
+          lr[i] = re[o] * c - im[o] * s; li[i] = re[o] * s + im[o] * c;
+        }
+        cdft(lr, li, -1);
+        for (let m = 0; m < N; m++) P[m] += lr[m] * lr[m] + li[m] * li[m];
+      }
+      let s0 = 0, s1 = 0, s2 = 0;
+      for (let m = 0; m < N; m++) { const f = (m - N / 2) / (N * st.d); s0 += P[m]; s1 += P[m] * f; s2 += P[m] * f * f; }
+      const sf = Math.sqrt(Math.max(0, s2 / s0 - (s1 / s0) ** 2)), sx = 0.5 * (axis === 'x' ? S.wx : S.wy);
+      return Math.max(1, 4 * Math.PI * sx * sf);
+    };
+    const mx2 = M2('x'), my2 = M2('y');
+    const refitM = (q, w, m2) => {
+      const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -m2 * lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
+      return [ir / d2, -ii / d2];
+    };
+    const nx = refitM(qxo, S.wx, mx2), ny = refitM(qyo, S.wy, my2);
     // the residual is held against the old references; swap them for the new ones
     const ref = (q, x) => popInside(q[0], q[1]) ? 0 : -k2 * x * x / (2 * q[0]);
     for (let j = 0; j < N; j++) {
@@ -5361,14 +5578,14 @@ function popSurface2(F, ev, gain, paraxial) {
   }
   const gs = Math.sqrt(gain === undefined ? 1 : gain);
   for (let i = 0; i < N * N; i++) { re[i] *= gs; im[i] *= gs; }
-  return { field: out, clipped, steep };
+  return { field: out, clipped, steep, coarse };
 }
 
 /* ---------- The beam tree as diffracted fields ----------
    The beam-parameter ray leaves a tree of segments: each starts at a surface (or the
    source) and knows its parent, so splitters and cavity round trips give branches.
    Each branch carries its own field; where branches of one launch meet they add as fields. */
-const POP_ROWS = 96;               // rows across a drawn slice
+const POP_ROWS = 192;              // rows across a drawn slice: enough to show edge fringes
 const POP_SLICES = 1800;           // slices drawn over the whole scene
 const POP_MAX_SEGS = 300;
 const popState = { key: '', result: null, timer: null, job: null };
@@ -5431,7 +5648,7 @@ function* popRunGen(beams, srcs, opts = {}) {
     if (!popRoundEv(b.ev)) { if (!why.has(b.src)) why.set(b.src, new Set()); why.get(b.src).add(b.ev.el); }
   });
   const engine = new Map(srcs.map(e => [e.id, (e.popModel === '2d' || why.has(e.id)) ? '2d' : 'round']));
-  const segs = [], notes = { clipped: new Set(), steep: new Set(), why, engine };
+  const segs = [], notes = { clipped: new Set(), steep: new Set(), coarse: new Set(), why, engine };
   const todo = (kids.get(-1) || []).map(i => ({ i, F: null, root: beams[i].w || 1, repr: 1 }));
   const count = { round: 0, '2d': 0 };
   let truncated = false;
@@ -5460,11 +5677,12 @@ function* popRunGen(beams, srcs, opts = {}) {
       const cb = beams[c], ev = cb.ev || { A: 1, C: 0, D: 1, n2: b.n };
       const gain = 1;          // the field keeps unit power; each segment's Jones vector carries its amplitude
       let out;
-      if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial) : { field: Fend, clipped: false };
-      else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial,
+      if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial, cb.len) : { field: Fend, clipped: false };
+      else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial, tNext: cb.len,
         disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : null });
       if (out.clipped && ev.el) notes.clipped.add(ev.el);
       if (out.steep && ev.el) notes.steep.add(ev.el);
+      if (out.coarse && ev.el) notes.coarse.add(ev.el);
       todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr });
     }
   }
@@ -5949,6 +6167,8 @@ function popNote(el) {
   if (cl.length) t += ' Clipped at ' + cl.join(', ') + '; the pilot beam is refitted after each.';
   const st = [...R.notes.steep].map(name);
   if (st.length) t += ' The wavefront after ' + st.join(', ') + ' turns faster than the grid can follow: use more points.';
+  const co = [...R.notes.coarse].map(name);
+  if (co.length) t += ' ' + co.join(', ') + (co.length > 1 ? ' have' : ' has') + ' detail finer than three grid samples, so its diffraction is only roughly right: use more points.';
   if (R.truncated) t += ' Stopped after ' + (two ? POP_MAX_SEGS_2D : POP_MAX_SEGS) + ' segments; the weakest branches were left out.';
   return t;
 }
@@ -6263,11 +6483,13 @@ function popDiffraction(el, R) {
   const cU = dom.ly + (sg.eng === '2d' ? px : 0) / (dom.p || 1), cV = py;
   let H = 0;
   for (const h2 of hits) {
-    const gridHalf = h2.sg.eng === '2d' ? h2.G.N / 2 * Math.min(h2.G.ax.d, h2.G.ay.d) : h2.G.R;
-    const w2 = Math.max(h2.st.wx || h2.st.w, h2.st.wy || h2.st.w);
-    const e = Math.min(gridHalf, Math.max(2 * w2, airy ? 6 * airy : 0, 3 * (fwhmX || 0)));
+    // each direction reaches as far as its own light and its own grid, the map keeping one scale
+    const two = h2.sg.eng === '2d';
+    const gx = two ? h2.G.N / 2 * h2.G.ax.d : h2.G.R, gy = two ? h2.G.N / 2 * h2.G.ay.d : h2.G.R;
+    const ex = Math.min(gx, Math.max(2 * (h2.st.wx || h2.st.w), airy ? 6 * airy : 0, 3 * (fwhmX || 0)));
+    const ey = Math.min(gy, Math.max(2 * (h2.st.wy || h2.st.w), airy ? 6 * airy : 0, 3 * (fwhmY || 0)));
     const cu = h2.ly + (h2.st.cx || 0) / (h2.p || 1), cv = h2.st.cy || 0;
-    H = Math.max(H, Math.hypot(cu - cU, cv - cV) + e);
+    H = Math.max(H, Math.abs(cu - cU) + ex / Math.abs(h2.p || 1), Math.abs(cv - cV) + ey);
   }
   const launches = new Map();
   for (const h2 of hits) { if (!launches.has(h2.sg.b.coh)) launches.set(h2.sg.b.coh, []); launches.get(h2.sg.b.coh).push(h2); }
@@ -6350,7 +6572,7 @@ function popDiffraction(el, R) {
     symmetric: sg.eng !== '2d', engine: sg.eng, NA, nm: sg.b.nm, airy, cutoff,
     strehl: Iideal > 0 ? peak * calib / Iideal : null, peak: peak * popWJ(sg.b), power, powerInc, interference, visibility, fine,
     coherent, wx, wy, arrivals: hits.length, launches: launches.size, tilt,
-    curved: !!el.R, steep: [...R.notes.steep], clipped: [...R.notes.clipped], fan: !!sg.b.fan,
+    curved: !!el.R, steep: [...R.notes.steep], coarse: [...R.notes.coarse], clipped: [...R.notes.clipped], fan: !!sg.b.fan,
     rho, psf, ee, freq, mtf, mtfY, cutX, cutY,
     mtfAt: nu => curveAt(mtf, nu), mtfAtY: nu => curveAt(mtfY, nu),
     mtf50: fall(mtf), mtf50Y: fall(mtfY),
@@ -7049,9 +7271,13 @@ document.getElementById('fileZmx').addEventListener('change', e => { const f = e
 }
 document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', async () => {
   try {
-    const res = await fetch('demos/' + btn.dataset.demo + '.jekray');
-    if (!res.ok) throw new Error('that example could not be fetched');
-    const data = await res.json();
+    const built = window.JEK_DEMOS && window.JEK_DEMOS[btn.dataset.demo];
+    let data = built ? JSON.parse(JSON.stringify(built)) : null;
+    if (!data) {
+      const res = await fetch('demos/' + btn.dataset.demo + '.jekray');
+      if (!res.ok) throw new Error('that example could not be fetched');
+      data = await res.json();
+    }
     pauseAll();
     loadProject(data);
     playing.clear(); updateSweepButtons();
@@ -7328,8 +7554,9 @@ stage.addEventListener('drop', e => {
     popNotes() {
       const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
       const name = id => (getEl(id) || {}).name;
-      return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name) };
+      return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name), coarse: [...R.notes.coarse].map(name) };
     },
+    serialize() { return serialize(); },
     fieldAt(x, y) { return fieldAtPoint(x, y); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },
     metricOf(name, key) { return metricRaw(this.byName(name), key); },

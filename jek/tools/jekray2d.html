@@ -442,6 +442,7 @@
           <button class="rt-btn" data-add="waveplate">Waveplate</button>
           <button class="rt-btn" data-add="polariser">Polariser</button>
           <button class="rt-btn" data-add="stop">Aperture</button>
+          <button class="rt-btn" data-add="mask">Mask</button>
           <button class="rt-btn" data-add="screen">Screen</button>
         </div>
         <div class="rt-group">
@@ -553,7 +554,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis; and diffraction at a screen, giving the point spread function, Strehl ratio and MTF.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one, with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; apertures (round, slit, knife edge or obscuring disc, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 \u00b5m, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersionn. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -761,7 +762,7 @@ const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 const deg = Math.PI / 180;
 
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Aperture',
-  cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser' };
+  cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
 const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape] : TYPE_LABEL[el.type];
 
@@ -939,6 +940,10 @@ function normElementBase(e) {
         gauss: e.gauss === true,
         w0: Math.max(1e-4, num(e.w0, 0.35)),
         z0: num(e.z0, 0),
+        beamView: e.beamView === 'field' ? 'field' : 'envelope',
+        beamScale: e.beamScale === 'log' ? 'log' : 'lin',
+        popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
+        popModel: e.popModel === '2d' ? '2d' : 'auto',
         pol: ['unpolarised', 's', 'p', 'linear'].includes(e.pol) ? e.pol : 'unpolarised',
         polAngle: num(e.polAngle, 45),
         lines: Array.isArray(e.lines) ? e.lines.map(Number).filter(v => isFinite(v) && v >= 100 && v <= 20000).slice(0, 12) : [],
@@ -958,6 +963,7 @@ function normElementBase(e) {
         R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
         binWidth: Math.max(0, num(e.binWidth, 0)),
         binInterp: e.binInterp !== false,
+        mapScale: e.mapScale === 'log' ? 'log' : 'lin',
         mtfFreq: Math.max(0, num(e.mtfFreq, 50)) });
     case 'waveplate':
       return Object.assign(base, {
@@ -971,10 +977,21 @@ function normElementBase(e) {
         length: Math.max(0.1, num(e.length, 25.4)),
         axis: num(e.axis, 0),
       });
+    case 'mask':
+      return Object.assign(base, {
+        length: Math.max(0.1, num(e.length, 25.4)),
+        amp: typeof e.amp === 'string' && e.amp.trim() ? e.amp : '1',
+        delay: typeof e.delay === 'string' && e.delay.trim() ? e.delay : '0',
+        preset: typeof e.preset === 'string' ? e.preset : 'custom',
+      });
     case 'stop':
       return Object.assign(base, {
         aperture: Math.max(0, num(e.aperture, 5)),
         outer: Math.max(0.2, num(e.outer, 25.4)),
+        shape: ['round', 'slit', 'knife', 'disc'].includes(e.shape) ? e.shape : 'round',
+        offset: num(e.offset, 0),                      // along the stop, from its centre
+        height: Math.max(0, num(e.height, 0)),         // a slit's height out of the plane; 0 is unlimited
+        side: e.side === -1 ? -1 : 1,                  // which side of its edge a knife covers
       });
     case 'cube':
       return Object.assign(base, {
@@ -1024,6 +1041,8 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'polariser', name: nextName('Polariser'), x, y, angle: 0, axis: 0 });
     case 'stop':
       return normElement({ type: 'stop', name: nextName('Aperture'), x, y, angle: 0, aperture: 5, outer: 25.4 });
+    case 'mask':
+      return normElement({ type: 'mask', name: nextName('Mask'), x, y, angle: 0, amp: '1', delay: '0', preset: 'clear' });
     case 'cube':
       return normElement({ type: 'cube', name: nextName('Beam splitter'), x, y, size: 12.7, reflect: 50, material: { glass: 'N-BK7' } });
     case 'prism':
@@ -1070,7 +1089,7 @@ function loadProject(data) {
     name: String(data.name || 'Untitled bench'),
     view: {
       cx: num(data.view && data.view.cx, 0), cy: num(data.view && data.view.cy, 0),
-      scale: Math.min(400, Math.max(0.05, num(data.view && data.view.scale, 4))),
+      scale: Math.min(ZOOM_MAX, Math.max(0.05, num(data.view && data.view.scale, 4))),
     },
     snap: num(data.snap, 1),
     maxBounces: Math.round(Math.min(100000, Math.max(1, num(data.maxBounces, 200)))),
@@ -1260,11 +1279,8 @@ function polySurfaces(el) {
 function elementSurfaces(el) {
   if (el.type === 'cube' || el.type === 'prism') return polySurfaces(el);
   if (el.type === 'stop') {
-    // two blades leaving a clear opening in the middle
-    const a = el.aperture / 2, b = Math.max(a, el.outer / 2);
-    if (b - a < 1e-9) return [];
-    return [1, -1].map(sgn => makeSurf(el, 0, 0, 0, 0, [], (b - a) / 2,
-      { kind: 'absorb', lf: { x: 0, y: sgn * (a + b) / 2, a: 0 } }));
+    return stopBlades(el).map(([lo, hi]) => makeSurf(el, 0, 0, 0, 0, [], (hi - lo) / 2,
+      { kind: 'absorb', lf: { x: 0, y: (lo + hi) / 2, a: 0 } }));
   }
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
@@ -1277,7 +1293,177 @@ function elementSurfaces(el) {
     return [makeSurf(el, 0, c, 0, 0, [], el.length / 2, { kind: 'screen' })];
   }
   if (el.type === 'waveplate' || el.type === 'polariser') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
+  if (el.type === 'mask') {
+    const s = makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mask' });
+    s.maskFn = maskFns(el).fn;
+    return [s];
+  }
   return [];
+}
+
+
+/* ---------- Mask functions ----------
+   An amplitude or a delay given as a formula in x (along the element, in the bench
+   plane), y (out of it), r and theta, in millimetres, with lambda the wavelength in mm.
+   It is parsed here into a tree and compiled; only the names below exist in it, so
+   nothing else can run. ^ is a power and binds tighter than a leading minus. */
+const MASK_VARS = { x: 'x', y: 'y', r: 'Math.sqrt(x*x+y*y)', theta: 'Math.atan2(y,x)', lambda: 'lam', pi: 'Math.PI', e: 'Math.E' };
+const MASK_FNS = {
+  sin: ['Math.sin', 1], cos: ['Math.cos', 1], tan: ['Math.tan', 1], asin: ['Math.asin', 1], acos: ['Math.acos', 1],
+  atan: ['Math.atan', 1], atan2: ['Math.atan2', 2], exp: ['Math.exp', 1], log: ['Math.log', 1], sqrt: ['Math.sqrt', 1],
+  abs: ['Math.abs', 1], pow: ['Math.pow', 2], min: ['Math.min', -1], max: ['Math.max', -1], floor: ['Math.floor', 1],
+  ceil: ['Math.ceil', 1], round: ['Math.round', 1], sign: ['Math.sign', 1], hypot: ['Math.hypot', -1],
+  mod: ['H.mod', 2], step: ['H.step', 1], rect: ['H.rect', 1], circ: ['H.circ', 1], sinc: ['H.sinc', 1], gauss: ['H.gauss', 1],
+};
+const MASK_H = {
+  mod: (a, b) => ((a % b) + b) % b,
+  step: v => v >= 0 ? 1 : 0,
+  rect: v => Math.abs(v) <= 0.5 ? 1 : 0,
+  circ: v => v <= 1 ? 1 : 0,
+  sinc: v => v === 0 ? 1 : Math.sin(Math.PI * v) / (Math.PI * v),
+  gauss: v => Math.exp(-v * v),
+};
+function compileMaskExpr(src) {
+  const toks = [], re = /\s*(?:((?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|([A-Za-z_]\w*)|(\*\*|<=|>=|==|!=|&&|\|\||[-+*/^%(),<>!?:]))/y;
+  let m, pos = 0;
+  const s = String(src).trim();
+  while (pos < s.length) {
+    re.lastIndex = pos;
+    m = re.exec(s);
+    if (!m || m[0].length === 0) {
+      if (/^\s+$/.test(s.slice(pos))) break;
+      throw new Error('cannot read \u201c' + s.slice(pos, pos + 8) + '\u201d');
+    }
+    pos = re.lastIndex;
+    if (m[1] !== undefined) toks.push({ t: 'n', v: m[1] });
+    else if (m[2] !== undefined) toks.push({ t: 'id', v: m[2] });
+    else toks.push({ t: 'op', v: m[3] });
+  }
+  let i = 0;
+  const peek = () => toks[i], isOp = v => toks[i] && toks[i].t === 'op' && toks[i].v === v;
+  const need = v => { if (!isOp(v)) throw new Error('expected \u201c' + v + '\u201d'); i++; };
+  const ternary = () => {
+    const c = orE();
+    if (isOp('?')) { i++; const a = ternary(); need(':'); const b = ternary(); return '((' + c + ')?(' + a + '):(' + b + '))'; }
+    return c;
+  };
+  const orE = () => { let l = andE(); while (isOp('||')) { i++; l = '(+(!!(' + l + ')||!!(' + andE() + ')))'; } return l; };
+  const andE = () => { let l = cmp(); while (isOp('&&')) { i++; l = '(+(!!(' + l + ')&&!!(' + cmp() + ')))'; } return l; };
+  const cmp = () => {
+    let l = add();
+    while (peek() && peek().t === 'op' && ['<', '>', '<=', '>=', '==', '!='].includes(peek().v)) {
+      const op = toks[i++].v; l = '(+((' + l + ')' + op + '(' + add() + ')))';
+    }
+    return l;
+  };
+  const add = () => {
+    let l = mul();
+    while (isOp('+') || isOp('-')) { const op = toks[i++].v; l = '(' + l + op + mul() + ')'; }
+    return l;
+  };
+  const mul = () => {
+    let l = unary();
+    while (isOp('*') || isOp('/') || isOp('%')) { const op = toks[i++].v; l = '(' + l + op + unary() + ')'; }
+    return l;
+  };
+  const unary = () => {
+    if (isOp('-')) { i++; return '(-' + unary() + ')'; }
+    if (isOp('+')) { i++; return unary(); }
+    if (isOp('!')) { i++; return '(+!(' + unary() + '))'; }
+    return pow();
+  };
+  const pow = () => {
+    const b = primary();
+    if (isOp('^') || isOp('**')) { i++; return 'Math.pow(' + b + ',' + unary() + ')'; }
+    return b;
+  };
+  const primary = () => {
+    const tk = toks[i];
+    if (!tk) throw new Error('ends too soon');
+    if (tk.t === 'n') { i++; return '(' + tk.v + ')'; }
+    if (tk.t === 'id') {
+      i++;
+      if (isOp('(')) {
+        const F = MASK_FNS[tk.v];
+        if (!F) throw new Error('no function \u201c' + tk.v + '\u201d');
+        i++;
+        const args = [];
+        if (!isOp(')')) { args.push(ternary()); while (isOp(',')) { i++; args.push(ternary()); } }
+        need(')');
+        if (F[1] >= 0 && args.length !== F[1]) throw new Error(tk.v + ' takes ' + F[1] + ' argument' + (F[1] === 1 ? '' : 's'));
+        return F[0] + '(' + args.join(',') + ')';
+      }
+      if (!(tk.v in MASK_VARS)) throw new Error('no variable \u201c' + tk.v + '\u201d');
+      return '(' + MASK_VARS[tk.v] + ')';
+    }
+    if (isOp('(')) { i++; const e = ternary(); need(')'); return e; }
+    throw new Error('unexpected \u201c' + tk.v + '\u201d');
+  };
+  if (!toks.length) throw new Error('empty');
+  const js = ternary();
+  if (i < toks.length) throw new Error('unexpected \u201c' + toks[i].v + '\u201d');
+  return new Function('H', '"use strict"; return function (x, y, lam) { return ' + js + '; };')(MASK_H);
+}
+const maskCache = new Map();
+/* The element's pair (amplitude, delay in waves) as one function, and any error */
+function maskFns(el) {
+  const key = el.amp + '\u0000' + el.delay;
+  if (maskCache.has(key)) return maskCache.get(key);
+  let out;
+  try {
+    const A = compileMaskExpr(el.amp), D = compileMaskExpr(el.delay);
+    out = { fn: (u, v, lam) => { const a = A(u, v, lam), d = D(u, v, lam); return [isFinite(a) ? a : 0, isFinite(d) ? d : 0]; }, err: null };
+  } catch (e) {
+    out = { fn: () => [1, 0], err: e.message };
+  }
+  maskCache.set(key, out);
+  return out;
+}
+/* Is a mask round about where the beam crosses it? Sampled on rings round the hit point. */
+function popMaskRound(ev) {
+  if (Math.abs(ev.cth - 1) > 1e-9) return false;
+  const fn = ev.surf.maskFn, R = ev.semi, c = ev.ly, lam = 1e-3;
+  for (const f of [0.05, 0.2, 0.45, 0.9]) {
+    const rr = f * R, ref = fn(c + rr, 0, lam);
+    for (let k = 1; k < 12; k++) {
+      const th = k * Math.PI / 6, v = fn(c + rr * Math.cos(th), rr * Math.sin(th), lam);
+      if (Math.abs(v[0] - ref[0]) > 1e-9 * (1 + Math.abs(ref[0])) || Math.abs(v[1] - ref[1]) > 1e-9 * (1 + Math.abs(ref[1]))) return false;
+    }
+  }
+  return true;
+}
+const MASK_PRESETS = [
+  ['clear', 'Clear', '1', '0'],
+  ['gauss', 'Gaussian apodiser', 'exp(-(r/2)^2)', '0'],
+  ['pinhole', 'Pinhole, 1 mm', 'circ(r/0.5)', '0'],
+  ['annulus', 'Annulus', 'step(r-1)*step(2-r)', '0'],
+  ['lens', 'Phase lens, f = 100 mm', '1', '-r^2/(2*100)/lambda'],
+  ['axicon', 'Axicon, 10 mrad', '1', '-0.01*r/lambda'],
+  ['vortex', 'Vortex, charge 1', '1', 'theta/(2*pi)'],
+  ['pgrating', 'Binary phase grating, 0.2 mm', '1', '0.5*step(sin(2*pi*x/0.2))'],
+  ['agrating', 'Amplitude grating, 0.2 mm', 'step(sin(2*pi*x/0.2))', '0'],
+];
+
+/* The blocking parts of a stop along its length, as [from, to] in its own frame: round
+   and slit leave an opening at the offset, a knife covers one side of its edge, a disc
+   blocks only itself. Out of the plane a round opening is a circle, a slit has a height. */
+function stopBlades(el) {
+  const b = el.outer / 2, a = el.aperture / 2, o = el.offset, out = [];
+  const add = (lo, hi) => { lo = Math.max(-b, lo); hi = Math.min(b, hi); if (hi - lo > 1e-9) out.push([lo, hi]); };
+  if (el.shape === 'knife') el.side > 0 ? add(o, b) : add(-b, o);
+  else if (el.shape === 'disc') add(o - a, o + a);
+  else { add(-b, o - a); add(o + a, b); }
+  return out;
+}
+/* Signed distance to a stop's edge at (u along it, v out of the plane): positive where
+   light gets through. The plate itself is a disc of the outer size. */
+function stopMargin(el) {
+  const b = el.outer / 2, a = el.aperture / 2, o = el.offset, h = el.height / 2;
+  const plate = (u, v) => Math.hypot(u, v) - b;
+  if (el.shape === 'knife') return (u, v) => Math.max(-el.side * (u - o), plate(u, v));
+  if (el.shape === 'disc') return (u, v) => Math.hypot(u - o, v) - a;
+  if (el.shape === 'slit') return (u, v) => Math.max(Math.min(a - Math.abs(u - o), h > 0 ? h - Math.abs(v) : Infinity), plate(u, v));
+  return (u, v) => Math.max(a - Math.hypot(u - o, v), plate(u, v));
 }
 
 /* Lens edges (the ground rim) absorb light — returned as local line segments */
@@ -1410,6 +1596,23 @@ function sourcePol(src) {
   return [{ as: r2, ap: 0 }, { as: 0, ap: r2 }];
 }
 
+/* Pilot beam of a ray fan taken as a uniform pupil, as [Re q, Im q], or null for a single
+   ray. A fan with a width is a top-hat of that diameter, curved to its divergence; a
+   point source is a uniform cone, whose pilot has the same far-field angle. */
+function fanPilot(src, nm) {
+  const lam = nm * 1e-6, a = src.width / 2, th = src.divergence / 2 * deg;
+  if (src.rays < 2) return null;
+  if (a > 0) {
+    const iR = Math.tan(th) / a, ii = lam / (Math.PI * a * a), den = iR * iR + ii * ii;
+    return [iR / den, ii / den];
+  }
+  if (Math.abs(th) > 1e-9 && Math.abs(th) < Math.PI / 2) {
+    const w0 = lam / (Math.PI * Math.tan(Math.abs(th)));
+    return [0, Math.PI * w0 * w0 / lam];
+  }
+  return null;
+}
+
 /* Every wavelength a source emits: its own, plus any extra lines */
 function sourceLines(src) {
   const out = [src.wavelength];
@@ -1425,6 +1628,13 @@ function traceScene() {
     const ss = elementSurfaces(el);
     for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; surfs.push(s); }
     if (el.type === 'lens') for (const sg of lensEdges(el, ss)) segs.push({ f, sg });
+    // The whole plane of a stop, seen only by the beam-parameter ray. That ray is a
+    // reference, not light: it passes the blades, and the stop becomes a mask on the field,
+    // so a slit or knife edge anywhere across the beam still leaves a field behind it.
+    if (el.type === 'stop') {
+      const ir = makeSurf(el, 0, 0, 0, 0, [], el.outer / 2, { kind: 'iris' });
+      ir.f = f; ir.maskMargin = stopMargin(el); surfs.push(ir);
+    }
   }
 
   statsCache.clear();
@@ -1475,17 +1685,23 @@ function traceScene() {
           probe: true, chief: true, probeH: hgt, qr: 0, qi: 1e9 });
       }
     }
-    if (src.gauss) {
-      // one extra ray down the axis carries the beam parameter q; it is not drawn
-      const zR = Math.PI * src.w0 * src.w0 / (nm * 1e-6);
-      const a = src.angle * deg;
+    // One extra ray down the axis per polarisation state carries the beam parameter q; it is
+    // not drawn. Its branches form the beam tree whose fields add coherently within a state.
+    // A ray fan is a uniform pupil: its hidden axis ray carries the pilot the same way.
+    const fanQ = src.gauss ? null : fanPilot(src, nm);
+    const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (nm * 1e-6)] : fanQ;
+    if (q0) states.forEach((st, si0) => {
+      const a = src.angle * deg, fam = src.id + ':' + wi + ':q' + si0;
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
-        sr: 1, si: 0, pr: 0, pi: 0, bounce: 0, last: null, opl: 0, nCur: 1,
-        id: src.id + ':' + wi + ':q', fam: src.id + ':' + wi + ':q', k: 0, path: '', chief: true, aCur: 0, qr: -src.z0, qi: zR });
-    }
+        sr: st.as, si: 0, pr: st.ap, pi: 0, bounce: 0, last: null, opl: 0, nCur: 1,
+        id: fam, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
+        bid: -1, evt: null, fan: !src.gauss, pol: si0 });
+    });
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par } = stack.pop();
+      par = par || 0;                   // how many reflections so far, mod 2: the sense of p
+      const isQ = chief && !probe;      // the beam-parameter ray: its segments form the beam tree
       aCur = aCur || 0;
       let ws = sr * sr + si * si, wp = pr * pr + pi * pi;
       let w = ws + wp;
@@ -1494,6 +1710,8 @@ function traceScene() {
         if (--budget < 0) { truncated = true; break; }
         let best = Infinity, hit = null, hitSeg = false;
         for (const s of surfs) {
+          if (s.kind === 'iris' && !isQ) continue;
+          if (isQ && s.kind === 'absorb' && s.el.type === 'stop') continue;   // the iris stands in for them
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
           const tt = intersectSurf(s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
@@ -1507,11 +1725,17 @@ function traceScene() {
         }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-          if (chief && !probe) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour });
+          if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
-        if (chief && !probe) beams.push({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour });
+        if (isQ) {
+          beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par },
+            'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
+          bid = beams.length - 1; evt = null;
+        }
         px += dx * best; py += dy * best;
         if (probe && hit.kind !== 'screen') probeLast = { px, py, dx, dy };   // the last optic it met
         opl += nCur * best;
@@ -1534,7 +1758,47 @@ function traceScene() {
         const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
         const cosd = ldx * nx + ldy * ny;
         if (s.kind === 'absorb') { if (!chief) blocked[s.el.id] = (blocked[s.el.id] || 0) + w; break; }
+        const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false });
+        const passEv = () => withSurf({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A: 1, C: 0, D: 1,
+          n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+        if (s.kind === 'iris') {
+          const m = s.el;
+          evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2 } });
+          pts.length -= 2; last = s; continue;
+        }
+        if (s.kind === 'mask') {
+          // An amplitude and phase mask. Rays take its amplitude and its delay, and bend by
+          // the delay's slope in the plane, as a grating or a lens would bend them; the
+          // beam's pilot takes the lens its curvature makes.
+          const lam = nm * 1e-6, hh = 1e-4;
+          const f0 = s.maskFn(ly, 0, lam), fp = s.maskFn(ly + hh, 0, lam), fm = s.maskFn(ly - hh, 0, lam);
+          // a jump across the tiny step is an edge in the phase (a grating's step, a vortex's cut),
+          // a line of no width that bends nothing: only a smooth delay has a slope and a curvature
+          const smooth = Math.abs(fp[1] - fm[1]) < 0.05 && Math.abs(fp[1] + fm[1] - 2 * f0[1]) < 0.05;
+          const A = f0[0], slope = smooth ? (fp[1] - fm[1]) / (2 * hh) * lam : 0;
+          const curv = smooth ? (fp[1] + fm[1] - 2 * f0[1]) / (hh * hh) * lam : 0;
+          if (isQ) {
+            evt = Object.assign(passEv(), { C: curv, mode: 'M' });
+            const dr = curv * qr + 1, di = curv * qi, den = dr * dr + di * di;
+            const nr = (qr * dr + qi * di) / den, ni = (qi * dr - qr * di) / den;
+            qr = nr; qi = ni;
+          }
+          sr *= A; si *= A; pr *= A; pi *= A;
+          ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
+          opl += f0[1] * lam;
+          if (w < minW && !chief) { dropped++; break; }
+          if (slope !== 0) {
+            const ty = ldy + slope / nCur;
+            if (Math.abs(ty) >= 1) break;                  // bent past grazing: it does not propagate
+            const tx = (ldx < 0 ? -1 : 1) * Math.sqrt(1 - ty * ty);
+            [dx, dy] = toWorldDir(s.f, tx, ty);
+          } else pts.length -= 2;
+          if (isQ) evt.dOut = [dx, dy];
+          last = s;
+          continue;
+        }
         if (s.kind === 'jones') {
+          if (isQ) evt = passEv();
           const el = s.el;
           const th = el.axis * deg, c = Math.cos(th), sn = Math.sin(th);
           let a11, a12r = 0, a12i = 0, a22r, a22i = 0, a11i = 0;
@@ -1564,9 +1828,10 @@ function traceScene() {
         if (s.kind === 'screen') {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
           if (cosd < 0) {
-            if (!probe) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, nm, id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
+            if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, nm, id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
             if (s.el.absorb && !probe) break;     // probe rays are not light; they measure the system
           }
+          if (isQ) evt = passEv();
           pts.length -= 2;           // no kink in the drawn ray
           last = s;
           continue;
@@ -1585,7 +1850,9 @@ function traceScene() {
             if (wr >= minW && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
               stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi,
-                bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, qr, qi, fam, k, path: path + 'r' + bounce });
+                bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: par ^ 1,
+                qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
+                fam, k, path: path + 'r' + bounce });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
               rays.push({ pts: pts.slice(), colour, w });
@@ -1598,14 +1865,22 @@ function traceScene() {
           sr *= ts; si *= ts; pr *= tp; pi *= tp;
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
         };
+        // tangential ABCD for this surface, q = (A q + B) / (C q + D): one for the light that
+        // carries on through it and one for the light it reflects, so a partly reflecting
+        // face sends each branch on with its own beam
+        let qT = null, qRf = null, evT = null, evR = null, wentR = false;
         if (chief) {
-          // tangential ABCD for this surface, applied to q = (A q + B) / (C q + D)
-          let A = 1, C = 0, D = 1;
-          if (s.kind === 'mirror') {
-            const kap = s.c ? curvAt(s, ly) : 0;
-            const cth = Math.abs(cosd) || 1;
-            C = -2 * kap / cth;     // a concave mirror focuses
-          } else if (s.kind === 'refract') {
+          const abcd = (A, C, D, n2, mode, n1) => {
+            const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
+            const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
+            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D,
+              n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
+          };
+          const kap = s.c ? curvAt(s, ly) : 0;
+          const cth = Math.abs(cosd) || 1;
+          const rf = abcd(1, -2 * (cosd < 0 ? kap : -kap) / cth, 1, nCur, 'R');   // a concave face focuses what it reflects
+          let tr = abcd(1, 0, 1, nCur, 'T');
+          if (s.kind === 'refract') {
             const goingBack0 = cosd > 0;
             const n1 = nOf(goingBack0 ? s.front : s.back);
             const n2 = nOf(goingBack0 ? s.back : s.front);
@@ -1613,24 +1888,18 @@ function traceScene() {
             const k0 = 1 - (n1 / n2) * (n1 / n2) * (1 - ci0 * ci0);
             if (k0 > 0) {
               const ct0 = Math.sqrt(k0);
-              const kap = (s.c ? curvAt(s, ly) : 0) * (goingBack0 ? 1 : -1);
-              A = ct0 / ci0;
-              D = n1 * ci0 / (n2 * ct0);
-              C = (n1 * ci0 - n2 * ct0) * kap / (n2 * ci0 * ct0);
+              const kp = kap * (goingBack0 ? 1 : -1);
+              tr = abcd(ct0 / ci0, (n1 * ci0 - n2 * ct0) * kp / (n2 * ci0 * ct0), n1 * ci0 / (n2 * ct0), n2, 'T', n1);
             }
           }
-          if (A !== 1 || C !== 0 || D !== 1) {
-            const dr = C * qr + D, di = C * qi;
-            const nr = A * qr, ni = A * qi;
-            const den = dr * dr + di * di;
-            if (den > 0) { const rr = (nr * dr + ni * di) / den, ri = (ni * dr - nr * di) / den; qr = rr; qi = ri; }
-          }
+          qT = tr.q; evT = tr.ev; qRf = rf.q; evR = rf.ev;
         }
         if (s.kind === 'mirror' && probe) {
           // a probe is a measuring ray, not light: it follows whichever arm is stronger
           if (s.el.reflect >= 50) {
             if (cosd >= 0) break;
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
+            wentR = true;
           }
         } else if (s.kind === 'mirror') {
           const R = s.el.reflect / 100;
@@ -1638,6 +1907,7 @@ function traceScene() {
           if (R >= 1) {
             if (cosd >= 0) break;           // back of a full mirror absorbs
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
+            wentR = true;
             sr = -sr; si = -si; pr = -pr; pi = -pi;
           } else if (R > 0) branch(a, 0, a, 0);
         } else {
@@ -1653,7 +1923,7 @@ function traceScene() {
             // total internal reflection: everything comes back, each component with its own phase
             const b = Math.sqrt(-k);
             const phs = -2 * Math.atan2(n2 * b, n1 * ci);
-            const php = -2 * Math.atan2(n1 * b, n2 * ci);
+            const php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;   // p in the parity convention, see below
             rsr = Math.cos(phs); rsi = Math.sin(phs);
             rpr = Math.cos(php); rpi = Math.sin(php);
             total = true;
@@ -1667,26 +1937,31 @@ function traceScene() {
             // out of band: no coating worth the name, so trace the bare surface
             const ct = Math.sqrt(k);
             rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n2 * ci - n1 * ct) / (n2 * ci + n1 * ct);
+            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
           } else if (s.coat && s.coat.mode === 'stack' && s.coat.layers.length) {
             // layers are listed from the outside in, so a ray arriving through the
             // substrate meets the same stack in reverse order
             const stack = n1 > n2 ? s.coat.layers.slice().reverse() : s.coat.layers;
             const rs = stackAmp(stack, n1, n2, ci, nm, 's');
             const rp = stackAmp(stack, n1, n2, ci, nm, 'p');
-            rsr = rs[0]; rsi = rs[1]; rpr = rp[0]; rpi = rp[1];
+            rsr = rs[0]; rsi = rs[1]; rpr = -rp[0]; rpi = -rp[1];
           } else if (s.coat && s.coat.mode !== 'bare') {
             rsi = rpi = Math.sqrt(s.coat.R / 100);
           } else {
-            // bare glass: real Fresnel coefficients, so a sign change is half a wave
+            // Bare glass: real Fresnel coefficients, so a sign change is half a wave. p is in
+            // the parity convention used throughout: its direction is the in-plane normal to
+            // the ray, reversed at each reflection, so a mirror turns s and p over alike and
+            // at normal incidence r_p = r_s, as it must when s and p cannot be told apart.
             const ct = Math.sqrt(k);
             rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n2 * ci - n1 * ct) / (n2 * ci + n1 * ct);
+            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
           }
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;      // the probe takes the stronger arm
+            wentR = true;
           } else if (total) {
             ldx -= 2 * ci * tnx; ldy -= 2 * ci * tny;
+            wentR = true;
             const nsr = sr * rsr - si * rsi, nsi = sr * rsi + si * rsr;
             const npr = pr * rpr - pi * rpi, npi = pr * rpi + pi * rpr;
             sr = nsr; si = nsi; pr = npr; pi = npi;
@@ -1698,9 +1973,12 @@ function traceScene() {
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
           }
         }
+        if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
+        if (wentR) par ^= 1;
         if (w < minW && !chief) { dropped++; break; }
         const l = Math.hypot(ldx, ldy);
         [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l);
+        if (isQ && evt && evt.mode !== 'P') evt.dOut = [dx, dy];
         last = s;
       }
       if (bounce >= maxB) limited++;
@@ -1809,7 +2087,7 @@ function drawBench() {
     if (px > 90) {
       ctx.strokeStyle = 'rgba(255,255,255,0.035)';
       ctx.lineWidth = 1;
-      const sub = px > 400 ? 1 : 5;
+      const sub = px > 400 ? niceStep(40 / V().scale) : 5;
       ctx.beginPath();
       for (let x = Math.floor(wx(0) / sub) * sub; x <= x1; x += sub) { const X = Math.round(sx(x)) + 0.5; ctx.moveTo(X, 0); ctx.lineTo(X, H); }
       for (let y = Math.floor(wy(H) / sub) * sub; y <= y1; y += sub) { const Y = Math.round(sy(y)) + 0.5; ctx.moveTo(0, Y); ctx.lineTo(W, Y); }
@@ -1825,21 +2103,66 @@ function drawBench() {
   }
 }
 
-function pathLocal(f, pts, close) {
-  ctx.beginPath();
-  for (let i = 0; i < pts.length; i++) {
-    const [x, y] = toWorld(f, pts[i][0], pts[i][1]);
-    if (i === 0) ctx.moveTo(sx(x), sy(y)); else ctx.lineTo(sx(x), sy(y));
+/* Clipping to a margin round the view, so nothing drawn has coordinates of millions of
+   pixels, where the canvas loses its sub-pixel precision */
+const CLIP_M = 64;
+function clipSeg(x1, y1, x2, y2) {
+  let t0 = 0, t1 = 1;
+  const dx = x2 - x1, dy = y2 - y1;
+  const edges = [[-dx, x1 + CLIP_M], [dx, W + CLIP_M - x1], [-dy, y1 + CLIP_M], [dy, H + CLIP_M - y1]];
+  for (const [p, q] of edges) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+    else { if (r < t0) return null; if (r < t1) t1 = r; }
   }
-  if (close) ctx.closePath();
+  return [x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy];
 }
-function surfPoints(s, n = 48, reverse = false) {
-  const out = [];
-  for (let i = 0; i <= n; i++) {
-    const y = s.semi * (2 * i / n - 1) * (reverse ? -1 : 1);
-    out.push([s.z + sagFn(s, y), y]);
+function clipPoly(P) {                    // Sutherland-Hodgman against the same margin
+  const planes = [[p => p[0] >= -CLIP_M, (a, b) => (-CLIP_M - a[0]) / (b[0] - a[0])], [p => p[0] <= W + CLIP_M, (a, b) => (W + CLIP_M - a[0]) / (b[0] - a[0])],
+    [p => p[1] >= -CLIP_M, (a, b) => (-CLIP_M - a[1]) / (b[1] - a[1])], [p => p[1] <= H + CLIP_M, (a, b) => (H + CLIP_M - a[1]) / (b[1] - a[1])]];
+  let out = P;
+  for (const [inside, cut] of planes) {
+    const inp = out; out = [];
+    for (let i = 0; i < inp.length; i++) {
+      const a = inp[i], b = inp[(i + 1) % inp.length], ia = inside(a), ib = inside(b);
+      if (ia) out.push(a);
+      if (ia !== ib) { const t = cut(a, b); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+    }
+    if (!out.length) break;
   }
   return out;
+}
+function pathLocal(f, pts, close) {
+  ctx.beginPath();
+  const S = pts.map(p => { const [x, y] = toWorld(f, p[0], p[1]); return [sx(x), sy(y)]; });
+  if (close) {
+    const C = clipPoly(S);
+    C.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    if (C.length) ctx.closePath();
+    return;
+  }
+  let open = false;
+  for (let i = 1; i < S.length; i++) {
+    const c = clipSeg(S[i - 1][0], S[i - 1][1], S[i][0], S[i][1]);
+    if (!c) { open = false; continue; }
+    if (!open) ctx.moveTo(c[0], c[1]);
+    ctx.lineTo(c[2], c[3]);
+    open = c[2] === S[i][0] && c[3] === S[i][1];
+  }
+}
+function surfPoints(s, n = 48, reverse = false, f = null) {
+  const ys = [];
+  for (let i = 0; i <= n; i++) ys.push(s.semi * (2 * i / n - 1));
+  if (f && V().scale > 400) {
+    // the stretch of the surface inside the view, sampled finely
+    const vs = [[0, 0], [W, 0], [0, H], [W, H]].map(([X, Y]) => toLocal(f, wx(X), wy(Y))[1]);
+    const lo = Math.max(-s.semi, Math.min(...vs)), hi = Math.min(s.semi, Math.max(...vs));
+    if (hi > lo) for (let i = 0; i <= 200; i++) ys.push(lo + (hi - lo) * i / 200);
+    ys.sort((a, b) => a - b);
+  }
+  if (reverse) ys.reverse();
+  return ys.map(y => [s.z + sagFn(s, y), y]);
 }
 
 function drawLens(el, sel) {
@@ -1848,7 +2171,7 @@ function drawLens(el, sel) {
   const glass = getCss('--rt-glass');
   for (let i = 0; i < ss.length - 1; i++) {
     if (el.materials[i].glass === 'AIR') continue;
-    const pts = surfPoints(ss[i]).concat(surfPoints(ss[i + 1], 48, true));
+    const pts = surfPoints(ss[i], 48, false, f).concat(surfPoints(ss[i + 1], 48, true, f));
     pathLocal(f, pts, true);
     ctx.fillStyle = 'rgba(115,185,202,0.16)';
     ctx.fill();
@@ -1861,7 +2184,7 @@ function drawLens(el, sel) {
 function drawMirror(el, sel) {
   const f = frame(el);
   const [s] = elementSurfaces(el);
-  const pts = surfPoints(s);
+  const pts = surfPoints(s, 48, false, f);
   // hatching on the back
   ctx.strokeStyle = 'rgba(216,222,227,0.45)';
   ctx.lineWidth = 1;
@@ -1888,7 +2211,7 @@ function drawScreen(el, sel) {
   const f = frame(el);
   const [surf] = elementSurfaces(el);
   const L = surf.semi;
-  pathLocal(f, surfPoints(surf));
+  pathLocal(f, surfPoints(surf, 48, false, f));
   ctx.strokeStyle = sel ? '#ffffff' : getCss('--rt-screen');
   ctx.lineWidth = sel ? 4 : 3.5;
   ctx.stroke();
@@ -1954,11 +2277,14 @@ function drawSource(el, sel) {
   ctx.stroke();
 }
 
-function drawBeams() {
+function drawBeams(fieldShown) {
   const B = lastTrace.beams;
   if (!B || !B.length) return;
   ctx.save();
   for (const seg of B) {
+    if (seg.fan || seg.pol) continue;       // a ray fan's pilot is not a beam; one envelope per beam
+    if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
+    const outline = fieldShown && fieldShown.has(seg.src);   // the field is drawn: just mark 1/e²
     const nxp = -seg.dy, nyp = seg.dx;
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
     const up = [], dn = [];
@@ -1971,15 +2297,22 @@ function drawBeams() {
       dn.push([sx(x - nxp * b.w), sy(y - nyp * b.w)]);
     }
     if (up.length < 2) continue;
+    if (outline) {
+      // a dashed outline only helps where the beam is wide enough to see inside it
+      let wide = 0;
+      for (let i = 0; i < up.length; i++) wide = Math.max(wide, Math.hypot(up[i][0] - dn[i][0], up[i][1] - dn[i][1]));
+      if (wide < 10) continue;
+    }
     ctx.beginPath();
     up.forEach(([X, Y], i) => i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y));
     for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
     ctx.closePath();
     ctx.fillStyle = seg.colour;
-    ctx.globalAlpha = 0.16;
+    ctx.globalAlpha = outline ? 0 : 0.16;
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55;
+    ctx.setLineDash(outline ? [3, 4] : []);
     ctx.strokeStyle = seg.colour;
     ctx.lineWidth = 1;
     for (const side of [up, dn]) {
@@ -2009,8 +2342,10 @@ function drawRays() {
     ctx.beginPath();
     for (const r of g.rays) {
       const p = r.pts;
-      ctx.moveTo(sx(p[0]), sy(p[1]));
-      for (let i = 2; i < p.length; i += 2) ctx.lineTo(sx(p[i]), sy(p[i + 1]));
+      for (let i = 2; i < p.length; i += 2) {
+        const c = clipSeg(sx(p[i - 2]), sy(p[i - 1]), sx(p[i]), sy(p[i + 1]));
+        if (c) { ctx.moveTo(c[0], c[1]); ctx.lineTo(c[2], c[3]); }
+      }
     }
     ctx.stroke();
   }
@@ -2070,6 +2405,7 @@ function drawSelection() {
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
+const ZOOM_MAX = 1e5;          // px per mm: 10 nm a pixel, enough to see a standing wave's fringes
 function niceStep(target) {
   const p = Math.pow(10, Math.floor(Math.log10(target)));
   for (const m of [1, 2, 5, 10]) if (m * p >= target) return m * p;
@@ -2103,7 +2439,9 @@ function render() {
   const els = project.elements.slice().sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type !== 'source') draw(el);
   drawRays();
-  drawBeams();
+  closeupOn = drawCloseup();
+  const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
+  drawBeams(fieldShown);
   for (const el of els) if (el.type === 'source') draw(el);
   drawLabels();
   drawSelection();
@@ -2128,23 +2466,29 @@ function drawBlock(el, sel) {
   }
 }
 function drawStop(el, sel) {
-  const f = frame(el);
-  const a = el.aperture / 2, b = Math.max(a, el.outer / 2);
+  const f = frame(el), blades = stopBlades(el), b = el.outer / 2;
   ctx.strokeStyle = sel ? '#ffffff' : '#9aa4ab';
   ctx.lineWidth = sel ? 5 : 4;
   ctx.lineCap = 'butt';
-  for (const sgn of [1, -1]) {
-    pathLocal(f, [[0, sgn * a], [0, sgn * b]]);
-    ctx.stroke();
-  }
-  // a tick at each blade edge marks the clear opening
+  for (const [lo, hi] of blades) { pathLocal(f, [[0, lo], [0, hi]]); ctx.stroke(); }
+  // the plate's full extent, faintly, and a tick at each blade edge inside it
+  ctx.strokeStyle = 'rgba(154,164,171,0.35)'; ctx.lineWidth = 1;
+  pathLocal(f, [[0, -b], [0, b]]); ctx.stroke();
   ctx.strokeStyle = 'rgba(154,164,171,0.6)';
-  ctx.lineWidth = 1;
   const k = 4 / V().scale;
-  for (const sgn of [1, -1]) {
-    pathLocal(f, [[-k, sgn * a], [k, sgn * a]]);
-    ctx.stroke();
+  for (const [lo, hi] of blades) for (const e of [lo, hi]) if (Math.abs(Math.abs(e) - b) > 1e-6) {
+    pathLocal(f, [[-k, e], [k, e]]); ctx.stroke();
   }
+}
+function drawMask(el, sel) {
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale;
+  pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
+  ctx.fillStyle = 'rgba(216,179,90,0.16)'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : '#d8b35a'; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+  // its amplitude along it, as a trace beside the plate
+  const fn = maskFns(el).fn, n = 64, pts = [];
+  for (let i = 0; i <= n; i++) { const u = -L + 2 * L * i / n; pts.push([-(3 + 6 * Math.min(1, Math.max(0, fn(u, 0, 633e-6)[0]))) * k, u]); }
+  pathLocal(f, pts); ctx.strokeStyle = 'rgba(216,179,90,0.7)'; ctx.lineWidth = 1; ctx.stroke();
 }
 function drawJones(el, sel) {
   const f = frame(el);
@@ -2170,6 +2514,7 @@ function drawJones(el, sel) {
 function draw(el) {
   const sel = el.id === selectedId;
   if (el.type === 'waveplate' || el.type === 'polariser') return drawJones(el, sel);
+  if (el.type === 'mask') return drawMask(el, sel);
   if (el.type === 'stop') return drawStop(el, sel);
   if (el.type === 'cube' || el.type === 'prism') return drawBlock(el, sel);
   if (el.type === 'lens') drawLens(el, sel);
@@ -2210,7 +2555,7 @@ function hitTest(px, py) {
       if (Math.abs(lx) <= tol + 0.2 && Math.abs(ly) <= el.outer / 2 + tol) return el;
       continue;
     }
-    if (el.type === 'waveplate' || el.type === 'polariser') {
+    if (el.type === 'waveplate' || el.type === 'polariser' || el.type === 'mask') {
       if (Math.abs(lx) <= tol + 0.3 && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
     }
@@ -2277,7 +2622,7 @@ canvas.addEventListener('pointermove', e => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
   document.getElementById('coords').textContent =
-    'x ' + wx(px).toFixed(2) + '  y ' + wy(py).toFixed(2) + ' mm';
+    (d => 'x ' + wx(px).toFixed(d) + '  y ' + wy(py).toFixed(d) + ' mm')(clamp(Math.ceil(Math.log10(V().scale)) + 1, 2, 7));
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { px, py });
 
   if (!drag) {
@@ -2293,7 +2638,7 @@ canvas.addEventListener('pointermove', e => {
     if (pointers.size < 2) return;
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.px - b.px, a.py - b.py);
-    const s = Math.min(400, Math.max(0.05, drag.s0 * d / drag.d0));
+    const s = Math.min(ZOOM_MAX, Math.max(0.05, drag.s0 * d / drag.d0));
     const mx = (a.px + b.px) / 2, my = (a.py + b.py) / 2;
     V().scale = s;
     V().cx = drag.cxw - (mx - W / 2) / s;
@@ -2347,7 +2692,7 @@ canvas.addEventListener('wheel', e => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
   const bx = wx(px), by = wy(py);
-  const s = Math.min(400, Math.max(0.05, V().scale * Math.exp(-e.deltaY * 0.0015)));
+  const s = Math.min(ZOOM_MAX, Math.max(0.05, V().scale * Math.exp(-e.deltaY * 0.0015)));
   V().scale = s;
   V().cx = bx - (px - W / 2) / s;
   V().cy = by + (py - H / 2) / s;
@@ -2851,6 +3196,7 @@ function fmtLen(mm) {
   if (a < 1e-9) return '0 mm';
   if (a >= 1000) return (mm / 1000).toPrecision(4) + ' m';
   if (a >= 1 || a === 0) return (+mm.toPrecision(5)) + ' mm';
+  if (a < 1e-3) return (+(mm * 1e6).toPrecision(4)) + ' nm';
   return (+(mm * 1000).toPrecision(4)) + ' µm';
 }
 
@@ -3005,6 +3351,7 @@ function renderPanel() {
   if (el.type === 'lens') lensPanel(el);
   if (el.type === 'waveplate' || el.type === 'polariser') jonesPanel(el);
   if (el.type === 'stop') stopPanel(el);
+  if (el.type === 'mask') maskPanel(el);
   if (el.type === 'cube') cubePanel(el);
   if (el.type === 'prism') prismPanel(el);
 
@@ -3062,6 +3409,19 @@ function sourcePanel(el) {
         (+(1000 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.';
     });
     panel.append(line);
+    const view = [selectField('Show the beam as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']],
+      () => el.beamView, v => { el.beamView = v; })];
+    if (el.beamView === 'field') view.push(
+      selectField('Intensity scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.beamScale, v => { el.beamScale = v; }),
+      selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D']], () => el.popModel, v => { el.popModel = v; }),
+      selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; }));
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, ...view));
+    if (el.beamView === 'field') {
+      const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+      bindSync(pn, () => { pn.textContent = popNote(el); });
+      panel.append(pn);
+      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, as Zemax POP does, with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
+    }
     panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. Beam width and divergence above stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
   }
 
@@ -3510,89 +3870,189 @@ function jonesPanel(el) {
     : 'Passes the component along its axis and absorbs the rest. 0\u00b0 passes p, 90\u00b0 passes s.'));
 }
 
+function maskPanel(el) {
+  panel.append(h('h3', null, 'Mask'));
+  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length', { wide: true }),
+    selectField('Preset', [...MASK_PRESETS.map(p => [p[0], p[1]]), ['custom', 'Custom']], () => el.preset, v => {
+      const p = MASK_PRESETS.find(q => q[0] === v);
+      el.preset = v;
+      if (p) { el.amp = p[2]; el.delay = p[3]; }
+    }, { wide: true }));
+  const err = h('p', { class: 'note', style: 'color:var(--jek-red, #b3261e)' });
+  const text = (label, key) => {
+    const id = 'rtf' + (++fid);
+    const inp = h('input', { id, type: 'text', spellcheck: 'false', value: el[key], style: 'font-family:var(--jek-mono)' });
+    inp.addEventListener('change', () => {
+      const v = inp.value.trim() || (key === 'amp' ? '1' : '0');
+      try { compileMaskExpr(v); } catch (e) { err.textContent = label + ': ' + e.message + '.'; return; }
+      err.textContent = '';
+      checkpoint(); el[key] = v; el.preset = 'custom'; changed(true);
+    });
+    return h('div', { class: 'rt-f wide' }, h('div', { class: 'rt-lab' }, h('label', { for: id }, label)), inp);
+  };
+  rows.append(text('Amplitude, A(x, y)', 'amp'), text('Delay in waves, D(x, y)', 'delay'));
+  panel.append(rows, err);
+  const me = maskFns(el);
+  if (me.err) err.textContent = me.err;
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The mask multiplies the field by A\u00b7exp(\u22122\u03c0iD): A is the amplitude transmission (the intensity goes as A\u00b2), and D delays the light by D waves, so a positive D acts like extra glass. x runs along the mask in the bench plane, y out of it, r and theta are their polar form, all in mm from its centre, and lambda is the wavelength in mm. Functions: sin, cos, tan, asin, acos, atan, atan2, exp, log, sqrt, abs, pow, min, max, floor, ceil, round, sign, hypot, mod, step (1 from 0 up), rect (1 within \u00b10.5), circ (1 up to 1), sinc, gauss (exp(\u2212x\u00b2)); ^ is a power, and ?: < > == && || work too.'));
+  panel.append(h('p', { style: 'margin-top:0.4rem' }, 'Rays take A and D where they cross, and bend by the slope of D, so a phase lens focuses them and a grating\u2019s slope steers them; the diffracted field takes the full function. A function that is round about the beam keeps it round; anything else makes it a 2D field.'));
+}
+
 function stopPanel(el) {
   panel.append(h('h3', null, 'Aperture'));
-  panel.append(h('div', { class: 'rt-rows' },
-    param('Clear aperture (mm)', el, 'aperture'),
-    param('Outer size (mm)', el, 'outer'),
-  ));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Rays through the opening carry on untouched; anything striking a blade stops there. Sweep the clear aperture to watch a system vignette.'));
+  const rows = h('div', { class: 'rt-rows' },
+    selectField('Shape', [['round', 'Round iris'], ['slit', 'Slit'], ['knife', 'Knife edge'], ['disc', 'Obscuring disc']],
+      () => el.shape, v => { el.shape = v; }, { wide: true }));
+  if (el.shape !== 'knife') rows.append(param(el.shape === 'disc' ? 'Disc diameter (mm)' : el.shape === 'slit' ? 'Slit width (mm)' : 'Clear aperture (mm)', el, 'aperture'));
+  rows.append(param(el.shape === 'knife' ? 'Edge position (mm)' : 'Offset (mm)', el, 'offset'));
+  if (el.shape === 'slit') rows.append(param('Height out of the plane (mm)', el, 'height', { blank: 0, placeholder: 'unlimited', fmt: v => v ? fmtNum(v) : '' }));
+  if (el.shape === 'knife') rows.append(selectField('Covers', [['1', 'The side above the edge'], ['-1', 'The side below the edge']],
+    () => String(el.side), v => { el.side = +v; }));
+  rows.append(param('Outer size (mm)', el, 'outer'));
+  panel.append(rows);
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Rays through the opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the edge, or the disc) along the stop. Out of the bench plane a round iris and a disc are circles and a slit runs to its height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the clear aperture to watch a system vignette.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));
 }
 
-let diffView = 'psf';
+let diffView = 'map';
+const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
+  [0.63, 229, 80, 100], [0.75, 251, 135, 97], [0.88, 254, 194, 135], [1, 252, 253, 191]];
+function magma(v) {
+  v = Math.min(1, Math.max(0, v));
+  let i = 1; while (i < MAGMA.length - 1 && MAGMA[i][0] < v) i++;
+  const [a, ...c0] = MAGMA[i - 1], [b, ...c1] = MAGMA[i], t = (v - a) / (b - a);
+  return c0.map((c, k) => Math.round(c + (c1[k] - c) * t));
+}
 function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
   const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem' });
-  const cv = h('canvas', { height: '120', style: 'width:100%;display:block' });
+  const cv = h('canvas', { style: 'width:100%;display:block' });
+  const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
+    selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
   const box = h('div', { class: 'rt-readout' });
-  const mk = (key, text) => {
-    const btn = h('button', { class: 'rt-link', type: 'button', onclick: () => { diffView = key; refresh(); } }, text);
-    return btn;
-  };
-  tabs.append(mk('psf', 'Point spread'), mk('mtf', 'MTF'), mk('ee', 'Enclosed energy'));
+  const views = [['map', 'Irradiance'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { diffView = key; refresh(); } }, text));
   const refresh = () => {
-    const D = diffraction(el);
-    for (const [i, key] of ['psf', 'mtf', 'ee'].entries()) {
+    const { D, busy } = diffractionLater(el);
+    views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = diffView === key ? 'underline' : 'none';
-    }
+    });
+    scaleRow.style.display = diffView === 'map' ? '' : 'none';
+    cv.style.opacity = busy ? '0.5' : '1';
     if (!D) {
-      box.replaceChildren(h('p', { class: 'note' }, 'Not enough rays reach this screen to work out a diffraction pattern. Five or more, all from one wavelength, is the minimum.'));
-      drawDiff(cv, null);
+      drawDiff(cv, null, el);
+      box.replaceChildren(h('p', { class: 'note' }, busy ? 'Computing the field\u2026' :
+        'No beam reaches the front of this screen. The field comes from Gaussian sources and from ray fans with a width or a divergence: a single ray has no aperture to diffract.'));
       return;
     }
-    drawDiff(cv, D);
-    const rows2 = [
-      ['Numerical aperture', (+D.NA.toPrecision(4)) + ' (f/' + (+(1 / (2 * D.NA)).toPrecision(3)) + ')'],
-      ['Strehl ratio', D.strehl === null ? 'n/a' : (+D.strehl.toPrecision(4))],
-      ['Airy radius', fmtLen(D.airy)],
-      ['Width at half maximum', D.fwhm === null ? 'n/a' : fmtLen(D.fwhm)],
-      ['Radius holding 80%', fmtLen(D.ee80)],
-      ['MTF at ' + (+el.mtfFreq.toPrecision(4)) + ' lp/mm', (+D.mtfAt(el.mtfFreq).toPrecision(3))],
-      ['MTF drops to 0.5 at', (+D.mtf50.toPrecision(4)) + ' lp/mm'],
-      ['Cut-off frequency', (+D.cutoff.toPrecision(4)) + ' lp/mm'],
-    ];
-    const st2 = screenStats(el);
-    const waves = st2 && st2.wfRMS !== null ? st2.wfRMS / (st2.nm * 1e-6) : 0;
-    box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, String(b2))])),
-      h('p', { class: 'note' }, D.symmetric
-        ? 'The wavefront matches on both sides of the axis, so this is the true two-dimensional pattern.'
-        : 'The wavefront differs across the axis, so this is the tangential line spread and the tangential MTF, not the full two-dimensional answer.'),
-      waves > 0.2 ? h('p', { class: 'note' }, 'The wavefront error here is ' + (+waves.toPrecision(3)) +
-        ' waves RMS. Well past about a quarter wave the aberration dominates and these figures are indicative only: judge the design on the spot size instead.') : null);
+    drawDiff(cv, D, el);
+    const two = !D.symmetric;
+    const rows2 = [];
+    if (D.NA) rows2.push(['Numerical aperture', (+D.NA.toPrecision(4)) + ' (f/' + (+(1 / (2 * D.NA)).toPrecision(3)) + ')']);
+    rows2.push(['Strehl ratio', D.strehl === null ? 'n/a' : String(+D.strehl.toPrecision(4))]);
+    rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
+    rows2.push(['Power arriving', pctTxt(100 * D.power)]);
+    if (D.interference !== null) rows2.push(['Interference', (+(100 * D.interference).toPrecision(4)) + '% of the incoherent sum']);
+    if (D.visibility !== null) rows2.push(['Fringe visibility', String(+D.visibility.toPrecision(3))]);
+    rows2.push(two ? ['Beam radius w (in, out of plane)', fmtLen(D.wx) + ', ' + fmtLen(D.wy)] : ['Beam radius w', fmtLen(D.wx)]);
+    if (D.airy) rows2.push(['Airy radius', fmtLen(D.airy)]);
+    rows2.push(two ? ['Width at half maximum', fmtLen(D.fwhmX) + ', ' + fmtLen(D.fwhmY)] : ['Width at half maximum', D.fwhm ? fmtLen(D.fwhm) : 'n/a']);
+    rows2.push(['Radius holding 80%', fmtLen(D.ee80)]);
+    const f = el.mtfFreq;
+    rows2.push(['MTF at ' + (+f.toPrecision(4)) + ' lp/mm', two ? (+D.mtfAt(f).toPrecision(3)) + ', ' + (+D.mtfAtY(f).toPrecision(3)) : String(+D.mtfAt(f).toPrecision(3))]);
+    rows2.push(['MTF drops to 0.5 at', two ? (+D.mtf50.toPrecision(4)) + ', ' + (+D.mtf50Y.toPrecision(4)) + ' lp/mm' : (+D.mtf50.toPrecision(4)) + ' lp/mm']);
+    if (D.cutoff) rows2.push(['Cut-off frequency', (+D.cutoff.toPrecision(4)) + ' lp/mm']);
+    const notes = [];
+    notes.push(two ? 'A 2D field: pairs of figures are in the bench plane, then out of it. The MTF is from the line spread in each direction.'
+      : 'A round field, so these are the full two-dimensional figures.');
+    if (D.fan) notes.push('The source is a ray fan, taken as a uniform pupil.');
+    if (D.arrivals > 1) notes.push(D.arrivals + ' beams arrive here. ' + (D.coherent
+      ? 'Those from the same launch add as fields, with their phases, so the map shows their interference' + (D.launches > 1 ? '; separate launches (another source, wavelength or an unpolarised beam\u2019s other half) add as intensities' : '') + '. The profiles, Strehl ratio and MTF are for the strongest beam alone.'
+      : 'They come from separate launches, so the map adds their intensities; the figures are for the strongest.'));
+    if (D.fine) notes.push('Some fringes here are finer than three map pixels, so the map can alias them: the powers stay right, the picture may not.');
+    if (D.tilt > 1) notes.push('The screen is tilted ' + (+D.tilt.toPrecision(3)) + '\u00b0 to the beam: the map is the beam\u2019s cross-section projected onto it, without the extra spread along the tilt.');
+    if (D.curved) notes.push('The screen\u2019s curvature is not included in the field.');
+    if (D.steep.length) notes.push('The wavefront after ' + D.steep.map(id => (getEl(id) || {}).name).join(', ') + ' turns faster than the grid can follow: raise the source\u2019s grid points.');
+    if (busy) notes.push('Updating\u2026');
+    box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
+      ...notes.map(t => h('p', { class: 'note' }, t)));
   };
-  panel.append(tabs, cv, box);
+  panel.append(tabs, scaleRow, cv, box);
   bindSync(cv, refresh);
 }
 
-function drawDiff(cv, D) {
+function drawDiff(cv, D, el) {
   const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth || 280, hgt = 120;
+  const w = cv.clientWidth || 280, square = diffView === 'map', hgt = square ? Math.round(w) : 130;
+  cv.style.height = hgt + 'px';
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
   if (!D) return;
-  let xs, ys, xLabel, peak;
-  if (diffView === 'mtf') { xs = D.freq; ys = D.mtf; xLabel = (+D.cutoff.toPrecision(3)) + ' lp/mm'; peak = 1; }
-  else if (diffView === 'ee') { xs = D.rho; ys = D.ee; xLabel = fmtLen(D.rho[D.rho.length - 1]); peak = 1; }
-  else { xs = D.rho; ys = D.psf; xLabel = fmtLen(D.rho[D.rho.length - 1]); peak = Math.max(...D.psf); }
-  const x0 = xs[0], x1 = xs[xs.length - 1];
-  const X = v => 1 + (v - x0) / ((x1 - x0) || 1) * (w - 2);
-  const Y = v => hgt - 16 - (v / (peak || 1)) * (hgt - 26);
-  // a marker where the diffraction-limited pattern has its first zero
-  if (diffView !== 'mtf') {
-    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
-    c.moveTo(X(D.airy), 2); c.lineTo(X(D.airy), hgt - 14); c.stroke(); c.setLineDash([]);
-  }
-  c.strokeStyle = getCss('--jek-cyan'); c.lineWidth = 1.5; c.beginPath();
-  for (let i = 0; i < xs.length; i++) { const px = X(xs[i]), py = Y(ys[i]); i ? c.lineTo(px, py) : c.moveTo(px, py); }
-  c.stroke();
   c.fillStyle = getCss('--jek-ink-soft');
   c.font = '10px ' + getCss('--jek-mono');
-  c.textAlign = 'left'; c.fillText('0', 0, hgt - 3);
-  c.textAlign = 'right'; c.fillText(xLabel, w, hgt - 3);
+  if (square) {
+    // irradiance on the screen: along it (in the bench plane) across, out of the plane up
+    const M = D.map.n, img = c.createImageData(M, M);
+    let pk = 0; for (const v of D.map.v) pk = Math.max(pk, v);
+    const log = el.mapScale === 'log';
+    for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
+      let v = D.map.v[j * M + i] / (pk || 1);
+      if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
+      const [r, g, b] = magma(v), o = ((M - 1 - j) * M + i) * 4;
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
+    }
+    const off = document.createElement('canvas'); off.width = M; off.height = M;
+    off.getContext('2d').putImageData(img, 0, 0);
+    const pad = 14, side = Math.min(w, hgt) - pad;
+    c.imageSmoothingEnabled = true;
+    c.drawImage(off, 0, 0, M, M, w - side, 0, side, side);
+    const half = 0.5 * (D.map.u1 - D.map.u0);
+    c.textAlign = 'left'; c.fillText('\u00b1' + fmtLen(half) + ' along the screen', w - side, hgt - 2);
+    c.save(); c.translate(9, side); c.rotate(-Math.PI / 2); c.fillText('out of the plane', 0, 0); c.restore();
+    return;
+  }
+  const series = [];
+  let xs0, xs1, xLabel, top = 1, marker = null;
+  if (diffView === 'mtf') {
+    series.push({ x: D.freq, y: D.mtf });
+    if (!D.symmetric) series.push({ x: D.freq, y: D.mtfY, dash: true });
+    if (D.cutoff) {
+      const ana = D.freq.map(v => { const x = v / D.cutoff; return x >= 1 ? 0 : (2 / Math.PI) * (Math.acos(x) - x * Math.sqrt(1 - x * x)); });
+      series.push({ x: D.freq, y: ana, faint: true });
+    }
+    xs0 = 0; xs1 = D.freq[D.freq.length - 1]; xLabel = (+xs1.toPrecision(3)) + ' lp/mm';
+  } else if (diffView === 'ee') {
+    series.push({ x: D.rho, y: D.ee });
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; xLabel = fmtLen(xs1); marker = D.airy;
+  } else if (D.symmetric) {
+    series.push({ x: D.rho, y: D.psf });
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; xLabel = fmtLen(xs1); top = Math.max(...D.psf); marker = D.airy;
+  } else {
+    series.push({ x: D.cutX.x, y: D.cutX.I }, { x: D.cutY.x, y: D.cutY.I, dash: true });
+    xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; xLabel = '\u00b1' + fmtLen(xs1); top = Math.max(...D.cutX.I, ...D.cutY.I);
+  }
+  const X = v => 1 + (v - xs0) / ((xs1 - xs0) || 1) * (w - 2);
+  const Y = v => hgt - 16 - (v / (top || 1)) * (hgt - 26);
+  if (marker) {
+    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
+    c.moveTo(X(marker), 2); c.lineTo(X(marker), hgt - 14); c.stroke(); c.setLineDash([]);
+  }
+  for (const S of series) {
+    c.strokeStyle = S.faint ? 'rgba(0,0,0,0.25)' : getCss('--jek-cyan');
+    c.lineWidth = S.faint ? 1 : 1.5;
+    c.setLineDash(S.dash ? [4, 3] : S.faint ? [1, 3] : []);
+    c.beginPath();
+    for (let i = 0; i < S.x.length; i++) { const px = X(S.x[i]), py = Y(S.y[i]); i ? c.lineTo(px, py) : c.moveTo(px, py); }
+    c.stroke();
+  }
+  c.setLineDash([]);
+  c.fillStyle = getCss('--jek-ink-soft');
+  c.textAlign = 'left'; c.fillText(diffView === 'psf' && !D.symmetric ? xLabel.replace('\u00b1', '\u2212') : '0', 0, hgt - 3);
+  c.textAlign = 'right'; c.fillText(diffView === 'psf' && !D.symmetric ? xLabel.replace('\u00b1', '+') : xLabel, w, hgt - 3);
+  if (!D.symmetric && diffView !== 'ee') { c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out of it', w, 10); }
 }
 
 function lensKind(el) {
@@ -3802,6 +4262,1503 @@ function beamAt(qr, qi, n, nm) {
   };
 }
 
+/* ---------- Physical optics propagation ----------
+   The bench is the meridional slice of a round system, so a beam on axis is a
+   figure of revolution: its field is a radial profile E(r). Diffraction of such a
+   field is a Hankel transform, done here with the quasi-discrete Hankel transform
+   (Guizar-Sicairos and Gutierrez-Vega, JOSA A 21, 53, 2004) on the zeros of J0.
+
+   As in Zemax POP, a pilot Gaussian beam travels with the field. Inside its
+   Rayleigh range the field is held against a plane and moved with the angular
+   spectrum; outside it the field is held against a sphere centred on the pilot
+   waist and moved through the waist with a single Fresnel transform, which
+   rescales the grid. Only the residual phase is sampled, so a tight focus and a
+   long collimated leg both fit on a few hundred points.
+
+   Sign convention: fields go as exp(-ikz) (Siegman), so a Gaussian is
+   exp(-ik r^2 / 2q) with q = z + i zR, and a diverging reference is
+   exp(-ik r^2 / 2z). Lengths are in mm. */
+
+/* J0 and J1 to about 1e-12: power series below 12, Hankel asymptotics above */
+function besselJ01(x) {
+  const ax = Math.abs(x);
+  if (ax < 12) {
+    const q = -0.25 * ax * ax;
+    let t0 = 1, s0 = 1, t1 = 0.5 * ax, s1 = t1;
+    for (let k = 1; k < 60; k++) {
+      t0 *= q / (k * k); s0 += t0;
+      t1 *= q / (k * (k + 1)); s1 += t1;
+      if (Math.abs(t0) < 1e-17 * Math.abs(s0) && Math.abs(t1) < 1e-17 * (Math.abs(s1) + 1e-300)) break;
+    }
+    return [s0, x < 0 ? -s1 : s1];
+  }
+  // P and Q for orders 0 and 1, summed until the terms stop shrinking
+  const z8 = 8 * ax;
+  const pq = mu => {
+    let P = 1, Q = 0, term = 1, k = 1;
+    for (; k < 40; k++) {
+      term *= (mu - (2 * k - 1) ** 2) / (k * z8);
+      const next = Math.abs(term);
+      if (k % 2) Q += term * (k % 4 === 1 ? 1 : -1);
+      else P += term * (k % 4 === 2 ? -1 : 1);
+      if (next < 1e-17) break;
+      if (k > 2 && next > Math.abs(term / ((mu - (2 * k - 1) ** 2) / (k * z8)))) break;
+    }
+    return [P, Q];
+  };
+  const [P0, Q0] = pq(0), [P1, Q1] = pq(4);
+  const a = Math.sqrt(2 / (Math.PI * ax));
+  const c0 = ax - Math.PI / 4, c1 = ax - 3 * Math.PI / 4;
+  const J0 = a * (P0 * Math.cos(c0) - Q0 * Math.sin(c0));
+  const J1 = a * (P1 * Math.cos(c1) - Q1 * Math.sin(c1));
+  return [J0, x < 0 ? -J1 : J1];
+}
+
+/* The first n positive zeros of J0: McMahon's expansion polished by Newton */
+function besselZerosJ0(n) {
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const b = (i + 0.75) * Math.PI, b8 = 8 * b;
+    let x = b + 1 / b8 - 124 / (3 * b8 ** 3) + 120928 / (15 * b8 ** 5);
+    for (let it = 0; it < 6; it++) {
+      const [j0, j1] = besselJ01(x);
+      const dx = j0 / j1;                  // J0' = -J1, so Newton adds J0/J1
+      x += dx;
+      if (Math.abs(dx) < 1e-14 * x) break;
+    }
+    out[i] = x;
+  }
+  return out;
+}
+
+/* Transform kernel for N points, cached: C[m][n] = J0(j_m j_n / S) */
+const qdhtCache = new Map();
+function qdht(N) {
+  if (qdhtCache.has(N)) return qdhtCache.get(N);
+  const z = besselZerosJ0(N + 1);
+  const j = z.subarray(0, N), S = z[N];
+  const C = new Float64Array(N * N), inv = new Float64Array(N);
+  for (let m = 0; m < N; m++) {
+    inv[m] = 1 / besselJ01(j[m])[1] ** 2;
+    for (let n = m; n < N; n++) {
+      const v = besselJ01(j[m] * j[n] / S)[0];
+      C[m * N + n] = v; C[n * N + m] = v;
+    }
+  }
+  const Q = { N, j, S, C, inv };
+  qdhtCache.set(N, Q);
+  return Q;
+}
+
+/* Sample radii of a grid whose outer radius is R */
+function popRadii(Q, R) {
+  const r = new Float64Array(Q.N);
+  for (let i = 0; i < Q.N; i++) r[i] = Q.j[i] * R / Q.S;
+  return r;
+}
+
+/* F(nu) = 2 pi Int f(r) J0(2 pi nu r) r dr on the grid of outer radius R. The result sits
+   at nu_m = j_m / (2 pi R); the inverse is the same sum with R and V swapped. */
+function hankelCore(Q, re, im, scale) {
+  const { N, C, inv } = Q;
+  const gr = new Float64Array(N), gi = new Float64Array(N);
+  for (let n = 0; n < N; n++) { gr[n] = re[n] * inv[n]; gi[n] = im[n] * inv[n]; }
+  const or = new Float64Array(N), oi = new Float64Array(N);
+  for (let m = 0; m < N; m++) {
+    let sr = 0, si = 0;
+    const row = m * N;
+    for (let n = 0; n < N; n++) { const c = C[row + n]; sr += c * gr[n]; si += c * gi[n]; }
+    or[m] = sr * scale; oi[m] = si * scale;
+  }
+  return [or, oi];
+}
+function hankel(Q, R, re, im) {
+  const V = Q.S / (2 * Math.PI * R);
+  return hankelCore(Q, re, im, 1 / (Math.PI * V * V));
+}
+function ihankel(Q, R, re, im) {           // R: outer radius of the spatial grid wanted
+  return hankelCore(Q, re, im, 1 / (Math.PI * R * R));
+}
+
+/* Power, 2 pi Int |E|^2 r dr, from the grid samples */
+function popPower(F) {
+  const Q = qdht(F.re.length);
+  const V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * V * V);
+  let p = 0;
+  for (let i = 0; i < Q.N; i++) p += (F.re[i] ** 2 + F.im[i] ** 2) * Q.inv[i];
+  return p * k;
+}
+
+/* A field: residual samples u on a grid of outer radius R, held against a plane or
+   against a sphere of radius z, at signed distance z past the pilot waist.
+   Pilot: complex q = z + i zR in a medium of index n; lam0 in mm. */
+function popField(N, R, re, im, q, n, lam0) {
+  const zR = q[1];
+  return { R, re, im, z: q[0], zR, n, lam0, sphere: Math.abs(q[0]) > zR };
+}
+const popInside = (z, zR) => Math.abs(z) <= zR;
+const popK = F => 2 * Math.PI * F.n / F.lam0;
+const popLam = F => F.lam0 / F.n;
+const popW = (z, zR, lam) => Math.sqrt(lam * zR / Math.PI * (1 + (z / zR) ** 2));
+
+/* Grid oversize: the square root of the transform's space-bandwidth product. With it a
+   beam sits the same fraction of the grid at the waist and in the far field. */
+const popGuard = N => Math.sqrt(qdht(N).S / 2);
+
+/* The full field at the samples, reference phase put back */
+function popFull(F) {
+  const Q = qdht(F.re.length), r = popRadii(Q, F.R);
+  const re = new Float64Array(Q.N), im = new Float64Array(Q.N);
+  const a = F.sphere ? -popK(F) / (2 * F.z) : 0;
+  for (let i = 0; i < Q.N; i++) {
+    const ph = a * r[i] * r[i], c = Math.cos(ph), s = Math.sin(ph);
+    re[i] = F.re[i] * c - F.im[i] * s; im[i] = F.re[i] * s + F.im[i] * c;
+  }
+  return { re, im, r };
+}
+/* Take a full field back to residual form against the reference for (z, zR) */
+function popResidual(re, im, r, z, zR, k) {
+  const sphere = !popInside(z, zR);
+  if (sphere) {
+    const a = k / (2 * z);                 // divide out exp(-ik r^2 / 2z)
+    for (let i = 0; i < r.length; i++) {
+      const ph = a * r[i] * r[i], c = Math.cos(ph), s = Math.sin(ph);
+      const x = re[i] * c - im[i] * s, y = re[i] * s + im[i] * c;
+      re[i] = x; im[i] = y;
+    }
+  }
+  return sphere;
+}
+
+/* Angular spectrum over distance d; both planes held against planes */
+function popAngular(F, spec, d) {
+  const Q = qdht(F.re.length);
+  const [Sr, Si] = spec || hankel(Q, F.R, F.re, F.im);
+  const nu = 1 / (2 * Math.PI * F.R), lam = popLam(F), k = popK(F);
+  const tr = new Float64Array(Q.N), ti = new Float64Array(Q.N);
+  for (let m = 0; m < Q.N; m++) {
+    const v = Q.j[m] * nu, s = 1 - (lam * v) ** 2;
+    let ar = 0, ai = 0;
+    if (s >= 0) { const ph = -k * d * Math.sqrt(s); ar = Math.cos(ph); ai = Math.sin(ph); }
+    else { ar = Math.exp(-k * Math.abs(d) * Math.sqrt(-s)); }   // evanescent
+    tr[m] = Sr[m] * ar - Si[m] * ai; ti[m] = Sr[m] * ai + Si[m] * ar;
+  }
+  const [re, im] = ihankel(Q, F.R, tr, ti);
+  return { R: F.R, re, im, z: F.z + d, zR: F.zR, n: F.n, lam0: F.lam0, sphere: false };
+}
+
+/* From a sphere-referenced plane at z to the waist plane (z = 0): one transform */
+function popToWaist(F) {
+  const Q = qdht(F.re.length), lam = popLam(F), k = popK(F);
+  const [Hr, Hi] = hankel(Q, F.R, F.re, F.im);
+  const d = -F.z, Rw = lam * Math.abs(d) * Q.S / (2 * Math.PI * F.R);
+  const rho = popRadii(Q, Rw);
+  const re = new Float64Array(Q.N), im = new Float64Array(Q.N);
+  // (i / lam d) exp(-ikd) exp(-ik rho^2 / 2d) H
+  const base = -k * d;
+  for (let m = 0; m < Q.N; m++) {
+    const ph = base - k * rho[m] * rho[m] / (2 * d) + Math.PI / 2;
+    const c = Math.cos(ph) / (lam * d), s = Math.sin(ph) / (lam * d);
+    re[m] = Hr[m] * c - Hi[m] * s; im[m] = Hr[m] * s + Hi[m] * c;
+  }
+  return { R: Rw, re, im, z: 0, zR: F.zR, n: F.n, lam0: F.lam0, sphere: false };
+}
+
+/* From the waist plane to a sphere-referenced plane at z: one transform */
+function popFromWaist(Fw, z) {
+  const Q = qdht(Fw.re.length), lam = popLam(Fw), k = popK(Fw);
+  const r = popRadii(Q, Fw.R);
+  const gr = new Float64Array(Q.N), gi = new Float64Array(Q.N);
+  const a = -k / (2 * z);
+  for (let i = 0; i < Q.N; i++) {
+    const ph = a * r[i] * r[i], c = Math.cos(ph), s = Math.sin(ph);
+    gr[i] = Fw.re[i] * c - Fw.im[i] * s; gi[i] = Fw.re[i] * s + Fw.im[i] * c;
+  }
+  const [Hr, Hi] = hankel(Q, Fw.R, gr, gi);
+  const R2 = lam * Math.abs(z) * Q.S / (2 * Math.PI * Fw.R);
+  const re = new Float64Array(Q.N), im = new Float64Array(Q.N);
+  const ph0 = -k * z + Math.PI / 2;
+  const c0 = Math.cos(ph0) / (lam * z), s0 = Math.sin(ph0) / (lam * z);
+  for (let m = 0; m < Q.N; m++) { re[m] = Hr[m] * c0 - Hi[m] * s0; im[m] = Hr[m] * s0 + Hi[m] * c0; }
+  return { R: R2, re, im, z, zR: Fw.zR, n: Fw.n, lam0: Fw.lam0, sphere: true };
+}
+
+/* Propagates one field to many distances, keeping the intermediate transforms */
+function popLeg(F0) {
+  const L = popLegCore(F0);
+  L.stats = t => popStats(L.at(t));
+  L.cut = t => {
+    const G = L.at(t), Q = qdht(G.re.length), I = new Float64Array(Q.N);
+    for (let i = 0; i < Q.N; i++) I[i] = G.re[i] ** 2 + G.im[i] ** 2;
+    return { x: popRadii(Q, G.R), I, sym: true, w: popW(G.z, G.zR, G.lam0 / G.n), half: G.R };
+  };
+  L.cutC = t => {
+    const G = L.at(t), k = 2 * Math.PI * G.n / G.lam0;
+    return { x: popRadii(qdht(G.re.length), G.R), re: G.re, im: G.im, sym: true, b: G.sphere ? -k / (2 * G.z) : 0,
+      w: popW(G.z, G.zR, G.lam0 / G.n), half: G.R, k };
+  };
+  return L;
+}
+function popLegCore(F0) {
+  let spec0 = null, Fw = null, specW = null;
+  const waist = () => {
+    if (Fw) return Fw;
+    if (F0.sphere) Fw = popToWaist(F0);
+    else { spec0 = spec0 || hankel(qdht(F0.re.length), F0.R, F0.re, F0.im); Fw = popAngular(F0, spec0, -F0.z); }
+    return Fw;
+  };
+  return {
+    field: F0,
+    at(t) {
+      if (t === 0) return F0;
+      const z2 = F0.z + t;
+      if (popInside(z2, F0.zR)) {
+        if (!F0.sphere) {
+          spec0 = spec0 || hankel(qdht(F0.re.length), F0.R, F0.re, F0.im);
+          return popAngular(F0, spec0, t);
+        }
+        const W = waist();
+        specW = specW || hankel(qdht(W.re.length), W.R, W.re, W.im);
+        return popAngular(W, specW, z2);
+      }
+      return popFromWaist(waist(), z2);
+    },
+  };
+}
+
+/* Resampling of a smooth residual: cubic in r, even through the axis, zero outside */
+function popResample(r0, re0, im0, r1) {
+  const N0 = r0.length, re = new Float64Array(r1.length), im = new Float64Array(r1.length);
+  const cub = (y0, y1, y2, y3, t) => y1 + 0.5 * t * (y2 - y0 + t * (2 * y0 - 5 * y1 + 4 * y2 - y3 + t * (3 * (y1 - y2) + y3 - y0)));
+  // extend with the mirror images at -r0[0], -r0[1] so the axis needs no special case
+  const xs = [-r0[1], -r0[0]], ys = [1, 0];
+  let j = 0;
+  for (let i = 0; i < r1.length; i++) {
+    const x = r1[i];
+    if (x > r0[N0 - 1]) break;
+    let i0, i1, i2, i3, x1, x2;
+    if (x <= r0[0]) { i0 = 0; i1 = 0; i2 = 0; i3 = 1; x1 = -r0[0]; x2 = r0[0]; }
+    else {
+      while (j < N0 - 2 && r0[j + 1] < x) j++;
+      i0 = j > 0 ? j - 1 : 0; i1 = j; i2 = j + 1; i3 = j + 2 < N0 ? j + 2 : j + 1;
+      x1 = r0[j]; x2 = r0[j + 1];
+    }
+    void xs; void ys;
+    const t = (x - x1) / (x2 - x1);
+    re[i] = cub(re0[i0], re0[i1], re0[i2], re0[i3], t);
+    im[i] = cub(im0[i0], im0[i1], im0[i2], im0[i3], t);
+  }
+  return [re, im];
+}
+
+/* Second-moment beam radius, sqrt(2 <r^2>): the 1/e^2 radius for a Gaussian */
+function popStats(F) {
+  const Q = qdht(F.re.length), r = popRadii(Q, F.R);
+  let p = 0, m2 = 0, peak = 0;
+  for (let i = 0; i < Q.N; i++) {
+    const I = F.re[i] ** 2 + F.im[i] ** 2, w = I * Q.inv[i];
+    p += w; m2 += w * r[i] * r[i];
+    if (I > peak) peak = I;
+  }
+  const V = Q.S / (2 * Math.PI * F.R);
+  const [c0] = popAxis(F);
+  return { power: p / (Math.PI * V * V), w: Math.sqrt(2 * m2 / (p || 1)), peak, axis: c0, R: F.R };
+}
+/* Intensity on the axis. The field is even in r and smooth there, so fit it (not |E|^2,
+   which can dip to zero) as a + b r^2 + c r^4 through the innermost samples. */
+function popAxis(F) {
+  const Q = qdht(F.re.length), r = popRadii(Q, F.R);
+  const x = [0, 1, 2].map(i => r[i] * r[i]);
+  let er = 0, ei = 0;
+  for (let i = 0; i < 3; i++) {
+    let l = 1;
+    for (let j = 0; j < 3; j++) if (j !== i) l *= (0 - x[j]) / (x[i] - x[j]);
+    er += F.re[i] * l; ei += F.im[i] * l;
+  }
+  return [er * er + ei * ei];
+}
+
+/* A Gaussian beam as a field: q is the complex beam parameter at this plane */
+function popGaussian(N, q, n, lam0, power) {
+  const k = 2 * Math.PI * n / lam0, lam = lam0 / n;
+  const [z, zR] = q;
+  const R = popGuard(N) * popW(z, zR, lam);
+  const Q = qdht(N), r = popRadii(Q, R);
+  const re = new Float64Array(N), im = new Float64Array(N);
+  const den = z * z + zR * zR, ir = z / den, ii = -zR / den;       // 1/q
+  for (let i = 0; i < N; i++) {
+    // exp(-ik r^2 / 2q) = exp(-ik r^2 ir / 2) exp(k r^2 ii / 2)
+    const r2 = r[i] * r[i], amp = Math.exp(0.5 * k * r2 * ii), ph = -0.5 * k * r2 * ir;
+    re[i] = amp * Math.cos(ph); im[i] = amp * Math.sin(ph);
+  }
+  const sphere = popResidual(re, im, r, z, zR, k);
+  const F = { R, re, im, z, zR, n, lam0, sphere };
+  const s = Math.sqrt((power === undefined ? 1 : power) / popPower(F));
+  for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
+  return F;
+}
+
+/* Phase of a wavefront along a plane: exact, for a sphere (or, with different curvatures in
+   and out of the bench plane, the ellipsoid with those two), and its paraxial parabola.
+   iRx, iRy are the curvatures, positive diverging; the form is the stable one near the axis. */
+function popPhiExact(k, iRx, iRy, x, y) {
+  const s = x * x * iRx + y * y * iRy;
+  if (iRx * iRy >= 0) {
+    const iRm = 0.5 * (iRx + iRy);
+    return -k * s / (1 + Math.sqrt(Math.max(0, 1 + iRm * s)));
+  }
+  const one = (iR, u) => -k * iR * u * u / (1 + Math.sqrt(Math.max(0, 1 + iR * iR * u * u)));
+  return one(iRx, x) + one(iRy, y);
+}
+const popPhiPar = (k, iRx, iRy, x, y) => -0.5 * k * (x * x * iRx + y * y * iRy);
+const popInvR = q => q[0] / (q[0] * q[0] + q[1] * q[1]);
+
+/* Open fraction of each sample's annular cell for a hard edge at radius a, so the edge
+   need not fall on a sample: power and the effective radius come out right. */
+function popMask(r, a) {
+  const N = r.length, m = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const lo = i ? 0.5 * (r[i - 1] + r[i]) : 0;
+    const hi = i < N - 1 ? 0.5 * (r[i] + r[i + 1]) : r[i] + 0.5 * (r[i] - r[i - 1]);
+    m[i] = a >= hi ? 1 : a <= lo ? 0 : (a * a - lo * lo) / (hi * hi - lo * lo);
+  }
+  return m;
+}
+
+/* Through one surface. ev: { A, C, D, n2, a (clear radius in the incoming beam frame,
+   or Infinity), gain (power ratio) }. q: the pilot arriving. The surface is paraxial
+   for now: tangential magnification A and the quadratic phase exp(-i k2 (C/A) r^2 / 2);
+   the ray-traced phase takes its place later. Only residuals are ever interpolated,
+   and every reference phase is put back analytically. */
+function popSurface(F, q, ev) {
+  const N = F.re.length, Q = qdht(N), G = popGuard(N), lam0 = F.lam0;
+  const kIn = 2 * Math.PI * F.n / lam0, lamIn = lam0 / F.n;
+  const r = popRadii(Q, F.R);
+  let clipped = false, wFitIn = 0, qr = q[0], qi = q[1];
+  const aIn = isFinite(ev.a) ? ev.a : Infinity;
+  // a round opening passes inside its edge; an obscuring disc passes outside it
+  const maskOf = rr => ev.disc !== null && ev.disc !== undefined ? popMask(rr, ev.disc).map(v => 1 - v)
+    : isFinite(aIn) ? popMask(rr, aIn) : null;
+  if (aIn < r[N - 1] || (ev.disc && ev.disc < r[N - 1])) {
+    // what gets through, measured on a grid that resolves the edge
+    const R1 = G * Math.min(popW(qr, qi, lamIn), aIn), r1 = popRadii(Q, R1);
+    const [re, im] = popResample(r, F.re, F.im, r1);
+    const m = maskOf(r1);
+    let p = 0, m2 = 0;
+    for (let i = 0; i < N; i++) {
+      const w = (re[i] ** 2 + im[i] ** 2) * m[i] * m[i] * Q.inv[i];
+      p += w; m2 += w * r1[i] * r1[i];
+    }
+    const V = Q.S / (2 * Math.PI * R1);
+    clipped = p / (Math.PI * V * V) < popPower(F) * (1 - 1e-4);
+    wFitIn = Math.sqrt(2 * m2 / p);
+  }
+  // pilot through the surface: q' = A q / (C q + D)
+  const A = ev.A, aA = Math.abs(A), C = ev.C, D = ev.D;
+  {
+    const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
+    const tr = (nr * dr + ni * di) / den, ti = (ni * dr - nr * di) / den;
+    qr = tr; qi = ti;
+  }
+  const qAB = [qr, qi];
+  const n2 = ev.n2, k2 = 2 * Math.PI * n2 / lam0, lam2 = lam0 / n2;
+  if (clipped) {
+    // recompute the pilot from what got through, as Zemax does: its curvature from the
+    // pilot, its width from the second moment of the clipped field
+    const wFit = aA * wFitIn;
+    const den = qr * qr + qi * qi, invRe = qr / den, invIm = -lam2 / (Math.PI * wFit * wFit);
+    const d2 = invRe * invRe + invIm * invIm;
+    qr = invRe / d2; qi = -invIm / d2;
+  }
+  // the new grid, sized to the new pilot and to the slope of the aberration (see the 2D
+  // step for why one limit serves both ends), and the quadratic phase left over:
+  // incoming reference at x = rho / A, the surface, and the new reference removed
+  const raw = ev.raw, traced = raw && raw.surf && raw.mode !== 'P' && !ev.paraxial;
+  const k0 = 2 * Math.PI / lam0, iRi = popInvR(q), iRo = popInvR(qAB);
+  const tr = traced ? popScreen(raw, popInvR(q), popInvR(q), lam0) : null;
+  const abAt = (xx, r) => -k0 * r[0] + 0.5 * k2 * C * A * xx * xx
+    + popPhiExact(kIn, iRi, iRi, xx, 0) - popPhiPar(kIn, iRi, iRi, xx, 0)
+    - popPhiExact(k2, iRo, iRo, Math.abs(r[1]), 0) + popPhiPar(k2, iRo, iRo, aA * xx, 0);
+  let steep = 0;
+  const wOut = popW(qr, qi, lam2);
+  let Rn = G * wOut;
+  if (tr) {
+    let g = 0, prev = null;
+    const wIn0 = popW(q[0], q[1], lamIn);
+    for (let i = 0; i <= 40; i++) {
+      const u = i / 40 * 2.5 * wIn0, r = tr(u, 0);
+      if (!r[4] || r[3] < 0) { prev = null; continue; }
+      const v = abAt(u, r);
+      if (prev !== null) g = Math.max(g, Math.abs(v - prev[1]) / (u - prev[0]));
+      prev = [u, v];
+    }
+    g /= aA;
+    if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
+    if (Rn < 3 * wOut) { steep = 1; Rn = 3 * wOut; }
+  }
+  const rn = popRadii(Q, Rn);
+  const x = new Float64Array(N);
+  for (let i = 0; i < N; i++) x[i] = rn[i] / aA;
+  const [ure, uim] = popResample(r, F.re, F.im, x);
+  const mask = maskOf(x);
+  const sphereIn = F.sphere, sphereOut = !popInside(qr, qi);
+  let b = -0.5 * k2 * C / A;
+  if (sphereIn) b += -kIn / (2 * F.z * A * A);
+  if (sphereOut) b += k2 / (2 * qr);
+  const g = Math.sqrt(ev.gain === undefined ? 1 : ev.gain) / aA;
+  // the real surface, by tracing rays in the plane: what it adds beyond the paraxial
+  // quadratic above is the aberration. Only meaningful while the beam stays round.
+  let pArea = 0, pAmp = 0;
+  for (let i = 0; i < N; i++) {
+    if (mask) { const I = (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i]; pArea += I * mask[i]; pAmp += I * mask[i] * mask[i]; }
+    let gm = mask ? g * mask[i] : g;
+    let ab = 0;
+    if (tr && gm) {
+      const r = tr(x[i], 0);
+      if (!r[4]) { ure[i] = 0; uim[i] = 0; continue; }
+      // the traced phase and the incoming wave, less the outgoing reference sphere at
+      // where each ray really lands: smooth, so it can sit on the grid point. The
+      // paraxial parts are already in b; swap them for the exact spheres here.
+      ab = abAt(x[i], r);
+      gm *= r[5];                                          // a mask element's amplitude
+    }
+    const ph = b * rn[i] * rn[i] + ab, c = Math.cos(ph), s = Math.sin(ph);
+    const xr = (ure[i] * c - uim[i] * s) * gm, yi = (ure[i] * s + uim[i] * c) * gm;
+    ure[i] = xr; uim[i] = yi;
+  }
+  if (pAmp > 0 && pArea > pAmp) { const sc = Math.sqrt(pArea / pAmp); for (let i = 0; i < N; i++) { ure[i] *= sc; uim[i] *= sc; } }
+  return { field: { R: Rn, re: ure, im: uim, z: qr, zR: qi, n: n2, lam0, sphere: sphereOut }, q: [qr, qi], clipped, steep };
+}
+
+/* ---------- A surface as a phase screen, by tracing rays in three dimensions ----------
+   Every element on the bench is a figure of revolution about its own axis, and that axis
+   lies in the bench plane, so a ray leaving the plane can be traced through the real
+   surface without the tracer knowing about skew rays. Rays start on the plane through
+   the beam's hit point square to the incoming beam, along the pilot wavefront normals,
+   and end on the plane square to the outgoing beam. Their optical path between the two
+   planes is the phase the surface adds; the aperture comes from where they land.
+   x is in the bench plane (to the left of the beam), y is out of it. */
+function popScreen(ev, invRx, invRy, lam0) {
+  const s = ev.surf;
+  const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
+  const fn = s.maskFn || null;
+  const Hx = ev.hx, Hy = ev.hy, di = ev.dIn, dO = ev.dOut || ev.dIn;
+  const exix = -di[1], exiy = di[0], exox = -dO[1], exoy = dO[0];
+  const f = s.f, y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
+  const n1 = ev.n1, n2 = ev.mode === 'T' ? ev.n2 : ev.n1;
+  const bend = ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
+  const flat = s.flat;
+  return function trace(x, y) {
+    // start point and direction in the world, then into the surface's frame
+    let X = Hx + x * exix, Y = Hy + x * exiy, Z = y;
+    let dx = di[0] + x * invRx * exix, dy = di[1] + x * invRx * exiy, dz = y * invRy;
+    const dl = Math.sqrt(dx * dx + dy * dy + dz * dz); dx /= dl; dy /= dl; dz /= dl;
+    const ox = X - f.ox, oy = Y - f.oy;
+    const px = ox * f.c + oy * f.s - s.z, py = -ox * f.s + oy * f.c, pz = Z;
+    const ldx = dx * f.c + dy * f.s, ldy = -dx * f.s + dy * f.c, ldz = dz;
+    // Newton on x(t) = sag(rho(t)), starting on the entry plane, which touches the surface
+    let t = 0, ly = py, lz = pz, rho = 0, S = 0, Sp = 0, ok = true;
+    for (let it = 0; it < 40; it++) {
+      ly = py + t * ldy; lz = pz + t * ldz;
+      const u = ly + y0;
+      rho = Math.sqrt(u * u + lz * lz);
+      if (flat) { S = 0; Sp = 0; } else { S = rawSag(s, rho) - sag0; Sp = rawDsag(s, rho); }
+      const g = px + t * ldx - S;
+      const gp = ldx - (rho > 0 ? Sp * (u * ldy + lz * ldz) / rho : 0);
+      if (!(Math.abs(gp) > 1e-12)) { ok = false; break; }
+      const dt = -g / gp;
+      t += dt;
+      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) break;
+      if (it === 39) ok = false;
+    }
+    if (!isFinite(t)) return [0, 0, 0, -1, false];
+    ly = py + t * ldy; lz = pz + t * ldz;
+    const u = ly + y0;
+    rho = Math.sqrt(u * u + lz * lz);
+    Sp = flat ? 0 : rawDsag(s, rho);
+    // bend in the local frame
+    let ex = ldx, ey = ldy, ez = ldz;
+    if (bend !== 'pass') {
+      let nx = 1, ny = rho > 0 ? -Sp * u / rho : 0, nz = rho > 0 ? -Sp * lz / rho : 0;
+      const nl = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= nl; ny /= nl; nz /= nl;
+      let c = -(ldx * nx + ldy * ny + ldz * nz);
+      if (c < 0) { nx = -nx; ny = -ny; nz = -nz; c = -c; }        // normal against the ray
+      if (bend === 'reflect') { ex = ldx + 2 * c * nx; ey = ldy + 2 * c * ny; ez = ldz + 2 * c * nz; }
+      else {
+        const eta = n1 / n2, k = 1 - eta * eta * (1 - c * c);
+        if (k < 0) ok = false;                                     // lost to total internal reflection
+        const m = eta * c - Math.sqrt(Math.max(0, k));
+        ex = eta * ldx + m * nx; ey = eta * ldy + m * ny; ez = eta * ldz + m * nz;
+      }
+    }
+    const wx = ex * f.c - ey * f.s, wy = ex * f.s + ey * f.c, wz = ez;
+    // hit point in the world, then on to the exit plane
+    const Px = X + t * dx, Py = Y + t * dy, Pz = Z + t * dz;
+    const den = wx * dO[0] + wy * dO[1];
+    const t2 = ((Hx - Px) * dO[0] + (Hy - Py) * dO[1]) / (den || 1e-30);
+    const Ex = Px + t2 * wx - Hx, Ey = Py + t2 * wy - Hy, Ez = Pz + t2 * wz;
+    let opl = n1 * t + n2 * t2, amp = 1;
+    if (fn) { const [A, D] = fn(ly, lz, lam0); amp = A; opl += D * lam0; }   // a mask: amplitude, and delay in waves
+    return [opl, Ex * exox + Ey * exoy, Ez, edge(ly, lz), ok, amp];
+  };
+}
+
+/* ---------- The separable two-dimensional field ----------
+   The Fresnel kernel is a product of an x part and a y part, so each axis keeps its own
+   pilot (and so its own waist, grid spacing and choice of near- or far-field step): an
+   astigmatic beam focuses in x and y at different places without the grid blowing up.
+   Free space is paraxial here; the round engine keeps the exact angular spectrum. */
+const fftTables = new Map();
+function fftTable(n) {
+  if (fftTables.has(n)) return fftTables.get(n);
+  const c = new Float64Array(n / 2), s = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++) { c[i] = Math.cos(2 * Math.PI * i / n); s[i] = Math.sin(2 * Math.PI * i / n); }
+  const rev = new Uint32Array(n);
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; rev[i] = j; }
+  const T = { c, s, rev };
+  fftTables.set(n, T);
+  return T;
+}
+/* In place, unnormalised; sign +1 is the e^{+2 pi i mn/N} direction */
+function fft(re, im, sign) {
+  const n = re.length, { c, s, rev } = fftTable(n);
+  for (let i = 1; i < n; i++) { const j = rev[i]; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1, step = n / len;
+    for (let i = 0; i < n; i += len) {
+      for (let k = 0; k < half; k++) {
+        const wr = c[k * step], wi = sign * s[k * step];
+        const a = i + k, b = a + half;
+        const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+      }
+    }
+  }
+}
+/* Centred DFT, X_m = sum_n x_n e^{sign 2 pi i (m - N/2)(n - N/2)/N}, for N a multiple of 4 */
+function cdft(re, im, sign) {
+  const n = re.length;
+  for (let i = 1; i < n; i += 2) { re[i] = -re[i]; im[i] = -im[i]; }
+  fft(re, im, sign);
+  for (let i = 1; i < n; i += 2) { re[i] = -re[i]; im[i] = -im[i]; }
+}
+const cmulPhase = (re, im, i, ph, a) => {
+  const c = Math.cos(ph) * a, s = Math.sin(ph) * a, x = re[i] * c - im[i] * s;
+  im[i] = re[i] * s + im[i] * c; re[i] = x;
+};
+/* sqrt(i / (lam d)), the one-axis share of the Fresnel prefactor */
+const fresnelPre = (lam, d) => [d > 0 ? Math.PI / 4 : -Math.PI / 4, 1 / Math.sqrt(lam * Math.abs(d))];
+
+/* One axis of one line: st = { d: spacing, z: past the waist, zR }. Returns the new state. */
+function axisAS(re, im, st, dist, lam) {
+  const n = re.length;
+  cdft(re, im, -1);
+  const df = 1 / (n * st.d);
+  for (let m = 0; m < n; m++) { const fm = (m - n / 2) * df; cmulPhase(re, im, m, Math.PI * lam * dist * fm * fm, 1 / n); }
+  cdft(re, im, 1);
+  return { d: st.d, z: st.z + dist, zR: st.zR };
+}
+function reverseLine(re, im) {
+  const n = re.length;
+  for (let m = 1; m < n / 2; m++) {
+    const a = m, b = n - m;
+    let t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t;
+  }
+}
+function axisToWaist(re, im, st, lam, k) {          // sphere at z, to the waist plane
+  const n = re.length, d = -st.z;
+  cdft(re, im, 1);
+  if (d < 0) reverseLine(re, im);
+  const dW = lam * Math.abs(d) / (n * st.d);
+  const [p0, a0] = fresnelPre(lam, d);
+  for (let m = 0; m < n; m++) { const r = (m - n / 2) * dW; cmulPhase(re, im, m, p0 - k * r * r / (2 * d), a0 * st.d); }
+  return { d: dW, z: 0, zR: st.zR };
+}
+function axisFromWaist(re, im, st, z2, lam, k) {    // waist plane, to a sphere at z2
+  const n = re.length;
+  for (let i = 0; i < n; i++) { const x = (i - n / 2) * st.d; cmulPhase(re, im, i, -k * x * x / (2 * z2), 1); }
+  cdft(re, im, 1);
+  if (z2 < 0) reverseLine(re, im);
+  const [p0, a0] = fresnelPre(lam, z2);
+  for (let m = 0; m < n; m++) cmulPhase(re, im, m, p0, a0 * st.d);
+  return { d: lam * Math.abs(z2) / (n * st.d), z: z2, zR: st.zR };
+}
+/* Move one line a distance t along the beam, choosing steps from its own pilot */
+function axisRoute(re, im, st, t, lam, k) {
+  const z2 = st.z + t;
+  const in1 = popInside(st.z, st.zR), in2 = popInside(z2, st.zR);
+  if (in1 && in2) return axisAS(re, im, st, t, lam);
+  let W = in1 ? axisAS(re, im, st, -st.z, lam) : axisToWaist(re, im, st, lam, k);
+  if (in2) return axisAS(re, im, W, z2, lam);
+  return axisFromWaist(re, im, W, z2, lam, k);
+}
+/* The same along every row (x) or every column (y) of a field */
+function field2Axis(F, axis, t) {
+  const N = F.N, lam = F.lam0 / F.n, k = 2 * Math.PI * F.n / F.lam0;
+  const re = new Float64Array(F.re), im = new Float64Array(F.im);
+  const lr = new Float64Array(N), li = new Float64Array(N);
+  let st = null;
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) { const o = axis === 'x' ? j * N + i : i * N + j; lr[i] = re[o]; li[i] = im[o]; }
+    st = axisRoute(lr, li, axis === 'x' ? F.ax : F.ay, t, lam, k);
+    for (let i = 0; i < N; i++) { const o = axis === 'x' ? j * N + i : i * N + j; re[o] = lr[i]; im[o] = li[i]; }
+  }
+  return Object.assign({}, F, { re, im, ax: axis === 'x' ? st : F.ax, ay: axis === 'y' ? st : F.ay });
+}
+function field2Propagate(F, t) {
+  if (t === 0) return F;
+  const G = field2Axis(field2Axis(F, 'x', t), 'y', t);
+  // e^{-ikt}, shared by both axes
+  const ph = -2 * Math.PI * F.n / F.lam0 * t, c = Math.cos(ph), s = Math.sin(ph);
+  for (let i = 0; i < G.re.length; i++) { const x = G.re[i] * c - G.im[i] * s; G.im[i] = G.re[i] * s + G.im[i] * c; G.re[i] = x; }
+  return G;
+}
+
+/* Power and moments on the grid */
+function popStats2(F) {
+  const N = F.N, dx = F.ax.d, dy = F.ay.d;
+  let p = 0, mx = 0, my = 0, mxx = 0, myy = 0, peak = 0;
+  for (let j = 0; j < N; j++) {
+    const y = (j - N / 2) * dy;
+    for (let i = 0; i < N; i++) {
+      const o = j * N + i, I = F.re[o] ** 2 + F.im[o] ** 2, x = (i - N / 2) * dx;
+      p += I; mx += I * x; my += I * y; mxx += I * x * x; myy += I * y * y;
+      if (I > peak) peak = I;
+    }
+  }
+  const cx = mx / (p || 1), cy = my / (p || 1);
+  const wx = 2 * Math.sqrt(Math.max(0, mxx / (p || 1) - cx * cx)), wy = 2 * Math.sqrt(Math.max(0, myy / (p || 1) - cy * cy));
+  const c = (N / 2) * N + N / 2;
+  return { power: p * dx * dy, w: wx, wx, wy, cx, cy, peak, axis: F.re[c] ** 2 + F.im[c] ** 2, R: N / 2 * dx };
+}
+
+/* A Gaussian beam: qx and qy are the complex beam parameters in the two planes */
+function popGaussian2(N, qx, qy, n, lam0, power) {
+  const k = 2 * Math.PI * n / lam0, lam = lam0 / n, G = Math.sqrt(Math.PI * N);
+  const ax = { d: G * popW(qx[0], qx[1], lam) / N, z: qx[0], zR: qx[1] };
+  const ay = { d: G * popW(qy[0], qy[1], lam) / N, z: qy[0], zR: qy[1] };
+  const re = new Float64Array(N * N), im = new Float64Array(N * N);
+  const part = (q, st) => {           // one axis of exp(-ik x^2 / 2q), with its reference taken out
+    const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -q[1] / den;
+    const sph = !popInside(q[0], q[1]);
+    const a = new Float64Array(N), ph = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const x = (i - N / 2) * st.d, x2 = x * x;
+      a[i] = Math.exp(0.5 * k * x2 * ii);
+      ph[i] = -0.5 * k * x2 * ir + (sph ? k * x2 / (2 * q[0]) : 0);
+    }
+    return [a, ph];
+  };
+  const [axA, axP] = part(qx, ax), [ayA, ayP] = part(qy, ay);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const o = j * N + i, a = axA[i] * ayA[j], ph = axP[i] + ayP[j];
+    re[o] = a * Math.cos(ph); im[o] = a * Math.sin(ph);
+  }
+  const F = { N, re, im, ax, ay, n, lam0 };
+  const s = Math.sqrt((power === undefined ? 1 : power) / popStats2(F).power);
+  for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
+  return F;
+}
+
+/* One segment of free space: whole fields for the next surface, and fast in-plane cuts
+   for the bench. A cut needs only the y = 0 row, so the y step collapses to one weighted
+   sum over each column and then only a single line goes through the x step. */
+function popLeg2(F0) {
+  const N = F0.N, lam = F0.lam0 / F0.n, k = 2 * Math.PI * F0.n / F0.lam0;
+  let Wy = null;
+  const yWaist = () => Wy || (Wy = field2Axis(F0, 'y', -F0.ay.z));
+  const rowAS = (st, dist) => {
+    const hr = new Float64Array(N), hi = new Float64Array(N), df = 1 / (N * st.d);
+    for (let m = 0; m < N; m++) { const fm = (m - N / 2) * df, ph = Math.PI * lam * dist * fm * fm; hr[m] = Math.cos(ph) / N; hi[m] = Math.sin(ph) / N; }
+    cdft(hr, hi, -1);
+    return [hr, hi];
+  };
+  const rowWTS = (st, z2) => {
+    const hr = new Float64Array(N), hi = new Float64Array(N), [p0, a0] = fresnelPre(lam, z2);
+    for (let n = 0; n < N; n++) { const y = (n - N / 2) * st.d, ph = p0 - k * y * y / (2 * z2); hr[n] = a0 * st.d * Math.cos(ph); hi[n] = a0 * st.d * Math.sin(ph); }
+    return [hr, hi];
+  };
+  return {
+    field: F0,
+    at: t => field2Propagate(F0, t),
+    stats: t => popStats2(field2Propagate(F0, t)),
+    cut(t) { const c = this.cutC(t), I = new Float64Array(N); for (let i = 0; i < N; i++) I[i] = c.re[i] ** 2 + c.im[i] ** 2; return { x: c.x, I, sym: false, w: c.w, half: c.half }; },
+    cutC(t) {
+      const z1 = F0.ay.z, z2 = z1 + t;
+      let base = F0, h;
+      if (popInside(z1, F0.ay.zR) && popInside(z2, F0.ay.zR)) h = rowAS(F0.ay, t);
+      else { base = yWaist(); h = popInside(z2, F0.ay.zR) ? rowAS(base.ay, z2) : rowWTS(base.ay, z2); }
+      const gr = new Float64Array(N), gi = new Float64Array(N);
+      for (let j = 0; j < N; j++) {
+        const a = h[0][j], b = h[1][j];
+        if (a === 0 && b === 0) continue;
+        const row = j * N;
+        for (let i = 0; i < N; i++) {
+          const ur = base.re[row + i], ui = base.im[row + i];
+          gr[i] += a * ur - b * ui; gi[i] += a * ui + b * ur;
+        }
+      }
+      const st = axisRoute(gr, gi, F0.ax, t, lam, k);
+      // the phase this far along that the full 2D step would add: e^{-ikt}
+      const ph = -k * t, c0 = Math.cos(ph), s0 = Math.sin(ph);
+      for (let i = 0; i < N; i++) { const a = gr[i] * c0 - gi[i] * s0; gi[i] = gr[i] * s0 + gi[i] * c0; gr[i] = a; }
+      const x = new Float64Array(N);
+      for (let i = 0; i < N; i++) x[i] = (i - N / 2) * st.d;
+      return { x, re: gr, im: gi, sym: false, b: popInside(st.z, st.zR) ? 0 : -k / (2 * st.z),
+        w: popW(st.z, st.zR, lam), half: N / 2 * st.d, k };
+    },
+  };
+}
+
+/* Catmull-Rom in both directions; zero off the grid */
+function interp2(F, x, y) {
+  const N = F.N, fx = x / F.ax.d + N / 2, fy = y / F.ay.d + N / 2;
+  const ix = Math.floor(fx), iy = Math.floor(fy);
+  if (ix < 1 || iy < 1 || ix > N - 3 || iy > N - 3) return [0, 0];
+  const tx = fx - ix, ty = fy - iy;
+  const w = t => [((-t + 2) * t - 1) * t / 2, (((3 * t - 5) * t) * t + 2) / 2, ((-3 * t + 4) * t + 1) * t / 2, ((t - 1) * t * t) / 2];
+  const wx = w(tx), wy = w(ty);
+  let r = 0, i = 0;
+  for (let b = 0; b < 4; b++) {
+    const row = (iy - 1 + b) * N + ix - 1;
+    let rr = 0, ri = 0;
+    for (let a = 0; a < 4; a++) { rr += wx[a] * F.re[row + a]; ri += wx[a] * F.im[row + a]; }
+    r += wy[b] * rr; i += wy[b] * ri;
+  }
+  return [r, i];
+}
+
+/* Through one surface. The pilot in each plane goes through the ABCD the traced
+   quadratic implies (in the bench plane this is the tracer's own; out of it, it is
+   the only way to know); the traced phase less that quadratic is the aberration,
+   sampled on the new grid. */
+function popSurface2(F, ev, gain, paraxial) {
+  const N = F.N, lam0 = F.lam0, G = Math.sqrt(Math.PI * N);
+  const n1 = F.n, n2 = ev.n2, k0 = 2 * Math.PI / lam0, k1 = k0 * n1, k2 = k0 * n2;
+  const lam1 = lam0 / n1, lam2 = lam0 / n2;
+  const qx = [F.ax.z, F.ax.zR], qy = [F.ay.z, F.ay.zR];
+  const inv = q => q[0] / (q[0] * q[0] + q[1] * q[1]);
+  const wix = popW(qx[0], qx[1], lam1), wiy = popW(qy[0], qy[1], lam1);
+  const tr = ev.surf ? popScreen(ev, inv(qx), inv(qy), lam0) : null;
+  // the local quadratic and magnification, from four rays close in
+  const hh = 1e-3 * Math.min(wix, wiy, Math.max(popClear(ev), 1e-6));
+  let bx = 0, by = 0, Ax = 1, Ay = 1;
+  if (tr) {
+    const px = tr(hh, 0), mx = tr(-hh, 0), py = tr(0, hh), my = tr(0, -hh);
+    Ax = (px[1] - mx[1]) / (2 * hh); Ay = (py[2] - my[2]) / (2 * hh);
+    if (ev.surf && ev.mode !== 'P') {
+      // a jump in path across the tiny step is an edge in the phase (a mask's step, a
+      // vortex's cut), not a curvature: only a smooth path gives the pilot a lens
+      const jump = u => Math.abs(u) > 0.05 * lam0;
+      if (!jump(px[0] + mx[0]) && !jump(px[0] - mx[0])) bx = -k0 * (px[0] + mx[0]) / (2 * hh * hh);
+      if (!jump(py[0] + my[0]) && !jump(py[0] - my[0])) by = -k0 * (py[0] + my[0]) / (2 * hh * hh);
+    }
+  }
+  const aAx = Math.abs(Ax) || 1, aAy = Math.abs(Ay) || 1;
+  // a thin element: q' = A q / (C q + D), D = (n1/n2)/A, C from the phase -k2 C A x^2 / 2
+  const through = (q, A, b) => {
+    const C = -2 * b / (k2 * A), D = n1 / (n2 * A);
+    const dr = C * q[0] + D, di = C * q[1], nr = A * q[0], ni = A * q[1], den = dr * dr + di * di;
+    return [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den];
+  };
+  let qxo = through(qx, aAx, bx), qyo = through(qy, aAy, by);
+  const iRxi = popInvR(qx), iRyi = popInvR(qy), iRxo = popInvR(qxo), iRyo = popInvR(qyo);
+  const traced = ev.surf && ev.mode !== 'P' && !paraxial;
+  // a grid for what comes out: the pilot's width, or less if the aperture will cut it
+  const a = popClear(ev);
+  let wxo = Math.max(1e-9, Math.min(popW(qxo[0], qxo[1], lam2), aAx * a));
+  const wyo = Math.max(1e-9, Math.min(popW(qyo[0], qyo[1], lam2), aAy * a));
+  // an opening off to one side must still fit on the grid, which stays on the reference ray
+  if (ev.mask && ev.mask.shape !== 'knife' && ev.mask.shape !== 'disc')
+    wxo = Math.max(wxo, 2.4 * (Math.abs(ev.ly - ev.mask.o) + ev.mask.a) * ev.cth * aAx / Math.sqrt(Math.PI * N));
+  // the aberration at an input point: traced phase plus the incoming wave, less the
+  // outgoing reference at the ray's true landing point; smooth wherever it is sampled
+  const abAt = (x, y, r) => -k0 * r[0] - bx * x * x - by * y * y
+    + popPhiExact(k1, iRxi, iRyi, x, y) - popPhiPar(k1, iRxi, iRyi, x, y)
+    - popPhiExact(k2, iRxo, iRyo, r[1], r[2]) + popPhiPar(k2, iRxo, iRyo, Ax * x, Ay * y);
+  // A grid fine enough for the aberration's steepest slope g needs L < N pi / 2g; the
+  // same limit makes the far-field grid wide enough for the blur it causes
+  const slope = (w, alongX) => {
+    if (!traced) return 0;
+    let g = 0, prev = null;
+    for (let i = 0; i <= 40; i++) {
+      const u = (i / 20 - 1) * 2.5 * w, r = alongX ? tr(u, 0) : tr(0, u);
+      if (!r[4] || r[3] < 0) { prev = null; continue; }
+      const v = alongX ? abAt(u, 0, r) : abAt(0, u, r);
+      if (prev !== null) g = Math.max(g, Math.abs(v - prev[1]) / Math.abs(u - prev[0]));
+      prev = [u, v];
+    }
+    return g;
+  };
+  const gx = slope(wix, true) / aAx, gy = slope(wiy, false) / aAy;
+  let steep = 0;
+  const span = (w, g) => {
+    let L = G * w;
+    if (g > 0) L = Math.min(L, N * Math.PI / (2 * g));
+    if (L < 5 * w) { steep = 1; L = 5 * w; }
+    return L;
+  };
+  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo, gy) / N, z: qyo[0], zR: qyo[1] };
+  const sphXi = !popInside(qx[0], qx[1]), sphYi = !popInside(qy[0], qy[1]);
+  const sphXo = !popInside(qxo[0], qxo[1]), sphYo = !popInside(qyo[0], qyo[1]);
+  const cx = bx + (sphXi ? -k1 / (2 * qx[0]) : 0) - (sphXo ? -k2 * Ax * Ax / (2 * qxo[0]) : 0);
+  const cy = by + (sphYi ? -k1 / (2 * qy[0]) : 0) - (sphYo ? -k2 * Ay * Ay / (2 * qyo[0]) : 0);
+  const re = new Float64Array(N * N), im = new Float64Array(N * N);
+  const pix = Math.max(ax.d / aAx, ay.d / aAy);
+  const g = Math.sqrt(1 / (aAx * aAy));
+  // phase that turns too fast only matters where there is light
+  let peakIn = 0;
+  for (let i = 0; i < N * N; i++) peakIn = Math.max(peakIn, F.re[i] ** 2 + F.im[i] ** 2);
+  // an edge that cuts a sample passes the sample's share of the area; with its amplitude at
+  // that share its power would fall short, so the whole is rescaled to the area's power
+  let pArea = 0, pAmp = 0;
+  for (let j = 0; j < N; j++) {
+    const y = (j - N / 2) * ay.d / Ay;
+    let prev = null;
+    for (let i = 0; i < N; i++) {
+      const x = (i - N / 2) * ax.d / Ax;
+      const [ur, ui] = interp2(F, x, y);
+      if (ur === 0 && ui === 0) { prev = null; continue; }
+      let m = 1, ab = 0;
+      if (tr) {
+        const r = tr(x, y);
+        if (!r[4]) { prev = null; continue; }
+        const cov = Math.min(1, Math.max(0, 0.5 + r[3] / pix));
+        m = cov * r[5];
+        if (m === 0) { prev = null; continue; }
+        const I = (ur * ur + ui * ui) * r[5] * r[5];
+        pArea += I * cov; pAmp += I * cov * cov;
+        if (traced) ab = abAt(x, y, r);
+      }
+      // how fast the sampled phase turns from one sample to the next
+      if (prev !== null && Math.abs(ab - prev) > 2 && ur * ur + ui * ui > 1e-6 * peakIn && m > 0.01) steep = 1;
+      prev = ab;
+      const ph = ab + cx * x * x + cy * y * y, amp = m * g, o = j * N + i;
+      const c = Math.cos(ph) * amp, s = Math.sin(ph) * amp;
+      re[o] = ur * c - ui * s; im[o] = ur * s + ui * c;
+    }
+  }
+  if (pAmp > 0 && pArea > pAmp) { const sc = Math.sqrt(pArea / pAmp); for (let i = 0; i < N * N; i++) { re[i] *= sc; im[i] *= sc; } }
+  const out = { N, re, im, ax, ay, n: n2, lam0 };
+  const pIn = popStats2(F).power, S = popStats2(out);
+  const clipped = S.power < pIn * (1 - 1e-4);
+  if (clipped) {
+    // refit each pilot to what got through: curvature kept, width from the second moment
+    const refit = (q, w) => {
+      const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
+      return [ir / d2, -ii / d2];
+    };
+    // widths about the reference axis, not the light's own centre, so later grids, which
+    // stay on the axis, still reach light that got through off to one side
+    const nx = refit(qxo, Math.hypot(S.wx, 2 * S.cx)), ny = refit(qyo, Math.hypot(S.wy, 2 * S.cy));
+    // the residual is held against the old references; swap them for the new ones
+    const ref = (q, x) => popInside(q[0], q[1]) ? 0 : -k2 * x * x / (2 * q[0]);
+    for (let j = 0; j < N; j++) {
+      const yy = (j - N / 2) * ay.d, py0 = ref(qyo, yy) - ref(ny, yy);
+      for (let i = 0; i < N; i++) {
+        const o = j * N + i;
+        if (re[o] === 0 && im[o] === 0) continue;
+        const xx = (i - N / 2) * ax.d;
+        cmulPhase(re, im, o, ref(qxo, xx) - ref(nx, xx) + py0, 1);
+      }
+    }
+    qxo = nx; qyo = ny;
+    ax.z = nx[0]; ax.zR = nx[1]; ay.z = ny[0]; ay.zR = ny[1];
+  }
+  const gs = Math.sqrt(gain === undefined ? 1 : gain);
+  for (let i = 0; i < N * N; i++) { re[i] *= gs; im[i] *= gs; }
+  return { field: out, clipped, steep };
+}
+
+/* ---------- The beam tree as diffracted fields ----------
+   The beam-parameter ray leaves a tree of segments: each starts at a surface (or the
+   source) and knows its parent, so splitters and cavity round trips give branches.
+   Each branch carries its own field; where branches of one launch meet they add as fields. */
+const POP_ROWS = 96;               // rows across a drawn slice
+const POP_SLICES = 1800;           // slices drawn over the whole scene
+const POP_MAX_SEGS = 300;
+const popState = { key: '', result: null, timer: null, job: null };
+
+const popSources = () => project.elements.filter(e => e.type === 'source' && e.gauss && e.beamView === 'field');
+function popKeyOf(beams, srcs) {
+  const ids = new Set(srcs.map(e => e.id));
+  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale]);
+  return JSON.stringify([cfg, beams.filter(b => ids.has(b.src)).map(b =>
+    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev])]);
+}
+
+/* Clear radius a surface offers the beam: its semi-aperture less the decentre, seen
+   along the beam, so a tilted face offers its projection */
+const popClear = ev => {
+  if (ev && ev.mask) {
+    const M = ev.mask;
+    if (M.shape === 'knife' || M.shape === 'disc') return Infinity;
+    return M.a * ev.cth;                               // the opening's own size sets the sampling
+  }
+  return (ev && ev.semi > 0) ? Math.max(0, ev.semi - Math.abs(ev.ly)) * ev.cth : Infinity;
+};
+
+/* Does the beam stay round through this surface? Centred on it, square to it where it is
+   curved, no anamorphic stretch, and not an off-axis segment of a larger surface. */
+function popRoundEv(ev) {
+  if (!ev) return true;
+  if (ev.mask) {
+    const M = ev.mask;
+    if (M.shape !== 'round' && M.shape !== 'disc') return false;
+    if (Math.abs(ev.ly - M.o) > 1e-9 * Math.max(1, M.a)) return false;
+    return Math.abs(ev.cth - 1) < 1e-9;
+  }
+  if (ev.surf && ev.surf.maskFn && !popMaskRound(ev)) return false;
+  if (Math.abs(ev.A - 1) > 1e-9) return false;
+  if (Math.abs(ev.ly) > 1e-9 * Math.max(1, ev.semi)) return false;
+  const s = ev.surf;
+  if (s && s.y0) return false;
+  if (s && !s.flat && ev.mode !== 'P' && Math.abs(ev.cth - 1) > 1e-9) return false;
+  return true;
+}
+const POP_MAX_SEGS_2D = 60;
+
+/* The field run, as a generator so the page can do it a slice at a time between frames */
+function popRun(beams, srcs, opts = {}) {
+  const g = popRunGen(beams, srcs, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+function* popRunGen(beams, srcs, opts = {}) {
+  let busy = 0, t0 = performance.now();
+  const bySrc = new Map(srcs.map(e => [e.id, e]));
+  const kids = new Map();
+  const why = new Map();                     // source id -> elements that make its beam not round
+  beams.forEach((b, i) => {
+    if (!bySrc.has(b.src) || (opts.keep && !opts.keep.has(i))) return;
+    if (!kids.has(b.parent)) kids.set(b.parent, []);
+    kids.get(b.parent).push(i);
+    if (!popRoundEv(b.ev)) { if (!why.has(b.src)) why.set(b.src, new Set()); why.get(b.src).add(b.ev.el); }
+  });
+  const engine = new Map(srcs.map(e => [e.id, (e.popModel === '2d' || why.has(e.id)) ? '2d' : 'round']));
+  const segs = [], notes = { clipped: new Set(), steep: new Set(), why, engine };
+  const todo = (kids.get(-1) || []).map(i => ({ i, F: null, root: beams[i].w || 1, repr: 1 }));
+  const count = { round: 0, '2d': 0 };
+  let truncated = false;
+  while (todo.length) {
+    const job = todo.pop();
+    const b = beams[job.i], src = bySrc.get(b.src), eng = engine.get(b.src);
+    if (count[eng] >= (eng === '2d' ? POP_MAX_SEGS_2D : POP_MAX_SEGS)) { truncated = true; continue; }
+    count[eng]++;
+    const lam0 = b.nm * 1e-6, q = [b.qr, b.qi];
+    let F0 = job.F;
+    if (!F0 && b.fan) {
+      const shape = fanShape(src, b.nm);
+      F0 = eng === '2d' ? popFan2(src.popN, q, b.n, lam0, 1, shape) : popFanRound(src.popN, q, b.n, lam0, 1, shape);
+    } else if (!F0) F0 = eng === '2d' ? popGaussian2(src.popN, q, q, b.n, lam0, 1) : popGaussian(src.popN, q, b.n, lam0, 1);
+    const leg = eng === '2d' ? popLeg2(F0) : popLeg(F0);
+    const repr = job.F ? job.repr : (F0.repr || 1);
+    const sg = { i: job.i, b, src, eng, F0, leg, root: job.root, clipped: !!job.clipped, repr };
+    segs.push(sg);
+    busy += performance.now() - t0; yield; t0 = performance.now();
+    // weaker branches go first when the budget runs short: the stack is last in, first out
+    const ch = (kids.get(job.i) || []).filter(c => beams[c].w >= (eng === '2d' ? 1e-3 : 1e-4) * job.root)
+      .sort((a, c) => beams[a].w - beams[c].w);
+    if (!ch.length) continue;
+    const Fend = leg.at(b.len);
+    for (const c of ch) {
+      const cb = beams[c], ev = cb.ev || { A: 1, C: 0, D: 1, n2: b.n };
+      const gain = 1;          // the field keeps unit power; each segment's Jones vector carries its amplitude
+      let out;
+      if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial) : { field: Fend, clipped: false };
+      else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial,
+        disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : null });
+      if (out.clipped && ev.el) notes.clipped.add(ev.el);
+      if (out.steep && ev.el) notes.steep.add(ev.el);
+      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr });
+    }
+  }
+  if (opts.draw) {
+    // branches that run together add as fields, so they are drawn as one
+    for (const item of popGroups(segs)) { popSlices([item], opts.per); busy += performance.now() - t0; yield; t0 = performance.now(); }
+  }
+  busy += performance.now() - t0;
+  return { segs, notes, truncated, ms: busy };
+}
+
+
+/* ---------- Where branches meet: fields that add ----------
+   Branches of one beam tree share a source, a wavelength and a polarisation launch, so
+   where they overlap their fields add. A branch's field is its spatial profile, which has
+   unit power and every propagation phase in it, times its Jones vector from the tracer,
+   which carries each reflection and transmission with its phase. The tracer works in
+   e^{+ikL} and the field in e^{-ikz}, so the Jones vector enters conjugated. */
+const popJ = b => { const g = b.par ? -1 : 1; return [b.J[0], -b.J[1], g * b.J[2], -g * b.J[3]]; };   // conjugated s and p, p with its parity
+const popWJ = b => b.J[0] ** 2 + b.J[1] ** 2 + b.J[2] ** 2 + b.J[3] ** 2;
+const POP_GROUP_ANGLE = 0.02;                                 // rad: beams closer than this in direction may overlap
+
+/* Branches that run together on the bench: same tree, nearly the same direction, and
+   starting close enough, side to side and along, to overlap */
+function popGroups(segs) {
+  const n = segs.length, parent = segs.map((_, i) => i);
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const wAt = sg => sg.eng === '2d' ? Math.max(popW(sg.F0.ax.z, sg.F0.ax.zR, sg.F0.lam0 / sg.F0.n), popW(sg.F0.ay.z, sg.F0.ay.zR, sg.F0.lam0 / sg.F0.n))
+    : popW(sg.F0.z, sg.F0.zR, sg.F0.lam0 / sg.F0.n);
+  const w = segs.map(wAt);
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const a = segs[i].b, b = segs[j].b;
+    if (a.coh !== b.coh) continue;
+    if (a.dx * b.dx + a.dy * b.dy < Math.cos(POP_GROUP_ANGLE)) continue;
+    const ox = b.x0 - a.x0, oy = b.y0 - a.y0;
+    const side = Math.abs(-a.dy * ox + a.dx * oy), along = Math.abs(a.dx * ox + a.dy * oy);
+    if (side > 2 * (w[i] + w[j]) + 1e-6) continue;
+    if (along > Math.max(1, 0.05 * Math.min(a.len, b.len))) continue;
+    parent[find(i)] = find(j);
+  }
+  const groups = new Map();
+  segs.forEach((sg, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(sg); });
+  return [...groups.values()].map(members => ({
+    members, lead: members.reduce((x, y) => popWJ(y.b) > popWJ(x.b) ? y : x),
+  }));
+}
+
+/* A complex cut's value at x: its residual interpolated, and its reference put back exactly */
+function popCutAt(c, x) {
+  const xs = c.x, n = xs.length, q = c.sym ? Math.abs(x) : x;
+  let ur = 0, ui = 0;
+  if (q <= xs[0]) { if (c.sym) { ur = c.re[0]; ui = c.im[0]; } else return [0, 0]; }
+  else if (q < xs[n - 1]) {
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] <= q) lo = mid; else hi = mid; }
+    const t = (q - xs[lo]) / (xs[hi] - xs[lo]);
+    ur = c.re[lo] + (c.re[hi] - c.re[lo]) * t; ui = c.im[lo] + (c.im[hi] - c.im[lo]) * t;
+  } else return [0, 0];
+  const ph = c.b * x * x, cs = Math.cos(ph), sn = Math.sin(ph);
+  return [ur * cs - ui * sn, ur * sn + ui * cs];
+}
+
+/* The cut through a group at distance t along its lead: every member's field, in the
+   lead's frame, with its Jones vector, added. gain is the power the sum carries. */
+function popGroupCut(item, t) {
+  const L = item.lead.b, exLx = -L.dy, exLy = L.dx;
+  const Px = L.x0 + L.dx * t, Py = L.y0 + L.dy * t;
+  const parts = [];
+  let Yg = 0, wMax = 0;
+  for (const m of item.members) {
+    const b = m.b, ox = Px - b.x0, oy = Py - b.y0;
+    const tm = ox * b.dx + oy * b.dy;
+    if (tm < -1e-9 || tm > b.len + 1e-9) continue;
+    const c = m.leg.cutC(clamp(tm, 0, b.len));
+    const x0 = -b.dy * ox + b.dx * oy, cx = exLx * -b.dy + exLy * b.dx, cz = exLx * b.dx + exLy * b.dy;
+    parts.push({ c, x0, cx, cz, J: popJ(b), wJ: popWJ(b), kn: c.k });
+    Yg = Math.max(Yg, Math.abs(x0) + 2.5 * c.w); wMax = Math.max(wMax, c.w);
+  }
+  const M = 2 * POP_ROWS, x = new Float64Array(M), I = new Float64Array(M);
+  if (!parts.length) return { x, I, sym: false, w: 1, half: 1, gain: 0 };
+  Yg = Math.min(Yg, Math.max(...parts.map(p => p.c.half)));
+  let sumC = 0, sumI = 0;
+  for (let i = 0; i < M; i++) {
+    const y = ((i + 0.5) / M * 2 - 1) * Yg;
+    x[i] = y;
+    let sr = 0, si = 0, pr = 0, pi = 0, inc = 0;
+    for (const p of parts) {
+      const [er, ei] = popCutAt(p.c, p.x0 + y * p.cx);
+      const ph = -p.kn * y * p.cz, cs = Math.cos(ph), sn = Math.sin(ph);   // the member's own path to this row
+      const fr = er * cs - ei * sn, fi = er * sn + ei * cs;
+      const [a, b, c2, d] = p.J;
+      sr += fr * a - fi * b; si += fr * b + fi * a;
+      pr += fr * c2 - fi * d; pi += fr * d + fi * c2;
+      inc += (fr * fr + fi * fi) * p.wJ;
+    }
+    I[i] = sr * sr + si * si + pr * pr + pi * pi;
+    sumC += I[i]; sumI += inc;
+  }
+  const wSum = parts.reduce((s, p) => s + p.wJ, 0);
+  return { x, I, sym: false, w: wMax, half: Yg, gain: sumI > 0 ? sumC / sumI * wSum : 0 };
+}
+
+
+/* ---------- The close-up: the field on each pixel ----------
+   Zoomed in to a few tens of microns, every beam segment crossing the view is sampled at
+   the pixels themselves. Over so short a stretch a beam's envelope, curvature and Gouy
+   phase barely change, so each segment is cut at three places through the view and its
+   envelope interpolated between them, while the fast phase e^{-iknz} is exact. The fields
+   add as vectors, per launch: s out of the plane, p in it along each beam's own normal,
+   so counter-propagating beams show their standing wave and crossing beams their fringes. */
+const CLOSEUP_MM = 0.05;                 // view width below which the close-up takes over
+const CLOSEUP_STEP = 2;                  // CSS pixels per sample
+const closeState = { key: '', img: null, info: null, step: 2, timer: null };
+let closeupOn = false;
+
+/* The segments of a field run that reach a window centred at (cx, cy) with half-size hw,
+   each prepared with three cuts */
+function closeupPrep(segs, cx, cy, hw) {
+  const out = [];
+  for (const sg of segs) {
+    const b = sg.b, exx = -b.dy, exy = b.dx;
+    const rx = cx - b.x0, ry = cy - b.y0;
+    const tc = rx * b.dx + ry * b.dy, xc = rx * exx + ry * exy;
+    if (tc < -hw * 1.5 || tc > b.len + hw * 1.5) continue;
+    const c1 = sg.leg.cutC(clamp(tc, 0, b.len));
+    if (Math.abs(xc) > hw * 1.5 + c1.half) continue;
+    const ts = [...new Set([clamp(tc - hw, 0, b.len), clamp(tc, 0, b.len), clamp(tc + hw, 0, b.len)])];
+    const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
+    const J = popJ(b);
+    out.push({ b, ts, cuts, k: c1.k, J, ex: [exx, exy], colour: b.colour, coh: b.coh, bounds: closeupBounds(b), reach: 4 * c1.w });
+  }
+  return out;
+}
+/* One segment's complex field at a world point, or null where it does not run */
+/* Which side of a surface a point is on, in the bench plane: +1 or -1, 0 on it */
+function surfSide(s, X, Y) {
+  const [lx, ly] = toLocal(s.f, X, Y);
+  const v = lx - s.z - (s.flat ? 0 : sagFn(s, clamp(ly, -s.semi, s.semi)));
+  return Math.abs(v) < 1e-9 ? 0 : Math.sign(v);
+}
+/* The sides of its start and end surfaces a segment's light is on; near a tilted surface
+   these, not the planes square to the beam, bound where it runs */
+function closeupBounds(b) {
+  const d = 1e-4, S = b.ev && b.ev.surf, E = b.endSurf;
+  return {
+    start: S && S.f ? [S, surfSide(S, b.x0 + b.dx * d, b.y0 + b.dy * d)] : null,
+    end: E && E.f ? [E, surfSide(E, b.x0 + b.dx * (b.len - d), b.y0 + b.dy * (b.len - d))] : null,
+  };
+}
+function closeupSeg(P, X, Y) {
+  const b = P.b, rx = X - b.x0, ry = Y - b.y0;
+  const t = rx * b.dx + ry * b.dy;
+  const B = P.bounds;
+  if (B.start) { const sd = surfSide(B.start[0], X, Y); if (sd && sd !== B.start[1]) return null; }
+  else if (t < -1e-9) return null;
+  if (B.end) { const sd = surfSide(B.end[0], X, Y); if (sd && sd !== B.end[1]) return null; }
+  else if (t > b.len + 1e-9) return null;
+  if (t < -P.reach || t > b.len + P.reach) return null;    // well past its ends: not this segment's light
+  const x = rx * P.ex[0] + ry * P.ex[1];
+  // envelope at each cut, with the fast phase taken off, then Lagrange through them
+  let ar = 0, ai = 0;
+  const n = P.ts.length;
+  for (let j = 0; j < n; j++) {
+    let l = 1;
+    for (let m = 0; m < n; m++) if (m !== j) l *= (t - P.ts[m]) / (P.ts[j] - P.ts[m]);
+    const [er, ei] = popCutAt(P.cuts[j], x), ph = P.k * P.ts[j], c = Math.cos(ph), s = Math.sin(ph);
+    ar += l * (er * c - ei * s); ai += l * (er * s + ei * c);
+  }
+  const ph = -P.k * t, c = Math.cos(ph), s = Math.sin(ph);
+  return [ar * c - ai * s, ar * s + ai * c];
+}
+/* Intensity and its parts at a world point from prepared segments, fields added per launch */
+function closeupAt(parts, X, Y) {
+  const acc = new Map();
+  for (const P of parts) {
+    const e = closeupSeg(P, X, Y);
+    if (!e) continue;
+    let A = acc.get(P.coh);
+    if (!A) acc.set(P.coh, A = { zr: 0, zi: 0, xr: 0, xi: 0, yr: 0, yi: 0, inc: 0, colour: P.colour });
+    const [er, ei] = e, [a, bb, c2, d] = P.J;
+    const sr = er * a - ei * bb, si = er * bb + ei * a, pr = er * c2 - ei * d, pi = er * d + ei * c2;
+    A.zr += sr; A.zi += si;                               // s: out of the bench plane
+    A.xr += pr * P.ex[0]; A.xi += pi * P.ex[0];           // p: in it, along the beam's own normal
+    A.yr += pr * P.ex[1]; A.yi += pi * P.ex[1];
+    A.inc += (er * er + ei * ei) * (a * a + bb * bb + c2 * c2 + d * d);
+  }
+  let I = 0, inc = 0;
+  const byColour = [];
+  for (const A of acc.values()) {
+    const v = A.zr ** 2 + A.zi ** 2 + A.xr ** 2 + A.xi ** 2 + A.yr ** 2 + A.yi ** 2;
+    I += v; inc += A.inc; byColour.push([A.colour, v]);
+  }
+  return { I, inc, byColour };
+}
+
+/* Draws the close-up; returns true when it has taken over from the ordinary overlay. A new
+   view is drawn coarse first, then refined once it has been still for a moment. */
+function drawCloseup() {
+  const s = V().scale, wmm = W / s;
+  if (wmm >= CLOSEUP_MM) return false;
+  const srcs = popSources();
+  if (!srcs.length) return false;
+  const key = popKeyOf(lastTrace.beams, srcs);
+  if (key !== popState.key || !popState.result) { schedulePop(); return false; }
+  const vkey = key.length + '|' + key.slice(0, 64) + '|' + [V().cx, V().cy, s, W, H].join(',');
+  if (closeState.key !== vkey) {
+    closeupCompute(vkey, srcs, 2 * CLOSEUP_STEP);
+    clearTimeout(closeState.timer);
+    closeState.timer = setTimeout(() => {
+      if (closeState.key === vkey && closeState.step > CLOSEUP_STEP) { closeupCompute(vkey, srcs, CLOSEUP_STEP); requestRender(); }
+    }, 180);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(closeState.img, 0, 0, closeState.img.width * closeState.step, closeState.img.height * closeState.step);
+  ctx.restore();
+  const inf = closeState.info;
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = '11px ' + getCss('--jek-mono');
+  ctx.textAlign = 'left';
+  ctx.fillText('Close-up: the field on each pixel' + (inf.beams ? ', ' + inf.beams + ' beam segment' + (inf.beams === 1 ? '' : 's') : ', no beam here') +
+    (inf.contrast !== null && inf.beams > 1 ? ' \u00b7 fringe contrast ' + inf.contrast.toFixed(3) : '') +
+    (inf.lamN ? ' \u00b7 \u03bb/2n = ' + fmtLen(inf.lamN / 2) : ''), 14, 20);
+  return true;
+}
+function closeupCompute(vkey, srcs, step) {
+  const s = V().scale, hw = 0.5 * Math.hypot(W, H) / s;
+  const parts = closeupPrep(popState.result.segs, V().cx, V().cy, hw);
+  // launches in a fixed order, so each pixel adds into plain arrays
+  const lid = new Map();
+  for (const P of parts) { if (!lid.has(P.coh)) lid.set(P.coh, lid.size); P.li = lid.get(P.coh); }
+  const nL = lid.size, acc = new Float64Array(nL * 6), launchCol = new Array(nL);
+  const probe = document.createElement('canvas').getContext('2d');
+  for (const P of parts) if (!launchCol[P.li]) { probe.fillStyle = P.colour; const h2 = probe.fillStyle; launchCol[P.li] = [1, 3, 5].map(i => parseInt(h2.slice(i, i + 2), 16)); }
+  const nx = Math.ceil(W / step), ny = Math.ceil(H / step);
+  const I = new Float32Array(nx * ny), INC = new Float32Array(nx * ny), RGB = new Float32Array(nx * ny * 3);
+  let pk = 0, iMax = 0;
+  for (let j = 0; j < ny; j++) {
+    const Y = wy((j + 0.5) * step);
+    for (let i = 0; i < nx; i++) {
+      const X = wx((i + 0.5) * step);
+      acc.fill(0);
+      let inc = 0;
+      for (const P of parts) {
+        const e = closeupSeg(P, X, Y);
+        if (!e) continue;
+        const er = e[0], ei = e[1], a = P.J[0], bb = P.J[1], c2 = P.J[2], d = P.J[3], o = P.li * 6;
+        const pr = er * c2 - ei * d, pi = er * d + ei * c2;
+        acc[o] += er * a - ei * bb; acc[o + 1] += er * bb + ei * a;          // s, out of the plane
+        acc[o + 2] += pr * P.ex[0]; acc[o + 3] += pi * P.ex[0];              // p, along the beam's own normal
+        acc[o + 4] += pr * P.ex[1]; acc[o + 5] += pi * P.ex[1];
+        inc += (er * er + ei * ei) * (a * a + bb * bb + c2 * c2 + d * d);
+      }
+      let v = 0, R = 0, G = 0, Bc = 0;
+      for (let L = 0; L < nL; L++) {
+        const o = L * 6, u = acc[o] ** 2 + acc[o + 1] ** 2 + acc[o + 2] ** 2 + acc[o + 3] ** 2 + acc[o + 4] ** 2 + acc[o + 5] ** 2;
+        v += u; R += launchCol[L][0] * u; G += launchCol[L][1] * u; Bc += launchCol[L][2] * u;
+      }
+      const q = j * nx + i;
+      I[q] = v; INC[q] = inc;
+      if (v > 0) { RGB[q * 3] = R / v; RGB[q * 3 + 1] = G / v; RGB[q * 3 + 2] = Bc / v; }
+      if (v > pk) pk = v;
+      if (inc > iMax) iMax = inc;
+    }
+  }
+  // standing-wave contrast where the light is: the spread of the coherent sum there
+  let lo = Infinity, hi = 0;
+  for (let q = 0; q < nx * ny; q++) if (INC[q] >= 0.5 * iMax) { if (I[q] < lo) lo = I[q]; if (I[q] > hi) hi = I[q]; }
+  const log = srcs.some(e => e.beamScale === 'log');
+  const img = new ImageData(nx, ny);
+  for (let q = 0; q < nx * ny; q++) {
+    let v = pk > 0 ? I[q] / pk : 0;
+    if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
+    img.data[q * 4] = RGB[q * 3]; img.data[q * 4 + 1] = RGB[q * 3 + 1]; img.data[q * 4 + 2] = RGB[q * 3 + 2];
+    img.data[q * 4 + 3] = Math.round(255 * Math.min(1, v));
+  }
+  const cv = document.createElement('canvas'); cv.width = nx; cv.height = ny;
+  cv.getContext('2d').putImageData(img, 0, 0);
+  closeState.key = vkey; closeState.img = cv; closeState.step = step;
+  closeState.info = { contrast: hi + lo > 0 && isFinite(lo) ? (hi - lo) / (hi + lo) : null, beams: parts.length,
+    lamN: parts.length ? 2 * Math.PI / parts[0].k : null };
+}
+
+/* The field at one world point, for the checks: every Gaussian source's tree, as the
+   close-up would show it */
+const fieldPointCache = { key: '', R: null };
+function fieldAtPoint(X, Y) {
+  const srcs = project.elements.filter(e => e.type === 'source' && e.gauss);
+  const key = popKeyOf(lastTrace.beams, srcs);
+  if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
+  const parts = closeupPrep(fieldPointCache.R.segs, X, Y, 1e-3);
+  return closeupAt(parts, X, Y);
+}
+/* Intensities along a line, prepared once for the whole of it */
+function fieldAlongLine(x0, y0, x1, y1, n) {
+  const srcs = project.elements.filter(e => e.type === 'source' && e.gauss);
+  const key = popKeyOf(lastTrace.beams, srcs);
+  if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
+  const parts = closeupPrep(fieldPointCache.R.segs, 0.5 * (x0 + x1), 0.5 * (y0 + y1), 0.5 * Math.hypot(x1 - x0, y1 - y0) + 1e-4);
+  const out = [];
+  for (let i = 0; i <= n; i++) out.push(closeupAt(parts, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n).I);
+  return out;
+}
+
+/* Where to cut a segment into slices: evenly along it, and evenly in Gouy phase so a
+   focus gets as many slices as the long legs either side of it */
+function popTimes(F0, len, n) {
+  const ts = [];
+  const nu = Math.max(2, Math.round(n / 2)), ng = Math.max(2, n - nu);
+  for (let k = 0; k <= nu; k++) ts.push(len * k / nu);
+  const a0 = Math.atan(F0.z / F0.zR), a1 = Math.atan((F0.z + len) / F0.zR);
+  for (let k = 1; k < ng; k++) ts.push(F0.zR * Math.tan(a0 + (a1 - a0) * k / ng) - F0.z);
+  ts.sort((a, b) => a - b);
+  return ts.filter((t, i) => t >= 0 && t <= len && (i === 0 || t - ts[i - 1] > len * 1e-4));
+}
+
+function popSlices(items, perIn) {
+  const per = perIn || clamp(Math.floor(POP_SLICES / Math.max(1, items.length)), 6, 48);
+  const per2 = Math.min(per, 32);
+  const SUB = 4;                                   // drawn columns per slice gap
+  const probe = document.createElement('canvas').getContext('2d');
+  for (const item of items) {
+    const sg = item.lead, grouped = item.members.length > 1;
+    const Fp = sg.eng === '2d' ? { z: sg.F0.ax.z, zR: sg.F0.ax.zR } : sg.F0;
+    const ts = popTimes(Fp, sg.b.len, sg.eng === '2d' ? per2 : per);
+    probe.fillStyle = sg.b.colour;
+    const hex = probe.fillStyle;                    // the browser hands back #rrggbb
+    const cr = parseInt(hex.slice(1, 3), 16), cg = parseInt(hex.slice(3, 5), 16), cb = parseInt(hex.slice(5, 7), 16);
+    const log = sg.src.beamScale === 'log';
+    // each slice as a column of normalised values over y / Y, where Y is its drawn half-width;
+    // a round field is a radial profile, a 2D one the cut through the bench plane
+    const cols = [], Ys = [], gains = [];
+    for (const t of ts) {
+      const { x, I, sym, w, half, gain } = grouped ? popGroupCut(item, t) : sg.leg.cut(t);
+      gains.push(grouped ? gain : 1);
+      const n = x.length;
+      let Imax = 0, tot = 0;
+      const wt = i => sym ? I[i] * x[i] : I[i];          // area of a ring, or length of a sample
+      for (let i = 0; i < n; i++) { if (I[i] > Imax) Imax = I[i]; tot += wt(i); }
+      // half-width to draw: out to where 99.5% of the power is, with a margin, found
+      // between samples so the drawn outline moves smoothly along the beam
+      let X99 = half;
+      if (sym) {
+        let acc = 0;
+        for (let i = 0; i < n; i++) {
+          const a = acc + wt(i);
+          if (a >= 0.995 * tot) { const f = (0.995 * tot - acc) / (wt(i) || 1); X99 = (i ? x[i - 1] : 0) + f * (x[i] - (i ? x[i - 1] : 0)); break; }
+          acc = a;
+        }
+      } else {
+        const c = n / 2;
+        let acc = I[c];
+        for (let m = 1; m < c; m++) {
+          const add = I[c - m] + I[c + m];
+          if (acc + add >= 0.995 * tot) { X99 = (m - 1 + (0.995 * tot - acc) / (add || 1)) * (x[1] - x[0]); break; }
+          acc += add;
+        }
+      }
+      const Y = Math.min(half, 1.3 * Math.max(X99, w));
+      const col = new Float32Array(POP_ROWS);
+      for (let row = 0; row < POP_ROWS; row++) {
+        // rows run from -Y (the right of the beam) to +Y (its left)
+        const yy = ((row + 0.5) / POP_ROWS * 2 - 1) * Y, y = sym ? Math.abs(yy) : yy;
+        let v = 0;
+        if (y <= x[0]) v = sym ? I[0] : 0;
+        else if (y < x[n - 1]) {
+          let lo = 0, hi = n - 1;
+          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] <= y) lo = mid; else hi = mid; }
+          v = I[lo] + (I[hi] - I[lo]) * (y - x[lo]) / (x[hi] - x[lo]);
+        }
+        v = Imax > 0 ? v / Imax : 0;
+        col[row] = log ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3) : v;
+      }
+      cols.push(col); Ys.push(Y);
+    }
+    // blend between slices in normalised radius, so the drawn width changes smoothly
+    const dts = [], dYs = [], dcols = [], dgs = [];
+    for (let c = 0; c < ts.length; c++) {
+      const k = c < ts.length - 1 ? SUB : 1;
+      for (let s = 0; s < k; s++) {
+        const u = s / SUB, c2 = Math.min(c + 1, ts.length - 1);
+        dts.push(ts[c] + (ts[c2] - ts[c]) * u);
+        dYs.push(Ys[c] + (Ys[c2] - Ys[c]) * u);
+        dgs.push(gains[c] + (gains[c2] - gains[c]) * u);
+        const col = new Float32Array(POP_ROWS);
+        for (let row = 0; row < POP_ROWS; row++) col[row] = cols[c][row] * (1 - u) + cols[c2][row] * u;
+        dcols.push(col);
+      }
+    }
+    // each column three pixels wide, drawn from its middle one, so smoothing never
+    // reaches into the next column and the seams between them do not show
+    const img = new ImageData(3 * dts.length, POP_ROWS);
+    dcols.forEach((col, c) => {
+      for (let row = 0; row < POP_ROWS; row++) {
+        for (let k = 0; k < 3; k++) {
+          const o = (row * 3 * dts.length + 3 * c + k) * 4;
+          img.data[o] = cr; img.data[o + 1] = cg; img.data[o + 2] = cb;
+          img.data[o + 3] = Math.round(255 * col[row] * clamp(dgs[c], 0.03, 1));
+        }
+      }
+    });
+    const cv = document.createElement('canvas');
+    cv.width = 3 * dts.length; cv.height = POP_ROWS;
+    cv.getContext('2d').putImageData(img, 0, 0);
+    // each branch as bright as the power it carries, so round trips fade as they leak
+    // a lone branch as bright as the power it carries; a group column by column, from
+    // the power its fields add up to, so a dark port is dark
+    sg.draw = { ts: dts, Ys: dYs, cv, alpha: grouped ? 1 : clamp(sg.b.w || 1, 0.04, 1), members: item.members.length };
+  }
+}
+
+/* Runs the field a few tens of milliseconds at a time; a change to the bench restarts it */
+function schedulePop() {
+  if (popState.timer || TEST_MODE) return;
+  popState.timer = setTimeout(function step() {
+    const srcs = popSources();
+    const key = popKeyOf(lastTrace.beams, srcs);
+    if (!popState.job || popState.job.key !== key) {
+      if (key === popState.key) { popState.timer = null; popState.job = null; return; }
+      if (!srcs.length) { popState.result = null; popState.key = key; popState.timer = null; requestRender(); return; }
+      // slices per segment from a rough count of the segments to come
+      const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
+      popState.job = { key, gen: popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }) };
+    }
+    const until = performance.now() + 30;
+    let r;
+    do r = popState.job.gen.next(); while (!r.done && performance.now() < until);
+    if (r.done) {
+      popState.result = r.value; popState.key = popState.job.key; popState.job = null; popState.timer = null;
+      requestRender(); syncPanel();
+      return;
+    }
+    popState.timer = setTimeout(step, 0);
+  }, 60);
+}
+
+/* The field overlay; returns the sources it drew, so their envelopes are only outlined */
+function drawPop() {
+  const srcs = popSources();
+  if (!srcs.length) return new Set();
+  const key = popKeyOf(lastTrace.beams, srcs);
+  if (key !== popState.key) { schedulePop(); return new Set(); }
+  const R = popState.result;
+  if (!R) return new Set();
+  const s = V().scale;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.imageSmoothingEnabled = true;
+  for (const sg of R.segs) {
+    const D = sg.draw, b = sg.b;
+    if (!D) continue;
+    const nx = -b.dy, ny = b.dx;
+    ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
+    ctx.globalAlpha = 0.95 * D.alpha;
+    const ts = D.ts;
+    for (let c = 0; c < ts.length; c++) {
+      const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0];
+      const tB = c < ts.length - 1 ? 0.5 * (ts[c] + ts[c + 1]) : ts[c];
+      if (tB <= tA) continue;
+      ctx.drawImage(D.cv, 3 * c + 1, 0, 1, POP_ROWS, tA, -D.Ys[c], tB - tA, 2 * D.Ys[c]);
+    }
+  }
+  ctx.restore();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  return new Set(srcs.map(e => e.id));
+}
+
+/* A line for the source panel on what the field run found */
+function popNote(el) {
+  const R = popState.result;
+  if (!R || popState.key !== popKeyOf(lastTrace.beams, popSources())) return 'Computing the field\u2026';
+  const mine = R.segs.filter(sg => sg.src === el);
+  if (!mine.length) return 'No beam to propagate.';
+  const name = id => { const e = getEl(id); return e ? e.name : '?'; };
+  const two = R.notes.engine.get(el.id) === '2d';
+  let t = (two ? '2D field on ' + el.popN + ' \u00d7 ' + el.popN : 'Round field on ' + el.popN + ' radial') + ' points along ' +
+    mine.length + ' segment' + (mine.length === 1 ? '' : 's') + ' (' + Math.round(R.ms) + ' ms for the scene).';
+  const why = R.notes.why.get(el.id);
+  if (two) t += why ? ' Not round because of ' + [...why].map(name).join(', ') + '.' : ' Set to always use 2D.';
+  const cl = [...R.notes.clipped].map(name);
+  if (cl.length) t += ' Clipped at ' + cl.join(', ') + '; the pilot beam is refitted after each.';
+  const st = [...R.notes.steep].map(name);
+  if (st.length) t += ' The wavefront after ' + st.join(', ') + ' turns faster than the grid can follow: use more points.';
+  if (R.truncated) t += ' Stopped after ' + (two ? POP_MAX_SEGS_2D : POP_MAX_SEGS) + ' segments; the weakest branches were left out.';
+  return t;
+}
+
 /* ---------- Diffraction ----------
    The rays arriving at a screen sample the converging wavefront: each one carries a
    numerical-aperture coordinate u, a wavefront error W against a reference sphere on
@@ -3829,105 +5786,274 @@ function besselJ0(x) {
   return f * Math.cos(t) / Math.sqrt(x);
 }
 
-const diffCache = new Map();
-function diffraction(el) {
-  if (diffCache.has(el.id)) return diffCache.get(el.id);
-  const out = diffractionRaw(el);
-  diffCache.set(el.id, out);
-  return out;
+const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
+
+/* ---------- A ray fan as a field ----------
+   A fan with a width is a uniform top-hat of that diameter, curved to its divergence;
+   a point source is a uniform cone of spatial frequencies, which at its waist is the
+   jinc 2 J1(x)/x. Both are built from their exact spectra, cut at the grid's bandwidth:
+   a hard edge sampled directly puts power the grid cannot hold into frequencies it
+   folds back inside, which inflates the core. What lies past the grid is left out and
+   remembered (repr, the fraction held), so enclosed energy is against the true total. */
+function fanShape(src, nm) {
+  const a = src.width / 2, th = src.divergence / 2 * deg;
+  if (a > 0) return { a, iR: Math.tan(th) / a };
+  return { a: 0, nu: Math.sin(Math.abs(th)) / (nm * 1e-6) };
+}
+/* Spectrum at spatial frequency v (cycles/mm): of the disc, or of the cone, cell-weighted
+   at its edge so it need not fall on a sample */
+function fanSpectrum(shape, v, dv) {
+  if (shape.a > 0) {
+    const x = 2 * Math.PI * shape.a * v;
+    return x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v;
+  }
+  return Math.min(1, Math.max(0, 0.5 + (shape.nu - v) / dv));
+}
+function popFanRound(N, q, n, lam0, power, shape) {
+  const k = 2 * Math.PI * n / lam0, lam = lam0 / n;
+  const R = popGuard(N) * popW(q[0], q[1], lam), Q = qdht(N), r = popRadii(Q, R);
+  const nuStep = 1 / (2 * R);                                  // about one sample in frequency
+  const Sr = new Float64Array(N), Si = new Float64Array(N);
+  for (let m = 0; m < N; m++) Sr[m] = fanSpectrum(shape, Q.j[m] / (2 * Math.PI * R), nuStep);
+  let [re, im] = ihankel(Q, R, Sr, Si);
+  for (let i = 0; i < N; i++) {
+    const ph = shape.a > 0 ? -0.5 * k * shape.iR * r[i] * r[i] : 0, c = Math.cos(ph), s = Math.sin(ph);
+    const x = re[i] * c - im[i] * s; im[i] = re[i] * s + im[i] * c; re[i] = x;
+  }
+  const sphere = popResidual(re, im, r, q[0], q[1], k);
+  const F = { R, re, im, z: q[0], zR: q[1], n, lam0, sphere };
+  // scale to the true power: the disc's own for a top-hat (its amplitude is fixed), all of it for the cone
+  const held = popPower(F), full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const s = Math.sqrt(power / full);
+  for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
+  F.repr = Math.min(1, held / full);
+  return F;
+}
+function popFan2(N, q, n, lam0, power, shape) {
+  const k = 2 * Math.PI * n / lam0, lam = lam0 / n, d = Math.sqrt(Math.PI * N) * popW(q[0], q[1], lam) / N;
+  const sph = !popInside(q[0], q[1]), df = 1 / (N * d);
+  const re = new Float64Array(N * N), im = new Float64Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const fx = (i - N / 2) * df, fy = (j - N / 2) * df;
+    re[j * N + i] = fanSpectrum(shape, Math.hypot(fx, fy), df) * df * df;
+  }
+  // inverse transform, rows then columns
+  const lr = new Float64Array(N), li = new Float64Array(N);
+  for (const axis of [0, 1]) for (let a = 0; a < N; a++) {
+    for (let b = 0; b < N; b++) { const o = axis ? b * N + a : a * N + b; lr[b] = re[o]; li[b] = im[o]; }
+    cdft(lr, li, 1);
+    for (let b = 0; b < N; b++) { const o = axis ? b * N + a : a * N + b; re[o] = lr[b]; im[o] = li[b]; }
+  }
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = (i - N / 2) * d, y = (j - N / 2) * d, r2 = x * x + y * y, o = j * N + i;
+    const ph = (shape.a > 0 ? -0.5 * k * shape.iR * r2 : 0) + (sph ? k * r2 / (2 * q[0]) : 0);
+    cmulPhase(re, im, o, ph, 1);
+  }
+  const st = { d, z: q[0], zR: q[1] };
+  const F = { N, re, im, ax: st, ay: Object.assign({}, st), n, lam0 };
+  const held = popStats2(F).power, full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const s = Math.sqrt(power / full);
+  for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
+  F.repr = Math.min(1, held / full);
+  return F;
 }
 
-function diffractionRaw(el) {
-  const st = screenStats(el);
-  if (!st || st.empty) return null;
-  const all = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
-  if (all.length < 5) return null;
+/* ---------- What a screen sees ----------
+   The field that arrives on the screen's front face, from every Gaussian source and every
+   ray fan. The irradiance map adds the arrivals; the figures are for the strongest one.
+   Strehl is the classic one: the peak against the peak a perfect wave from the same
+   amplitude at the last surface would reach on the screen, (Int |E| dA / lam d)^2, so
+   defocus against the screen counts, as it always has. */
+const MAP_N = 128;
+function popScreenPrep(el) {
+  const B = lastTrace.beams || [];
+  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+  const arrive = [];
+  B.forEach((b, i) => { if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0) arrive.push(i); });
+  if (!arrive.length) return null;
+  const keep = new Set();
+  for (let i of arrive) while (i >= 0 && !keep.has(i)) { keep.add(i); i = B[i].parent; }
+  const ids = new Set([...keep].map(i => B[i].src));
+  const srcs = project.elements.filter(e => ids.has(e.id));
+  const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
+  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss]));
+  return { keep, srcs, key };
+}
 
-  // one wavelength at a time, first crossing of each ray
-  const byNm = new Map();
-  for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, new Map()); const m = byNm.get(t.nm); if (!m.has(t.id) || t.opl < m.get(t.id).opl) m.set(t.id, t); }
+function popDiffraction(el, R) {
+  const f = frame(el), a = el.angle * deg, sYx = -Math.sin(a), sYy = Math.cos(a), nX = Math.cos(a), nY = Math.sin(a);
+  const arr = R.segs.filter(sg => sg.b.endEl === el.id && sg.b.dx * nX + sg.b.dy * nY < 0);
+  if (!arr.length) return null;
+  const hits = arr.map(sg => {
+    const G = sg.leg.at(sg.b.len), st = sg.eng === '2d' ? popStats2(G) : popStats(G);
+    const [, ly] = toLocal(f, sg.b.x0 + sg.b.dx * sg.b.len, sg.b.y0 + sg.b.dy * sg.b.len);
+    const p = sYx * -sg.b.dy + sYy * sg.b.dx;           // cosine of the tilt, signed by the in-plane axis
+    return { sg, G, st, ly, p };
+  });
+  const dom = hits.reduce((x, y) => y.st.power * popWJ(y.sg.b) > x.st.power * popWJ(x.sg.b) ? y : x);
+  const { sg, G, st } = dom;
+  const lam = G.lam0 / G.n, len = sg.b.len;
 
-  const centroid = st.centroid;
-  const bands = [];
-  for (const [nm, m] of byNm) {
-    const list = [...m.values()].map(t => ({
-      u: t.n * t.dly,                                   // numerical-aperture coordinate
-      L: t.opl + t.n * (centroid - t.y) * t.dly,        // path to the reference point
-      sr: t.sr, si: t.si, pr: t.pr, pi: t.pi,
-    })).filter(q => isFinite(q.u) && isFinite(q.L));
-    if (list.length < 5) continue;
-    list.sort((a, b) => a.u - b.u);
-    const mean = list.reduce((a, q) => a + q.L, 0) / list.length;
-    for (const q of list) q.W = q.L - mean;
-    // pupil weight: how much of the aperture each ray stands for
-    for (let i = 0; i < list.length; i++) {
-      const a = list[Math.max(0, i - 1)].u, b = list[Math.min(list.length - 1, i + 1)].u;
-      list[i].du = Math.abs(b - a) / 2;   // ends stand for half a spacing
+  // The ideal: the same path with every surface's aberration taken out, leaving the last
+  // surface and brought to a perfect focus on the screen. Its on-axis sum is coherent, so
+  // the ripples of a band-limited edge cancel as they should rather than adding up.
+  const chain = new Set();
+  for (let i = sg.i; i >= 0; i = lastTrace.beams[i].parent) chain.add(i);
+  const twin = popRun(lastTrace.beams, [sg.src], { keep: chain, paraxial: true }).segs.find(s2 => s2.i === sg.i) || sg;
+  const P0 = twin.F0;
+  const kk = 2 * Math.PI * P0.n / P0.lam0;
+  let Ar = 0, Ai = 0;
+  const addPh = (re, im, ph, wgt) => { const c = Math.cos(ph), s = Math.sin(ph); Ar += (re * c - im * s) * wgt; Ai += (re * s + im * c) * wgt; };
+  if (twin.eng === '2d') {
+    // put the reference back and take the pilot's own curvature off, in each direction
+    const N = P0.N, ref = st2 => popInside(st2.z, st2.zR) ? 0 : -kk / (2 * st2.z), cur = st2 => 0.5 * kk * popInvR([st2.z, st2.zR]);
+    const bx = ref(P0.ax) + cur(P0.ax), by = ref(P0.ay) + cur(P0.ay), wgt = P0.ax.d * P0.ay.d;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const x = (i - N / 2) * P0.ax.d, y = (j - N / 2) * P0.ay.d, o = j * N + i;
+      addPh(P0.re[o], P0.im[o], bx * x * x + by * y * y, wgt);
     }
-    bands.push({ nm, list, weight: list.length });
+  } else {
+    const Q = qdht(P0.re.length), r = popRadii(Q, P0.R), V = Q.S / (2 * Math.PI * P0.R);
+    const b = (P0.sphere ? -kk / (2 * P0.z) : 0) + 0.5 * kk * popInvR([P0.z, P0.zR]);
+    for (let i = 0; i < Q.N; i++) addPh(P0.re[i], P0.im[i], b * r[i] * r[i], Q.inv[i] / (Math.PI * V * V));
   }
-  if (!bands.length) return null;
-
-  // Is the wavefront the same on both sides of the axis? That is what lets the 2D
-  // (Hankel) treatment stand in for the full pupil.
-  let asym = 0, pairs = 0;
-  for (const B of bands) {
-    const pos = B.list.filter(q => q.u > 0), neg = B.list.filter(q => q.u < 0);
-    for (const q of pos) {
-      let best = null, bd = Infinity;
-      for (const r of neg) { const d = Math.abs(-r.u - q.u); if (d < bd) { bd = d; best = r; } }
-      if (best && bd < 0.05 * Math.abs(q.u || 1) + 1e-9) {
-        asym = Math.max(asym, Math.abs(q.W - best.W) / (B.nm * 1e-6));
-        pairs++;
+  const lamT = P0.lam0 / P0.n;
+  const Iideal = (Ar * Ar + Ai * Ai) / (lamT * len) ** 2;
+  // The actual field's on-axis value by the same direct sum, against what the transforms
+  // gave: the ratio calibrates the propagated peak, so both sides share one numerics
+  let calib = 1;
+  {
+    const A0 = sg.F0;
+    let Er = 0, Ei = 0;
+    const add = (re, im, ph, wgt) => { const c = Math.cos(ph), s = Math.sin(ph); Er += (re * c - im * s) * wgt; Ei += (re * s + im * c) * wgt; };
+    if (sg.eng === '2d') {
+      const N = A0.N, ref = st2 => popInside(st2.z, st2.zR) ? 0 : -kk / (2 * st2.z), q2 = -kk / (2 * len);
+      const bx = ref(A0.ax) + q2, by = ref(A0.ay) + q2, wgt = A0.ax.d * A0.ay.d;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const x = (i - N / 2) * A0.ax.d, y = (j - N / 2) * A0.ay.d, o = j * N + i;
+        add(A0.re[o], A0.im[o], bx * x * x + by * y * y, wgt);
       }
+    } else {
+      const Q = qdht(A0.re.length), r = popRadii(Q, A0.R), V = Q.S / (2 * Math.PI * A0.R);
+      const b = (A0.sphere ? -kk / (2 * A0.z) : 0) - kk / (2 * len);
+      for (let i = 0; i < Q.N; i++) add(A0.re[i], A0.im[i], b * r[i] * r[i], Q.inv[i] / (Math.PI * V * V));
     }
+    const direct = (Er * Er + Ei * Ei) / (lamT * len) ** 2;
+    const viaT = st.axis;
+    if (viaT > 1e-3 * (Math.max(...(sg.eng === '2d' ? [st.peak] : [st.peak])) || 1) && direct > 0) calib = direct / viaT;
   }
-  const symmetric = pairs >= 3 && asym < 0.05;     // within a twentieth of a wave
 
-  const NA = Math.max(...bands.flatMap(B => B.list.map(q => Math.abs(q.u))));
-  if (!(NA > 1e-9)) return null;
-  const nmRef = bands.reduce((a, B) => B.weight > a.weight ? B : a, bands[0]).nm;
-  const lamRef = nmRef * 1e-6;
-  const airy = 0.61 * lamRef / NA;                  // radius of the first dark ring
-  const nR = 512;
-  const rMax = 16 * airy;
-  const rho = new Float64Array(nR), psf = new Float64Array(nR), ideal = new Float64Array(nR);
-
-  const sumAt = (B, r, perfect) => {
-    const k = 2 * Math.PI / (B.nm * 1e-6);
-    let sr = 0, si = 0, pr = 0, pi = 0;
-    for (const q of B.list) {
-      if (symmetric && q.u <= 0) continue;           // one side stands for the ring
-      const ph = k * ((perfect ? 0 : q.W) - (symmetric ? 0 : r * q.u));
-      const c = Math.cos(ph), s2 = Math.sin(ph);
-      const wgt = q.du * (symmetric ? Math.abs(q.u) * besselJ0(k * r * q.u) : 1);
-      sr += (q.sr * c - q.si * s2) * wgt; si += (q.sr * s2 + q.si * c) * wgt;
-      pr += (q.pr * c - q.pi * s2) * wgt; pi += (q.pr * s2 + q.pi * c) * wgt;
-    }
-    return sr * sr + si * si + pr * pr + pi * pi;
+  // a uniform pupil has a numerical aperture, from its rays; a Gaussian beam has none
+  let NA = null;
+  if (sg.b.fan) {
+    const rays = (lastTrace.screens[el.id] || []).filter(t => !t.chief && t.nm === sg.b.nm && t.id.startsWith(sg.b.src + ':'));
+    if (rays.length >= 3) NA = Math.max(...rays.map(t => Math.abs(t.n * t.dly)));
+    if (!(NA > 1e-9)) NA = null;
+  }
+  const lam0 = G.lam0, airy = NA ? 0.61 * lam0 / NA : null, cutoff = NA ? 2 * NA / lam0 : null;
+  const nR = 512, rho = new Float64Array(nR), psf = new Float64Array(nR), ee = new Float64Array(nR);
+  let peak, px = 0, py = 0, fwhmX, fwhmY, cutX = null, cutY = null, freq, mtf, mtfY, wx = st.wx || st.w, wy = st.wy || st.w;
+  const half = (xs, ys) => {                                 // half width at half maximum of a curve from its peak
+    let k = 0; for (let i = 1; i < ys.length; i++) if (ys[i] > ys[k]) k = i;
+    const h = 0.5 * ys[k];
+    const side = dir => {
+      for (let i = k; i >= 0 && i < ys.length; i += dir) if (ys[i] <= h) {
+        const j = i - dir, t = (ys[j] - h) / ((ys[j] - ys[i]) || 1);
+        return Math.abs(xs[j] + t * (xs[i] - xs[j]) - xs[k]);
+      }
+      return null;
+    };
+    const l = side(-1), r = side(1);
+    return l === null || r === null ? (l ?? r) : 0.5 * (l + r);
   };
 
-  for (let i = 0; i < nR; i++) {
-    const r = rMax * i / (nR - 1);
-    rho[i] = r;
-    let v = 0, v0 = 0;
-    for (const B of bands) { v += sumAt(B, r, false); v0 += sumAt(B, r, true); }
-    psf[i] = v; ideal[i] = v0;
+  if (sg.eng !== '2d') {
+    const Q = qdht(G.re.length), r = popRadii(Q, G.R), V = Q.S / (2 * Math.PI * G.R), ar = 1 / (Math.PI * V * V);
+    const I = new Float64Array(Q.N);
+    for (let i = 0; i < Q.N; i++) I[i] = G.re[i] ** 2 + G.im[i] ** 2;
+    const I0 = popAxis(G)[0];
+    peak = Math.max(I0, ...I);
+    const rMax = Math.min(r[Q.N - 1], airy ? 16 * airy : 4 * st.w);
+    let j = 0, acc = 0, ci = 0;
+    const tot = (st.power || 1) / sg.repr;                  // what the grid cannot hold is still light
+    for (let i = 0; i < nR; i++) {
+      const x = rMax * i / (nR - 1);
+      rho[i] = x;
+      while (j < Q.N - 2 && r[j + 1] < x) j++;
+      psf[i] = x <= r[0] ? I0 + (I[0] - I0) * (x / r[0]) ** 2 : I[j] + (I[j + 1] - I[j]) * Math.min(1, (x - r[j]) / (r[j + 1] - r[j]));
+      while (ci < Q.N && r[ci] <= x) { acc += I[ci] * Q.inv[ci] * ar; ci++; }
+      ee[i] = acc / tot;
+    }
+    fwhmX = fwhmY = 2 * (half(Array.from(rho).map((v, i) => v), Array.from(psf)) || 0);
+    const fmax = cutoff || 1.2 / st.w, nF = 128;
+    freq = new Float64Array(nF); mtf = new Float64Array(nF);
+    let m0 = 0;
+    for (let i = 0; i < Q.N; i++) m0 += I[i] * Q.inv[i];
+    for (let q = 0; q < nF; q++) {
+      const nu = fmax * q / (nF - 1);
+      let s = 0;
+      for (let i = 0; i < Q.N; i++) s += I[i] * Q.inv[i] * besselJ01(2 * Math.PI * nu * r[i])[0];
+      freq[q] = nu; mtf[q] = q ? Math.abs(s / (m0 || 1)) * sg.repr : 1;
+    }
+    mtfY = mtf;
+  } else {
+    const N = G.N, dx = G.ax.d, dy = G.ay.d, I = new Float64Array(N * N);
+    let ip = 0;
+    for (let i = 0; i < N * N; i++) { I[i] = G.re[i] ** 2 + G.im[i] ** 2; if (I[i] > I[ip]) ip = i; }
+    peak = I[ip];
+    const ix = ip % N, iy = Math.floor(ip / N);
+    px = (ix - N / 2) * dx; py = (iy - N / 2) * dy;
+    const rMax = Math.min(N / 2 * Math.min(dx, dy), airy ? 16 * airy : 4 * Math.max(wx, wy));
+    const sum = new Float64Array(nR), cnt = new Float64Array(nR), pw = new Float64Array(nR);
+    let tot = 0;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const v = I[j * N + i]; tot += v;
+      const r = Math.hypot((i - ix) * dx, (j - iy) * dy), b = Math.round(r / rMax * (nR - 1));
+      if (b < nR) { sum[b] += v; cnt[b]++; pw[b] += v; }
+    }
+    let acc = 0, last = I[ip];
+    tot /= sg.repr;
+    for (let b = 0; b < nR; b++) {
+      rho[b] = rMax * b / (nR - 1);
+      if (cnt[b]) last = sum[b] / cnt[b];
+      psf[b] = last;
+      acc += pw[b]; ee[b] = acc / (tot || 1);
+    }
+    // cuts through the peak, in the bench plane and out of it
+    cutX = { x: [], I: [] }; cutY = { x: [], I: [] };
+    for (let i = 0; i < N; i++) { const x = (i - ix) * dx; if (Math.abs(x) <= rMax) { cutX.x.push(x); cutX.I.push(I[iy * N + i]); } }
+    for (let j = 0; j < N; j++) { const y = (j - iy) * dy; if (Math.abs(y) <= rMax) { cutY.x.push(y); cutY.I.push(I[j * N + ix]); } }
+    fwhmX = 2 * (half(cutX.x, cutX.I) || 0); fwhmY = 2 * (half(cutY.x, cutY.I) || 0);
+    // MTF in each direction from its line spread
+    const lx = new Float64Array(N), lyy = new Float64Array(N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { lx[i] += I[j * N + i]; lyy[j] += I[j * N + i]; }
+    const fmax = cutoff || 1.2 / Math.max(1e-12, Math.min(wx, wy)), nF = 128;
+    freq = new Float64Array(nF); mtf = new Float64Array(nF); mtfY = new Float64Array(nF);
+    const tf = (L, d, nu) => {
+      if (nu > 0.5 / d) return 0;                          // past this axis's Nyquist the samples say nothing
+      let re = 0, im = 0, s = 0;
+      for (let i = 0; i < N; i++) { const x = (i - N / 2) * d, ph = -2 * Math.PI * nu * x; re += L[i] * Math.cos(ph); im += L[i] * Math.sin(ph); s += L[i]; }
+      return Math.hypot(re, im) / (s || 1);
+    };
+    for (let q = 0; q < nF; q++) {
+      const nu = fmax * q / (nF - 1), g = q ? sg.repr : 1;
+      freq[q] = nu; mtf[q] = tf(lx, dx, nu) * g; mtfY[q] = tf(lyy, dy, nu) * g;
+    }
   }
-  const peak = psf[0], idealPeak = ideal[0];
-  const strehl = idealPeak > 0 ? peak / idealPeak : null;
-
-  // encircled (or enclosed) energy, and the width at half the peak
-  const ee = new Float64Array(nR);
-  let acc = 0;
-  for (let i = 1; i < nR; i++) {
-    const dr = rho[i] - rho[i - 1];
-    const w = symmetric ? 0.5 * (psf[i] * rho[i] + psf[i - 1] * rho[i - 1]) : 0.5 * (psf[i] + psf[i - 1]);
-    acc += w * dr;
-    ee[i] = acc;
-  }
-  const total = acc || 1;
-  for (let i = 0; i < nR; i++) ee[i] /= total;
+  const curveAt = (ys, nu) => {
+    const fmax = freq[freq.length - 1];
+    if (nu <= 0) return 1;
+    if (nu >= fmax) return cutoff ? 0 : ys[ys.length - 1];
+    const x = nu / fmax * (freq.length - 1), i = Math.min(freq.length - 2, Math.floor(x));
+    return ys[i] + (ys[i + 1] - ys[i]) * (x - i);
+  };
+  const fall = ys => {
+    for (let j = 1; j < ys.length; j++) if (ys[j] <= 0.5) {
+      const t = (0.5 - ys[j - 1]) / ((ys[j] - ys[j - 1]) || 1);
+      return freq[j - 1] + t * (freq[j] - freq[j - 1]);
+    }
+    return freq[freq.length - 1];
+  };
   const radiusAt = frac => {
     for (let i = 1; i < nR; i++) if (ee[i] >= frac) {
       const t = (frac - ee[i - 1]) / (ee[i] - ee[i - 1] || 1);
@@ -3935,51 +6061,151 @@ function diffractionRaw(el) {
     }
     return rho[nR - 1];
   };
-  let half = null;
-  const pmax = Math.max(...psf);
-  for (let i = 1; i < nR; i++) if (psf[i] <= 0.5 * pmax) {
-    const t = (0.5 * pmax - psf[i - 1]) / ((psf[i] - psf[i - 1]) || 1);
-    half = rho[i - 1] + t * (rho[i] - rho[i - 1]);
-    break;
-  }
 
-  // MTF: the transform of the spread function, on the same footing as the PSF
-  const cutoff = 2 * NA / lamRef;                    // cycles per mm
-  const nF = 128;
-  const freq = new Float64Array(nF), mtf = new Float64Array(nF);
-  for (let j = 0; j < nF; j++) {
-    const nu = cutoff * j / (nF - 1);
-    let re = 0, im = 0;
-    for (let i = 1; i < nR; i++) {
-      const dr = rho[i] - rho[i - 1], r = rho[i], v = psf[i];
-      if (symmetric) re += v * besselJ0(2 * Math.PI * nu * r) * r * dr;
-      else { re += v * Math.cos(2 * Math.PI * nu * r) * dr * 2; im += 0; }
+  // The irradiance map on the screen: every arrival where it lands, as a field. Arrivals
+  // from one launch add as amplitudes (each with its exact reference phase, its path along
+  // the screen past its own hit point, and its Jones vector); separate launches add as
+  // intensities. Placed on a finer grid when anything interferes.
+  const cU = dom.ly + (sg.eng === '2d' ? px : 0) / (dom.p || 1), cV = py;
+  let H = 0;
+  for (const h2 of hits) {
+    const gridHalf = h2.sg.eng === '2d' ? h2.G.N / 2 * Math.min(h2.G.ax.d, h2.G.ay.d) : h2.G.R;
+    const w2 = Math.max(h2.st.wx || h2.st.w, h2.st.wy || h2.st.w);
+    const e = Math.min(gridHalf, Math.max(2 * w2, airy ? 6 * airy : 0, 3 * (fwhmX || 0)));
+    const cu = h2.ly + (h2.st.cx || 0) / (h2.p || 1), cv = h2.st.cy || 0;
+    H = Math.max(H, Math.hypot(cu - cU, cv - cV) + e);
+  }
+  const launches = new Map();
+  for (const h2 of hits) { if (!launches.has(h2.sg.b.coh)) launches.set(h2.sg.b.coh, []); launches.get(h2.sg.b.coh).push(h2); }
+  const coherent = [...launches.values()].some(L2 => L2.length > 1);
+  const MN = coherent ? 256 : MAP_N;
+  const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN);
+  // each arrival's complex field at a point on the screen
+  const fieldAt = h2 => {
+    const G2 = h2.G, two = h2.sg.eng === '2d', k = 2 * Math.PI * G2.n / G2.lam0, b = h2.sg.b;
+    const cz = sYx * b.dx + sYy * b.dy;                    // how far along the beam a step along the screen goes
+    const r = two ? null : popRadii(qdht(G2.re.length), G2.R);
+    const bR = two ? 0 : (G2.sphere ? -k / (2 * G2.z) : 0);
+    const bx = two ? (popInside(G2.ax.z, G2.ax.zR) ? 0 : -k / (2 * G2.ax.z)) : 0;
+    const by = two ? (popInside(G2.ay.z, G2.ay.zR) ? 0 : -k / (2 * G2.ay.z)) : 0;
+    return (u, v) => {
+      const s = u - h2.ly, x = s * h2.p, y = v;
+      let ur = 0, ui = 0, ph = -k * s * cz;
+      if (two) {
+        const fx = x / G2.ax.d + G2.N / 2, fy = y / G2.ay.d + G2.N / 2, i0 = Math.floor(fx), j0 = Math.floor(fy);
+        if (i0 < 0 || j0 < 0 || i0 >= G2.N - 1 || j0 >= G2.N - 1) return [0, 0];
+        const tx = fx - i0, ty = fy - j0, o = j0 * G2.N + i0, N2 = G2.N;
+        const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+        ur = w00 * G2.re[o] + w10 * G2.re[o + 1] + w01 * G2.re[o + N2] + w11 * G2.re[o + N2 + 1];
+        ui = w00 * G2.im[o] + w10 * G2.im[o + 1] + w01 * G2.im[o + N2] + w11 * G2.im[o + N2 + 1];
+        ph += bx * x * x + by * y * y;
+      } else {
+        const q = Math.hypot(x, y);
+        if (q <= r[0]) { ur = G2.re[0]; ui = G2.im[0]; }
+        else if (q < r[r.length - 1]) {
+          let lo = 0, hi = r.length - 1;
+          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (r[mid] <= q) lo = mid; else hi = mid; }
+          const t = (q - r[lo]) / (r[hi] - r[lo]);
+          ur = G2.re[lo] + (G2.re[hi] - G2.re[lo]) * t; ui = G2.im[lo] + (G2.im[hi] - G2.im[lo]) * t;
+        } else return [0, 0];
+        ph += bR * q * q;
+      }
+      const c = Math.cos(ph), sn = Math.sin(ph);
+      return [ur * c - ui * sn, ur * sn + ui * c];
+    };
+  };
+  for (const L2 of launches.values()) {
+    const parts = L2.map(h2 => ({ f: fieldAt(h2), J: popJ(h2.sg.b), wJ: popWJ(h2.sg.b) }));
+    for (let jv = 0; jv < MN; jv++) {
+      const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
+      for (let iu = 0; iu < MN; iu++) {
+        const u = cU + ((iu + 0.5) / MN * 2 - 1) * H;
+        let sr = 0, si = 0, pr = 0, pi = 0, ii = 0;
+        for (const P of parts) {
+          const [fr, fi] = P.f(u, v);
+          if (fr === 0 && fi === 0) continue;
+          const [a, b, c2, d] = P.J;
+          sr += fr * a - fi * b; si += fr * b + fi * a; pr += fr * c2 - fi * d; pi += fr * d + fi * c2;
+          ii += (fr * fr + fi * fi) * P.wJ;
+        }
+        map[jv * MN + iu] += sr * sr + si * si + pr * pr + pi * pi;
+        inc[jv * MN + iu] += ii;
+      }
     }
-    freq[j] = nu;
-    mtf[j] = re;
   }
-  const m0 = mtf[0] || 1;
-  for (let j = 0; j < nF; j++) mtf[j] = Math.abs(mtf[j] / m0);
-  const mtfAt = nu => {
-    if (nu <= 0) return 1;
-    if (nu >= cutoff) return 0;
-    const x = nu / cutoff * (nF - 1), i = Math.min(nF - 2, Math.floor(x));
-    return mtf[i] + (mtf[i + 1] - mtf[i]) * (x - i);
-  };
-  let mtf50 = 0;
-  for (let j = 1; j < nF; j++) if (mtf[j] <= 0.5) {
-    const t = (0.5 - mtf[j - 1]) / ((mtf[j] - mtf[j - 1]) || 1);
-    mtf50 = freq[j - 1] + t * (freq[j] - freq[j - 1]);
-    break;
+  // how much the fields added up to, and how deep the fringes run where the beams are
+  let sC = 0, sI = 0, iMax = 0;
+  for (let i = 0; i < MN * MN; i++) { sC += map[i]; sI += inc[i]; iMax = Math.max(iMax, inc[i]); }
+  let vHi = 0, vLo = Infinity;
+  for (let i = 0; i < MN * MN; i++) if (inc[i] >= 0.5 * iMax) { vHi = Math.max(vHi, map[i]); vLo = Math.min(vLo, map[i]); }
+  const interference = coherent && sI > 0 ? sC / sI : null;
+  const visibility = coherent && vHi + vLo > 0 ? (vHi - vLo) / (vHi + vLo) : null;
+  // fringes finer than the map: the steepest angle between two beams of one launch
+  let fine = false;
+  for (const L2 of launches.values()) for (let i = 0; i < L2.length; i++) for (let j = i + 1; j < L2.length; j++) {
+    const a = L2[i].sg.b, b = L2[j].sg.b, ang = Math.acos(Math.min(1, a.dx * b.dx + a.dy * b.dy));
+    if (ang > 0 && (a.nm * 1e-6 / L2[i].G.n) / ang < 3 * 2 * H / MN) fine = true;
   }
 
+  const tilt = Math.acos(Math.min(1, Math.abs(dom.p))) / deg;
+  // power arriving: each arrival's field power times its Jones power; where they
+  // interfere, scaled by what the fields added up to on the map
+  const powerInc = hits.reduce((s, h2) => s + h2.st.power * popWJ(h2.sg.b) / h2.sg.repr, 0);
+  const power = interference === null ? powerInc : powerInc * interference;
   return {
-    symmetric, asym, NA, nm: nmRef, airy, cutoff, strehl,
-    rho, psf, ee, freq, mtf, mtfAt, mtf50,
-    fwhm: half === null ? null : 2 * half,
+    symmetric: sg.eng !== '2d', engine: sg.eng, NA, nm: sg.b.nm, airy, cutoff,
+    strehl: Iideal > 0 ? peak * calib / Iideal : null, peak: peak * popWJ(sg.b), power, powerInc, interference, visibility, fine,
+    coherent, wx, wy, arrivals: hits.length, launches: launches.size, tilt,
+    curved: !!el.R, steep: [...R.notes.steep], clipped: [...R.notes.clipped], fan: !!sg.b.fan,
+    rho, psf, ee, freq, mtf, mtfY, cutX, cutY,
+    mtfAt: nu => curveAt(mtf, nu), mtfAtY: nu => curveAt(mtfY, nu),
+    mtf50: fall(mtf), mtf50Y: fall(mtfY),
+    fwhm: fwhmX && fwhmY ? Math.sqrt(fwhmX * fwhmY) : null, fwhmX, fwhmY,
     ee50: radiusAt(0.5), ee80: radiusAt(0.8),
-    rays: bands.reduce((a, B) => a + B.list.length, 0),
+    map: { v: map, inc, n: MN, u0: cU - H, u1: cU + H, v0: cV - H, v1: cV + H },
   };
+}
+
+/* The screen's answer, now: for the optimiser, the tests and the export */
+const popScreenCache = new Map();
+function diffraction(el) {
+  const job = popScreenPrep(el);
+  if (!job) return null;
+  const c = popScreenCache.get(el.id);
+  if (c && c.key === job.key) return c.D;
+  const D = popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }));
+  popScreenCache.set(el.id, { key: job.key, D });
+  return D;
+}
+/* The same for the panel, computed a slice at a time; the last answer stands meanwhile */
+const popScreenState = { job: null, timer: null };
+function diffractionLater(el) {
+  const job = popScreenPrep(el);
+  if (!job) return { D: null, busy: false };
+  const c = popScreenCache.get(el.id);
+  if (c && c.key === job.key) return { D: c.D, busy: false };
+  if (TEST_MODE) return { D: diffraction(el), busy: false };
+  const S = popScreenState;
+  if (!S.job || S.job.key !== job.key) {
+    S.job = { key: job.key, el, gen: popRunGen(lastTrace.beams, job.srcs, { keep: job.keep }) };
+    if (!S.timer) S.timer = setTimeout(function step() {
+      const J = S.job;
+      if (!J) { S.timer = null; return; }
+      const until = performance.now() + 30;
+      let r;
+      do r = J.gen.next(); while (!r.done && performance.now() < until);
+      if (r.done) {
+        popScreenCache.set(J.el.id, { key: J.key, D: popDiffraction(J.el, r.value) });
+        if (S.job === J) S.job = null;
+        S.timer = null;
+        syncPanel();
+        if (S.job) S.timer = setTimeout(step, 0);
+        return;
+      }
+      S.timer = setTimeout(step, 0);
+    }, 40);
+  }
+  return { D: c ? c.D : null, busy: true };
 }
 
 /* Everything a screen can tell us about the rays that reached it.
@@ -4297,16 +6523,16 @@ function exportScreen(el) {
   const D = diffraction(el);
   if (D) {
     L.push('');
-    L.push('section,point spread and enclosed energy' + (D.symmetric ? ' (2D)' : ' (tangential)'));
+    L.push('section,point spread and enclosed energy' + (D.symmetric ? ' (round field)' : ' (2D field, averaged round the peak)'));
     L.push('radius_mm,psf_normalised,enclosed_energy');
     const pk = Math.max(...D.psf) || 1;
     for (let i = 0; i < D.rho.length; i++) {
       L.push([+D.rho[i].toPrecision(8), +(D.psf[i] / pk).toPrecision(6), +D.ee[i].toPrecision(6)].join(','));
     }
     L.push('');
-    L.push('section,mtf' + (D.symmetric ? ' (2D)' : ' (tangential)'));
-    L.push('frequency_lp_per_mm,mtf');
-    for (let i = 0; i < D.freq.length; i++) L.push((+D.freq[i].toPrecision(8)) + ',' + (+D.mtf[i].toPrecision(6)));
+    L.push('section,mtf' + (D.symmetric ? ' (round field)' : ' (2D field)'));
+    L.push(D.symmetric ? 'frequency_lp_per_mm,mtf' : 'frequency_lp_per_mm,mtf_in_plane,mtf_out_of_plane');
+    for (let i = 0; i < D.freq.length; i++) L.push((+D.freq[i].toPrecision(8)) + ',' + (+D.mtf[i].toPrecision(6)) + (D.symmetric ? '' : ',' + (+D.mtfY[i].toPrecision(6))));
   }
   const name = safeFileName(project.name + ' ' + el.name) + '.csv';
   downloadFile(name, new Blob([L.join('\n')], { type: 'text/csv' }));
@@ -4889,6 +7115,37 @@ stage.addEventListener('drop', e => {
     importZmxText(text, fileName, mode) { return zmxToElement(parseZmx(text, fileName), fileName, mode || 'auto'); },
     project() { return project; },
     lastTrace() { return lastTrace; },
+    popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
+      popGaussian2, popLeg2, popStats2 },
+    // every Gaussian source's beam tree as fields, whatever it is set to show
+    popNotes() {
+      const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
+      const name = id => (getEl(id) || {}).name;
+      return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name) };
+    },
+    fieldAt(x, y) { return fieldAtPoint(x, y); },
+    fieldAlong(x0, y0, x1, y1, n) { return fieldAlongLine(x0, y0, x1, y1, n); },
+    maskExpr(src, x, y, lam) { return compileMaskExpr(src)(x || 0, y || 0, lam || 633e-6); },
+    // the bench's groups of branches drawn as one, with the power their fields add up to
+    popGroups() {
+      const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
+      const name = id => id ? (getEl(id) || {}).name : null;
+      return popGroups(R.segs).map(g => ({ size: g.members.length, to: name(g.lead.b.endEl),
+        dx: g.lead.b.dx, dy: g.lead.b.dy, gain: popGroupCut(g, 0.5 * g.lead.b.len).gain }));
+    },
+    popSegments() {
+      const withJ = (sg, s) => Object.assign({}, s, { power: s.power * popWJ(sg.b) });
+      const srcs = project.elements.filter(e => e.type === 'source');
+      const R = popRun(lastTrace.beams, srcs);
+      return R.segs.map(sg => ({
+        el: sg.b.ev ? (getEl(sg.b.ev.el) || {}).name : null, kind: sg.b.ev ? sg.b.ev.kind : 'source',
+        len: sg.b.len, dx: sg.b.dx, dy: sg.b.dy, clipped: sg.clipped, engine: sg.eng,
+        pilot: sg.eng === '2d' ? { x: [sg.F0.ax.z, sg.F0.ax.zR], y: [sg.F0.ay.z, sg.F0.ay.zR] }
+          : { x: [sg.F0.z, sg.F0.zR], y: [sg.F0.z, sg.F0.zR] },
+        start: withJ(sg, sg.leg.stats(0)), at: t => withJ(sg, sg.leg.stats(t)), coh: sg.b.coh, J: sg.b.J,
+        profile: t => { const c = sg.leg.cut(t); return { r: c.x, I: c.I }; },
+      }));
+    },
   };
   if (!restored) fitView();
 })();

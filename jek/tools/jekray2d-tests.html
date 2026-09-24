@@ -1394,6 +1394,41 @@ const TESTS = [
     },
   },
 
+
+  { group: 'Measurements and the ray fan' },
+  {
+    name: 'Every optimiser metric says what it is measured with',
+    why: 'rays, the Gaussian beam, the diffracted field or first-order optics, so the dialogs can sort them into tabs',
+    want: 0, tol: 0, unit: ' unlabelled',
+    run: J => J.metricList().filter(m => !['rays', 'gauss', 'field', 'paraxial'].includes(m.fam)).length,
+  },
+  {
+    name: 'The field metrics read the diffracted field',
+    why: 'power arriving at a Michelson\u2019s output with equal arms, as an optimiser metric',
+    want: 100, tol: 0.1, unit: '%',
+    run: J => { J.load(michelsonCube(0)); return J.metricOf('Out', 'fpower'); },
+  },
+  {
+    name: 'The diffracted field needs no ray fan',
+    why: 'the same Michelson with the source\u2019s rays switched off: no rays drawn, the same light at the output',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => {
+      J.load(michelsonCube(0, 0, { traceRays: false }));
+      return J.lastTrace().rays.length === 0 ? J.diffraction('Out').power : NaN;
+    },
+  },
+  {
+    name: 'and neither does the Gaussian beam',
+    why: 'the traced beam radius on the screen, rays off, against the same with rays on',
+    want: null, tol: 1e-12, rel: true, unit: ' mm',
+    run: J => {
+      J.load(michelsonCube(0)); TESTS_EXPECT.bwOn = J.stats('Out').beam.w;
+      J.load(michelsonCube(0, 0, { traceRays: false }));
+      return J.stats('Out').beam ? J.stats('Out').beam.w : NaN;
+    },
+    wantFrom: () => TESTS_EXPECT.bwOn,
+  },
+
   { group: 'Tolerancing' },
   {
     name: 'Sensitivity ranks the dominant term first',

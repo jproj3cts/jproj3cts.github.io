@@ -191,6 +191,15 @@
   .rt-zb:hover { border-color: var(--jek-ink-soft); }
   .rt-zb:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
+  .rt-plot { position: relative; }
+  .rt-sync {
+    position: absolute; top: 0; right: 0; display: inline-grid; place-items: center;
+    width: 1.45rem; height: 1.45rem; padding: 0; border: 1px solid var(--jek-line-2); border-radius: 50%;
+    background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer;
+  }
+  .rt-sync[hidden] { display: none; }
+  .rt-sync:hover { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
+  .rt-sync:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-panel h3 {
     margin: 1rem 0 0.5rem;
     padding-top: 0.75rem;
@@ -225,6 +234,7 @@
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-check { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; cursor: pointer; }
+  .rt-f .rt-check input { width: auto; flex: none; padding: 0; margin: 0; }   /* a checkbox inside a field, as in a sweep */
 
   .rt-readout {
     margin-top: 0.75rem;
@@ -541,7 +551,7 @@
       </select></div>
       <div class="rt-f"><label for="tolN">Trials</label><input id="tolN" type="text" inputmode="numeric" value="200"></div>
     </div>
-    <canvas id="tolHist" height="90" style="width:100%;margin-top:0.75rem;display:none"></canvas>
+    <canvas id="tolHist" height="120" style="width:100%;margin-top:0.75rem;display:none"></canvas>
     <div id="tolSens"></div>
     <p id="tolResult" class="rt-hint"></p>
     <div class="rt-actions">
@@ -562,7 +572,7 @@
       <div class="rt-f"><label for="optGoal">Looking for</label><select id="optGoal"></select></div>
       <div class="rt-f" id="optTargetWrap" hidden><label for="optTargetVal">Target</label><input id="optTargetVal" type="text" inputmode="decimal"></div>
     </div>
-    <canvas id="optScan" height="90" style="width:100%;margin-top:0.75rem;display:none"></canvas>
+    <canvas id="optScan" height="120" style="width:100%;margin-top:0.75rem;display:none"></canvas>
     <p id="optResult" class="rt-hint"></p>
     <div class="rt-actions">
       <button class="rt-btn" id="optClose">Close</button>
@@ -945,6 +955,7 @@ function normElement(e) {
       const freq = isFinite(v.freq) && v.freq > 0 ? +v.freq : 1 / Math.max(0.1, num(v.period, 4));
       o.sweeps[k] = { min: +v.min, max: +v.max, freq: clamp(freq, 0.001, 50), phase: num(v.phase, 0),
         wave: ['sine', 'triangle', 'ramp'].includes(v.wave) ? v.wave : 'sine' };
+      if (v.field === true) o.sweeps[k].field = true;
     }
   }
   return o;
@@ -2967,7 +2978,8 @@ function sweepDefault(path, v) {
 const sweepKey = (el, path) => el.id + '|' + path;
 const isPlaying = (el, path) => playing.has(sweepKey(el, path));
 const sweepValue = (sw, frac) => sw.min + (sw.max - sw.min) * frac;
-const clockValue = sw => sweepValue(sw, waveShape(sw.wave, sw.freq * clockT + sw.phase / 360));
+const clockValueAt = (sw, t) => sweepValue(sw, waveShape(sw.wave, sw.freq * t + sw.phase / 360));
+const clockValue = sw => clockValueAt(sw, clockT);
 function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -2986,6 +2998,21 @@ function startLoop() {
 function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
   if (!sw) return;
+  if (sweepJob) { sweepJob.cancel(); return; }
+  // the sweeps that will move together: the ones already playing and this one
+  const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  list.push([el, path]);
+  if (list.some(([e, p]) => e.sweeps[p] && e.sweeps[p].field) && fieldWanted()) {
+    const resume = [...playing.values()];
+    playing.clear();
+    renderSweepFrames(list, () => { for (const p of resume) playing.set(sweepKey(getEl(p.id) || {}, p.path), p); playNow(el, path); });
+    return;
+  }
+  playNow(el, path);
+}
+function playNow(el, path) {
+  const sw = el.sweeps && el.sweeps[path];
+  if (!sw) return;
   if (!playing.size) {
     checkpoint();
     // first one to start: move the shared clock so this value carries on from where it is
@@ -2998,6 +3025,17 @@ function play(el, path) {
 function playAll() {
   const list = allSweeps();
   if (!list.length) return;
+  if (sweepJob) { sweepJob.cancel(); return; }
+  if (list.some(([e, p]) => e.sweeps[p].field) && fieldWanted()) {
+    playing.clear();
+    renderSweepFrames(list, playAllNow);
+    return;
+  }
+  playAllNow();
+}
+function playAllNow() {
+  const list = allSweeps();
+  if (!list.length) return;
   if (!playing.size) checkpoint();
   for (const [el, path] of list) playing.set(sweepKey(el, path), { id: el.id, path });
   startLoop();
@@ -3007,6 +3045,7 @@ function pause(el, path) {
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function pauseAll() {
+  if (sweepJob) sweepJob.cancel();
   if (!playing.size) return;
   playing.clear();
   syncPanel(); updateSweepButtons(); scheduleSave();
@@ -3024,6 +3063,98 @@ function syncPhases() {
   toast('All sweeps set to phase 0°, starting together');
   changed(false);
 }
+/* ---------- Sweeps with the diffracted field rendered ahead ----------
+   The field takes far longer to work out than a trace, so a sweep that shows it renders it
+   first: the shared clock is sampled FIELD_FRAMES times over one cycle, and at each sample
+   the bench's field and the field on every open screen are worked out and kept under the
+   same keys the live runs use. The sweep then plays by stepping between those samples, so
+   every step finds its field ready. Whatever was not rendered (a screen opened afterwards,
+   a change to the bench) is simply worked out live, as it always was. */
+const FIELD_FRAMES = 48;               // samples per cycle
+const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
+const fieldFrames = { bench: new Map(), screens: new Map() };
+function keepFrame(map, key, v) {
+  map.delete(key); map.set(key, v);
+  while (map.size > FIELD_KEEP) map.delete(map.keys().next().value);
+}
+let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
+let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
+/* screens whose diffracted field is on show: their panel is open at the Diffraction tab */
+const openScreens = () => project.elements.filter(e => e.type === 'screen' && vs(e).screenTab === 'plots' &&
+  (e.id === selectedId || pins.includes(e.id)));
+const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
+/* one cycle of the clock that brings every sweep in the list back to its start, if there is
+   a short one: equal rates, or rates in small whole ratios */
+function commonPeriod(sws) {
+  const P = sws.map(sw => 1 / sw.freq), Pmax = Math.max(...P);
+  for (let k = 1; k <= 8; k++) {
+    const T = Pmax * k;
+    if (P.every(p => Math.abs(T / p - Math.round(T / p)) < 1e-6)) return T;
+  }
+  return null;
+}
+function renderSweepFrames(list, onDone) {
+  const period = commonPeriod(list.map(([el, path]) => el.sweeps[path]));
+  if (!period) {
+    toast('These sweeps run at unrelated rates, so their field cannot be rendered ahead; it will be worked out live.', true);
+    onDone();
+    return;
+  }
+  const saved = list.map(([el, path]) => getPath(el, path));
+  const job = { list, i: 0, n: FIELD_FRAMES };
+  sweepJob = job;
+  const finish = ok => {
+    if (sweepJob !== job) return;
+    sweepJob = null;
+    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period };
+    changed(false);
+    if (ok) onDone();
+    else toast('Stopped rendering the field');
+  };
+  job.cancel = () => finish(false);
+  // run a field to the end, a slice at a time, handing control back between slices
+  const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
+  const frames = (function* () {
+    for (let i = 0; i < FIELD_FRAMES; i++) {
+      job.i = i;
+      const t = i * period / FIELD_FRAMES;
+      list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
+      traceScene();
+      requestRender(); syncPanel();
+      yield;
+      const srcs = popSources();
+      if (srcs.length) {
+        traceScene();
+        const key = popKeyOf(lastTrace.beams, srcs);
+        if (!fieldFrames.bench.has(key)) {
+          const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
+          const R = yield* run(popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }));
+          keepFrame(fieldFrames.bench, key, R);
+          requestRender();
+        }
+      }
+      for (const scr of openScreens()) {
+        traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
+        const J = popScreenPrep(scr);
+        if (!J || fieldFrames.screens.has(J.key)) continue;
+        const R = yield* run(popRunGen(lastTrace.beams, J.srcs, { keep: J.keep }));
+        traceScene();
+        keepFrame(fieldFrames.screens, J.key, popDiffraction(scr, R));
+      }
+    }
+  })();
+  const step = () => {
+    if (sweepJob !== job) return;
+    const until = performance.now() + 40;
+    let r;
+    do r = frames.next(); while (!r.done && performance.now() < until);
+    if (r.done) finish(true); else setTimeout(step, 0);
+  };
+  updateSweepButtons(); syncPanel();
+  setTimeout(step, 0);
+}
+
 /* ---------- One-parameter search over a swept range ---------- */
 
 let lastOptNm = 587.6;
@@ -3167,11 +3298,16 @@ function optimise(el, path, target, key, goal, targetVal) {
   return { best, bestMerit, startMerit, start, traces, improved, scan, bestValue, startValue };
 }
 
+/* The axis a metric's values go on: lengths get the length units, the rest their own format */
+function metricAxis(key, title) {
+  const m = METRICS.find(q => q.key === key);
+  return m && m.fmt === fmtLen ? { kind: 'len', title } : { kind: 'plain', title, fmt: v => metricText(key, v) };
+}
 /* The coarse scan, drawn so a comb or a plateau is obvious at a glance */
 function drawScan(cv, scan, key, best) {
   const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, hgt = 90;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const w = cv.clientWidth, hgt = 120;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
@@ -3181,8 +3317,11 @@ function drawScan(cv, scan, key, best) {
   const v0 = Math.min(...vs), v1 = Math.max(...vs);
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (y1 - y0 < 1e-12) { y0 -= 1; y1 += 1; }
-  const X = v => ((v - v0) / (v1 - v0 || 1)) * (w - 2) + 1;
-  const Y = y => hgt - 18 - ((y - y0) / (y1 - y0)) * (hgt - 30);
+  const m = METRICS.find(q => q.key === key);
+  const sx = { kind: 'plain', title: 'value tried' }, sy = metricAxis(key, m ? m.label : '');
+  const A = plotArea(c, w, hgt, [y0, y1], sy, { top: 20 });
+  const X = v => A.l + ((v - v0) / (v1 - v0 || 1)) * A.w;
+  const Y = y => A.t + A.h - ((y - y0) / (y1 - y0)) * A.h;
   c.strokeStyle = getCss('--jek-cyan');
   c.lineWidth = 1.5;
   c.beginPath();
@@ -3190,13 +3329,9 @@ function drawScan(cv, scan, key, best) {
   c.stroke();
   c.strokeStyle = 'rgba(0,0,0,0.4)';
   c.setLineDash([3, 3]);
-  c.beginPath(); c.moveTo(X(best), 2); c.lineTo(X(best), hgt - 16); c.stroke();
+  c.beginPath(); c.moveTo(X(best), A.t); c.lineTo(X(best), A.t + A.h); c.stroke();
   c.setLineDash([]);
-  c.fillStyle = getCss('--jek-ink-soft');
-  c.font = '10px ' + getCss('--jek-mono');
-  c.textAlign = 'left'; c.fillText(plainTxt(v0), 0, hgt - 3);
-  c.textAlign = 'right'; c.fillText(plainTxt(v1), w, hgt - 3);
-  c.textAlign = 'center'; c.fillText(metricText(key, y0) + ' \u2013 ' + metricText(key, y1), w / 2, hgt - 3);
+  drawAxes(c, A, [v0, v1], [y0, y1], sx, sy);
 }
 
 /* ---------- Monte Carlo over the swept ranges ---------- */
@@ -3269,26 +3404,26 @@ function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) 
 
 function drawHistogram(cv, samples, key) {
   const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, hgt = 90;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const w = cv.clientWidth, hgt = 120;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
   if (!samples.length) return;
-  const lo = samples[0], hi = samples[samples.length - 1];
+  let lo = samples[0], hi = samples[samples.length - 1];
+  if (!(hi > lo)) { const d = Math.abs(lo) * 1e-3 || 1e-9; lo -= d; hi += d; }
   const nb = 24, bins = new Array(nb).fill(0);
-  for (const v of samples) bins[Math.min(nb - 1, Math.floor((v - lo) / ((hi - lo) || 1) * nb))]++;
+  for (const v of samples) bins[clamp(Math.floor((v - lo) / (hi - lo) * nb), 0, nb - 1)]++;
   const peak = Math.max(...bins);
-  const bw = w / nb;
+  const sx = metricAxis(key, ''), sy = { kind: 'plain', title: 'trials', fmt: v => Number.isInteger(v) ? String(v) : '' };
+  const A = plotArea(c, w, hgt, [0, peak], sy, { top: 20 });
+  const bw = A.w / nb;
   c.fillStyle = getCss('--jek-cyan');
   for (let i = 0; i < nb; i++) {
-    const h0 = (bins[i] / peak) * (hgt - 18);
-    c.fillRect(i * bw + 1, hgt - 14 - h0, bw - 2, h0);
+    const h0 = (bins[i] / peak) * A.h;
+    c.fillRect(A.l + i * bw + 1, A.t + A.h - h0, Math.max(1, bw - 2), h0);
   }
-  c.fillStyle = getCss('--jek-ink-soft');
-  c.font = '10px ' + getCss('--jek-mono');
-  c.textAlign = 'left'; c.fillText(metricText(key, lo), 0, hgt - 2);
-  c.textAlign = 'right'; c.fillText(metricText(key, hi), w, hgt - 2);
+  drawAxes(c, A, [lo, hi], [0, peak], sx, sy, { noGrid: true });
 }
 
 function stopSweepsFor(el, prefix) {
@@ -3300,11 +3435,18 @@ function tick(t) {
   const dt = animLast === null ? 0 : Math.min(0.1, (t - animLast) / 1000);
   animLast = t;
   clockT += dt;
+  // with the field rendered ahead for exactly what is playing, step between its samples
+  let tq = clockT;
+  if (fieldRendered && [...playing.keys()].every(k => fieldRendered.keys.has(k))) {
+    // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly
+    const P = fieldRendered.period, i = ((Math.round(clockT * FIELD_FRAMES / P) % FIELD_FRAMES) + FIELD_FRAMES) % FIELD_FRAMES;
+    tq = i * P / FIELD_FRAMES;
+  }
   for (const [k, p] of playing) {
     const el = getEl(p.id);
     const sw = el && el.sweeps && el.sweeps[p.path];
     if (!sw || getPath(el, p.path) === undefined) { playing.delete(k); continue; }
-    setParam(el, p.path, clockValue(sw));
+    setParam(el, p.path, clockValueAt(sw, tq));
   }
   syncPanel();
   requestRender();
@@ -3425,10 +3567,11 @@ function sweepControls(el, path, sw, label) {
   box.append(h('div', { class: 'rt-sweep-range' }, small('From', 'min'), small('To', 'max')));
 
   const btn = h('button', { class: 'rt-play', type: 'button' });
-  btn.addEventListener('click', () => isPlaying(el, path) ? pause(el, path) : play(el, path));
+  const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
+  btn.addEventListener('click', () => rendering() ? sweepJob.cancel() : isPlaying(el, path) ? pause(el, path) : play(el, path));
   bindSync(btn, () => {
     const on = isPlaying(el, path);
-    btn.textContent = on ? 'Pause' : 'Play';
+    btn.textContent = rendering() ? 'Cancel' : on ? 'Pause' : 'Play';
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', (on ? 'Pause ' : 'Play ') + label + ' sweep');
   });
@@ -3442,6 +3585,20 @@ function sweepControls(el, path, sw, label) {
   slider.addEventListener('change', endEdit);
   bindSync(slider, () => { slider.value = String(Math.round(sweepFrac(el, path) * 1000)); });
   box.append(h('div', { class: 'rt-sweep-play' }, btn, slider));
+
+  // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
+  if (fieldWanted() || sw.field) {
+    const fc = h('input', { type: 'checkbox' });
+    fc.checked = !!sw.field;
+    fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; fieldRendered = null; changed(false); });
+    const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
+    bindSync(status, () => {
+      status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + '\u2026'
+        : sw.field ? 'Play renders the field at ' + FIELD_FRAMES + ' points of the cycle, on the bench and on open screens, then plays through them.' : '';
+      status.hidden = !status.textContent;
+    });
+    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
+  }
 
   const key = sweepKey(el, path);
   const adv = h('details', { class: 'rt-adv' });
@@ -3499,6 +3656,10 @@ function togglePin(el) {
 function renderPanel() {
   pins = pins.filter(id => getEl(id));
   for (const [id, box] of pinBoxes) if (!pins.includes(id)) { box.remove(); pinBoxes.delete(id); }
+  // a pinned panel keeps its place in its own content while the selection moves around it:
+  // read every scroll before anything is rebuilt or moved, since a box taken out of the
+  // page, even to go straight back, comes back scrolled to the top
+  const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
   const mainShows = !(sel && pins.includes(sel.id));
   mainPanel.style.display = mainShows ? '' : 'none';
@@ -3507,13 +3668,39 @@ function renderPanel() {
   for (const id of pins) {
     let box = pinBoxes.get(id);
     if (!box) { box = h('aside', { class: 'rt-panel rt-pinned', 'aria-label': 'Pinned properties' }); pinBoxes.set(id, box); }
-    after.after(box); after = box;
+    if (after.nextElementSibling !== box) after.after(box);
+    after = box;
     box.classList.toggle('current', !!sel && sel.id === id);
     renderInto(box, getEl(id));
+    if (scrolls.has(id)) holdScroll(box, scrolls.get(id));
   }
   mainPanel.parentElement.style.setProperty('--rt-cols', String((mainShows ? 1 : 0) + pins.length));
   mainPanel.closest('.rt-wrap').classList.toggle('wide', pins.length > 0 && window.innerWidth > 960);
   updateReadouts();
+}
+/* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
+   plots and readouts fill in, some of them a while later, so the place is held until the
+   content reaches it, or until the user scrolls or clicks in the panel themselves. */
+function holdScroll(box, want) {
+  box.scrollTop = want;
+  box._hold = want > 0 ? want : null;          // held only while there is somewhere to get back to
+  if (box._hold == null || box._holding) return;
+  box._holding = true;
+  const release = () => { box._hold = null; };
+  const evs = ['wheel', 'pointerdown', 'touchstart', 'keydown'];
+  for (const ev of evs) box.addEventListener(ev, release, { passive: true });
+  const t0 = performance.now();
+  const step = () => {
+    const want2 = box._hold;
+    if (want2 == null || !box.isConnected || performance.now() - t0 > 15000 || box.scrollTop === want2 && box.scrollHeight - box.clientHeight >= want2 && performance.now() - t0 > 1500) {
+      for (const ev of evs) box.removeEventListener(ev, release);
+      box._holding = false; box._hold = null;
+      return;
+    }
+    if (box.scrollTop !== want2) box.scrollTop = want2;
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 function renderInto(box, el) {
   const saved = panel;
@@ -3563,7 +3750,7 @@ function renderPanelBody(el) {
     h('button', { class: 'rt-btn', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));
-  panel.scrollTop = scroll;
+  holdScroll(panel, panel._hold != null ? panel._hold : scroll);
 }
 
 function sourcePanel(el) {
@@ -3727,9 +3914,11 @@ function rayPlots(el) {
       'Interpolate each beam across the bins'));
   }
 
-  const cv = h('canvas', { height: '150', style: 'width:100%;display:block;margin-top:0.35rem' });
+  const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  panel.append(cv, zoomControls(cv, () => plotZoom(el, 'ray-' + vs(el).rayView), () => drawRayPlot(cv, note, el), () => vs(el).rayView === 'bins' || vs(el).rayView === 'power'), note);
+  const getZ = () => plotZoom(el, 'ray-' + vs(el).rayView), redraw = () => drawRayPlot(cv, note, el);
+  panel.append(h('div', { style: 'margin-top:0.35rem' }, plotFrame(cv, () => 'ray-' + vs(el).rayView, getZ, redraw)),
+    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'bins' || vs(el).rayView === 'power'), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
@@ -3831,46 +4020,49 @@ function drawRayPlot(cv, note, el) {
   const all = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
   const st = screenStats(el);
   const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth || 280, hgt = 150;
+  const w = cv.clientWidth || 280, hgt = 170;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  cv.style.height = hgt + 'px';
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
+  cv._full = null;
+  updateSyncButtons();
   if (!all.length || !st || st.empty) { note.textContent = 'Nothing has reached this screen.'; return; }
 
   const lam = (st.nm || 633) * 1e-6;
   const centroid = st.centroid;
 
   const Z = plotZoom(el, 'ray-' + vs(el).rayView);
-  const A = { l: 2, t: 12, w: w - 4, h: hgt - 32 };
-  cv._area = A;
   if (vs(el).rayView === 'bins') {
     const B = binnedField(el);
     if (!B) { note.textContent = 'Nothing has reached this screen.'; return; }
     const peak = Math.max(B.max, B.incMax) || 1;
-    const [xa, xb] = zoomRange(Z, 'x', B.lo, B.hi), [ya, yb] = zoomRange(Z, 'y', 0, peak);
+    // up is a share of the peak bin, so plots of different screens compare by shape
+    const [xa, xb] = zoomRange(Z, 'x', B.lo, B.hi), [fa, fb] = zoomRange(Z, 'y', 0, 1);
+    const sx = { kind: 'len' }, sy = { kind: 'plain', title: 'of the peak bin' };
+    const A = plotArea(c, w, hgt, [fa, fb], sy);
+    cv._area = A; cv._full = { x: [B.lo, B.hi], y: [0, 1] };
     const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
-    const Y = v => A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
-    c.save(); c.beginPath(); c.rect(0, A.t - 2, w, A.h + 2); c.clip();
+    const Y = v => A.t + A.h - (v / peak - fa) / ((fb - fa) || 1) * A.h;
+    const base = Math.min(A.t + A.h, Y(0));
+    c.save(); c.beginPath(); c.rect(A.l, A.t - 2, A.w, A.h + 2); c.clip();
     // the incoherent sum behind, as a reference, and the coherent bins in front
     c.fillStyle = 'rgba(0,0,0,0.12)';
     for (let i = 0; i < B.n; i++) {
       const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.inc[i]);
-      if (x1 < 0 || x0 > w) continue;
-      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
+      if (x1 < A.l || x0 > A.l + A.w) continue;
+      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), base - y);
     }
     c.fillStyle = getCss('--jek-cyan');
     for (let i = 0; i < B.n; i++) {
       const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.coh[i]);
-      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), hgt - 20 - y);
+      if (x1 < A.l || x0 > A.l + A.w) continue;
+      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), base - y);
     }
     c.restore();
-    c.fillStyle = getCss('--jek-ink-soft');
-    c.font = '10px ' + getCss('--jek-mono');
-    c.textAlign = 'left';
-    c.fillText(Z.ky !== 1 ? (+(yb / peak).toPrecision(3)) + ' of the peak bin' : 'peak bin', 0, 9);
-    c.fillText(fmtLen(xa), 0, hgt - 4);
-    c.textAlign = 'right'; c.fillText(fmtLen(xb), w, hgt - 4);
+    drawAxes(c, A, [xa, xb], [fa, fb], sx, sy);
+    updateSyncButtons();
     note.textContent = B.n + ' bins of ' + fmtLen(B.width) + ' across ' + fmtLen(B.hi - B.lo) +
       (B.interp ? ', interpolated' : ', rays dropped straight in') +
       '. Fields add within a beam and a wavelength; the grey behind is the incoherent sum' +
@@ -3878,23 +4070,23 @@ function drawRayPlot(cv, note, el) {
     return;
   }
 
-  let pts = [], xl = 'position (mm)', yl = '', fmtY = v => (+v.toPrecision(4));
+  let pts = [], xl = 'position (mm)', yl = '', sx = { kind: 'len' }, sy = { kind: 'plain' };
   if (vs(el).rayView === 'power') {
-    pts = all.map(t => [t.y, t.w]); yl = 'power per ray';
+    pts = all.map(t => [t.y, t.w]); yl = 'power per ray'; sy.title = 'power per ray';
   } else if (vs(el).rayView === 'phase') {
-    pts = all.map(t => [t.y, ((t.opl / lam) % 1 + 1) % 1]); yl = 'phase (waves, wrapped)';
+    pts = all.map(t => [t.y, ((t.opl / lam) % 1 + 1) % 1]); yl = 'phase (waves, wrapped)'; sy.title = 'phase, waves (wrapped)';
   } else if (vs(el).rayView === 'wave') {
     const front = all.filter(t => t.nm === st.nm);
     const L = front.map(t => t.opl + t.n * (centroid - t.y) * t.dly);
     const mean = L.reduce((a, b) => a + b, 0) / (L.length || 1);
-    pts = front.map((t, i) => [t.y, (L[i] - mean) / lam]); yl = 'wavefront error (waves)';
+    pts = front.map((t, i) => [t.y, (L[i] - mean) / lam]); yl = 'wavefront error (waves)'; sy.title = 'wavefront error, waves';
   } else if (vs(el).rayView === 'fan') {
     pts = all.map(t => [t.k, t.y - centroid]); xl = 'ray number across the fan'; yl = 'position from centroid (mm)';
-    fmtY = v => fmtLen(v);
+    sx = { kind: 'plain', title: 'ray number' }; sy = { kind: 'len', title: 'from the centroid' };
   } else if (vs(el).rayView === 'angle') {
-    pts = all.map(t => [t.y, Math.asin(clamp(t.dly, -1, 1)) / deg]); yl = 'angle from the normal (deg)';
+    pts = all.map(t => [t.y, Math.asin(clamp(t.dly, -1, 1)) / deg]); yl = 'angle from the normal (deg)'; sy.title = 'angle from the normal, °';
   } else {
-    pts = all.map(t => [t.y, t.opl]); yl = 'optical path (mm)';
+    pts = all.map(t => [t.y, t.opl]); yl = 'optical path (mm)'; sy = { kind: 'len', title: 'optical path' };
   }
   pts = pts.filter(q => isFinite(q[0]) && isFinite(q[1]));
   if (!pts.length) { note.textContent = 'That plot has nothing to show for these rays.'; return; }
@@ -3904,22 +4096,20 @@ function drawRayPlot(cv, note, el) {
   if (x1 - x0 < 1e-12) { x0 -= 1; x1 += 1; }
   if (y1 - y0 < 1e-12) { y0 -= Math.abs(y0 || 1) * 0.1 + 1e-9; y1 += Math.abs(y1 || 1) * 0.1 + 1e-9; }
   const [xa, xb] = zoomRange(Z, 'x', x0, x1), [ya, yb] = zoomRange(Z, 'y', y0, y1);
+  const A = plotArea(c, w, hgt, [ya, yb], sy);
+  cv._area = A; cv._full = { x: [x0, x1], y: [y0, y1] };
   const X = v => A.l + (v - xa) / (xb - xa) * A.w;
   const Y = v => A.t + A.h - (v - ya) / (yb - ya) * A.h;
-  c.save(); c.beginPath(); c.rect(0, A.t - 3, w, A.h + 6); c.clip();
+  c.save(); c.beginPath(); c.rect(A.l, A.t - 3, A.w + 3, A.h + 6); c.clip();
   if (ya < 0 && yb > 0) {
     c.strokeStyle = 'rgba(0,0,0,0.15)';
-    c.beginPath(); c.moveTo(0, Y(0)); c.lineTo(w, Y(0)); c.stroke();
+    c.beginPath(); c.moveTo(A.l, Y(0)); c.lineTo(A.l + A.w, Y(0)); c.stroke();
   }
   c.fillStyle = getCss('--jek-cyan');
-  for (const [x, y] of pts) { const px = X(x), py = Y(y); if (px < -3 || px > w + 3) continue; c.beginPath(); c.arc(px, py, 1.8, 0, Math.PI * 2); c.fill(); }
+  for (const [x, y] of pts) { const px = X(x), py = Y(y); if (px < A.l - 3 || px > A.l + A.w + 3) continue; c.beginPath(); c.arc(px, py, 1.8, 0, Math.PI * 2); c.fill(); }
   c.restore();
-  c.fillStyle = getCss('--jek-ink-soft');
-  c.font = '10px ' + getCss('--jek-mono');
-  c.textAlign = 'left'; c.fillText(String(fmtY(yb)), 0, 9);
-  c.fillText(String(fmtY(ya)), 0, hgt - 22);
-  c.fillText(String(+xa.toPrecision(4)), 0, hgt - 4);
-  c.textAlign = 'right'; c.fillText(String(+xb.toPrecision(4)), w, hgt - 4);
+  drawAxes(c, A, [xa, xb], [ya, yb], sx, sy);
+  updateSyncButtons();
   note.textContent = yl + ' against ' + xl + ', ' + pts.length + ' rays' +
     (st.mixed && vs(el).rayView !== 'power' ? ', one wavelength only' : '') + '.';
 }
@@ -4145,6 +4335,139 @@ function stopPanel(el) {
    axis, the centre as a fraction of the plot's full range. The wheel zooms about the
    cursor (Shift: across only, Alt: up and down only), dragging pans, a double click
    resets, and the buttons under the plot zoom one axis about the middle of the view. */
+/* ---------- Axes: ticks and labels, shared by every plot ----------
+   An axis is described by { kind, title, fmt }: kind 'len' (mm, shown in m, mm, µm or nm to
+   suit the span), 'hz' (shown in GHz to Hz) or 'plain'; title names what is plotted, and fmt,
+   if given, writes each tick's label itself. */
+const axisFont = () => '10px ' + getCss('--jek-mono');
+function axisScale(kind, a, b) {
+  const m = Math.max(Math.abs(a), Math.abs(b), Math.abs(b - a));
+  if (kind === 'len') return m >= 2000 ? [1e-3, 'm'] : m >= 0.5 ? [1, 'mm'] : m >= 5e-4 ? [1e3, 'µm'] : [1e6, 'nm'];
+  if (kind === 'hz') return m >= 1e9 ? [1e-9, 'GHz'] : m >= 1e6 ? [1e-6, 'MHz'] : m >= 1e3 ? [1e-3, 'kHz'] : [1, 'Hz'];
+  return [1, ''];
+}
+/* round-number ticks over [a, b], about `target` of them */
+function axisTicks(a, b, spec, target) {
+  const [k, unit] = axisScale(spec.kind, a, b);
+  const A = a * k, B = b * k, span = B - A, ticks = [];
+  if (!(span > 0) || !isFinite(span)) return { ticks, unit };
+  const step = niceStep(span / Math.max(1, target)), dec = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+  for (let i = Math.ceil(A / step - 1e-9); i * step <= B + step * 1e-9; i++) {
+    const v = Math.abs(i) < 1e-9 ? 0 : i * step;
+    ticks.push({ at: v / k, text: spec.fmt ? spec.fmt(v / k) : v.toFixed(dec) });
+  }
+  return { ticks, unit };
+}
+const axisTitle = (spec, unit) => [spec.title, unit].filter(Boolean).join(', ');
+/* The plotting area inside a w x hgt canvas: room on the left for the up axis's labels,
+   under it for the across axis's, and above it for the up axis's title, with the top right
+   corner kept clear for the button that matches plots to each other */
+function plotArea(c, w, hgt, yr, sy, opt = {}) {
+  c.font = axisFont();
+  let lw = 0;
+  for (const t of axisTicks(yr[0], yr[1], sy, 4).ticks) lw = Math.max(lw, c.measureText(t.text).width);
+  const l = Math.ceil(lw) + 8, t = opt.top !== undefined ? opt.top : 26, b = 18;
+  return { l, t, w: Math.max(10, w - l - (opt.right !== undefined ? opt.right : 6)), h: Math.max(10, hgt - t - b) };
+}
+function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {
+  c.save();
+  c.font = axisFont(); c.lineWidth = 1; c.setLineDash([]);
+  const ink = getCss('--jek-ink-soft'), right = A.l + A.w, bottom = A.t + A.h;
+  const X = v => A.l + (v - xr[0]) / ((xr[1] - xr[0]) || 1) * A.w;
+  const Y = v => bottom - (v - yr[0]) / ((yr[1] - yr[0]) || 1) * A.h;
+  const tx = axisTicks(xr[0], xr[1], sx, Math.max(2, Math.floor(A.w / 60)));
+  const ty = axisTicks(yr[0], yr[1], sy, Math.max(4, Math.floor(A.h / 20)));
+  // faint grid at the ticks, then the axis lines and the ticks themselves
+  if (!opt.noGrid) {
+    c.strokeStyle = 'rgba(0,0,0,0.06)'; c.beginPath();
+    for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p > A.l + 1 && p < right - 1) { c.moveTo(p, A.t); c.lineTo(p, bottom); } }
+    for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p > A.t + 1 && p < bottom - 1) { c.moveTo(A.l, p); c.lineTo(right, p); } }
+    c.stroke();
+  }
+  const x0 = Math.round(A.l) - 0.5, yB = Math.round(bottom) + 0.5;
+  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.beginPath();
+  c.moveTo(x0, A.t); c.lineTo(x0, yB); c.lineTo(right, yB);
+  for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p >= A.l - 1 && p <= right + 1) { c.moveTo(p, yB); c.lineTo(p, yB + 4); } }
+  for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p >= A.t - 1 && p <= bottom + 1) { c.moveTo(x0, p); c.lineTo(x0 - 4, p); } }
+  c.stroke();
+  c.fillStyle = ink;
+  // across: the title at the right end, tick labels wherever they fit clear of it and each other
+  const titleX = axisTitle(sx, tx.unit), tw = titleX ? c.measureText(titleX).width : 0;
+  c.textBaseline = 'alphabetic';
+  if (titleX) { c.textAlign = 'right'; c.fillText(titleX, right, yB + 14); }
+  const limit = titleX ? right - tw - 8 : c.canvas.clientWidth || right + 6;
+  let last = -Infinity; c.textAlign = 'center';
+  for (const t of tx.ticks) {
+    const p = X(t.at), half = c.measureText(t.text).width / 2;
+    if (p < A.l - 1 || p > right + 1 || p - half < 0 || p + half > limit || p - half < last + 6) continue;
+    c.fillText(t.text, p, yB + 14); last = p + half;
+  }
+  // up: labels to the left of the axis, the title above it
+  c.textAlign = 'right'; c.textBaseline = 'middle'; last = Infinity;
+  for (const t of ty.ticks) {
+    const p = Y(t.at);
+    if (p < A.t - 1 || p > bottom + 1 || p + 5 > last - 2) continue;
+    c.fillText(t.text, x0 - 5, p); last = p - 5;
+  }
+  const titleY = axisTitle(sy, ty.unit);
+  if (titleY && A.t >= 16) { c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText(titleY, 0, A.t - 8); }   // clear of the top tick's label
+  c.restore();
+}
+
+/* ---------- Matching one plot's axes on the others like it ----------
+   A plot's canvas carries _sync (what it shows, its zoom, how to redraw it) and, once drawn
+   with data, _full: the whole range of each axis in the units its ticks show. The window of
+   one plot is then copied, in those units, to every other open plot of the same kind, which
+   may mean zooming a small pattern out past its own data so both show the same span. */
+const SYNC_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 6.3A5.3 5.3 0 0 0 3.6 4.4L2.4 5.6"/><path d="M2.4 2.4v3.2h3.2"/><path d="M2.8 9.7a5.3 5.3 0 0 0 9.6 1.9l1.2-1.2"/><path d="M13.6 13.6v-3.2h-3.2"/></svg>';
+const SYNC_NAMES = { 'diff-map': 'irradiance maps', 'diff-psf': 'profiles', 'diff-mtf': 'MTF plots', 'diff-ee': 'enclosed energy plots',
+  'cav-scan': 'resonance scans', 'ray-bins': 'binned intensity plots', 'ray-power': 'ray power plots', 'ray-phase': 'phase plots',
+  'ray-wave': 'wavefront plots', 'ray-fan': 'ray fans', 'ray-angle': 'arrival angle plots', 'ray-opl': 'optical path plots' };
+function plotFrame(cv, getKey, getZ, redraw) {
+  cv._sync = { getKey, getZ, redraw };
+  const btn = h('button', { class: 'rt-sync', type: 'button', onclick: () => syncFrom(cv) });
+  btn.hidden = true;
+  btn.innerHTML = SYNC_SVG;
+  cv._syncBtn = btn;
+  return h('div', { class: 'rt-plot' }, cv, btn);
+}
+const plotCanvases = () => [...document.querySelectorAll('.rt-panel canvas')].filter(c => c._sync && c.offsetParent !== null);
+function syncFrom(cv) {
+  const key = cv._sync.getKey(), F = cv._full, Z = cv._sync.getZ();
+  if (!F || !Z) return;
+  const [xa, xb] = zoomRange(Z, 'x', F.x[0], F.x[1]), [ya, yb] = zoomRange(Z, 'y', F.y[0], F.y[1]);
+  let n = 0;
+  for (const o of plotCanvases()) {
+    if (o === cv || !o._full || o._sync.getKey() !== key) continue;
+    const P = o._full, Zo = o._sync.getZ();
+    if (!Zo) continue;
+    const fit = (lo, hi, a, b, ax) => {
+      if (!(hi > lo) || !(b > a)) return;
+      Zo['k' + ax] = clamp((hi - lo) / (b - a), 1 / ZOOM_MAXK, ZOOM_MAXK);
+      Zo['c' + ax] = ((a + b) / 2 - lo) / (hi - lo);
+    };
+    fit(P.x[0], P.x[1], xa, xb, 'x'); fit(P.y[0], P.y[1], ya, yb, 'y');
+    o._sync.redraw(); n++;
+  }
+  if (n) toast('Matched ' + n + ' other plot' + (n > 1 ? 's' : '') + ' to this one’s axes');
+}
+/* the button shows on a plot only while another open panel shows the same kind of plot */
+let syncBtnsQueued = false;
+function updateSyncButtons() {
+  if (syncBtnsQueued) return;
+  syncBtnsQueued = true;
+  requestAnimationFrame(() => {
+    syncBtnsQueued = false;
+    const all = plotCanvases(), count = new Map();
+    for (const c of all) { const k = c._full && c._sync.getKey(); if (k) count.set(k, (count.get(k) || 0) + 1); }
+    for (const c of all) {
+      const k = c._sync.getKey(), on = !!c._full && count.get(k) > 1;
+      c._syncBtn.hidden = !on;
+      if (on) c._syncBtn.title = 'Match the other open ' + (SYNC_NAMES[k] || 'plots like this') + ' to this one’s axes';
+    }
+  });
+}
+
 const ZOOM_MAXK = 1000;
 function plotZoom(el, plot) {
   const s = vs(el), z = s.zoom || (s.zoom = {});
@@ -4152,15 +4475,17 @@ function plotZoom(el, plot) {
 }
 /* The visible part of [lo, hi] on one axis, keeping the window inside the full range */
 function zoomRange(Z, axis, lo, hi) {
+  // below 1 the window is wider than the data (a plot matched to a bigger one): it then
+  // keeps all of the data in view rather than all of the view on the data
   const k = Z['k' + axis], half = 0.5 / k;
-  Z['c' + axis] = clamp(Z['c' + axis], half, 1 - half);
+  Z['c' + axis] = clamp(Z['c' + axis], Math.min(half, 1 - half), Math.max(half, 1 - half));
   const c = Z['c' + axis], r = hi - lo;
   return [lo + (c - half) * r, lo + (c + half) * r];
 }
 const zoomed = Z => Z.kx !== 1 || Z.ky !== 1;
 /* Zoom one axis by f, keeping the point at fraction p of the view where it is */
 function zoomAxis(Z, axis, f, p) {
-  const k0 = Z['k' + axis], k1 = clamp(k0 * f, 1, ZOOM_MAXK);
+  const k0 = Z['k' + axis], k1 = clamp(k0 * f, Math.min(1, k0), ZOOM_MAXK);
   const at = Z['c' + axis] - 0.5 / k0 + p / k0;        // that point, as a fraction of the full range
   Z['k' + axis] = k1;
   Z['c' + axis] = at - p / k1 + 0.5 / k1;
@@ -4284,23 +4609,36 @@ function diffractionSection(el) {
     box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
       ...notes.map(t => h('p', { class: 'note' }, t)));
   };
-  panel.append(tabs, scaleRow, cv, zoomControls(cv, () => plotZoom(el, vs(el).diffView), () => drawDiff(cv, diffractionLater(el).D, el), () => vs(el).diffView !== 'map'), box);
+  const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
+  panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw),
+    zoomControls(cv, getZ, redraw, () => vs(el).diffView !== 'map'), box);
   bindSync(cv, refresh);
 }
 
 function drawDiff(cv, D, el) {
   const dpr = window.devicePixelRatio || 1, view = vs(el).diffView, Z = plotZoom(el, view);
-  const w = cv.clientWidth || 280, square = view === 'map', hgt = square ? Math.round(w) : 130;
-  cv.style.height = hgt + 'px';
-  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const w = cv.clientWidth || 280, square = view === 'map';
   const c = cv.getContext('2d');
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.clearRect(0, 0, w, hgt);
-  if (!D) return;
-  c.fillStyle = getCss('--jek-ink-soft');
-  c.font = '10px ' + getCss('--jek-mono');
+  cv._full = null;
+  updateSyncButtons();
+  const size = hgt => {
+    cv.style.height = hgt + 'px';
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, hgt);
+  };
+  if (!D) { size(square ? Math.round(w) : 150); return; }
   if (square) {
-    // irradiance on the screen: along it (in the bench plane) across, out of the plane up
+    // irradiance on the screen: along it (in the bench plane) across, out of the plane up,
+    // both from the middle of the map
+    const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
+    const [xa, xb] = zoomRange(Z, 'x', -half, half), [ya, yb] = zoomRange(Z, 'y', -vh, vh);
+    const sx = { kind: 'len', title: 'along' }, sy = { kind: 'len', title: 'out of the plane' };
+    const A0 = plotArea(c, w, 100, [ya, yb], sy);
+    const side = Math.max(40, w - A0.l - 6), hgt = side + A0.t + 18;
+    size(hgt);
+    const A = { l: A0.l, t: A0.t, w: side, h: side };
+    cv._area = A; cv._full = { x: [-half, half], y: [-vh, vh] };
     const M = D.map.n, img = c.createImageData(M, M);
     // scaled to its own peak, but never above what the beams would give without interfering,
     // so a dark port shows dark rather than its rounding error blown up
@@ -4315,20 +4653,27 @@ function drawDiff(cv, D, el) {
     }
     const off = document.createElement('canvas'); off.width = M; off.height = M;
     off.getContext('2d').putImageData(img, 0, 0);
-    const pad = 14, side = Math.min(w, hgt) - pad;
-    cv._area = { l: w - side, t: 0, w: side, h: side };
-    // the part of the map in view, as fractions across and up
-    const [ua, ub] = zoomRange(Z, 'x', 0, 1), [va, vb] = zoomRange(Z, 'y', 0, 1);
-    c.imageSmoothingEnabled = !zoomed(Z) || M / (Z.kx) > side / 3;     // show the samples once they are big
-    c.drawImage(off, ua * M, (1 - vb) * M, (ub - ua) * M, (vb - va) * M, w - side, 0, side, side);
-    const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
-    const lab = (a, b, H) => zoomed(Z) ? fmtLen((2 * a - 1) * H) + ' to ' + fmtLen((2 * b - 1) * H) : '\u00b1' + fmtLen(H);
-    c.textAlign = 'left'; c.fillText(lab(ua, ub, half) + ' along the screen', w - side, hgt - 2);
-    c.save(); c.translate(9, side); c.rotate(-Math.PI / 2); c.fillText((zoomed(Z) ? lab(va, vb, vh) + ' ' : '') + 'out of the plane', 0, 0); c.restore();
+    // the window in fractions of the map; past its edges (a map matched to a bigger one) is
+    // outside the field computed, drawn as its darkest colour with the map's edge dashed
+    const ua = (xa + half) / (2 * half), ub = (xb + half) / (2 * half), va = (ya + vh) / (2 * vh), vb = (yb + vh) / (2 * vh);
+    const U0 = Math.max(0, ua), U1 = Math.min(1, ub), V0 = Math.max(0, va), V1 = Math.min(1, vb);
+    const dx = u => A.l + (u - ua) / (ub - ua) * side, dy = v => A.t + (vb - v) / (vb - va) * side;
+    c.fillStyle = 'rgb(' + magma(0).join(',') + ')';
+    c.fillRect(A.l, A.t, side, side);
+    c.imageSmoothingEnabled = !zoomed(Z) || M / Z.kx > side / 3;     // show the samples once they are big
+    if (U1 > U0 && V1 > V0) c.drawImage(off, U0 * M, (1 - V1) * M, (U1 - U0) * M, (V1 - V0) * M, dx(U0), dy(V1), dx(U1) - dx(U0), dy(V0) - dy(V1));
+    if (ua < 0 || ub > 1 || va < 0 || vb > 1) {
+      c.strokeStyle = 'rgba(255,255,255,0.35)'; c.setLineDash([3, 3]);
+      c.strokeRect(dx(U0) + 0.5, dy(V1) + 0.5, dx(U1) - dx(U0) - 1, dy(V0) - dy(V1) - 1); c.setLineDash([]);
+    }
+    drawAxes(c, A, [xa, xb], [ya, yb], sx, sy, { noGrid: true });
+    updateSyncButtons();
     return;
   }
+  const hgt = 150;
+  size(hgt);
   const series = [];
-  let xs0, xs1, fmtX = fmtLen, top = 1, marker = null, yName = 'of the peak';
+  let xs0, xs1, sx = { kind: 'len' }, top = 1, marker = null, yName = 'of the peak';
   if (view === 'mtf') {
     series.push({ x: D.freq, y: D.mtf });
     if (!D.symmetric) series.push({ x: D.freq, y: D.mtfY, dash: true });
@@ -4336,24 +4681,26 @@ function drawDiff(cv, D, el) {
       const ana = D.freq.map(v => { const x = v / D.cutoff; return x >= 1 ? 0 : (2 / Math.PI) * (Math.acos(x) - x * Math.sqrt(1 - x * x)); });
       series.push({ x: D.freq, y: ana, faint: true });
     }
-    xs0 = 0; xs1 = D.freq[D.freq.length - 1]; fmtX = v => (+v.toPrecision(3)) + ' lp/mm'; yName = '';
+    xs0 = 0; xs1 = D.freq[D.freq.length - 1]; sx = { kind: 'plain', title: 'lp/mm' }; yName = 'MTF';
   } else if (view === 'ee') {
     series.push({ x: D.rho, y: D.ee });
-    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; marker = D.airy; yName = 'of the light';
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; marker = D.airy; yName = 'of the light'; sx.title = 'radius';
   } else if (D.symmetric) {
     series.push({ x: D.rho, y: D.psf });
-    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; top = Math.max(...D.psf); marker = D.airy;
+    xs0 = 0; xs1 = D.rho[D.rho.length - 1]; top = Math.max(...D.psf); marker = D.airy; sx.title = 'radius';
   } else {
     series.push({ x: D.cutX.x, y: D.cutX.I }, { x: D.cutY.x, y: D.cutY.I, dash: true });
     xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; top = Math.max(...D.cutX.I, ...D.cutY.I);
   }
-  const A = { l: 1, t: 4, w: w - 2, h: hgt - 20 };
-  cv._area = A;
-  const [xa, xb] = zoomRange(Z, 'x', xs0, xs1), [ya, yb] = zoomRange(Z, 'y', 0, top || 1);
+  // up is always a share of the full scale, so plots of different screens compare by shape
+  const [xa, xb] = zoomRange(Z, 'x', xs0, xs1), [fa, fb] = zoomRange(Z, 'y', 0, 1);
+  const sy = { kind: 'plain', title: yName };
+  const A = plotArea(c, w, hgt, [fa, fb], sy);
+  cv._area = A; cv._full = { x: [xs0, xs1], y: [0, 1] };
   const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
-  const Y = v => A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
+  const Y = v => A.t + A.h - (v / (top || 1) - fa) / ((fb - fa) || 1) * A.h;
   c.save();
-  c.beginPath(); c.rect(A.l - 1, A.t - 2, A.w + 2, A.h + 4); c.clip();
+  c.beginPath(); c.rect(A.l, A.t - 2, A.w + 2, A.h + 4); c.clip();
   if (marker) {
     c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
     c.moveTo(X(marker), A.t); c.lineTo(X(marker), A.t + A.h); c.stroke(); c.setLineDash([]);
@@ -4368,15 +4715,13 @@ function drawDiff(cv, D, el) {
   }
   c.restore();
   c.setLineDash([]);
-  c.fillStyle = getCss('--jek-ink-soft');
-  c.textAlign = 'left'; c.fillText(fmtX(xa), 0, hgt - 3);
-  c.textAlign = 'right'; c.fillText(fmtX(xb), w, hgt - 3);
-  if (Z.ky !== 1) {
-    // the vertical window, as a share of the full scale
-    const f = v => (+(v / (top || 1)).toPrecision(3));
-    c.textAlign = 'left'; c.fillText(f(yb) + (yName ? ' ' + yName : ''), 2, A.t + 8); c.fillText(String(f(ya)), 2, A.t + A.h - 2);
+  drawAxes(c, A, [xa, xb], [fa, fb], sx, sy);
+  if (!D.symmetric && view !== 'ee') {
+    // clear of the sync button in the corner
+    c.fillStyle = getCss('--jek-ink-soft'); c.font = axisFont();
+    c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out', w - 28, A.t - 8);
   }
-  if (!D.symmetric && view !== 'ee') { c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out of it', w, 10); }
+  updateSyncButtons();
 }
 
 function lensKind(el) {
@@ -4524,11 +4869,12 @@ function cavityCard(c) {
   const lockSel = selectField('Laser', [['lock', 'Locked to its strongest resonance'], ['built', 'As built (its own frequency and lengths)']],
     () => (project.cavityLock && project.cavityLock[c.id]) || 'lock',
     v => { project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: v }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); }, { wide: true });
-  const dl = h('div', { class: 'rt-readout' }), cv = h('canvas', { height: '120', style: 'width:100%;display:block;margin-top:0.4rem' });
+  const dl = h('div', { class: 'rt-readout' }), cv = h('canvas', { height: '140', style: 'width:100%;display:block' });
   const pseudo = { id: 'cav:' + c.id };
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const modesBox = h('div', { class: 'rt-modes' });
-  box.append(head, h('div', { class: 'rt-rows' }, lockSel), dl, cv,
+  box.append(head, h('div', { class: 'rt-rows' }, lockSel), dl,
+    h('div', { style: 'margin-top:0.4rem' }, plotFrame(cv, () => 'cav-scan', () => plotZoom(pseudo, 'scan'), () => drawCavityScan(cv, c, pseudo))),
     zoomControls(cv, () => plotZoom(pseudo, 'scan'), () => drawCavityScan(cv, c, pseudo), () => true), modesBox, note);
   let sig = '', modesFor = null;
   const refresh = () => {
@@ -4611,18 +4957,23 @@ function drawModeThumb(cv, F) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(off, 0, 0, n, n);
 }
 function drawCavityScan(cv, c, pseudo) {
-  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 120;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 140;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
+  cv._full = null;
+  updateSyncButtons();
   const S0 = cavSolved.get(c.id), S = S0 && S0.trace === lastTrace ? S0 : null, P = S && S.res;
-  g.fillStyle = getCss('--jek-ink-soft'); g.font = '10px ' + getCss('--jek-mono');
-  if (!P) { g.fillText('working out the steady state\u2026', 4, 14); return; }
-  const Z = plotZoom(pseudo, 'scan'), A = { l: 2, t: 12, w: w - 4, h: hgt - 32 }; cv._area = A;
+  g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
+  if (!P) { g.fillText('working out the steady state…', 4, 14); return; }
+  const Z = plotZoom(pseudo, 'scan');
   // across: the laser's detuning over one free spectral range; up: the circulating power, as
   // a share of its peak (a log scale shows the small higher-mode lines)
   const [xa, xb] = zoomRange(Z, 'x', -0.5, 0.5), [ya, yb] = zoomRange(Z, 'y', 0, 1);
+  const sx = { kind: 'hz', title: 'detuning' }, sy = { kind: 'plain', title: 'of the peak (dashed: as built, solid: locked)' };
+  const A = plotArea(g, w, hgt, [ya, yb], sy);
+  cv._area = A; cv._full = { x: [-0.5 * c.fsr, 0.5 * c.fsr], y: [0, 1] };
   const pk = P.Plock, n = Math.max(400, Math.round(A.w * 2));
-  g.save(); g.beginPath(); g.rect(0, A.t - 2, w, A.h + 4); g.clip();
+  g.save(); g.beginPath(); g.rect(A.l, A.t - 2, A.w + 2, A.h + 4); g.clip();
   g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.3; g.beginPath();
   for (let i = 0; i <= n; i++) {
     const f = xa + (xb - xa) * i / n, d = -2 * Math.PI * f, v = P.at(d).P / pk;
@@ -4635,10 +4986,8 @@ function drawCavityScan(cv, c, pseudo) {
   mark(0, [3, 3]);
   let fl = -P.dLock / (2 * Math.PI); fl -= Math.round(fl); mark(fl, []);
   g.restore();
-  g.fillStyle = getCss('--jek-ink-soft');
-  g.textAlign = 'left'; g.fillText(fmtHz(xa * c.fsr), 0, hgt - 3);
-  g.textAlign = 'right'; g.fillText(fmtHz(xb * c.fsr), w, hgt - 3);
-  g.textAlign = 'left'; g.fillText((+yb.toPrecision(3)) + ' of the peak (dashed: as built; solid: locked)', 2, 9);
+  drawAxes(g, A, [xa * c.fsr, xb * c.fsr], [ya, yb], sx, sy);
+  updateSyncButtons();
 }
 
 let benchTab = 'bench';
@@ -7485,7 +7834,7 @@ function popSlices(items, perIn) {
 
 /* Runs the field a few tens of milliseconds at a time; a change to the bench restarts it */
 function schedulePop() {
-  if (popState.timer || TEST_MODE) return;
+  if (popState.timer || TEST_MODE || sweepJob) return;
   popState.timer = setTimeout(function step() {
     const srcs = popSources();
     const key = popKeyOf(lastTrace.beams, srcs);
@@ -7513,6 +7862,9 @@ function drawPop() {
   const srcs = popSources();
   if (!srcs.length) return new Set();
   const key = popKeyOf(lastTrace.beams, srcs);
+  if (key !== popState.key && fieldFrames.bench.has(key)) {
+    popState.key = key; popState.result = fieldFrames.bench.get(key); popState.job = null;
+  }
   if (key !== popState.key) { schedulePop(); return new Set(); }
   const R = popState.result;
   if (!R) return new Set();
@@ -8017,6 +8369,7 @@ function diffraction(el) {
   if (!job) return null;
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return c.D;
+  if (fieldFrames.screens.has(job.key)) return fieldFrames.screens.get(job.key);
   const D = popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }));
   popScreenCache.set(el.id, { key: job.key, D });
   return D;
@@ -8029,7 +8382,10 @@ function diffractionLater(el) {
   if (!job) return { D: null, busy: false };
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return { D: c.D, busy: false };
+  const fr = fieldFrames.screens.get(job.key);
+  if (fr) { popScreenCache.set(el.id, { key: job.key, D: fr }); return { D: fr, busy: false }; }
   if (TEST_MODE) return { D: diffraction(el), busy: false };
+  if (sweepJob) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
   const S = popScreenState, J0 = S.jobs.get(el.id);
   if (!J0 || J0.key !== job.key) S.jobs.set(el.id, { key: job.key, el, gen: popRunGen(lastTrace.beams, job.srcs, { keep: job.keep }) });
   if (!S.timer) S.timer = setTimeout(function step() {

@@ -290,6 +290,62 @@ function peaksOf(f, x0, x1, dx, frac) {
 const profileAt = (g, z) => { const P = g.profile(z), r = P.r, I = P.I;
   return x => { let lo = 0, hi = r.length - 1; if (x <= r[0] || x >= r[hi]) return 0; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (r[m] <= x) lo = m; else hi = m; } return I[lo] + (I[hi] - I[lo]) * (x - r[lo]) / (r[hi] - r[lo]); }; };
 
+/* A plano-convex lens between crossed polarisers: p light in, an analyser passing s just
+   behind. bare: uncoated faces; otherwise perfect AR. */
+const malteseBench = (bare, N) => bench('maltese', [
+  src({ name: 'Beam', x: -40, width: 6, rays: 3, gauss: true, w0: 3, z0: 40, pol: 'p', popN: N || 256, popModel: '2d' }),
+  { type: 'lens', name: 'PCX', x: 0, y: 0, angle: 0, diameter: 25.4, gaps: [5], materials: [{ glass: 'N-BK7' }],
+    surfaces: bare ? [{ R: 15 }, { R: null }] : [{ R: 15, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }] },
+  { type: 'polariser', name: 'Analyser', x: 4, y: 0, angle: 0, length: 25.4, axis: 90 },
+], { minPower: 1e-6 });
+/* Its leak by ray optics: Fresnel power transmissions at both faces and the tilt of the p
+   light out of the lens, integrated over the Gaussian: |Tp cos(a) - Ts|^2 sin^2(2 phi) / 4 */
+function malteseExact(J, bare) {
+  const n = J.index({ glass: 'N-BK7' }, NM), R = 15, w = 3;
+  const T = (ci, n1, n2) => { const ct = Math.sqrt(1 - (n1 / n2) ** 2 * (1 - ci * ci)); const rs = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), rp = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct); return [Math.sqrt(1 - rs * rs), Math.sqrt(1 - rp * rp)]; };
+  let num = 0, den = 0;
+  for (let i = 0; i <= 4000; i++) {
+    const r = 12.7 * i / 4000, th1 = Math.asin(r / R), I = Math.exp(-2 * r * r / (w * w)) * r;
+    const th2 = th1 - Math.asin(Math.sin(th1) / n), af = Math.asin(n * Math.sin(th2));
+    const [s1, p1] = bare ? T(Math.cos(th1), 1, n) : [1, 1], [s2, p2] = bare ? T(Math.cos(th2), n, 1) : [1, 1];
+    const TS = s1 * s2, TP = p1 * p2 * Math.cos(af);
+    num += (TP - TS) ** 2 / 8 * I; den += (TP * TP + TS * TS) / 2 * I;
+  }
+  return num / den;
+}
+const malteseLeak = J => { const s = J.popSegments(), pre = s.filter(x => x.el === 'PCX').pop(), a = s.find(x => x.el === 'Analyser'); return a ? a.start.power / pre.at(pre.len).power : 0; };
+
+/* A perfect spherical-phase lens of focal length f, a Gaussian of radius w filling it, and
+   a screen at the focus */
+const sphereLensBench = (w, f, pol, vf) => bench('sphlens', [
+  src({ name: 'Beam', x: -20, width: 2 * w, rays: 3, gauss: true, w0: w, z0: 20, pol: pol || 'p', popN: 256, popModel: '2d' }),
+  { type: 'mask', name: 'Lens', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda', preset: 'custom' },
+  screen({ name: 'Focus', x: f, angle: 180, length: 10, vectorFocus: vf || 'auto' }),
+], { minPower: 1e-6 });
+/* The same focus by the generalised Richards-Wolf integrals, written independently: for a
+   plane pupil at distance f with transverse field G(r) = e^{-r^2/w^2}, polarised in the bench
+   plane, the amplitude on the sphere is G / cos(t) for s and G / cos^2(t) along the tilted p
+   (the field restored square to each ray, and the plane's own geometry). Returns the widths
+   in and across the polarisation and the share of energy along the axis within radius Hc. */
+function richardsWolf(w, f, Hc) {
+  const k = 2 * Math.PI / LAM, aMax = Math.atan(12.7 / f), nT = 1500;
+  const bJ = (m, x) => { let s = 0; for (let i = 0; i < 64; i++) { const t = Math.PI * (i + 0.5) / 64; s += Math.cos(m * t - x * Math.sin(t)); } return s / 64; };
+  const comps = rp => {
+    let A0 = 0, A2 = 0, A1 = 0;
+    for (let i = 0; i < nT; i++) {
+      const t = aMax * (i + 0.5) / nT, G = Math.exp(-((f * Math.tan(t)) ** 2) / (w * w)), as = G / Math.cos(t), ap = G / (Math.cos(t) ** 2);
+      const x = k * rp * Math.sin(t), wgt = Math.sin(t) * aMax / nT;
+      A0 += (ap * Math.cos(t) + as) / 2 * bJ(0, x) * wgt; A2 += (ap * Math.cos(t) - as) / 2 * bJ(2, x) * wgt; A1 += ap * Math.sin(t) * bJ(1, x) * wgt;
+    }
+    return [A0, A2, A1];
+  };
+  const Ix = rp => { const [a0, a2, a1] = comps(rp); return (a0 - a2) ** 2 + a1 * a1; }, Iy = rp => { const [a0, a2] = comps(rp); return (a0 + a2) ** 2; };
+  const width = I => { const I0 = I(0); let lo = 0, hi = 2e-3; for (let it = 0; it < 36; it++) { const m = 0.5 * (lo + hi); if (I(m) > 0.5 * I0) lo = m; else hi = m; } return 2 * lo; };
+  let sz = 0, st = 0;
+  for (let i = 0; i < 300; i++) { const rp = Hc * (i + 0.5) / 300, [a0, a2, a1] = comps(rp); sz += a1 * a1 / 2 * rp; st += (a0 * a0 + a2 * a2 + a1 * a1 / 2) * rp; }
+  return { along: width(Ix), across: width(Iy), axial: sz / st };
+}
+
 /* ---------- The checks ----------
    want: the expected value; tol: absolute unless rel is true. */
 
@@ -1635,6 +1691,176 @@ const TESTS = [
     why: 'step(sin(2\u03c0x/0.2)), half open: its edges averaged over each sample, it passes half',
     want: 0.5, tol: 1e-3, rel: true, unit: '',
     run: J => { J.load(oneEl({ type: 'mask', name: 'AG', x: 0, y: 0, angle: 0, amp: 'step(sin(2*pi*x/0.2))', delay: '0' })); return after(J, 'AG').start.power; },
+  },
+
+
+  { group: 'Polarisation across the field' },
+  {
+    name: 'The field and the tracer agree on polarisation at every surface',
+    why: 'at each beam\u2019s centre the field\u2019s own polarisation change against the tracer\u2019s Jones vector: a Michelson with a waveplate, a tilted window, a TIR prism, all on the 2D engine',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const s2d = o => Object.assign({ name: 'Beam', x: -60, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, popModel: '2d', pol: 'linear', polAngle: 30 }, o || {});
+      let worst = 0;
+      J.load(bench('p1', [src(s2d()),
+        { type: 'cube', name: 'BS', x: 0, y: 0, angle: 0, size: 12.7, mode: 'npbs', reflect: 50, material: { glass: 'N-BK7' } },
+        { type: 'mirror', name: 'M1', x: 50, y: 0, angle: 180, length: 25, reflect: 100 },
+        { type: 'mirror', name: 'M2', x: 0, y: 50, angle: -90, length: 25, reflect: 100 },
+        { type: 'waveplate', name: 'QWP', x: 25, y: 0, angle: 0, length: 25.4, retard: 0.25, axis: 30 },
+        screen({ name: 'Out', x: 0, y: -50, angle: 90, length: 20 })], { ghosts: true }));
+      worst = Math.max(worst, J.popNotes().polErr);
+      J.load(bench('p2', [src(s2d()), { type: 'prism', name: 'Win', shape: 'window', x: 0, y: 0, angle: 55, size: 30, thickness: 5, material: { glass: 'N-BK7' } }], { ghosts: true }));
+      worst = Math.max(worst, J.popNotes().polErr);
+      J.load(bench('p3', [src(s2d()), { type: 'prism', name: 'RA', shape: 'right', x: 5, y: 0, angle: 135, size: 20, material: { glass: 'N-BK7' } }]));
+      return Math.max(worst, J.popNotes().polErr);
+    },
+  },
+  {
+    name: 'A quarter-wave plate makes circular light, with the tracer\u2019s handedness',
+    why: 's light through a QWP at +45\u00b0: the field\u2019s S3/S0 on the screen against the rays\u2019 signed S3/S0',
+    want: null, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(bench('circ', [src({ name: 'Beam', x: -60, width: 2, rays: 11, gauss: true, w0: 1, z0: 0, popN: 128, popModel: '2d', pol: 's' }),
+        { type: 'waveplate', name: 'Q', x: 0, y: 0, angle: 0, length: 25.4, retard: 0.25, axis: 45 },
+        screen({ name: 'S', x: 40, angle: 180, length: 20 })]));
+      const st = J.stats('S').stokes;
+      TESTS_EXPECT.s3 = st.S3 / st.S0;
+      return J.diffraction('S').stokes[3];
+    },
+    wantFrom: () => TESTS_EXPECT.s3,
+  },
+  {
+    name: 'Unpolarised light stays unpolarised',
+    why: 'its two incoherent halves add as Stokes parameters on the screen: degree of polarisation 0',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(bench('unpol', [src({ name: 'Beam', x: -60, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, popModel: '2d', pol: 'unpolarised' }),
+        screen({ name: 'S', x: 40, angle: 180, length: 20 })]));
+      return J.diffraction('S').dop;
+    },
+  },
+  {
+    name: 'The Maltese cross: a lens between crossed polarisers leaks',
+    why: 'an AR-coated R 15 mm plano-convex lens: the p light tilts as the rays bend, and its part square to the axis turns; the leak against ray optics, |Tp cos\u03b1 \u2212 Ts|\u00b2 over the beam',
+    want: null, tol: 0.05, rel: true, unit: '',
+    run: J => { J.load(malteseBench(false)); TESTS_EXPECT.mcC = malteseExact(J, false); return malteseLeak(J); },
+    wantFrom: () => TESTS_EXPECT.mcC,
+  },
+  {
+    name: 'and bare glass leaks less, its Fresnel difference partly cancelling',
+    why: 'the same lens uncoated: p transmits a little more than s at the steep zones, against the tilt',
+    want: null, tol: 0.07, rel: true, unit: '',
+    run: J => { J.load(malteseBench(true)); TESTS_EXPECT.mcB = malteseExact(J, true); return malteseLeak(J); },
+    wantFrom: () => TESTS_EXPECT.mcB,
+  },
+  {
+    name: 'in four lobes: none of it along the axes',
+    why: 'the leak goes as sin 2\u03c6, so the cut through the bench plane is dark behind the analyser',
+    want: 0, tol: 1e-12, unit: ' (of the beam\u2019s peak)',
+    run: J => {
+      J.load(malteseBench(false));
+      const s = J.popSegments(), a = s.find(x => x.el === 'Analyser'), pre = s.filter(x => x.el === 'PCX').pop();
+      return Math.max(...a.profile(0).I) / Math.max(...pre.profile(pre.len).I);
+    },
+  },
+  {
+    name: 'A plain element after an aberrating lens keeps every bit of the light',
+    why: 'a zero-retardance waveplate behind the steep lens: its grid must sample the phase the light already carries, or the steep edges alias away',
+    want: 1, tol: 1e-6, rel: true, unit: '',
+    run: J => {
+      J.load(bench('keep', [
+        src({ name: 'Beam', x: -40, width: 6, rays: 3, gauss: true, w0: 3, z0: 40, pol: 'p', popN: 256, popModel: '2d' }),
+        { type: 'lens', name: 'PCX', x: 0, y: 0, angle: 0, diameter: 25.4, gaps: [5], materials: [{ glass: 'N-BK7' }], surfaces: [{ R: 15, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }] },
+        { type: 'waveplate', name: 'Id', x: 4, y: 0, angle: 0, length: 25.4, retard: 0, axis: 0 }]));
+      const s = J.popSegments(), pre = s.filter(x => x.el === 'PCX').pop(), a = s.find(x => x.el === 'Id');
+      return a.start.power / pre.at(pre.len).power;
+    },
+  },
+
+
+  { group: 'Vector focusing at high NA' },
+  {
+    name: 'A steep focus is summed as a vector field',
+    why: 'a perfect spherical lens, f 3 mm, filled by a 2.5 mm beam: well past NA 0.3, so the screen switches to the vector focus',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(sphereLensBench(2.5, 3));
+      const D = J.diffraction('Focus');
+      TESTS_EXPECT.vf = D;
+      TESTS_EXPECT.rw = richardsWolf(2.5, 3, 0.5 * (D.map.u1 - D.map.u0));
+      return D.vector && D.vector.NA > 0.7 ? 1 : 0;
+    },
+  },
+  {
+    name: 'its spot is wider along the polarisation, as Richards and Wolf have it',
+    why: 'the half-maximum width in the bench plane (the polarisation) against the generalised Richards\u2013Wolf integrals, written independently',
+    want: null, tol: 0.005, rel: true, unit: ' mm',
+    run: () => TESTS_EXPECT.vf.fwhmX,
+    wantFrom: () => TESTS_EXPECT.rw.along,
+  },
+  {
+    name: 'and narrower across it',
+    why: 'the width out of the bench plane, against the same integrals',
+    want: null, tol: 0.005, rel: true, unit: ' mm',
+    run: () => TESTS_EXPECT.vf.fwhmY,
+    wantFrom: () => TESTS_EXPECT.rw.across,
+  },
+  {
+    name: 'with part of its energy along the axis',
+    why: 'the share of |E|\u00b2 in the field along the axis, over the map, against the same integrals over the same circle',
+    want: null, tol: 0.01, rel: true, unit: '',
+    run: () => TESTS_EXPECT.vf.vector.axialShare,
+    wantFrom: () => TESTS_EXPECT.rw.axial,
+  },
+  {
+    name: 'Turning the polarisation turns the spot',
+    why: 's light out of the bench plane: the spot\u2019s long axis turns with it, the widths swapping',
+    want: null, tol: 0.005, rel: true, unit: ' mm',
+    run: J => { J.load(sphereLensBench(2.5, 3, 's')); return J.diffraction('Focus').fwhmY; },
+    wantFrom: () => TESTS_EXPECT.vf.fwhmX,
+  },
+  {
+    name: 'and circular light gives a round spot',
+    why: 'with no preferred direction the widths in and out of the plane agree',
+    want: 1, tol: 0.005, rel: true, unit: '',
+    run: J => {
+      J.load(bench('circfocus', [
+        src({ name: 'Beam', x: -20, width: 5, rays: 3, gauss: true, w0: 2.5, z0: 0, pol: 'p', popN: 256, popModel: '2d' }),
+        { type: 'waveplate', name: 'Q', x: -10, y: 0, angle: 0, length: 25.4, retard: 0.25, axis: 45 },
+        { type: 'mask', name: 'Lens', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda', preset: 'custom' },
+        screen({ name: 'Focus', x: 3, angle: 180, length: 10 })], { minPower: 1e-6 }));
+      const D = J.diffraction('Focus');
+      return D.fwhmX / D.fwhmY;
+    },
+  },
+  {
+    name: 'A perfect sphere focuses perfectly, vector and all',
+    why: 'the vector Strehl ratio: the peak against the same pupil with its wavefront made perfect',
+    want: 1, tol: 2e-3, unit: '',
+    run: () => TESTS_EXPECT.vf.strehl,
+  },
+  {
+    name: 'At low NA the vector focus agrees with the paraxial one',
+    why: 'the same lens at f 20 mm, NA about 0.15, forced vector against paraxial: the peak within the plane pupil\u2019s obliquity, a few per cent',
+    want: 1, tol: 0.03, rel: true, unit: '',
+    run: J => {
+      J.load(sphereLensBench(2, 20, 'p', 'off')); const a = J.diffraction('Focus').peak;
+      J.load(sphereLensBench(2, 20, 'p', 'on')); const b = J.diffraction('Focus').peak;
+      return b / a;
+    },
+  },
+  {
+    name: 'A steep off-axis parabola focuses perfectly as a vector field',
+    why: 'an 8 mm paraboloid used 8 mm off axis at NA 0.48: its pupil traced ray by ray through the mirror, and a Strehl ratio of 1',
+    want: 1, tol: 2e-3, unit: '',
+    run: J => {
+      J.load(bench('oapvf', [
+        src({ name: 'Beam', x: -30, width: 5, rays: 3, gauss: true, w0: 2.5, z0: 30, pol: 's', popN: 256 }),
+        { type: 'mirror', name: 'OAP', x: 0, y: 0, angle: 180, length: 25, reflect: 100, R: 8, k: -1, offset: 8 },
+        screen({ name: 'Focus', x: 0, y: 8, angle: -90, length: 10 })], { minPower: 1e-6 }));
+      const D = J.diffraction('Focus');
+      return D.vector && D.vector.route.includes('traced') ? D.strehl : NaN;
+    },
   },
 
   { group: 'Tolerancing' },

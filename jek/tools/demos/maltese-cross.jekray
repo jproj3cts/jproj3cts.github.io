@@ -1,0 +1,116 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Maltese cross",
+  "view": {
+    "cx": -5,
+    "cy": 0,
+    "scale": 12
+  },
+  "snap": 0,
+  "maxBounces": 20,
+  "minPower": 1e-06,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "ebtkjp34",
+      "type": "source",
+      "name": "Laser",
+      "x": -40,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 6,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 3,
+      "z0": 40,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "2d",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 9,
+      "sweeps": {}
+    },
+    {
+      "id": "et67j1ti",
+      "type": "lens",
+      "name": "Steep lens",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 15,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "custom",
+            "R": 0
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "custom",
+            "R": 0
+          }
+        }
+      ],
+      "gaps": [
+        5
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "ekwdez66",
+      "type": "polariser",
+      "name": "Analyser",
+      "x": 4,
+      "y": 0,
+      "angle": 0,
+      "length": 25.4,
+      "axis": 90,
+      "sweeps": {}
+    },
+    {
+      "id": "eimisw9g",
+      "type": "screen",
+      "name": "Behind the analyser",
+      "x": 5,
+      "y": 0,
+      "angle": 180,
+      "length": 25,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ]
+}

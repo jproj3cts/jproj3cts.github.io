@@ -1,0 +1,73 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Tight focus (vector)",
+  "view": {
+    "cx": -8,
+    "cy": 0,
+    "scale": 22
+  },
+  "snap": 0,
+  "maxBounces": 20,
+  "minPower": 1e-06,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "eu6t5n3p",
+      "type": "source",
+      "name": "Laser",
+      "x": -20,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 5,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 2.5,
+      "z0": 20,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "2d",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 9,
+      "sweeps": {}
+    },
+    {
+      "id": "ekdczdom",
+      "type": "mask",
+      "name": "Perfect lens, f 3 mm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "length": 25.4,
+      "amp": "1",
+      "delay": "-(sqrt(r^2+9)-3)/lambda",
+      "preset": "custom",
+      "sweeps": {}
+    },
+    {
+      "id": "ew3n2rcz",
+      "type": "screen",
+      "name": "Focus",
+      "x": 3,
+      "y": 0,
+      "angle": 180,
+      "length": 10,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ]
+}

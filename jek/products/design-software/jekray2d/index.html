@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEK Systems | JEKray2D Optical Bench Simulator</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+  /* The screenshots are exports of the dark bench, so they fill the frame edge to edge */
+  .gallery-frame.bench { padding: 0; background: #1f2529; }
+  .gallery-frame.bench img { width: 100%; height: 100%; object-fit: cover; }
+
+  .product-tagline {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    color: var(--jek-ink-soft);
+  }
+  .product-info ul { margin: 1.25rem 0 0; padding-left: 1.2rem; font-size: 0.9375rem; line-height: 1.55; }
+  .product-info li { margin-bottom: 0.35rem; }
+  .product-info li::marker { color: var(--jek-orange); }
+  .product-actions a { text-decoration: none; }
+
+  .product-description--full {
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 0 2.5rem;
+    text-align: left;
+    box-sizing: border-box;
+  }
+
+  /* Feature rows: a bench export beside a short explanation, alternating sides */
+  .rt-feature {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 2rem;
+    width: 100%;
+    max-width: 1040px;
+    margin-bottom: 2.5rem;
+    text-align: left;
+  }
+  .rt-feature:nth-of-type(even) .rt-shot { order: 2; }
+  .rt-shot {
+    margin: 0;
+    overflow: hidden;
+    background: #1f2529;
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+  }
+  .rt-shot img { display: block; width: 100%; height: auto; }
+  .rt-shot figcaption {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--jek-ink-soft);
+    background: var(--jek-panel);
+    border-top: 1px solid var(--jek-line);
+  }
+  .rt-feature h2 { margin: 0 0 0.6rem; font-size: 1.2rem; color: var(--jek-ink); }
+  .rt-feature p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.6; }
+  .rt-feature p:last-child { margin-bottom: 0; }
+
+  /* Examples: each opens in the tool with #demo=<name> */
+  .rt-examples {
+    width: 100%;
+    max-width: 1040px;
+    margin-bottom: 2.5rem;
+    text-align: left;
+  }
+  .rt-examples > h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--jek-ink); }
+  .rt-examples > p { margin: 0 0 1.25rem; font-size: 0.9375rem; color: var(--jek-ink-soft); }
+  .rt-example-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.25rem;
+  }
+  .rt-example {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+    background: var(--jek-panel);
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+    transition: border-color 0.12s ease, transform 0.12s ease;
+  }
+  .rt-example:hover { border-color: var(--jek-orange); transform: translateY(-2px); text-decoration: none; }
+  .rt-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-example img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
+  .rt-example-body { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.8rem 0.95rem 0.95rem; flex: 1; }
+  .rt-example h3 { margin: 0; font-size: 1rem; color: var(--jek-ink); }
+  .rt-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
+  .rt-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
+
+  .tech-section p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.55; text-align: left; }
+
+  @media (max-width: 760px) {
+    .rt-feature { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    .rt-feature:nth-of-type(even) .rt-shot { order: 0; }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <span class="nav-drop" data-nav-drop>
+      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+      <span class="nav-drop-menu">
+        <a href="/jek/calculators/">Calculators</a>
+        <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+      </span>
+    </span> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <div class="text-overlay">JEK Systems</div>
+</div>
+
+  <main class="main-content">
+
+    <div class="product-wrap">
+
+      <!-- Left side: image gallery (exports from the editor's "Export layout" button) -->
+      <div class="product-gallery">
+        <div class="gallery-frame bench">
+          <img id="galleryImage" src="img/michelson.png" alt="A Michelson interferometer on the JEKray2D bench">
+        </div>
+        <div class="gallery-pips" id="galleryPips">
+          <button class="pip active" data-src="img/michelson.png" data-alt="A Michelson interferometer on the JEKray2D bench" aria-label="Image 1"></button>
+          <button class="pip" data-src="img/mach-zehnder.png" data-alt="A Mach–Zehnder interferometer with two beam splitter cubes" aria-label="Image 2"></button>
+          <button class="pip" data-src="img/plano-convex.png" data-alt="Two plano-convex lenses, one each way round, focusing ray fans" aria-label="Image 3"></button>
+          <button class="pip" data-src="img/maltese-cross.png" data-alt="A steep lens focusing through a polariser onto a screen" aria-label="Image 4"></button>
+        </div>
+      </div>
+
+      <!-- Right side: title, launch -->
+      <div class="product-info">
+        <h1>JEKray2D Optical Bench Simulator</h1>
+        <p class="product-tagline">Lay out an optical system, trace it, and see the waves as well as the rays.</p>
+        <p class="product-price">Free. Runs in your browser.</p>
+        <div class="product-actions accent-orange">
+          <a class="buy-button" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
+          <a class="quote-button" href="#examples">Try an example</a>
+        </div>
+        <ul>
+          <li>Nothing to install and no account. Your bench is saved in your browser as you work</li>
+          <li>Lenses, aspheres, mirrors, beam splitters, prisms, waveplates, polarisers, stops and masks</li>
+          <li>Import Thorlabs parts straight from their Zemax (.zmx) files</li>
+          <li>Save and share benches as <code>.jekray</code> files, and export the layout as a PNG</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Full-width description -->
+    <div class="product-description product-description--full">
+      <h2>Description</h2>
+      <p>
+        JEKray2D is an optical bench simulator that runs in the browser. You place sources, lenses, mirrors and other parts on a virtual breadboard, drag them into position, and the light is traced through them as you move them. You see the result straight away: where the beam goes, where it focuses, what arrives on each screen, and how much power reaches it.
+      </p>
+      <p>
+        It does more than a basic ray tracer. Each ray carries its polarisation and its optical path, so interferometers show fringes and cavities resonate. A Gaussian beam is followed through every branch of the system. The diffracted field is propagated surface by surface in the same way as physical optics propagation in Zemax, so slits, stops and tight focuses behave as they do on a real bench.
+      </p>
+    </div>
+
+    <!-- What it does, each point shown with an export from the editor -->
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/michelson.png" alt="A Michelson interferometer: laser, 50/50 cube, fixed and moving mirrors, input and output screens" loading="lazy">
+        <figcaption>Michelson interferometer, built from the Add toolbar</figcaption>
+      </figure>
+      <div>
+        <h2>Build a bench in minutes</h2>
+        <p>Add parts from the toolbar and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
+        <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed a one-value optimiser and a Monte Carlo tolerance study.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/plano-convex.png" alt="Two plano-convex lenses focusing collimated beams, showing different spherical aberration" loading="lazy">
+        <figcaption>Plano-convex lens, curved side first against flat side first</figcaption>
+      </figure>
+      <div>
+        <h2>Exact rays through real glass</h2>
+        <p>Rays are traced exactly through spherical, conic and aspheric surfaces, with the refractive index of real glasses (N-BK7, S-LAH64 and others) at each wavelength. Reflection, refraction, total internal reflection, Fresnel losses and thin-film coatings are all included.</p>
+        <p>Each screen reports spot size, wavefront error, point spread, Strehl ratio, MTF and enclosed energy. In this example you can see why a plano-convex lens should face its curved side to the collimated beam.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/poissons-spot.png" alt="A beam block in a laser beam, with the diffracted field reaching a screen 500 mm away" loading="lazy">
+        <figcaption>Poisson’s spot: light diffracted around a beam block</figcaption>
+      </figure>
+      <div>
+        <h2>Waves, not just rays</h2>
+        <p>The field of each beam is propagated through the system, and every surface acts on it with the phase found by the ray trace. Slits, irises, knife edges, beam blocks and masks, whose amplitude and delay you write as a formula, act on the field as well as on the rays.</p>
+        <p>Branches of the same beam add as fields wherever they meet, so double slits, interferometers and standing waves come out as they should. Zoom in below 50 µm to see the field computed on every pixel.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/fabry-perot.png" alt="A Fabry–Perot cavity between an input coupler and an end mirror, with reflected and transmitted screens" loading="lazy">
+        <figcaption>Fabry–Perot cavity, found and analysed automatically</figcaption>
+      </figure>
+      <div>
+        <h2>Cavities and polarisation</h2>
+        <p>When light loops back on itself, JEKray2D finds the cavity for you and reports its free spectral range, finesse, linewidth, stability, Gaussian mode and losses. It also solves the steady-state field and the cavity’s own modes, in the same way as the Fox–Li method.</p>
+        <p>Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser. For steep focusing it switches to a full vector calculation of the focal field.</p>
+      </div>
+    </section>
+
+    <!-- Examples: moved here from the editor -->
+    <div class="rt-examples" id="examples">
+      <h2>Examples</h2>
+      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results.</p>
+      <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=youngs-double-slit">
+          <img src="img/youngs-double-slit.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Young’s double slit</h3>
+            <p>A laser through a double slit onto a screen 1 m away. The fringes come from the diffracted field.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=poissons-spot">
+          <img src="img/poissons-spot.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Poisson’s spot</h3>
+            <p>A bright spot at the centre of a round beam block’s shadow.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=michelson">
+          <img src="img/michelson.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Michelson interferometer</h3>
+            <p>A 50/50 cube with one fixed and one moving mirror. Sweep the moving mirror to see the output port go light and dark.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=mach-zehnder">
+          <img src="img/mach-zehnder.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Mach–Zehnder interferometer</h3>
+            <p>Two arms recombined at a second cube, sharing the power between two outputs.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=plano-convex">
+          <img src="img/plano-convex.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Plano-convex: which way round?</h3>
+            <p>The same lens facing each way. Compare the spherical aberration at the two foci.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=maltese-cross">
+          <img src="img/maltese-cross.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Maltese cross</h3>
+            <p>A steeply focusing lens between crossed polarisers. Fresnel coefficients leave a four-leaf pattern.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=tight-focus">
+          <img src="img/tight-focus.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Tight focus, vector</h3>
+            <p>A perfect lens with a 3 mm focal length. At this numerical aperture the focal field is computed as a vector.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fabry-perot">
+          <img src="img/fabry-perot.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fabry–Perot cavity</h3>
+            <p>Two mirrors with screens on the reflected and transmitted light. Shows finesse, linewidth and the resonance scan.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fox-li">
+          <img src="img/fox-li.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fox–Li resonator</h3>
+            <p>Two flat mirrors whose edges shape the modes. The classic Fox and Li calculation, done by the solver.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Key features / applications -->
+    <div class="features-columns">
+      <div class="features-column">
+        <h2>Key Features</h2>
+        <ul>
+          <li>Exact tracing of spherical, conic and aspheric surfaces</li>
+          <li>Real glass dispersion, plus materials imported from refractiveindex.info</li>
+          <li>Fresnel losses, thin-film coating stacks and total internal reflection</li>
+          <li>Polarisation through waveplates, polarisers and polarising beam splitters</li>
+          <li>Gaussian beams and physical optics propagation of the diffracted field</li>
+          <li>Automatic cavity detection, modes and resonance scans</li>
+          <li>Spot, wavefront, PSF, Strehl, MTF and enclosed energy at every screen</li>
+          <li>Parameter sweeps, one-value optimisation and Monte Carlo tolerancing</li>
+          <li>Zemax .zmx import for Thorlabs lenses, mirrors, cubes and prisms</li>
+        </ul>
+      </div>
+      <div class="features-column">
+        <h2>Typical Applications</h2>
+        <ul>
+          <li>Sketching and checking a lab layout before building it</li>
+          <li>Choosing lenses and seeing how they perform</li>
+          <li>Interferometer and cavity design</li>
+          <li>Beam delivery and mode matching</li>
+          <li>Teaching and demonstrating diffraction, interference and polarisation</li>
+          <li>Quick tolerance checks on alignment and part choice</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Central technical info section -->
+    <div class="tech-section">
+      <h2>Technical Information</h2>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Getting started
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel">
+          <div class="dropdown-panel-inner">
+            <a href="/jek/tools/jekray2d.html">Open the editor</a>
+            <a href="#examples">Browse the examples</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Limits of the model
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel">
+          <div class="dropdown-panel-inner">
+            <p>JEKray2D works in the plane of the bench. It has no skew rays, no out-of-plane tilts and no anamorphic systems, and it does not model scatter, thermal effects or coating dispersion. Power figures ignore absorption unless you set it on a material.</p>
+            <p>For anything that gets built, funded or published, check the numbers in an established optical design package first.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+  // Gallery pip switching
+  const galleryImage = document.getElementById('galleryImage');
+  const pips = document.querySelectorAll('.pip');
+  pips.forEach(pip => {
+    pip.addEventListener('click', () => {
+      galleryImage.src = pip.getAttribute('data-src');
+      galleryImage.alt = pip.getAttribute('data-alt');
+      pips.forEach(p => p.classList.remove('active'));
+      pip.classList.add('active');
+    });
+  });
+
+  // Dropdown toggles
+  document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      toggle.closest('.dropdown').classList.toggle('open');
+    });
+  });
+</script>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

@@ -25,15 +25,6 @@
   /* with panels pinned, the tool takes the window's width so the bench keeps its room */
   .rt-wrap.wide { width: calc(100vw - 3rem); max-width: none; margin-left: calc(50% - 50vw + 1.5rem); }
 
-  .rt-examples {
-    width: 100%;
-    max-width: 1440px;
-    margin: 0.9rem auto 0;
-    text-align: left;
-    font-size: 0.875rem;
-    color: var(--jek-ink-soft);
-  }
-  .rt-examples .rt-link { font-size: 0.875rem; margin-left: 0.5rem; }
   .rt-about {
     width: 100%;
     max-width: 1440px;
@@ -588,12 +579,11 @@
     </div>
   </dialog>
 
-  <div class="rt-examples">Examples:<button class="rt-link" type="button" data-demo="youngs-double-slit">Young’s double slit</button><button class="rt-link" type="button" data-demo="poissons-spot">Poisson’s spot</button><button class="rt-link" type="button" data-demo="michelson">Michelson interferometer</button><button class="rt-link" type="button" data-demo="mach-zehnder">Mach–Zehnder interferometer</button><button class="rt-link" type="button" data-demo="plano-convex">Plano-convex: which way round?</button><button class="rt-link" type="button" data-demo="maltese-cross">Maltese cross</button><button class="rt-link" type="button" data-demo="tight-focus">Tight focus, vector</button><button class="rt-link" type="button" data-demo="fabry-perot">Fabry–Perot cavity</button><button class="rt-link" type="button" data-demo="fox-li">Fox–Li resonator</button></div>
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
       <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 \u00b5m, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy.</p>
-      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersionn. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
@@ -8707,12 +8697,15 @@ document.getElementById('fileZmx').addEventListener('change', e => { const f = e
     }
   });
 }
-document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', async () => {
+/* Open one of the example benches in demos/, by its file name. The product page links
+   here with #demo=<name>, so the examples live there rather than on the tool. */
+async function openDemo(name) {
   try {
-    const built = window.JEK_DEMOS && window.JEK_DEMOS[btn.dataset.demo];
+    if (!/^[a-z0-9-]+$/.test(name)) throw new Error('there is no example by that name');
+    const built = window.JEK_DEMOS && window.JEK_DEMOS[name];
     let data = built ? JSON.parse(JSON.stringify(built)) : null;
     if (!data) {
-      const res = await fetch('demos/' + btn.dataset.demo + '.jekray');
+      const res = await fetch('demos/' + name + '.jekray');
       if (!res.ok) throw new Error('that example could not be fetched');
       data = await res.json();
     }
@@ -8727,7 +8720,8 @@ document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('cl
   } catch (err) {
     toast('Could not open that example (' + err.message + ').', true);
   }
-}));
+}
+document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', () => openDemo(btn.dataset.demo)));
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);
@@ -9057,6 +9051,14 @@ stage.addEventListener('drop', e => {
     },
   };
   if (!restored) fitView();
+
+  // #demo=<name> (or ?demo=<name>) opens that example; the link is then dropped from the
+  // address so a reload keeps the bench as edited rather than opening the example again
+  const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
+  if (demo) {
+    window.history.replaceState(null, '', location.pathname);
+    openDemo(demo[1]);
+  }
 })();
 
 })();

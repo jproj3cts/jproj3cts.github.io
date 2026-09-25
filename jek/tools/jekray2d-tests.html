@@ -346,6 +346,46 @@ function richardsWolf(w, f, Hc) {
   return { along: width(Ix), across: width(Iy), axial: sz / st };
 }
 
+/* A plano-concave cavity: a flat input coupler, a concave end mirror (R 500 mm) 250 mm on,
+   the input beam's waist on the flat mirror; screens behind each mirror */
+const fpBench = o => { o = Object.assign({ R1: 99, R2: 99.9, Rc: 500, L: 250, w0: 0.22444, N: 256, model: 'auto', tilt: 0 }, o || {});
+  return bench('fp', [
+    src({ name: 'Laser', x: -50, width: 0.5, rays: 1, gauss: true, w0: o.w0, z0: 50, pol: 's', popN: o.N, popModel: o.model }),
+    { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: o.R1 },
+    { type: 'mirror', name: 'M2', x: o.L, y: 0, angle: 180 + o.tilt * 180 / Math.PI, length: 25, reflect: o.R2, R: o.Rc },
+    screen({ name: 'Trans', x: o.L + 50, angle: 180, length: 20 }),
+    screen({ name: 'Refl', x: -20, angle: 0, length: 20 }),
+  ], { maxBounces: 40, minPower: 0.001 }); };
+const C0 = 299792458;
+
+/* Fox and Li's resonator: two flat mirrors of radius a, Fresnel number N = a^2 / (lambda L) */
+const foxLiBench = N => { const a = 0.5, L = a * a / (LAM * N); return bench('foxli', [
+  src({ name: 'Laser', x: -50, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 }),
+  { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 2 * a, reflect: 99.99 },
+  { type: 'mirror', name: 'M2', x: L, y: 0, angle: 180, length: 2 * a, reflect: 100 },
+  screen({ name: 'Leak', x: -20, angle: 0, length: 20 }),
+], { maxBounces: 40, minPower: 1e-6 }); };
+/* Its loss per transit written independently: the Fresnel integral equation for one transit
+   between identical flat circular mirrors, gamma u(r) = -i 2 pi N int J0(2 pi N r r')
+   e^{-i pi N (r^2 + r'^2)} u(r') r' dr' on [0, 1], by Gauss-Legendre and power iteration */
+function foxLiLoss(N) {
+  const n = 120, x = [], wq = [];
+  for (let i = 1; i <= n; i++) {
+    let z = Math.cos(Math.PI * (i - 0.25) / (n + 0.5)), pp = 0;
+    for (let it = 0; it < 100; it++) { let p1 = 1, p2 = 0; for (let j = 1; j <= n; j++) { const p3 = p2; p2 = p1; p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j; } pp = n * (z * p1 - p2) / (z * z - 1); const dz = p1 / pp; z -= dz; if (Math.abs(dz) < 1e-15) break; }
+    x.push(0.5 * (1 - z)); wq.push(1 / ((1 - z * z) * pp * pp));
+  }
+  const J0 = t => { let s = 0; for (let i = 0; i < 160; i++) s += Math.cos(t * Math.sin(Math.PI * (i + 0.5) / 160)); return s / 160; };
+  const K = x.map(xi => x.map((xj, j) => { const ph = -Math.PI * N * (xi * xi + xj * xj), a = 2 * Math.PI * N * J0(2 * Math.PI * N * xi * xj) * xj * wq[j]; return [a * Math.sin(ph), -a * Math.cos(ph)]; }));
+  let u = x.map(() => [1, 0]), g = 0;
+  const nrm = v => Math.sqrt(v.reduce((a, c, i) => a + (c[0] ** 2 + c[1] ** 2) * x[i] * wq[i], 0));
+  for (let it = 0; it < 400; it++) {
+    const v = K.map(row => row.reduce((acc, k, j) => [acc[0] + k[0] * u[j][0] - k[1] * u[j][1], acc[1] + k[0] * u[j][1] + k[1] * u[j][0]], [0, 0]));
+    g = nrm(v) / nrm(u); const nv = nrm(v); u = v.map(c => [c[0] / nv, c[1] / nv]);
+  }
+  return 1 - g * g;
+}
+
 /* ---------- The checks ----------
    want: the expected value; tol: absolute unless rel is true. */
 
@@ -1860,6 +1900,167 @@ const TESTS = [
         screen({ name: 'Focus', x: 0, y: 8, angle: -90, length: 10 })], { minPower: 1e-6 }));
       const D = J.diffraction('Focus');
       return D.vector && D.vector.route.includes('traced') ? D.strehl : NaN;
+    },
+  },
+
+
+  { group: 'Cavities: finding them and their Gaussian mode' },
+  {
+    name: 'A two-mirror cavity is found from the light\u2019s own path',
+    why: 'the run of surfaces that repeats: far mirror, near mirror; found as one linear cavity',
+    want: 1, tol: 0, unit: '',
+    run: J => { J.load(fpBench()); const c = J.cavities(); return c.length === 1 && c[0].kind === 'linear' ? 1 : 0; },
+  },
+  {
+    name: 'its free spectral range',
+    why: 'c over the round-trip optical path, 2 \u00d7 250 mm',
+    want: C0 / 0.5, tol: 1e-9, rel: true, unit: ' Hz',
+    run: J => J.cavities()[0].fsr,
+  },
+  {
+    name: 'its finesse',
+    why: '\u03c0\u221a\u03c1 / (1 \u2212 \u03c1) with \u03c1 = \u221a(R1 R2), from the tracer\u2019s own round trip',
+    want: (() => { const r = Math.sqrt(0.99 * 0.999); return Math.PI * Math.sqrt(r) / (1 - r); })(), tol: 1e-9, rel: true, unit: '',
+    run: J => J.cavities()[0].finesse,
+  },
+  {
+    name: 'its waist, on the flat mirror',
+    why: 'w0\u00b2 = (\u03bb/\u03c0) \u221a(L(R \u2212 L)), from the round-trip matrices through the real mirrors',
+    want: Math.sqrt(LAM / Math.PI * Math.sqrt(250 * 250)), tol: 1e-6, rel: true, unit: ' mm',
+    run: J => J.cavities()[0].waists.find(w => w.plane === 'x').w0,
+  },
+  {
+    name: 'its beam on the curved mirror',
+    why: 'w\u00b2 = (\u03bbL/\u03c0) \u221a(g1 / (g2 (1 \u2212 g1 g2))), g1 = 1, g2 = 1/2',
+    want: Math.sqrt(LAM * 250 / Math.PI * Math.sqrt(1 / (0.5 * 0.5))), tol: 1e-6, rel: true, unit: ' mm',
+    run: J => J.cavities()[0].along.find(a => a.name === 'M2').wx,
+  },
+  {
+    name: 'its transverse mode spacing',
+    why: 'FSR \u00d7 arccos(\u221a(g1 g2)) / \u03c0: the round-trip Gouy phase, here a quarter of the FSR',
+    want: C0 / 0.5 * Math.acos(Math.sqrt(0.5)) / Math.PI, tol: 1e-6, rel: true, unit: ' Hz',
+    run: J => J.cavities()[0].tms.x,
+  },
+  {
+    name: 'A cavity past the edge of stability says so',
+    why: 'the same with a 200 mm end mirror: g1 g2 = \u22120.25, no Gaussian mode',
+    want: 1, tol: 0, unit: '',
+    run: J => { J.load(fpBench({ Rc: 200 })); const c = J.cavities()[0]; return c && c.stability.x === 'unstable' && !c.waists.length ? 1 : 0; },
+  },
+  {
+    name: 'A Michelson is not a cavity',
+    why: 'the light returns to the splitter but never repeats its path',
+    want: 0, tol: 0, unit: '',
+    run: J => { J.load(michelsonCube(0)); return J.cavities().length; },
+  },
+  {
+    name: 'A ring with a curved mirror at an angle is astigmatic',
+    why: 'three mirrors, 30\u00b0 incidence, one R 500 mm: focal lengths R cos\u03b8/2 and R/(2 cos\u03b8); waist opposite, w0\u00b2 = (\u03bb/2\u03c0)\u221a(L(4f \u2212 L)), in the plane then out of it',
+    want: 0, tol: 1e-6, unit: ' (worst relative error)',
+    run: J => {
+      const u = (a, b) => { const d = [b[0] - a[0], b[1] - a[1]], L = Math.hypot(...d); return [d[0] / L, d[1] / L]; };
+      const mir = (name, P, din, dout, o) => { const n = [dout[0] - din[0], dout[1] - din[1]]; return Object.assign({ type: 'mirror', name, x: P[0], y: P[1], angle: Math.atan2(n[1], n[0]) * 180 / Math.PI, length: 25, reflect: 100 }, o); };
+      const P1 = [0, 0], P2 = [200, 0], P3 = [100, 100 * Math.sqrt(3)];
+      J.load(bench('ring', [src({ name: 'Laser', x: -60, width: 0.5, rays: 1, gauss: true, w0: 0.2, z0: 60, pol: 's' }),
+        mir('M1', P1, u(P3, P1), u(P1, P2), { reflect: 98 }), mir('M2', P2, u(P1, P2), u(P2, P3)), mir('M3', P3, u(P2, P3), u(P3, P1), { R: 500 })], { maxBounces: 40, minPower: 0.001 }));
+      const c = J.cavities()[0], th = Math.PI / 6, L = 600, w0 = f => Math.sqrt(LAM / (2 * Math.PI) * Math.sqrt(L * (4 * f - L)));
+      const wx = c.waists.find(w => w.plane === 'x').w0, wy = c.waists.find(w => w.plane === 'y').w0;
+      return c.kind === 'ring' ? Math.max(Math.abs(wx / w0(250 * Math.cos(th)) - 1), Math.abs(wy / w0(250 / Math.cos(th)) - 1)) : NaN;
+    },
+  },
+  {
+    name: 'A tilted mirror moves the cavity\u2019s axis',
+    why: 'the curved mirror tilted 1 mrad: the axis runs through its centre of curvature square to the flat mirror, R\u03b1 = 0.5 mm from the input beam',
+    want: 0.5, tol: 1e-4, rel: true, unit: ' mm',
+    run: J => { J.load(fpBench({ tilt: 1e-3 })); return Math.abs(J.cavities()[0].axis.h); },
+  },
+  {
+    name: 'Mode matching from the input beam',
+    why: 'an input waist twice the mode\u2019s: (2 w1 w2 / (w1\u00b2 + w2\u00b2))\u00b2 = 0.64',
+    want: 0.64, tol: 1e-4, rel: true, unit: '',
+    run: J => { J.load(fpBench({ w0: 2 * 0.22444 })); return J.cavities()[0].match.total; },
+  },
+
+  { group: 'Cavities: the field they build up' },
+  {
+    name: 'On resonance a Fabry\u2013Perot transmits what the Airy function says',
+    why: 'the steady state of every round trip, solved at once: T1 T2 / (1 \u2212 \u221a(R1 R2))\u00b2 = 0.329 through the far mirror',
+    want: 1e-5 / (1 - Math.sqrt(0.99 * 0.999)) ** 2, tol: 0.005, rel: true, unit: '',
+    run: J => { J.load(fpBench()); return J.diffraction('Trans').power; },
+  },
+  {
+    name: 'and reflects the rest',
+    why: 'the prompt reflection and the light leaking back out cancel in part, leaving 1 \u2212 T',
+    want: 1 - 1e-5 / (1 - Math.sqrt(0.99 * 0.999)) ** 2, tol: 0.006, rel: true, unit: '',
+    run: J => J.diffraction('Refl').power,
+  },
+  {
+    name: 'Off resonance the transmission falls as the Airy function',
+    why: 'as built the laser sits off the line: T(\u03c6) / T(0) = 1 / (1 + (2F/\u03c0)\u00b2 sin\u00b2(\u03c6/2)) at the round-trip phase the lock would remove',
+    want: null, tol: 0.01, rel: true, unit: '',
+    run: J => {
+      const Tl = J.diffraction('Trans').power, F = J.cavities()[0].finesse, phi = J.cavitySolve()[0].dLock;
+      TESTS_EXPECT.airy = Tl / (1 + (2 * F / Math.PI) ** 2 * Math.sin(phi / 2) ** 2);
+      J.setCavityLock('built'); J.trace();
+      return J.diffraction('Trans').power;
+    },
+    wantFrom: () => TESTS_EXPECT.airy,
+  },
+  {
+    name: 'A mismatched beam also lights the next radial mode, two mode spacings on',
+    why: 'an input waist twice the mode\u2019s: its second line sits 2 \u00d7 the transverse mode spacing from the first (as a share of the FSR)',
+    want: 0, tol: 2e-3, unit: ' FSR off',
+    run: J => {
+      J.load(fpBench({ w0: 2 * 0.22444 })); J.diffraction('Trans');
+      const pk = J.cavityPeaks(1e-3), c = J.cavities()[0];
+      if (pk.length < 2) return NaN;
+      let want = 2 * c.tms.x / c.fsr; want -= Math.round(want);
+      const d = pk[1].at - want; return Math.min(Math.abs(d), Math.abs(d - 1), Math.abs(d + 1));
+    },
+  },
+  {
+    name: 'The 2D engine builds up the same field',
+    why: 'the same cavity carried as a 2D vector field: the transmitted power against the round engine\u2019s',
+    want: null, tol: 0.01, rel: true, unit: '',
+    run: J => {
+      J.load(fpBench({ N: 256 })); TESTS_EXPECT.tr = J.diffraction('Trans').power;
+      J.load(fpBench({ N: 128, model: '2d' })); return J.diffraction('Trans').power;
+    },
+    wantFrom: () => TESTS_EXPECT.tr,
+  },
+
+
+  { group: 'Cavities: their own modes (Fox and Li)' },
+  {
+    name: 'Fox and Li\u2019s flat-mirror resonator at Fresnel number 1',
+    why: 'two flat mirrors, 1 mm across, 395 mm apart: the fundamental\u2019s loss per transit from the round trip\u2019s own modes, against the Fresnel integral equation solved independently (about 18%)',
+    want: null, tol: 0.03, rel: true, unit: '',
+    run: J => { J.load(foxLiBench(1)); J.diffraction('Leak'); TESTS_EXPECT.fl1 = foxLiLoss(1); return 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999); },
+    wantFrom: () => TESTS_EXPECT.fl1,
+  },
+  {
+    name: 'and at Fresnel number 2, losing less',
+    why: 'the same mirrors twice as close: the edges take less of the fundamental',
+    want: null, tol: 0.04, rel: true, unit: '',
+    run: J => { J.load(foxLiBench(2)); J.diffraction('Leak'); TESTS_EXPECT.fl2 = foxLiLoss(2); return 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999); },
+    wantFrom: () => TESTS_EXPECT.fl2,
+  },
+  {
+    name: 'A stable cavity\u2019s fundamental loses only what its mirrors do',
+    why: 'the plano-concave cavity, nothing clipped: the round trip keeps R1 R2 of the fundamental\u2019s power',
+    want: 1 - 0.99 * 0.999, tol: 1e-3, rel: true, unit: '',
+    run: J => { J.load(fpBench({ w0: 0.3 })); J.diffraction('Trans'); return J.cavityModes(3)[0].loss; },
+  },
+  {
+    name: 'and its next mode sits two transverse mode spacings from it',
+    why: 'a round, mismatched input excites the first radial mode, which the round trip finds at 2 \u00d7 the Gouy spacing',
+    want: 0, tol: 1e-3, unit: ' FSR off',
+    run: J => {
+      const md = J.cavityModes(3), c = J.cavities()[0];
+      if (md.length < 2) return NaN;
+      let want = 2 * c.tms.x / c.fsr; want -= Math.round(want);
+      const got = md[1].offset / c.fsr, d = got - want;
+      return Math.min(Math.abs(d), Math.abs(d - 1), Math.abs(d + 1));
     },
   },
 

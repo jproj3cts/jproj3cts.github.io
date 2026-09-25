@@ -179,6 +179,16 @@
   .rt-pin.on { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-pin:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned h2 { cursor: pointer; }
+  .rt-cavity { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); }
+  .rt-tabs + .rt-cavity { margin-top: 0.25rem; border-top: none; padding-top: 0; }
+  .rt-tab.cav { border: 1.5px solid var(--jek-orange); border-radius: 4px; margin-left: 0.4rem; color: var(--jek-orange); }
+  .rt-tab.cav.on { background: var(--jek-orange); color: #fff; }
+  .rt-cavlink { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.9rem;
+    padding: 0.45rem 0.6rem; border: 1.5px solid var(--jek-orange); border-radius: 6px; font-size: 0.8rem; }
+  .rt-cavity h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+  .rt-modes h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; }
+  .rt-mode { display: flex; gap: 0.6rem; align-items: center; margin: 0.35rem 0; font-size: 0.8rem; }
+  .rt-mode canvas { flex: none; border-radius: 3px; }
   .rt-zoom { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-zoom span { margin-left: 0.35rem; }
   .rt-zoom span:first-child { margin-left: 0; }
@@ -578,7 +588,7 @@
     </div>
   </dialog>
 
-  <div class="rt-examples">Examples:<button class="rt-link" type="button" data-demo="youngs-double-slit">Young’s double slit</button><button class="rt-link" type="button" data-demo="poissons-spot">Poisson’s spot</button><button class="rt-link" type="button" data-demo="michelson">Michelson interferometer</button><button class="rt-link" type="button" data-demo="mach-zehnder">Mach–Zehnder interferometer</button><button class="rt-link" type="button" data-demo="plano-convex">Plano-convex: which way round?</button><button class="rt-link" type="button" data-demo="maltese-cross">Maltese cross</button><button class="rt-link" type="button" data-demo="tight-focus">Tight focus, vector</button></div>
+  <div class="rt-examples">Examples:<button class="rt-link" type="button" data-demo="youngs-double-slit">Young’s double slit</button><button class="rt-link" type="button" data-demo="poissons-spot">Poisson’s spot</button><button class="rt-link" type="button" data-demo="michelson">Michelson interferometer</button><button class="rt-link" type="button" data-demo="mach-zehnder">Mach–Zehnder interferometer</button><button class="rt-link" type="button" data-demo="plano-convex">Plano-convex: which way round?</button><button class="rt-link" type="button" data-demo="maltese-cross">Maltese cross</button><button class="rt-link" type="button" data-demo="tight-focus">Tight focus, vector</button><button class="rt-link" type="button" data-demo="fabry-perot">Fabry–Perot cavity</button><button class="rt-link" type="button" data-demo="fox-li">Fox–Li resonator</button></div>
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
@@ -1109,6 +1119,7 @@ function serialize() {
     saved: new Date().toISOString(),
     view: project.view, snap: project.snap, maxBounces: project.maxBounces, minPower: project.minPower, ghosts: project.ghosts,
     library: project.library || [],
+    cavityLock: project.cavityLock || {},
     elements: project.elements,
   };
 }
@@ -1129,6 +1140,7 @@ function loadProject(data) {
     ghosts: data.ghosts === true,
     minPower: Math.min(50, Math.max(1e-6, num(data.minPower, 0.1))),
     library: (Array.isArray(data.library) ? data.library : []).map(normMat).filter(m => m.table),
+    cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
     elements: [],
   };
   project = p;
@@ -1993,7 +2005,7 @@ function traceScene() {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
-            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D,
+            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: s.kind === 'mirror' && cosd >= 0,
               n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = s.c ? curvAt(s, ly) : 0;
@@ -2025,7 +2037,11 @@ function traceScene() {
           }
         } else if (s.kind === 'mirror') {
           const R = s.el.reflect / 100;
-          const a = -Math.sqrt(R);          // a mirror turns the field over: half a wave
+          // A mirror turns the field over from its coated face: half a wave. From behind, a
+          // partial mirror reflects the other way up, as a lossless one must (Stokes: t t' - r r'
+          // = 1). With the same sign both ways a cavity would not conserve energy, and its
+          // reflected light would not cancel on resonance.
+          const a = cosd >= 0 ? Math.sqrt(R) : -Math.sqrt(R);
           if (R >= 1) {
             if (cosd >= 0) break;           // back of a full mirror absorbs
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
@@ -2111,7 +2127,15 @@ function traceScene() {
   }
   lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed,
     system: firstOrder(probes, probeSrc) };
+  // when the set of cavities changes, the panels that show them are rebuilt
+  if (!TEST_MODE && typeof findCavities === 'function') {
+    const sig = findCavities().map(c => c.id).join('/');
+    if (sig !== cavPanelSig) { cavPanelSig = sig; setTimeout(() => renderPanel(), 0); }
+    // a bench with cavities keeps their steady states current
+    if (sig) setTimeout(() => { if (findCavities().some(c => { const S = cavSolved.get(c.id); return !S || S.trace !== lastTrace; })) cavityLater(); }, 0);
+  }
 }
+let cavPanelSig = '';
 
 /* The system as a whole, from three probe rays sent in parallel to the first source */
 function firstOrder(probes, src) {
@@ -3539,6 +3563,11 @@ function renderPanelBody(el) {
   if (el.type === 'mask') maskPanel(el);
   if (el.type === 'cube') cubePanel(el);
   if (el.type === 'prism') prismPanel(el);
+  for (const c of cavitiesOf(el)) {
+    panel.append(h('div', { class: 'rt-cavlink' },
+      h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectedId = null; benchTab = 'cavity'; renderPanel(); requestRender(); } }, 'Show')));
+  }
 
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => duplicate(el) }, 'Duplicate'),
@@ -4477,8 +4506,165 @@ function flipLens(el) {
   el.materials = el.materials.slice().reverse();
 }
 
+/* ---------- Cavities in the panels ----------
+   Every cavity found shows as a card: in the bench overview, and in the panel of each
+   element on its loop (so it pins like any panel) */
+const fmtHz = v => { const a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPrecision(4) + ' GHz' : a >= 1e6 ? +(v / 1e6).toPrecision(4) + ' MHz' : a >= 1e3 ? +(v / 1e3).toPrecision(4) + ' kHz' : +v.toPrecision(3) + ' Hz'; };
+/* A card with nothing solved yet starts a field run of the bench in the background, in
+   slices, and the panels refresh when it is done */
+let cavJob = null;
+function cavityLater() {
+  if (TEST_MODE || (cavJob && cavJob.trace === lastTrace)) return;
+  const gen = popRunGen(lastTrace.beams, project.elements.filter(e => e.type === 'source'), {});
+  const job = { trace: lastTrace, gen };
+  cavJob = job;
+  const step = () => {
+    if (cavJob !== job) return;
+    if (job.trace !== lastTrace) { cavJob = null; cavityLater(); return; }     // the bench moved on: start again on it
+    const until = performance.now() + 30;
+    let r; do r = gen.next(); while (!r.done && performance.now() < until);
+    if (r.done) syncPanel(); else setTimeout(step, 0);
+  };
+  setTimeout(step, 20);
+}
+function cavitiesOf(el) { return findCavities().filter(c => !el || c.surfaces.includes(el.id)); }
+function cavityCard(c) {
+  const box = h('div', { class: 'rt-cavity' });
+  const head = h('h3', null, c.name + ': ' + (c.kind === 'linear' ? 'linear, ' : 'ring, ') + c.names.join(' \u2192 ') + (c.kind === 'ring' ? ' \u2192 ' + c.names[0] : ''));
+  const lockSel = selectField('Laser', [['lock', 'Locked to its strongest resonance'], ['built', 'As built (its own frequency and lengths)']],
+    () => (project.cavityLock && project.cavityLock[c.id]) || 'lock',
+    v => { project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: v }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); }, { wide: true });
+  const dl = h('div', { class: 'rt-readout' }), cv = h('canvas', { height: '120', style: 'width:100%;display:block;margin-top:0.4rem' });
+  const pseudo = { id: 'cav:' + c.id };
+  const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
+  const modesBox = h('div', { class: 'rt-modes' });
+  box.append(head, h('div', { class: 'rt-rows' }, lockSel), dl, cv,
+    zoomControls(cv, () => plotZoom(pseudo, 'scan'), () => drawCavityScan(cv, c, pseudo), () => true), modesBox, note);
+  let sig = '', modesFor = null;
+  const refresh = () => {
+    let S = cavSolved.get(c.id);
+    if (S && S.trace !== lastTrace) S = null;
+    const P = S && S.res;
+    if (!P) cavityLater();
+    const rows = [
+      ['Free spectral range', fmtHz(c.fsr)],
+      ['Round-trip optical path', fmtLen(c.Lopt)],
+      ['Finesse', c.finesse ? String(+c.finesse.toPrecision(4)) : '\u2014'.replace('\u2014', 'n/a')],
+      ['Linewidth (FWHM)', c.linewidth ? fmtHz(c.linewidth) : 'n/a'],
+      ['Round-trip power kept', c.rho !== null ? (100 * c.rho * c.rho).toPrecision(5) + '%' : 'n/a'],
+      ['Input coupler lets in', c.Tin !== null ? (100 * c.Tin).toPrecision(3) + '%' : 'n/a'],
+      ['Build-up on resonance', c.buildup !== null ? String(+c.buildup.toPrecision(4)) + '\u00d7' : 'n/a'],
+      ['Stability', c.stability.x === c.stability.y && Math.abs(c.stability.hx - c.stability.hy) < 1e-9 ? c.stability.x + ', m = ' + (+c.stability.hx.toFixed(4))
+        : c.stability.x + ' in the plane, ' + c.stability.y + ' out of it'],
+    ];
+    {
+      // one line for a waist the two planes share, two where they differ
+      const wx = c.mode.waists.filter(wv => wv.plane === 'x'), wy = c.mode.waists.filter(wv => wv.plane === 'y');
+      const where = wv => wv.at < 1e-6 ? 'on ' + wv.after : fmtLen(wv.at) + ' past ' + wv.after;
+      const alike = wx.length === wy.length && wx.every((a, i) => Math.abs(a.w0 - wy[i].w0) < 1e-6 * a.w0 && Math.abs(a.at - wy[i].at) < 1e-6);
+      if (alike) for (const wv of wx) rows.push(['Waist', fmtLen(wv.w0) + ', ' + where(wv)]);
+      else for (const wv of c.mode.waists) rows.push(['Waist ' + (wv.plane === 'x' ? 'in the plane' : 'out of it'), fmtLen(wv.w0) + ', ' + where(wv)]);
+    }
+    for (const a of c.mode.along) rows.push(['Mode on ' + a.name, fmtLen(a.wx) + (Math.abs(a.wx - a.wy) > 1e-6 * a.wx ? ' \u00d7 ' + fmtLen(a.wy) : '')]);
+    if (c.gouy.x !== null) rows.push(['Round-trip Gouy phase', (c.gouy.x * 180 / Math.PI).toFixed(2) + '\u00b0' + (c.gouy.y !== null && Math.abs(c.gouy.y - c.gouy.x) > 1e-9 ? ', ' + (c.gouy.y * 180 / Math.PI).toFixed(2) + '\u00b0' : '')]);
+    if (c.tms.x !== null) rows.push(['Transverse mode spacing', fmtHz(c.tms.x) + (c.tms.y !== null && Math.abs(c.tms.y - c.tms.x) > 1 ? ', ' + fmtHz(c.tms.y) : '')]);
+    if (c.match) rows.push(['Mode matching', (100 * c.match.total).toPrecision(4) + '%']);
+    if (c.axis && c.axis.miss > 1e-9) rows.push(['Cavity axis from the input beam', fmtLen(Math.abs(c.axis.h)) + ', ' + (1e3 * Math.abs(c.axis.t)).toPrecision(3) + ' mrad']);
+    if (P) {
+      const scale = S.eng === '2d' ? 1 : (() => { const J = c.segs[0].J; return J.reduce((a, v) => a + v * v, 0); })();
+      const circ = P.at(S.delta).P * scale, off = -P.dLock * c.fsr / (2 * Math.PI);
+      rows.push(['Circulating (\u00d7 the source)', String(+circ.toPrecision(4)) + (S.mode === 'lock' ? ', locked' : ', as built')]);
+      rows.push(['Built up from what gets in', String(+(P.at(S.delta).P / (P.beta * P.beta)).toPrecision(4)) + '\u00d7']);
+      rows.push(['As built, off resonance by', fmtHz(Math.abs(off))]);
+    } else rows.push(['Steady state', 'working it out\u2026']);
+    const s2 = JSON.stringify(rows);
+    if (s2 !== sig) { sig = s2; dl.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
+    drawCavityScan(cv, c, pseudo);
+    // its own modes, from the round trip: once per solve
+    if (P && modesFor !== P) {
+      modesFor = P;
+      const ms = cavModes(P, c.fsr, 6);
+      modesBox.replaceChildren(h('h4', null, 'Modes of the cavity'));
+      if (!ms.length) modesBox.append(h('p', { class: 'note' }, 'None settled yet.'));
+      for (const md of ms) {
+        const th = h('canvas');
+        modesBox.append(h('div', { class: 'rt-mode' }, th, h('div', null,
+          h('div', null, 'Loses ' + (100 * md.loss).toPrecision(4) + '% a round trip'),
+          h('div', null, md.offset === 0 ? 'The strongest line' : (md.offset > 0 ? '+' : '\u2212') + fmtHz(Math.abs(md.offset)) + ' from it'),
+          h('div', { class: 'note' }, 'Takes ' + (100 * md.share).toPrecision(3) + '% of the light let in'))));
+        drawModeThumb(th, md.field);
+      }
+    }
+    note.textContent = 'Found from the light\u2019s own path: the run of surfaces that repeats. Its mode is the Gaussian its round trip reproduces, in the bench plane and out of it; the field inside is the sum of every round trip, solved at once, so the screens outside see what a real cavity sends them (the reflected light cancelling on resonance, the transmitted light built up). The plot is the circulating power against the laser\u2019s frequency over one free spectral range: the tall peaks are its fundamental mode, the small ones the higher modes a mismatched or misaligned input also excites. Scroll on it to zoom in on a line. The modes are the cavity\u2019s own, found from its round trip as Fox and Li found them: each with its loss per round trip (mirrors, and whatever its edges cut away) and its frequency from the strongest line, for those the input excites.';
+  };
+  bindSync(cv, refresh);
+  return box;
+}
+/* A small picture of a mode's intensity across the beam: the round engine's profile turned
+   round its axis, or the 2D field itself */
+function drawModeThumb(cv, F) {
+  const n = 56, dpr = window.devicePixelRatio || 1;
+  cv.width = n * dpr; cv.height = n * dpr; cv.style.width = n + 'px'; cv.style.height = n + 'px';
+  const g = cv.getContext('2d'), img = g.createImageData(n, n);
+  let I = null, half = 1;
+  if (F.ax) {
+    const st = popStats2(F); half = 2.5 * Math.max(st.wx, st.wy) || F.N / 2 * F.ax.d;
+    I = (x, y) => { const a = interp2(F, x, y); let v = a[0] * a[0] + a[1] * a[1]; if (F.re2) { const b = interp2(F, x, y, F.re2, F.im2); v += b[0] * b[0] + b[1] * b[1]; } return v; };
+  } else {
+    const r = popRadii(qdht(F.re.length), F.R), st = popStats(F); half = 2.5 * st.w || F.R;
+    I = (x, y) => { const q = Math.hypot(x, y); if (q >= r[r.length - 1]) return 0; let lo = 0, hi = r.length - 1; if (q <= r[0]) return F.re[0] ** 2 + F.im[0] ** 2; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (r[m] <= q) lo = m; else hi = m; } const t = (q - r[lo]) / (r[hi] - r[lo]), re = F.re[lo] + (F.re[hi] - F.re[lo]) * t, im = F.im[lo] + (F.im[hi] - F.im[lo]) * t; return re * re + im * im; };
+  }
+  const vals = new Float64Array(n * n); let pk = 0;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const v = I(((i + 0.5) / n * 2 - 1) * half, (1 - (j + 0.5) / n * 2) * half); vals[j * n + i] = v; if (v > pk) pk = v; }
+  for (let o = 0; o < n * n; o++) { const [r2, g2, b2] = magma(pk > 0 ? vals[o] / pk : 0); img.data[4 * o] = r2; img.data[4 * o + 1] = g2; img.data[4 * o + 2] = b2; img.data[4 * o + 3] = 255; }
+  const off = document.createElement('canvas'); off.width = n; off.height = n; off.getContext('2d').putImageData(img, 0, 0);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(off, 0, 0, n, n);
+}
+function drawCavityScan(cv, c, pseudo) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 120;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
+  const S0 = cavSolved.get(c.id), S = S0 && S0.trace === lastTrace ? S0 : null, P = S && S.res;
+  g.fillStyle = getCss('--jek-ink-soft'); g.font = '10px ' + getCss('--jek-mono');
+  if (!P) { g.fillText('working out the steady state\u2026', 4, 14); return; }
+  const Z = plotZoom(pseudo, 'scan'), A = { l: 2, t: 12, w: w - 4, h: hgt - 32 }; cv._area = A;
+  // across: the laser's detuning over one free spectral range; up: the circulating power, as
+  // a share of its peak (a log scale shows the small higher-mode lines)
+  const [xa, xb] = zoomRange(Z, 'x', -0.5, 0.5), [ya, yb] = zoomRange(Z, 'y', 0, 1);
+  const pk = P.Plock, n = Math.max(400, Math.round(A.w * 2));
+  g.save(); g.beginPath(); g.rect(0, A.t - 2, w, A.h + 4); g.clip();
+  g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.3; g.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const f = xa + (xb - xa) * i / n, d = -2 * Math.PI * f, v = P.at(d).P / pk;
+    const X = A.l + (f - xa) / (xb - xa) * A.w, Y = A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
+    i ? g.lineTo(X, Y) : g.moveTo(X, Y);
+  }
+  g.stroke();
+  // where the laser is as built (0) and where the lock puts it
+  const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
+  mark(0, [3, 3]);
+  let fl = -P.dLock / (2 * Math.PI); fl -= Math.round(fl); mark(fl, []);
+  g.restore();
+  g.fillStyle = getCss('--jek-ink-soft');
+  g.textAlign = 'left'; g.fillText(fmtHz(xa * c.fsr), 0, hgt - 3);
+  g.textAlign = 'right'; g.fillText(fmtHz(xb * c.fsr), w, hgt - 3);
+  g.textAlign = 'left'; g.fillText((+yb.toPrecision(3)) + ' of the peak (dashed: as built; solid: locked)', 2, 9);
+}
+
+let benchTab = 'bench';
 function renderOverview() {
   panel.append(h('h2', null, 'Bench'));
+  // a bench with a cavity gets a Cavity tab, boxed in orange so it is plain there is one
+  const cavs = project.elements.length ? findCavities() : [];
+  if (!cavs.length) benchTab = 'bench';
+  if (cavs.length) {
+    const tabs = h('div', { class: 'rt-tabs' });
+    for (const [key, label] of [['bench', 'Bench'], ['cavity', cavs.length > 1 ? 'Cavities (' + cavs.length + ')' : 'Cavity']])
+      tabs.append(h('button', { class: 'rt-tab' + (key === 'cavity' ? ' cav' : '') + (benchTab === key ? ' on' : ''), type: 'button',
+        onclick: () => { benchTab = key; renderPanel(); } }, label));
+    panel.append(tabs);
+    if (benchTab === 'cavity') { for (const c of cavs) panel.append(cavityCard(c)); return; }
+  }
   if (project.elements.length) {
     const list = h('ul', { class: 'rt-list' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
@@ -4983,7 +5169,9 @@ function popSurface(F, q, ev) {
   }
   const qAB = [qr, qi];
   const n2 = ev.n2, k2 = 2 * Math.PI * n2 / lam0, lam2 = lam0 / n2;
-  if (clipped) {
+  if (ev.fixed) clipped = ev.fixed.clipped;
+  if (clipped && ev.fixed) { qr = ev.fixed.q[0]; qi = ev.fixed.q[1]; }
+  else if (clipped) {
     // recompute the pilot from what got through, as Zemax does: its curvature from the
     // pilot, its width from the second moment of the clipped field
     const wFit = aA * wFitIn;
@@ -5039,6 +5227,7 @@ function popSurface(F, q, ev) {
     const d = Math.max(Math.sqrt(lam2 * t) / 8, dHold);
     Rn = Math.min(Rn, Math.max(N * d, 1.2 * aA * (isFinite(aIn) ? aIn : 0)));
   }
+  if (ev.fixed) Rn = ev.fixed.Rn;
   const rn = popRadii(Q, Rn);
   const x = new Float64Array(N);
   for (let i = 0; i < N; i++) x[i] = rn[i] / aA;
@@ -5081,9 +5270,503 @@ function popSurface(F, q, ev) {
     const xr = (ure[i] * c - uim[i] * s) * gm, yi = (ure[i] * s + uim[i] * c) * gm;
     ure[i] = xr; uim[i] = yi;
   }
-  if (pAmp > 0 && pArea > pAmp) { const sc = Math.sqrt(pArea / pAmp); for (let i = 0; i < N; i++) { ure[i] *= sc; uim[i] *= sc; } }
-  if (pAmpM > 0 && pAreaM > pAmpM) { const sc = Math.sqrt(pAreaM / pAmpM); for (let i = 0; i < N; i++) { ure[i] *= sc; uim[i] *= sc; } }
-  return { field: { R: Rn, re: ure, im: uim, z: qr, zR: qi, n: n2, lam0, sphere: sphereOut }, q: [qr, qi], clipped, steep };
+  const areaScale = ev.fixed ? ev.fixed.areaScale
+    : (pAmp > 0 && pArea > pAmp ? Math.sqrt(pArea / pAmp) : 1) * (pAmpM > 0 && pAreaM > pAmpM ? Math.sqrt(pAreaM / pAmpM) : 1);
+  if (areaScale !== 1) for (let i = 0; i < N; i++) { ure[i] *= areaScale; uim[i] *= areaScale; }
+  const field = { R: Rn, re: ure, im: uim, z: qr, zR: qi, n: n2, lam0, sphere: sphereOut };
+  // A surface that cuts nothing passes all the profile's power (its coefficients live in the
+  // Jones vector): what resampling onto the new grid gains or loses is only interpolation,
+  // and is taken back out. A cavity's round trips replay the factor, so the round trip stays
+  // linear. Amplitude masks and cut beams keep what they are given.
+  let resScale = ev.fixed ? ev.fixed.resScale || 1 : 1;
+  if (!ev.fixed && !clipped && !(raw && raw.mode === 'M')) { const pO = popStats(field).power, pI = popStats(F).power; if (pO > 0 && pI > 0) resScale = Math.sqrt(pI / pO); }
+  if (resScale !== 1) for (let i = 0; i < N; i++) { ure[i] *= resScale; uim[i] *= resScale; }
+  return { field, q: [qr, qi], clipped, steep,
+    decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
+}
+
+/* ---------- Cavities ----------
+   A cavity is found from the light's own path: along the pilot ray's tree of branches, the
+   events (which surface, transmitted or reflected, coming from which way) are listed, and a
+   loop is the shortest run of them that repeats twice. A Michelson comes back to its
+   splitter but never repeats; a Fabry-Perot repeats "far mirror, near mirror" for ever.
+   Each loop then gets its own axis (the ray that closes on itself, which the input need not
+   follow), its round-trip ray matrices in and out of the bench plane, and from those its
+   Gaussian mode, spectrum and losses. */
+const CAV_TOL_ANGLE = 0.01;          // rad: incoming directions this close count as the same event
+let cavCache = null;
+const surfIds = new WeakMap(); let surfNext = 1;
+const surfId = s => {
+  // an element and where along it: the same across reloads, so a cavity keeps its name and settings
+  if (s.el && s.el.id && s.z !== undefined) return s.el.id + '@' + (+s.z).toFixed(6) + (s.kind === 'split' ? 's' : '');
+  if (!surfIds.has(s)) surfIds.set(s, surfNext++); return surfIds.get(s);
+};
+function cavKey(ev) {
+  if (!ev) return 'src';
+  // the direction by its rounded components, not its angle: an angle flips between +pi and
+  // -pi on a hair's difference, and would split one event into two
+  const s = ev.surf, q = v => Math.round(v / CAV_TOL_ANGLE) + 0;
+  return (s ? surfId(s) : 'x' + ev.el) + ':' + ev.mode + ':' + q(ev.dIn[0]) + ',' + q(ev.dIn[1]);
+}
+/* The thin-element ray matrix of one event, in reduced coordinates (height, n x slope), in
+   the bench plane (x) and out of it (y), from probe rays through the real surface */
+function cavEventABCD(ev, lam0) {
+  const I = { x: [1, 0, 0, 1], y: [1, 0, 0, 1] };
+  if (!ev || !ev.surf || ev.mode === 'P') return I;
+  const tr = popScreen(ev, 0, 0, lam0), dO = ev.dOut || ev.dIn, exo = [-dO[1], dO[0]], n2 = ev.n2;
+  const hh = 1e-4 * Math.max(1e-3, Math.min(ev.semi || 1, 1));
+  const slope = r => { const along = r[14] * dO[0] + r[15] * dO[1]; return [(r[14] * exo[0] + r[15] * exo[1]) / along, r[16] / along]; };
+  const px = tr(hh, 0), mx = tr(-hh, 0), py = tr(0, hh), my = tr(0, -hh);
+  if (!px[4] || !mx[4] || !py[4] || !my[4]) return null;
+  const Ax = (px[1] - mx[1]) / (2 * hh), Ay = (py[2] - my[2]) / (2 * hh);
+  const Cx = n2 * (slope(px)[0] - slope(mx)[0]) / (2 * hh), Cy = n2 * (slope(py)[1] - slope(my)[1]) / (2 * hh);
+  return { x: [Ax, 0, Cx, 1 / Ax], y: [Ay, 0, Cy, 1 / Ay] };
+}
+const mmul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3]];
+const mfree = (L, n) => [1, L / n, 0, 1];
+/* q through a reduced matrix: q is reduced too (the physical q over the index) */
+const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q[1], dr = m[2] * q[0] + m[3], di = m[2] * q[1], den = dr * dr + di * di; return [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den]; };
+/* The self-consistent q of a round-trip matrix, or null if the loop is not stable */
+function cavEigenQ(m) {
+  const [A, B, C, D] = m, h = 0.5 * (A + D);
+  if (!(Math.abs(h) < 1 - 1e-12) || Math.abs(C) < 1e-15) return null;
+  const s = Math.sqrt(1 - h * h);
+  return [(A - D) / (2 * C), s / Math.abs(C)];
+}
+/* Overlap of two 1D Gaussian beams given as reduced q, with the second offset by a and
+   tilted by t (reduced slope), at one plane: the power coupling between them */
+function gaussOverlap1(q1, q2, a, t, lam0) {
+  const k = 2 * Math.PI / lam0, u = (q, x) => { const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -q[1] / den; return [-k * x * x * ir / 2, k * x * x * ii / 2]; };
+  const w = q => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
+  const L = 6 * Math.max(w(q1), w(q2)) + Math.abs(a), N = 4000;
+  let sr = 0, si = 0, n1 = 0, n2 = 0;
+  for (let i = 0; i < N; i++) {
+    const x = -L + 2 * L * (i + 0.5) / N;
+    const [p1, g1] = u(q1, x), [p2, g2] = u(q2, x - a);
+    const A1 = Math.exp(g1), A2 = Math.exp(g2), ph = p2 - p1 - k * t * x;
+    sr += A1 * A2 * Math.cos(ph); si += A1 * A2 * Math.sin(ph); n1 += A1 * A1; n2 += A2 * A2;
+  }
+  return (sr * sr + si * si) / (n1 * n2);
+}
+/* Every loop, one for each pilot tree it turns up in (an unpolarised source has two) */
+function cavLoops(beams) {
+  const kids = new Map(), found = new Map();
+  beams.forEach((b, i) => { if (b.parent !== undefined && b.parent !== null && b.parent >= 0) { if (!kids.has(b.parent)) kids.set(b.parent, []); kids.get(b.parent).push(i); } });
+  beams.forEach((b, i) => {
+    if (kids.has(i)) return;
+    const path = []; for (let j = i; j !== null && j !== undefined && j >= 0; j = beams[j].parent) path.unshift(j);
+    const keys = path.map(j => cavKey(beams[j].ev));
+    for (let p = 1; 2 * p <= keys.length; p++) {
+      let hit = -1;
+      for (let s0 = 1; s0 + 2 * p <= keys.length && hit < 0; s0++) {
+        let ok = true;
+        for (let j = 0; j < p && ok; j++) if (keys[s0 + j] !== keys[s0 + p + j] || keys[s0 + j] === 'src') ok = false;
+        if (ok) hit = s0;
+      }
+      if (hit < 0) continue;
+      const cyc = keys.slice(hit, hit + p);
+      let canon = null; for (let r = 0; r < p; r++) { const c = cyc.slice(r).concat(cyc.slice(0, r)).join('|'); if (canon === null || c < canon) canon = c; }
+      const key = canon + '#' + path[0];
+      // the path that stays in the loop longest: it has the round trips the losses are read from
+      let reps = 0; while (hit + (reps + 1) * p <= keys.length && keys.slice(hit + reps * p, hit + (reps + 1) * p).join('|') === cyc.join('|')) reps++;
+      const had = found.get(key);
+      if (!had || reps > had.reps) found.set(key, { canon, path, s: hit, p, kids, reps });
+      break;
+    }
+  });
+  return [...found.values()];
+}
+function findCavities() {
+  if (cavCache && cavCache.trace === lastTrace) return cavCache.list;
+  const beams = (lastTrace && lastTrace.beams) || [];
+  const best = new Map();
+  for (const L of cavLoops(beams)) { const had = best.get(L.canon); if (!had || L.reps > had.reps) best.set(L.canon, L); }
+  const list = [];
+  let letter = 0;
+  for (const [canon, f] of best) {
+    const c = cavAnalyse(f.path.map(j => beams[j]), f.s, f.p, beams);
+    if (!c) continue;
+    c.id = canon; c.name = 'Cavity ' + String.fromCharCode(65 + letter++);
+    list.push(c);
+  }
+  cavCache = { trace: lastTrace, list };
+  return list;
+}
+function cavAnalyse(path, s, p, beams) {
+  const B = path.slice(s, s + p), lam0 = B[0].nm * 1e-6, c0 = 299792458;
+  // the events that start each loop segment; the loop closes on B[0]'s own event
+  const evs = B.map(b => b.ev);
+  const mats = evs.map(ev => cavEventABCD(ev, lam0));
+  if (mats.some(m => !m)) return null;
+  // round trip from just after the first event, back to the same place
+  const plane = ax => {
+    let M = [1, 0, 0, 1];
+    for (let j = 0; j < p; j++) {
+      M = mmul(mfree(B[j].len, B[j].n), M);
+      M = mmul(mats[(j + 1) % p][ax], M);
+    }
+    return M;
+  };
+  const Mx = plane('x'), My = plane('y');
+  const Lopt = B.reduce((a, b) => a + b.n * b.len, 0), fsr = c0 / (Lopt * 1e-3);
+  // the surfaces, in order, and whether it is a standing (linear) or travelling (ring) loop
+  const retro = evs.filter(ev => ev && ev.dOut && ev.dIn[0] * ev.dOut[0] + ev.dIn[1] * ev.dOut[1] < -0.999).length;
+  const kind = retro >= 2 ? 'linear' : 'ring';
+  const names = evs.map(ev => ev ? (getEl(ev.el) || {}).name : '?');
+  // losses: the pilot's own Jones vector a round trip on, which includes everything
+  const pow = b => b.J[0] ** 2 + b.J[1] ** 2 + b.J[2] ** 2 + b.J[3] ** 2;
+  const same = (a, b) => a && b && cavKey(a.ev) === cavKey(b.ev);
+  const next = same(path[s + p], B[0]) ? path[s + p] : null, next2 = next && same(path[s + 2 * p], B[0]) ? path[s + 2 * p] : null;
+  let rho = next ? Math.sqrt(pow(next) / pow(B[0])) : null;
+  if (next2) rho = Math.sqrt(pow(next2) / pow(next));          // nearer the loop's own polarisation
+  const finesse = rho && rho < 1 ? Math.PI * Math.sqrt(rho) / (1 - rho) : null;
+  // the closed axis: the pilot misses itself by delta after one round trip; the ray that
+  // does not is v = (1 - M)^-1 delta, in the bench plane (height, n x slope) at the start
+  let axis = null;
+  if (next) {
+    const d0 = [B[0].dx, B[0].dy], ex = [-d0[1], d0[0]];
+    const dxp = next.x0 - B[0].x0, dyp = next.y0 - B[0].y0;
+    const dh = dxp * ex[0] + dyp * ex[1], dt = B[0].n * (d0[0] * next.dy - d0[1] * next.dx);
+    const a = 1 - Mx[0], b = -Mx[1], cc = -Mx[2], d = 1 - Mx[3], det = a * d - b * cc;
+    if (Math.abs(det) > 1e-12) axis = { h: (d * dh - b * dt) / det, t: (-cc * dh + a * dt) / det, miss: Math.hypot(dh, dt) };
+  }
+  // the Gaussian mode in each plane, and along the loop
+  const qx = cavEigenQ(Mx), qy = cavEigenQ(My);
+  const wOf = q => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
+  const along = [];
+  let waists = [];
+  if (qx && qy) {
+    let ax = qx, ay = qy;
+    for (let j = 0; j < p; j++) {
+      const L = B[j].len, n = B[j].n;
+      along.push({ name: names[j], wx: wOf(ax), wy: wOf(ay), qx: ax, qy: ay, len: L, n, b: B[j] });
+      for (const [q, pl] of [[ax, 'x'], [ay, 'y']]) {
+        const t = -q[0] * n;                                  // physical distance to the waist
+        if (t >= 0 && t <= L) waists.push({ plane: pl, seg: j, at: t, w0: Math.sqrt(lam0 * q[1] / Math.PI), after: names[j] });
+      }
+      ax = qThrough(mats[(j + 1) % p].x, qThrough(mfree(L, n), ax)); ay = qThrough(mats[(j + 1) % p].y, qThrough(mfree(L, n), ay));
+    }
+  }
+  const gouy = m => { const h = 0.5 * (m[0] + m[3]); return Math.abs(h) <= 1 ? Math.sign(m[1] || 1) * Math.acos(h) : null; };
+  const gx = gouy(Mx), gy = gouy(My);
+  const tms = g => g === null ? null : ((g / (2 * Math.PI)) % 1 + 1) % 1 * fsr;
+  // how the light gets in: the branch into the loop just before it starts repeating
+  const entry = s >= 1 ? path[s - 1] : null, before = s >= 2 ? path[s - 2] : null;
+  const Tin = entry && before && entry.ev && pow(before) > 0 ? pow(entry) / pow(before) : null;
+  const buildup = Tin !== null && rho !== null ? Tin / ((1 - rho) ** 2) : null;
+  // mode matching: the input beam carried to the loop by the same matrices, against the mode
+  let match = null;
+  if (qx && qy && entry) {
+    const root = path[0], q0 = [root.qr / root.n, root.qi / root.n];
+    let ix = q0, iy = q0;
+    for (let j = 0; j < s; j++) {
+      const b = path[j];
+      ix = qThrough(mfree(b.len, b.n), ix); iy = qThrough(mfree(b.len, b.n), iy);
+      const m = cavEventABCD(path[j + 1].ev, lam0);
+      if (!m) { ix = null; break; }
+      ix = qThrough(m.x, ix); iy = qThrough(m.y, iy);
+    }
+    // the entry segment is the loop's last one, heading the same way: compare at its start
+    if (ix) {
+      const jE = p - 1, cx = along[jE] ? along[jE].qx : null, cy = along[jE] ? along[jE].qy : null;
+      // back up the input one step: ix is just after the loop's first event; take it back to the entry plane
+      const back = (q, m, L, n) => { const a = m[3], b = -m[1], c = -m[2], d = m[0]; return qThrough(mfree(-L, n), qThrough([a, b, c, d], q)); };
+      const ex = back(ix, mats[0].x, B[jE].len, B[jE].n), ey = back(iy, mats[0].y, B[jE].len, B[jE].n);
+      if (cx && cy) {
+        // the input rides the pilot; the loop's axis sits off it by the closed axis, carried back
+        let h = 0, t = 0;
+        if (axis) { const m = mats[0].x, inv = [m[3], -m[1], -m[2], m[0]], v = [inv[0] * axis.h + inv[1] * axis.t, inv[2] * axis.h + inv[3] * axis.t]; h = v[0] - B[jE].len / B[jE].n * v[1]; t = v[1]; }
+        match = { x: gaussOverlap1(cx, ex, h, t, lam0), y: gaussOverlap1(cy, ey, 0, 0, lam0) };
+        match.total = match.x * match.y;
+      }
+    }
+  }
+  const stab = m => { const h = 0.5 * (m[0] + m[3]); return Math.abs(Math.abs(h) - 1) < 1e-9 ? 'marginal' : Math.abs(h) < 1 ? 'stable' : 'unstable'; };
+  return {
+    kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, stability: { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
+    Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin,
+    gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx, qy, along, waists }, axis, match, lam0, segs: B,
+  };
+}
+
+/* ---------- Cavities: the steady state ----------
+   The field round a loop is the injected field plus every round trip of it: the sum is
+   solved rather than added up. The round trip T is the field's own steps, surface by surface
+   and leg by leg, with each surface's grid and pilot fixed from the first pass so that T is
+   one linear operator on one grid. A Krylov space built from the injected field b holds the
+   answer for every detuning at once: (1 - e^{i delta} T) x = b is solved in it by least
+   squares, for as many detunings as a scan needs, from one set of round trips. */
+const cavSolved = new Map();          // cavity id -> its latest steady state and scan
+const cavRunCache = new WeakMap();    // trace -> solved loops, so the twin and screen runs reuse them
+const cavC = { mul: (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], conj: a => [a[0], -a[1]], abs2: a => a[0] * a[0] + a[1] * a[1] };
+function cavWeights(F) {
+  if (F.ax) return null;
+  const Q = qdht(F.re.length), V = Q.S / (2 * Math.PI * F.R), w = new Float64Array(Q.N);
+  for (let i = 0; i < Q.N; i++) w[i] = Q.inv[i] / (Math.PI * V * V);
+  return w;
+}
+function cavDot(F, G, w) {
+  let r = 0, im = 0;
+  if (F.ax) {
+    for (const [kr, ki] of fieldComps(F)) { const a = F[kr], b = F[ki], c = G[kr], d = G[ki]; for (let i = 0; i < a.length; i++) { r += a[i] * c[i] + b[i] * d[i]; im += a[i] * d[i] - b[i] * c[i]; } }
+    const dA = F.ax.d * F.ax.d === 0 ? 1 : F.ax.d * F.ay.d; return [r * dA, im * dA];
+  }
+  for (let i = 0; i < F.re.length; i++) { r += (F.re[i] * G.re[i] + F.im[i] * G.im[i]) * w[i]; im += (F.re[i] * G.im[i] - F.im[i] * G.re[i]) * w[i]; }
+  return [r, im];
+}
+function cavLin(F, terms) {                           // sum of c_k F_k, onto F's grid
+  const out = Object.assign({}, F);
+  for (const [kr, ki] of (F.ax ? fieldComps(F) : [['re', 'im']])) {
+    const R = new Float64Array(F[kr].length), I = new Float64Array(F[kr].length);
+    for (const [c, G] of terms) { const a = G[kr], b = G[ki]; for (let i = 0; i < R.length; i++) { R[i] += c[0] * a[i] - c[1] * b[i]; I[i] += c[0] * b[i] + c[1] * a[i]; } }
+    out[kr] = R; out[ki] = I;
+  }
+  return out;
+}
+/* A field held against its own pilot, rewritten against another's: the same light, the
+   residual carrying the difference of the two reference phases, so fields from different
+   round trips live in one space and can be added */
+function cavReref(G, F) {
+  const k = 2 * Math.PI * G.n / G.lam0, out = Object.assign({}, G);
+  if (G.ax) {
+    const N = G.N, ref = (st, x) => popInside(st.z, st.zR) ? 0 : -k * x * x / (2 * st.z);
+    out.ax = Object.assign({}, G.ax, { z: F.ax.z, zR: F.ax.zR }); out.ay = Object.assign({}, G.ay, { z: F.ay.z, zR: F.ay.zR });
+    for (const [kr, ki] of fieldComps(G)) {
+      const R = new Float64Array(G[kr]), I = new Float64Array(G[ki]);
+      for (let j = 0; j < N; j++) {
+        const y = (j - N / 2) * G.ay.d, py = ref(G.ay, y) - ref(F.ay, y);
+        for (let i = 0; i < N; i++) {
+          const o = j * N + i; if (R[o] === 0 && I[o] === 0) continue;
+          const x = (i - N / 2) * G.ax.d, ph = ref(G.ax, x) - ref(F.ax, x) + py, c = Math.cos(ph), s = Math.sin(ph), a = R[o];
+          R[o] = a * c - I[o] * s; I[o] = a * s + I[o] * c;
+        }
+      }
+      out[kr] = R; out[ki] = I;
+    }
+    return out;
+  }
+  const r = popRadii(qdht(G.re.length), G.R), ref = (P, x) => P.sphere ? -k * x * x / (2 * P.z) : 0;
+  const R = new Float64Array(G.re), I = new Float64Array(G.im);
+  for (let i = 0; i < R.length; i++) { const ph = ref(G, r[i]) - ref(F, r[i]), c = Math.cos(ph), s = Math.sin(ph), a = R[i]; R[i] = a * c - I[i] * s; I[i] = a * s + I[i] * c; }
+  return Object.assign(out, { re: R, im: I, z: F.z, zR: F.zR, sphere: F.sphere });
+}
+/* v -= c q, in place (v's own arrays: v is always a fresh round trip's output) */
+function cavSubInPlace(v, c, q) {
+  for (const [kr, ki] of (v.ax ? fieldComps(v) : [['re', 'im']])) {
+    const R = v[kr], I = v[ki], a = q[kr], b = q[ki];
+    for (let i = 0; i < R.length; i++) { R[i] -= c[0] * a[i] - c[1] * b[i]; I[i] -= c[0] * b[i] + c[1] * a[i]; }
+  }
+}
+/* The round trip, from the loop's reference plane (just after its first surface) back to it */
+function* cavRoundTrip(ctx, F) {
+  let cur = F;
+  for (const st of ctx.steps) {
+    const leg = ctx.eng === '2d' ? popLeg2(cur) : popLeg(cur), Fend = leg.at(st.len);
+    let out;
+    if (ctx.eng === '2d') out = popSurface2(Fend, st.ev, 1, false, st.tNext, Object.assign({}, st.pol, st.decision ? { fixed: st.decision } : {}));
+    else out = popSurface(Fend, [Fend.z, Fend.zR], { A: st.ev.A, C: st.ev.C, D: st.ev.D, n2: st.ev.n2, a: popClear(st.ev), gain: 1, raw: st.ev, tNext: st.tNext,
+      disc: st.ev.mask && st.ev.mask.shape === 'disc' ? st.ev.mask.a : null, fixed: st.decision || undefined });
+    if (!st.decision) st.decision = out.decision;
+    cur = out.field;
+    yield;
+  }
+  cur = cavReref(cur, F);
+  const g = ctx.gamma ? [ctx.gamma[0] * (ctx.norm || 1), ctx.gamma[1] * (ctx.norm || 1)] : ctx.norm && ctx.norm !== 1 ? [ctx.norm, 0] : null;
+  return g ? cavLin(cur, [[g, cur]]) : cur;
+}
+/* Least squares for (Ibar - z Hbar) y = beta e1, small and complex, by Givens rotations */
+function cavLS(H, m, beta, z) {
+  const A = [];
+  for (let i = 0; i <= m; i++) { A.push([]); for (let j = 0; j < m; j++) { const hz = cavC.mul(z, H[i][j] || [0, 0]); A[i].push([(i === j ? 1 : 0) - hz[0], -hz[1]]); } }
+  const g = []; for (let i = 0; i <= m; i++) g.push([i === 0 ? beta : 0, 0]);
+  for (let j = 0; j < m; j++) {
+    const a = A[j][j], b = A[j + 1][j], r = Math.sqrt(cavC.abs2(a) + cavC.abs2(b));
+    if (r === 0) continue;
+    const c = [a[0] / r, -a[1] / r], s = [b[0] / r, -b[1] / r];         // rotation rows: [c s; -conj(s) conj(c)]
+    for (let k = j; k < m; k++) {
+      const u = A[j][k], v = A[j + 1][k];
+      A[j][k] = [cavC.mul(c, u)[0] + cavC.mul(s, v)[0], cavC.mul(c, u)[1] + cavC.mul(s, v)[1]];
+      const cs = cavC.conj(s), cc = cavC.conj(c);
+      A[j + 1][k] = [-cavC.mul(cs, u)[0] + cavC.mul(cc, v)[0], -cavC.mul(cs, u)[1] + cavC.mul(cc, v)[1]];
+    }
+    const u = g[j], v = g[j + 1];
+    g[j] = [cavC.mul(c, u)[0] + cavC.mul(s, v)[0], cavC.mul(c, u)[1] + cavC.mul(s, v)[1]];
+    const cs = cavC.conj(s), cc = cavC.conj(c);
+    g[j + 1] = [-cavC.mul(cs, u)[0] + cavC.mul(cc, v)[0], -cavC.mul(cs, u)[1] + cavC.mul(cc, v)[1]];
+  }
+  const y = new Array(m).fill(null).map(() => [0, 0]);
+  for (let i = m - 1; i >= 0; i--) {
+    let t = [g[i][0], g[i][1]];
+    for (let k = i + 1; k < m; k++) { const p = cavC.mul(A[i][k], y[k]); t = [t[0] - p[0], t[1] - p[1]]; }
+    const d = A[i][i], dd = cavC.abs2(d) || 1e-300;
+    y[i] = [(t[0] * d[0] + t[1] * d[1]) / dd, (t[1] * d[0] - t[0] * d[1]) / dd];
+  }
+  return y;
+}
+/* The steady state of one loop from its injected field b, and its resonance scan */
+function* cavSteady(inst, beams, b, decision0, eng) {
+  const { path, s, p } = inst;
+  const steps = [];
+  for (let j = 0; j < p; j++) {
+    const Bj = beams[path[s + j]], nx = beams[path[s + j + 1]];
+    steps.push({ len: Bj.len, ev: nx.ev, tNext: nx.len, pol: { Jin: Bj.J, Jout: nx.J, parIn: Bj.par, parOut: nx.par }, decision: j === p - 1 ? decision0 : null });
+  }
+  // the round engine's profile has unit power; the tracer's Jones vector carries the round
+  // trip's complex factor, which the field convention takes conjugated
+  let gamma = null;
+  if (eng !== '2d') {
+    const J0 = beams[path[s]].J, Jr = beams[path[s + p]].J, n0 = J0[0] ** 2 + J0[1] ** 2 + J0[2] ** 2 + J0[3] ** 2;
+    const t = [(J0[0] * Jr[0] + J0[1] * Jr[1] + J0[2] * Jr[2] + J0[3] * Jr[3]) / n0, (J0[0] * Jr[1] - J0[1] * Jr[0] + J0[2] * Jr[3] - J0[3] * Jr[2]) / n0];
+    gamma = [t[0], -t[1]];
+  }
+  const ctx = { eng, steps, gamma };
+  // a first round trip settles every surface's grid
+  const gSave = ctx.gamma; ctx.gamma = null;
+  const Tb = yield* cavRoundTrip(ctx, b);
+  ctx.gamma = gSave;
+  const w = cavWeights(b), norm = F => Math.sqrt(cavDot(F, F, w)[0]);
+  // Where nothing in the loop cuts the beam, the tracer knows exactly what power a round
+  // trip keeps (its Jones vectors; on the round engine that is all in gamma, and the
+  // profile keeps everything). Resampling at each surface is good to about 1e-4, which
+  // matters once a cavity's round-trip loss is that small, so the whole operator is scaled
+  // by one constant to keep exactly that power for the injected field, which is nearly the
+  // cavity's own mode. Where something does cut the beam, its loss is real and is left be.
+  if (steps.every(st => st.decision && !st.decision.clipped && st.ev.mode !== 'M')) {
+    const got = cavDot(Tb, Tb, w)[0] / cavDot(b, b, w)[0];
+    const J0 = beams[path[s]].J, Jr = beams[path[s + p]].J, pw = J => J[0] ** 2 + J[1] ** 2 + J[2] ** 2 + J[3] ** 2;
+    const want = eng === '2d' ? pw(Jr) / pw(J0) : 1;
+    if (got > 0 && want > 0) ctx.norm = Math.sqrt(want / got);
+  }
+  const beta = norm(b);
+  if (!(beta > 0)) return null;
+  const Q = [cavLin(b, [[[1 / beta, 0], b]])], H = [];
+  const mMax = eng === '2d' ? 20 : 40;
+  let m = 0;
+  for (let k = 0; k < mMax; k++) {
+    let v = yield* cavRoundTrip(ctx, Q[k]);
+    v = cavLin(v, [[[1, 0], v]]);                     // its own copy, to work on in place
+    H.push(new Array(mMax).fill(null));
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i <= k; i++) {
+      const hik = cavDot(Q[i], v, w);
+      H[i] = H[i] || new Array(mMax).fill(null);
+      H[i][k] = H[i][k] ? [H[i][k][0] + hik[0], H[i][k][1] + hik[1]] : hik;
+      cavSubInPlace(v, hik, Q[i]);
+    }
+    const hn = norm(v);
+    H[k + 1] = H[k + 1] || new Array(mMax).fill(null);
+    H[k + 1][k] = [hn, 0];
+    m = k + 1;
+    if (hn < 1e-9 * beta) break;
+    Q.push(cavLin(v, [[[1 / hn, 0], v]]));
+  }
+  const at = delta => { const y = cavLS(H, m, beta, [Math.cos(delta), Math.sin(delta)]); return { y, P: y.reduce((a, c) => a + cavC.abs2(c), 0) }; };
+  // the scan over one free spectral range, and its strongest resonance found finely
+  const nS = 2048, scan = new Float64Array(nS);
+  let kBest = 0;
+  for (let i = 0; i < nS; i++) { scan[i] = at(-Math.PI + 2 * Math.PI * i / nS).P; if (scan[i] > scan[kBest]) kBest = i; }
+  let lo = -Math.PI + 2 * Math.PI * (kBest - 1) / nS, hi = -Math.PI + 2 * Math.PI * (kBest + 1) / nS;
+  for (let it = 0; it < 60; it++) { const a = lo + (hi - lo) * 0.382, c = lo + (hi - lo) * 0.618; if (at(a).P > at(c).P) hi = c; else lo = a; }
+  const dLock = 0.5 * (lo + hi);
+  return { ctx, Q, H, m, beta, at, scan, dLock, P0: at(0).P, Plock: at(dLock).P };
+}
+
+/* ---------- Cavities: their own modes (Fox and Li) ----------
+   The Krylov space the steady state is solved in holds the round trip's leading modes: the
+   eigenvalues of its small matrix H (Ritz values) are their round-trip factors (loss and
+   frequency), its eigenvectors, laid over the Krylov fields, their shapes. For a cavity cut
+   by its mirrors' edges this is Fox and Li's iteration, done all at once. */
+const cx = { add: (a, b) => [a[0] + b[0], a[1] + b[1]], sub: (a, b) => [a[0] - b[0], a[1] - b[1]], mul: cavC.mul,
+  div: (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; },
+  abs: a => Math.hypot(a[0], a[1]), sqrt: a => { const r = Math.hypot(a[0], a[1]), t = Math.atan2(a[1], a[0]) / 2, s = Math.sqrt(r); return [s * Math.cos(t), s * Math.sin(t)]; } };
+/* Eigenvalues of a small complex upper Hessenberg matrix, by the shifted QR algorithm */
+function hessEig(H0, m) {
+  const A = []; for (let i = 0; i < m; i++) { A.push([]); for (let j = 0; j < m; j++) A[i].push(H0[i] && H0[i][j] ? [H0[i][j][0], H0[i][j][1]] : [0, 0]); }
+  const eig = [];
+  let n = m - 1, iter = 0;
+  while (n >= 0) {
+    if (n === 0) { eig.push(A[0][0]); break; }
+    // deflate where a subdiagonal is negligible
+    let l = n;
+    while (l > 0 && cx.abs(A[l][l - 1]) > 1e-14 * (cx.abs(A[l][l]) + cx.abs(A[l - 1][l - 1]))) l--;
+    if (l === n) { eig.push(A[n][n]); n--; iter = 0; continue; }
+    if (++iter > 200) { for (let i = n; i >= 0; i--) eig.push(A[i][i]); break; }
+    // Wilkinson shift from the trailing 2x2
+    const a = A[n - 1][n - 1], b = A[n - 1][n], c = A[n][n - 1], d = A[n][n];
+    const tr = cx.add(a, d), det = cx.sub(cx.mul(a, d), cx.mul(b, c));
+    const disc = cx.sqrt(cx.sub(cx.mul(tr, tr), [4 * det[0], 4 * det[1]]));
+    const e1 = [(tr[0] + disc[0]) / 2, (tr[1] + disc[1]) / 2], e2 = [(tr[0] - disc[0]) / 2, (tr[1] - disc[1]) / 2];
+    const mu = iter % 11 === 10 ? cx.add(d, [cx.abs(c), 0]) : (cx.abs(cx.sub(e1, d)) < cx.abs(cx.sub(e2, d)) ? e1 : e2);
+    // one QR step on the active block l..n, by Givens rotations
+    for (let i = l; i <= n; i++) A[i][i] = cx.sub(A[i][i], mu);
+    const rots = [];
+    for (let k = l; k < n; k++) {
+      const x = A[k][k], y = A[k + 1][k], r = Math.hypot(cx.abs(x), cx.abs(y)) || 1e-300;
+      const cc = [x[0] / r, -x[1] / r], ss = [y[0] / r, -y[1] / r];
+      rots.push([cc, ss]);
+      for (let j = k; j < m; j++) {
+        const u = A[k][j], v = A[k + 1][j];
+        A[k][j] = cx.add(cx.mul(cc, u), cx.mul(ss, v));
+        A[k + 1][j] = cx.sub(cx.mul([cc[0], -cc[1]], v), cx.mul([ss[0], -ss[1]], u));
+      }
+    }
+    for (let k = l; k < n; k++) {
+      const [cc, ss] = rots[k - l];
+      for (let i = 0; i <= Math.min(k + 2, n); i++) {
+        const u = A[i][k], v = A[i][k + 1];
+        // times the rotation's conjugate transpose from the right
+        A[i][k] = cx.add(cx.mul(u, [cc[0], -cc[1]]), cx.mul(v, [ss[0], -ss[1]]));
+        A[i][k + 1] = cx.sub(cx.mul(v, cc), cx.mul(u, ss));
+      }
+    }
+    for (let i = l; i <= n; i++) A[i][i] = cx.add(A[i][i], mu);
+  }
+  return eig;
+}
+/* An eigenvector of H for eigenvalue lam, by inverse iteration */
+function hessVec(H0, m, lam) {
+  const M = []; for (let i = 0; i < m; i++) { M.push([]); for (let j = 0; j < m; j++) M[i].push(H0[i] && H0[i][j] ? [H0[i][j][0], H0[i][j][1]] : [0, 0]); M[i][i] = cx.sub(M[i][i], cx.add(lam, [1e-10 * (1 + cx.abs(lam)), 0])); }
+  // LU with partial pivoting, then a few solves
+  const P = [...Array(m).keys()];
+  for (let k = 0; k < m; k++) {
+    let p = k; for (let i = k + 1; i < m; i++) if (cx.abs(M[i][k]) > cx.abs(M[p][k])) p = i;
+    [M[k], M[p]] = [M[p], M[k]]; [P[k], P[p]] = [P[p], P[k]];
+    if (cx.abs(M[k][k]) === 0) M[k][k] = [1e-300, 0];
+    for (let i = k + 1; i < m; i++) { const f = cx.div(M[i][k], M[k][k]); M[i][k] = f; for (let j = k + 1; j < m; j++) M[i][j] = cx.sub(M[i][j], cx.mul(f, M[k][j])); }
+  }
+  let y = new Array(m).fill(null).map(() => [1, 0]);
+  for (let it = 0; it < 3; it++) {
+    const b = P.map(i => y[i]);
+    for (let i = 0; i < m; i++) for (let j = 0; j < i; j++) b[i] = cx.sub(b[i], cx.mul(M[i][j], b[j]));
+    for (let i = m - 1; i >= 0; i--) { for (let j = i + 1; j < m; j++) b[i] = cx.sub(b[i], cx.mul(M[i][j], b[j])); b[i] = cx.div(b[i], M[i][i]); }
+    const nrm = Math.sqrt(b.reduce((a, c) => a + c[0] * c[0] + c[1] * c[1], 0)) || 1;
+    y = b.map(c => [c[0] / nrm, c[1] / nrm]);
+  }
+  return y;
+}
+/* The cavity's leading modes from a solved steady state: round-trip factor, loss, frequency
+   from the strongest (as the scan counts it), share of the input, and field */
+function cavModes(res, fsr, count) {
+  if (!res || !res.m) return [];
+  const { H, m, Q, beta } = res;
+  const lams = hessEig(H, m).filter(l => cx.abs(l) > 1e-6).sort((a, b) => cx.abs(b) - cx.abs(a));
+  // Ritz values the space cannot pin down (small ones, or its own edge) are left out
+  const out = [];
+  const w = cavWeights(Q[0]);
+  // Only converged pairs are modes: an Arnoldi pair's residual |T v - lam v| is
+  // |H(m+1, m)| times its eigenvector's last component; the rest are the space's own artefacts
+  const hEdge = H[m] && H[m][m - 1] ? cx.abs(H[m][m - 1]) : 0;
+  for (const lam of lams) {
+    if (out.length >= (count || 6)) break;
+    const y = hessVec(H, m, lam);
+    if (hEdge * cx.abs(y[m - 1]) > 2e-3 * cx.abs(lam)) continue;
+    if (out.some(md => cx.abs(cx.sub(md.lam, lam)) < 1e-6 * cx.abs(lam))) continue;
+    if (out.length && cx.abs(lam) < 0.1 * out[0].abs) break;     // one that loses nearly all of itself each round trip is no mode to show
+    const F = cavLin(Q[0], y.map((c, k) => [c, Q[k]]));
+    const nF = cavDot(F, F, w)[0], ov = cavDot(F, Q[0], w);
+    out.push({ lam, abs: cx.abs(lam), loss: 1 - cx.abs(lam) ** 2, arg: Math.atan2(lam[1], lam[0]), field: F, share: (ov[0] ** 2 + ov[1] ** 2) / (nF || 1) });
+  }
+  if (out.length) { const a0 = out[0].arg; for (const md of out) { let f = -(md.arg - a0) / (2 * Math.PI); f -= Math.round(f); md.offset = f * fsr; } }
+  return out;
 }
 
 /* ---------- Polarisation at a surface ----------
@@ -5096,7 +5779,8 @@ function polCoeff(ev, nm) {
   if (!s || mode === 'P' || mode === 'M') return () => [1, 0, 1, 0];
   if (s.kind === 'mirror') {
     const R = s.el.reflect / 100;
-    return mode === 'R' ? () => [-Math.sqrt(R), 0, -Math.sqrt(R), 0] : () => [Math.sqrt(1 - R), 0, Math.sqrt(1 - R), 0];
+    const r = ev.back ? Math.sqrt(R) : -Math.sqrt(R);           // from behind, the other way up (as the tracer)
+    return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(1 - R), 0, Math.sqrt(1 - R), 0];
   }
   if (s.kind === 'split') {
     return mode === 'R' ? () => [0, Math.sqrt(s.Rs), 0, Math.sqrt(s.Rp)] : () => [Math.sqrt(1 - s.Rs), 0, Math.sqrt(1 - s.Rp), 0];
@@ -5898,7 +6582,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     wxo = Math.max(wxo, 2.4 * (Math.abs(ev.ly - ev.mask.o) + (ev.mask.ext || ev.mask.a)) * ev.cth * aAx / Math.sqrt(Math.PI * N));
   let wyo2 = wyo;
   {
-    const Sin = popStats2(F), G2 = Math.sqrt(Math.PI * N);
+    const Sin = pol && pol.fixed ? { power: 0 } : popStats2(F), G2 = Math.sqrt(Math.PI * N);   // a replayed grid needs none of this
     if (Sin.power > 0) {
       wxo = Math.max(wxo, 2.4 * (Math.abs(Sin.cx) * aAx + 1.5 * Sin.wx * aAx) / G2);
       wyo2 = Math.max(wyo, 2.4 * (Math.abs(Sin.cy) * aAy + 1.5 * Sin.wy * aAy) / G2);
@@ -5925,7 +6609,8 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   };
   // what the surface adds, and what the light already carries (a field leaving an aberrating
   // lens arrives at the next surface with its phase already steep, whatever that surface adds)
-  const gx = (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
+  const replay = !!(pol && pol.fixed);
+  const gx = replay ? 0 : (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
   let steep = 0;
   const span = (w, g) => {
     let L = G * w;
@@ -5939,7 +6624,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // sampled near and far leaves too few samples inside the beam for them, so here the
   // sampling is chosen for that distance instead: eight across the first fringe, as far as a
   // grid that still holds the beam and the light the edge sends out over t allows.
-  if (tNext > 0 && isFinite(tNext)) {
+  if (!replay && tNext > 0 && isFinite(tNext)) {
     const Sin = popStats2(F), lam2 = lam0 / n2;
     let ex = false, ey = false;
     if (ev.mask) {
@@ -5965,7 +6650,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // pulls the sampling in to a quarter of its diameter, as far as a grid that still spans the
   // beam allows. Whatever is still finer than three samples is flagged, not quietly smeared.
   let coarse = 0;
-  if (ev.mask && ev.mask.shape !== 'knife') {
+  if (!replay && ev.mask && ev.mask.shape !== 'knife') {
     const M = ev.mask, feat = 2 * M.a;
     if (M.shape === 'disc') {
       const Sin = popStats2(F);
@@ -5979,6 +6664,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const sphXo = !popInside(qxo[0], qxo[1]), sphYo = !popInside(qyo[0], qyo[1]);
   const cx = bx + (sphXi ? -k1 / (2 * qx[0]) : 0) - (sphXo ? -k2 * Ax * Ax / (2 * qxo[0]) : 0);
   const cy = by + (sphYi ? -k1 / (2 * qy[0]) : 0) - (sphYo ? -k2 * Ay * Ay / (2 * qyo[0]) : 0);
+  // a round trip of a cavity replays the first pass's grid, so every pass lands on one grid
+  // and the round trip stays one linear operator
+  const fixed = pol && pol.fixed;
+  if (fixed) { ax.d = fixed.axd; ay.d = fixed.ayd; }
   const re = new Float64Array(N * N), im = new Float64Array(N * N);
   const vec = !!F.re2, re2 = vec ? new Float64Array(N * N) : null, im2 = vec ? new Float64Array(N * N) : null;
   const pix = Math.max(ax.d / aAx, ay.d / aAy);
@@ -5997,10 +6686,31 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   }
   // phase that turns too fast only matters where there is light
   let peakIn = 0;
-  for (let i = 0; i < N * N; i++) peakIn = Math.max(peakIn, field2I(F, i));
+  if (!(pol && pol.fixed && pol.fixed.cache)) for (let i = 0; i < N * N; i++) peakIn = Math.max(peakIn, field2I(F, i));
   // an edge that cuts a sample passes the sample's share of the area; with its amplitude at
   // that share its power would fall short, so the whole is rescaled to the area's power
-  let pArea = 0, pAmp = 0;
+  let pArea = 0, pAmp = 0, pU = 0;
+  // A cavity's later round trips reuse what the first fixed pass worked out for each sample
+  // (where it reads the incoming field, its phase and amplitude, its polarisation matrix),
+  // so they cost an interpolation and a multiply, not a ray trace, per sample
+  const cache = fixed ? fixed.cache : null, record = fixed && !cache ? { ok: new Uint8Array(N * N), c: new Float64Array(2 * N * N), pm: vec ? new Float64Array(8 * N * N) : null, has: new Uint8Array(N * N) } : null;
+  if (cache) {
+    for (let j = 0; j < N; j++) {
+      const y = (j - N / 2) * ay.d / Ay;
+      for (let i = 0; i < N; i++) {
+        const o = j * N + i; if (!cache.ok[o]) continue;
+        const x = (i - N / 2) * ax.d / Ax;
+        const [ur, ui] = interp2(F, x, y), c = cache.c[2 * o], s = cache.c[2 * o + 1];
+        const sR = ur * c - ui * s, sI = ur * s + ui * c;
+        if (!vec) { re[o] = sR; im[o] = sI; continue; }
+        const [vr, vi] = interp2(F, x, y, F.re2, F.im2), pR = vr * c - vi * s, pI = vr * s + vi * c;
+        if (!cache.has[o]) { re[o] = sR; im[o] = sI; re2[o] = pR; im2[o] = pI; continue; }
+        const q = cache.pm, b = 8 * o;
+        re[o] = q[b] * sR - q[b + 1] * sI + q[b + 2] * pR - q[b + 3] * pI; im[o] = q[b] * sI + q[b + 1] * sR + q[b + 2] * pI + q[b + 3] * pR;
+        re2[o] = q[b + 4] * sR - q[b + 5] * sI + q[b + 6] * pR - q[b + 7] * pI; im2[o] = q[b + 4] * sI + q[b + 5] * sR + q[b + 6] * pI + q[b + 7] * pR;
+      }
+    }
+  } else
   for (let j = 0; j < N; j++) {
     const y = (j - N / 2) * ay.d / Ay;
     let prev = null;
@@ -6008,7 +6718,8 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       const x = (i - N / 2) * ax.d / Ax;
       const [ur, ui] = interp2(F, x, y);
       const [vr, vi] = vec ? interp2(F, x, y, F.re2, F.im2) : [0, 0];
-      if (ur === 0 && ui === 0 && vr === 0 && vi === 0) { prev = null; continue; }
+      if (!record && ur === 0 && ui === 0 && vr === 0 && vi === 0) { prev = null; continue; }
+      pU += ur * ur + ui * ui + vr * vr + vi * vi;
       let m = 1, ab = 0, fr = 1, fi = 0, PM = jonesM;
       if (tr) {
         const r = tr(x, y);
@@ -6079,6 +6790,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       const ph = ab + cx * x * x + cy * y * y, amp = m * g, o = j * N + i;
       const c0 = Math.cos(ph) * amp, s0 = Math.sin(ph) * amp;
       const c = c0 * fr - s0 * fi, s = c0 * fi + s0 * fr;
+      if (record) {
+        record.ok[o] = 1; record.c[2 * o] = c; record.c[2 * o + 1] = s;
+        if (vec && PM) { record.has[o] = 1; const b = 8 * o; [PM[0], PM[1], PM[2], PM[3]].forEach((v, k) => { record.pm[b + 2 * k] = v[0]; record.pm[b + 2 * k + 1] = v[1]; }); }
+      }
       const sR = ur * c - ui * s, sI = ur * s + ui * c;
       if (!vec) { re[o] = sR; im[o] = sI; continue; }
       const pR = vr * c - vi * s, pI = vr * s + vi * c;
@@ -6091,11 +6806,18 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const out = { N, re, im, ax, ay, n: n2, lam0 };
   if (vec) { out.re2 = re2; out.im2 = im2; }
   const scaleAll = f => { for (const [kr, ki] of fieldComps(out)) { const R = out[kr], I = out[ki]; for (let i = 0; i < N * N; i++) { R[i] *= f; I[i] *= f; } } };
-  if (pAmp > 0 && pArea > pAmp) scaleAll(Math.sqrt(pArea / pAmp));
+  const areaScale = fixed ? fixed.areaScale : (pAmp > 0 && pArea > pAmp ? Math.sqrt(pArea / pAmp) : 1);
+  if (areaScale !== 1) scaleAll(areaScale);
   // cut or not by what the edges and masks let through, not by how much a partial reflector
   // sends this way: the area-weighted power of the light that got past, against what came in
   const pIn = popStats2(F).power, S = popStats2(out);
-  const clipped = pArea * g * g * ax.d * ay.d < pIn * (1 - 1e-4);
+  const clipped = fixed ? fixed.clipped : pArea * g * g * ax.d * ay.d < pIn * (1 - 1e-4);
+  let nxD = null, nyD = null;
+  // A surface that cuts nothing loses nothing to its grid: what resampling the input onto
+  // the new grid gains or loses is interpolation, and comes back out (see the round step)
+  const isPol = ev.surf && ev.surf.el && ev.surf.el.type === 'polariser';
+  const resScale = fixed ? fixed.resScale || 1 : (!clipped && ev.mode !== 'M' && !isPol && pU > 0 ? Math.sqrt(pIn / (pU * g * g * ax.d * ay.d)) : 1);
+  if (resScale !== 1) scaleAll(resScale);
   if (clipped) {
     // refit each pilot to what got through: curvature kept, width from the second moment
     const refit = (q, w) => {
@@ -6134,12 +6856,13 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       const sf = Math.sqrt(Math.max(0, s2 / s0 - (s1 / s0) ** 2)), sx = 0.5 * (axis === 'x' ? S.wx : S.wy);
       return Math.max(1, 4 * Math.PI * sx * sf);
     };
-    const mx2 = M2('x'), my2 = M2('y');
+    const mx2 = fixed ? 1 : M2('x'), my2 = fixed ? 1 : M2('y');
     const refitM = (q, w, m2) => {
       const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -m2 * lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
       return [ir / d2, -ii / d2];
     };
-    const nx = refitM(qxo, S.wx, mx2), ny = refitM(qyo, S.wy, my2);
+    const nx = fixed ? fixed.nx : refitM(qxo, S.wx, mx2), ny = fixed ? fixed.ny : refitM(qyo, S.wy, my2);
+    nxD = nx; nyD = ny;
     // the residual is held against the old references; swap them for the new ones
     const ref = (q, x) => popInside(q[0], q[1]) ? 0 : -k2 * x * x / (2 * q[0]);
     for (const [kr, ki] of fieldComps(out)) {
@@ -6182,7 +6905,8 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       polErr = Math.hypot(ps[0] / nP - Jo[0] / nO, ps[1] / nP - Jo[1] / nO, pp[0] / nP - Jo[2] / nO, pp[1] / nP - Jo[3] / nO);
     }
   }
-  return { field: out, clipped, steep, coarse, polErr };
+  if (record) fixed.cache = record;
+  return { field: out, clipped, steep, coarse, polErr, decision: { axd: ax.d, ayd: ay.d, clipped, nx: nxD, ny: nyD, areaScale, resScale } };
 }
 
 /* ---------- The beam tree as diffracted fields ----------
@@ -6256,8 +6980,24 @@ function* popRunGen(beams, srcs, opts = {}) {
   const todo = (kids.get(-1) || []).map(i => ({ i, F: null, root: beams[i].w || 1, repr: 1 }));
   const count = { round: 0, '2d': 0 };
   let truncated = false;
+  // Cavities: each loop's first pass carries its steady state; the tracer's unrolled
+  // repeats of it (and all that branches from them) are already in that sum, so are skipped
+  const loops = opts.noCavity ? [] : cavLoops(beams).filter(L => bySrc.has(beams[L.path[0]].src));
+  const loopAt = new Map(), repeats = new Set(), entries = new Set();
+  for (const L of loops) {
+    loopAt.set(L.path[L.s], L);
+    // the light entering a loop leaves it too, a little, on its first pass: those branches
+    // add to the built-up leaks as fields, so they are kept however weak one pass makes them
+    if (L.s >= 1) entries.add(L.path[L.s - 1]);
+    // and what leaks out of the loop's own segments joins them, however little that is
+    for (let j = 0; j < L.p; j++) entries.add(L.path[L.s + j]);
+    const stack = [L.path[L.s + L.p]];
+    while (stack.length) { const i = stack.pop(); if (i === undefined || repeats.has(i)) continue; repeats.add(i); for (const c of (L.kids.get(i) || [])) stack.push(c); }
+  }
+  notes.cavities = [];
   while (todo.length) {
     const job = todo.pop();
+    if (repeats.has(job.i)) continue;
     const b = beams[job.i], src = bySrc.get(b.src), eng = engine.get(b.src);
     if (count[eng] >= (eng === '2d' ? POP_MAX_SEGS_2D : POP_MAX_SEGS)) { truncated = true; continue; }
     count[eng]++;
@@ -6269,9 +7009,42 @@ function* popRunGen(beams, srcs, opts = {}) {
     } else if (!F0) F0 = eng === '2d' ? popGaussian2(src.popN, q, q, b.n, lam0, 1) : popGaussian(src.popN, q, b.n, lam0, 1);
     // on the 2D engine the field carries its polarisation at every point from the start
     if (!job.F && eng === '2d') F0 = field2Vector(F0, b.J);
+    if (job.F && loopAt.has(job.i) && job.decision) {
+      const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng;
+      let store = cavRunCache.get(lastTrace); if (!store) { store = new Map(); cavRunCache.set(lastTrace, store); }
+      let got = store.get(key);
+      // The twin behind a Strehl ratio needs the cavity's build-up, not its every detail: the
+      // real solve's complex factor on the injected field, <b, X> / <b, b>, serves it
+      const real = opts.paraxial ? store.get(L.canon + '|' + L.path[0] + '||' + eng) : null;
+      if (!got && real && real.bRef) {
+        const w = cavWeights(real.bRef), A0 = cavDot(real.bRef, real.X, w), bb = cavDot(real.bRef, real.bRef, w)[0];
+        got = { X: cavLin(F0, [[[A0[0] / bb, A0[1] / bb], F0]]), res: null, delta: real.delta, mode: real.mode };
+        store.set(key, got);
+      }
+      if (!got) {
+        const res = yield* cavSteady(L, beams, F0, job.decision, eng);
+        const mode = (project.cavityLock && project.cavityLock[L.canon]) || 'lock';
+        const delta = mode === 'lock' && res ? res.dLock : 0;
+        let X = F0;
+        if (res) { const y = cavLS(res.H, res.m, res.beta, [Math.cos(delta), Math.sin(delta)]); X = cavLin(F0, y.map((c, k) => [c, res.Q[k]])); }
+        got = { X, res, delta, mode, bRef: F0 };
+        store.set(key, got);
+        if (!opts.paraxial) cavSolved.set(L.canon, Object.assign({ eng, trace: lastTrace }, got));
+      }
+      // what the steady state holds against the injected light: a branch leaking out of the
+      // loop is judged by that built-up power, not by one pass's
+      const pw = F => (eng === '2d' ? popStats2(F) : popStats(F)).power;
+      job.boost = (job.boost || 1) * Math.max(1, pw(got.X) / Math.max(1e-300, pw(F0)));
+      F0 = got.X;
+      // The detuning is a hair's change of length, carried by this leg: light crossing it
+      // gains delta each round trip, the leak back through the input coupler included, so
+      // the prompt reflection and the leak meet with the right phase
+      job.cavPhase = got.delta;
+      notes.cavities.push(L.canon);
+    }
     const leg = eng === '2d' ? popLeg2(F0) : popLeg(F0);
     const repr = job.F ? job.repr : (F0.repr || 1);
-    const sg = { i: job.i, b, src, eng, F0, leg, root: job.root, clipped: !!job.clipped, repr };
+    const sg = { i: job.i, b, src, eng, F0, leg, root: job.root, clipped: !!job.clipped, repr, boost: job.boost || 1 };
     segs.push(sg);
     busy += performance.now() - t0; yield; t0 = performance.now();
     // weaker branches go first when the budget runs short: the stack is last in, first out
@@ -6280,10 +7053,11 @@ function* popRunGen(beams, srcs, opts = {}) {
     // vector field can carry light off-centre that the centre lacks (a lens between crossed
     // polarisers leaks at its edges). Those are judged by their field instead, below.
     const polEl = c => { const e = beams[c].ev; return e && e.mode === 'P' && e.surf && e.surf.el && (e.surf.el.type === 'polariser' || e.surf.el.type === 'waveplate'); };
-    const ch = (kids.get(job.i) || []).filter(c => beams[c].w >= (eng === '2d' ? 1e-3 : 1e-4) * job.root || (eng === '2d' && polEl(c)))
+    const ch = (kids.get(job.i) || []).filter(c => entries.has(job.i) || beams[c].w * (job.boost || 1) >= (eng === '2d' ? 1e-3 : 1e-4) * job.root || (eng === '2d' && polEl(c)))
       .sort((a, c) => beams[a].w - beams[c].w);
     if (!ch.length) continue;
-    const Fend = leg.at(b.len);
+    let Fend = leg.at(b.len);
+    if (job.cavPhase) Fend = cavLin(Fend, [[[Math.cos(job.cavPhase), Math.sin(job.cavPhase)], Fend]]);
     for (const c of ch) {
       const cb = beams[c], ev = cb.ev || { A: 1, C: 0, D: 1, n2: b.n };
       const gain = 1;          // the field keeps unit power; each segment's Jones vector carries its amplitude
@@ -6296,7 +7070,7 @@ function* popRunGen(beams, srcs, opts = {}) {
       if (out.coarse && ev.el) notes.coarse.add(ev.el);
       if (out.polErr) notes.polErr = Math.max(notes.polErr || 0, out.polErr);
       if (eng === '2d' && polEl(c) && beams[c].w < 1e-3 * job.root && popStats2(out.field).power < 1e-12 * job.root) continue;
-      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr });
+      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr, decision: out.decision, boost: job.boost });
     }
   }
   if (opts.draw) {
@@ -6383,7 +7157,7 @@ function popGroupCut(item, t) {
     if (tm < -1e-9 || tm > b.len + 1e-9) continue;
     const c = m.leg.cutC(clamp(tm, 0, b.len));
     const x0 = -b.dy * ox + b.dx * oy, cx = exLx * -b.dy + exLy * b.dx, cz = exLx * b.dx + exLy * b.dy;
-    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b), kn: c.k });
+    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k });
     Yg = Math.max(Yg, Math.abs(x0) + 2.5 * c.w); wMax = Math.max(wMax, c.w);
   }
   const M = 2 * POP_ROWS, x = new Float64Array(M), I = new Float64Array(M);
@@ -6714,7 +7488,8 @@ function popSlices(items, perIn) {
     // each branch as bright as the power it carries, so round trips fade as they leak
     // a lone branch as bright as the power it carries; a group column by column, from
     // the power its fields add up to, so a dark port is dark
-    sg.draw = { ts: dts, Ys: dYs, cv, alpha: grouped ? 1 : clamp(sg.b.w || 1, 0.04, 1), members: item.members.length };
+    // as bright as the light it carries: one pass's share, times what a cavity built it up by
+    sg.draw = { ts: dts, Ys: dYs, cv, alpha: grouped ? 1 : clamp((sg.b.w || 1) * (sg.boost || 1), 0.04, 1), members: item.members.length };
   }
 }
 
@@ -6913,7 +7688,7 @@ function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = project.elements.filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss]));
+  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {});
   return { keep, srcs, key };
 }
 
@@ -8220,6 +8995,30 @@ stage.addEventListener('drop', e => {
       return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name), coarse: [...R.notes.coarse].map(name), polErr: R.notes.polErr || 0 };
     },
     serialize() { return serialize(); },
+    cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
+      return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
+    setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },
+    cavityPeaks(tol) {
+      // the lines in the latest scan: position (as a share of the free spectral range from the
+      // strongest) and height against it, each found finely
+      const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null;
+      const P = v.res, s = P.scan, n = s.length, out = [];
+      for (let i = 0; i < n; i++) {
+        const a = s[(i - 1 + n) % n], b = s[i], c = s[(i + 1) % n];
+        if (b > a && b >= c && b > (tol || 1e-4) * P.Plock) {
+          let lo = -Math.PI + 2 * Math.PI * (i - 1) / n, hi = -Math.PI + 2 * Math.PI * (i + 1) / n;
+          for (let it = 0; it < 50; it++) { const x1 = lo + (hi - lo) * 0.382, x2 = lo + (hi - lo) * 0.618; if (P.at(x1).P > P.at(x2).P) hi = x2; else lo = x1; }
+          const d = 0.5 * (lo + hi); let f = -(d - P.dLock) / (2 * Math.PI); f -= Math.round(f);
+          out.push({ at: f, height: P.at(d).P / P.Plock });
+        }
+      }
+      return out.sort((a, b) => b.height - a.height);
+    },
+    cavitySolve() { return [...cavSolved.entries()].map(([k, v]) => v.res ? { id: k, m: v.res.m, beta: v.res.beta, P0: v.res.P0 / v.res.beta ** 2, Plock: v.res.Plock / v.res.beta ** 2, dLock: v.res.dLock, delta: v.delta,
+      fwhm: (() => { const s = v.res.scan, n = s.length; let k = 0; for (let i = 1; i < n; i++) if (s[i] > s[k]) k = i; const half = 0.5 * v.res.Plock; let a = v.res.dLock, b = v.res.dLock; const f = d => v.res.at(d).P; let lo = a, hi = a + 0.5; for (let it = 0; it < 60; it++) { const mid = 0.5 * (lo + hi); if (f(mid) > half) lo = mid; else hi = mid; } return 2 * (lo - v.res.dLock) / (2 * Math.PI); })() } : { id: k }); },
+    cavities() { return findCavities().map(c => ({ name: c.name, kind: c.kind, names: c.names, p: c.p, Lopt: c.Lopt, fsr: c.fsr, rho: c.rho, finesse: c.finesse, linewidth: c.linewidth,
+      buildup: c.buildup, Tin: c.Tin, stability: c.stability, gouy: c.gouy, tms: c.tms, waists: c.mode.waists, along: c.mode.along.map(a => ({ name: a.name, wx: a.wx, wy: a.wy })),
+      axis: c.axis, match: c.match, Mx: c.Mx, My: c.My })); },
     vfPupilOf(name) {
       const el = this.byName(name), R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
       const sg = R.segs.find(s2 => s2.b.endEl === el.id); if (!sg) return null;

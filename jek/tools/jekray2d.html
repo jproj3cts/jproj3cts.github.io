@@ -207,6 +207,8 @@
   .rt-zoom { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-zoom span { margin-left: 0.35rem; }
   .rt-zoom span:first-child { margin-left: 0; }
+  .rt-zoom .rt-save { margin-left: auto; display: inline-flex; gap: 0.25rem; }
+  .rt-saverow[hidden] { display: none; }
   .rt-zb {
     min-width: 1.6rem; height: 1.5rem; padding: 0 0.35rem; border: 1px solid var(--jek-line); border-radius: 4px;
     background: transparent; color: var(--jek-ink); font: inherit; font-weight: 600; cursor: pointer;
@@ -217,6 +219,19 @@
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
   .rt-plot { position: relative; }
   .rt-more { position: relative; }
+  .rt-menu-right { left: auto; right: 0; }
+  .rt-menu .sep { height: 1px; margin: 0.25rem 0.3rem; background: var(--jek-line); }
+  .rt-menu button .k { float: right; margin-left: 1.5rem; color: var(--jek-ink-soft); font-size: 0.78rem; }
+  .rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; }
+  .rt-btn[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
+  .rt-stage canvas.rt-minimap { position: absolute; right: 0.6rem; bottom: 1.9rem; width: 180px; height: 120px; border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 3px; background: rgba(12,16,18,0.72); cursor: pointer; touch-action: none; display: block; z-index: 3; }
+  .rt-measurebar { position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); display: flex; z-index: 4;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+  .rt-measurebar button { font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12);
+    padding: 0.35rem 0.8rem; cursor: pointer; }
+  .rt-measurebar button:first-child { border-radius: 3px 0 0 3px; } .rt-measurebar button:last-child { border-radius: 0 3px 3px 0; border-right: 0; }
+  .rt-measurebar button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-cyan); }
   .rt-addrow { flex: 1 1 0; flex-wrap: nowrap; min-width: 0; }
   .rt-palette { display: flex; flex-wrap: nowrap; gap: 0.35rem; min-width: 0; overflow: hidden; }
   .rt-btn.palette { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
@@ -554,8 +569,17 @@
         <div class="rt-group rt-right">
           <button class="rt-btn" id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
           <button class="rt-btn" id="btnRedo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+          <button class="rt-btn" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
+          <button class="rt-btn" id="btnZoomSel" type="button" title="Zoom to the selection (Z)">Zoom to selection</button>
           <button class="rt-btn" id="btnFit">Fit view</button>
-          <button class="rt-btn" id="btnExport">Export layout</button>
+          <div class="rt-more">
+            <button class="rt-btn" id="btnExport" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">Export ▾</button>
+            <div class="rt-menu rt-menu-right" id="exportMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-export="png">Layout as PNG image</button>
+              <button type="button" role="menuitem" data-export="svg">Layout as SVG (vector)</button>
+              <button type="button" role="menuitem" data-export="pdf">Layout as PDF (vector)</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="rt-row" style="border-top:none;padding-top:0">
@@ -567,6 +591,11 @@
       <div class="rt-stage" id="stage">
         <canvas id="bench" tabindex="0" aria-label="Optical bench. Click an element to select it."></canvas>
         <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
+        <canvas class="rt-minimap" id="minimap" hidden aria-label="Minimap: click or drag to move the view"></canvas>
+        <div class="rt-measurebar" id="measureBar" hidden>
+          <button type="button" data-mtool="ruler" class="on">Ruler</button><button type="button" data-mtool="angle">Angle</button><button type="button" data-mtool="clear">Clear</button><button type="button" data-mtool="done">Done</button>
+        </div>
+        <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
         <div class="rt-drop">Drop a .zmx or .jekray file</div>
         <div class="rt-toast" id="toast" role="status"></div>
@@ -1193,6 +1222,9 @@ function wavelengthColour(nm) {
 
 let project = null;
 let selectedId = null;
+// several selected: the one the panel shows is selectedId, the rest are here
+let extraSel = new Set();
+const selectOne = id => { selectedId = id; extraSel.clear(); };
 let history = [], future = [];
 const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
@@ -1371,6 +1403,7 @@ function normElementBase(e) {
     x: num(e.x, 0), y: num(e.y, 0), angle: num(e.angle, 0),
     bench: typeof e.bench === 'string' ? e.bench : null,     // the tab it is on (ensureBenches fills it in)
   };
+  if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   switch (e.type) {
     case 'source': {
       const wl = Math.min(20000, Math.max(100, num(e.wavelength, 633)));
@@ -1730,14 +1763,15 @@ function switchTab(id) {
   project.tab = id;
   project.view = curBench().view;
   const sel = selected();
-  if (sel && !onTab(sel)) selectedId = null;
+  if (sel && !onTab(sel)) selectOne(null);
   renderBenchTabs(); renderPanel(); scheduleSave(); requestRender();
 }
 /* select an element, going to its tab first */
 function selectEl(el) {
   if (!el) return;
+  extraSel.clear();
   if (!onTab(el)) switchTab(el.bench);
-  selectedId = el.id; renderPanel(); requestRender();
+  selectOne(el.id); renderPanel(); requestRender();
 }
 function addBench() {
   checkpoint();
@@ -1863,7 +1897,7 @@ function undo() {
   pauseAll();
   future.push(snapshot());
   restore(history.pop());
-  if (selectedId && !getEl(selectedId)) selectedId = null;
+  if (selectedId && !getEl(selectedId)) selectOne(null);
   changed(true);
 }
 function redo() {
@@ -1871,7 +1905,7 @@ function redo() {
   pauseAll();
   history.push(snapshot());
   restore(future.pop());
-  if (selectedId && !getEl(selectedId)) selectedId = null;
+  if (selectedId && !getEl(selectedId)) selectOne(null);
   changed(true);
 }
 
@@ -2459,6 +2493,7 @@ function intersectSeg(sg, px, py, dx, dy, tmin) {
   return (t >= tmin && u >= 0 && u <= 1) ? t : null;
 }
 
+let exporting = false;
 let lastTrace = { rays: [], screens: {} };
 
 function subFrame(f, lf) {
@@ -3104,7 +3139,7 @@ function paraxial(el, nm) {
    ========================================================================== */
 
 const canvas = document.getElementById('bench');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');          // a VecCtx for a moment while the layout is exported
 const stage = document.getElementById('stage');
 let W = 0, H = 0, DPR = 1;
 
@@ -3442,8 +3477,9 @@ function drawLabels() {
     // place the label below the element, whichever way it's rotated
     const ex = Math.abs(Math.sin(a)) * r, ey = Math.abs(Math.cos(a)) * r;
     const X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6) + 14 + (el.type === 'lens' ? 4 : 0);
-    ctx.fillStyle = el.id === selectedId ? '#ffffff' : 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     if (ex >= 0) ctx.fillText(el.name, X, Y);
+    if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     if (el.type === 'fcomp' && el.kind === 'thru') {
       const P = thruPartner(el);
       ctx.fillStyle = P ? '#f2c14e' : 'rgba(242,193,78,0.55)';
@@ -3459,9 +3495,37 @@ function drawLabels() {
   }
 }
 
+/* a small padlock, for an element held in place */
+function drawLock(X, Y) {
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(X, Y - 2, 2.6, Math.PI, 0); ctx.stroke();
+  ctx.fillRect(X - 3.5, Y - 2, 7, 5.5); ctx.restore();
+}
+/* the elements selected, on this tab, the one the panel shows first */
+function selection() {
+  const out = [], seen = new Set();
+  for (const id of [selectedId, ...extraSel]) { const e = id && getEl(id); if (e && onTab(e) && !seen.has(id)) { seen.add(id); out.push(e); } }
+  return out;
+}
+function setSelection(list) {
+  selectedId = list.length ? list[0].id : null;
+  extraSel = new Set(list.slice(1).map(e => e.id));
+  selFibreId = null;
+  renderPanel(); requestRender();
+}
 function drawSelection() {
+  // the rest of a group: a dashed ring each
+  for (const e of selection()) if (e.id !== selectedId) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(sx(e.x), sy(e.y), elementExtentPx(e), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
   const el = selected();
-  if (!el) return;
+  if (!el || !onTab(el)) return;
+  if (extraSel.size || el.locked) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), elementExtentPx(el), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    return;                              // a group turns from its panel or the menu, not a handle; a locked one not at all
+  }
   const [hx, hy] = handlePos(el);
   const cx = sx(el.x), cy = sy(el.y);
   ctx.strokeStyle = 'rgba(255,255,255,0.35)';
@@ -3526,7 +3590,14 @@ function render() {
   drawBeams(fieldShown);
   for (const el of els) if (el.type === 'source') draw(el);
   drawLabels();
-  drawSelection();
+  drawMeasures();
+  if (!exporting && drag && drag.mode === 'box' && drag.cur) {
+    const x0 = Math.min(drag.px0, drag.cur[0]), y0 = Math.min(drag.py0, drag.cur[1]);
+    ctx.save(); ctx.fillStyle = 'rgba(127,220,255,0.08)'; ctx.strokeStyle = 'rgba(127,220,255,0.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.fillRect(x0, y0, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0));
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0)); ctx.restore();
+  }
+  if (!exporting) { drawMinimap(); drawSelection(); }
   drawScaleBar();
   updateReadouts();
 }
@@ -3896,7 +3967,7 @@ function filterColour(el) {
   return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
 }
 function draw(el) {
-  const sel = el.id === selectedId;
+  const sel = el.id === selectedId || extraSel.has(el.id);
   if (el.type === 'grating') return drawGrating(el, sel);
   if (el.type === 'aom' || el.type === 'eom') return drawModulator(el, sel);
   if (el.type === 'fibre') return drawFibre(el, sel);
@@ -4016,10 +4087,16 @@ canvas.addEventListener('pointerdown', e => {
       cxw: wx((a.px + b.px) / 2), cyw: wy((a.py + b.py) / 2) };
     return;
   }
+  hideCtxMenu();
+  if (e.button === 2) return;                          // the right button opens the menu instead
+  // the middle button, Space held, or a finger on empty bench: pan
+  const panNow = e.button === 1 || spaceDown;
+  if (panNow) { e.preventDefault(); drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true }; canvas.classList.add('dragging'); return; }
+  if (measureMode) { measureDown(px, py, e); return; }
   const sel = selected();
-  if (sel) {
+  if (sel && !extraSel.size && onTab(sel)) {
     const [hx, hy] = handlePos(sel);
-    if (Math.hypot(px - hx, py - hy) < 11) {
+    if (Math.hypot(px - hx, py - hy) < 11 && !sel.locked) {
       drag = { mode: 'rotate', el: sel, started: false };
       return;
     }
@@ -4042,16 +4119,29 @@ canvas.addEventListener('pointerdown', e => {
   if (fh) {
     // the selected fibre's curve: pulled, it gives up a node there to drag
     if (fh === SF) { drag = { mode: 'bend', F: SF, px0: px, py0: py, started: false }; return; }
-    selFibreId = fh.id; selectedId = null; renderPanel(); requestRender();
+    selFibreId = fh.id; selectOne(null); renderPanel(); requestRender();
     drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true };
     return;
   }
   if (hit) {
     selFibreId = null;
-    if (selectedId !== hit.id) { selectedId = hit.id; renderPanel(); }
-    drag = { mode: 'move', el: hit, ox: wx(px) - hit.x, oy: wy(py) - hit.y, px0: px, py0: py, started: false };
-  } else {
+    // Shift or Ctrl: in or out of the selection
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      const cur = selection();
+      setSelection(cur.some(x => x.id === hit.id) ? cur.filter(x => x.id !== hit.id) : [...cur, hit]);
+      return;
+    }
+    if (!(hit.id === selectedId || extraSel.has(hit.id))) { selectOne(hit.id); renderPanel(); }
+    // the whole selection moves with it; fibres between its members bring their shapes along
+    const group = selection().filter(x => !x.locked), ids = new Set(group.map(x => x.id));
+    const fibres = (project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0]));
+    drag = { mode: 'move', el: hit, group, ids, starts: group.map(x => [x.x, x.y]), nodes: fibres.flatMap(F => (F.path || []).map(n => [n, n.x, n.y])),
+      ox: wx(px) - hit.x, oy: wy(py) - hit.y, px0: px, py0: py, started: false, x0: hit.x, y0: hit.y };
+  } else if (e.pointerType === 'touch') {
     drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false };
+  } else {
+    // empty bench: a box to select with
+    drag = { mode: 'box', px0: px, py0: py, cur: null, add: e.shiftKey || e.ctrlKey || e.metaKey };
   }
   canvas.classList.add('dragging');
   requestRender();
@@ -4064,10 +4154,11 @@ canvas.addEventListener('pointermove', e => {
     (d => 'x ' + wx(px).toFixed(d) + '  y ' + wy(py).toFixed(d) + ' mm')(clamp(Math.ceil(Math.log10(V().scale)) + 1, 2, 7));
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { px, py });
 
+  if (!drag && measureMode && measureDraft && measureDraft.type === 'angle') { measureMove(px, py, e); return; }
   if (!drag) {
     const sel = selected();
     let cls = '';
-    if (sel) { const [hx, hy] = handlePos(sel); if (Math.hypot(px - hx, py - hy) < 11) cls = 'rotate'; }
+    if (sel && !extraSel.size && !sel.locked) { const [hx, hy] = handlePos(sel); if (Math.hypot(px - hx, py - hy) < 11) cls = 'rotate'; }
     if (!cls && (hitTest(px, py) || portAt(px, py) || (selFibre() && (fibreGrip(selFibre(), px, py) || fibreAtPx(px, py) === selFibre())))) cls = 'over';
     canvas.classList.toggle('rotate', cls === 'rotate');
     canvas.classList.toggle('over', cls === 'over');
@@ -4111,13 +4202,22 @@ canvas.addEventListener('pointermove', e => {
     requestRender();
     return;
   }
+  if (drag.mode === 'box') {
+    if (!drag.cur && Math.hypot(px - drag.px0, py - drag.py0) < 3) return;
+    drag.cur = [px, py]; requestRender();
+    return;
+  }
+  if (drag.mode === 'measure') { measureMove(px, py, e); return; }
   if (drag.mode === 'move') {
+    if (drag.el.locked || !drag.group.length) return;
     if (!drag.started) {
       if (Math.hypot(px - drag.px0, py - drag.py0) < 3) return;
       checkpoint(); drag.started = true;
     }
-    drag.el.x = snapVal(wx(px) - drag.ox, e);
-    drag.el.y = snapVal(wy(py) - drag.oy, e);
+    // the grabbed element snaps; the rest keep their places against it
+    const nx = snapVal(wx(px) - drag.ox, e), ny = snapVal(wy(py) - drag.oy, e), dx = nx - drag.x0, dy = ny - drag.y0;
+    drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + dx; g.y = drag.starts[i][1] + dy; });
+    for (const [n, x0, y0] of drag.nodes) { n.x = x0 + dx; n.y = y0 + dy; }
     syncPanel(); requestRender();
     return;
   }
@@ -4145,20 +4245,31 @@ function endPointer(e) {
     const d = drag, F = d.fib;
     drag = null; canvas.classList.remove('dragging');
     if (!d.cur) {                              // a click on a port: select its fibre
-      if (F) { selFibreId = F.id; selectedId = null; renderPanel(); }
+      if (F) { selFibreId = F.id; selectOne(null); renderPanel(); }
       requestRender(); return;
     }
     const busy = to && (project.fibres || []).some(G => G !== F && (pkey(...G.a) === pkey(...to) || pkey(...G.b) === pkey(...to)));
     if (to && !busy && pkey(...to) !== pkey(...d.from)) {
       checkpoint();
       if (F) { if (pkey(...F.a) === pkey(...d.from)) F.b = to; else F.a = to; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; project.fibres.push(G); selFibreId = G.id; selectedId = null; }
+      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; project.fibres.push(G); selFibreId = G.id; selectOne(null); }
       changed(true);
     } else if (F && !to) removeFibre(F);        // pulled off its port: the fibre goes
     else requestRender();
     return;
   }
-  if (drag.mode === 'pan' && !drag.moved && (selectedId || selFibreId)) { selectedId = null; selFibreId = null; renderPanel(); }
+  if (drag.mode === 'box') {
+    const d = drag;
+    drag = null; canvas.classList.remove('dragging');
+    if (!d.cur) { if (selectedId || selFibreId || extraSel.size) { selectOne(null); selFibreId = null; renderPanel(); } requestRender(); return; }
+    const X0 = wx(Math.min(d.px0, d.cur[0])), X1 = wx(Math.max(d.px0, d.cur[0])), Y0 = wy(Math.max(d.py0, d.cur[1])), Y1 = wy(Math.min(d.py0, d.cur[1]));
+    const inside = project.elements.filter(el => onTab(el) && el.x >= X0 && el.x <= X1 && el.y >= Y0 && el.y <= Y1);
+    const cur = d.add ? selection() : [];
+    setSelection([...cur, ...inside.filter(el => !cur.includes(el))]);
+    return;
+  }
+  if (drag.mode === 'measure') { measureUp(); return; }
+  if (drag.mode === 'pan' && !drag.moved && (selectedId || selFibreId)) { selectOne(null); selFibreId = null; renderPanel(); }
   if ((drag.mode === 'move' || drag.mode === 'rotate') && drag.started) changed();
   else scheduleSave();
   drag = null;
@@ -4193,6 +4304,9 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 
 /* Keyboard */
+let spaceDown = false;
+document.addEventListener('keyup', e => { if (e.key === ' ' && spaceDown) { spaceDown = false; canvas.classList.remove('dragging'); } });
+window.addEventListener('blur', () => { spaceDown = false; });
 document.addEventListener('keydown', e => {
   const t = e.target;
   const typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
@@ -4201,6 +4315,21 @@ document.addEventListener('keydown', e => {
   if (typing) return;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(onTab)); return; }
+  if (!mod && e.key === ' ') { e.preventDefault(); if (!spaceDown) { spaceDown = true; canvas.classList.add('dragging'); } return; }
+  if (!mod && (e.key === 'z' || e.key === 'Z')) { zoomToSelection(); return; }
+  if (!mod && (e.key === 'm' || e.key === 'M')) { setMeasure(!measureMode); return; }
+  if (e.key === 'Escape' && measureMode) { if (measureDraft) { measureDraft = null; requestRender(); } else setMeasure(false); return; }
+  const group = selection();
+  if (group.length > 1) {
+    if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeEls(group); return; }
+    if (e.key === 'Escape') { selectOne(null); renderPanel(); requestRender(); return; }
+    const step = e.shiftKey ? 10 : (project.snap || 0.1);
+    const mv = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+    if (mv) { e.preventDefault(); checkpoint(); moveEls(group, mv[0] * step, mv[1] * step); changed(false); }
+    return;
+  }
   const el = selected();
   if (!el) {
     const F = selFibre();
@@ -4208,11 +4337,12 @@ document.addEventListener('keydown', e => {
     if (F && e.key === 'Escape') { selFibreId = null; renderPanel(); requestRender(); }
     return;
   }
-  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(el); return; }
+  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeEl(el); return; }
-  if (e.key === 'Escape') { selectedId = null; renderPanel(); requestRender(); return; }
+  if (e.key === 'Escape') { selectOne(null); renderPanel(); requestRender(); return; }
   const step = e.shiftKey ? 10 : (project.snap || 0.1);
   const mv = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+  if (mv && el.locked) { e.preventDefault(); toast(el.name + ' is locked in place'); return; }
   if (mv) {
     e.preventDefault();
     checkpoint();
@@ -5214,6 +5344,8 @@ function drawSignal(cv, el, mode) {
   const S = pdSignal(el), T = S.tones.filter(t => t.V > 1e-9);
   g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
   if (mode === 'rf') {
+    plotCsv(cv, el.name + ' RF spectrum', ['frequency_Hz', 'amplitude_V', 'level_dBV', 'phase_deg', 'swing_mW', 'two_lasers'],
+      () => [[0, S.Vdc, 20 * Math.log10(Math.max(S.Vdc, 1e-12)), NaN, S.dc, 0], ...T.map(t => [t.f, t.V, 20 * Math.log10(Math.max(t.V, 1e-12)), t.incoh ? NaN : t.phV / deg, t.amp, t.incoh ? 1 : 0])]);
     if (!T.length) { g.fillText('no beat notes: one frequency of each laser reaches it', 4, 14); return; }
     const fmax = 1.15 * Math.max(...T.map(t => t.f)), dB = v => 20 * Math.log10(Math.max(v, 1e-12));
     const top = Math.ceil(dB(Math.max(...T.map(t => t.V))) / 10) * 10 + 5, bot = top - 90;
@@ -5231,6 +5363,7 @@ function drawSignal(cv, el, mode) {
   const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, span = fmin > 0 ? 3 / fmin : 1e-6, n = 600;
   const Vt = t => Math.min(S.vmax, S.Vdc + T.reduce((a, q) => a + q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0));
   const ys = []; for (let i = 0; i <= n; i++) ys.push(Vt(span * i / n));
+  plotCsv(cv, el.name + ' oscilloscope', ['time_s', 'output_V'], () => ys.map((v, i) => [span * i / n, v]));
   let lo = Math.min(0, ...ys), hi = Math.max(...ys); if (hi - lo < 1e-9) hi = lo + 1e-3;
   const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
   const sx = { kind: 's', title: 'time' }, sy = { kind: 'plain', title: 'output, V' };
@@ -5254,7 +5387,7 @@ function signalSection(el) {
     const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); draw(); } }, label);
     tabs.append(b);
   }
-  panel.append(tabs, h('div', { style: 'margin-top:0.3rem' }, cv));
+  panel.append(tabs, h('div', { style: 'margin-top:0.3rem' }, cv), plotSaveRow(cv));
   const rows = h('div', { class: 'rt-readout' });
   panel.append(rows);
   let sig = '';
@@ -5438,6 +5571,7 @@ function drawScan(cv, scan, key, best) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
   const pts = scan.filter(q => q.raw !== null && isFinite(q.raw));
+  plotCsv(cv, 'optimiser scan', ['value_tried', key], () => pts.map(q => [q.v, q.raw]));
   if (pts.length < 2) return;
   const vs = pts.map(q => q.v), ys = pts.map(q => q.raw);
   const v0 = Math.min(...vs), v1 = Math.max(...vs);
@@ -5543,6 +5677,7 @@ function drawHistogram(cv, samples, key) {
   if (!(hi > lo)) { const d = Math.abs(lo) * 1e-3 || 1e-9; lo -= d; hi += d; }
   const nb = 24, bins = new Array(nb).fill(0);
   for (const v of samples) bins[clamp(Math.floor((v - lo) / (hi - lo) * nb), 0, nb - 1)]++;
+  plotCsv(cv, 'tolerance trials', ['from', 'to', 'trials'], () => bins.map((b, i) => [lo + (hi - lo) * i / nb, lo + (hi - lo) * (i + 1) / nb, b]));
   const peak = Math.max(...bins);
   const sx = metricAxis(key, ''), sy = { kind: 'plain', title: 'trials', fmt: v => Number.isInteger(v) ? String(v) : '' };
   const A = plotArea(c, w, hgt, [0, peak], sy, { top: 20 });
@@ -5841,6 +5976,7 @@ function renderInto(box, el) {
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
+  if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
   if (!el) { const F = selFibre(); if (F && panel === mainPanel) fibreLinkPanel(F); else renderOverview(); return; }
 
   const pinned = pins.includes(el.id);
@@ -5888,7 +6024,7 @@ function renderPanelBody(el) {
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectedId = null; benchTab = 'cavity'; renderPanel(); requestRender(); } }, 'Show')));
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); benchTab = 'cavity'; renderPanel(); requestRender(); } }, 'Show')));
   }
 
   panel.append(h('div', { class: 'rt-actions' },
@@ -6240,7 +6376,7 @@ function drawRayPlot(cv, note, el) {
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, hgt);
-  cv._full = null;
+  cv._full = null; cv._csv = null;
   updateSyncButtons();
   if (!all.length || !st || st.empty) { note.textContent = 'Nothing has reached this screen.'; return; }
 
@@ -6252,6 +6388,7 @@ function drawRayPlot(cv, note, el) {
     const B = binnedField(el);
     if (!B) { note.textContent = 'Nothing has reached this screen.'; return; }
     const peak = Math.max(B.max, B.incMax) || 1;
+    plotCsv(cv, el.name + ' binned intensity', ['position_mm', 'coherent', 'incoherent'], () => Array.from(B.coh, (v, i) => [B.lo + (i + 0.5) * B.width, v, B.inc[i]]));
     // up is a share of the peak bin, so plots of different screens compare by shape
     const [xa, xb] = zoomRange(Z, 'x', B.lo, B.hi), [fa, fb] = zoomRange(Z, 'y', 0, 1);
     const sx = { kind: 'len' }, sy = { kind: 'plain', title: 'of the peak bin' };
@@ -6303,6 +6440,7 @@ function drawRayPlot(cv, note, el) {
     pts = all.map(t => [t.y, t.opl]); yl = 'optical path (mm)'; sy = { kind: 'len', title: 'optical path' };
   }
   pts = pts.filter(q => isFinite(q[0]) && isFinite(q[1]));
+  plotCsv(cv, el.name + ' ' + yl.replace(/ \(.*\)$/, ''), [xl, yl], pts);
   if (!pts.length) { note.textContent = 'That plot has nothing to show for these rays.'; return; }
 
   const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
@@ -6619,6 +6757,27 @@ function fibreLinkPanel(F) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('button', { class: 'rt-btn wide', type: 'button',
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
+}
+/* several selected: what can be done to them together */
+function groupPanel(list) {
+  panel.append(h('h2', null, h('span', null, list.length + ' elements'), h('span', { class: 'kind' }, 'selected')));
+  const ul = h('ul', { class: 'rt-list' });
+  for (const e of list) ul.append(h('li', null, h('button', { onclick: () => selectEl(e) }, e.name + (e.locked ? ' \u2022 locked' : ''), h('span', { class: 't' }, typeLabel(e)))));
+  panel.append(ul);
+  const B = (label, fn, title) => h('button', { class: 'rt-btn', type: 'button', title: title || '', onclick: fn }, label);
+  panel.append(h('h3', null, 'Arrange'));
+  panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },
+    B('Align on a vertical line', () => alignEls(list, 'x')), B('Align on a horizontal line', () => alignEls(list, 'y')),
+    B('Space evenly across', () => alignEls(list, 'dx')), B('Space evenly up', () => alignEls(list, 'dy')),
+    B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
+  panel.append(h('h3', null, 'Selection'));
+  const locked = list.every(e => e.locked);
+  panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },
+    B('Duplicate', duplicateSel, 'Ctrl+D'), B(locked ? 'Unlock' : 'Lock in place', () => setLocked(list, !locked)), B('Zoom to them', zoomToSelection, 'Z'),
+    h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEls(list) }, 'Delete')));
+  if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+    selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'));
 }
 function modulatorPanel(el) {
   if (el.type === 'aom') {
@@ -6960,6 +7119,32 @@ function zoomAxis(Z, axis, f, p) {
 /* Wheel, drag and double click on a plot canvas, plus the buttons under it. getZ gives the
    zoom state of whatever the canvas is showing now; the drawing code leaves the plot's
    area in cv._area as { l, t, w, h } in CSS pixels. */
+/* Every plot saves as a picture, and as the numbers behind it: each draw leaves them on the
+   canvas (a function, so they are only worked out when asked for) */
+function plotCsv(cv, name, cols, rows) { cv._csv = { name, cols, rows }; if (cv._saveRow) cv._saveRow.hidden = false; }
+function csvText(D) {
+  const cell = v => typeof v === 'number' ? (isFinite(v) ? String(+v.toPrecision(10)) : '') : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  const rows = typeof D.rows === 'function' ? D.rows() : D.rows;
+  return [D.cols.map(cell).join(','), ...rows.map(r => r.map(cell).join(','))].join('\n') + '\n';
+}
+function savePlot(cv, kind) {
+  const D = cv._csv, base = safeFileName(project.name) + ' - ' + safeFileName(D ? D.name : 'plot');
+  if (kind === 'csv') {
+    if (!D) { toast('That plot has no numbers to save yet.', true); return; }
+    downloadFile(base + '.csv', new Blob([csvText(D)], { type: 'text/csv' }));
+    toast('Saved ' + base + '.csv');
+    return;
+  }
+  // on the panel's own colour: the plot itself is drawn on nothing
+  const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+  const g = c.getContext('2d'); g.fillStyle = getCss('--jek-panel') || '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0);
+  c.toBlob(b => { if (!b) { toast('The plot could not be saved here.', true); return; } downloadFile(base + '.png', b); toast('Saved ' + base + '.png'); }, 'image/png');
+}
+function plotSaveBtns(cv) {
+  const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
+  return h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'));
+}
+function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
 function zoomControls(cv, getZ, redraw, yFromBase) {
   // curves that rise from zero stretch up and down from their baseline, wherever the cursor is
   const yAt = p => yFromBase && yFromBase() ? 0 : p;
@@ -6999,7 +7184,8 @@ function zoomControls(cv, getZ, redraw, yFromBase) {
     h('span', null, 'Up'),
     btn('\u2212', 'Zoom out up and down', Z => zoomAxis(Z, 'y', 1 / 1.5, yAt(0.5))),
     btn('+', 'Zoom in up and down', Z => zoomAxis(Z, 'y', 1.5, yAt(0.5))),
-    btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })));
+    btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })),
+    plotSaveBtns(cv));
 }
 
 const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
@@ -7086,7 +7272,7 @@ function drawDiff(cv, D, el) {
   const dpr = window.devicePixelRatio || 1, view = vs(el).diffView, Z = plotZoom(el, view);
   const w = cv.clientWidth || 280, square = view === 'map';
   const c = cv.getContext('2d');
-  cv._full = null;
+  cv._full = null; cv._csv = null;
   updateSyncButtons();
   const size = hgt => {
     cv.style.height = hgt + 'px';
@@ -7107,6 +7293,11 @@ function drawDiff(cv, D, el) {
     const A = { l: A0.l, t: A0.t, w: side, h: side };
     cv._area = A; cv._full = { x: [-half, half], y: [-vh, vh] };
     const M = D.map.n, img = c.createImageData(M, M);
+    plotCsv(cv, el.name + ' irradiance map', ['along_mm', 'out_of_plane_mm', 'irradiance', 'incoherent'], () => {
+      const r = [];
+      for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([-half + (i + 0.5) * 2 * half / M, -vh + (j + 0.5) * 2 * vh / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
+      return r;
+    });
     // scaled to its own peak, but never above what the beams would give without interfering,
     // so a dark port shows dark rather than its rounding error blown up
     let pk = 0, pi = 0; for (let i = 0; i < D.map.v.length; i++) { pk = Math.max(pk, D.map.v[i]); pi = Math.max(pi, D.map.inc[i]); }
@@ -7142,23 +7333,26 @@ function drawDiff(cv, D, el) {
   const series = [];
   let xs0, xs1, sx = { kind: 'len' }, top = 1, marker = null, yName = 'of the peak';
   if (view === 'mtf') {
-    series.push({ x: D.freq, y: D.mtf });
-    if (!D.symmetric) series.push({ x: D.freq, y: D.mtfY, dash: true });
+    series.push({ x: D.freq, y: D.mtf, name: D.symmetric ? 'MTF' : 'MTF in the plane' });
+    if (!D.symmetric) series.push({ x: D.freq, y: D.mtfY, dash: true, name: 'MTF out of the plane' });
     if (D.cutoff) {
       const ana = D.freq.map(v => { const x = v / D.cutoff; return x >= 1 ? 0 : (2 / Math.PI) * (Math.acos(x) - x * Math.sqrt(1 - x * x)); });
-      series.push({ x: D.freq, y: ana, faint: true });
+      series.push({ x: D.freq, y: ana, faint: true, name: 'diffraction limit' });
     }
     xs0 = 0; xs1 = D.freq[D.freq.length - 1]; sx = { kind: 'plain', title: 'lp/mm' }; yName = 'MTF';
   } else if (view === 'ee') {
-    series.push({ x: D.rho, y: D.ee });
+    series.push({ x: D.rho, y: D.ee, name: 'enclosed energy' });
     xs0 = 0; xs1 = D.rho[D.rho.length - 1]; marker = D.airy; yName = 'of the light'; sx.title = 'radius';
   } else if (D.symmetric) {
-    series.push({ x: D.rho, y: D.psf });
+    series.push({ x: D.rho, y: D.psf, name: 'irradiance' });
     xs0 = 0; xs1 = D.rho[D.rho.length - 1]; top = Math.max(...D.psf); marker = D.airy; sx.title = 'radius';
   } else {
-    series.push({ x: D.cutX.x, y: D.cutX.I }, { x: D.cutY.x, y: D.cutY.I, dash: true });
+    series.push({ x: D.cutX.x, y: D.cutX.I, name: 'in the plane' }, { x: D.cutY.x, y: D.cutY.I, dash: true, name: 'out of the plane' });
     xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; top = Math.max(...D.cutX.I, ...D.cutY.I);
   }
+  plotCsv(cv, el.name + ' ' + ({ mtf: 'MTF', ee: 'enclosed energy' }[view] || 'profile'),
+    ['series', view === 'mtf' ? 'lp_per_mm' : 'position_mm', view === 'mtf' ? 'MTF' : view === 'ee' ? 'share_of_the_light' : 'irradiance'],
+    () => series.flatMap(S => Array.from(S.x, (x, i) => [S.name, x, S.y[i]])));
   // up is always a share of the full scale, so plots of different screens compare by shape
   const [xa, xb] = zoomRange(Z, 'x', xs0, xs1), [fa, fb] = zoomRange(Z, 'y', 0, 1);
   const sy = { kind: 'plain', title: yName };
@@ -7458,7 +7652,7 @@ function drawCavityScan(cv, c, pseudo) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 140;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
-  cv._full = null;
+  cv._full = null; cv._csv = null;
   updateSyncButtons();
   const S0 = cavSolved.get(c.id), S = S0 && S0.trace === lastTrace ? S0 : null, P = S && S.res;
   g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
@@ -7488,6 +7682,12 @@ function drawCavityScan(cv, c, pseudo) {
   };
   g.save(); g.beginPath(); g.rect(A.l, A.t - 2, A.w + 2, A.h + 4); g.clip();
   const centre = d => all.reduce((a, r) => a + r.res.at(d).P, 0);
+  const avgd = d => all.reduce((a, r, k) => a + (lines[k] ? lines[k].avg(d) : r.res.at(d).P), 0);
+  plotCsv(cv, 'cavity scan', ['detuning_Hz', 'circulating_of_peak', ...(lines.some(Boolean) ? ['over_the_line'] : [])], () => {
+    const r = [];
+    for (let i = 0; i <= 1000; i++) { const f = -0.5 + i / 1000, d = -2 * Math.PI * f; r.push([f * c.fsr, centre(d) / pk, ...(lines.some(Boolean) ? [avgd(d) / pk] : [])]); }
+    return r;
+  });
   if (lines.some(Boolean)) {
     curve(centre, 'rgba(90,180,200,0.35)', 1);
     curve(d => all.reduce((a, r, k) => a + (lines[k] ? lines[k].avg(d) : r.res.at(d).P), 0), getCss('--jek-cyan'), 1.6);
@@ -7560,7 +7760,8 @@ function renderOverview() {
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
     h('li', null, 'Fibre components (switch the orange button at the start of Add to Fibre) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
     h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
-    h('li', null, 'Drag empty space to pan. Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
+    h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
+    h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
     h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
     h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
     h('li', null, h('kbd', null, '←↑→↓'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.'),
@@ -11507,7 +11708,7 @@ function addElement(kind) {
   const el = makeElement(kind, snapVal(V().cx + off), snapVal(V().cy - off));
   el.bench = project.tab;
   project.elements.push(el);
-  selectedId = el.id;
+  selectOne(el.id);
   changed(true);
 }
 function duplicate(el) {
@@ -11516,15 +11717,385 @@ function duplicate(el) {
   c.id = uid(); c.name = nextName(el.name.replace(/\s+\d+$/, ''));
   c.x += 5; c.y -= 5;
   project.elements.push(c);
-  selectedId = c.id;
+  selectOne(c.id);
   changed(true);
 }
+/* move, turn and remove several at once (locked ones stay) */
+function moveEls(list, dx, dy) {
+  const ids = new Set(list.filter(e => !e.locked).map(e => e.id));
+  for (const e of list) if (!e.locked) { e.x = +(e.x + dx).toFixed(4); e.y = +(e.y + dy).toFixed(4); }
+  for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) { n.x += dx; n.y += dy; }
+}
+/* turned by deg about their middle: each element's own angle too, and the shapes of the
+   fibres between them */
+function rotateEls(list, degs) {
+  const free = list.filter(e => !e.locked);
+  if (!free.length) return;
+  checkpoint();
+  const cx = free.reduce((a, e) => a + e.x, 0) / free.length, cy = free.reduce((a, e) => a + e.y, 0) / free.length;
+  const r = degs * deg, c = Math.cos(r), sn = Math.sin(r), rot = (x, y) => [cx + (x - cx) * c - (y - cy) * sn, cy + (x - cx) * sn + (y - cy) * c];
+  for (const e of free) { if (free.length > 1) [e.x, e.y] = rot(e.x, e.y); e.angle = ((e.angle + degs) % 360 + 540) % 360 - 180; }
+  const ids = new Set(free.map(e => e.id));
+  if (free.length > 1) for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) {
+    [n.x, n.y] = rot(n.x, n.y);
+    for (const k of ['h1', 'h2']) n[k] = [n[k][0] * c - n[k][1] * sn, n[k][0] * sn + n[k][1] * c];
+  }
+  changed(true);
+}
+function removeEls(list) {
+  if (!list.length) return;
+  checkpoint();
+  const ids = new Set(list.map(e => e.id));
+  for (const e of list) stopSweepsFor(e);
+  project.elements = project.elements.filter(e => !ids.has(e.id));
+  project.fibres = (project.fibres || []).filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+  selectOne(null);
+  changed(true);
+}
+function setLocked(list, on) { checkpoint(); for (const e of list) { if (on) e.locked = true; else delete e.locked; } changed(true); }
+function moveToTab(list, id) { checkpoint(); for (const e of list) e.bench = id; switchTab(id); setSelection(list); changed(true); }
+/* line up and space out: the middles on one line, or evenly between the outermost two */
+function alignEls(list, how) {
+  const free = list.filter(e => !e.locked);
+  if (free.length < 2) return;
+  checkpoint();
+  const k = how === 'x' || how === 'dx' ? 'x' : 'y';
+  if (how === 'x' || how === 'y') { const m = free.reduce((a, e) => a + e[k], 0) / free.length; for (const e of free) e[k] = snapVal(m); }
+  else {
+    const s2 = free.slice().sort((a, b) => a[k] - b[k]), lo = s2[0][k], hi = s2[s2.length - 1][k];
+    s2.forEach((e, i) => { e[k] = +(lo + (hi - lo) * i / (s2.length - 1)).toFixed(4); });
+  }
+  changed(true);
+}
+
+/* ---------- Copy and paste ----------
+   What is copied is the elements and the fibres between them, as JSON, on the system
+   clipboard (so it pastes into another tab, or another project in another window) and kept
+   here too for the menu's Paste. A paste gets new names where the old ones are taken, and
+   a split source keeps pointing at its laser if that came along. */
+let clipMem = null;
+function clipOf(list) {
+  const ids = new Set(list.map(e => e.id));
+  return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)),
+    fibres: JSON.parse(JSON.stringify((project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0])))) };
+}
+function pasteClip(clip, at) {
+  if (!clip || clip.format !== 'jekray-clip' || !Array.isArray(clip.elements) || !clip.elements.length) return false;
+  checkpoint();
+  const map = new Map(), made = [];
+  const cx = clip.elements.reduce((a, e) => a + num(e.x, 0), 0) / clip.elements.length, cy = clip.elements.reduce((a, e) => a + num(e.y, 0), 0) / clip.elements.length;
+  // at the point given; else on top of the originals, nudged if they are on this tab
+  let dx = 0, dy = 0;
+  if (at) { dx = at[0] - cx; dy = at[1] - cy; }
+  else if (clip.from === project.tab && project.elements.some(e => clip.elements.some(c => c.id === e.id))) { dx = 5; dy = -5; }
+  for (const c of clip.elements) {
+    const e = normElement(Object.assign({}, c, { id: undefined, bench: project.tab, locked: false }));
+    if (!e) continue;
+    e.id = uid();
+    if (project.elements.some(x => x.name === e.name) || made.some(x => x.name === e.name)) e.name = nextName(String(c.name).replace(/\s+\d+$/, ''));
+    e.x = +(e.x + dx).toFixed(4); e.y = +(e.y + dy).toFixed(4);
+    map.set(c.id, e.id); made.push(e);
+    project.elements.push(e);             // at once, so the next one's name sees it
+  }
+  for (const e of made) if (e.splitFrom && map.has(e.splitFrom)) e.splitFrom = map.get(e.splitFrom);
+  project.fibres = project.fibres || [];
+  for (const F of clip.fibres || []) {
+    if (!map.has(F.a[0]) || !map.has(F.b[0])) continue;
+    const G = JSON.parse(JSON.stringify(F));
+    G.id = uid(); G.a[0] = map.get(F.a[0]); G.b[0] = map.get(F.b[0]);
+    for (const n of G.path || []) { n.x += dx; n.y += dy; }
+    project.fibres.push(G);
+  }
+  setSelection(made);
+  changed(true);
+  return true;
+}
+function duplicateSel() { const list = selection(); if (list.length) pasteClip(clipOf(list)); }
+const typingIn = t => t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
+/* Browsers that do not raise copy/cut/paste with nothing selected (Safari) still get them:
+   the keys set a flag, and if the event has not come by the next tick the copy here is used */
+let clipKey = null;
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+  const k = e.key.toLowerCase();
+  if (k !== 'c' && k !== 'x' && k !== 'v') return;
+  if (k !== 'v' && !selection().length) return;
+  clipKey = k;
+  setTimeout(() => {
+    if (clipKey !== k) return;
+    clipKey = null;
+    if (k === 'v') { if (clipMem) pasteClip(clipMem); return; }
+    const list = selection(); if (!list.length) return;
+    clipMem = clipOf(list);
+    try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
+    if (k === 'x') removeEls(list); else toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+  }, 0);
+});
+document.addEventListener('copy', e => {
+  clipKey = null;
+  if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+  const list = selection(); if (!list.length) return;
+  clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
+  toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+});
+document.addEventListener('cut', e => {
+  clipKey = null;
+  if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+  const list = selection(); if (!list.length) return;
+  clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
+  removeEls(list);
+});
+document.addEventListener('paste', e => {
+  if (typingIn(e.target)) return;
+  clipKey = null;
+  let clip = null;
+  try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
+  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteClip(clip); }
+  else if (clipMem && !e.clipboardData.getData('text/plain')) pasteClip(clipMem);
+});
+
+/* ---------- The right-click menu ---------- */
+function hideCtxMenu() { const m = document.getElementById('ctxMenu'); if (m) m.hidden = true; }
+function showCtxMenu(x, y, items) {
+  const m = document.getElementById('ctxMenu');
+  m.replaceChildren(...items.map(it => it === '-' ? h('div', { class: 'sep' }) :
+    h('button', { type: 'button', role: 'menuitem', disabled: it.off ? '' : null, onclick: () => { hideCtxMenu(); it.fn(); } }, it.label, it.key ? h('span', { class: 'k' }, it.key) : null)));
+  m.hidden = false;
+  // placed, then moved by however far off it landed: whatever box it is fixed to
+  m.style.left = '0px'; m.style.top = '0px';
+  const r = m.getBoundingClientRect();
+  m.style.left = (Math.max(4, Math.min(x, window.innerWidth - r.width - 8)) - r.left) + 'px';
+  m.style.top = (Math.max(4, Math.min(y, window.innerHeight - r.height - 8)) - r.top) + 'px';
+}
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
+  const hit = hitTest(px, py), fh = hit ? null : fibreAtPx(px, py);
+  const paste = { label: 'Paste here', key: 'Ctrl+V', off: !clipMem, fn: () => pasteClip(clipMem, at) };
+  if (fh) {
+    selFibreId = fh.id; selectOne(null); renderPanel(); requestRender();
+    showCtxMenu(e.clientX, e.clientY, [
+      { label: 'Straighten', off: !((fh.path && fh.path.length) || fh.ta != null || fh.tb != null), fn: () => { checkpoint(); fh.path = []; fh.ta = null; fh.tb = null; changed(true); } },
+      { label: 'Delete fibre', key: 'Del', fn: () => removeFibre(fh) }]);
+    return;
+  }
+  if (!hit) {
+    showCtxMenu(e.clientX, e.clientY, [paste, '-',
+      { label: 'Select all on this tab', key: 'Ctrl+A', fn: () => setSelection(project.elements.filter(onTab)) },
+      { label: 'Zoom to fit', fn: fitView }, { label: measureMode ? 'Stop measuring' : 'Measure', key: 'M', fn: () => setMeasure(!measureMode) }]);
+    return;
+  }
+  if (!(hit.id === selectedId || extraSel.has(hit.id))) { selectOne(hit.id); selFibreId = null; renderPanel(); requestRender(); }
+  const list = selection(), n = list.length, locked = list.every(x => x.locked);
+  showCtxMenu(e.clientX, e.clientY, [
+    { label: n > 1 ? 'Duplicate ' + n + ' elements' : 'Duplicate', key: 'Ctrl+D', fn: duplicateSel },
+    { label: 'Copy', key: 'Ctrl+C', fn: () => { clipMem = clipOf(list); try { navigator.clipboard.writeText(JSON.stringify(clipMem)); } catch (err) { /* kept here */ } toast('Copied'); } },
+    { label: 'Cut', key: 'Ctrl+X', fn: () => { clipMem = clipOf(list); try { navigator.clipboard.writeText(JSON.stringify(clipMem)); } catch (err) { /* kept here */ } removeEls(list); } },
+    paste,
+    { label: 'Delete', key: 'Del', fn: () => removeEls(list) }, '-',
+    { label: 'Rotate 90\u00b0 anticlockwise', fn: () => rotateEls(list, 90) },
+    { label: 'Rotate 90\u00b0 clockwise', fn: () => rotateEls(list, -90) },
+    { label: 'Turn round (180\u00b0)', fn: () => rotateEls(list, 180) },
+    { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) }, '-',
+    ...project.benches.filter(b => !list.every(x => x.bench === b.id)).map(b => ({ label: 'Move to ' + b.name, fn: () => moveToTab(list, b.id) })),
+    { label: 'Zoom to selection', key: 'Z', fn: zoomToSelection }]);
+});
+document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+/* ---------- Zoom to the selection, and the minimap ---------- */
+function zoomTo(els) {
+  if (!els.length) return;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const e of els) { const r = halfSize(e); x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r); y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r); }
+  const pad = 1.5, sc = Math.min(W / ((x1 - x0) * pad || 1), H / ((y1 - y0) * pad || 1));
+  Object.assign(V(), { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale: Math.min(200, Math.max(0.05, sc)) });
+  scheduleSave(); requestRender();
+}
+function zoomToSelection() { const list = selection(); if (list.length) zoomTo(list); else fitView(); }
+/* The minimap: everything on this tab small, with the view as a rectangle; shown only when
+   some of it is off screen. Click or drag on it to move the view there. */
+let miniMap = null;
+function drawMinimap() {
+  const mc = document.getElementById('minimap');
+  if (!mc) return;
+  const els = project.elements.filter(onTab);
+  const vx0 = wx(0), vx1 = wx(W), vy0 = wy(H), vy1 = wy(0);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const e of els) { const r = halfSize(e); x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r); y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r); }
+  if (!els.length || (x0 >= vx0 && x1 <= vx1 && y0 >= vy0 && y1 <= vy1)) { mc.hidden = true; miniMap = null; return; }
+  mc.hidden = false;
+  x0 = Math.min(x0, vx0); x1 = Math.max(x1, vx1); y0 = Math.min(y0, vy0); y1 = Math.max(y1, vy1);
+  const mw = 180, mh = 120, d = window.devicePixelRatio || 1;
+  if (mc.width !== mw * d) { mc.width = mw * d; mc.height = mh * d; }
+  const pad = 6, k = Math.min((mw - 2 * pad) / (x1 - x0 || 1), (mh - 2 * pad) / (y1 - y0 || 1));
+  const ox = pad + ((mw - 2 * pad) - (x1 - x0) * k) / 2, oy = pad + ((mh - 2 * pad) - (y1 - y0) * k) / 2;
+  const MX = x => ox + (x - x0) * k, MY = y => mh - (oy + (y - y0) * k);
+  miniMap = { MX, MY, k, x0, y0, ox, oy, mh };
+  const g = mc.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, mw, mh);
+  // beams, faint; then the elements as short strokes along their faces
+  g.strokeStyle = 'rgba(255,120,80,0.45)'; g.lineWidth = 1; g.beginPath();
+  for (const b of lastTrace.beams || []) {
+    if (b.bench !== project.tab || b.fan || b.pol) continue;
+    const L = Math.min(b.len, 4 * (x1 - x0 + y1 - y0));
+    g.moveTo(MX(b.x0), MY(b.y0)); g.lineTo(MX(b.x0 + b.dx * L), MY(b.y0 + b.dy * L));
+  }
+  g.stroke();
+  for (const e of els) {
+    const r = Math.max(halfSize(e), 1.5 / k), a = e.angle * deg, sel = e.id === selectedId || extraSel.has(e.id);
+    g.strokeStyle = sel ? '#ffffff' : e.type === 'source' ? (e.colour || '#ff6040') : 'rgba(210,225,232,0.85)'; g.lineWidth = sel ? 2 : 1.5;
+    g.beginPath(); g.moveTo(MX(e.x - Math.sin(a) * r), MY(e.y + Math.cos(a) * r)); g.lineTo(MX(e.x + Math.sin(a) * r), MY(e.y - Math.cos(a) * r)); g.stroke();
+  }
+  g.strokeStyle = 'rgba(127,220,255,0.95)'; g.lineWidth = 1.2;
+  g.strokeRect(MX(vx0), MY(vy1), (vx1 - vx0) * k, (vy1 - vy0) * k);
+}
+{
+  const mc = document.getElementById('minimap');
+  let on = false;
+  const go = e => {
+    if (!miniMap) return;
+    const r = mc.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    V().cx = miniMap.x0 + (mx - miniMap.ox) / miniMap.k;
+    V().cy = miniMap.y0 + (miniMap.mh - my - miniMap.oy) / miniMap.k;
+    requestRender();
+  };
+  mc.addEventListener('pointerdown', e => { on = true; mc.setPointerCapture(e.pointerId); go(e); });
+  mc.addEventListener('pointermove', e => { if (on) go(e); });
+  const end = () => { if (on) { on = false; scheduleSave(); } };
+  mc.addEventListener('pointerup', end); mc.addEventListener('pointercancel', end);
+}
+
+/* ---------- Measuring ----------
+   A ruler (drag from one point to another: its length and bearing) and an angle (click
+   its vertex, then a point on each arm). Ends snap to elements' middles, fibre ports and
+   the beams; Shift turns snapping off. A ruler with both ends on one beam's path also gives
+   the optical path between them. Measurements stay on their tab until cleared. */
+let measureMode = false, measureTool = 'ruler', measures = [], measureDraft = null;
+function setMeasure(on) {
+  measureMode = on; measureDraft = null;
+  document.getElementById('btnMeasure').setAttribute('aria-pressed', on ? 'true' : 'false');
+  document.getElementById('measureBar').hidden = !on;
+  canvas.classList.toggle('rotate', on);
+  requestRender();
+}
+function measureSnap(px, py, free) {
+  const P = { x: wx(px), y: wy(py) };
+  if (free) return P;
+  let best = null, bd = 9;
+  const tryPt = (x, y, what) => { const d = Math.hypot(sx(x) - px, sy(y) - py); if (d < bd) { bd = d; best = { x, y, what }; } };
+  for (const e of project.elements) {
+    if (!onTab(e)) continue;
+    tryPt(e.x, e.y, e.name);
+    for (let i = 0; i < portsOf(e).length; i++) { const Q = portWorld(e, i); tryPt(Q.x, Q.y, e.name + ' port'); }
+  }
+  if (best) return best;
+  // the nearest beam, and where along it
+  let bb = null; bd = 8;
+  (lastTrace.beams || []).forEach((b, i) => {
+    if (b.bench !== project.tab || b.fan || b.pol) return;
+    const t = clamp((P.x - b.x0) * b.dx + (P.y - b.y0) * b.dy, 0, b.len), x = b.x0 + b.dx * t, y = b.y0 + b.dy * t, d = Math.hypot(sx(x) - px, sy(y) - py);
+    if (d < bd) { bd = d; bb = { x, y, beam: i, t, dx: b.dx, dy: b.dy, what: 'beam' }; }
+  });
+  return bb || P;
+}
+function measureDown(px, py, e) {
+  const P = measureSnap(px, py, e.shiftKey);
+  if (measureTool === 'ruler') { measureDraft = { type: 'ruler', bench: project.tab, pts: [P, P] }; drag = { mode: 'measure' }; }
+  else {
+    if (!measureDraft) measureDraft = { type: 'angle', bench: project.tab, pts: [P, P] };
+    else if (measureDraft.pts.length === 2) measureDraft.pts.push(P);
+    else { measureDraft.pts[2] = P; measures.push(measureDraft); measureDraft = null; }
+    drag = { mode: 'measure', angle: true };
+  }
+  requestRender();
+}
+function measureMove(px, py, e) {
+  if (!measureDraft) return;
+  const P = measureSnap(px, py, e.shiftKey);
+  measureDraft.pts[measureDraft.pts.length - 1] = P;
+  requestRender();
+}
+function measureUp() {
+  const d = drag; drag = null;
+  if (d && !d.angle && measureDraft && measureDraft.type === 'ruler') {
+    const [a, b] = measureDraft.pts;
+    if (Math.hypot(sx(a.x) - sx(b.x), sy(a.y) - sy(b.y)) > 3) measures.push(measureDraft);
+    measureDraft = null;
+  }
+  requestRender();
+}
+/* the optical path between two points on beams, if one is downstream of the other */
+/* a point taken on a beam, found again in the latest trace: the beam through it, going its way */
+function beamThrough(p) {
+  if (p.beam === undefined) return null;
+  const B = lastTrace.beams || [], tol = Math.max(1e-6, 0.5 / V().scale);
+  const fits = b => b && b.bench === project.tab && !b.fan && !b.pol && Math.abs(b.dx - p.dx) < 1e-6 && Math.abs(b.dy - p.dy) < 1e-6 &&
+    Math.abs((p.x - b.x0) * b.dy - (p.y - b.y0) * b.dx) < tol && (p.x - b.x0) * b.dx + (p.y - b.y0) * b.dy > -tol &&
+    (p.x - b.x0) * b.dx + (p.y - b.y0) * b.dy < b.len + tol;
+  const i = fits(B[p.beam]) ? p.beam : B.findIndex(fits);
+  return i < 0 ? null : { beam: i, t: (p.x - B[i].x0) * B[i].dx + (p.y - B[i].y0) * B[i].dy };
+}
+function measureOpl(a0, b0) {
+  const a = beamThrough(a0), b = beamThrough(b0);
+  if (!a || !b) return null;
+  const B = lastTrace.beams, at = p => (B[p.beam].opl || 0) + B[p.beam].n * p.t;
+  const up = (i, j) => { for (let k = j; k >= 0; k = B[k].parent) if (k === i) return true; return false; };
+  if (a.beam === b.beam) return Math.abs(at(b) - at(a));
+  if (up(a.beam, b.beam)) return at(b) - at(a);
+  if (up(b.beam, a.beam)) return at(a) - at(b);
+  return null;
+}
+function drawMeasures() {
+  const list = measures.filter(m => m.bench === project.tab);
+  if (measureDraft && measureDraft.bench === project.tab) list.push(measureDraft);
+  if (!list.length) return;
+  ctx.save();
+  ctx.font = '11px ' + getCss('--jek-mono'); ctx.lineWidth = 1.4;
+  const label = (x, y, lines) => {
+    const w = Math.max(...lines.map(t => ctx.measureText(t).width)) + 10, hh = 14 * lines.length + 6;
+    ctx.fillStyle = 'rgba(12,16,18,0.82)'; ctx.fillRect(x, y, w, hh);
+    ctx.fillStyle = '#ffe28a'; ctx.textAlign = 'left';
+    lines.forEach((t, i) => ctx.fillText(t, x + 5, y + 14 + 14 * i));
+  };
+  const dot = p => { ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), 3, 0, 2 * Math.PI); ctx.fill(); };
+  for (const m of list) {
+    ctx.strokeStyle = '#ffe28a'; ctx.fillStyle = '#ffe28a';
+    const [a, b, c2] = m.pts;
+    ctx.beginPath(); ctx.moveTo(sx(a.x), sy(a.y)); ctx.lineTo(sx(b.x), sy(b.y)); if (c2) { ctx.moveTo(sx(a.x), sy(a.y)); ctx.lineTo(sx(c2.x), sy(c2.y)); } ctx.stroke();
+    m.pts.forEach(dot);
+    if (m.type === 'ruler') {
+      const L = Math.hypot(b.x - a.x, b.y - a.y), brg = Math.atan2(b.y - a.y, b.x - a.x) / deg, opl = measureOpl(a, b);
+      const lines = [fmtLen(L) + ', at ' + brg.toFixed(2) + '\u00b0', 'across ' + fmtLen(Math.abs(b.x - a.x)) + ', up ' + fmtLen(Math.abs(b.y - a.y))];
+      if (opl !== null) lines.push('optical path ' + fmtLen(opl));
+      label((sx(a.x) + sx(b.x)) / 2 + 8, (sy(a.y) + sy(b.y)) / 2 + 6, lines);
+    } else if (c2) {
+      const a1 = Math.atan2(b.y - a.y, b.x - a.x), a2 = Math.atan2(c2.y - a.y, c2.x - a.x);
+      let dA = Math.abs(a2 - a1) / deg; if (dA > 180) dA = 360 - dA;
+      const r = 22; ctx.beginPath(); ctx.arc(sx(a.x), sy(a.y), r, -a1, -a2, ((a2 - a1 + 2 * Math.PI) % (2 * Math.PI)) < Math.PI); ctx.stroke();
+      label(sx(a.x) + 26, sy(a.y) + 6, [dA.toFixed(2) + '\u00b0']);
+    }
+  }
+  ctx.restore();
+}
+document.getElementById('measureBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-mtool]'); if (!b) return;
+  const t = b.dataset.mtool;
+  if (t === 'clear') { measures = measures.filter(m => m.bench !== project.tab); measureDraft = null; requestRender(); return; }
+  if (t === 'done') { setMeasure(false); return; }
+  measureTool = t; measureDraft = null;
+  document.querySelectorAll('#measureBar [data-mtool]').forEach(x => x.classList.toggle('on', x.dataset.mtool === t));
+  requestRender();
+});
+document.getElementById('btnMeasure').addEventListener('click', () => setMeasure(!measureMode));
+document.getElementById('btnZoomSel').addEventListener('click', zoomToSelection);
+
 function removeEl(el) {
   checkpoint();
   stopSweepsFor(el);
   project.elements = project.elements.filter(e => e.id !== el.id);
   project.fibres = (project.fibres || []).filter(F => F.a[0] !== el.id && F.b[0] !== el.id);
-  selectedId = null;
+  selectOne(null);
   changed(true);
 }
 
@@ -11585,13 +12156,286 @@ function saveFile() {
 }
 
 /* The bench as it stands, as a picture */
-function exportLayout() {
-  const name = safeFileName(project.name) + '.png';
-  canvas.toBlob(blob => {
-    if (!blob) { toast('The layout could not be exported here.', true); return; }
-    downloadFile(name, blob);
-    toast('Saved ' + name);
-  }, 'image/png');
+/* ---------- The layout as a vector drawing ----------
+   The bench is drawn again into a context that keeps what it is told (paths, text, and the
+   field's glow as one picture) rather than pixels, and that is written out as SVG or PDF.
+   Paths stay paths at any zoom; the diffracted field, a raster in the tool, stays a raster. */
+const cssColour = (() => {
+  const g = document.createElement('canvas').getContext('2d'), memo = new Map();
+  return s => {
+    if (typeof s !== 'string') return { r: 0, g: 0, b: 0, a: 1 };
+    if (memo.has(s)) return memo.get(s);
+    g.fillStyle = '#000'; g.fillStyle = s;
+    const v = g.fillStyle; let out;
+    if (v[0] === '#') out = { r: parseInt(v.slice(1, 3), 16), g: parseInt(v.slice(3, 5), 16), b: parseInt(v.slice(5, 7), 16), a: 1 };
+    else { const m = v.match(/[\d.]+/g) || [0, 0, 0, 1]; out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] }; }
+    memo.set(s, out); return out;
+  };
+})();
+class VecCtx {
+  constructor(w, h) {
+    this.w = w; this.h = h; this.ops = []; this.path = []; this.stack = [];
+    this.M = [1, 0, 0, 1, 0, 0];
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
+    this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
+    this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
+    this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
+    this.meas = document.createElement('canvas').getContext('2d');
+    this.layer = null;                     // what drawImage paints, at twice the size
+  }
+  static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
+    'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
+  save() { const s = {}; for (const k of VecCtx.KEYS) s[k] = this[k]; this.stack.push(s); }
+  restore() { const s = this.stack.pop(); if (s) Object.assign(this, s); }
+  setTransform(a, b, c, d, e, f) { this.M = [a, b, c, d, e, f]; }
+  resetTransform() { this.M = [1, 0, 0, 1, 0, 0]; }
+  setLineDash(d) { this.dash = (d || []).slice(); }
+  getLineDash() { return this.dash.slice(); }
+  pt(x, y) { const M = this.M; return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; }
+  scale() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
+  beginPath() { this.path = []; }
+  moveTo(x, y) { this.path.push(['M', ...this.pt(x, y)]); this.start = this.path[this.path.length - 1].slice(1); }
+  lineTo(x, y) { if (!this.path.length) return this.moveTo(x, y); this.path.push(['L', ...this.pt(x, y)]); }
+  bezierCurveTo(a, b, c, d, x, y) { if (!this.path.length) this.moveTo(a, b); this.path.push(['C', ...this.pt(a, b), ...this.pt(c, d), ...this.pt(x, y)]); }
+  quadraticCurveTo(a, b, x, y) {
+    const last = this.path.length ? this.path[this.path.length - 1] : null;
+    if (!last) return this.moveTo(x, y);
+    // back to the user's space for the one control point: exact for an affine map
+    const p0 = last.slice(-2), q = this.pt(a, b), p1 = this.pt(x, y);
+    this.path.push(['C', p0[0] + 2 / 3 * (q[0] - p0[0]), p0[1] + 2 / 3 * (q[1] - p0[1]), p1[0] + 2 / 3 * (q[0] - p1[0]), p1[1] + 2 / 3 * (q[1] - p1[1]), p1[0], p1[1]]);
+  }
+  closePath() { if (this.path.length) { this.path.push(['Z']); if (this.start) this.path.push(['M', ...this.start]); } }
+  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
+  arc(cx, cy, r, a0, a1, ccw) {
+    let da = a1 - a0;
+    if (!ccw) { if (da >= 2 * Math.PI) da = 2 * Math.PI; else { da %= 2 * Math.PI; if (da < 0) da += 2 * Math.PI; } }
+    else { if (-da >= 2 * Math.PI) da = -2 * Math.PI; else { da %= 2 * Math.PI; if (da > 0) da -= 2 * Math.PI; } }
+    const P = a => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    const p0 = P(a0);
+    if (this.path.length) this.lineTo(...p0); else this.moveTo(...p0);
+    const n = Math.max(1, Math.ceil(Math.abs(da) / (Math.PI / 2) - 1e-9)), s = da / n, k = 4 / 3 * Math.tan(s / 4);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * s, b = a + s, [x0, y0] = P(a), [x1, y1] = P(b);
+      this.bezierCurveTo(x0 - k * r * Math.sin(a), y0 + k * r * Math.cos(a), x1 + k * r * Math.sin(b), y1 - k * r * Math.cos(b), x1, y1);
+    }
+  }
+  ellipse(cx, cy, rx, ry, rot, a0, a1, ccw) {
+    const M0 = this.M.slice(), c = Math.cos(rot), s = Math.sin(rot), M = M0;
+    this.M = [M[0] * c * rx + M[2] * s * rx, M[1] * c * rx + M[3] * s * rx, -M[0] * s * ry + M[2] * c * ry, -M[1] * s * ry + M[3] * c * ry, M[0] * cx + M[2] * cy + M[4], M[1] * cx + M[3] * cy + M[5]];
+    this.arc(0, 0, 1, a0, a1, ccw); this.M = M0;
+  }
+  clip() { /* nothing on the bench clips */ }
+  style() {
+    return { alpha: this.globalAlpha, blend: this.globalCompositeOperation === 'lighter' || this.globalCompositeOperation === 'screen' ? 'screen' : null };
+  }
+  fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
+  stroke() {
+    if (!this.path.length) return;
+    const s = this.scale();
+    this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), stroke: cssColour(this.strokeStyle), lw: this.lineWidth * s,
+      dash: this.dash.map(v => v * s), cap: this.lineCap, join: this.lineJoin }, this.style()));
+  }
+  fillRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.fill(); this.path = P; }
+  strokeRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.stroke(); this.path = P; }
+  clearRect() { }
+  measureText(t) { this.meas.font = this.font; return this.meas.measureText(t); }
+  fillText(t, x, y) {
+    t = String(t); if (!t) return;
+    this.meas.font = this.font;
+    const f = this.meas.font, size = +(f.match(/([\d.]+)px/) || [0, 10])[1], w = this.meas.measureText(t).width;
+    const al = this.textAlign, dx = al === 'center' ? -w / 2 : al === 'right' || al === 'end' ? -w : 0;
+    const bl = this.textBaseline, dy = bl === 'middle' ? 0.35 * size : bl === 'top' || bl === 'hanging' ? 0.8 * size : bl === 'bottom' || bl === 'ideographic' ? -0.22 * size : 0;
+    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.scale();
+    this.ops.push(Object.assign({ k: 'text', t, x: ox, y: oy, w: w * sc, size: size * sc, rot: Math.atan2(M[1], M[0]),
+      mono: /mono|courier|consol/i.test(f), bold: /\b(bold|[6-9]00)\b/.test(f), family: (f.match(/[\d.]+px\s+(.*)$/) || [0, 'sans-serif'])[1],
+      fill: cssColour(this.fillStyle) }, this.style()));
+  }
+  strokeText() { }
+  drawImage(img, ...a) {
+    if (!this.layer) {
+      const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
+      this.layer = c; this.ops.push({ k: 'layer', blend: 'screen', alpha: 1 });
+    }
+    const g = this.layer.getContext('2d'), M = this.M;
+    g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
+    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : 'lighter';
+    g.imageSmoothingEnabled = this.imageSmoothingEnabled;
+    g.drawImage(img, ...a);
+  }
+  createImageData(w, h) { return new ImageData(w, h); }
+}
+
+/* the bench drawn once into a VecCtx, just as it stands, less the handles */
+function recordLayout() {
+  const rec = new VecCtx(W, H), keep = ctx, dpr = DPR;
+  ctx = rec; DPR = 1; exporting = true;
+  try { render(); } finally { ctx = keep; DPR = dpr; exporting = false; requestRender(); }
+  return rec;
+}
+const svgNum = v => +v.toFixed(2);
+const segsD = segs => segs.map(s => s[0] + (s.length > 1 ? s.slice(1).map(svgNum).join(' ') : '')).join('');
+const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function layoutSvg(rec) {
+  const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const op = (c, a) => { const o = c.a * a; return o < 0.999 ? ' ' + o.toFixed(3).replace(/0+$/, '') : ''; };
+  const out = ['<?xml version="1.0" encoding="UTF-8"?>',
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) +
+    '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(project.name) + '</title>'];
+  for (const o of rec.ops) {
+    const bl = o.blend ? ' style="mix-blend-mode:screen"' : '';
+    if (o.k === 'path') {
+      let a = '<path d="' + segsD(o.segs) + '"';
+      if (o.fill) { a += ' fill="' + hex(o.fill) + '"'; const q = op(o.fill, o.alpha); if (q) a += ' fill-opacity="' + q.trim() + '"'; }
+      else a += ' fill="none"';
+      if (o.stroke) {
+        a += ' stroke="' + hex(o.stroke) + '" stroke-width="' + svgNum(o.lw) + '"';
+        const q = op(o.stroke, o.alpha); if (q) a += ' stroke-opacity="' + q.trim() + '"';
+        if (o.dash.length) a += ' stroke-dasharray="' + o.dash.map(svgNum).join(' ') + '"';
+        if (o.cap !== 'butt') a += ' stroke-linecap="' + o.cap + '"';
+        if (o.join !== 'miter') a += ' stroke-linejoin="' + o.join + '"';
+      }
+      out.push(a + bl + '/>');
+    } else if (o.k === 'text') {
+      const q = op(o.fill, o.alpha);
+      out.push('<text x="' + svgNum(o.x) + '" y="' + svgNum(o.y) + '" font-family="' + xmlEsc(o.family.replace(/"/g, "'")) + '" font-size="' + svgNum(o.size) + '"' +
+        (o.bold ? ' font-weight="600"' : '') + ' fill="' + hex(o.fill) + '"' + (q ? ' fill-opacity="' + q.trim() + '"' : '') +
+        (Math.abs(o.rot) > 1e-6 ? ' transform="rotate(' + svgNum(o.rot / deg) + ' ' + svgNum(o.x) + ' ' + svgNum(o.y) + ')"' : '') + bl + '>' + xmlEsc(o.t) + '</text>');
+    } else if (o.k === 'layer') {
+      out.push('<image x="0" y="0" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) + '" preserveAspectRatio="none" xlink:href="' + rec.layer.toDataURL('image/png') + '"' + bl + '/>');
+    }
+  }
+  out.push('</svg>');
+  return out.join('\n');
+}
+
+/* A PDF of one page, written here: the standard fonts (so nothing to embed), the field's
+   glow as one image with its transparency, deflated where the browser can */
+async function deflateBytes(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  } catch (e) { return null; }
+}
+const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x2c6: 136, 0x2030: 137, 0x160: 138, 0x2039: 139,
+  0x152: 140, 0x17d: 142, 0x2018: 145, 0x2019: 146, 0x201c: 147, 0x201d: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2dc: 152, 0x2122: 153,
+  0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
+const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
+  'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
+  'β': 'beta', 'γ': 'gamma', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
+function pdfText(t) {
+  let s = '';
+  for (const ch of String(t)) {
+    const c = ch.codePointAt(0);
+    let b = c < 128 || (c >= 160 && c < 256) ? c : WINANSI[c];
+    if (b === undefined) { const r = PDF_SUBS[ch]; if (r !== undefined) { s += pdfText(r); continue; } b = 63; }
+    s += b === 40 || b === 41 || b === 92 ? '\\' + String.fromCharCode(b) : b < 32 || b > 126 ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b);
+  }
+  return s;
+}
+async function layoutPdf(rec) {
+  const n = v => +v.toFixed(3);
+  const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
+  const gsList = [], gsKey = new Map();
+  const gs = (ca, CA, bm) => {
+    const k = n(ca) + ',' + n(CA) + ',' + (bm || '');
+    if (!gsKey.has(k)) { gsKey.set(k, 'G' + gsList.length); gsList.push({ ca: n(ca), CA: n(CA), bm }); }
+    return gsKey.get(k);
+  };
+  const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
+  const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
+  for (const o of rec.ops) {
+    if (o.k === 'path') {
+      const P = [];
+      for (const s of o.segs) {
+        if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
+        else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
+        else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
+        else P.push('h');
+      }
+      if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
+      else {
+        C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
+          ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
+          o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
+      }
+    } else if (o.k === 'text') {
+      const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
+      // the standard font's own width differs from the browser's: squeeze it to fit
+      const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
+      C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
+        [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
+    } else if (o.k === 'layer') {
+      C.push('q /' + gs(1, 1, 'screen') + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
+    }
+  }
+  // the pieces, each an object; byte offsets for the cross-reference table
+  const enc = new TextEncoder(), parts = [], offs = [];
+  let len = 0;
+  const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
+  const obj = (i, body, stream) => {
+    offs[i] = len;
+    if (stream) { put(i + ' 0 obj\n' + body.replace(/>>$/, '/Length ' + stream.length + '>>') + '\nstream\n'); put(stream); put('\nendstream\nendobj\n'); }
+    else put(i + ' 0 obj\n' + body + '\nendobj\n');
+  };
+  put('%PDF-1.4\n%âãÏÓ\n');
+  const content = Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
+  const zc = await deflateBytes(content);
+  let next = 6;
+  const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
+  const gsIds = gsList.map(() => next++);
+  let imId = 0, smId = 0, img = null;
+  if (rec.layer) {
+    const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
+    const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
+    for (let i = 0; i < N; i++) { rgb[3 * i] = d[4 * i]; rgb[3 * i + 1] = d[4 * i + 1]; rgb[3 * i + 2] = d[4 * i + 2]; al[i] = d[4 * i + 3]; }
+    img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
+    imId = next++; smId = next++;
+  }
+  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
+  obj(2, '<</Type/Pages/Kids[3 0 R]/Count 1>>');
+  obj(3, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents 4 0 R/Resources 5 0 R>>');
+  obj(4, '<<' + (zc ? '/Filter/FlateDecode' : '') + '>>', zc || content);
+  obj(5, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
+    (gsList.length ? '/ExtGState<<' + gsList.map((g, i) => '/G' + i + ' ' + gsIds[i] + ' 0 R').join('') + '>>' : '') +
+    (img ? '/XObject<</Im1 ' + imId + ' 0 R>>' : '') + '>>');
+  for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
+  gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? '/BM/Screen' : '') + '>>'));
+  if (img) {
+    const F = img.z ? '/Filter/FlateDecode' : '';
+    obj(imId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + smId + ' 0 R' + F + '>>', img.rgb);
+    obj(smId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', img.al);
+  }
+  const xref = len, count = offs.length;
+  put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
+  put('trailer\n<</Size ' + count + '/Root 1 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(parts, { type: 'application/pdf' });
+}
+async function exportLayout(kind) {
+  const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');
+  try {
+    if (kind === 'svg') {
+      const name = base + '.svg';
+      downloadFile(name, new Blob([layoutSvg(recordLayout())], { type: 'image/svg+xml' }));
+      toast('Saved ' + name);
+    } else if (kind === 'pdf') {
+      const name = base + '.pdf';
+      downloadFile(name, await layoutPdf(recordLayout()));
+      toast('Saved ' + name);
+    } else {
+      const name = base + '.png';
+      exporting = true; render(); exporting = false;           // without the handles
+      canvas.toBlob(blob => {
+        if (!blob) { toast('The layout could not be exported here.', true); return; }
+        downloadFile(name, blob);
+        toast('Saved ' + name);
+      }, 'image/png');
+      requestRender();
+    }
+  } catch (err) {
+    exporting = false;
+    toast('The layout could not be exported: ' + err.message, true);
+  }
 }
 
 /* Everything a screen saw, as a spreadsheet: the rays, then the curves */
@@ -11645,7 +12489,7 @@ function openJekray(file) {
       const prev = project;
       try { loadProject(data); } catch (err) { project = prev; throw err; }
       playing.clear(); updateSweepButtons();
-      history = []; future = []; selectedId = null;
+      history = []; future = []; selectOne(null);
       document.getElementById('projName').value = project.name;
       renderBenchTabs();
       changed(true);
@@ -11884,7 +12728,7 @@ function importZmx(file) {
       const el = normElement(props);
       el.bench = project.tab;
       project.elements.push(el);
-      selectedId = el.id;
+      selectOne(el.id);
       changed(true);
       if (dlg.open) dlg.close();
       const w = [...Z.warnings];
@@ -11941,7 +12785,7 @@ document.getElementById('paletteMenu').addEventListener('click', e => {
 });
 new ResizeObserver(() => layoutPalette()).observe(document.getElementById('addRow').parentElement);
 /* the palette and More menus */
-for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu']]) {
+for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
@@ -12015,7 +12859,7 @@ async function openDemo(name) {
     pauseAll();
     loadProject(data);
     playing.clear(); updateSweepButtons();
-    history = []; future = []; selectedId = null;
+    history = []; future = []; selectOne(null);
     document.getElementById('projName').value = project.name;
     renderBenchTabs();
     changed(true);
@@ -12029,7 +12873,7 @@ document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('cl
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);
-document.getElementById('btnExport').addEventListener('click', exportLayout);
+document.getElementById('exportMenu').addEventListener('click', e => { const b = e.target.closest('[data-export]'); if (b) exportLayout(b.dataset.export); });
 document.getElementById('btnPlayAll').addEventListener('click', playAll);
 document.getElementById('btnPauseAll').addEventListener('click', pauseAll);
 document.getElementById('btnSync').addEventListener('click', syncPhases);
@@ -12061,6 +12905,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   const varsBox = document.getElementById('tolVars');
   const targetSel = document.getElementById('tolTarget'), metricSel = document.getElementById('tolMetric');
   const result = document.getElementById('tolResult'), hist = document.getElementById('tolHist');
+  hist.after(plotSaveRow(hist, true));
   const sens = document.getElementById('tolSens');
   let running = false;
   const pickedVars = () => {
@@ -12156,6 +13001,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   const tVal = document.getElementById('optTargetVal');
   const famBox = document.getElementById('optFam');
   const result = document.getElementById('optResult'), scanCv = document.getElementById('optScan');
+  scanCv.after(plotSaveRow(scanCv, true));
 
   const fillGoals = () => {
     const m = metricByKey(metricSel.value);
@@ -12220,7 +13066,7 @@ function newProject() {
   ensureBenches(project); renderBenchTabs();
   project.name = 'Untitled bench';
   document.getElementById('projName').value = project.name;
-  selectedId = null;
+  selectOne(null);
   changed(true);
 }
 const newDlg = document.getElementById('newDialog');
@@ -12447,7 +13293,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // Hook for the regression suite. Reading only; it drives a throwaway copy of
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray2D = {
-    load(data) { loadProject(data); selectedId = null; history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
+    load(data) { loadProject(data); selectOne(null); history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     trace: traceScene,
     serialize,
     benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
@@ -12488,6 +13334,16 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     },
     importZmxText(text, fileName, mode) { return zmxToElement(parseZmx(text, fileName), fileName, mode || 'auto'); },
     project() { return project; },
+    sel() { return selection().map(e => e.name); },
+    // several at once: the clipboard, turning and lining up, as the menu and panel do them
+    copy(names) { return clipOf(names.map(n => this.byName(n))); },
+    paste(clip, at) { return pasteClip(clip, at); },
+    rotateGroup(names, degs) { rotateEls(names.map(n => this.byName(n)), degs); },
+    align(names, how) { alignEls(names.map(n => this.byName(n)), how); },
+    // the optical path between two bench points on beams, as the ruler finds it
+    oplBetween(a, b) { traceScene(); return measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); },
+    layoutSvg() { return layoutSvg(recordLayout()); },
+    measures() { return JSON.parse(JSON.stringify(measures)); },
     lastTrace() { return lastTrace; },
     popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },

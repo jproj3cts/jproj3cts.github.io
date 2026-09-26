@@ -2732,6 +2732,74 @@ const TESTS = [
     run: J => { J.load(pdhBench(0)); TESTS_EXPECT.pdhR = J.pdSignal('D').dc; J.load(pdhBench(0.5)); return J.pdSignal('D').dc; },
     wantFrom: () => { const j0 = 0.9384698072408129; return j0 * j0 * TESTS_EXPECT.pdhR + (1 - j0 * j0); },
   },
+  { group: 'Working with several elements' },
+  {
+    name: 'A copied fibre network pastes onto another tab and works there',
+    why: 'laser, 50:50 coupler and two photodiodes, copied with the fibres between them into a new tab: 0.5 mW at the pasted diode',
+    want: 0.5, tol: 1e-9, unit: ' mW',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0]]));
+      const clip = J.copy(['L', 'C', 'P3', 'P4']), tab = J.addTab();
+      if (!J.paste(clip)) return NaN;
+      const made = J.sel(), P = J.project();
+      if (made.length !== 4 || P.fibres.length !== 6 || !made.every(n => J.byName(n).bench === tab)) return NaN;
+      J.trace();
+      return J.fibrePd(made[2]);
+    },
+  },
+  {
+    name: 'A split source pasted with its laser follows the copy',
+    why: 'the pasted source points at the pasted laser, not the original',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('split', [src({ name: 'Laser', x: 0 }), src({ name: 'Arm', x: 0, y: 20 })]));
+      const P = J.project(), laser = J.byName('Laser'), arm = J.byName('Arm');
+      arm.splitFrom = laser.id;
+      J.paste(J.copy(['Laser', 'Arm']), [100, 0]);
+      const [l2, a2] = J.sel().map(n => J.byName(n));
+      return +(a2.splitFrom === l2.id && arm.splitFrom === laser.id && l2.id !== laser.id);
+    },
+  },
+  {
+    name: 'A group turns about its middle',
+    why: 'two mirrors at (0, 0) and (10, 0) turned 90°: now at (5, −5) and (5, 5), each turned 90° too',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('turn', [{ type: 'mirror', name: 'A', x: 0, y: 0, angle: 0 }, { type: 'mirror', name: 'B', x: 10, y: 0, angle: 30 }]));
+      J.rotateGroup(['A', 'B'], 90);
+      const A = J.byName('A'), B = J.byName('B');
+      return Math.abs(A.x - 5) + Math.abs(A.y + 5) + Math.abs(B.x - 5) + Math.abs(B.y - 5) + Math.abs(A.angle - 90) + Math.abs(B.angle - 120);
+    },
+  },
+  {
+    name: 'Spacing out puts the middle one halfway',
+    why: 'three lenses at x = 0, 3 and 10 spread evenly across: the middle moves to 5',
+    want: 5, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('space', [{ type: 'lens', name: 'A', x: 0, y: 0, angle: 0 }, { type: 'lens', name: 'B', x: 3, y: 1, angle: 0 }, { type: 'lens', name: 'C', x: 10, y: 2, angle: 0 }]));
+      J.align(['A', 'B', 'C'], 'dx');
+      return J.byName('B').x;
+    },
+  },
+  {
+    name: 'The ruler reads the optical path round a mirror',
+    why: 'a point 10 mm after the source and one 15 mm up from a 45° mirror at x = 40: 30 + 15 = 45 mm of air between',
+    want: 45, tol: 1e-6, unit: ' mm',
+    run: J => {
+      J.load(bench('ruler', [src({ name: 'S', x: 0, gauss: true, rays: 3 }), { type: 'mirror', name: 'M', x: 40, y: 0, angle: 135, length: 25, reflect: 100 }]));
+      return J.oplBetween([10, 0], [40, 15]);
+    },
+  },
+  {
+    name: 'The layout as SVG names every element',
+    why: 'the vector export of the Michelson carries each element’s label as text',
+    want: 0, tol: 0, unit: ' missing',
+    run: J => {
+      J.load(michelsonCube(0, 0));
+      const svg = J.layoutSvg(), names = J.project().elements.map(e => e.name);
+      return svg.startsWith('<?xml') && names.length ? names.filter(n => !svg.includes('>' + n + '<')).length : NaN;
+    },
+  },
 ];
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */

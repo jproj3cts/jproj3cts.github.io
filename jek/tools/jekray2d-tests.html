@@ -2522,7 +2522,68 @@ const TESTS = [
     want: 1, tol: 1e-3, unit: '',
     run: J => J.diffraction('Refl').power + J.diffraction('Trans').power,
   },
+
+  { group: 'Sources split from one laser' },
+  {
+    name: 'Two launches split from one laser interfere in full',
+    why: 'equal powers combined on a 50/50 cube: the output swings from nothing to all of both as the phase between them turns, contrast 1',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => splitVis({}),
+  },
+  {
+    name: 'with the contrast their powers allow',
+    why: 'one a quarter of the other: 2\u221a(P1 P2) / (P1 + P2) = 0.8',
+    want: 0.8, tol: 1e-6, unit: '',
+    run: J => splitVis({ pb: 0.25 }),
+  },
+  {
+    name: 'Extra fibre before one launch washes the fringes by the laser\u2019s line',
+    why: 'Lorentzian line, Lc = 3 m; 1 m more fibre at group index 1.468: contrast exp(\u2212\u03c0 \u00d7 1468 / 3000)',
+    want: Math.exp(-Math.PI * 1468 / 3000), tol: 1e-6, unit: '',
+    run: J => splitVis({ coh: 3000, path: 1000 }),
+  },
+  {
+    name: 'Two separate lasers do not interfere',
+    why: 'the same bench with the second source a laser of its own: no fringe as the phase turns',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => splitVis({ free: true }),
+  },
+  {
+    name: 'A photodiode on the output reads it in milliwatts',
+    why: '1 mW and 0.25 mW, 50/50: a mean of 0.625 mW, swinging with contrast 0.8',
+    want: 0.625, tol: 1e-6, unit: ' mW',
+    run: J => { TESTS_EXPECT.splitDet = splitVis({ pb: 0.25 }, true, true); return TESTS_EXPECT.splitDet.m; },
+  },
+  {
+    name: 'The rays agree: split launches add as fields, separate lasers as powers',
+    why: 'the ray tracer\u2019s own sum at the output, coherent against incoherent, with the phase set for the bright fringe: 2 when split, 1 when not',
+    want: 2, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(splitBench({ ph: 90, free: true })); const free = J.stats('Out').interference;
+      J.load(splitBench({ ph: 90 })); const split = J.stats('Out').interference;
+      return Math.abs(free - 1) < 1e-9 ? split : NaN;
+    },
+  },
 ];
+
+/* Two sources on a 50/50 cube, the second split from the first unless free; the output
+   screen (or a photodiode) sees both */
+function splitBench(o, det) {
+  return bench('split', [
+    src({ id: 'LA', name: 'A', x: 60, y: 0, angle: 180, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, pol: 's', power: 1, coh: o.coh || 0 }),
+    src({ id: 'LB', name: 'B', x: 0, y: 60, angle: -90, width: 2, rays: 3, gauss: true, w0: 1, z0: 0, popN: 128, pol: 's', power: o.pb ?? 1,
+      splitFrom: o.free ? null : 'LA', splitPhase: o.ph || 0, splitPath: o.path || 0 }),
+    { type: 'cube', name: 'BS', x: 0, y: 0, angle: 0, size: 12.7, mode: 'npbs', reflect: 50, material: { glass: 'N-BK7' }, coat: { mode: 'custom', R: 0 } },
+    det ? { type: 'detector', name: 'Out', x: 0, y: -50, angle: 90, length: 10, material: 'si', gain: 1e4 } : screen({ name: 'Out', x: 0, y: -50, angle: 90, length: 20 }),
+  ], { minPower: 1e-6 });
+}
+/* the output's fringe contrast, from the phase between the launches at 0, 90 and 180 degrees */
+function splitVis(o, det, full) {
+  const J = document.getElementById('rig').contentWindow.JEKray2D;
+  const P = ph => { J.load(splitBench(Object.assign({}, o, { ph }), det)); return det ? J.metric('Out', 'dmw') : J.diffraction('Out').power; };
+  const a = P(0), c = P(90), t = P(180), m = (a + t) / 2, v = Math.hypot((a - t) / 2, c - m) / m;
+  return full ? { v, m } : v;
+}
 
 const TESTS_EXPECT = {};
 

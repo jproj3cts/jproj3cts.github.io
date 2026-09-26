@@ -632,7 +632,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -995,6 +995,44 @@ function cohModes(src, Ls) {
   }
   return out;
 }
+/* Sources split from one laser (two fibre launches off one coupler, say) are one launch:
+   their fields add wherever they meet. Each copy keeps its own power, place, beam and
+   polarisation; its wavelength and line are the laser's. It carries a phase against the
+   one it is split from, and the extra path its light took before the launch (a length of
+   fibre, counted at the group index, which is what sets how the line washes the fringes).
+   Its amplitude is taken against the laser's own source, sqrt(P / P_laser), so every power
+   worked out for the launch is in the laser source's units. */
+const FIBRE_NG = 1.468;                  // group index of silica fibre near 1 um
+function splitChain(src) {
+  const out = [src], seen = new Set([src.id]);
+  let s = src;
+  while (s.splitFrom) {
+    const p = getEl(s.splitFrom);
+    if (!p || p.type !== 'source' || seen.has(p.id)) break;
+    seen.add(p.id); out.push(p); s = p;
+  }
+  return out;
+}
+const splitRoot = src => { const c = splitChain(src); return c[c.length - 1]; };
+/* extra optical path before the launch against the laser's source, and the phase, radians */
+function splitOffset(src) {
+  const c = splitChain(src);
+  let lag = 0, ph = 0;
+  for (let i = 0; i < c.length - 1; i++) { lag += FIBRE_NG * (c[i].splitPath || 0); ph += (c[i].splitPhase || 0) * Math.PI / 180; }
+  return { lag, ph };
+}
+const lagOf = src => src ? splitOffset(src).lag : 0;
+/* a split copy takes the laser's wavelengths and line */
+function syncSplit(src) {
+  const r = splitRoot(src);
+  if (r === src) return;
+  const moved = src.wavelength !== r.wavelength;
+  src.wavelength = r.wavelength; src.lines = (r.lines || []).slice(); src.coh = r.coh; src.lineshape = r.lineshape;
+  if (moved) {
+    if (src.colourAuto) src.colour = wavelengthColour(src.wavelength);
+    if (src.fibre) applyFibre(src); else if (src.gauss) fanFromGauss(src);
+  }
+}
 const m2Of = src => src && src.gauss && src.m2 > 1 ? src.m2 : 1;
 /* The Hermite-Gauss modes a beam of this M^2 is summed over, as [m, n, weight], strongest
    first: those above 0.2% of the power, at most 36, the rest shared out among them */
@@ -1293,6 +1331,8 @@ function normElementBase(e) {
         rays: Math.round(Math.min(501, Math.max(1, num(e.rays, 11)))),
         power: Math.max(0, num(e.power, 1)),                       // mW, for detectors and fibres
         coh: Math.max(0, num(e.coh, 0)),                           // coherence length, mm; 0 for a single frequency
+        splitFrom: typeof e.splitFrom === 'string' && e.splitFrom ? e.splitFrom : null,   // the source this is split from
+        splitPhase: num(e.splitPhase, 0), splitPath: num(e.splitPath, 0),               // degrees; mm of fibre
         lineshape: e.lineshape === 'gauss' ? 'gauss' : 'lorentz',
         m2: Math.max(1, num(e.m2, 1)),                             // beam quality: 1 for a pure Gaussian
         fibre: e.fibre && isFinite(e.fibre.core) && isFinite(e.fibre.na)
@@ -2220,8 +2260,14 @@ function traceScene() {
   const blocked = {};
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') screens[el.id] = [];
 
+  for (const src of project.elements) if (src.type === 'source') syncSplit(src);
   for (const src of project.elements) {
     if (src.type !== 'source') continue;
+    // a copy split from a laser launches as part of the laser's launch, with its own share
+    // of power and its phase against it
+    const root = splitRoot(src), launch = root.id;
+    const sAmp = root === src ? 1 : Math.sqrt(Math.max(0, src.power) / Math.max(1e-12, root.power)), sPh = splitOffset(src).ph;
+    const cA = sAmp * Math.cos(sPh), sA = sAmp * Math.sin(sPh);
     for (const [wi, nm] of sourceLines(src).entries()) {
     const colour = src.colourAuto ? wavelengthColour(nm) : src.colour;
     const idx = new Map();
@@ -2241,9 +2287,9 @@ function traceScene() {
       for (const st of states) {
         stack.push({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
           dx: Math.cos(a), dy: Math.sin(a),
-          sr: st.as, si: 0, pr: st.ap, pi: 0,
+          sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA,
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: src.id + ':' + wi + ':' + states.indexOf(st), k: i, path: '' });
+          fam: launch + ':' + wi + ':' + states.indexOf(st), k: i, path: '' });
       }
     }
     if (src === probeSrc) {
@@ -2266,10 +2312,10 @@ function traceScene() {
     // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
     const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
-      const a = src.angle * deg, fam = src.id + ':' + wi + ':q' + si0;
+      const a = src.angle * deg, fam = launch + ':' + wi + ':q' + si0;
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
-        sr: st.as, si: 0, pr: st.ap, pi: 0, bounce: 0, last: null, opl: 0, nCur: 1,
-        id: fam, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
+        sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA, bounce: 0, last: null, opl: 0, nCur: 1,
+        id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
         bid: -1, evt: null, fan: !src.gauss, pol: si0 });
     });
     while (stack.length) {
@@ -3960,7 +4006,7 @@ function faceArrivals(el) {
     const qx = [(b.qr + b.len) / b.n, b.qi / b.n];
     const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
     const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
-    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, nm: b.nm };
+    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, lag: lagOf(src), nm: b.nm };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own
     const modes = gsmModes(m2Of(src));
     if (modes.length === 1) out.push(A);
@@ -3995,7 +4041,7 @@ function groupsOf(arr) {
   for (const A of arr) { if (!g.has(A.coh)) g.set(A.coh, []); g.get(A.coh).push(A); }
   // a laser with a line of its own: each launch as its incoherent parts, the weights on J
   for (const G of g.values()) {
-    const cm = cohModes(G[0].src, G.map(A => A.opl));
+    const cm = cohModes(G[0].src, G.map(A => A.opl + A.lag));
     if (!cm) { out.push(G); continue; }
     for (const c of cm) out.push(G.map((A, i) => Object.assign({}, A, { J: A.J.map(v => v * c[i]) })));
   }
@@ -4033,7 +4079,8 @@ function fibreCoupling(el) {
       }
       const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d;
       arrivingShare += pin; coupledShare += got;
-      inMw += pin * src.power; coupledMw += got * src.power;
+      const P = splitRoot(src).power;           // amplitudes are against the laser's own source
+      inMw += pin * P; coupledMw += got * P;
     }
     return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
   });
@@ -4061,7 +4108,7 @@ function detectorReading(el) {
         for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
         pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
       }
-      const mw = pw * du * dv * G[0].src.power;
+      const mw = pw * du * dv * splitRoot(G[0].src).power;
       P += mw; I += mw * responsivity(el, G[0].nm);
     }
     // ray fans, ray by ray: each launched ray carries its share of its source's power
@@ -4069,7 +4116,7 @@ function detectorReading(el) {
     for (const t of hits) {
       const src = getEl(t.id.split(':')[0]);
       if (!src || src.gauss) continue;
-      const mw = t.w * src.power / (Math.max(1, src.rays) * sourceLines(src).length);
+      const mw = t.w * splitRoot(src).power / (Math.max(1, src.rays) * sourceLines(src).length);
       P += mw; I += mw * responsivity(el, t.nm);
     }
     // noise: shot noise on the photocurrent and dark current, the feedback resistor's
@@ -4720,9 +4767,12 @@ function sourcePanel(el) {
   const tr = h('input', { type: 'checkbox' });
   tr.checked = el.traceRays;
   tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
+  const root = splitRoot(el), linked = root !== el;
+  const wlId = 'rtf' + (++fid);
   rows.append(
     h('label', { class: 'rt-check wide' }, tr, 'Trace the ray fan'),
-    param('Wavelength (nm)', el, 'wavelength'),
+    // a copy split from a laser has the laser's wavelength
+    linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
     h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Ray colour'), col),
     h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
     param('Beam width (mm)', el, 'width'),
@@ -4733,12 +4783,32 @@ function sourcePanel(el) {
   panel.append(rows);
   // the laser's own line: how far apart two paths can be and still interfere
   panel.append(h('h3', null, 'Coherence'));
-  const crows = h('div', { class: 'rt-rows' }, param('Coherence length (mm)', el, 'coh'));
-  crows.append(selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']],
+  // split from another laser's source: one launch with it
+  const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
+  const srows = h('div', { class: 'rt-rows' }, selectField('Split from', [['', 'Nothing: a laser of its own'], ...others.map(e => [e.id, e.name])],
+    () => el.splitFrom && getEl(el.splitFrom) ? el.splitFrom : '', v => { el.splitFrom = v || null; }, { wide: true }));
+  if (linked) srows.append(param('Phase against it (\u00b0)', el, 'splitPhase'), param('Extra fibre (mm)', el, 'splitPath'));
+  panel.append(srows);
+  if (linked) {
+    const sl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+    bindSync(sl, () => {
+      const r = splitRoot(el), lag = lagOf(el), g = cohGamma(r);
+      sl.textContent = 'Light from ' + r.name + ', split before it reaches the bench (a fibre coupler, say): the two add as fields wherever they meet, so they interfere. ' +
+        'This one keeps its own power, place, beam and polarisation; its wavelength and line are ' + r.name + '\u2019s. ' +
+        'The phase between them is set by the fibres to within a wavelength, which in practice drifts: sweep it to see the fringes move. ' +
+        'The extra fibre is counted at a group index of ' + FIBRE_NG + ': ' + fmtLen(Math.abs(lag)) + ' of optical path against ' + r.name +
+        (g ? ', so fringes with its light have at most ' + (+g(lag).toPrecision(3)) + ' of full contrast.' : ', which matters only once the laser has a coherence length (set on ' + r.name + ').');
+    });
+    panel.append(sl);
+  }
+  const crows = h('div', { class: 'rt-rows' });
+  if (!linked) crows.append(param('Coherence length (mm)', el, 'coh'));
+  if (!linked) crows.append(selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']],
     () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   panel.append(crows);
   const cl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
   bindSync(cl, () => {
+    if (linked) { cl.textContent = 'The line is ' + splitRoot(el).name + '\u2019s' + (el.coh > 0 ? ': coherence length ' + fmtLen(el.coh) + '.' : ': a single frequency.'); return; }
     if (!(el.coh > 0)) { cl.textContent = '0 is a single frequency: every path of this source interferes in full, however long.'; return; }
     const dnu = 299792458e3 / el.coh, dl = el.wavelength * el.wavelength * 1e-6 / el.coh;
     cl.textContent = 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
@@ -4935,18 +5005,17 @@ function binnedFieldRaw(el) {
 
   for (const [nm, list] of byNm) {
     const lam = nm * 1e-6;
-    let acc = new Float64Array(n * 4), Lw = null;
+    // Rays are binned per path family (one source's rays down one branch), each with its mean
+    // optical path in each bin. Families of one launch (one laser, split or not) add as
+    // fields, each pair weighted by gamma of their path difference; launches add as powers.
     const fams = new Map();
     for (const t of list) {
-      const key = t.fam + '|' + t.path;
+      const key = t.id.split(':')[0] + '|' + t.fam + '|' + t.path;
       if (!fams.has(key)) fams.set(key, []);
       fams.get(key).push(t);
     }
-    // a laser with a line of its own: each path family is binned on its own, with its mean
-    // optical path in each bin, and the families added pairwise, weighted by gamma
-    const famSrc = f => getEl(String(f[0].fam).split(':')[0]);
-    const partial = [...fams.values()].some(f => { const e = famSrc(f); return e && e.coh > 0; });
-    const own = partial ? [] : null;
+    const own = [];
+    let acc = null, Lw = null;
     const deposit = (b, sr, si, pr, pi, opl) => {
       const ph = 2 * Math.PI * (opl / lam);
       const c = Math.cos(ph), s2 = Math.sin(ph);
@@ -4954,10 +5023,12 @@ function binnedFieldRaw(el) {
       acc[b * 4 + 2] += pr * c - pi * s2; acc[b * 4 + 3] += pr * s2 + pi * c;
       const w = sr * sr + si * si + pr * pr + pi * pi;
       inc[b] += w;
-      if (Lw) { Lw[b * 2] += w * opl; Lw[b * 2 + 1] += w; }
+      Lw[b * 2] += w * opl; Lw[b * 2 + 1] += w;
     };
     for (const fam of fams.values()) {
-      if (own) { acc = new Float64Array(n * 4); Lw = new Float64Array(n * 2); own.push({ acc, Lw, fam: fam[0].fam, src: famSrc(fam) }); }
+      const src = getEl(fam[0].id.split(':')[0]);
+      acc = new Float64Array(n * 4); Lw = new Float64Array(n * 2);
+      own.push({ acc, Lw, fam: fam[0].fam, lag: lagOf(src), g: src ? cohGamma(splitRoot(src)) : null });
       if (!interp || fam.length < 2) {
         for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl);
         continue;
@@ -4975,26 +5046,16 @@ function binnedFieldRaw(el) {
         deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl));
       }
     }
-    if (own) {
-      // same launch: gamma of the path difference; separate launches cohere only when both
-      // are single-frequency (as they always have here)
-      for (let b = 0; b < n; b++) {
-        const on = own.filter(F => F.Lw[b * 2 + 1] > 0);
-        for (let i = 0; i < on.length; i++) for (let j = i; j < on.length; j++) {
-          const A = on[i], B = on[j], o = b * 4;
-          const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
-          let g = 1;
-          if (i !== j) {
-            if (A.fam === B.fam) { const f = cohGamma(A.src); g = f ? f(A.Lw[b * 2] / A.Lw[b * 2 + 1] - B.Lw[b * 2] / B.Lw[b * 2 + 1]) : 1; }
-            else g = (A.src && A.src.coh > 0) || (B.src && B.src.coh > 0) ? 0 : 1;
-          }
-          coh[b] += (i === j ? 1 : 2 * g) * d;
-        }
+    const launches = new Map();
+    for (const F of own) { if (!launches.has(F.fam)) launches.set(F.fam, []); launches.get(F.fam).push(F); }
+    for (const Fs of launches.values()) for (let b = 0; b < n; b++) {
+      const on = Fs.filter(F => F.Lw[b * 2 + 1] > 0), o = b * 4;
+      for (let i = 0; i < on.length; i++) for (let j = i; j < on.length; j++) {
+        const A = on[i], B = on[j];
+        const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
+        const g = i === j || !A.g ? 1 : A.g(A.Lw[b * 2] / A.Lw[b * 2 + 1] + A.lag - B.Lw[b * 2] / B.Lw[b * 2 + 1] - B.lag);
+        coh[b] += (i === j ? 1 : 2 * g) * d;
       }
-      continue;
-    }
-    for (let b = 0; b < n; b++) {
-      coh[b] += acc[b*4]*acc[b*4] + acc[b*4+1]*acc[b*4+1] + acc[b*4+2]*acc[b*4+2] + acc[b*4+3]*acc[b*4+3];
     }
   }
 
@@ -8443,9 +8504,9 @@ const popState = { key: '', result: null, timer: null, job: null };
 const popSources = () => project.elements.filter(e => e.type === 'source' && e.gauss && e.beamView === 'field');
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e)]);
+  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e)]);
   return JSON.stringify([cfg, beams.filter(b => ids.has(b.src)).map(b =>
-    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev])]);
+    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh])]);
 }
 
 /* Clear radius a surface offers the beam: its semi-aperture less the decentre, seen
@@ -8715,7 +8776,7 @@ function popGroupCut(item, t) {
     if (tm < -1e-9 || tm > b.len + 1e-9) continue;
     const c = m.leg.cutC(clamp(tm, 0, b.len));
     const x0 = -b.dy * ox + b.dx * oy, cx = exLx * -b.dy + exLy * b.dx, cz = exLx * b.dx + exLy * b.dy;
-    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k, L: (b.opl || 0) + b.n * tm });
+    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k, L: (b.opl || 0) + b.n * tm + lagOf(m.src) });
     Yg = Math.max(Yg, Math.abs(x0) + 2.5 * c.w); wMax = Math.max(wMax, c.w);
   }
   const M = 2 * POP_ROWS, x = new Float64Array(M), I = new Float64Array(M);
@@ -8779,7 +8840,7 @@ function closeupPrep(segs, cx, cy, hw) {
     const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
     const J = popJ(b);
     out.push({ b, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
-      src: sg.src, L: (b.opl || 0) + b.n * clamp(tc, 0, b.len) });
+      src: sg.src, L: (b.opl || 0) + b.n * clamp(tc, 0, b.len) + lagOf(sg.src) });
   }
   closeupLaunches(out);
   return out;
@@ -9577,7 +9638,7 @@ function popDiffraction(el, R) {
   // weighted coherent sum of the launch's arrivals (the weights ride on the array as cs)
   const vLaunches = new Map();
   for (const [key, L2] of launches) {
-    const cm = cohModes(L2[0].sg.src, L2.map(h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len));
+    const cm = cohModes(L2[0].sg.src, L2.map(h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len + lagOf(h2.sg.src)));
     if (!cm) { vLaunches.set(key, L2); continue; }
     cm.forEach((c, k) => { const a = L2.slice(); a.cs = c; vLaunches.set(key + '~' + k, a); });
   }

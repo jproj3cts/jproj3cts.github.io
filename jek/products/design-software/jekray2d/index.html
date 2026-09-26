@@ -70,6 +70,8 @@
   }
   .rt-examples > h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--jek-ink); }
   .rt-examples > p { margin: 0 0 1.25rem; font-size: 0.9375rem; color: var(--jek-ink-soft); }
+  .rt-examples > .rt-exgroup { margin: 1.6rem 0 0.8rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-examples > p + .rt-exgroup { margin-top: 0; }
   .rt-example-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -147,6 +149,8 @@
           <button class="pip" data-src="img/mach-zehnder.png" data-alt="A Mach–Zehnder interferometer with two beam splitter cubes" aria-label="Image 2"></button>
           <button class="pip" data-src="img/plano-convex.png" data-alt="Two plano-convex lenses, one each way round, focusing ray fans" aria-label="Image 3"></button>
           <button class="pip" data-src="img/maltese-cross.png" data-alt="A steep lens focusing through a polariser onto a screen" aria-label="Image 4"></button>
+          <button class="pip" data-src="img/dispersing-prism.png" data-alt="White light dispersed into its colours by an N-SF11 prism" aria-label="Image 5"></button>
+          <button class="pip" data-src="img/fibre-michelson.png" data-alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" aria-label="Image 6"></button>
         </div>
       </div>
 
@@ -161,7 +165,7 @@
         </div>
         <ul>
           <li>Nothing to install and no account. Your bench is saved in your browser as you work</li>
-          <li>Lenses, aspheres, mirrors, beam splitters, prisms, waveplates, polarisers, stops and masks</li>
+          <li>Lenses, aspheres, cylinders and axicons; mirrors and off-axis parabolas; beam splitters, prisms and gratings; waveplates, polarisers, birefringent crystals and isolators; filters, dichroics, gain media, stops and masks</li>
           <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, photodiodes) joined by drag-drawn fibres, on as many bench tabs as you need</li>
           <li>Femtosecond pulses: glass, prism and grating compressors, chirped mirrors and fibre dispersion, with the arriving pulse's duration, GDD and TOD</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
@@ -229,7 +233,7 @@
       <div>
         <h2>Cavities and polarisation</h2>
         <p>When light loops back on itself, JEKray2D finds the cavity for you and reports its free spectral range, finesse, linewidth, stability, Gaussian mode and losses. It also solves the steady-state field and the cavity’s own modes, in the same way as the Fox–Li method.</p>
-        <p>Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser. For steep focusing it switches to a full vector calculation of the focal field.</p>
+        <p>Put a gain medium inside and it tells you whether the cavity lases. Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser, and through birefringent crystals (beam displacers, Wollaston and Glan–Taylor prisms) and Faraday isolators, which pass light one way only. For steep focusing it switches to a full vector calculation of the focal field.</p>
       </div>
     </section>
 
@@ -245,27 +249,24 @@
       </div>
     </section>
 
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/pulse-compressor.png" alt="A stretched pulse compressed by two parallel diffraction gratings" loading="lazy">
+        <figcaption>A Treacy grating compressor, from 458 fs back to 102 fs</figcaption>
+      </figure>
+      <div>
+        <h2>Spectra and ultrafast pulses</h2>
+        <p>Every source can carry several wavelengths, so gratings and prisms spread light into its spectrum and chromatic focal shift shows up on its own. Filters and dichroics pass or reflect by wavelength.</p>
+        <p>Give a laser a pulse duration and JEKray2D traces its spectrum through glass, prism and grating compressors, chirped mirrors and fibre. Any screen or photodiode shows the pulse that arrives: its duration against the transform limit, peak power, group delay dispersion and third-order dispersion, spatial chirp and pulse-front tilt.</p>
+      </div>
+    </section>
+
     <!-- Examples: moved here from the editor -->
     <div class="rt-examples" id="examples">
       <h2>Examples</h2>
       <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results.</p>
+      <h3 class="rt-exgroup">Interference and cavities</h3>
       <div class="rt-example-grid">
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=youngs-double-slit">
-          <img src="img/youngs-double-slit.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Young’s double slit</h3>
-            <p>A laser through a double slit onto a screen 1 m away. The fringes come from the diffracted field.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=poissons-spot">
-          <img src="img/poissons-spot.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Poisson’s spot</h3>
-            <p>A bright spot at the centre of a round beam block’s shadow.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=michelson">
           <img src="img/michelson.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -279,38 +280,6 @@
           <div class="rt-example-body">
             <h3>Mach–Zehnder interferometer</h3>
             <p>Two arms recombined at a second cube, sharing the power between two outputs.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=plano-convex">
-          <img src="img/plano-convex.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Plano-convex: which way round?</h3>
-            <p>The same lens facing each way. Compare the spherical aberration at the two foci.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=maltese-cross">
-          <img src="img/maltese-cross.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Maltese cross</h3>
-            <p>A steeply focusing lens between crossed polarisers. Fresnel coefficients leave a four-leaf pattern.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=tight-focus">
-          <img src="img/tight-focus.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Tight focus, vector</h3>
-            <p>A perfect lens with a 3 mm focal length. At this numerical aperture the focal field is computed as a vector.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=pulse-compressor">
-          <img src="img/pulse-compressor.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Grating pulse compressor</h3>
-            <p>A chirped 100 fs pulse through a Treacy grating pair. The Pulse tab shows it compressed from 460 fs back to 102 fs.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
@@ -338,6 +307,119 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=laser-threshold">
+          <img src="img/laser-threshold.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Laser cavity with gain</h3>
+            <p>A plano-concave cavity with a Nd:YAG gain sheet. Sweep the gain and the cavity reports when the round trip crosses threshold.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      <h3 class="rt-exgroup">Diffraction and imaging</h3>
+      <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=youngs-double-slit">
+          <img src="img/youngs-double-slit.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Young’s double slit</h3>
+            <p>A laser through a double slit onto a screen 1 m away. The fringes come from the diffracted field.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=poissons-spot">
+          <img src="img/poissons-spot.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Poisson’s spot</h3>
+            <p>A bright spot at the centre of a round beam block’s shadow.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=plano-convex">
+          <img src="img/plano-convex.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Plano-convex: which way round?</h3>
+            <p>The same lens facing each way. Compare the spherical aberration at the two foci.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=tight-focus">
+          <img src="img/tight-focus.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Tight focus, vector</h3>
+            <p>A perfect lens with a 3 mm focal length. At this numerical aperture the focal field is computed as a vector.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=maltese-cross">
+          <img src="img/maltese-cross.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Maltese cross</h3>
+            <p>A steeply focusing lens between crossed polarisers. Fresnel coefficients leave a four-leaf pattern.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=off-axis-parabola">
+          <img src="img/off-axis-parabola.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Off-axis parabola</h3>
+            <p>A 90° off-axis paraboloid focuses a collimated beam to a point with no aberration. Set the conic to 0 to see a sphere’s.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=bessel-beam">
+          <img src="img/bessel-beam.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Axicon: a Bessel beam</h3>
+            <p>A 1° axicon turns a Gaussian beam into a line focus, a Bessel beam that keeps its narrow core for over 100 mm before opening into a ring.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      <h3 class="rt-exgroup">Polarisation and spectra</h3>
+      <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=wollaston-polarimeter">
+          <img src="img/wollaston-polarimeter.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Wollaston polarimeter</h3>
+            <p>A half-wave plate and a calcite Wollaston prism split the light onto two photodiodes. Play the waveplate sweep to move power between them.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-isolator">
+          <img src="img/optical-isolator.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Optical isolator</h3>
+            <p>A retro-reflected beam, a pick-off and a Faraday isolator. Drag the isolator out and watch the back-reflection come back 40 dB stronger.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=grating-spectrometer">
+          <img src="img/grating-spectrometer.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Grating spectrometer</h3>
+            <p>Mercury lines through a 600 l/mm grating and a 100 mm lens. Each colour lands at its own place; the yellow doublet, 2.1 nm apart, lands 0.1 mm apart.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=dispersing-prism">
+          <img src="img/dispersing-prism.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Dispersing prism</h3>
+            <p>White light through an N-SF11 prism at minimum deviation, near Brewster’s angle. Turn it to find the minimum, or change the glass.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=dichroic-combiner">
+          <img src="img/dichroic-combiner.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Dichroic combiner, two tables</h3>
+            <p>A 532 nm and a 1064 nm laser combined on a dichroic, carried to a second tab by link planes, and focused by one lens.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      <h3 class="rt-exgroup">Fibre and pulses</h3>
+      <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
           <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -351,6 +433,33 @@
           <div class="rt-example-body">
             <h3>Two launches from one laser</h3>
             <p>One fibre laser split by a coupler into two collimated launches that meet on a cube. Change the fibre lengths or the coherence length and watch the fringe contrast.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-michelson">
+          <img src="img/fibre-michelson.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre Michelson, Faraday mirrors</h3>
+            <p>A circulator, a coupler and two Faraday mirrors. Turn the polarisation controller: the fringes keep full contrast.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=pulse-compressor">
+          <img src="img/pulse-compressor.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Grating pulse compressor</h3>
+            <p>A chirped 100 fs pulse through a Treacy grating pair. The Pulse tab shows it compressed from 460 fs back to 102 fs.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      <h3 class="rt-exgroup">From a paper</h3>
+      <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=levitated-trap">
+          <img src="img/levitated-trap.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Levitated nanorod trap</h3>
+            <p>The optics of Hu et al., Nat. Commun. 2023: two counter-propagating 1550 nm beams focused to a standing wave. Play the sweep to see it tilt.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>

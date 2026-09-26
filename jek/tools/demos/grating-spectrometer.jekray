@@ -1,0 +1,153 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Grating spectrometer",
+  "saved": "2026-09-26T23:37:55.251Z",
+  "view": {
+    "cx": 60,
+    "cy": 0,
+    "scale": 5
+  },
+  "snap": 1,
+  "maxBounces": 40,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 60,
+        "cy": 0,
+        "scale": 5
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "lamp",
+      "type": "source",
+      "name": "Mercury lamp, collimated",
+      "x": -20,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 546.1,
+      "colourAuto": true,
+      "colour": "#96ff00",
+      "width": 4,
+      "divergence": 0,
+      "gauss": false,
+      "w0": 0.35,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "unpolarised",
+      "polAngle": 45,
+      "lines": [
+        435.8,
+        577,
+        579.1
+      ],
+      "rays": 9,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "g",
+      "type": "grating",
+      "name": "Grating, 600 l/mm",
+      "x": 10,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 25,
+      "lpmm": 600,
+      "mode": "transmit",
+      "blaze": 546,
+      "eff": 80,
+      "sweeps": {}
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "name": "Lens, f 100 mm",
+      "x": 40,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 50.8,
+      "surfaces": [
+        {
+          "R": 102.4,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": -102.4,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        7
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "scr",
+      "type": "screen",
+      "name": "Detector plane",
+      "x": 140.8,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 90,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A mercury lamp’s four visible lines (435.8, 546.1, 577.0 and 579.1 nm), collimated, through a 600 l/mm transmission grating blazed for the first order. A 100 mm lens focuses each order and colour to its own point on the screen: the grating is blazed so most of the light goes into the first order, spread by colour; the zero order is weak. The yellow doublet, 2.1 nm apart, lands 0.1 mm apart. Open the screen’s Rays tab and plot power against position to read the spectrum; change the grating’s lines per mm to see the dispersion change."
+}

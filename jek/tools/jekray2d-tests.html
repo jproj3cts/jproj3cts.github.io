@@ -2867,6 +2867,24 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: J => { J.importText(JSON.stringify({ name: 'N', notes: 'From Hu et al. 2023; lens f assumed.', elements: [] })); return +(J.serialize().notes === 'From Hu et al. 2023; lens f assumed.'); },
   },
+  {
+    name: 'Every example in the menu opens cleanly',
+    why: 'each bench under Examples, fetched and opened: nothing in the import report, and every screen and photodiode on it receives light',
+    wantFrom: () => document.getElementById('rig').contentDocument.querySelectorAll('#examplesMenu [data-demo]').length, tol: 0, unit: ' examples',
+    run: J => {
+      const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x.status === 200 ? x.responseText : null; };
+      let ok = 0; const bad = [];
+      for (const b of document.getElementById('rig').contentDocument.querySelectorAll('#examplesMenu [data-demo]')) {
+        const k = b.dataset.demo, text = get('demos/' + k + '.jekray');
+        if (!text) { bad.push(k + ': missing'); continue; }
+        const notes = J.importText(text); J.trace();
+        const dark = J.project().elements.filter(e => (e.type === 'screen' && !J.stats(e.name)) || (e.type === 'detector' && !(J.detector(e.name).mw > 0))).map(e => e.name);
+        if (notes.length || dark.length) bad.push(k + ': ' + notes.concat(dark.map(n => n + ' gets nothing')).join('; ')); else ok++;
+      }
+      if (bad.length) console.warn(bad.join('\n'));
+      return ok;
+    },
+  },
   { group: 'Masks as ideal lenses' },
   {
     name: 'An ideal-lens mask hit off-centre focuses as one hit in the middle',

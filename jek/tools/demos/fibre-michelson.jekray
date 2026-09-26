@@ -1,0 +1,282 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Fibre Michelson with Faraday mirrors",
+  "saved": "2026-09-26T23:35:16.071Z",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4
+  },
+  "snap": 1,
+  "maxBounces": 60,
+  "minPower": 0.0001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 0,
+        "cy": 0,
+        "scale": 4
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "Laser",
+      "type": "fcomp",
+      "name": "Laser",
+      "x": -150,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "laser",
+      "wavelength": 1550,
+      "power": 1,
+      "coh": 0,
+      "polAngle": 0,
+      "tau": 0,
+      "rep": 80,
+      "gdd0": 0,
+      "pshape": "sech2",
+      "lineshape": "lorentz",
+      "sweeps": {
+        "wavelength": {
+          "min": 1550,
+          "max": 1550.2,
+          "freq": 0.25,
+          "phase": 0,
+          "wave": "triangle"
+        }
+      }
+    },
+    {
+      "id": "Circulator",
+      "type": "fcomp",
+      "name": "Circulator",
+      "x": -90,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "circ",
+      "loss": 0.8,
+      "iso": 40,
+      "sweeps": {}
+    },
+    {
+      "id": "Coupler, 50:50",
+      "type": "fcomp",
+      "name": "Coupler, 50:50",
+      "x": -20,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "coupler",
+      "ratio": 50,
+      "loss": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Polarisation controller",
+      "type": "fcomp",
+      "name": "Polarisation controller",
+      "x": 50,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "pc",
+      "a1": 20,
+      "a2": 60,
+      "a3": 35,
+      "sweeps": {}
+    },
+    {
+      "id": "Faraday mirror 1",
+      "type": "fcomp",
+      "name": "Faraday mirror 1",
+      "x": 120,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "fm",
+      "rmax": 99,
+      "loss": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Faraday mirror 2",
+      "type": "fcomp",
+      "name": "Faraday mirror 2",
+      "x": 120,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "fm",
+      "rmax": 99,
+      "loss": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Output",
+      "type": "fcomp",
+      "name": "Output",
+      "x": -90,
+      "y": -60,
+      "angle": 270,
+      "bench": "b1",
+      "kind": "pd",
+      "resp": 1,
+      "gain": 10000,
+      "vmax": 10,
+      "bandwidth": 1000000000,
+      "demodF": 0,
+      "demodPhase": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Other port",
+      "type": "fcomp",
+      "name": "Other port",
+      "x": -80,
+      "y": 25,
+      "angle": 180,
+      "bench": "b1",
+      "kind": "pd",
+      "resp": 1,
+      "gain": 10000,
+      "vmax": 10,
+      "bandwidth": 1000000000,
+      "demodF": 0,
+      "demodPhase": 0,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [
+    {
+      "id": "ew6yo34v",
+      "a": [
+        "Laser",
+        0
+      ],
+      "b": [
+        "Circulator",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "eefu54qm",
+      "a": [
+        "Circulator",
+        1
+      ],
+      "b": [
+        "Coupler, 50:50",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "enfde7jr",
+      "a": [
+        "Circulator",
+        2
+      ],
+      "b": [
+        "Output",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "e7m5g4ko",
+      "a": [
+        "Coupler, 50:50",
+        1
+      ],
+      "b": [
+        "Other port",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ext3qcmg",
+      "a": [
+        "Coupler, 50:50",
+        2
+      ],
+      "b": [
+        "Polarisation controller",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "e8oj6fni",
+      "a": [
+        "Polarisation controller",
+        1
+      ],
+      "b": [
+        "Faraday mirror 1",
+        0
+      ],
+      "len": 1.01,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ewb2kixr",
+      "a": [
+        "Coupler, 50:50",
+        3
+      ],
+      "b": [
+        "Faraday mirror 2",
+        0
+      ],
+      "len": 2,
+      "loss": 0.2,
+      "disp": null,
+      "path": [],
+      "ta": null,
+      "tb": null
+    }
+  ],
+  "measures": [],
+  "notes": "An all-fibre Michelson interferometer. A circulator takes the laser into a 50:50 coupler and brings the returning light out to a photodiode. Each arm ends in a Faraday mirror, which sends back light orthogonal to what arrived, so the fibre’s birefringence undoes itself on the way back: turn the paddles of the polarisation controller in one arm (or add one to the other) and the fringe contrast stays full, where plain mirrors would fade it. The arms differ by 10 mm of fibre, so sweeping the laser’s wavelength by 0.2 nm runs the output through fringes: press Play on the wavelength sweep."
+}

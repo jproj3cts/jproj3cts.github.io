@@ -220,6 +220,12 @@
   .rt-plot { position: relative; }
   .rt-more { position: relative; }
   .rt-menu-right { left: auto; right: 0; }
+  /* the examples: grouped, in two columns where there is room */
+  .rt-menu.rt-examples { display: block; columns: 2 15rem; column-gap: 0.3rem; width: min(33rem, calc(100vw - 2rem)); max-height: calc(100vh - 9rem); overflow-y: auto; }
+  .rt-examples .rt-mgroup { break-inside: avoid; display: flex; flex-direction: column; margin-bottom: 0.3rem; }
+  .rt-examples .rt-mhead { padding: 0.35rem 0.65rem 0.15rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-examples .sep { column-span: all; }
+  .rt-examples .rt-menulink { display: block; column-span: all; }
   .rt-menu .sep { height: 1px; margin: 0.25rem 0.3rem; background: var(--jek-line); }
   .rt-menu button .k { float: right; margin-left: 1.5rem; color: var(--jek-ink-soft); font-size: 0.78rem; }
   .rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; }
@@ -560,21 +566,40 @@
         <div class="rt-group rt-right">
           <div class="rt-more">
             <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="examplesMenu">Examples ▾</button>
-            <div class="rt-menu rt-menu-right" id="examplesMenu" role="menu" hidden>
-              <button type="button" role="menuitem" data-demo="michelson">Michelson interferometer</button>
-              <button type="button" role="menuitem" data-demo="mach-zehnder">Mach–Zehnder interferometer</button>
-              <button type="button" role="menuitem" data-demo="fabry-perot">Fabry–Perot cavity</button>
-              <button type="button" role="menuitem" data-demo="fox-li">Fox–Li: a cavity finds its mode</button>
-              <button type="button" role="menuitem" data-demo="pdh-lock">Pound–Drever–Hall lock</button>
-              <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
-              <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
-              <button type="button" role="menuitem" data-demo="youngs-double-slit">Young’s double slit</button>
-              <button type="button" role="menuitem" data-demo="poissons-spot">Poisson’s spot</button>
-              <button type="button" role="menuitem" data-demo="plano-convex">Plano-convex lens, both ways round</button>
-              <button type="button" role="menuitem" data-demo="tight-focus">A tight focus, vector</button>
-              <button type="button" role="menuitem" data-demo="maltese-cross">Maltese cross</button>
-              <button type="button" role="menuitem" data-demo="pulse-compressor">Grating pulse compressor</button>
-              <button type="button" role="menuitem" data-demo="levitated-trap">Levitated nanorod trap (Hu et al. 2023)</button>
+            <div class="rt-menu rt-menu-right rt-examples" id="examplesMenu" role="menu" hidden>
+              <div class="rt-mgroup" role="group" aria-label="Interference and cavities"><div class="rt-mhead">Interference and cavities</div>
+                <button type="button" role="menuitem" data-demo="michelson">Michelson interferometer</button>
+                <button type="button" role="menuitem" data-demo="mach-zehnder">Mach–Zehnder interferometer</button>
+                <button type="button" role="menuitem" data-demo="fabry-perot">Fabry–Perot cavity</button>
+                <button type="button" role="menuitem" data-demo="fox-li">Fox–Li: a cavity finds its mode</button>
+                <button type="button" role="menuitem" data-demo="pdh-lock">Pound–Drever–Hall lock</button>
+                <button type="button" role="menuitem" data-demo="laser-threshold">Laser cavity with gain</button>
+              </div>
+              <div class="rt-mgroup" role="group" aria-label="Diffraction and imaging"><div class="rt-mhead">Diffraction and imaging</div>
+                <button type="button" role="menuitem" data-demo="youngs-double-slit">Young’s double slit</button>
+                <button type="button" role="menuitem" data-demo="poissons-spot">Poisson’s spot</button>
+                <button type="button" role="menuitem" data-demo="plano-convex">Plano-convex lens, both ways round</button>
+                <button type="button" role="menuitem" data-demo="tight-focus">A tight focus, vector</button>
+                <button type="button" role="menuitem" data-demo="maltese-cross">Maltese cross</button>
+                <button type="button" role="menuitem" data-demo="off-axis-parabola">Off-axis parabola</button>
+                <button type="button" role="menuitem" data-demo="bessel-beam">Axicon: a Bessel beam</button>
+              </div>
+              <div class="rt-mgroup" role="group" aria-label="Polarisation and spectra"><div class="rt-mhead">Polarisation and spectra</div>
+                <button type="button" role="menuitem" data-demo="wollaston-polarimeter">Wollaston polarimeter</button>
+                <button type="button" role="menuitem" data-demo="optical-isolator">Optical isolator</button>
+                <button type="button" role="menuitem" data-demo="grating-spectrometer">Grating spectrometer</button>
+                <button type="button" role="menuitem" data-demo="dispersing-prism">Dispersing prism</button>
+                <button type="button" role="menuitem" data-demo="dichroic-combiner">Dichroic combiner, two tables</button>
+              </div>
+              <div class="rt-mgroup" role="group" aria-label="Fibre and pulses"><div class="rt-mhead">Fibre and pulses</div>
+                <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
+                <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
+                <button type="button" role="menuitem" data-demo="fibre-michelson">Fibre Michelson, Faraday mirrors</button>
+                <button type="button" role="menuitem" data-demo="pulse-compressor">Grating pulse compressor</button>
+              </div>
+              <div class="rt-mgroup" role="group" aria-label="From a paper"><div class="rt-mhead">From a paper</div>
+                <button type="button" role="menuitem" data-demo="levitated-trap">Levitated nanorod trap (Hu et al. 2023)</button>
+              </div>
               <div class="sep"></div>
               <a role="menuitem" class="rt-menulink" href="jekray2d-ai-guide.md" download>Build with an AI assistant: get the guide</a>
             </div>

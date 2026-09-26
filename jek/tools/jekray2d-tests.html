@@ -2564,7 +2564,63 @@ const TESTS = [
       return Math.abs(free - 1) < 1e-9 ? split : NaN;
     },
   },
+
+  { group: 'Tabs and link planes' },
+  {
+    name: 'A beam through a link plane focuses as if the benches were one',
+    why: 'source on one tab, lens and screen on another at a different place: the focal spot\u2019s FWHM, against the same system on one bench',
+    want: null, tol: 1e-6, rel: true, unit: ' mm',
+    run: J => {
+      J.load(linkBench(false, 0)); TESTS_EXPECT.oneFw = J.diffraction('Sc').fwhm;
+      J.load(linkBench(true, 0)); return J.diffraction('Sc').fwhm;
+    },
+    wantFrom: () => TESTS_EXPECT.oneFw,
+  },
+  {
+    name: 'and turned the other way on the far side',
+    why: 'the partner plane at 90\u00b0: the light leaves it going up the bench, the same focus',
+    want: null, tol: 1e-6, rel: true, unit: ' mm',
+    run: J => { J.load(linkBench(true, 90)); return J.diffraction('Sc').fwhm; },
+    wantFrom: () => TESTS_EXPECT.oneFw,
+  },
+  {
+    name: 'A link plane with no partner stops the light',
+    why: 'nothing reaches the screen behind it',
+    want: 0, tol: 0, unit: ' rays',
+    run: J => { const b = linkBench(true, 0); b.elements = b.elements.filter(e => e.name !== 'B'); J.load(b); return (J.lastTrace().screens[J.byName('Sc').id] || []).filter(t => !t.chief).length; },
+  },
+  {
+    name: 'A cavity split across two tabs is still a cavity',
+    why: 'the Fabry\u2013Perot with its far mirror on another tab: found, and transmitting what the Airy function says',
+    want: 1e-5 / (1 - Math.sqrt(0.99 * 0.999)) ** 2, tol: 0.005, rel: true, unit: '',
+    run: J => {
+      const b = fpBench(), M2 = b.elements.find(e => e.name === 'M2'), T = b.elements.find(e => e.name === 'Trans');
+      b.benches = [{ id: 'b1', name: 'One' }, { id: 'b2', name: 'Two' }];
+      for (const e of b.elements) e.bench = 'b1';
+      b.elements.push({ type: 'link', name: 'A', x: 100, y: 0, angle: 0, length: 25, pair: 'P', bench: 'b1' },
+        { type: 'link', name: 'B', x: 0, y: 40, angle: 0, length: 25, pair: 'P', bench: 'b2' });
+      Object.assign(M2, { x: M2.x - 100, y: 40, bench: 'b2' }); Object.assign(T, { x: T.x - 100, y: 40, bench: 'b2' });
+      J.load(b);
+      return J.cavities().length === 1 ? J.diffraction('Trans').power : NaN;
+    },
+  },
 ];
+
+/* A lens focusing a Gaussian beam onto a screen; split, the source is on another tab and the
+   lens and screen follow a link plane, its partner turned by turn degrees */
+function linkBench(split, turn) {
+  const a = turn * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), at = d => ({ x: 100 + d * c, y: 30 + d * s });
+  const L = { type: 'lens', name: 'L', angle: turn, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] };
+  const S = { type: 'screen', name: 'Sc', angle: turn + 180, length: 10 };
+  const beam = src({ name: 'Beam', x: -50, y: 0, width: 4, rays: 11, gauss: true, w0: 1, z0: 0, popN: 256, pol: 's' });
+  if (!split) return bench('one', [beam, Object.assign({}, L, { x: 20, y: 0 }), Object.assign({}, S, { x: 70, y: 0 })], { minPower: 1e-4 });
+  const B = bench('two', [Object.assign(beam, { bench: 'b1' }),
+    { type: 'link', name: 'A', x: 0, y: 0, angle: 0, length: 25, pair: 'P', bench: 'b1' },
+    { type: 'link', name: 'B', x: 100, y: 30, angle: turn, length: 25, pair: 'P', bench: 'b2' },
+    Object.assign({}, L, at(20), { bench: 'b2' }), Object.assign({}, S, at(70), { bench: 'b2' })], { minPower: 1e-4 });
+  B.benches = [{ id: 'b1', name: 'One' }, { id: 'b2', name: 'Two' }];
+  return B;
+}
 
 /* Two sources on a 50/50 cube, the second split from the first unless free; the output
    screen (or a photodiode) sees both */

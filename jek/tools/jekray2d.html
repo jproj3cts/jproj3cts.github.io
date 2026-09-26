@@ -131,6 +131,24 @@
     pointer-events: none;
   }
 
+  /* the tabs, one bench each, at the top left of the bench */
+  .rt-benchtabs {
+    position: absolute; left: 0.5rem; top: 0.5rem; right: 0.5rem;
+    display: flex; flex-wrap: wrap; gap: 0.25rem; pointer-events: none;
+  }
+  .rt-benchtabs button, .rt-benchtabs input {
+    pointer-events: auto; font: 600 0.75rem var(--jek-sans); color: rgba(255,255,255,0.72);
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px;
+    padding: 0.2rem 0.55rem; cursor: pointer; line-height: 1.4;
+  }
+  .rt-benchtabs button:hover { background: rgba(255,255,255,0.16); color: #fff; }
+  .rt-benchtabs button.on { background: rgba(127,220,255,0.22); border-color: rgba(127,220,255,0.6); color: #fff; }
+  .rt-benchtabs button .x { margin-left: 0.4rem; opacity: 0.6; }
+  .rt-benchtabs button .x:hover { opacity: 1; }
+  .rt-benchtabs input { cursor: text; width: 9rem; color: #fff; background: rgba(0,0,0,0.35); }
+  .rt-benchtabs .add { padding: 0.2rem 0.5rem; }
+  .rt-list .tabhead { font-size: 0.72rem; font-weight: 600; color: var(--jek-ink-soft); margin: 0.5rem 0 0.15rem; list-style: none; }
+
   .rt-drop {
     position: absolute;
     inset: 0;
@@ -517,6 +535,7 @@
               <button type="button" role="menuitem" data-add="gain">Gain medium</button>
               <button type="button" role="menuitem" data-add="fibre">Fibre</button>
               <button type="button" role="menuitem" data-add="detector">Photodetector</button>
+              <button type="button" role="menuitem" data-add="link">Link plane (to another tab)</button>
             </div>
           </div>
         </div>
@@ -550,6 +569,7 @@
     <div class="rt-grid">
       <div class="rt-stage" id="stage">
         <canvas id="bench" tabindex="0" aria-label="Optical bench. Click an element to select it."></canvas>
+        <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
         <div class="rt-coords" id="coords"></div>
         <div class="rt-drop">Drop a .zmx or .jekray file</div>
         <div class="rt-toast" id="toast" role="status"></div>
@@ -632,7 +652,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -1139,7 +1159,7 @@ const deg = Math.PI / 180;
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
   cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
-  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium' };
+  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', link: 'Link plane' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
 const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
@@ -1307,6 +1327,7 @@ function normElementBase(e) {
     type: e.type,
     name: String(e.name || TYPE_LABEL[e.type] || 'Element'),
     x: num(e.x, 0), y: num(e.y, 0), angle: num(e.angle, 0),
+    bench: typeof e.bench === 'string' ? e.bench : null,     // the tab it is on (ensureBenches fills it in)
   };
   switch (e.type) {
     case 'source': {
@@ -1466,6 +1487,8 @@ function normElementBase(e) {
         od: clamp(num(e.od, 1), 0, 10), tmax: clamp(num(e.tmax, 95), 0, 100),
         reflect: e.reflect === true,
       });
+    case 'link':
+      return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), pair: String(e.pair || 'Link 1').slice(0, 60) });
     case 'gain':
       return Object.assign(base, {
         length: Math.max(0.1, num(e.length, 6)),
@@ -1524,6 +1547,12 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'filter', name: nextName('Filter'), x, y, angle: 0 });
     case 'gain':
       return normElement({ type: 'gain', name: nextName('Gain medium'), x, y, angle: 0 });
+    case 'link': {
+      // a new pair's name: the first "Link n" not in use
+      const used = new Set(project.elements.filter(e => e.type === 'link').map(e => e.pair));
+      let n = 1; while (used.has('Link ' + n)) n++;
+      return normElement({ type: 'link', name: nextName('Link plane'), x, y, angle: 0, length: 25, pair: 'Link ' + n });
+    }
   }
 }
 
@@ -1537,7 +1566,7 @@ function demoProject() {
     normElement({ type: 'mirror', name: 'Fold mirror', x: 25, y: 0, angle: 135, length: 25.4 }),
     normElement({ type: 'screen', name: 'Screen', x: 25, y: 26.2, angle: -90, length: 12 }),
   );
-  return p;
+  return ensureBenches(p);
 }
 
 function serialize() {
@@ -1548,6 +1577,7 @@ function serialize() {
     view: project.view, snap: project.snap, maxBounces: project.maxBounces, minPower: project.minPower, ghosts: project.ghosts,
     library: project.library || [],
     cavityLock: project.cavityLock || {},
+    benches: project.benches, tab: project.tab,
     elements: project.elements,
   };
 }
@@ -1573,15 +1603,124 @@ function loadProject(data) {
   };
   project = p;
   for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
+  if (Array.isArray(data.benches) && data.benches.length) {
+    const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
+    p.benches = data.benches.filter(b => b && typeof b.id === 'string').map((b, i) => ({ id: b.id, name: String(b.name || 'Bench ' + (i + 1)).slice(0, 40), view: vw(b.view) }));
+    p.tab = data.tab;
+  } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
+  ensureBenches(p);
   return p;
 }
 
 const getEl = id => project.elements.find(e => e.id === id);
 const selected = () => selectedId ? getEl(selectedId) : null;
 
+/* ---------- Tabs: benches of their own ----------
+   A project holds one or more benches, each on a tab with its own view; every element is on
+   one of them. They are traced as one scene: a ray keeps to the bench it is on, and a link
+   plane hands it to its partner on another (see the tracer). project.view is always the
+   view of the tab on show. */
+function ensureBenches(p) {
+  if (!Array.isArray(p.benches) || !p.benches.length) p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view || { cx: 0, cy: 0, scale: 4 } }];
+  const ids = new Set(p.benches.map(b => b.id));
+  if (!ids.has(p.tab)) p.tab = p.benches[0].id;
+  for (const e of p.elements) if (!ids.has(e.bench)) e.bench = p.benches[0].id;
+  p.view = p.benches.find(b => b.id === p.tab).view;
+  return p;
+}
+const curBench = () => project.benches.find(b => b.id === project.tab) || project.benches[0];
+const onTab = el => el.bench === project.tab;
+const benchName = id => { const b = project.benches.find(b2 => b2.id === id); return b ? b.name : '?'; };
+function switchTab(id) {
+  if (!project.benches.some(b => b.id === id)) return;
+  project.tab = id;
+  project.view = curBench().view;
+  const sel = selected();
+  if (sel && !onTab(sel)) selectedId = null;
+  renderBenchTabs(); renderPanel(); scheduleSave(); requestRender();
+}
+/* select an element, going to its tab first */
+function selectEl(el) {
+  if (!el) return;
+  if (!onTab(el)) switchTab(el.bench);
+  selectedId = el.id; renderPanel(); requestRender();
+}
+function addBench() {
+  checkpoint();
+  let n = project.benches.length + 1;
+  while (project.benches.some(b => b.name === 'Bench ' + n)) n++;
+  let k = n; while (project.benches.some(b => b.id === 'b' + k)) k++;
+  project.benches.push({ id: 'b' + k, name: 'Bench ' + n, view: { cx: 0, cy: 0, scale: 4 } });
+  switchTab('b' + k);
+  changed(true);
+}
+function removeBench(id) {
+  if (project.benches.length < 2) return;
+  const els = project.elements.filter(e => e.bench === id);
+  if (els.length && !confirm('Delete ' + benchName(id) + ' and the ' + els.length + ' element' + (els.length === 1 ? '' : 's') + ' on it?')) return;
+  checkpoint();
+  for (const e of els) stopSweepsFor(e);
+  project.elements = project.elements.filter(e => e.bench !== id);
+  project.benches = project.benches.filter(b => b.id !== id);
+  if (project.tab === id) switchTab(project.benches[0].id);
+  changed(true);
+}
+/* link planes by pair name, in bench order: the first two of a name are partners */
+function linkPairs() {
+  const m = new Map();
+  for (const e of project.elements) if (e.type === 'link') { if (!m.has(e.pair)) m.set(e.pair, []); m.get(e.pair).push(e); }
+  return m;
+}
+function linkPartner(el) {
+  const L = linkPairs().get(el.pair) || [];
+  const i = L.indexOf(el);
+  return i === 0 && L.length > 1 ? L[1] : i === 1 ? L[0] : null;
+}
+function renderBenchTabs() {
+  const box = document.getElementById('benchTabs');
+  if (!box) return;
+  box.replaceChildren();
+  for (const b of project.benches) {
+    const btn = h('button', { type: 'button', role: 'tab', class: b.id === project.tab ? 'on' : '', 'aria-selected': b.id === project.tab ? 'true' : 'false',
+      title: b.id === project.tab ? 'Double-click to rename' : 'Show ' + b.name }, b.name);
+    btn.addEventListener('click', e => { if (e.target.classList.contains('x')) return; if (b.id !== project.tab) switchTab(b.id); });
+    btn.addEventListener('dblclick', () => {
+      const inp = h('input', { type: 'text', value: b.name, 'aria-label': 'Tab name' });
+      let over = false;                    // Enter, then the blur as the field goes: once only
+      const done = ok => {
+        if (over) return;
+        over = true;
+        const v = inp.value.trim().slice(0, 40);
+        if (ok && v && v !== b.name) { checkpoint(); b.name = v; changed(true); }
+        renderBenchTabs();
+      };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); e.stopPropagation(); });
+      inp.addEventListener('blur', () => done(true));
+      btn.replaceWith(inp); inp.focus(); inp.select();
+    });
+    if (b.id === project.tab && project.benches.length > 1) {
+      const x = h('span', { class: 'x', title: 'Delete this tab', 'aria-label': 'Delete ' + b.name }, '\u00d7');
+      x.addEventListener('click', () => removeBench(b.id));
+      btn.append(x);
+    }
+    box.append(btn);
+  }
+  const add = h('button', { type: 'button', class: 'add', title: 'A new tab: a bench of its own, joined to the others by link planes' }, '+');
+  add.addEventListener('click', addBench);
+  box.append(add);
+}
+
 /* History */
+const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })) });
+function restore(str) {
+  const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
+  project.elements = S.e;
+  project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
+  ensureBenches(project);
+  renderBenchTabs();
+}
 function checkpoint() {
-  history.push(JSON.stringify(project.elements));
+  history.push(snapshot());
   if (history.length > 150) history.shift();
   future = [];
   updateUndoButtons();
@@ -1589,16 +1728,16 @@ function checkpoint() {
 function undo() {
   if (!history.length) return;
   pauseAll();
-  future.push(JSON.stringify(project.elements));
-  project.elements = JSON.parse(history.pop());
+  future.push(snapshot());
+  restore(history.pop());
   if (selectedId && !getEl(selectedId)) selectedId = null;
   changed(true);
 }
 function redo() {
   if (!future.length) return;
   pauseAll();
-  history.push(JSON.stringify(project.elements));
-  project.elements = JSON.parse(future.pop());
+  history.push(snapshot());
+  restore(future.pop());
   if (selectedId && !getEl(selectedId)) selectedId = null;
   changed(true);
 }
@@ -1805,6 +1944,7 @@ function elementSurfaces(el) {
   if (el.type === 'faraday' || el.type === 'isolator') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'filter') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'filter' })];
   if (el.type === 'gain') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'gain' })];
+  if (el.type === 'link') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'link' })];
   if (el.type === 'stop') {
     return stopBlades(el).map(([lo, hi]) => makeSurf(el, 0, 0, 0, 0, [], (hi - lo) / 2,
       { kind: 'absorb', lf: { x: 0, y: (lo + hi) / 2, a: 0 } }));
@@ -2231,12 +2371,19 @@ function sourceLines(src) {
 }
 
 function traceScene() {
-  const surfs = [], segs = [];
+  ensureBenches(project);
+  // each bench's surfaces on their own: a ray meets only those of the bench it is on
+  const surfsBy = new Map(), segsBy = new Map(), NONE = [];
+  for (const b of project.benches) { surfsBy.set(b.id, []); segsBy.set(b.id, []); }
+  // link planes and their partners: the first two sharing a pair name
+  const linkTo = new Map(), linkSurf = new Map();
   for (const el of project.elements) {
     if (el.type === 'source') continue;
+    const surfs = surfsBy.get(el.bench), segs = segsBy.get(el.bench);
     const f = frame(el);
     const ss = elementSurfaces(el);
     for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; surfs.push(s); }
+    if (el.type === 'link') linkSurf.set(el.id, ss[0]);
     if (el.type === 'lens') for (const sg of lensEdges(el, ss)) segs.push({ f, sg });
     // The whole plane of a stop, seen only by the beam-parameter ray. That ray is a
     // reference, not light: it passes the blades, and the stop becomes a mask on the field,
@@ -2245,6 +2392,10 @@ function traceScene() {
       const ir = makeSurf(el, 0, 0, 0, 0, [], el.outer / 2, { kind: 'iris' });
       ir.f = f; ir.maskMargin = stopMargin(el); surfs.push(ir);
     }
+  }
+  for (const L of linkPairs().values()) if (L.length >= 2) {
+    linkTo.set(L[0].id, { el: L[1], s: linkSurf.get(L[1].id) });
+    linkTo.set(L[1].id, { el: L[0], s: linkSurf.get(L[0].id) });
   }
 
   statsCache.clear();
@@ -2289,7 +2440,7 @@ function traceScene() {
           dx: Math.cos(a), dy: Math.sin(a),
           sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA,
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: launch + ':' + wi + ':' + states.indexOf(st), k: i, path: '' });
+          fam: launch + ':' + wi + ':' + states.indexOf(st), k: i, path: '', bn: src.bench });
       }
     }
     if (src === probeSrc) {
@@ -2302,7 +2453,7 @@ function traceScene() {
           dx: ca0, dy: sa0, sr: 1, si: 0, pr: 0, pi: 0,
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0,
           id: src.id + ':probe' + hgt, fam: 'probe', k: 0, path: '',
-          probe: true, chief: true, probeH: hgt, qr: 0, qi: 1e9 });
+          probe: true, chief: true, probeH: hgt, qr: 0, qi: 1e9, bn: src.bench });
       }
     }
     // One extra ray down the axis per polarisation state carries the beam parameter q; it is
@@ -2316,11 +2467,11 @@ function traceScene() {
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
         sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA, bounce: 0, last: null, opl: 0, nCur: 1,
         id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
-        bid: -1, evt: null, fan: !src.gauss, pol: si0 });
+        bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench });
     });
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn } = stack.pop();
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
       par = par || 0;                   // how many reflections so far, mod 2: the sense of p
@@ -2332,6 +2483,7 @@ function traceScene() {
       for (; bounce < maxB; bounce++) {
         if (--budget < 0) { truncated = true; break; }
         let best = Infinity, hit = null, hitSeg = false;
+        const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         for (const s of surfs) {
           if (s.kind === 'iris' && !isQ) continue;
           if (isQ && s.kind === 'absorb' && s.el.type === 'stop') continue;   // the iris stands in for them
@@ -2349,13 +2501,13 @@ function traceScene() {
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
-            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl });
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
           beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl },
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn },
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
         }
@@ -2386,6 +2538,21 @@ function traceScene() {
         const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false });
         const passEv = () => withSurf({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A: 1, C: 0, D: 1,
           n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+        if (s.kind === 'link') {
+          // A link plane and its partner are one plane seen from two benches: the light leaves
+          // the partner where it met this one, in the same direction against it. To the beam
+          // it is nothing at all, so its field carries on unchanged.
+          const P = linkTo.get(s.el.id);
+          if (!P || !P.s) { if (!chief) blocked[s.el.id] = (blocked[s.el.id] || 0) + w; break; }
+          if (!chief) rays.push({ pts: pts.slice(), colour, w, bench: bn });
+          [px, py] = toWorld(P.s.f, lx, ly);
+          [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
+          bn = P.el.bench;
+          pts.length = 0; pts.push(px, py);
+          if (isQ) evt = passEv();
+          last = P.s;
+          continue;
+        }
         if (s.kind === 'iris') {
           const m = s.el;
           evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2,
@@ -2495,7 +2662,7 @@ function traceScene() {
             const A = Math.abs(tx) / (cIn || 1);
             const ev = isQ ? withSurf({ el: el.id, kind: 'grating', semi: s.semi, ly, cth: cIn || 1, A, C: 0, D: 1 / A,
               n1: nCur, n2: nCur, mode: refl ? 'R' : 'T', order: o.m, hx: px, hy: py, dIn: [dx, dy], dOut: [odx, ody] }) : null;
-            stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a,
+            stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a, bn,
               bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
               qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam, k, path: path + 'g' + o.m + '.' + bounce,
               probe, probeH, tag, wk: 0 });
@@ -2527,13 +2694,13 @@ function traceScene() {
           if (wr > 0 && !probe) {
             if (wr >= minW && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
-              stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi,
+              stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn,
                 bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
                 fam, k, path: path + 'r' + bounce, tag, wk: 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), colour, w });
+              rays.push({ pts: pts.slice(), colour, w, bench: bn });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -2604,7 +2771,7 @@ function traceScene() {
           const mInto = goingBack ? s.back : s.front;
           if (mInto.bire && !tag && !probe && ws > 1e-12 * w && wp > 1e-12 * w) {
             const back = 1e-5;
-            stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null,
+            stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null, bn,
               opl: opl - nCur * back, nCur, aCur, id, chief, fan, pol, par, qr: chief ? qr - back : qr, qi, bid,
               evt: isQ ? passEv() : evt, fam, k: rayK, path: path + 'e', tag: 'p', wk: 0 });
             pr = 0; pi = 0; wp = 0; w = ws;
@@ -2703,7 +2870,7 @@ function traceScene() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, colour, w });
+      if (!chief) rays.push({ pts, colour, w, bench: bn });
     }
     }
   }
@@ -3010,7 +3177,7 @@ function drawBeams(fieldShown) {
   if (!B || !B.length) return;
   ctx.save();
   for (const seg of B) {
-    if (seg.fan || seg.pol) continue;       // a ray fan's pilot is not a beam; one envelope per beam
+    if (seg.fan || seg.pol || seg.bench !== project.tab) continue;       // a ray fan's pilot is not a beam; one envelope per beam
     if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
     const outline = fieldShown && fieldShown.has(seg.src);   // the field is drawn: just mark 1/e²
     const nxp = -seg.dy, nyp = seg.dx;
@@ -3059,6 +3226,7 @@ function drawRays() {
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
   for (const r of lastTrace.rays) {
+    if (r.bench !== project.tab) continue;
     const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5)));
     const key = r.colour + '|' + lvl;
     if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, rays: [] });
@@ -3107,6 +3275,7 @@ function drawLabels() {
   ctx.font = '11px ' + getCss('--jek-sans');
   ctx.textAlign = 'center';
   for (const el of project.elements) {
+    if (!onTab(el)) continue;
     const r = el.type === 'source' ? 14 : halfSize(el) * V().scale;
     const a = el.angle * deg;
     // place the label below the element, whichever way it's rotated
@@ -3114,6 +3283,12 @@ function drawLabels() {
     const X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6) + 14 + (el.type === 'lens' ? 4 : 0);
     ctx.fillStyle = el.id === selectedId ? '#ffffff' : 'rgba(255,255,255,0.5)';
     if (ex >= 0) ctx.fillText(el.name, X, Y);
+    if (el.type === 'link') {                 // where it leads
+      const P = linkPartner(el);
+      ctx.fillStyle = P ? '#7fdcff' : 'rgba(127,220,255,0.55)';
+      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    }
   }
 }
 
@@ -3174,8 +3349,8 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, source: 3 };
-  const els = project.elements.slice().sort((a, b) => order[a.type] - order[b.type]);
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, link: 2, source: 3 };
+  const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type !== 'source') draw(el);
   drawRays();
   closeupOn = drawCloseup();
@@ -3251,6 +3426,17 @@ function drawJones(el, sel) {
   ctx.lineWidth = 2; ctx.stroke();
 }
 /* A thin plate seen edge-on: the shared look of the newer thin elements */
+/* A link plane: a dashed line, with where it leads */
+function drawLink(el, sel) {
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, P = linkPartner(el);
+  const col = P ? '#7fdcff' : 'rgba(127,220,255,0.45)';
+  pathLocal(f, [[0, -L], [0, L]]);
+  ctx.setLineDash([6, 4]); ctx.strokeStyle = sel ? '#ffffff' : col; ctx.lineWidth = sel ? 3 : 2.2; ctx.stroke(); ctx.setLineDash([]);
+  // end caps
+  ctx.beginPath();
+  for (const y of [-L, L]) { const [ax, ay] = toWorld(f, -4 * k, y), [bx, by] = toWorld(f, 4 * k, y); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); }
+  ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
+}
 function drawPlate(el, sel, stroke, fill, half) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
@@ -3332,6 +3518,7 @@ function draw(el) {
   if (el.type === 'crystal') return drawCrystal(el, sel);
   if (el.type === 'filter') { const c = filterColour(el); drawPlate(el, sel, c, c + '33'); return; }
   if (el.type === 'gain') { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2.2); return; }
+  if (el.type === 'link') { drawLink(el, sel); return; }
   if (el.type === 'faraday' || el.type === 'isolator') {
     const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
     drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
@@ -3355,8 +3542,8 @@ function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
-  const els = project.elements.slice().sort((a, b) => order[a.type] - order[b.type]);
+    filter: 1, gain: 1, link: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
+  const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
@@ -3379,7 +3566,7 @@ function hitTest(px, py) {
       if (lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol) return el;
       continue;
     }
-    if (['grating', 'faraday', 'isolator', 'filter', 'gain'].includes(el.type)) {
+    if (['grating', 'faraday', 'isolator', 'filter', 'gain', 'link'].includes(el.type)) {
       if (lx <= tol + 0.4 && lx >= -(el.type === 'grating' && el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4) - tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
     }
@@ -4707,7 +4894,7 @@ function renderPanelBody(el) {
     onclick: () => togglePin(el) });
   pinBtn.innerHTML = PIN_SVG;
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)), pinBtn);
-  if (panel !== mainPanel) title.addEventListener('click', e => { if (e.target.closest('.rt-pin')) return; selectedId = el.id; requestRender(); renderPanel(); });
+  if (panel !== mainPanel) title.addEventListener('click', e => { if (e.target.closest('.rt-pin')) return; selectEl(el); });
   panel.append(title);
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
@@ -4716,8 +4903,12 @@ function renderPanelBody(el) {
     param('Y (mm)', el, 'y'),
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
-      faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)',
+      link: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
   );
+  // with more than one tab: which one it is on (moving it takes it there, the view with it)
+  if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
+    v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));
   panel.append(rows);
 
   if (el.type === 'source') sourcePanel(el);
@@ -4736,6 +4927,7 @@ function renderPanelBody(el) {
   if (el.type === 'crystal') crystalPanel(el);
   if (el.type === 'filter') filterPanel(el);
   if (el.type === 'gain') gainPanel(el);
+  if (el.type === 'link') linkPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -5373,6 +5565,42 @@ function filterPanel(el) {
   rf.addEventListener('change', () => { checkpoint(); el.reflect = rf.checked; changed(false); });
   panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, rf, 'Reflect what it blocks (a dichroic)'));
   panel.append(readoutBox('filter'));
+}
+function linkPanel(el) {
+  panel.append(h('h3', null, 'Link'));
+  panel.append(h('div', { class: 'rt-rows' },
+    textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }),
+    param('Length (mm)', el, 'length')));
+  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+  const acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
+  panel.append(st, acts);
+  let sig = null;
+  bindSync(st, () => {
+    const P = linkPartner(el), L = linkPairs().get(el.pair) || [];
+    st.textContent = P ? 'Linked to ' + P.name + ' on ' + benchName(P.bench) + '. The two are one plane seen from two benches: light reaching either leaves the other at the same place along it, going the same way across it, beam and field unchanged.'
+      : L.indexOf(el) > 1 ? 'More than two link planes are named \u201c' + el.pair + '\u201d; only the first two are linked, so light stops here.'
+      : 'No partner yet, so light stops here. Give a link plane on another tab the same pair name, or make one below.';
+    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
+    if (s2 === sig) return;
+    sig = s2;
+    acts.replaceChildren();
+    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
+    else {
+      for (const b of project.benches) if (b.id !== el.bench)
+        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makeLinkPartner(el, b.id) }, 'Make its partner on ' + b.name));
+      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makeLinkPartner(el, null) }, 'Make its partner on a new tab'));
+    }
+  });
+}
+/* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
+function makeLinkPartner(el, benchId) {
+  if (!benchId) { addBench(); benchId = project.tab; }
+  checkpoint();
+  const b = project.benches.find(b2 => b2.id === benchId);
+  const c = normElement({ type: 'link', name: nextName('Link plane'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle, length: el.length, pair: el.pair, bench: benchId });
+  project.elements.push(c);
+  selectEl(c);
+  changed(true);
 }
 function gainPanel(el) {
   panel.append(h('h3', null, 'Gain medium'));
@@ -6215,11 +6443,17 @@ function renderOverview() {
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
       grating: '#c9a6ff', crystal: '#b79bff', fibre: '#f2c14e', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
-      filter: '#9aa4ab', gain: '#ff6a3d' };
-    for (const el of project.elements) {
-      list.append(h('li', null, h('button', { onclick: () => { selectedId = el.id; renderPanel(); requestRender(); } },
-        h('span', { class: 'swatch', style: 'background:' + (col[el.type] || el.colour) }),
-        el.name, h('span', { class: 't' }, typeLabel(el)))));
+      filter: '#9aa4ab', gain: '#ff6a3d', link: '#7fdcff' };
+    // this tab's first, then the others', each under its name when there are several
+    const multi = project.benches.length > 1;
+    for (const b of [curBench(), ...project.benches.filter(b2 => b2 !== curBench())]) {
+      const mine = project.elements.filter(e => e.bench === b.id);
+      if (multi) list.append(h('li', { class: 'tabhead' }, b.name + (b === curBench() ? ' (on show)' : '')));
+      for (const el of mine) {
+        list.append(h('li', null, h('button', { onclick: () => selectEl(el) },
+          h('span', { class: 'swatch', style: 'background:' + (col[el.type] || el.colour) }),
+          el.name, h('span', { class: 't' }, typeLabel(el)))));
+      }
     }
     panel.append(list);
   } else {
@@ -6247,6 +6481,7 @@ function renderOverview() {
   panel.append(h('ul', { class: 'rt-keys' },
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
+    h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane (under More) and its partner on another tab carry light between them.'),
     h('li', null, 'Drag empty space to pan. Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
     h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
     h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
@@ -8733,7 +8968,7 @@ function popGroups(segs) {
   const w = segs.map(wAt);
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
     const a = segs[i].b, b = segs[j].b;
-    if (segs[i].coh !== segs[j].coh) continue;
+    if (segs[i].coh !== segs[j].coh || a.bench !== b.bench) continue;
     if (a.dx * b.dx + a.dy * b.dy < Math.cos(POP_GROUP_ANGLE)) continue;
     const ox = b.x0 - a.x0, oy = b.y0 - a.y0;
     const side = Math.abs(-a.dy * ox + a.dx * oy), along = Math.abs(a.dx * ox + a.dy * oy);
@@ -8827,10 +9062,11 @@ let closeupOn = false;
 
 /* The segments of a field run that reach a window centred at (cx, cy) with half-size hw,
    each prepared with three cuts */
-function closeupPrep(segs, cx, cy, hw) {
+function closeupPrep(segs, cx, cy, hw, tab) {
   const out = [];
   for (const sg of segs) {
     const b = sg.b, exx = -b.dy, exy = b.dx;
+    if (tab && b.bench !== tab) continue;
     const rx = cx - b.x0, ry = cy - b.y0;
     const tc = rx * b.dx + ry * b.dy, xc = rx * exx + ry * exy;
     if (tc < -hw * 1.5 || tc > b.len + hw * 1.5) continue;
@@ -8937,7 +9173,7 @@ function drawCloseup() {
   if (!srcs.length) return false;
   const key = popKeyOf(lastTrace.beams, srcs);
   if (key !== popState.key || !popState.result) { schedulePop(); return false; }
-  const vkey = key.length + '|' + key.slice(0, 64) + '|' + [V().cx, V().cy, s, W, H].join(',');
+  const vkey = key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, s, W, H].join(',');
   if (closeState.key !== vkey && closeState.asked !== vkey) {
     closeState.asked = vkey;
     closeupCompute(vkey, srcs, 2 * CLOSEUP_STEP);
@@ -8965,7 +9201,7 @@ function drawCloseup() {
   return true;
 }
 function closeupCompute(vkey, srcs, step) {
-  const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H }, log = srcs.some(e => e.beamScale === 'log');
+  const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab }, log = srcs.some(e => e.beamScale === 'log');
   const done = r => {
     const cv = mkCanvas(r.img.width, r.img.height);
     cv.getContext('2d').putImageData(r.img, 0, 0);
@@ -8991,7 +9227,7 @@ function closeupCompute(vkey, srcs, step) {
 function closeupImage(segs, view, step, log) {
   const s = view.s, W = view.W, H = view.H, hw = 0.5 * Math.hypot(W, H) / s;
   const wx = px => view.cx + (px - W / 2) / s, wy = py => view.cy - (py - H / 2) / s;
-  const parts = closeupPrep(segs, view.cx, view.cy, hw);
+  const parts = closeupPrep(segs, view.cx, view.cy, hw, view.tab);
   // launches in a fixed order (closeupLaunches), so each pixel adds into plain arrays
   const nL = parts.cols.length, acc = new Float64Array(nL * 6);
   const probe = mkCanvas(1, 1).getContext('2d');
@@ -9236,7 +9472,7 @@ function drawPop() {
   ctx.imageSmoothingEnabled = true;
   for (const sg of R.segs) {
     const D = sg.draw, b = sg.b;
-    if (!D) continue;
+    if (!D || b.bench !== project.tab) continue;
     const nx = -b.dy, ny = b.dx;
     ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     ctx.globalAlpha = 0.95 * D.alpha;
@@ -10068,6 +10304,7 @@ function addElement(kind) {
   const n = project.elements.length;
   const off = (n % 5) * 4;
   const el = makeElement(kind, snapVal(V().cx + off), snapVal(V().cy - off));
+  el.bench = project.tab;
   project.elements.push(el);
   selectedId = el.id;
   changed(true);
@@ -10090,7 +10327,7 @@ function removeEl(el) {
 }
 
 function fitView() {
-  const els = project.elements;
+  const els = project.elements.filter(onTab);
   if (!els.length) { Object.assign(V(), { cx: 0, cy: 0, scale: 4 }); requestRender(); return; }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const e of els) {
@@ -10208,6 +10445,7 @@ function openJekray(file) {
       playing.clear(); updateSweepButtons();
       history = []; future = []; selectedId = null;
       document.getElementById('projName').value = project.name;
+      renderBenchTabs();
       changed(true);
       toast('Opened ' + file.name);
     } catch (err) {
@@ -10442,6 +10680,7 @@ function importZmx(file) {
       const props = zmxToElement(Z, file.name, mode);
       checkpoint();
       const el = normElement(props);
+      el.bench = project.tab;
       project.elements.push(el);
       selectedId = el.id;
       changed(true);
@@ -10538,6 +10777,7 @@ async function openDemo(name) {
     playing.clear(); updateSweepButtons();
     history = []; future = []; selectedId = null;
     document.getElementById('projName').value = project.name;
+    renderBenchTabs();
     changed(true);
     fitView();
     toast('Opened ' + project.name);
@@ -10736,6 +10976,8 @@ function newProject() {
   pauseAll();
   checkpoint();
   project.elements = [];
+  project.benches = [{ id: 'b1', name: 'Bench 1', view: project.view }]; project.tab = 'b1';
+  ensureBenches(project); renderBenchTabs();
   project.name = 'Untitled bench';
   document.getElementById('projName').value = project.name;
   selectedId = null;
@@ -10808,7 +11050,7 @@ function fieldWorker() {
   return FW.w;
 }
 /* the bench as the worker needs it: what is saved, less the view and the time */
-function fwProject() { const d = serialize(); d.saved = ''; d.view = null; return JSON.stringify(d); }
+function fwProject() { const d = serialize(); d.saved = ''; d.view = null; d.tab = null; d.benches = d.benches.map(b => ({ id: b.id, name: b.name })); return JSON.stringify(d); }
 /* Asks the worker for a job; resolves with its answer, or null if it was replaced or
    abandoned, and rejects if the worker failed (the caller then does it on the page) */
 function fwRequest(kind, slot, args) {
@@ -10952,6 +11194,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   } catch (err) { project = null; }
   if (!project) demoProject();
   nameInput.value = project.name;
+  renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   renderPanel();
   updateUndoButtons();
@@ -10961,9 +11204,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // Hook for the regression suite. Reading only; it drives a throwaway copy of
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray2D = {
-    load(data) { loadProject(data); selectedId = null; history = []; future = []; renderPanel(); traceScene(); },
+    load(data) { loadProject(data); selectedId = null; history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     trace: traceScene,
     serialize,
+    benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
+    showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) switchTab(b.id); return project.tab; },
+    addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them
     worker() { return { on: !!FW.w, failed: FW.failed, busy: FW.busy ? FW.busy.kind : null, queued: FW.queue.map(j => j.kind), sent: FW.seq }; },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },

@@ -441,6 +441,18 @@
     color: var(--jek-ink);
   }
 
+  a.rt-btn { text-decoration: none; display: inline-flex; align-items: center; }
+  .rt-menu .rt-menulink { padding: 0.45rem 0.65rem; border-radius: 4px; font-size: 0.875rem; color: var(--jek-ink); text-decoration: none; }
+  .rt-menu .rt-menulink:hover, .rt-menu .rt-menulink:focus-visible { background: var(--jek-well); outline: none; }
+  .rt-aihint { font-size: 0.85rem; color: var(--jek-ink-soft); text-align: left; margin: 0 0 0.8rem; }
+  .rt-report { max-height: 50vh; overflow: auto; margin: 0 0 0.8rem; padding-left: 1.2rem; font-size: 0.85rem; line-height: 1.45; text-align: left; }
+  .rt-report li + li { margin-top: 0.25rem; }
+  .rt-report b { font-weight: 600; }
+  .rt-error { color: #c0392b; font-size: 0.85rem; }
+  dialog.rt-dialog #pasteText { width: 100%; font-family: var(--jek-mono); font-size: 0.8rem; }
+  .rt-notes { width: 100%; box-sizing: border-box; min-height: 4.5rem; resize: vertical; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.55rem;
+    border: 1px solid var(--jek-line); border-radius: 4px; background: var(--jek-panel); color: var(--jek-ink); }
+  .rt-notes:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
   .rt-welcome { text-align: left; }
   .rt-keycols { columns: 2 22rem; column-gap: 1.6rem; }
@@ -558,9 +570,12 @@
               <button type="button" role="menuitem" data-demo="plano-convex">Plano-convex lens, both ways round</button>
               <button type="button" role="menuitem" data-demo="tight-focus">A tight focus, vector</button>
               <button type="button" role="menuitem" data-demo="maltese-cross">Maltese cross</button>
+              <div class="sep"></div>
+              <a role="menuitem" class="rt-menulink" href="jekray2d-ai-guide.md" download>Build with an AI assistant: get the guide</a>
             </div>
           </div>
           <button class="rt-btn" id="btnOpen">Open .jekray</button>
+          <button class="rt-btn" id="btnPasteProj" title="Open a project from its text, such as one an AI assistant wrote (or press Ctrl+V on the bench)">Paste text</button>
           <button class="rt-btn primary" id="btnSave">Save .jekray</button>
           <button class="rt-btn" id="btnNew">New</button>
         </div>
@@ -702,7 +717,30 @@
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
     <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-keys"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-keys"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-keys"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-keys"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-keys"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-keys"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray2d-ai-guide.md" download>the JEKray2D guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Paste text</b> or Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="pasteDialog" aria-labelledby="pasteTitle">
+    <h2 id="pasteTitle">Open a project from its text</h2>
+    <p>Paste the contents of a .jekray file, for example one an AI assistant wrote for you. Code fences, comments and trailing commas are fine. <a href="jekray2d-ai-guide.md" download>Get the AI guide</a> to give it first.</p>
+    <textarea id="pasteText" rows="12" spellcheck="false" placeholder='{ "format": "jekray", "version": 1, "name": "…", "elements": [ … ] }'></textarea>
+    <p class="rt-error" id="pasteError" hidden></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="pasteCancel">Cancel</button>
+      <button class="rt-btn primary" id="pasteOpen">Open</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="importDialog" aria-labelledby="importTitle">
+    <h2 id="importTitle">Opened, with changes</h2>
+    <p>Some of what the file asked for could not be used as written. This is what was done instead: check it, or copy the report back to whoever (or whatever) wrote the file so they can fix it.</p>
+    <ul class="rt-report" id="importList"></ul>
+    <div class="rt-actions">
+      <a class="rt-btn" href="jekray2d-ai-guide.md" download>AI guide</a>
+      <button class="rt-btn" id="importCopy">Copy report</button>
+      <button class="rt-btn primary" id="importClose">Close</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog" id="newDialog">
@@ -1726,6 +1764,7 @@ function serialize() {
     elements: project.elements,
     fibres: project.fibres || [],
     measures: project.measures || [],
+    notes: project.notes || '',
   };
 }
 
@@ -1758,6 +1797,7 @@ function loadProject(data) {
   ensureBenches(p);
   p.fibres = normFibres(data.fibres, p.elements);
   p.measures = normMeasures(data.measures, p.benches);
+  p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   return p;
 }
 /* Rulers and angles left on the bench: points, and for those on a beam its direction there */
@@ -7821,6 +7861,15 @@ function renderOverview() {
     panel.append(h('p', null, 'The bench is empty. Add a source and a few elements from the toolbar, or import a lens from a .zmx file.'));
   }
 
+  // what the bench is, where it came from, what was assumed: the author's, or an assistant's
+  const notes = h('textarea', { class: 'rt-notes', id: 'rtf' + (++fid), rows: '3', spellcheck: 'true',
+    placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
+  notes.value = project.notes || '';
+  const fitH = () => { notes.style.height = 'auto'; notes.style.height = Math.min(320, notes.scrollHeight + 2) + 'px'; };
+  notes.addEventListener('input', () => { project.notes = notes.value.slice(0, 20000); fitH(); scheduleSave(); });
+  requestAnimationFrame(fitH);
+  panel.append(h('h3', null, h('label', { for: notes.id }, 'Notes')), notes);
+
   const limId = 'rtf' + (++fid);
   const lim = numInput(limId, () => project.maxBounces, v => { project.maxBounces = Math.round(clamp(v, 1, 100000)); });
   const floorId = 'rtf' + (++fid);
@@ -11941,8 +11990,14 @@ document.addEventListener('paste', e => {
   clipKey = null;
   let clip = null;
   try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
-  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteClip(clip); }
-  else if (clipMem && !e.clipboardData.getData('text/plain')) pasteClip(clipMem);
+  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteClip(clip); return; }
+  // a whole project, as an assistant writes it: fences and all
+  const text = e.clipboardData.getData('text/plain');
+  if (!clip && /"elements"\s*:/.test(text)) { try { clip = parseProjectText(text); } catch (err) { toast('That looks like a project but ' + err.message.replace(/^The/, 'the'), true); e.preventDefault(); return; } }
+  if (clip && Array.isArray(clip.elements) && clip.format !== 'jekray-clip') {
+    e.preventDefault();
+    try { openProjectData(clip, 'the pasted project'); } catch (err) { toast(err.message, true); }
+  } else if (clipMem && !text) pasteClip(clipMem);
 });
 
 /* ---------- The right-click menu ---------- */
@@ -12589,24 +12644,428 @@ function exportScreen(el) {
   downloadFile(name, new Blob([L.join('\n')], { type: 'text/csv' }));
   toast('Saved ' + name);
 }
+/* ==========================================================================
+   The guide for AI assistants
+   A Markdown file that teaches an assistant the .jekray format well enough to write one.
+   The reference half is built from the tool's own tables (every type, field, default,
+   glass and fibre component), so it cannot drift from what the tool reads; the prose and
+   the field notes below are kept by hand, and the regression suite checks that every
+   field the tool has is described here.
+   ========================================================================== */
+const AI_GUIDE_EXAMPLES = ['michelson', 'fabry-perot', 'pdh-lock', 'split-laser'];
+const AI_ANGLE = {
+  source: 'the direction the light leaves in (0 = travelling +x).',
+  mirror: 'the direction its reflecting face points (its normal, towards the light it reflects).',
+  screen: 'the direction its face points: towards the light it records.',
+  detector: 'the direction its face points: towards the light.',
+  fibre: 'the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.',
+  lens: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
+  cube: 'turns its internal diagonal. At 0 the diagonal runs like "/": light travelling +x reflects to +y, travelling −x reflects to −y, and it transmits straight on. At 90 the diagonal is "\\": +x reflects to −y.',
+  prism: 'rotates the prism about its centre; check the result on the bench.',
+  crystal: 'the direction of its entrance face’s normal (0 for light travelling ±x).',
+  grating: 'the direction its ruled face points (like a mirror for mode "reflect").',
+  stop: 'its normal: 0 for a beam travelling ±x (the blades then lie along y).',
+  waveplate: 'its normal: 0 for a beam travelling ±x.',
+  polariser: 'its normal: 0 for a beam travelling ±x.',
+  mask: 'its normal: 0 for a beam travelling ±x.',
+  filter: 'its normal: 0 for a beam travelling ±x.',
+  faraday: 'its normal, and the direction of its magnetic field: the sense of rotation depends on the direction of travel against it.',
+  isolator: 'its forward direction: light travelling along the angle passes, light travelling against it is blocked.',
+  gain: 'its normal: 0 for a beam travelling ±x.',
+  link: 'its normal. Light crossing one plane of a pair leaves its partner (on another tab) the same way relative to that plane.',
+  aom: 'its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.',
+  eom: 'its normal: 0 for a beam travelling ±x.',
+};
+const AI_WHAT = {
+  source: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
+  mirror: 'A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.',
+  lens: 'A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.',
+  screen: 'A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.',
+  stop: 'An aperture: iris, slit, double slit, slit comb, knife edge or beam block.',
+  cube: 'A beam-splitter cube: non-polarising ("npbs", reflect %) or polarising ("pbs", reflectS/reflectP %).',
+  prism: 'A glass prism or window.',
+  waveplate: 'A waveplate (retardance in waves).',
+  polariser: 'A linear polariser.',
+  mask: 'A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.',
+  grating: 'A diffraction grating, reflecting or transmitting.',
+  fibre: 'A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.',
+  detector: 'A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output.',
+  faraday: 'A Faraday rotator (non-reciprocal).',
+  isolator: 'An optical isolator (polariser, 45° Faraday rotator, polariser).',
+  crystal: 'A birefringent crystal: beam displacer, Wollaston prism or Glan–Taylor polariser.',
+  filter: 'A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).',
+  gain: 'A thin gain medium with a Lorentzian gain line, so a cavity shows whether it is above threshold.',
+  link: 'One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.',
+  aom: 'A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.',
+  eom: 'A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.',
+};
+/* each field: its meaning, units and limits, as the tool reads them */
+const AI_FIELDS = {
+  source: {
+    wavelength: 'nm, 100 to 20000.', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
+    divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
+    gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
+    m2: 'beam quality M² ≥ 1.', beamView: '"envelope" (outline of the beam) or "field" (the diffracted field, computed by physical optics).',
+    beamScale: '"lin" or "log" for the field view.', popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
+    traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
+    polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
+    coh: 'coherence length in mm; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
+    splitFrom: 'id of another source this one is split from (same laser, so they interfere); null for a laser of its own.',
+    splitPhase: 'degrees of phase against the source it is split from.', splitPath: 'mm of extra fibre before this launch, against the other.',
+    fibre: 'optional {"core": µm, "na": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself.',
+  },
+  mirror: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
+    R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
+    k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.' },
+  lens: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
+    gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
+    cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
+  screen: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
+    R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
+    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', mtfFreq: 'lp/mm at which the MTF is quoted.' },
+  stop: { shape: 'one of the stop shapes below.', aperture: 'mm: the opening (an iris’s diameter, a slit’s width).', outer: 'mm: the outer size (a beam block’s diameter).',
+    sep: 'mm: a double slit’s centre-to-centre separation.', pitch: 'mm: a slit comb’s pitch.', count: 'a comb’s number of slits, 2 to 400.',
+    offset: 'mm: the opening’s centre along the stop.', height: 'mm: a slit’s height out of the plane (0 unlimited).', side: '1 or −1: which side a knife edge covers.' },
+  cube: { size: 'mm edge length.', mode: '"npbs" or "pbs".', reflect: '% reflected, for "npbs".', reflectS: '% of s reflected, for "pbs".', reflectP: '% of p reflected, for "pbs".',
+    material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its outer faces (see Coatings).' },
+  prism: { shape: 'one of the prism shapes below.', size: 'mm.', thickness: 'mm (for a window).', material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
+  waveplate: { length: 'mm aperture.', retard: 'retardance in waves (0.25 quarter-wave, 0.5 half-wave, or any value).', axis: 'degrees: the fast axis from p.' },
+  polariser: { length: 'mm aperture.', axis: 'degrees: the transmission axis from p (0 passes p, 90 passes s).' },
+  mask: { length: 'mm aperture.', amp: 'amplitude transmission as a formula in x (mm along the mask), y (mm out of the plane), r, theta, lambda (mm) and pi; e.g. "1" or "circ(r/2)".',
+    delay: 'delay in waves as a formula in the same variables. An ideal lens of focal length f mm: "-(sqrt(r^2+f^2)-f)/lambda" (write f as a number).',
+    preset: 'leave "custom".' },
+  grating: { length: 'mm.', lpmm: 'lines per mm.', mode: '"reflect" or "transmit".', blaze: 'nm blaze wavelength.', eff: '% into the first order at the blaze.' },
+  fibre: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
+    emitView: '"envelope" or "field": how the light it sends out is shown.', emitRays: 'rays in the fan it sends out, 0 to 51.' },
+  detector: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
+    bandwidth: 'Hz.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
+    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
+  faraday: { length: 'mm aperture.', rotation: 'degrees of rotation.' },
+  isolator: { length: 'mm aperture.', axis: 'degrees: the input polariser from p.', extinction: 'dB, 0 to 80.' },
+  crystal: { shape: 'one of the crystal shapes below.', crystal: 'one of the crystals below.', size: 'mm aperture.', length: 'mm length along the beam.',
+    axisAngle: 'degrees: the optic axis from the normal, for a displacer.', wedge: 'degrees: the wedge angle, for Wollaston and Glan–Taylor.' },
+  filter: { length: 'mm aperture.', ftype: 'one of the filter types below.', edge: 'nm: the edge of a long- or short-pass.', slope: 'nm: the 10–90% width of the edge.',
+    centre: 'nm: a band-pass centre.', fwhm: 'nm: a band-pass width.', od: 'optical density of an "nd" filter: it transmits 10^−od.', tmax: '% peak transmission.',
+    reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.' },
+  gain: { length: 'mm along the beam.', g0: 'single-pass power gain at the line centre (×).', centre: 'nm line centre.', fwhm: 'nm line width.' },
+  link: { length: 'mm width.', pair: 'the pair’s name: exactly two link planes share it, one on each tab.' },
+  aom: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear).',
+    eff: '% into the order.', order: '+1 or −1.' },
+  eom: { length: 'mm aperture.', fm: 'MHz drive.', beta: 'modulation depth in radians.', emode: '"phase" (sidebands) or "amplitude".', bias: 'degrees, for "amplitude".', loss: 'dB insertion loss.' },
+};
+const AI_SKIP = new Set(['id', 'type', 'name', 'x', 'y', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked']);
+function aiDefaults(type) { return normElementBase({ type, name: 'x' }); }
+/* the fields of each type that the guide must describe: what the tool itself reads */
+function aiFieldsOf(type) {
+  const d = aiDefaults(type), keys = Object.keys(d).filter(k => !AI_SKIP.has(k));
+  if (type === 'source' && !keys.includes('fibre')) keys.push('fibre');
+  if (type === 'lens' && !keys.includes('cyl')) keys.push('cyl');
+  if (type === 'detector' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
+  return keys;
+}
+const mdCell = v => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+function aiReference() {
+  const L = [];
+  L.push('## Element reference', '',
+    'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '');
+  for (const t of Object.keys(TYPE_LABEL)) {
+    const d = aiDefaults(t), F = AI_FIELDS[t] || {};
+    L.push('### "' + t + '": ' + TYPE_LABEL[t], '', AI_WHAT[t] || '', '', '**angle:** ' + (AI_ANGLE[t] || ''), '', '| field | default | meaning |', '|---|---|---|');
+    for (const k of aiFieldsOf(t)) {
+      const j = JSON.stringify(d[k]);
+      const v = d[k] === undefined ? '(none)' : k === 'surfaces' ? 'two flat surfaces' : k === 'materials' ? '`[{"glass":"N-BK7"}]`' : j.length > 48 ? '(see meaning)' : '`' + j + '`';
+      L.push('| ' + k + ' | ' + mdCell(v) + ' | ' + mdCell(F[k] || '') + ' |');
+    }
+    L.push('');
+  }
+  L.push('## Fibre components ("type": "fcomp")', '',
+    'Fibre components sit on the bench like any element (x, y, angle, name, id) and are joined by fibres from port to port. Give "kind" and its parameters; each port takes one fibre. At angle 0 the ports on the left are inputs and those on the right outputs, numbered from 0 in the order listed.', '');
+  for (const k of FC_ORDER) {
+    const K = FC[k];
+    L.push('### kind "' + k + '": ' + K.label, '', '**ports:** ' + K.names.map((n, i) => i + ' = ' + n).join(', ') + (k === 'thru' ? '. Also "pair": a name shared by exactly two feedthroughs on different tabs, which then join as if by one fibre.' : ''), '');
+    if (K.params.length) {
+      L.push('| field | default | meaning |', '|---|---|---|');
+      for (const [p, label, def] of K.params) L.push('| ' + p + ' | `' + JSON.stringify(def) + '` | ' + mdCell(label) + ' |');
+      if (k === 'laser') L.push('| lineshape | `"lorentz"` | "lorentz" or "gauss" |');
+      if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
+      L.push('');
+    }
+  }
+  L.push('## Catalogues', '',
+    '**Glasses** ("material": {"glass": name}): ' + Object.keys(GLASS).join(', ') + '. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.', '',
+    '**Crystals** ("crystal"): ' + Object.entries(CRYSTALS).map(([k, c]) => '"' + k + '" (' + c.name + ')').join(', ') + '.', '',
+    '**Crystal shapes** ("shape" of a crystal): ' + Object.entries(CRYSTAL_SHAPES).map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',
+    '**Prism shapes**: ' + Object.entries(PRISM_SHAPES).map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',
+    '**Stop shapes**: ' + STOP_SHAPES.map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',
+    '**Filter types** ("ftype"): ' + Object.entries(FILTER_TYPES).map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',
+    '**Detector materials**: ' + Object.entries(DETECTOR_MATERIALS).map(([k, v]) => '"' + k + '" (' + v.name + ')').join(', ') + '.', '',
+    '**Coatings** ("coat", on lens surfaces, cubes and prisms): {"mode": "bare"} (Fresnel), {"mode": "ar", "R": 0.5} (% reflected), {"mode": "custom", "R": %}, {"mode": "band", "R": %, "lo": nm, "hi": nm} (coated over a band, bare outside), {"mode": "stack", "design": nm, "layers": [{"n": 1.38, "d": nm}, …]}.', '');
+  return L.join('\n');
+}
+/* an example as short as it can be: only what differs from the defaults, readable ids */
+function aiCompact(data) {
+  const d = JSON.parse(JSON.stringify(data)), ids = new Map(), used = new Set();
+  const slug = n => { let s = String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'el'; let t = s, i = 2; while (used.has(t)) t = s + '-' + i++; used.add(t); return t; };
+  d.elements.forEach((e, i) => { const k = slug(e.name); ids.set('#' + i, k); if (e.id) ids.set(e.id, k); });
+  const els = d.elements.map((e0, i) => {
+    const e = Object.assign(normElementBase(e0) || e0, { id: e0.id });
+    const def = e.type === 'fcomp' ? normElementBase({ type: 'fcomp', kind: e.kind, name: 'x' }) : normElementBase({ type: e.type, name: 'x' });
+    const o = { type: e.type };
+    if (e.kind) o.kind = e.kind;
+    o.id = ids.get('#' + i); o.name = e.name; o.x = e.x; o.y = e.y; o.angle = e.angle;
+    for (const [k, v] of Object.entries(e)) {
+      if (k in o || ['sweeps', 'colour', 'colourAuto', 'bench', 'absorb', 'retardCustom', 'source'].includes(k)) continue;
+      if (v === null || v === undefined) continue;
+      if (def && JSON.stringify(def[k]) === JSON.stringify(v) && !(e.type === 'lens' && ['surfaces', 'gaps', 'materials'].includes(k))) continue;
+      o[k] = k === 'splitFrom' ? ids.get(v) || v : v;
+    }
+    if (o.material && o.material.abs === 0) delete o.material.abs;
+    if (o.materials) o.materials = o.materials.map(m => { const q = Object.assign({}, m); if (q.abs === 0) delete q.abs; return q; });
+    if (o.surfaces) o.surfaces = o.surfaces.map(sf => { const q = {}; for (const [k, v] of Object.entries(sf)) if (!(k === 'k' && v === 0) && !(k === 'a2' && v === 0) && !(k === 'A' && !v.length) && v !== null && v !== undefined && !(k === 'coat' && v.mode === 'bare')) q[k] = v; if (!('R' in q)) q.R = null; return q; });
+    return o;
+  });
+  const out = { format: 'jekray', version: VERSION, name: d.name };
+  if (d.notes) out.notes = d.notes;
+  if (d.maxBounces && d.maxBounces !== 200) out.maxBounces = d.maxBounces;
+  if (d.minPower && d.minPower !== 0.1) out.minPower = d.minPower;
+  out.elements = els;
+  if (d.fibres && d.fibres.length) out.fibres = d.fibres.map(F => {
+    const o = { a: [ids.get(F.a[0]), F.a[1]], b: [ids.get(F.b[0]), F.b[1]], len: F.len };
+    if (F.loss !== 0.2) o.loss = F.loss;
+    if (F.path && F.path.length) o.path = F.path.map(n => ({ x: n.x, y: n.y }));
+    return o;
+  });
+  // one element to a line: short enough to read, and to copy
+  return '{\n' + Object.entries(out).map(([k, v]) => '  ' + JSON.stringify(k) + ': ' + (Array.isArray(v) && typeof v[0] === 'object'
+    ? '[\n' + v.map(x => '    ' + JSON.stringify(x)).join(',\n') + '\n  ]' : JSON.stringify(v))).join(',\n') + '\n}';
+}
+const AI_EXAMPLE_NOTES = {
+  michelson: 'A laser, a 50/50 cube, two arms and two screens. Note the cube at angle 0 sends the reflected arm up (+y), the mirrors face back along their arms, and the screens face the light.',
+  'fabry-perot': 'A linear cavity. The end mirror’s R = 500 mm is concave towards the cavity (it faces −x at angle 180), so with the flat input coupler 250 mm away the cavity is stable. The tool finds the cavity itself and solves its steady state.',
+  'pdh-lock': 'Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz. Its mixer output is the error signal.',
+  'split-laser': 'A fibre network on the bench: a fibre laser, a coupler and two fibre tips, each launching through a collimating lens (each tip 50.6 mm behind a biconvex N-BK7 lens of f \u2248 50 mm at 1550 nm). Fibres join [id, port] to [id, port]; "len" is in metres. The two launches are one laser, so they interfere on the cube.',
+};
+function aiGuideText(examples) {
+  const ex = AI_GUIDE_EXAMPLES.map(k => '### ' + (examples[k] ? JSON.parse(examples[k]).name : k) + '\n\n' + (AI_EXAMPLE_NOTES[k] || '') + '\n\n```json\n' + (examples[k] ? aiCompact(JSON.parse(examples[k])) : '') + '\n```\n').join('\n');
+  return AI_GUIDE_PROSE.replace('{{VERSION}}', VERSION) + '\n' + aiReference() + '\n## Examples\n\nFour complete projects from the tool’s own examples, shortened to what differs from the defaults. Each opens as it is.\n\n' + ex;
+}
+async function aiGuide() {
+  const ex = {};
+  for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
+  return aiGuideText(ex);
+}
+const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either click **Paste text** and paste it, or save it as `name.jekray` and use **Open .jekray**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
+
+/* ---------- Opening a project someone (or something) else wrote ----------
+   A file from outside the tool, an AI assistant's above all, is read as leniently as it
+   can be: names where ids belong, no format tag, fences and comments round pasted text.
+   Whatever could not be used as written is listed afterwards, plainly enough to hand back
+   to whoever wrote it. */
+let lastImport = [];
+const IMPORT_SAME = new Set(['id', 'type', 'name', 'x', 'y', 'angle', 'bench', 'locked', 'sweeps', 'colour', 'colourAuto']);
+function prepImport(data, notes) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('That is not a JEKray2D project: it should be one JSON object.');
+  if (!Array.isArray(data.elements)) throw new Error('The project has no "elements" list.');
+  if (data.format === undefined) data.format = FORMAT;       // what else would it be
+  if (data.version === undefined) data.version = VERSION;
+  const named = e => e && typeof e === 'object' ? String(e.name || e.type || '?') : '?';
+  // every element gets an id; fibres, split sources and tabs may name what they mean
+  const ids = new Set(), byName = new Map();
+  data.elements.forEach((e, i) => {
+    if (!e || typeof e !== 'object') return;
+    if (typeof e.id !== 'string' || !e.id || ids.has(e.id)) {
+      if (typeof e.id === 'string' && ids.has(e.id)) notes.push('<b>' + esc(named(e)) + '</b>: id "' + esc(e.id) + '" was already used, so it was given a new one.');
+      let k = 'e' + (i + 1); while (ids.has(k)) k += '_';
+      e.id = k;
+    }
+    ids.add(e.id);
+    if (e.name && !byName.has(String(e.name))) byName.set(String(e.name), e.id);
+  });
+  const resolve = (ref, what) => {
+    if (typeof ref !== 'string') return ref;
+    if (ids.has(ref)) return ref;
+    if (byName.has(ref)) return byName.get(ref);             // a name is as good as an id
+    return ref;
+  };
+  for (const F of Array.isArray(data.fibres) ? data.fibres : []) {
+    if (!F || typeof F !== 'object') continue;
+    for (const end of ['a', 'b']) if (Array.isArray(F[end])) F[end] = [resolve(F[end][0], 'Fibre ends'), F[end][1]];
+  }
+  for (const e of data.elements) if (e && e.splitFrom) e.splitFrom = resolve(e.splitFrom, 'splitFrom');
+  if (Array.isArray(data.benches)) {
+    const bIds = new Set(data.benches.filter(b => b && typeof b.id === 'string').map(b => b.id));
+    const bNames = new Map(data.benches.filter(b => b && b.name).map(b => [String(b.name), b.id]));
+    for (const e of data.elements) if (e && typeof e.bench === 'string' && !bIds.has(e.bench) && bNames.has(e.bench)) e.bench = bNames.get(e.bench);
+  }
+}
+const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function checkImport(raw, p, notes) {
+  const got = new Map(p.elements.map(e => [e.id, e]));
+  const fmtV = v => typeof v === 'string' ? '"' + esc(v) + '"' : esc(JSON.stringify(v));
+  const glassNote = (who, m, where) => {
+    if (!m || typeof m !== 'object' || m.glass === 'AIR' || m.glass === 'custom' || m.table || isFinite(m.nd)) return;
+    if (!glassKey(m.glass)) notes.push(who + ': glass ' + fmtV(m.glass) + (where ? ' (' + where + ')' : '') + ' is not in the catalogue, so n = 1.5 was used. Give one of ' +
+      Object.keys(GLASS).slice(0, 12).join(', ') + '\u2026 or {"glass": "custom", "n": 1.52}.');
+  };
+  raw.elements.forEach((e, i) => {
+    if (!e || typeof e !== 'object') { notes.push('Element ' + (i + 1) + ' is not an object: left out.'); return; }
+    const who = '<b>' + esc(e.name || e.type || 'Element ' + (i + 1)) + '</b>', n = got.get(e.id);
+    if (!n) {
+      notes.push(who + ': ' + (e.type === 'fcomp' ? 'fibre component kind ' + fmtV(e.kind) + ' is not one of ' + FC_ORDER.join(', ') : 'type ' + fmtV(e.type) + ' is not one of ' + Object.keys(TYPE_LABEL).concat('fcomp').join(', ')) + ': left out.');
+      return;
+    }
+    for (const [k, v] of Object.entries(e)) {
+      if (IMPORT_SAME.has(k)) continue;
+      if (!(k in n)) { notes.push(who + ': field ' + fmtV(k) + ' is not used by a ' + (n.type === 'fcomp' ? FC[n.kind].label.toLowerCase() : typeLabel(n).toLowerCase()) + ': ignored.'); continue; }
+      const w = n[k];
+      if (typeof w === 'number') {
+        const x = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && isFinite(v) ? +v : NaN;
+        if (!isFinite(x)) notes.push(who + ': ' + k + ' = ' + fmtV(v) + ' is not a number: ' + w + ' used.');
+        else if (Math.abs(x - w) > 1e-9 * Math.max(1, Math.abs(x))) notes.push(who + ': ' + k + ' = ' + x + ' is outside what it can be: ' + w + ' used.');
+      } else if (typeof w === 'boolean') {
+        if (v !== w && !(typeof v === 'boolean')) notes.push(who + ': ' + k + ' should be true or false: ' + w + ' used.');
+      } else if (typeof w === 'string' && typeof v === 'string' && v !== w) {
+        notes.push(who + ': ' + k + ' = ' + fmtV(v) + ' is not an option: ' + fmtV(w) + ' used.');
+      } else if (w === null && v !== null && v !== undefined && v !== '' && v !== 0) {
+        notes.push(who + ': ' + k + ' = ' + fmtV(v) + ' could not be used: left unset.');
+      }
+    }
+    if (n.material) glassNote(who, e.material);
+    if (n.type === 'lens') {
+      if (!Array.isArray(e.surfaces) || e.surfaces.length < 2) notes.push(who + ': a lens needs at least two surfaces; a default pair was used.');
+      (e.materials || []).forEach((m, j) => glassNote(who, m, 'after surface ' + (j + 1)));
+      const nS = Array.isArray(e.surfaces) ? e.surfaces.length : 0, short = (list, dflt) => Array.isArray(list) ? list.length < nS - 1 : nS > 2;
+      if (nS >= 2 && short(e.gaps)) notes.push(who + ': "gaps" should hold ' + (e.surfaces.length - 1) + ' thickness(es); 3 mm used where missing.');
+      if (nS >= 2 && short(e.materials)) notes.push(who + ': "materials" should hold ' + (e.surfaces.length - 1) + ' entr' + (e.surfaces.length > 2 ? 'ies' : 'y') + '; N-BK7 used where missing.');
+    }
+    if (n.type === 'source' && n.splitFrom) {
+      const L = got.get(n.splitFrom);
+      if (!L || L.type !== 'source') notes.push(who + ': splitFrom ' + fmtV(n.splitFrom) + ' is not a source here, so it is a laser of its own.');
+    }
+    if (raw.benches && typeof e.bench === 'string' && n.bench !== e.bench) notes.push(who + ': bench ' + fmtV(e.bench) + ' is not one of the tabs: put on ' + fmtV(benchNameIn(p, n.bench)) + '.');
+  });
+  // fibres: the ones that could not be joined, and why
+  const kept = new Set(p.fibres.map(F => pkey(...F.a) + '|' + pkey(...F.b)));
+  const nPorts = e => e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : 0;
+  const portName = e => e.type === 'fcomp' ? FC[e.kind].names.map((q, i) => i + ' (' + q + ')').join(', ') : '0';
+  const used = new Map();
+  (Array.isArray(raw.fibres) ? raw.fibres : []).forEach((F, i) => {
+    const tag = 'Fibre ' + (i + 1);
+    if (!F || !Array.isArray(F.a) || !Array.isArray(F.b)) { notes.push(tag + ': needs "a" and "b", each [element id, port number]: left out.'); return; }
+    const why = [];
+    for (const end of [F.a, F.b]) {
+      const e = got.get(String(end[0]));
+      if (!e) { why.push(fmtV(end[0]) + ' is not an element'); continue; }
+      const np = nPorts(e);
+      if (!np) why.push('<b>' + esc(e.name) + '</b> has no fibre port (only fibre components and fibre tips do)');
+      else if (!((end[1] | 0) >= 0 && (end[1] | 0) < np)) why.push('<b>' + esc(e.name) + '</b> has ports ' + portName(e) + ', not ' + fmtV(end[1]));
+      else { const k = pkey(e.id, end[1] | 0); if (used.has(k)) why.push('port ' + (end[1] | 0) + ' of <b>' + esc(e.name) + '</b> already has ' + used.get(k)); else used.set(k, tag.toLowerCase()); }
+    }
+    if (why.length) notes.push(tag + ': ' + why.join('; ') + ': left out.');
+    else if (!kept.has(pkey(String(F.a[0]), F.a[1] | 0) + '|' + pkey(String(F.b[0]), F.b[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
+  });
+  // link planes and feedthroughs pair by name, exactly two to a name
+  const pairs = new Map();
+  for (const e of p.elements) {
+    const k = e.type === 'link' ? 'link plane ' + e.pair : e.type === 'fcomp' && e.kind === 'thru' ? 'feedthrough ' + e.pair : null;
+    if (k) pairs.set(k, (pairs.get(k) || []).concat(e.name));
+  }
+  for (const [k, list] of pairs) if (list.length !== 2) notes.push('The ' + esc(k.replace(/^(link plane|feedthrough) /, '$1 pair "')) + '" has ' + list.length + ' member' + (list.length === 1 ? '' : 's') + ' (' + list.map(esc).join(', ') + '): it needs exactly two, one on each tab, with the same "pair" name.');
+  // two parts on the one spot is nearly always a slip
+  const spot = new Map();
+  for (const e of p.elements) {
+    const k = e.bench + ':' + Math.round(e.x * 100) + ',' + Math.round(e.y * 100);
+    if (spot.has(k)) notes.push('<b>' + esc(spot.get(k)) + '</b> and <b>' + esc(e.name) + '</b> sit at the same place (' + e.x + ', ' + e.y + ').');
+    else spot.set(k, e.name);
+  }
+  return notes;
+}
+const benchNameIn = (p, id) => { const b = p.benches.find(q => q.id === id); return b ? b.name : id; };
+/* text as an assistant hands it over: fenced, commented, with trailing commas */
+function parseProjectText(text) {
+  let t = String(text || '').trim();
+  const fence = t.match(/```[a-zA-Z]*\s*\n([\s\S]*?)```/);
+  if (fence) t = fence[1];
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a < 0 || b < a) throw new Error('No JSON object found in the text.');
+  t = t.slice(a, b + 1);
+  try { return JSON.parse(t); } catch (err) { /* try again, forgiving */ }
+  // comments out (not inside strings), then trailing commas
+  let out = '', inStr = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) { out += c; if (c === '\\') { out += t[++i] || ''; } else if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (c === '/' && t[i + 1] === '/') { while (i < t.length && t[i] !== '\n') i++; out += '\n'; continue; }
+    if (c === '/' && t[i + 1] === '*') { i += 2; while (i < t.length && !(t[i] === '*' && t[i + 1] === '/')) i++; i++; continue; }
+    out += c;
+  }
+  out = out.replace(/,(\s*[}\]])/g, '$1');
+  try { return JSON.parse(out); } catch (err) {
+    const m = String(err.message).match(/position (\d+)/), at = m ? +m[1] : -1;
+    if (at >= 0) { const pre = out.slice(0, at), line = pre.split('\n').length, col = at - pre.lastIndexOf('\n'); throw new Error('The JSON is not valid at line ' + line + ', column ' + col + ': ' + err.message.replace(/ in JSON at position \d+.*$/, '') + '.'); }
+    throw new Error('The JSON is not valid: ' + err.message);
+  }
+}
+/* open a project from its data: undoable, then the report if anything was changed */
+function openProjectData(data, label) {
+  const notes = [];
+  data = JSON.parse(JSON.stringify(data));
+  prepImport(data, notes);
+  const raw = JSON.parse(JSON.stringify(data)), prev = project, hist = history.length;
+  pauseAll();
+  if (prev && prev.elements.length) checkpoint();
+  try { loadProject(data); } catch (err) { project = prev; history.length = hist; updateUndoButtons(); throw err; }
+  checkImport(raw, project, notes);
+  lastImport = notes;
+  playing.clear(); updateSweepButtons();
+  selectOne(null); selFibreId = null; updateUndoButtons();
+  document.getElementById('projName').value = project.name;
+  renderBenchTabs();
+  changed(true);
+  if (!raw.view) fitView();
+  toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
+  if (notes.length && !TEST_MODE) showImportReport(notes);
+  return notes;
+}
+function showImportReport(notes) {
+  const dlg = document.getElementById('importDialog');
+  document.getElementById('importTitle').textContent = 'Opened, with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's');
+  const ul = document.getElementById('importList');
+  ul.innerHTML = notes.map(n => '<li>' + n + '</li>').join('');
+  if (!dlg.open) dlg.showModal();
+}
+const importReportText = notes => 'JEKray2D import report for "' + project.name + '": ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') + '.\n' +
+  notes.map(n => '- ' + n.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')).join('\n') +
+  '\nPlease correct the .jekray file so that it opens with none of these.\n';
 function openJekray(file) {
   const r = new FileReader();
   r.onload = () => {
     try {
-      const data = JSON.parse(r.result);
-      const prev = project;
-      try { loadProject(data); } catch (err) { project = prev; throw err; }
-      playing.clear(); updateSweepButtons();
-      history = []; future = []; selectOne(null);
-      document.getElementById('projName').value = project.name;
-      renderBenchTabs();
-      changed(true);
-      toast('Opened ' + file.name);
+      let data;
+      try { data = JSON.parse(r.result); } catch (err) { data = parseProjectText(r.result); }
+      openProjectData(data, file.name);
     } catch (err) {
-      toast(err instanceof SyntaxError ? file.name + ' could not be read. It may be damaged or not a .jekray file.' : err.message, true);
+      toast(file.name + ' could not be opened: ' + err.message, true);
     }
   };
   r.readAsText(file);
+}
+{
+  const dlg = document.getElementById('importDialog');
+  document.getElementById('importClose').addEventListener('click', () => dlg.close());
+  document.getElementById('importCopy').addEventListener('click', () => {
+    const t = importReportText(lastImport);
+    try { navigator.clipboard.writeText(t).then(() => toast('Report copied'), () => toast('Could not copy: select the list and copy it instead.', true)); }
+    catch (err) { toast('Could not copy: select the list and copy it instead.', true); }
+  });
+  const pd = document.getElementById('pasteDialog'), ta = document.getElementById('pasteText'), er = document.getElementById('pasteError');
+  document.getElementById('btnPasteProj').addEventListener('click', () => { er.hidden = true; pd.showModal(); ta.focus(); });
+  document.getElementById('pasteCancel').addEventListener('click', () => pd.close());
+  document.getElementById('pasteOpen').addEventListener('click', () => {
+    try { const data = parseProjectText(ta.value); pd.close(); openProjectData(data, 'the pasted project'); ta.value = ''; }
+    catch (err) { er.textContent = err.message; er.hidden = false; }
+  });
 }
 
 /* ==========================================================================
@@ -12994,17 +13453,9 @@ async function openDemo(name, undoable) {
       if (!res.ok) throw new Error('that example could not be fetched');
       data = await res.json();
     }
-    pauseAll();
-    if (undoable && project && project.elements.length) checkpoint();
-    loadProject(data);
-    playing.clear(); updateSweepButtons();
-    if (!undoable) { history = []; future = []; }
-    selectOne(null); updateUndoButtons();
-    document.getElementById('projName').value = project.name;
-    renderBenchTabs();
-    changed(true);
+    openProjectData(data, data.name || name);
+    if (!undoable) { history = []; future = []; updateUndoButtons(); }
     fitView();
-    toast('Opened ' + project.name);
   } catch (err) {
     toast('Could not open that example (' + err.message + ').', true);
   }
@@ -13487,6 +13938,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the optical path between two bench points on beams, as the ruler finds it
     oplBetween(a, b) { traceScene(); const v = measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); return v.length === 1 ? v[0] : v; },
     layoutSvg() { return layoutSvg(recordLayout()); },
+    // a project as someone else wrote it: what opening it changed, as plain text
+    aiGuideText,
+    aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
+    importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
     lastTrace() { return lastTrace; },
     popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,

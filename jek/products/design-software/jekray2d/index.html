@@ -101,6 +101,10 @@
     .rt-feature { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
     .rt-feature:nth-of-type(even) .rt-shot { order: 0; }
   }
+  /* the AI assistant panel holds more than the site's dropdowns allow for */
+  .dropdown.open .dropdown-panel.rt-tall { max-height: 900px; }
+  .rt-tall p, .rt-tall li { font-size: 0.9rem; line-height: 1.5; margin: 0.25rem 0; }
+  .rt-tall ul { margin: 0 0 0.3rem; padding-left: 1.2rem; }
 </style>
 </head>
 
@@ -161,6 +165,7 @@
           <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, photodiodes) joined by drag-drawn fibres, on as many bench tabs as you need</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
           <li>Save and share benches as <code>.jekray</code> files; export the layout as PNG, SVG or PDF, and any plot as a picture or CSV</li>
+          <li>Have an AI assistant design a bench or rebuild one from a paper, with the <a href="/jek/tools/jekray2d-ai-guide.md" download>JEKray2D guide for AI assistants</a></li>
           <li>Box-select, copy and paste between tabs (fibres included), right-click menu, lock, align, ruler and optical-path measure, minimap</li>
         </ul>
       </div>
@@ -356,6 +361,26 @@
           <div class="dropdown-panel-inner">
             <a href="/jek/tools/jekray2d.html">Open the editor</a>
             <a href="#examples">Browse the examples</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
+          Use JEKray2D with an AI assistant
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel rt-tall">
+          <div class="dropdown-panel-inner">
+            <p>An AI assistant (ChatGPT, Claude, Gemini, Copilot and others) can write JEKray2D projects for you. Give it the guide below, which teaches it the file format, the conventions and the checks to make, then ask for a .jekray file.</p>
+            <a href="/jek/tools/jekray2d-ai-guide.md" download>Download the JEKray2D guide for AI assistants (.md)</a>
+            <p>Some things to ask for:</p>
+            <ul>
+              <li>“Design a Michelson interferometer at 1064 nm with 100 mm arms and a photodiode on the output. Give me a .jekray file.”</li>
+              <li>“Rebuild the optical setup in figure 1 of the attached paper as a .jekray file. Put your assumptions in the notes.”</li>
+              <li>“Add a mode-matching lens pair so this laser matches the cavity in the file I attached.”</li>
+            </ul>
+            <p>Paste the answer into JEKray2D with <strong>Paste text</strong> (or Ctrl+V on the bench). If anything could not be used as written, the tool lists it: copy that report back to the assistant and it can fix the file. Check what it built against your source before relying on it.</p>
           </div>
         </div>
       </div>

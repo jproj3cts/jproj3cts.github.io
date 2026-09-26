@@ -2800,6 +2800,73 @@ const TESTS = [
       return svg.startsWith('<?xml') && names.length ? names.filter(n => !svg.includes('>' + n + '<')).length : NaN;
     },
   },
+  { group: 'Projects written elsewhere, and the AI guide' },
+  {
+    name: 'The AI guide describes every field the tool reads',
+    why: 'each element type’s fields, from the tool’s own defaults, against the notes the guide gives: none missing',
+    want: 0, tol: 0, unit: ' missing',
+    run: J => J.aiFieldCoverage().length,
+  },
+  {
+    name: 'The published guide is the one the tool writes today',
+    why: 'jekray2d-ai-guide.md, as served, against the guide generated now from the tool’s tables and examples',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x.status === 200 ? x.responseText : null; };
+      const ex = {}; for (const k of ['michelson', 'fabry-perot', 'pdh-lock', 'split-laser']) ex[k] = get('demos/' + k + '.jekray');
+      const md = get('jekray2d-ai-guide.md');
+      TESTS_EXPECT.guide = md;
+      return md !== null && md === J.aiGuideText(ex) ? 1 : 0;
+    },
+  },
+  {
+    name: 'Every example in the guide opens with nothing changed',
+    why: 'the complete projects in the guide, pasted as they are: an empty import report for each',
+    want: 0, tol: 0, unit: ' changes',
+    run: J => {
+      const md = TESTS_EXPECT.guide || '', blocks = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map(m => m[1]).filter(t => /"format": "jekray"/.test(t) && !/\.\.\./.test(t));
+      return blocks.length === 4 ? blocks.reduce((a, t) => a + J.importText(t).length, 0) : NaN;
+    },
+  },
+  {
+    name: 'The import report names each thing it could not use',
+    why: 'a file with an unknown type, an unknown field, a reflectance of 150%, an unknown glass, a bad option, a fibre to a missing port and a lone link plane: seven lines',
+    want: 7, tol: 0, unit: ' lines',
+    run: J => J.importText(JSON.stringify({ elements: [
+      { type: 'objective', name: 'Obj', x: 0, y: 0 },
+      { type: 'mirror', name: 'M', x: 50, y: 0, angle: 180, reflect: 150, focus: 1 },
+      { type: 'lens', name: 'L', x: 20, y: 0, surfaces: [{ R: 50 }, { R: null }], gaps: [3], materials: [{ glass: 'NOT-A-GLASS' }] },
+      { type: 'source', name: 'S', x: -50, y: 0, pol: 'circular' },
+      { type: 'fcomp', kind: 'laser', name: 'FL', x: 0, y: -40 }, { type: 'fcomp', kind: 'pd', name: 'PD', x: 40, y: -40 },
+      { type: 'link', name: 'Lk', x: 80, y: 0, pair: 'P' }],
+      fibres: [{ a: ['FL', 0], b: ['PD', 3] }] })).length,
+  },
+  {
+    name: 'and a clean file gives none',
+    why: 'the same bench with every mistake put right, names standing in for ids in the fibre',
+    want: 0, tol: 0, unit: ' lines',
+    run: J => J.importText(JSON.stringify({ elements: [
+      { type: 'mirror', name: 'M', x: 50, y: 0, angle: 180, reflect: 99 },
+      { type: 'lens', name: 'L', x: 20, y: 0, surfaces: [{ R: 50 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+      { type: 'source', name: 'S', x: -50, y: 0, pol: 's' },
+      { type: 'fcomp', kind: 'laser', name: 'FL', x: 0, y: -40 }, { type: 'fcomp', kind: 'pd', name: 'PD', x: 40, y: -40 }],
+      fibres: [{ a: ['FL', 0], b: ['PD', 0] }] })).length,
+  },
+  {
+    name: 'Pasted text is read the way an assistant writes it',
+    why: 'a sentence, a fenced block, comments and trailing commas round a two-element project: both elements, joined fibre intact',
+    want: 2, tol: 0, unit: ' elements',
+    run: J => {
+      const n = J.importText('Here it is:\n```json\n{ "name": "Pasted", // a comment\n "elements": [ { "type": "mirror", "name": "A", "x": 0, "y": 0, },\n /* and */ { "type": "screen", "name": "B", "x": 30, "y": 0, "angle": 180 }, ], }\n```\nEnjoy.');
+      return n.length === 0 && J.project().name === 'Pasted' ? J.project().elements.length : NaN;
+    },
+  },
+  {
+    name: 'A project’s notes are kept with it',
+    why: 'notes given in a file come back out of the saved project unchanged',
+    want: 1, tol: 0, unit: '',
+    run: J => { J.importText(JSON.stringify({ name: 'N', notes: 'From Hu et al. 2023; lens f assumed.', elements: [] })); return +(J.serialize().notes === 'From Hu et al. 2023; lens f assumed.'); },
+  },
 ];
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */

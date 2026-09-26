@@ -1538,9 +1538,9 @@ const TESTS = [
   { group: 'Measurements and the ray fan' },
   {
     name: 'Every optimiser metric says what it is measured with',
-    why: 'rays, the Gaussian beam, the diffracted field, first-order optics or a fibre or detector, so the dialogs can sort them into tabs',
+    why: 'rays, the Gaussian beam, the diffracted field, first-order optics, a fibre or detector, or the pulse, so the dialogs can sort them into tabs',
     want: 0, tol: 0, unit: ' unlabelled',
-    run: J => J.metricList().filter(m => !['rays', 'gauss', 'field', 'paraxial', 'device'].includes(m.fam)).length,
+    run: J => J.metricList().filter(m => !['rays', 'gauss', 'field', 'paraxial', 'device', 'pulse'].includes(m.fam)).length,
   },
   {
     name: 'The field metrics read the diffracted field',
@@ -2898,7 +2898,128 @@ const TESTS = [
       fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0, 2, 0.5]])]
       .reduce((n, b) => { J.load(b); return n + (J.shareRoundTrip().same ? 1 : 0); }, 0),
   },
+  { group: 'Short pulses' },
+  {
+    name: 'N-BK7 adds its group-delay dispersion',
+    why: 'a 30 fs pulse at 800 nm through a 10 mm N-BK7 window: GDD per mm against λ³/(2πc²) d²n/dλ² from the Sellmeier formula (about 44.6 fs²/mm)',
+    wantFrom: () => glassGDD('N-BK7', 800), tol: 0.002, rel: true, unit: ' fs²/mm',
+    run: J => pulseGDD(J, [pulseSrc(), windowOf('N-BK7', 10), screen({ x: 60 })]) / 10,
+  },
+  {
+    name: 'and fused silica its own',
+    why: 'the same through 10 mm of fused silica (about 36.2 fs²/mm)',
+    wantFrom: () => glassGDD('F_SILICA', 800), tol: 0.002, rel: true, unit: ' fs²/mm',
+    run: J => pulseGDD(J, [pulseSrc(), windowOf('F_SILICA', 10), screen({ x: 60 })]) / 10,
+  },
+  {
+    name: 'A pulse through air keeps its duration',
+    why: 'a 50 fs sech² pulse, transform limited, across the bench: 50 fs at the screen',
+    want: 50, tol: 0.25, unit: ' fs',
+    run: J => { J.load(bench('p', [pulseSrc({ tau: 50, pshape: 'sech2' }), screen({ x: 60 })])); return J.pulse('Screen').dur; },
+  },
+  {
+    name: 'A chirped Gaussian pulse broadens as it should',
+    why: 'a 30 fs Gaussian pulse leaving with 500 fs² of chirp: τ√(1 + (4 ln2 GDD/τ²)²)',
+    want: 30 * Math.sqrt(1 + (4 * Math.LN2 * 500 / 900) ** 2), tol: 0.002, rel: true, unit: ' fs',
+    run: J => { J.load(bench('p', [pulseSrc({ gdd0: 500 }), screen({ x: 60 })])); return J.pulse('Screen').dur; },
+  },
+  {
+    name: 'Its peak power is its energy over its duration',
+    why: '1 W average at 80 MHz, 30 fs Gaussian: 12.5 nJ a pulse, peak 0.9394 E/τ',
+    want: 0.9394 * 12.5e-9 / 30e-15, tol: 0.003, rel: true, unit: ' W',
+    run: J => { J.load(bench('p', [pulseSrc({ power: 1000, rep: 80 }), screen({ x: 60 })])); return J.pulse('Screen').peak; },
+  },
+  {
+    name: 'A chirped mirror adds its GDD',
+    why: 'one bounce off a mirror of −100 fs² a reflection',
+    want: -100, tol: 0.05, unit: ' fs²',
+    run: J => pulseGDD(J, [pulseSrc(), { type: 'mirror', name: 'M', x: 0, y: 0, angle: 135, gdd: -100, length: 20 }, screen({ x: 0, y: 50, angle: 270 })]),
+  },
+  {
+    name: 'Chirp at the laser undoes a glass block',
+    why: 'a 30 fs pulse pre-chirped by −446.5 fs² through 10 mm of N-BK7 comes out near its transform limit (the third order is left)',
+    want: 1, tol: 0.01, unit: '× limit',
+    run: J => { J.load(bench('p', [pulseSrc({ gdd0: -10 * glassGDD('N-BK7', 800) }), windowOf('N-BK7', 10), screen({ x: 60 })])); const R = J.pulse('Screen'); return R.dur / R.tl; },
+  },
+  {
+    name: 'A grating pair matches Treacy',
+    why: 'two parallel 600 l/mm gratings 40 mm apart, order +1 at 800 nm and 30° incidence: GDD = −λ³G/(2πc²d²cos³θ)',
+    wantFrom: () => treacyPair().want, tol: 0.001, rel: true, unit: ' fs²',
+    run: J => pulseGDD(J, treacyPair().els),
+  },
+  {
+    name: 'A prism pair: its GDD falls with separation as the angular dispersion says',
+    why: 'two fused silica equilateral prisms at minimum deviation, 200 then 400 mm apart: the slope is −λ³(dθ/dλ)²/(2πc²), dθ/dλ = 2 sin(A/2) n′/cos θ (Fork et al.)',
+    wantFrom: () => prismPair(null, 0).slope, tol: 0.005, rel: true, unit: ' fs²/mm',
+    run: J => (pulseGDD(J, prismPair(J, 400).els) - pulseGDD(J, prismPair(J, 200).els)) / 200,
+  },
+  {
+    name: 'A fibre stretches the pulse by β₂L',
+    why: '2 m of fibre with D = 17 ps/(nm km) after a 200 fs laser at 1560 nm: GDD = −Dλ²L/(2πc)',
+    want: -17 * 1560 * 1560 * 2 / (2 * Math.PI * 299.792458), tol: 1e-4, rel: true, unit: ' fs²',
+    run: J => { J.load(fibrePulse(17)); return J.pulse('Screen').branches[0].GDD; },
+  },
+  {
+    name: 'Standard fibre has the dispersion of SMF-28',
+    why: 'no dispersion given: D at 1550 nm from the GDD of 2 m, about 17.3 ps/(nm km)',
+    want: 17.3, tol: 0.2, unit: ' ps/(nm km)',
+    run: J => { J.load(fibrePulse(null, 1550)); return -J.pulse('Screen').branches[0].GDD * 2 * Math.PI * 299.792458 / (1550 * 1550 * 2); },
+  },
+  {
+    name: 'A Michelson with one arm longer gives two pulses',
+    why: 'arm 1 mm longer: the second pulse arrives 2 mm / c = 6671.3 fs after the first',
+    want: 2 / 2.99792458e-4, tol: 0.5, unit: ' fs',
+    run: J => { const b = michelson(1); b.elements[0] = Object.assign(b.elements[0], { wavelength: 800, tau: 30, pshape: 'gauss', rays: 3, width: 2 });
+      J.load(b); const R = J.pulse('Output'); return R.branches.length === 2 ? R.branches[1].arrive : NaN; },
+  },
+  {
+    name: 'The pulse duration is a measure',
+    why: 'the screen’s pulse duration metric reads what its Pulse tab shows',
+    want: 1, tol: 1e-9, unit: '',
+    run: J => { J.load(bench('p', [pulseSrc({ gdd0: 500 }), screen({ x: 60 })])); return J.metric('Screen', 'pdur') / J.pulse('Screen').dur; },
+  },
 ];
+
+/* ---------- Short-pulse benches ---------- */
+const pulseSrc = o => src(Object.assign({ name: 'Laser', wavelength: 800, tau: 30, pshape: 'gauss', rays: 3, width: 2, power: 1000, rep: 80, pol: 's' }, o));
+const windowOf = (glass, t) => ({ type: 'prism', shape: 'window', name: 'W', x: 0, y: 0, angle: 0, size: 20, thickness: t, material: { glass } });
+function pulseGDD(J, els) { J.load(bench('p', els)); const R = J.pulse(els[els.length - 1].name); return R.branches[R.main - 1].GDD; }
+/* λ³/(2πc²) d²n/dλ², fs² per mm, from the tool's own index */
+function glassGDD(glass, nm) {
+  const n = l => document.getElementById('rig').contentWindow.JEKray2D.index({ glass }, l), h = 0.5;
+  const d2 = (n(nm + h) - 2 * n(nm) + n(nm - h)) / (h * h) * 1e12;          // per mm²
+  const lmm = nm * 1e-6, c = 2.99792458e-4;
+  return lmm ** 3 / (2 * Math.PI * c * c) * d2;
+}
+function treacyPair() {
+  const d2r = Math.PI / 180, lam = 800, lpmm = 600, A = 150, G = 40;
+  const ty = Math.sin(-A * d2r) + lam * 1e-6 * lpmm, th = Math.asin(ty), ang = A + th / d2r;
+  const bs = G / Math.cos(th), x2 = 50 + bs * Math.cos(ang * d2r), y2 = bs * Math.sin(ang * d2r);
+  const c = 299792458, d = 1e-3 / lpmm, L = lam * 1e-9;
+  return { want: -(L ** 3) * (G * 1e-3) / (2 * Math.PI * c * c * d * d * Math.cos(th) ** 3) * 1e30, els: [
+    pulseSrc({ x: 0, width: 1 }),
+    { type: 'grating', name: 'G1', x: 50, y: 0, angle: A, lpmm, length: 8, blaze: 800, eff: 90 },
+    { type: 'grating', name: 'G2', x: x2, y: y2, angle: A - 180, lpmm, length: 14, blaze: 800, eff: 90 },
+    screen({ x: x2 + 60, y: y2, length: 60 })] };
+}
+function prismPair(J, L) {
+  const W = document.getElementById('rig').contentWindow.JEKray2D, d2r = Math.PI / 180, lam = 800, g = { glass: 'F_SILICA' };
+  const n = W.index(g, lam), dn = (W.index(g, lam + 0.01) - W.index(g, lam - 0.01)) / 0.02 * 1e6;
+  const th = Math.asin(n / 2), rot = th / d2r - 30, dir = -(2 * th / d2r - 60) * d2r;
+  const dthdl = dn * 2 * Math.sin(30 * d2r) / Math.cos(th), lmm = lam * 1e-6, c = 2.99792458e-4;
+  const p2 = { x: 50 + L * Math.cos(dir), y: L * Math.sin(dir) };
+  return { slope: -(lmm ** 3) * dthdl ** 2 / (2 * Math.PI * c * c), els: [
+    pulseSrc({ x: 0, y: 2, tau: 20, rays: 1, width: 0.2, pol: 'p' }),
+    { type: 'prism', shape: 'equilateral', name: 'P1', x: 50, y: 0, angle: 90 - rot, size: 20, material: g },
+    { type: 'prism', shape: 'equilateral', name: 'P2', x: p2.x, y: p2.y, angle: 270 - rot, size: 20, material: g },
+    screen({ x: p2.x + 80, y: p2.y, length: 80 })] };
+}
+function fibrePulse(disp, nm) {
+  return bench('fp', [
+    { type: 'fcomp', kind: 'laser', name: 'L', id: 'L', x: -60, y: 20, angle: 0, wavelength: nm || 1560, power: 10, tau: 200, rep: 50 },
+    { type: 'fibre', name: 'T', id: 'T', x: 0, y: 0, angle: 0 },
+    screen({ x: 50, length: 20 })], { fibres: [{ a: ['L', 0], b: ['T', 0], len: 2, loss: 0, disp }] });
+}
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */
 function pdhBench(beta) {

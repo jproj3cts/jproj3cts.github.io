@@ -45,7 +45,7 @@ A `.jekray` file is one JSON object:
 | name | the project's title |
 | notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |
 | elements | the elements (see the reference) |
-| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "path": [{"x", "y"}, ...]} |
+| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "path": [{"x", "y"}, ...]} |
 | benches | optional, for several tabs: [{"id": "b1", "name": "Laser table"}, ...]; then give each element "bench": its tab's id |
 | maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
@@ -91,6 +91,7 @@ Signs:
 - **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.
 - **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set "maxBounces" to about 40 and "minPower" to 1e-4.
 - **Photodiode signals:** a "detector" (free space) or an fcomp "pd" (fibre) reads DC and beat notes. "demodF" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.
+- **Short pulses:** give a source (or a fibre laser) "tau" in fs, with "pshape", "rep" and "power" as the average power. Glass, prisms, gratings, chirped mirrors ("gdd" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by "blaze"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
 ## Checklist
@@ -144,6 +145,10 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | splitPath | `0` | mm of extra fibre before this launch, against the other. |
 | lineshape | `"lorentz"` | "lorentz" or "gauss": the laser line’s shape, with coh. |
 | m2 | `1` | beam quality M² ≥ 1. |
+| tau | `0` | fs: a mode-locked laser’s pulse duration (intensity FWHM at its transform limit); 0 for a continuous laser. Its bandwidth then sets coh. |
+| pshape | `"sech2"` | "sech2" or "gauss": the pulse’s shape. |
+| rep | `80` | MHz: the repetition rate (power is the average power). |
+| gdd0 | `0` | fs²: the chirp the pulse leaves the laser with (0 at its transform limit). |
 | fibre | (none) | optional {"core": µm, "na": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself. |
 
 ### "mirror": Mirror
@@ -159,6 +164,7 @@ A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 
 | offset | `0` | mm: an off-axis segment of the parent surface, this far from its vertex. |
 | k | `0` | conic constant (0 sphere, −1 paraboloid). |
 | R | `null` | mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex. |
+| gdd | `0` | fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror. |
 
 ### "lens": Lens
 
@@ -444,7 +450,11 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | power | `1` | Power (mW) |
 | coh | `0` | Coherence length (mm) |
 | polAngle | `0` | Polarisation (° from s) |
+| tau | `0` | Pulse duration (fs; 0: continuous) |
+| rep | `80` | Repetition rate (MHz) |
+| gdd0 | `0` | Chirp at the laser (fs²) |
 | lineshape | `"lorentz"` | "lorentz" or "gauss" |
+| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |
 
 ### kind "coupler": 2×2 coupler
 

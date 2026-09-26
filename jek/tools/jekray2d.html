@@ -4688,10 +4688,12 @@ function syncPhases() {
    not rendered (a change to the bench) is simply worked out live, as it always was. */
 const FIELD_FRAMES = 48;               // samples per cycle
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
-const fieldFrames = { bench: new Map(), screens: new Map() };
+const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
 function keepFrame(map, key, v) {
   map.delete(key); map.set(key, v);
-  while (map.size > FIELD_KEEP) map.delete(map.keys().next().value);
+  // close-up pictures are big: two cycles' worth of them
+  const cap = map === fieldFrames.closeup ? 2 * FIELD_FRAMES : FIELD_KEEP;
+  while (map.size > cap) map.delete(map.keys().next().value);
 }
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
@@ -4752,6 +4754,14 @@ function renderSweepFrames(list, onDone) {
             if (!live()) return;
             if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); requestRender(); }
           }
+          // zoomed in to the close-up: its picture for this frame too, for this view
+          if (closeupOnShow() && !fieldFrames.closeup.has(closeupKey(key))) {
+            job.stage = 'the close-up';
+            const vk = closeupKey(key), view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab };
+            const o = await fwRequest('closeup', 'sweep', { key, view, step: CLOSEUP_STEP, log: srcs.some(e => e.beamScale === 'log') });
+            if (!live()) return;
+            if (o && !o.mismatch && o.img) keepFrame(fieldFrames.closeup, vk, closeupFrame(o, CLOSEUP_STEP));
+          }
         }
         const screens = project.elements.filter(e => e.type === 'screen');
         for (const [k, scr] of screens.entries()) {
@@ -4798,6 +4808,12 @@ function renderSweepFrames(list, onDone) {
           const R = yield* run(popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }));
           keepFrame(fieldFrames.bench, key, R);
           requestRender();
+        }
+        if (closeupOnShow() && fieldFrames.bench.has(key) && !fieldFrames.closeup.has(closeupKey(key))) {
+          job.stage = 'the close-up';
+          const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab };
+          keepFrame(fieldFrames.closeup, closeupKey(key), closeupFrame(closeupImage(fieldFrames.bench.get(key).segs, view, CLOSEUP_STEP, srcs.some(e => e.beamScale === 'log')), CLOSEUP_STEP));
+          yield;
         }
       }
       const screens = project.elements.filter(e => e.type === 'screen');
@@ -10608,8 +10624,12 @@ function drawCloseup() {
   const srcs = popSources();
   if (!srcs.length) return false;
   const key = popKeyOf(lastTrace.beams, srcs);
+  if (key !== popState.key && fieldFrames.bench.has(key)) { popState.key = key; popState.result = fieldFrames.bench.get(key); popState.job = null; }
   if (key !== popState.key || !popState.result) { schedulePop(); return false; }
-  const vkey = key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, s, W, H].join(',');
+  const vkey = closeupKey(key);
+  // a sweep rendered ahead has this frame's close-up already
+  const pre = closeState.key !== vkey && fieldFrames.closeup.get(vkey);
+  if (pre) { Object.assign(closeState, pre, { key: vkey, asked: vkey }); clearTimeout(closeState.timer); }
   if (closeState.key !== vkey && closeState.asked !== vkey) {
     closeState.asked = vkey;
     closeupCompute(vkey, srcs, 2 * CLOSEUP_STEP);
@@ -10635,6 +10655,14 @@ function drawCloseup() {
     (inf.contrast !== null && inf.beams > 1 ? ' \u00b7 fringe contrast ' + inf.contrast.toFixed(3) : '') +
     (inf.lamN ? ' \u00b7 \u03bb/2n = ' + fmtLen(inf.lamN / 2) : ''), 14, 20);
   return true;
+}
+const closeupKey = key => key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, V().scale, W, H].join(',');
+const closeupOnShow = () => W / V().scale < CLOSEUP_MM && popSources().length > 0;
+/* a close-up for the sweep's frames: the current view, its field, stored as drawCloseup keeps it */
+function closeupFrame(r, step) {
+  const cv = mkCanvas(r.img.width, r.img.height);
+  cv.getContext('2d').putImageData(r.img, 0, 0);
+  return { img: cv, step, info: r.info, view: { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab } };
 }
 function closeupCompute(vkey, srcs, step) {
   const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab }, log = srcs.some(e => e.beamScale === 'log');

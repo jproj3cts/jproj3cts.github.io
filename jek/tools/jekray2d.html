@@ -898,6 +898,49 @@ function gratingOrders(el, nm, ldy, n) {
   return out;
 }
 
+/* ---------- Modulators: light shifted in frequency ----------
+   Light carries a frequency offset f (Hz) from its laser's own line. Light at different
+   offsets makes no steady fringes (it is part of a different launch as far as adding fields
+   goes: the offset is on the launch's name), but it beats on a photodiode at the difference.
+   An acousto-optic modulator is a Bragg cell: a moving grating of period v / f_RF that sends
+   a share of the light into order +1 (or -1), deflected by lambda f / v and shifted by
+   +f (or -f); the rest carries on in order 0. An electro-optic phase modulator writes
+   e^{i beta sin(Omega t)} on the light: sidebands n f_m with amplitudes J_n(beta). An
+   amplitude modulator is a Mach-Zehnder of two such arms driven in opposition, biased
+   at phi_0: E cos(phi_0 / 2 + (beta / 2) sin(Omega t)). */
+const C_MM = 299792458e3;               // light, mm/s
+const famAt = (fam, f) => String(fam).replace(/@[^#]*$/, '') + (f ? '@' + (+f.toPrecision(12)) : '');
+/* the Bessel function J_n(x), by its series (good for the modulation depths in use here) */
+function besselJ(n, x) {
+  if (n < 0) return (n % 2 ? -1 : 1) * besselJ(-n, x);
+  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
+  let sum = term;
+  for (let k = 1; k < 200; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
+  return sum;
+}
+/* an EOM's sidebands: [n, complex amplitude], those with more than 1e-5 of the power */
+function eomSidebands(el) {
+  const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180;
+  for (let n = -40; n <= 40; n++) {
+    let c;
+    if (el.emode === 'amplitude') { const j = besselJ(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
+    else c = [besselJ(n, b), 0];
+    c = [c[0] * a, c[1] * a];
+    if (c[0] * c[0] + c[1] * c[1] > 1e-20) out.push([n, c]);
+  }
+  return out;
+}
+/* a grating's lines per mm; an AOM's sound makes one of period v / f */
+const linesPerMm = el => el.type === 'aom' ? el.rf * 1e6 / (el.v * 1e3) : el.lpmm;
+/* an AOM's orders, as a grating's: order 0 and the Bragg order, each with its shift */
+function aomOrders(el, nm, ldy, n) {
+  const G = el.rf * 1e6 / (el.v * 1e3), lam = nm * 1e-6, eta = clamp(el.eff, 0, 100) / 100, m = el.order < 0 ? -1 : 1, out = [];
+  if (1 - eta > 1e-4) out.push({ m: 0, ty: ldy, eff: 1 - eta, df: 0 });
+  const ty = ldy + m * lam * G / n;
+  if (eta > 1e-4 && Math.abs(ty) < 1) out.push({ m, ty, eff: eta, df: m * el.rf * 1e6 });
+  return out;
+}
+
 /* Jones matrices in the tracer's (p, s) basis, [[pp, ps], [sp, ss]] with entries [re, im] */
 const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 function jmul(A, B) {
@@ -1158,7 +1201,7 @@ const deg = Math.PI / 180;
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
   cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
-  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', link: 'Link plane' };
+  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
 const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
@@ -1464,6 +1507,8 @@ function normElementBase(e) {
         dark: Math.max(0, num(e.dark, 1)),               // nA
         ampNoise: Math.max(0, num(e.ampNoise, 2)),       // input current noise, pA/rtHz
         vmax: Math.max(0.01, num(e.vmax, 10)),           // output swing, V
+        demodF: Math.max(0, num(e.demodF, 0)),           // mixer frequency, MHz (0: none)
+        demodPhase: num(e.demodPhase, 0),                // and its phase, degrees
         absorb: true,
       });
     case 'faraday':
@@ -1490,6 +1535,12 @@ function normElementBase(e) {
       });
     case 'link':
       return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), pair: String(e.pair || 'Link 1').slice(0, 60) });
+    case 'aom':
+      return Object.assign(base, { length: Math.max(0.1, num(e.length, 4)), rf: Math.max(0, num(e.rf, 80)), v: Math.max(1, num(e.v, 4200)),
+        eff: clamp(num(e.eff, 80), 0, 100), order: num(e.order, 1) < 0 ? -1 : 1 });
+    case 'eom':
+      return Object.assign(base, { length: Math.max(0.1, num(e.length, 4)), fm: Math.max(0, num(e.fm, 20)), beta: Math.max(0, num(e.beta, 1.08)),
+        emode: e.emode === 'amplitude' ? 'amplitude' : 'phase', bias: num(e.bias, 90), loss: Math.max(0, num(e.loss, 0)) });
     case 'fcomp': {
       const K = FC[e.kind];
       if (!K) return null;
@@ -1497,6 +1548,7 @@ function normElementBase(e) {
       for (const [k, , d] of K.params) base[k] = num(e[k], d);
       if (e.kind === 'laser') { base.lineshape = e.lineshape === 'gauss' ? 'gauss' : 'lorentz'; base.wavelength = clamp(base.wavelength, 100, 20000); base.power = Math.max(0, base.power); base.coh = Math.max(0, base.coh); }
       if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
+      if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       return base;
     }
     case 'gain':
@@ -1557,7 +1609,13 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'filter', name: nextName('Filter'), x, y, angle: 0 });
     case 'gain':
       return normElement({ type: 'gain', name: nextName('Gain medium'), x, y, angle: 0 });
-    case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru': {
+    case 'aom':
+      return normElement({ type: 'aom', name: nextName('AOM'), x, y, angle: 0 });
+    case 'eom':
+      return normElement({ type: 'eom', name: nextName('EOM'), x, y, angle: 0 });
+    case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
+    case 'faom': case 'feom': {
+      if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
       const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
       let n = 1; while (used.has('Feedthrough ' + n)) n++;
       return normElement({ type: 'fcomp', kind: k, name: nextName(FC[k].label), x, y, angle: 0, pair: 'Feedthrough ' + n });
@@ -2014,7 +2072,8 @@ function crystalSurfaces(el) {
 function elementSurfaces(el) {
   if (el.type === 'cube' || el.type === 'prism') return polySurfaces(el);
   if (el.type === 'crystal') return crystalSurfaces(el);
-  if (el.type === 'grating') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
+  if (el.type === 'grating' || el.type === 'aom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
+  if (el.type === 'eom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'eom' })];
   if (el.type === 'fibre' || el.type === 'detector') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
   if (el.type === 'faraday' || el.type === 'isolator') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'filter') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'filter' })];
@@ -2519,7 +2578,7 @@ function traceScene() {
           dx: Math.cos(a), dy: Math.sin(a),
           sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3],
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: famOf(states.indexOf(st), false), k: i, path: '', bn: src.bench });
+          fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 });
       }
     }
     if (src === probeSrc) {
@@ -2542,15 +2601,16 @@ function traceScene() {
     // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
     const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
-      const a = src.angle * deg, fam = famOf(si0, true);
+      const a = src.angle * deg, fam = famAt(famOf(si0, true), src.vFo || 0);
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
         sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1,
         id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
-        bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench });
+        bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench, fo: src.vFo || 0 });
     });
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo } = stack.pop();
+      fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
       par = par || 0;                   // how many reflections so far, mod 2: the sense of p
@@ -2580,13 +2640,13 @@ function traceScene() {
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
-            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn });
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn, fo });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
           beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn },
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn, fo },
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
         }
@@ -2617,6 +2677,18 @@ function traceScene() {
         const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false });
         const passEv = () => withSurf({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A: 1, C: 0, D: 1,
           n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+        if (s.kind === 'eom') {
+          // each sideband carries on as a branch of its own, n f_m from where it came in
+          const sb = probe ? [[0, [1, 0]]] : eomSidebands(s.el);
+          for (const [n, c] of sb) {
+            const nsr = sr * c[0] - si * c[1], nsi = sr * c[1] + si * c[0], npr = pr * c[0] - pi * c[1], npi = pr * c[1] + pi * c[0];
+            if (!probe && nsr * nsr + nsi * nsi + npr * npr + npi * npi < minW) { dropped++; continue; }
+            const f2 = fo + n * s.el.fm * 1e6;
+            stack.push({ px, py, dx, dy, sr: nsr, si: nsi, pr: npr, pi: npi, bn, fo: f2, bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par,
+              qr, qi, bid, evt: isQ ? passEv() : null, fam: famAt(fam, f2), k, path: path + 'e' + n + '.' + bounce, probe, probeH, tag, wk: 0 });
+          }
+          break;                                                     // this ray ends here; its sidebands carry on
+        }
         if (s.kind === 'link') {
           // A link plane and its partner are one plane seen from two benches: the light leaves
           // the partner where it met this one, in the same direction against it. To the beam
@@ -2725,7 +2797,7 @@ function traceScene() {
         if (s.kind === 'grating') {
           const el = s.el, refl = el.mode === 'reflect', lam = nm * 1e-6;
           if (refl && cosd >= 0) break;                              // the back of a reflection grating
-          const ords = gratingOrders(el, nm, ldy, nCur);
+          const ords = el.type === 'aom' ? aomOrders(el, nm, ldy, nCur) : gratingOrders(el, nm, ldy, nCur);
           const use = probe ? ords.slice().sort((a, b) => b.eff - a.eff).slice(0, 1) : ords;
           const sx0 = ldx < 0 ? -1 : 1, cIn = Math.abs(ldx);
           for (const o of use) {
@@ -2741,9 +2813,10 @@ function traceScene() {
             const A = Math.abs(tx) / (cIn || 1);
             const ev = isQ ? withSurf({ el: el.id, kind: 'grating', semi: s.semi, ly, cth: cIn || 1, A, C: 0, D: 1 / A,
               n1: nCur, n2: nCur, mode: refl ? 'R' : 'T', order: o.m, hx: px, hy: py, dIn: [dx, dy], dOut: [odx, ody] }) : null;
-            stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a, bn,
+            const f2 = fo + (o.df || 0);
+            stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a, bn, fo: f2,
               bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
-              qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam, k, path: path + 'g' + o.m + '.' + bounce,
+              qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam: famAt(fam, f2), k, path: path + 'g' + o.m + '.' + bounce,
               probe, probeH, tag, wk: 0 });
           }
           if (probe) probeLast = { px, py, dx, dy };
@@ -2773,7 +2846,7 @@ function traceScene() {
           if (wr > 0 && !probe) {
             if (wr >= minW && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
-              stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn,
+              stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn, fo,
                 bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
                 fam, k, path: path + 'r' + bounce, tag, wk: 0 });
@@ -2850,7 +2923,7 @@ function traceScene() {
           const mInto = goingBack ? s.back : s.front;
           if (mInto.bire && !tag && !probe && ws > 1e-12 * w && wp > 1e-12 * w) {
             const back = 1e-5;
-            stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null, bn,
+            stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null, bn, fo,
               opl: opl - nCur * back, nCur, aCur, id, chief, fan, pol, par, qr: chief ? qr - back : qr, qi, bid,
               evt: isQ ? passEv() : evt, fam, k: rayK, path: path + 'e', tag: 'p', wk: 0 });
             pr = 0; pi = 0; wp = 0; w = ws;
@@ -3443,7 +3516,7 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, link: 2, fcomp: 2, source: 3 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, link: 2, fcomp: 2, aom: 2, eom: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   drawFibres();
   for (const el of els) if (el.type !== 'source') draw(el);
@@ -3734,6 +3807,20 @@ function drawLink(el, sel) {
   for (const y of [-L, L]) { const [ax, ay] = toWorld(f, -4 * k, y), [bx, by] = toWorld(f, 4 * k, y); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); }
   ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
 }
+/* a modulator: a crystal block; an AOM's transducer along one side with its sound waves, an EOM's electrodes above and below */
+function drawModulator(el, sel) {
+  const aom = el.type === 'aom', { f, L, k } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', 5);
+  const t = 5 * k;
+  ctx.save();
+  if (aom) {
+    pathLocal(f, [[-t, L], [t, L], [t, L + 4 * k], [-t, L + 4 * k]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
+    ctx.strokeStyle = 'rgba(154,208,255,0.45)'; ctx.lineWidth = 1;
+    for (let i = 1; i < 5; i++) { const y = L - i * 2 * L / 5; pathLocal(f, [[-t, y], [t, y]]); ctx.stroke(); }
+  } else {
+    for (const y of [L, -L]) { pathLocal(f, [[-t, y], [t, y]]); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 3; ctx.stroke(); }
+  }
+  ctx.restore();
+}
 function drawPlate(el, sel, stroke, fill, half) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
@@ -3811,6 +3898,7 @@ function filterColour(el) {
 function draw(el) {
   const sel = el.id === selectedId;
   if (el.type === 'grating') return drawGrating(el, sel);
+  if (el.type === 'aom' || el.type === 'eom') return drawModulator(el, sel);
   if (el.type === 'fibre') return drawFibre(el, sel);
   if (el.type === 'detector') return drawDetector(el, sel);
   if (el.type === 'crystal') return drawCrystal(el, sel);
@@ -3841,7 +3929,7 @@ function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, link: 1, fcomp: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
+    filter: 1, gain: 1, link: 1, fcomp: 1, aom: 1, eom: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
@@ -3869,7 +3957,7 @@ function hitTest(px, py) {
       if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= FC_H / 2 + tol) return el;
       continue;
     }
-    if (['grating', 'faraday', 'isolator', 'filter', 'gain', 'link'].includes(el.type)) {
+    if (['grating', 'faraday', 'isolator', 'filter', 'gain', 'link', 'aom', 'eom'].includes(el.type)) {
       if (lx <= tol + 0.4 && lx >= -(el.type === 'grating' && el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4) - tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
     }
@@ -4583,7 +4671,7 @@ function faceArrivals(el) {
     const qx = [(b.qr + b.len) / b.n, b.qi / b.n];
     const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
     const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
-    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, lag: lagOf(src), nm: b.nm };
+    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own
     const modes = gsmModes(m2Of(src));
     if (modes.length === 1) out.push(A);
@@ -4666,9 +4754,12 @@ function fibreCoupling(el) {
 function detectorReading(el) {
   return deviceMemo(el, () => {
     const a = el.length / 2;
-    let I = 0, P = 0;
+    let I = 0, P = 0, pending = false;
+    const F = viaCavity(el) ? detectorFieldResult(el) : null;
+    if (viaCavity(el) && !F) pending = true;       // being worked out: the tracer's figure meanwhile
+    if (F) { P = F.mw; I = F.mw * responsivity(el, F.nm || benchNms()[0]); }
     // Gaussian launches: |E|^2 over the active disc, fields added within each launch
-    for (const G of groupsOf(faceArrivals(el))) {
+    if (!F) for (const G of groupsOf(faceArrivals(el))) {
       let u0 = Infinity, u1 = -Infinity, v1 = 0;
       for (const A of G) {
         const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0);
@@ -4701,7 +4792,7 @@ function detectorReading(el) {
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = el.bandwidth, Ia = I * 1e-3;
     const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
     const noiseI = Math.sqrt(i2), V = Ia * el.gain;
-    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI,
+    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F,
       snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
   });
 }
@@ -4805,13 +4896,21 @@ const FC = {
     params: [['rl', 'Return loss (dB)', 60]],
     S: el => [[0, 0, J2.I(dBa(el.rl))]] },
   pd: { label: 'Fibre photodiode', tag: 'PD', ports: [[-1, 0]], names: ['in'],
-    params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10]],
+    params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
+      ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (\u00b0)', 0]],
     S: () => [] },
   thru: { label: 'Feedthrough', tag: '⇄', ports: [[1, 0]], names: ['port'],
     params: [], S: () => [] },
+  aom: { label: 'Fibre AOM', tag: 'AOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
+    params: [['rf', 'Drive (MHz)', 80], ['order', 'Order (+1 or \u22121)', 1], ['loss', 'Insertion loss (dB)', 2.5]],
+    // the shifted order is what the output fibre takes; order 0 is dumped
+    S: el => { const t = J2.I(dBa(el.loss)), f = (el.order < 0 ? -1 : 1) * el.rf * 1e6; return [[0, 1, t, f], [1, 0, t, -f]]; } },
+  eom: { label: 'Fibre EOM', tag: 'EOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
+    params: [['fm', 'Drive (MHz)', 1000], ['beta', 'Depth \u03b2 (rad)', 1.08], ['bias', 'Bias (\u00b0, amplitude mode)', 90], ['loss', 'Insertion loss (dB)', 3]],
+    S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
 };
 for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
-const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru'];
+const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom'];
 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
@@ -4886,45 +4985,52 @@ function fibreNet() {
   for (const el of comps) {
     if (el.type === 'fcomp' && el.kind === 'laser') {
       const th = el.polAngle * deg;
-      inputs.push({ port: [el.id, 0], E: [Math.cos(th), 0, Math.sin(th), 0], key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el });
+      inputs.push({ port: [el.id, 0], E: [Math.cos(th), 0, Math.sin(th), 0], key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
     }
     if (el.type === 'fibre' && to.has(pkey(el.id, 0))) for (const I of tipInputs(el)) inputs.push(Object.assign(I, { port: [el.id, 0] }));
   }
+  // one group per launch (its offset aside: light at every offset of one laser is followed
+  // together, as it beats with itself)
   const groups = new Map();
-  for (const I of inputs) { const g = I.key + '|' + I.nm; if (!groups.has(g)) groups.set(g, { key: I.key, nm: I.nm, root: I.root, list: [] }); groups.get(g).list.push(I); }
+  for (const I of inputs) {
+    const base = famAt(I.key, 0), g = base + '|' + I.nm;
+    if (!groups.has(g)) groups.set(g, { key: base, nm: I.nm, root: I.root, list: [] });
+    groups.get(g).list.push(I);
+  }
   const res = { out: new Map(), inn: new Map(), pd: new Map(), tips: new Map(), truncated: false, keys: [] };
   const rec = (map, k, g, w) => { if (!map.has(k)) map.set(k, new Map()); const m = map.get(k); if (!m.has(g)) m.set(g, []); m.get(g).push(w); };
   for (const [gk, G] of groups) {
     res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root });
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
-    const floor = 1e-14 * Math.max(P0, 1e-30);
+    const floor = 1e-20 * Math.max(P0, 1e-30);
     const Smemo = new Map(), Sof = el => { if (!Smemo.has(el.id)) Smemo.set(el.id, el.type === 'fcomp' ? FC[el.kind].S(el, G.nm) : []); return Smemo.get(el.id); };
     // waves leaving components into fibres, keyed by port and delay (added as fields there)
     let wave = new Map();
-    const emit = (map, port, dl, E) => {
-      const k = pkey(...port) + '|' + Math.round(dl * 1e6);
+    const emit = (map, port, dl, E, fo) => {
+      const k = pkey(...port) + '|' + Math.round(dl * 1e6) + '|' + fo;
       const w = map.get(k);
-      if (w) { for (let i = 0; i < 4; i++) w.E[i] += E[i]; } else map.set(k, { port, dl, E: E.slice() });
+      if (w) { for (let i = 0; i < 4; i++) w.E[i] += E[i]; } else map.set(k, { port, dl, E: E.slice(), fo });
     };
-    for (const I of G.list) emit(wave, I.port, I.dl, I.E);
+    for (const I of G.list) emit(wave, I.port, I.dl, I.E, I.fo || 0);
     let gen = 0;
     while (wave.size && gen++ < 20000) {
       const next = new Map();
       for (const w of wave.values()) {
         const pw = w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2;
         if (pw < floor) continue;
-        rec(res.out, pkey(...w.port), gk, { dl: w.dl, E: w.E });
+        rec(res.out, pkey(...w.port), gk, { dl: w.dl, E: w.E, fo: w.fo });
         const f = to.get(pkey(...w.port));
         if (!f) continue;                              // an open port: the light leaves the network
-        const z = ci.sc(ci.e(-k0 * FIBRE_N * f.Lmm), f.a);
+        // the phase at this light's own frequency: the laser's, plus its offset
+        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a);
         const E = [w.E[0] * z[0] - w.E[1] * z[1], w.E[0] * z[1] + w.E[1] * z[0], w.E[2] * z[0] - w.E[3] * z[1], w.E[2] * z[1] + w.E[3] * z[0]];
-        const dl = w.dl + FIBRE_NG * f.Lmm, q = f.port, el = getEl(q[0]);
-        rec(res.inn, pkey(...q), gk, { dl, E });
+        const dl = w.dl + FIBRE_NG * f.Lmm, q = f.port, el = getEl(q[0]), fo = w.fo;
+        rec(res.inn, pkey(...q), gk, { dl, E, fo });
         if (!el) continue;
-        if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E }); continue; }        // out into free space
-        if (el.kind === 'pd') { rec(res.pd, el.id, gk, { dl, E }); continue; }
-        if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E); continue; }
-        for (const [a, b, M] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl, J2.app(M, E));
+        if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E, fo }); continue; }        // out into free space
+        if (el.kind === 'pd') { rec(res.pd, el.id, gk, { dl, E, fo }); continue; }
+        if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo); continue; }
+        for (const [a, b, M, df] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl, J2.app(M, E), fo + (df || 0));
       }
       wave = next;
       if (wave.size > 20000) { res.truncated = true; break; }
@@ -4943,6 +5049,7 @@ function netPower(byGroup, keys) {
     const g = cohGamma(K.root);
     let s = 0;
     for (let i = 0; i < ws.length; i++) for (let j = i; j < ws.length; j++) {
+      if ((ws[i].fo || 0) !== (ws[j].fo || 0)) continue;        // light at different offsets beats, averaging to nothing
       const A = ws[i].E, B = ws[j].E, d = A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3];
       s += (i === j ? 1 : 2 * (g ? g(ws[i].dl - ws[j].dl) : 1)) * d;
     }
@@ -4964,18 +5071,20 @@ function tipSources(net) {
       const ws = byG.get(K.gk);
       if (!ws || !ws.length) continue;
       const Lc = K.root.coh > 0 ? K.root.coh : Infinity;
-      const sorted = ws.slice().sort((a, b) => a.dl - b.dl);
+      const sorted = ws.slice().sort((a, b) => (a.fo || 0) - (b.fo || 0) || a.dl - b.dl);
       let cl = [];
       for (const w of sorted) {
         const last = cl[cl.length - 1];
-        if (last && w.dl - last.d0 <= Lc / 50) { for (let i = 0; i < 4; i++) last.E[i] += w.E[i]; last.dw += w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2); }
-        else cl.push({ d0: w.dl, E: w.E.slice(), dw: w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2) });
+        if (last && last.fo === (w.fo || 0) && w.dl - last.d0 <= Lc / 50) { for (let i = 0; i < 4; i++) last.E[i] += w.E[i]; last.dw += w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2); }
+        else cl.push({ d0: w.dl, fo: w.fo || 0, E: w.E.slice(), dw: w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2) });
       }
       const pw = c => c.E[0] ** 2 + c.E[1] ** 2 + c.E[2] ** 2 + c.E[3] ** 2;
       while (cl.length > 6) {
         let k = 0; for (let i = 1; i < cl.length; i++) if (pw(cl[i]) < pw(cl[k])) k = i;
         const c = cl.splice(k, 1)[0];
-        let n = 0; for (let i = 1; i < cl.length; i++) if (Math.abs(cl[i].d0 - c.d0) < Math.abs(cl[n].d0 - c.d0)) n = i;
+        const same = cl.map((x, i) => i).filter(i => cl[i].fo === c.fo);
+        if (!same.length) continue;                    // alone at its offset: dropped, it is the weakest
+        let n = same[0]; for (const i of same) if (Math.abs(cl[i].d0 - c.d0) < Math.abs(cl[n].d0 - c.d0)) n = i;
         for (let i = 0; i < 4; i++) cl[n].E[i] += c.E[i];
       }
       cl.forEach((c, n) => {
@@ -4988,7 +5097,7 @@ function tipSources(net) {
           popN: 256, popModel: 'auto', beamView: tip.emitView, beamScale: 'lin', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
           // the tracer's amplitudes are the field's, conjugated
-          vJ: [c.E[0], -c.E[1], c.E[2], -c.E[3]], vRoot: K.root, vLag: c.dw / P, vKey: K.key, sweeps: {},
+          vJ: [c.E[0], -c.E[1], c.E[2], -c.E[3]], vRoot: K.root, vLag: c.dw / P, vKey: famAt(K.key, c.fo), vFo: c.fo, sweeps: {},
         };
         fanFromGauss(v);
         out.push(v);
@@ -4996,6 +5105,170 @@ function tipSources(net) {
     }
   }
   return out;
+}
+
+/* ---------- A photodiode's signal: its DC and the beat notes in it ----------
+   Light of one laser at two offsets f_a and f_b beats at f_b - f_a: the power carries
+   2 Re(E_a . E_b* e^{i 2 pi (f_b - f_a) t}), E the fields summed over the diode (for a fibre
+   photodiode, the fibre's two polarisations), each pair of paths weighted by the laser's
+   gamma of their delay. Two different lasers beat at the difference of their frequencies,
+   but with a phase that wanders and a line as wide as both of theirs: those are listed as
+   such. The amplifier passes each tone through its bandwidth, a single pole. */
+const cdotc = (A, B) => [A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3], A[1] * B[0] - A[0] * B[1] + A[3] * B[2] - A[2] * B[3]];   // A . conj(B)
+/* tones from pairs [{fo, dl, E, root, key, nm}]: same launch pairs at different offsets, and different lasers */
+function beatTones(parts) {
+  const tones = new Map(), add = (f, re, im, incoh) => {
+    const k = (incoh ? 'x' : '') + Math.round(f);
+    const t = tones.get(k) || { f, re: 0, im: 0, incoh }; t.re += re; t.im += im; tones.set(k, t);
+  };
+  for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+    let a = parts[i], b = parts[j];
+    if (a.key === b.key) {
+      if (a.fo === b.fo) continue;
+      if (a.fo > b.fo) [a, b] = [b, a];
+      const g = cohGamma(a.root), c = cdotc(a.E, b.E), w = 2 * (g ? g(a.dl - b.dl) : 1) * (a.root.power || 0);
+      add(b.fo - a.fo, w * c[0], w * c[1], false);
+    } else if (a.root !== b.root) {
+      // two lasers: their difference in frequency, with the offsets
+      let df = C_MM / (b.nm * 1e-6) + b.fo - (C_MM / (a.nm * 1e-6) + a.fo);
+      if (df < 0) { [a, b] = [b, a]; df = -df; }
+      if (df > 1e12) continue;
+      const c = cdotc(a.E, b.E), w = 2 * Math.sqrt((a.root.power || 0) * (b.root.power || 0));
+      add(df, w * Math.hypot(c[0], c[1]), 0, true);
+    }
+  }
+  return [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);
+}
+/* a fibre photodiode's light, as parts */
+function fibrePdParts(el) {
+  const net = lastTrace.net, out = [];
+  if (!net) return out;
+  const byG = net.pd.get(el.id);
+  if (!byG) return out;
+  for (const K of net.keys) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, key: K.gk, nm: K.nm });
+  return out;
+}
+/* a free-space photodiode's light: each arriving beam's field summed over the diode against
+   each other's, a pair at a time. Its parts' E are then the pair integrals' square roots, so
+   they are handled here directly */
+function freePdTones(el) {
+  const arr = faceArrivals(el);
+  if (arr.length < 2) return [];
+  const a = el.length / 2;
+  let u0 = Infinity, u1 = -Infinity, v1 = 0;
+  for (const A of arr) {
+    const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0);
+    u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v1 = Math.max(v1, 4 * wy);
+  }
+  u0 = Math.max(u0, -a); u1 = Math.min(u1, a); v1 = Math.min(v1, a);
+  if (!(u1 > u0) || !(v1 > 0)) return [];
+  const N = 64, du = (u1 - u0) / N, dv = 2 * v1 / N, pts = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv; if (u * u + v * v <= a * a) pts.push([u, v]); }
+  const F = arr.map(A => pts.map(([u, v]) => arrivalField(A, u, v)));
+  const key = A => A.coh.replace(/@[^#]*/, ''), root = A => splitRoot(A.src), dA = du * dv;
+  const tones = new Map(), add = (f, re, im, incoh) => {
+    const k = (incoh ? 'x' : '') + Math.round(f), t = tones.get(k) || { f, re: 0, im: 0, incoh }; t.re += re; t.im += im; tones.set(k, t);
+  };
+  for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+    let A = arr[i], B = arr[j], FA = F[i], FB = F[j];
+    const same = key(A) === key(B);
+    if (same && A.fo === B.fo) continue;
+    if (!same && root(A) === root(B)) continue;
+    let re = 0, im = 0;
+    for (let k = 0; k < pts.length; k++) { const c = cdotc(FA[k], FB[k]); re += c[0]; im += c[1]; }
+    re *= dA; im *= dA;
+    if (same) {
+      if (A.fo > B.fo) { [A, B] = [B, A]; im = -im; }
+      const g = cohGamma(root(A)), w = 2 * (g ? g(A.opl + A.lag - B.opl - B.lag) : 1) * (root(A).power || 0);
+      add(B.fo - A.fo, w * re, w * im, false);
+    } else {
+      let df = C_MM / (B.nm * 1e-6) + B.fo - (C_MM / (A.nm * 1e-6) + A.fo);
+      if (Math.abs(df) > 1e12) continue;
+      add(Math.abs(df), 2 * Math.sqrt((root(A).power || 0) * (root(B).power || 0)) * Math.hypot(re, im), 0, true);
+    }
+  }
+  return [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);
+}
+/* the signal: DC (mW), tones (mW of optical power swing, and V out), the mixer */
+function pdSignal(el) {
+  const fibre = el.type === 'fcomp';
+  const dc = fibre ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : detectorReading(el).mw;
+  const Ff = !fibre && viaCavity(el) ? detectorFieldResult(el) : null;
+  const tones = fibre ? beatTones(fibrePdParts(el)) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + '#tones' }), () => freePdTones(el));
+  const R = fibre ? el.resp : responsivity(el, benchNms()[0]), G = el.gain, B = el.bandwidth;
+  const V = mw => mw * 1e-3 * R * G;
+  for (const t of tones) { const Hm = 1 / Math.sqrt(1 + (t.f / B) ** 2); t.V = V(t.amp) * Hm; t.phV = t.ph - Math.atan(t.f / B); }
+  const out = { dc, Vdc: V(dc), tones, vmax: el.vmax, B };
+  if (el.demodF > 0) {
+    const fd = el.demodF * 1e6, pd = el.demodPhase * deg;
+    let I = 0; for (const t of tones) if (!t.incoh && Math.abs(t.f - fd) < 1) I += 0.5 * t.V * Math.cos(t.phV - pd);
+    out.mixer = I;
+  }
+  return out;
+}
+/* the signal's plot: its RF spectrum (each tone's amplitude, dB of a volt) or its trace in time */
+function drawSignal(cv, el, mode) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 150;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
+  const S = pdSignal(el), T = S.tones.filter(t => t.V > 1e-9);
+  g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
+  if (mode === 'rf') {
+    if (!T.length) { g.fillText('no beat notes: one frequency of each laser reaches it', 4, 14); return; }
+    const fmax = 1.15 * Math.max(...T.map(t => t.f)), dB = v => 20 * Math.log10(Math.max(v, 1e-12));
+    const top = Math.ceil(dB(Math.max(...T.map(t => t.V))) / 10) * 10 + 5, bot = top - 90;
+    const sx = { kind: 'hz', title: 'frequency' }, sy = { kind: 'plain', title: 'dBV' };
+    const A = plotArea(g, w, hgt, [bot, top], sy);
+    for (const t of T) {
+      const X = A.l + t.f / fmax * A.w, Y = A.t + A.h - (Math.max(bot, dB(t.V)) - bot) / (top - bot) * A.h;
+      g.strokeStyle = t.incoh ? 'rgba(0,146,178,0.45)' : getCss('--jek-cyan'); g.lineWidth = 2;
+      g.beginPath(); g.moveTo(X, A.t + A.h); g.lineTo(X, Y); g.stroke();
+    }
+    drawAxes(g, A, [0, fmax], [bot, top], sx, sy);
+    return;
+  }
+  // the trace: a few periods of the slowest tone
+  const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, span = fmin > 0 ? 3 / fmin : 1e-6, n = 600;
+  const Vt = t => Math.min(S.vmax, S.Vdc + T.reduce((a, q) => a + q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0));
+  const ys = []; for (let i = 0; i <= n; i++) ys.push(Vt(span * i / n));
+  let lo = Math.min(0, ...ys), hi = Math.max(...ys); if (hi - lo < 1e-9) hi = lo + 1e-3;
+  const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
+  const sx = { kind: 's', title: 'time' }, sy = { kind: 'plain', title: 'output, V' };
+  const A = plotArea(g, w, hgt, [lo, hi], sy);
+  g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.4; g.beginPath();
+  ys.forEach((v, i) => { const X = A.l + i / n * A.w, Y = A.t + A.h - (v - lo) / (hi - lo) * A.h; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  g.stroke();
+  drawAxes(g, A, [0, span], [lo, hi], sx, sy);
+}
+/* the signal section of a photodiode's panel */
+function signalSection(el) {
+  const fibre = el.type === 'fcomp';
+  panel.append(h('h3', null, 'Signal'));
+  if (!fibre) panel.append(h('div', { class: 'rt-rows' }, param('Demod. at (MHz)', el, 'demodF'), param('Demod. phase (\u00b0)', el, 'demodPhase')));
+  const vsEl = vs(el);
+  vsEl.sigView = vsEl.sigView || 'rf';
+  const tabs = h('div', { class: 'rt-tabs', style: 'margin-top:0.4rem' });
+  const cv = h('canvas', { height: '150', style: 'width:100%;display:block' });
+  const draw = () => drawSignal(cv, el, vsEl.sigView);
+  for (const [k, label] of [['rf', 'RF spectrum'], ['time', 'Oscilloscope']]) {
+    const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); draw(); } }, label);
+    tabs.append(b);
+  }
+  panel.append(tabs, h('div', { style: 'margin-top:0.3rem' }, cv));
+  const rows = h('div', { class: 'rt-readout' });
+  panel.append(rows);
+  let sig = '';
+  bindSync(cv, () => {
+    const S = pdSignal(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3);
+    const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + ' V']];
+    for (const t of S.tones.slice(0, 8)) r.push(['Beat at ' + fmtHz(t.f), fmtMw(t.amp) + ' swing, ' + f(t.V) + ' V' + (t.incoh ? ' (two lasers: phase wanders, line of both)' : ', phase ' + (t.phV / deg).toFixed(1) + '\u00b0')]);
+    if (S.tones.length > 8) r.push(['', (S.tones.length - 8) + ' more']);
+    if (S.mixer !== undefined) r.push(['Mixer output', f(S.mixer) + ' V']);
+    const s2 = JSON.stringify(r);
+    if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
+    draw();
+  });
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal.'));
 }
 
 /* ---------- One-parameter search over a swept range ---------- */
@@ -5586,7 +5859,7 @@ function renderPanelBody(el) {
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
       faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)',
-      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
   );
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
@@ -5611,6 +5884,7 @@ function renderPanelBody(el) {
   if (el.type === 'gain') gainPanel(el);
   if (el.type === 'link') linkPanel(el);
   if (el.type === 'fcomp') fcompPanel(el);
+  if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -6208,6 +6482,7 @@ function detectorPanel(el) {
     param('Dark (nA)', el, 'dark'), param('Noise (pA/√Hz)', el, 'ampNoise'),
     param('Output limit (V)', el, 'vmax', { wide: true })));
   panel.append(readoutBox('detector'));
+  signalSection(el);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the bandwidth.'));
 }
 function faradayPanel(el) {
@@ -6279,6 +6554,7 @@ function fcompPanel(el) {
   if (el.kind === 'laser') rows.append(selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   if (el.kind === 'thru') rows.append(textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }));
   panel.append(rows);
+  if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));
   if (el.kind === 'thru') {
     const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
     panel.append(st, acts);
@@ -6300,6 +6576,7 @@ function fcompPanel(el) {
     });
   }
   panel.append(readoutBox('fcomp'));
+  if (el.kind === 'pd') signalSection(el);
   const notes = {
     laser: 'A laser coupled straight into fibre. Its polarisation angle is from s: where a tip meets free space, s is out of the bench plane. Give it a coherence length and the network weighs every pair of paths by it.',
     coupler: 'Ports 1 and 2 on one side, 3 and 4 on the other: 1 goes to 3 and, across, to 4; 2 goes to 4 and, across, to 3. The light crossing over picks up a quarter-wave, as in a real coupler, so two equal arms recombine all into one port.',
@@ -6314,6 +6591,8 @@ function fcompPanel(el) {
     term: 'Absorbs what arrives, sending back only its return loss.',
     pd: 'Reads the power arriving, the paths of one laser added as fields (weighted by its coherence), different lasers as powers.',
     thru: 'Carries a fibre to the partner of the same name, on another tab.',
+    aom: 'A fibre-coupled Bragg cell: the output fibre takes the shifted order, f higher (order +1) or lower (\u22121); what is not shifted is dumped, part of the insertion loss.',
+    eom: 'A fibre-coupled lithium niobate modulator. Phase: sidebands at n f_m with amplitudes J\u2099(\u03b2). Amplitude: a Mach\u2013Zehnder of two arms driven in opposition, at its bias (90\u00b0 is quadrature, 0\u00b0 full transmission).',
   };
   panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
 }
@@ -6340,6 +6619,28 @@ function fibreLinkPanel(F) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('button', { class: 'rt-btn wide', type: 'button',
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
+}
+function modulatorPanel(el) {
+  if (el.type === 'aom') {
+    panel.append(h('h3', null, 'Acousto-optic modulator'));
+    panel.append(h('div', { class: 'rt-rows' },
+      param('Drive (MHz)', el, 'rf'), param('Sound speed (m/s)', el, 'v'),
+      param('Diffraction efficiency (%)', el, 'eff'),
+      selectField('Order', [['1', '+1 (shifted up)'], ['-1', '\u22121 (shifted down)']], () => String(el.order), v => { el.order = +v; }),
+      param('Aperture (mm)', el, 'length', { wide: true })));
+    panel.append(readoutBox('aom'));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A Bragg cell: sound at the drive frequency makes a moving grating of period v / f in the crystal. The chosen order takes its share of the light, turned by \u03bbf/v and shifted in frequency by the drive; the rest goes straight through, unshifted. Tellurium dioxide carries sound at about 4200 m/s, fused silica 5960 m/s. Shifted light makes no steady fringes with the rest; on a photodiode it beats at the drive frequency.'));
+  } else {
+    panel.append(h('h3', null, 'Electro-optic modulator'));
+    const rows = h('div', { class: 'rt-rows' },
+      selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }),
+      param('Drive (MHz)', el, 'fm'), param('Depth \u03b2 (rad)', el, 'beta'));
+    if (el.emode === 'amplitude') rows.append(param('Bias (\u00b0)', el, 'bias'));
+    rows.append(param('Insertion loss (dB)', el, 'loss'), param('Aperture (mm)', el, 'length'));
+    panel.append(rows);
+    panel.append(readoutBox('eom'));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each sideband leaves as a branch of its own, n f\u2098 from the light that came in, with its share of the field. Phase modulation at \u03b2 = 1.434 puts equal power in the carrier and each first sideband; at 2.405 the carrier is gone. With a cavity after it and a photodiode on the reflection, demodulated at the drive frequency, it is a Pound\u2013Drever\u2013Hall lock.'));
+  }
 }
 function linkPanel(el) {
   panel.append(h('h3', null, 'Link'));
@@ -6501,6 +6802,7 @@ function axisScale(kind, a, b) {
   const m = Math.max(Math.abs(a), Math.abs(b), Math.abs(b - a));
   if (kind === 'len') return m >= 2000 ? [1e-3, 'm'] : m >= 0.5 ? [1, 'mm'] : m >= 5e-4 ? [1e3, 'µm'] : [1e6, 'nm'];
   if (kind === 'hz') return m >= 1e9 ? [1e-9, 'GHz'] : m >= 1e6 ? [1e-6, 'MHz'] : m >= 1e3 ? [1e-3, 'kHz'] : [1, 'Hz'];
+  if (kind === 's') return m >= 1 ? [1, 's'] : m >= 1e-3 ? [1e3, 'ms'] : m >= 1e-6 ? [1e6, '\u00b5s'] : [1e9, 'ns'];
   return [1, ''];
 }
 /* round-number ticks over [a, b], about `target` of them */
@@ -7218,7 +7520,7 @@ function renderOverview() {
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
       grating: '#c9a6ff', crystal: '#b79bff', fibre: '#f2c14e', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
-      filter: '#9aa4ab', gain: '#ff6a3d', link: '#7fdcff', fcomp: '#f2c14e' };
+      filter: '#9aa4ab', gain: '#ff6a3d', link: '#7fdcff', fcomp: '#f2c14e', aom: '#9ad0ff', eom: '#c6a8ff' };
     // this tab's first, then the others', each under its name when there are several
     const multi = project.benches.length > 1;
     for (const b of [curBench(), ...project.benches.filter(b2 => b2 !== curBench())]) {
@@ -7928,7 +8230,9 @@ function cavLoops(beams) {
       if (hit < 0) continue;
       const cyc = keys.slice(hit, hit + p);
       let canon = null; for (let r = 0; r < p; r++) { const c = cyc.slice(r).concat(cyc.slice(0, r)).join('|'); if (canon === null || c < canon) canon = c; }
-      const key = canon + '#' + path[0];
+      // one loop for each way into it: a modulator's sidebands or a grating's orders each enter the
+      // same cavity on a branch of their own, and each is solved on its own
+      const key = canon + '#' + path[hit];
       // the path that stays in the loop longest: it has the round trips the losses are read from
       let reps = 0; while (hit + (reps + 1) * p <= keys.length && keys.slice(hit + reps * p, hit + (reps + 1) * p).join('|') === cyc.join('|')) reps++;
       const had = found.get(key);
@@ -8750,7 +9054,7 @@ function popScreen(ev, invRx, invRy, lam0) {
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
   // a grating is a phase ramp of m waves per line across it, which is what turns the
   // light into its order: the mask machinery carries it
-  const fn = s.maskFn || (s.kind === 'grating' ? (u, v) => [1, (ev.order || 0) * s.el.lpmm * u] : null);
+  const fn = s.maskFn || (s.kind === 'grating' ? (u, v) => [1, (ev.order || 0) * linesPerMm(s.el) * u] : null);
   const Hx = ev.hx, Hy = ev.hy, di = ev.dIn, dO = ev.dOut || ev.dIn;
   const exix = -di[1], exiy = di[0], exox = -dO[1], exoy = dO[0];
   const f = s.f, y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
@@ -8799,7 +9103,7 @@ function popScreen(ev, invRx, invRy, lam0) {
     if (bend === 'grating') {
       // along the grooves' normal the grating equation, n sin(out) = n sin(in) + m lambda G;
       // along the grooves nothing changes; reflected back across, or carried on through
-      ey = ldy + (ev.order || 0) * lam0 * s.el.lpmm / n1; ez = ldz;
+      ey = ldy + (ev.order || 0) * lam0 * linesPerMm(s.el) / n1; ez = ldz;
       const kk = 1 - ey * ey - ez * ez;
       if (kk < 0) ok = false;
       ex = (s.el.mode === 'reflect' ? -1 : 1) * (ldx < 0 ? -1 : 1) * Math.sqrt(Math.max(0, kk));
@@ -9332,7 +9636,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
               // the grating equation along the surface in the bench plane, as the tracer does
               const f = ev.surf.f, tY0 = [-f.s, f.c], nn = [f.c, f.s];
               const dn = d[0] * nn[0] + d[1] * nn[1];
-              const tY = d[0] * tY0[0] + d[1] * tY0[1] + (ev.order || 0) * lam0 * ev.surf.el.lpmm / n1, tZ = d[2];
+              const tY = d[0] * tY0[0] + d[1] * tY0[1] + (ev.order || 0) * lam0 * linesPerMm(ev.surf.el) / n1, tZ = d[2];
               const dN = (ev.mode === 'R' ? -1 : 1) * (dn < 0 ? -1 : 1) * Math.sqrt(Math.max(0, 1 - tY * tY - tZ * tZ));
               d2 = [dN * nn[0] + tY * tY0[0], dN * nn[1] + tY * tY0[1], tZ];
             } else if (ev.mode === 'R') d2 = d.map((v, i2) => v + 2 * c * N3[i2]);
@@ -9611,7 +9915,7 @@ function* popRunGen(beams, srcs, opts = {}) {
     // on the 2D engine the field carries its polarisation at every point from the start
     if (!job.F && eng === '2d') F0 = field2Vector(F0, b.J);
     if (job.F && loopAt.has(job.i) && job.decision) {
-      const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng + (job.mode ? '|m' + job.mode : '');
+      const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng + (job.mode ? '|m' + job.mode : '') + (b.fo ? '|f' + b.fo : '');
       let store = cavRunCache.get(lastTrace); if (!store) { store = new Map(); cavRunCache.set(lastTrace, store); }
       let got = store.get(key);
       // The twin behind a Strehl ratio needs the cavity's build-up, not its every detail: the
@@ -9627,8 +9931,12 @@ function* popRunGen(beams, srcs, opts = {}) {
         const mode = (project.cavityLock && project.cavityLock[L.canon]) || 'lock';
         // one laser, one frequency: the higher modes of a beam of M^2 above 1 keep its lock
         const lk = L.canon + '|' + eng + '|' + (opts.paraxial ? 'p' : '');
-        const delta = mode === 'lock' && res ? (job.mode && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
-        if (!job.mode) lockOf.set(lk, delta);
+        // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lopt / c further
+        // round in each round trip than the laser itself, locked or not
+        const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+        const base = mode === 'lock' && res ? ((job.mode || b.fo) && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
+        const delta = base + (b.fo ? 2 * Math.PI * b.fo * LoptF / C_MM : 0);
+        if (!job.mode && !b.fo) lockOf.set(lk, delta);
         let X = F0, Xinc = null;
         if (res) {
           const y = cavLS(res.H, res.m, res.beta, [Math.cos(delta), Math.sin(delta)]);
@@ -9652,7 +9960,8 @@ function* popRunGen(beams, srcs, opts = {}) {
         }
         got = { X, Xinc, res, delta, mode, bRef: F0 };
         store.set(key, got);
-        if (!opts.paraxial && !job.mode) cavSolved.set(L.canon, Object.assign({ eng, trace: lastTrace, others: [] }, got));
+        if (!opts.paraxial && !job.mode && !b.fo) cavSolved.set(L.canon, Object.assign({ eng, trace: lastTrace, others: [] }, got));
+        else if (b.fo) { /* a sideband's solve: not the laser's own, so not for the card */ }
         else if (!opts.paraxial && res) {         // the other modes' solves, for the readouts
           const S = cavSolved.get(L.canon);
           if (S && S.trace === lastTrace) S.others.push({ res, delta });
@@ -10657,46 +10966,7 @@ function popDiffraction(el, R) {
   const MN = coherent ? 256 : MAP_N;
   const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN);
   // each arrival's complex field at a point on the screen
-  const fieldAt = h2 => {
-    const G2 = h2.G, two = h2.sg.eng === '2d', k = 2 * Math.PI * G2.n / G2.lam0, b = h2.sg.b;
-    const cz = sYx * b.dx + sYy * b.dy;                    // how far along the beam a step along the screen goes
-    const r = two ? null : popRadii(qdht(G2.re.length), G2.R);
-    const bR = two ? 0 : (G2.sphere ? -k / (2 * G2.z) : 0);
-    const bx = two ? (popInside(G2.ax.z, G2.ax.zR) ? 0 : -k / (2 * G2.ax.z)) : 0;
-    const by = two ? (popInside(G2.ay.z, G2.ay.zR) ? 0 : -k / (2 * G2.ay.z)) : 0;
-    // as [s re, s im, p re, p im], p with its parity sign: from the field's own components on
-    // the 2D engine, from the profile and the Jones vector on the round one
-    const J = popJ(b), g = b.par ? -1 : 1;
-    return (u, v) => {
-      const s = u - h2.ly, x = s * h2.p, y = v;
-      let ur = 0, ui = 0, ph = -k * s * cz;
-      if (two) {
-        const fx = x / G2.ax.d + G2.N / 2, fy = y / G2.ay.d + G2.N / 2, i0 = Math.floor(fx), j0 = Math.floor(fy);
-        if (i0 < 0 || j0 < 0 || i0 >= G2.N - 1 || j0 >= G2.N - 1) return null;
-        const tx = fx - i0, ty = fy - j0, o = j0 * G2.N + i0, N2 = G2.N;
-        const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
-        const bl = A => w00 * A[o] + w10 * A[o + 1] + w01 * A[o + N2] + w11 * A[o + N2 + 1];
-        ph += bx * x * x + by * y * y;
-        const c = Math.cos(ph), sn = Math.sin(ph), rot = (a, b2) => [a * c - b2 * sn, a * sn + b2 * c];
-        const S = rot(bl(G2.re), bl(G2.im));
-        if (!G2.re2) return [S[0] * J[0] - S[1] * J[1], S[0] * J[1] + S[1] * J[0], S[0] * J[2] - S[1] * J[3], S[0] * J[3] + S[1] * J[2]];
-        const P = rot(bl(G2.re2), bl(G2.im2));
-        return [S[0], S[1], g * P[0], g * P[1]];
-      } else {
-        const q = Math.hypot(x, y);
-        if (q <= r[0]) { ur = G2.re[0]; ui = G2.im[0]; }
-        else if (q < r[r.length - 1]) {
-          let lo = 0, hi = r.length - 1;
-          while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (r[mid] <= q) lo = mid; else hi = mid; }
-          const t = (q - r[lo]) / (r[hi] - r[lo]);
-          ur = G2.re[lo] + (G2.re[hi] - G2.re[lo]) * t; ui = G2.im[lo] + (G2.im[hi] - G2.im[lo]) * t;
-        } else return null;
-        ph += bR * q * q;
-      }
-      const c = Math.cos(ph), sn = Math.sin(ph), er = ur * c - ui * sn, ei = ur * sn + ui * c;
-      return [er * J[0] - ei * J[1], er * J[1] + ei * J[0], er * J[2] - ei * J[3], er * J[3] + ei * J[2]];
-    };
-  };
+  const fieldAt = h2 => segFieldAt(h2, sYx, sYy);
   // Stokes parameters over the whole spot, from the fields as they add at each point:
   // S1 = |Ep|^2 - |Es|^2 (in the bench plane against out of it), S2 at 45 degrees, S3 the
   // circular part, positive right-handed as the tracer counts it. Launches add as Stokes.
@@ -10771,6 +11041,138 @@ function diffFns(D) {
   };
   D.mtfAt = nu => at(D.mtf, nu); D.mtfAtY = nu => at(D.mtfY, nu);
   return D;
+}
+
+/* One arrival's complex field at a point on a screen or diode (u along it, v out of the
+   plane), as [s re, s im, p re, p im], p with its parity sign: from the field's own
+   components on the 2D engine, from the profile and the Jones vector on the round one */
+function segFieldAt(h2, sYx, sYy) {
+  const G2 = h2.G, two = h2.sg.eng === '2d', k = 2 * Math.PI * G2.n / G2.lam0, b = h2.sg.b;
+  const cz = sYx * b.dx + sYy * b.dy;                    // how far along the beam a step along the screen goes
+  const r = two ? null : popRadii(qdht(G2.re.length), G2.R);
+  const bR = two ? 0 : (G2.sphere ? -k / (2 * G2.z) : 0);
+  const bx = two ? (popInside(G2.ax.z, G2.ax.zR) ? 0 : -k / (2 * G2.ax.z)) : 0;
+  const by = two ? (popInside(G2.ay.z, G2.ay.zR) ? 0 : -k / (2 * G2.ay.z)) : 0;
+  // as [s re, s im, p re, p im], p with its parity sign: from the field's own components on
+  // the 2D engine, from the profile and the Jones vector on the round one
+  const J = popJ(b), g = b.par ? -1 : 1;
+  return (u, v) => {
+    const s = u - h2.ly, x = s * h2.p, y = v;
+    let ur = 0, ui = 0, ph = -k * s * cz;
+    if (two) {
+      const fx = x / G2.ax.d + G2.N / 2, fy = y / G2.ay.d + G2.N / 2, i0 = Math.floor(fx), j0 = Math.floor(fy);
+      if (i0 < 0 || j0 < 0 || i0 >= G2.N - 1 || j0 >= G2.N - 1) return null;
+      const tx = fx - i0, ty = fy - j0, o = j0 * G2.N + i0, N2 = G2.N;
+      const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+      const bl = A => w00 * A[o] + w10 * A[o + 1] + w01 * A[o + N2] + w11 * A[o + N2 + 1];
+      ph += bx * x * x + by * y * y;
+      const c = Math.cos(ph), sn = Math.sin(ph), rot = (a, b2) => [a * c - b2 * sn, a * sn + b2 * c];
+      const S = rot(bl(G2.re), bl(G2.im));
+      if (!G2.re2) return [S[0] * J[0] - S[1] * J[1], S[0] * J[1] + S[1] * J[0], S[0] * J[2] - S[1] * J[3], S[0] * J[3] + S[1] * J[2]];
+      const P = rot(bl(G2.re2), bl(G2.im2));
+      return [S[0], S[1], g * P[0], g * P[1]];
+    } else {
+      const q = Math.hypot(x, y);
+      if (q <= r[0]) { ur = G2.re[0]; ui = G2.im[0]; }
+      else if (q < r[r.length - 1]) {
+        let lo = 0, hi = r.length - 1;
+        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (r[mid] <= q) lo = mid; else hi = mid; }
+        const t = (q - r[lo]) / (r[hi] - r[lo]);
+        ur = G2.re[lo] + (G2.re[hi] - G2.re[lo]) * t; ui = G2.im[lo] + (G2.im[hi] - G2.im[lo]) * t;
+      } else return null;
+      ph += bR * q * q;
+    }
+    const c = Math.cos(ph), sn = Math.sin(ph), er = ur * c - ui * sn, ei = ur * sn + ui * c;
+    return [er * J[0] - ei * J[1], er * J[1] + ei * J[0], er * J[2] - ei * J[3], er * J[3] + ei * J[2]];
+  };
+}
+
+/* ---------- A photodiode behind a cavity ----------
+   The tracer follows a cavity's light round only as many times as its interaction limit
+   allows, which for a good cavity is far short of its steady state. A diode that light
+   reaches by way of a cavity is read from the field engine instead, which solves every
+   round trip at once (and each sideband's own, at its own detuning): the fields arriving
+   are summed over the diode as a screen sums them, and beat against each other. */
+const cavReach = new WeakMap();
+function viaCavity(el) {
+  let m = cavReach.get(lastTrace);
+  if (!m) {
+    const B = lastTrace.beams || [], inLoop = new Set();
+    for (const L of cavLoops(B)) for (let j = L.s; j < L.path.length; j++) inLoop.add(L.path[j]);
+    m = new Set();
+    if (inLoop.size) B.forEach((b, i) => { if (!b.endEl) return; for (let j = i; j >= 0; j = B[j].parent) if (inLoop.has(j)) { m.add(b.endEl); break; } });
+    cavReach.set(lastTrace, m);
+  }
+  return m.has(el.id);
+}
+function detectorField(el, R) {
+  const f = frame(el), a0 = el.angle * deg, sYx = -Math.sin(a0), sYy = Math.cos(a0), nX = Math.cos(a0), nY = Math.sin(a0);
+  const arr = R.segs.filter(sg => sg.b.endEl === el.id && sg.b.dx * nX + sg.b.dy * nY < 0);
+  const out = { mw: 0, tones: [], byNm: [] };
+  if (!arr.length) return out;
+  const hits = arr.map(sg => {
+    const G = sg.leg.at(sg.b.len), st = sg.eng === '2d' ? popStats2(G) : popStats(G);
+    const [, ly] = toLocal(f, sg.b.x0 + sg.b.dx * sg.b.len, sg.b.y0 + sg.b.dy * sg.b.len);
+    return { sg, G, st, ly, p: sYx * -sg.b.dy + sYy * sg.b.dx };
+  });
+  // a grid over the light, on the diode
+  const a = el.length / 2;
+  let u0 = Infinity, u1 = -Infinity, v1 = 0;
+  for (const h2 of hits) {
+    const wx = (h2.st.wx || h2.st.w) / (Math.abs(h2.p) || 1), wy = h2.st.wy || h2.st.w;
+    u0 = Math.min(u0, h2.ly - 3 * wx); u1 = Math.max(u1, h2.ly + 3 * wx); v1 = Math.max(v1, 3 * wy);
+  }
+  u0 = Math.max(u0, -a); u1 = Math.min(u1, a); v1 = Math.min(v1, a);
+  if (!(u1 > u0) || !(v1 > 0)) return out;
+  const N = 96, du = (u1 - u0) / N, dv = 2 * v1 / N, pts = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv; if (u * u + v * v <= a * a) pts.push([u, v]); }
+  const E = hits.map(h2 => { const fn = segFieldAt(h2, sYx, sYy); return pts.map(([u, v]) => fn(u, v) || [0, 0, 0, 0]); });
+  const L = h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len + lagOf(h2.sg.src), root = h2 => splitRoot(h2.sg.src);
+  const base = h2 => h2.sg.coh.replace(/@[^#]*/, ''), fo = h2 => h2.sg.b.fo || 0;
+  // each pair's overlap over the diode, in the beam's own cross-section
+  const ov = (i, j) => {
+    let re = 0, im = 0;
+    for (let k = 0; k < pts.length; k++) { const c = cdotc(E[i][k], E[j][k]); re += c[0]; im += c[1]; }
+    const w = du * dv * Math.sqrt(Math.abs(hits[i].p * hits[j].p)) / Math.sqrt(hits[i].sg.repr * hits[j].sg.repr);
+    return [re * w, im * w];
+  };
+  const tones = new Map(), add = (fq, re, im, incoh) => { const k = (incoh ? 'x' : '') + Math.round(fq), t = tones.get(k) || { f: fq, re: 0, im: 0, incoh }; t.re += re; t.im += im; tones.set(k, t); };
+  for (let i = 0; i < hits.length; i++) for (let j = i; j < hits.length; j++) {
+    const A = hits[i], B = hits[j], rA = root(A), rB = root(B);
+    if (A.sg.coh === B.sg.coh) {                      // one launch at one frequency: its DC
+      const c = ov(i, j), g = cohGamma(rA), gam = i === j || !g ? 1 : g(L(A) - L(B));
+      out.mw += (i === j ? 1 : 2) * gam * c[0] * (rA.power || 0);
+    } else if (base(A) === base(B) && fo(A) !== fo(B)) {
+      let c = ov(i, j), X = A, Y = B;
+      if (fo(A) > fo(B)) { X = B; Y = A; c = [c[0], -c[1]]; }
+      const g = cohGamma(rA), w = 2 * (g ? g(L(X) - L(Y)) : 1) * (rA.power || 0);
+      add(fo(Y) - fo(X), w * c[0], w * c[1], false);
+    } else if (rA !== rB) {
+      const df = Math.abs(C_MM / (B.sg.b.nm * 1e-6) + fo(B) - C_MM / (A.sg.b.nm * 1e-6) - fo(A));
+      if (df < 1e12) { const c = ov(i, j); add(df, 2 * Math.sqrt((rA.power || 0) * (rB.power || 0)) * Math.hypot(c[0], c[1]), 0, true); }
+    }
+  }
+  out.tones = [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);
+  out.nm = hits[0].sg.b.nm;
+  return out;
+}
+/* its reading: at once in the tests and the worker, from the worker on the page (the tracer's
+   meanwhile) */
+const detFieldCache = new Map();
+function detectorFieldResult(el) {
+  const J = popScreenPrep(el);
+  if (!J) return { mw: 0, tones: [] };
+  const key = J.key + '|' + el.length, c = detFieldCache.get(el.id);
+  if (c && c.key === key) return c.r;
+  const now = () => { const r = detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })); detFieldCache.set(el.id, { key, r }); return r; };
+  if (TEST_MODE || !fieldWorker()) return now();
+  if (!c || c.asked !== key) {
+    detFieldCache.set(el.id, { key: c ? c.key : null, r: c ? c.r : null, asked: key });
+    fwRequest('detector', 'detector:' + el.id, { id: el.id }).then(o => {
+      if (o && o.key === key) { detFieldCache.set(el.id, { key, r: o.r }); deviceCache.delete(lastTrace); syncPanel(); requestRender(); }
+    }).catch(() => { detFieldCache.delete(el.id); syncPanel(); });
+  }
+  return null;
 }
 
 /* The screen's answer, now: for the optimiser, the tests and the export */
@@ -11024,10 +11426,20 @@ function updateReadoutsIn(container, el) {
   } else if (el.type === 'detector') {
     const r = detectorReading(el), nm = benchNms()[0];
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
-    parts = [[['Optical power', f(r.mw) + ' mW'], ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+    parts = [[...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
+      ['Optical power', f(r.mw) + ' mW'], ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the bandwidth given.'];
+  } else if (el.type === 'aom') {
+    const nm = benchNms()[0], lam = nm * 1e-6, Lam = el.v * 1e3 / (el.rf * 1e6);
+    parts = [[['Acoustic period', fmtLen(Lam)], ['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],
+      ['Bragg angle', (Math.asin(clamp(lam / (2 * Lam), -1, 1)) / deg).toPrecision(4) + '\u00b0'], ['Shift of the diffracted order', (el.order < 0 ? '\u2212' : '+') + fmtHz(el.rf * 1e6)]], 'Angles are in air, from the element\u2019s normal.'];
+  } else if (el.type === 'eom') {
+    const sb = eomSidebands(el), tot = sb.reduce((a, [, c]) => a + c[0] * c[0] + c[1] * c[1], 0);
+    const rows = sb.filter(([n]) => Math.abs(n) <= 4).map(([n, c]) => [n === 0 ? 'Carrier' : 'Sideband ' + (n > 0 ? '+' : '\u2212') + Math.abs(n) + ' (' + (n > 0 ? '+' : '\u2212') + fmtHz(Math.abs(n) * el.fm * 1e6) + ')', (100 * (c[0] * c[0] + c[1] * c[1])).toPrecision(4) + '% of the power']);
+    if (tot < 0.999) rows.push(['Lost', (100 * (1 - tot)).toPrecision(3) + '%']);
+    parts = [rows, el.emode === 'amplitude' ? 'Shares of the power that goes in, at the bias set.' : 'Shares of the power that goes in: J\u2099(\u03b2)\u00b2.'];
   } else if (el.type === 'grating') {
     const nm = benchNms()[0], arr = (lastTrace.beams || []).find(b => b.endEl === el.id);
     const f = frame(el), ldy = arr ? toLocalDir(f, arr.dx, arr.dy)[1] : 0;
@@ -11496,11 +11908,11 @@ const PALETTES = {
     ['waveplate', 'Waveplate'], ['polariser', 'Polariser'], ['stop', 'Stop'], ['mask', 'Mask'], ['screen', 'Screen'],
     ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
     ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['fibre', 'Fibre tip'],
-    ['detector', 'Photodetector'], ['link', 'Link plane', 'Link plane (to another tab)']],
+    ['detector', 'Photodetector'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodiode', 'Fibre photodiode'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
-    ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
+    ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
 };
 let palette = 'free';
 try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = 'fibre'; } catch (err) { /* private window: free space */ }
@@ -11995,6 +12407,9 @@ function workerMain() {
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
+      } else if (kind === 'detector') {
+        const el = getEl(args.id), J = el && popScreenPrep(el);
+        out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
       } else if (kind === 'closeup') {
@@ -12041,6 +12456,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     portScreen(id, i) { const Q = portWorld(getEl(id), i); return [sx(Q.x), sy(Q.y)]; },
     fibrePoint(id, k, t) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[k], t)); },
     fibreMid(id) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[Math.floor((segs.length - 1) / 2)], segs.length % 2 ? 0.5 : 1)); },
+    arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
+    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el) }; },
+    pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { const el = this.byName(name), net = lastTrace.net; return net ? netPower(net.pd.get(el.id), net.keys) : 0; },
     portPower(name, p) { return portPower(this.byName(name), p); },
     fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },

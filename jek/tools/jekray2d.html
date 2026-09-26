@@ -192,6 +192,19 @@
   .rt-zb:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
   .rt-plot { position: relative; }
+  .rt-activity {
+    position: fixed; z-index: 50; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: min(340px, calc(100vw - 32px)); padding: 0.5rem 0.7rem 0.55rem; box-sizing: border-box;
+    background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow);
+    font-size: 0.78rem; color: var(--jek-ink-soft); pointer-events: none;
+  }
+  .rt-act-text { display: block; margin-bottom: 0.35rem; line-height: 1.35; }
+  .rt-act-bar { position: relative; height: 3px; overflow: hidden; background: var(--jek-well); border-radius: 2px; }
+  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-cyan); transition: width 0.15s linear; }
+  /* moved by transform, which the browser keeps animating even while a long step holds the page */
+  .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
+  @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  @media (prefers-reduced-motion: reduce) { .rt-activity.indeterminate .rt-act-bar i { animation: none; width: 100%; opacity: 0.45; } }
   .rt-sync {
     position: absolute; top: 0; right: 0; display: inline-grid; place-items: center;
     width: 1.45rem; height: 1.45rem; padding: 0; border: 1px solid var(--jek-line-2); border-radius: 50%;
@@ -3066,10 +3079,10 @@ function syncPhases() {
 /* ---------- Sweeps with the diffracted field rendered ahead ----------
    The field takes far longer to work out than a trace, so a sweep that shows it renders it
    first: the shared clock is sampled FIELD_FRAMES times over one cycle, and at each sample
-   the bench's field and the field on every open screen are worked out and kept under the
-   same keys the live runs use. The sweep then plays by stepping between those samples, so
-   every step finds its field ready. Whatever was not rendered (a screen opened afterwards,
-   a change to the bench) is simply worked out live, as it always was. */
+   the bench's field and the field on every screen the light reaches are worked out and kept
+   under the same keys the live runs use. The sweep then plays by stepping between those
+   samples, so every step finds its field ready, on whichever screen is opened. Whatever was
+   not rendered (a change to the bench) is simply worked out live, as it always was. */
 const FIELD_FRAMES = 48;               // samples per cycle
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 const fieldFrames = { bench: new Map(), screens: new Map() };
@@ -3120,6 +3133,7 @@ function renderSweepFrames(list, onDone) {
       job.i = i;
       const t = i * period / FIELD_FRAMES;
       list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
+      job.stage = 'tracing'; job.part = 0;
       traceScene();
       requestRender(); syncPanel();
       yield;
@@ -3128,16 +3142,20 @@ function renderSweepFrames(list, onDone) {
         traceScene();
         const key = popKeyOf(lastTrace.beams, srcs);
         if (!fieldFrames.bench.has(key)) {
+          job.stage = 'the bench';
           const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
           const R = yield* run(popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }));
           keepFrame(fieldFrames.bench, key, R);
           requestRender();
         }
       }
-      for (const scr of openScreens()) {
+      const screens = project.elements.filter(e => e.type === 'screen');
+      for (const [k, scr] of screens.entries()) {
+        job.part = (k + 1) / (screens.length + 1);
         traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
         const J = popScreenPrep(scr);
         if (!J || fieldFrames.screens.has(J.key)) continue;
+        job.stage = scr.name;
         const R = yield* run(popRunGen(lastTrace.beams, J.srcs, { keep: J.keep }));
         traceScene();
         keepFrame(fieldFrames.screens, J.key, popDiffraction(scr, R));
@@ -3153,6 +3171,54 @@ function renderSweepFrames(list, onDone) {
   };
   updateSweepButtons(); syncPanel();
   setTimeout(step, 0);
+}
+
+/* ---------- What is being worked out: a bar at the bottom left of the window ----------
+   Every background job leaves its state where it runs; this reads them all a few times a
+   second and says what the slowest thing in progress is. Steps it can count show a filling
+   bar, the rest a moving one. It shows only once a job has run for a moment, so quick ones
+   do not flicker it. */
+function activityNow() {
+  if (sweepJob) {
+    const j = sweepJob, what = j.stage === 'the bench' ? 'the bench' : j.stage && j.stage !== 'tracing' ? j.stage : '';
+    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : ''),
+      frac: (j.i + (j.part || 0)) / j.n };
+  }
+  if (mcJob) return { text: 'Tolerance study: ' + mcJob.i + ' of ' + mcJob.n + ' trials', frac: mcJob.i / mcJob.n };
+  const jobs = [];
+  if (popState.job) jobs.push('the diffracted field on the bench');
+  const J0 = [...popScreenState.jobs.values()], scr = J0.map(J => J.el.name);
+  if (scr.length) jobs.push((J0[0].finishing ? 'the figures at ' : 'the field at ') + scr[0] + (scr.length > 1 ? ' and ' + (scr.length - 1) + ' more screen' + (scr.length > 2 ? 's' : '') : ''));
+  if (cavJob && !cavJob.done) jobs.push('the cavity’s steady state');
+  if (!jobs.length) return null;
+  const text = jobs.join(', ');
+  return { text: 'Computing ' + text, frac: null };
+}
+const activity = { box: null, text: null, bar: null, since: 0, now: false, shown: 0 };
+/* for a job about to block the page: show the bar straight away, skipping the usual delay */
+function showActivityNow() { if (TEST_MODE) return; activity.now = true; updateActivity(); }
+function updateActivity() {
+  const a = activityNow(), now = performance.now();
+  if (!a) {
+    activity.since = 0;
+    // once up, it stays long enough to read rather than flashing
+    if (activity.box && !activity.box.hidden && now - activity.shown > 400) activity.box.hidden = true;
+    return;
+  }
+  if (!activity.since) activity.since = now;
+  if (now - activity.since < 250 && !activity.now) return;
+  activity.now = false;
+  if (!activity.box) {
+    activity.text = h('span', { class: 'rt-act-text' });
+    activity.bar = h('i');
+    activity.box = h('div', { class: 'rt-activity', role: 'status', 'aria-live': 'polite' }, activity.text, h('div', { class: 'rt-act-bar' }, activity.bar));
+    document.body.append(activity.box);
+  }
+  if (activity.box.hidden) activity.shown = now;
+  activity.box.hidden = false;
+  if (activity.text.textContent !== a.text) activity.text.textContent = a.text;
+  activity.box.classList.toggle('indeterminate', a.frac === null);
+  activity.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 
 /* ---------- One-parameter search over a swept range ---------- */
@@ -3369,14 +3435,16 @@ function randn() {
 }
 
 /* Runs in slices so the page keeps painting; `onDone` gets the sorted samples. */
+let mcJob = null;                       // { i, n } while a tolerance study runs
 function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) {
   pauseAll();
+  const job = mcJob = { i: 0, n: trials };
   const start = vars.map(([el, path]) => getPath(el, path));
   const samples = [];
   const nominal = (traceScene(), metricRaw(target, key));
   let i = 0;
   const step = () => {
-    if (!alive()) { restore(); return; }
+    if (!alive()) { if (mcJob === job) mcJob = null; restore(); return; }
     const until = Math.min(trials, i + 15);
     for (; i < until; i++) {
       vars.forEach(([el, path], k) => {
@@ -3392,8 +3460,9 @@ function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) 
       if (m !== null && isFinite(m)) samples.push(m);
     }
     onProgress(i, trials);
+    job.i = i;
     if (i < trials) requestAnimationFrame(step);
-    else { restore(); samples.sort((a, b) => a - b); onDone(samples, nominal); }
+    else { if (mcJob === job) mcJob = null; restore(); samples.sort((a, b) => a - b); onDone(samples, nominal); }
   };
   const restore = () => {
     vars.forEach(([el, path], k) => setParam(el, path, start[k]));
@@ -3594,7 +3663,7 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + '\u2026'
-        : sw.field ? 'Play renders the field at ' + FIELD_FRAMES + ' points of the cycle, on the bench and on open screens, then plays through them.' : '';
+        : sw.field ? 'Play renders the field at ' + FIELD_FRAMES + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.' : '';
       status.hidden = !status.textContent;
     });
     box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
@@ -4867,7 +4936,7 @@ function cavityLater() {
     if (job.trace !== lastTrace) { cavJob = null; cavityLater(); return; }     // the bench moved on: start again on it
     const until = performance.now() + 30;
     let r; do r = gen.next(); while (!r.done && performance.now() < until);
-    if (r.done) syncPanel(); else setTimeout(step, 0);
+    if (r.done) { job.done = true; syncPanel(); } else setTimeout(step, 0);
   };
   setTimeout(step, 20);
 }
@@ -7853,6 +7922,9 @@ function schedulePop() {
       // slices per segment from a rough count of the segments to come
       const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
       popState.job = { key, gen: popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }) };
+      showActivityNow();
+      popState.timer = setTimeout(step, 30);    // a frame for the bar to show before the first slice
+      return;
     }
     const until = performance.now() + 30;
     let r;
@@ -8396,7 +8468,10 @@ function diffractionLater(el) {
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (sweepJob) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
   const S = popScreenState, J0 = S.jobs.get(el.id);
-  if (!J0 || J0.key !== job.key) S.jobs.set(el.id, { key: job.key, el, gen: popRunGen(lastTrace.beams, job.srcs, { keep: job.keep }) });
+  if (!J0 || J0.key !== job.key) {
+    S.jobs.set(el.id, { key: job.key, el, gen: popRunGen(lastTrace.beams, job.srcs, { keep: job.keep }) });
+    showActivityNow();                 // a slice can run long: up before the first one
+  }
   if (!S.timer) S.timer = setTimeout(function step() {
     const first = S.jobs.entries().next();
     if (first.done) { S.timer = null; return; }
@@ -8405,9 +8480,17 @@ function diffractionLater(el) {
     let r;
     do r = J.gen.next(); while (!r.done && performance.now() < until);
     if (r.done) {
-      popScreenCache.set(id, { key: J.key, D: popDiffraction(J.el, r.value) });
-      if (S.jobs.get(id) === J) S.jobs.delete(id);
-      syncPanel();
+      // the last step (the figures, a vector focus) runs in one go and can take seconds, so
+      // put the activity bar up now and give it a frame to show before the page is busy
+      J.finishing = true;
+      showActivityNow();
+      S.timer = setTimeout(() => {
+        popScreenCache.set(id, { key: J.key, D: popDiffraction(J.el, r.value) });
+        if (S.jobs.get(id) === J) S.jobs.delete(id);
+        syncPanel();
+        S.timer = setTimeout(step, 0);
+      }, 40);
+      return;
     }
     S.timer = setTimeout(step, 0);
   }, 40);
@@ -9302,6 +9385,8 @@ stage.addEventListener('drop', e => {
   else if (/\.(jekray|json)$/i.test(f.name)) openJekray(f);
   else toast(f.name + ' isn\u2019t a .zmx or .jekray file.', true);
 });
+
+if (!TEST_MODE) setInterval(updateActivity, 150);
 
 /* Start-up: restore the last session in this browser, or show a demo bench */
 (function init() {

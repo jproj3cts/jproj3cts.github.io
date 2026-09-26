@@ -6821,11 +6821,18 @@ function screenPanel(el) {
   const stop = h('input', { type: 'checkbox' });
   stop.checked = el.absorb;
   stop.addEventListener('change', () => { checkpoint(); el.absorb = stop.checked; changed(false); });
-  panel.append(h('div', { class: 'rt-rows' },
+  // flat or curved: a curved screen takes a radius, and remembers it while flat
+  const srows = h('div', { class: 'rt-rows' },
     param('Length (mm)', el, 'length'),
-    param('Radius (mm)', el, 'R', { blank: null, placeholder: 'flat' }),
-    h('label', { class: 'rt-check wide' }, stop, 'Stop the rays it records')));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The screen records rays arriving on its ticked face; rays reaching it from behind pass straight through. Untick the box to sample a beam without blocking it, which is how to measure a cavity. A radius curves the screen: negative puts the centre of curvature on the side the light comes from, which is the retina case, and positive bulges towards the light. Leave it blank for a flat screen.'));
+    selectField('Shape', [['flat', 'Flat'], ['curved', 'Curved']], () => el.R ? 'curved' : 'flat', v => {
+      if (v === 'curved') el.R = vs(el).lastR || -100;
+      else { if (el.R) vs(el).lastR = el.R; el.R = null; }
+    }));
+  if (el.R) srows.append(param('Radius (mm)', el, 'R', { wide: true }));
+  srows.append(h('label', { class: 'rt-check wide' }, stop, 'Stop the rays it records'));
+  panel.append(srows);
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The screen records rays arriving on its ticked face; rays reaching it from behind pass straight through. Untick the box to sample a beam without blocking it, which is how to measure a cavity. Its length is how far it reaches across the bench, which sets what it catches and the span of its plots.' +
+    (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'screen' }));
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));

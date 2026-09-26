@@ -332,6 +332,7 @@
     cursor: pointer;
   }
   .rt-tab.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
+  .rt-tab.empty { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-lab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 0.5rem; }
   .rt-lab label { white-space: nowrap; }
@@ -6769,13 +6770,23 @@ function pulseLine(el) {
 }
 function screenPanel(el) {
   const tabs = h('div', { class: 'rt-tabs' });
-  const stabs = [['params', 'Screen'], ['rays', 'Rays'], ['plots', 'Diffraction']];
-  if (anyPulse()) stabs.push(['pulse', 'Pulse']);
-  else if (vs(el).screenTab === 'pulse') vs(el).screenTab = 'params';
+  // every tab is always there; one with nothing to show for this screen is greyed, and says why
+  const stabs = [['params', 'Screen'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']];
+  const btns = {};
   for (const [key, label] of stabs) {
-    tabs.append(h('button', { class: 'rt-tab' + (vs(el).screenTab === key ? ' on' : ''), type: 'button',
-      onclick: () => { vs(el).screenTab = key; renderPanel(); } }, label));
+    btns[key] = h('button', { class: 'rt-tab' + (vs(el).screenTab === key ? ' on' : ''), type: 'button',
+      onclick: () => { vs(el).screenTab = key; renderPanel(); } }, label);
+    tabs.append(btns[key]);
   }
+  bindSync(tabs, () => {
+    const all = (lastTrace.screens && lastTrace.screens[el.id]) || [];
+    const why = {
+      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach this screen (a source with \u201cTrace the ray fan\u201d on)',
+      plots: all.length ? '' : 'Nothing reaches this screen',
+      pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches this screen (a source or fibre laser with \u201cPulsed\u201d ticked)',
+    };
+    for (const [k, w] of Object.entries(why)) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
+  });
   panel.append(tabs);
   if (vs(el).screenTab === 'plots') { screenPlots(el); return; }
   if (vs(el).screenTab === 'rays') { rayPlots(el); return; }

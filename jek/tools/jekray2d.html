@@ -3663,6 +3663,9 @@ function renderPanel() {
   const sel = selected();
   const mainShows = !(sel && pins.includes(sel.id));
   mainPanel.style.display = mainShows ? '' : 'none';
+  // the columns first, so plots drawn below measure the width they will actually have
+  mainPanel.parentElement.style.setProperty('--rt-cols', String((mainShows ? 1 : 0) + pins.length));
+  mainPanel.closest('.rt-wrap').classList.toggle('wide', pins.length > 0 && window.innerWidth > 960);
   if (mainShows) renderInto(mainPanel, sel);
   let after = mainPanel;
   for (const id of pins) {
@@ -3674,8 +3677,6 @@ function renderPanel() {
     renderInto(box, getEl(id));
     if (scrolls.has(id)) holdScroll(box, scrolls.get(id));
   }
-  mainPanel.parentElement.style.setProperty('--rt-cols', String((mainShows ? 1 : 0) + pins.length));
-  mainPanel.closest('.rt-wrap').classList.toggle('wide', pins.length > 0 && window.innerWidth > 960);
   updateReadouts();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
@@ -4429,7 +4430,15 @@ function plotFrame(cv, getKey, getZ, redraw) {
   btn.hidden = true;
   btn.innerHTML = SYNC_SVG;
   cv._syncBtn = btn;
-  return h('div', { class: 'rt-plot' }, cv, btn);
+  const box = h('div', { class: 'rt-plot' }, cv, btn);
+  // a plot is drawn to the width it had then; when a panel is pinned, unpinned or resized
+  // that width changes, and a canvas left at the old one is stretched to fit
+  let drawnW = -1;
+  new ResizeObserver(() => {
+    const w = cv.clientWidth;
+    if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; redraw(); }
+  }).observe(box);
+  return box;
 }
 const plotCanvases = () => [...document.querySelectorAll('.rt-panel canvas')].filter(c => c._sync && c.offsetParent !== null);
 function syncFrom(cv) {

@@ -2889,6 +2889,15 @@ const TESTS = [
         { type: 'mask', name: 'L', x: 0, y: 0, angle: 0, length: 10, delay: '-(sqrt(r^2+2500)-50)/lambda' },
         { type: 'detector', name: 'D', x: 50, y: 0, angle: 180, length: 1, material: 'custom', resp: 1 }] })); J.trace(); return J.detector('D').mw; },
   },
+  { group: 'Share links' },
+  {
+    name: 'A bench survives a share link unchanged',
+    why: 'a Michelson, a PDH lock, a bench on two tabs joined by link planes and a fibre network, each through a link and back: the same project every time',
+    want: 4, tol: 0, unit: ' of 4',
+    run: J => [michelsonCube(0, 0), pdhBench(1.08), linkBench(true, 0),
+      fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0, 2, 0.5]])]
+      .reduce((n, b) => { J.load(b); return n + (J.shareRoundTrip().same ? 1 : 0); }, 0),
+  },
 ];
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */

@@ -449,6 +449,8 @@
   .rt-report li + li { margin-top: 0.25rem; }
   .rt-report b { font-weight: 600; }
   .rt-error { color: #c0392b; font-size: 0.85rem; }
+  dialog.rt-dialog #shareUrl { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; }
+  #shareNote { text-align: left; margin: 0.5rem 0 0.8rem; }
   dialog.rt-dialog #pasteText { width: 100%; font-family: var(--jek-mono); font-size: 0.8rem; }
   .rt-notes { width: 100%; box-sizing: border-box; min-height: 4.5rem; resize: vertical; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.55rem;
     border: 1px solid var(--jek-line); border-radius: 4px; background: var(--jek-panel); color: var(--jek-ink); }
@@ -576,6 +578,7 @@
           </div>
           <button class="rt-btn" id="btnOpen">Open .jekray</button>
           <button class="rt-btn" id="btnPasteProj" title="Open a project from its text, such as one an AI assistant wrote (or press Ctrl+V on the bench)">Paste text</button>
+          <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
           <button class="rt-btn primary" id="btnSave">Save .jekray</button>
           <button class="rt-btn" id="btnNew">New</button>
         </div>
@@ -719,6 +722,16 @@
     <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray2d-ai-guide.md" download>the JEKray2D guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Paste text</b> or Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share this bench</h2>
+    <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
+    <p class="note" id="shareNote"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="shareClose">Close</button>
+      <button class="rt-btn primary" id="shareCopy">Copy</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="pasteDialog" aria-labelledby="pasteTitle">
@@ -12896,6 +12909,102 @@ async function aiGuide() {
 }
 const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either click **Paste text** and paste it, or save it as `name.jekray` and use **Open .jekray**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\"; a fibre laser's \"polAngle\" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
 
+/* ---------- Sharing a bench as a link ----------
+   The project, less everything that is its default, compressed into the part of the address
+   after #, which browsers never send to the server: the link is the file. It opens through
+   the same door as a pasted project, so a damaged link gets the same report. */
+const SHARE_LONG = 2000;                 // characters past which some apps cut a link
+function shareData() {
+  const d = serialize(), multi = d.benches.length > 1;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const els = d.elements.map(e => {
+    const def = normElementBase(e.type === 'fcomp' ? { type: 'fcomp', kind: e.kind, name: 'x' } : { type: e.type, name: 'x' }) || {};
+    const o = { type: e.type };
+    if (e.kind) o.kind = e.kind;
+    Object.assign(o, { id: e.id, name: e.name, x: e.x, y: e.y });
+    if (e.angle) o.angle = e.angle;
+    if (multi) o.bench = e.bench;
+    for (const [k, v] of Object.entries(e)) {
+      if (k in o || k === 'bench' || v === undefined) continue;
+      if (k === 'colour' && e.colourAuto !== false) continue;          // follows the wavelength
+      if (k === 'sweeps') { if (Object.keys(v).length) o.sweeps = v; continue; }
+      if (!same(def[k], v)) o[k] = v;
+    }
+    return o;
+  });
+  const out = { format: FORMAT, version: VERSION, name: d.name };
+  if (d.notes) out.notes = d.notes;
+  out.view = { cx: +d.view.cx.toPrecision(8), cy: +d.view.cy.toPrecision(8), scale: +d.view.scale.toPrecision(6) };
+  if (d.snap !== 1) out.snap = d.snap;
+  if (d.maxBounces !== 200) out.maxBounces = d.maxBounces;
+  if (d.minPower !== 0.1) out.minPower = d.minPower;
+  if (d.ghosts) out.ghosts = true;
+  if (d.library.length) out.library = d.library;
+  if (Object.keys(d.cavityLock).length) out.cavityLock = d.cavityLock;
+  if (multi) { out.benches = d.benches.map(b => ({ id: b.id, name: b.name, view: b.view })); out.tab = d.tab; }
+  out.elements = els;
+  if (d.fibres.length) out.fibres = d.fibres.map(F => {
+    const o = { id: F.id, a: F.a, b: F.b, len: F.len };
+    if (F.loss !== 0.2) o.loss = F.loss;
+    if (F.path && F.path.length) o.path = F.path;
+    if (F.ta !== null && F.ta !== undefined) o.ta = F.ta;
+    if (F.tb !== null && F.tb !== undefined) o.tb = F.tb;
+    return o;
+  });
+  if (d.measures.length) out.measures = d.measures;
+  return out;
+}
+const b64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+async function streamBytes(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
+/* the part after #p=: "z" then deflated JSON, or "j" then plain JSON where the browser cannot compress */
+async function shareHash(data) {
+  const json = new TextEncoder().encode(JSON.stringify(data || shareData()));
+  if (typeof CompressionStream !== 'undefined') {
+    try { return 'z' + b64u(await streamBytes(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ }
+  }
+  return 'j' + b64u(json);
+}
+async function readShareHash(h) {
+  const kind = h[0], body = h.slice(1);
+  let bytes;
+  try { bytes = unb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  if (kind === 'z') {
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekray file instead');
+    try { bytes = await streamBytes(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  } else if (kind !== 'j') throw new Error('that is not a JEKray2D link');
+  try { return JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+}
+const shareBase = () => location.origin + location.pathname;
+async function shareLink() {
+  const url = shareBase() + '#p=' + await shareHash();
+  const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
+  box.value = url;
+  note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
+    ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
+    : 'Anyone with the link opens this bench as it is now; nothing is uploaded, the bench travels in the link itself.');
+  dlg.showModal(); box.focus(); box.select();
+  try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
+  catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
+}
+{
+  const dlg = document.getElementById('shareDialog');
+  document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
+  document.getElementById('shareClose').addEventListener('click', () => dlg.close());
+  document.getElementById('shareCopy').addEventListener('click', e => {
+    const box = document.getElementById('shareUrl'); box.select();
+    navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; });
+  });
+}
+/* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */
+async function openShareHash(h) {
+  try {
+    const data = await readShareHash(h);
+    openProjectData(data, 'the shared bench');
+    toast('Opened the shared bench — Ctrl+Z to go back');
+  } catch (err) { toast('Could not open that link: ' + err.message + '.', true); }
+}
+
 /* ---------- Opening a project someone (or something) else wrote ----------
    A file from outside the tool, an AI assistant's above all, is read as leniently as it
    can be: names where ids belong, no format tag, fences and comments round pasted text.
@@ -13919,7 +14028,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
-  if (!restored && !TEST_MODE && !/[#?&]demo=/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  const shared = !TEST_MODE && location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/);
+  if (shared) { window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
+  else if (!restored && !TEST_MODE && !/[#?&]demo=/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();
@@ -13980,6 +14091,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     layoutSvg() { return layoutSvg(recordLayout()); },
     // a project as someone else wrote it: what opening it changed, as plain text
     aiGuideText,
+    // a bench through a link and back (plain encoding, so it runs without waiting): what came out
+    shareRoundTrip() { const h = 'j' + b64u(new TextEncoder().encode(JSON.stringify(shareData()))), before = JSON.stringify(Object.assign(serialize(), { saved: '' }));
+      const d = JSON.parse(new TextDecoder().decode(unb64u(h.slice(1)))); openProjectData(d, 'test'); const after = JSON.stringify(Object.assign(serialize(), { saved: '' }));
+      return { same: before === after, before, after, length: h.length }; },
+    shareHash: () => shareHash(),
+    openShareHash,
     aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },

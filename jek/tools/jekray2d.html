@@ -231,15 +231,17 @@
     font: inherit; font-size: 0.875rem; color: var(--jek-ink); cursor: pointer;
   }
   .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
+  /* what is being worked out: top right of the bench, white, no box */
   .rt-activity {
-    position: fixed; z-index: 50; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    width: min(340px, calc(100vw - 32px)); padding: 0.5rem 0.7rem 0.55rem; box-sizing: border-box;
-    background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow);
-    font-size: 0.78rem; color: var(--jek-ink-soft); pointer-events: none;
+    position: absolute; z-index: 5; right: 0.75rem; top: 0.55rem; width: min(380px, 55%);
+    font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
-  .rt-act-text { display: block; margin-bottom: 0.35rem; line-height: 1.35; }
-  .rt-act-bar { position: relative; height: 3px; overflow: hidden; background: var(--jek-well); border-radius: 2px; }
-  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-cyan); transition: width 0.15s linear; }
+  .rt-act-text { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.3rem; line-height: 1.3; white-space: nowrap; }
+  .rt-act-text span:first-child { overflow: hidden; text-overflow: ellipsis; }
+  .rt-act-pct { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; }
+  .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(255,255,255,0.18); }
+  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: #fff; transition: width 0.15s linear; }
   /* moved by transform, which the browser keeps animating even while a long step holds the page */
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
@@ -522,7 +524,7 @@
         <span class="rt-group-label">Add</span>
         <div class="rt-group rt-addrow" id="addRow">
           <div class="rt-more">
-            <button class="rt-btn palette" id="btnPalette" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="paletteMenu">Free space ▾</button>
+            <button class="rt-btn palette" id="btnPalette" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="paletteMenu">Free-space ▾</button>
             <div class="rt-menu" id="paletteMenu" role="menu" hidden>
               <button type="button" role="menuitem" data-palette="free">Free-space optics</button>
               <button type="button" role="menuitem" data-palette="fibre">Fibre components</button>
@@ -4525,14 +4527,18 @@ function updateActivity() {
   if (now - activity.since < 250 && !activity.now) return;
   activity.now = false;
   if (!activity.box) {
-    activity.text = h('span', { class: 'rt-act-text' });
+    activity.label = h('span');
+    activity.pct = h('span', { class: 'rt-act-pct' });
+    activity.text = h('span', { class: 'rt-act-text' }, activity.label, activity.pct);
     activity.bar = h('i');
     activity.box = h('div', { class: 'rt-activity', role: 'status', 'aria-live': 'polite' }, activity.text, h('div', { class: 'rt-act-bar' }, activity.bar));
-    document.body.append(activity.box);
+    document.getElementById('stage').append(activity.box);
   }
   if (activity.box.hidden) activity.shown = now;
   activity.box.hidden = false;
-  if (activity.text.textContent !== a.text) activity.text.textContent = a.text;
+  if (activity.label.textContent !== a.text) activity.label.textContent = a.text;
+  const pct = a.frac === null ? '' : Math.round(100 * clamp(a.frac, 0, 1)) + '%';
+  if (activity.pct.textContent !== pct) activity.pct.textContent = pct;
   activity.box.classList.toggle('indeterminate', a.frac === null);
   activity.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
@@ -11501,7 +11507,7 @@ try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = '
 function layoutPalette() {
   const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
   const row = document.getElementById('addRow'), items = PALETTES[palette];
-  document.getElementById('btnPalette').textContent = (palette === 'fibre' ? 'Fibre' : 'Free space') + ' \u25be';
+  document.getElementById('btnPalette').textContent = (palette === 'fibre' ? 'Fibre' : 'Free-space') + ' \u25be';
   box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
   menu.replaceChildren();
   moreWrap.hidden = false;

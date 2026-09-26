@@ -131,22 +131,28 @@
     pointer-events: none;
   }
 
-  /* the tabs, one bench each, at the top left of the bench */
+  /* the tabs, one bench each: a white strip on the bench's top-left corner, its end cut at 45 degrees */
   .rt-benchtabs {
-    position: absolute; left: 0.5rem; top: 0.5rem; right: 0.5rem;
-    display: flex; flex-wrap: wrap; gap: 0.25rem; pointer-events: none;
+    position: absolute; left: 0; top: 0; max-width: calc(100% - 2rem);
+    display: flex; flex-wrap: nowrap; align-items: stretch; overflow: hidden;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
   }
   .rt-benchtabs button, .rt-benchtabs input {
-    pointer-events: auto; font: 600 0.75rem var(--jek-sans); color: rgba(255,255,255,0.72);
-    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px;
-    padding: 0.2rem 0.55rem; cursor: pointer; line-height: 1.4;
+    height: 1.75rem; box-sizing: border-box; margin: 0; flex: none;
+    font: 600 0.75rem var(--jek-sans); line-height: 1; color: var(--jek-ink-soft);
+    background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12); border-radius: 0;
+    padding: 0 0.85rem; cursor: pointer; user-select: none; touch-action: none;
+    transition: transform 0.12s ease, background-color 0.12s ease;
   }
-  .rt-benchtabs button:hover { background: rgba(255,255,255,0.16); color: #fff; }
-  .rt-benchtabs button.on { background: rgba(127,220,255,0.22); border-color: rgba(127,220,255,0.6); color: #fff; }
-  .rt-benchtabs button .x { margin-left: 0.4rem; opacity: 0.6; }
-  .rt-benchtabs button .x:hover { opacity: 1; }
-  .rt-benchtabs input { cursor: text; width: 9rem; color: #fff; background: rgba(0,0,0,0.35); }
-  .rt-benchtabs .add { padding: 0.2rem 0.5rem; }
+  .rt-benchtabs button:first-child { border-top-left-radius: var(--jek-radius); }
+  .rt-benchtabs button:hover { background: #fff; color: var(--jek-ink); }
+  .rt-benchtabs button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
+  .rt-benchtabs button.dragging { transition: none; z-index: 2; position: relative; background: #fff; color: var(--jek-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 0 var(--jek-orange); cursor: grabbing; }
+  .rt-benchtabs button .x { margin-left: 0.45rem; opacity: 0.5; }
+  .rt-benchtabs button .x:hover { opacity: 1; color: var(--jek-red); }
+  .rt-benchtabs input { cursor: text; width: 9rem; color: var(--jek-ink); background: #fff; outline: none; box-shadow: inset 0 -2px 0 var(--jek-cyan); }
+  /* the last piece, +, rises to the bench's top edge at 45 degrees */
+  .rt-benchtabs .add { padding: 0 2.35rem 0 0.75rem; border-right: 0; font-size: 0.95rem; clip-path: polygon(0 0, 100% 0, calc(100% - 1.75rem) 100%, 0 100%); }
   .rt-list .tabhead { font-size: 0.72rem; font-weight: 600; color: var(--jek-ink-soft); margin: 0.5rem 0 0.15rem; list-style: none; }
 
   .rt-drop {
@@ -1704,14 +1710,52 @@ function linkPartner(el) {
   const i = L.indexOf(el);
   return i === 0 && L.length > 1 ? L[1] : i === 1 ? L[0] : null;
 }
+/* Dragging a tab along the strip: it follows the pointer, the others step aside to show
+   where it will go, and it is put there when let go. A press that barely moves is a click. */
+function tabDragStart(e, btn, b) {
+  if (e.button !== 0 || e.target.classList.contains('x')) return;
+  const box = document.getElementById('benchTabs'), tabs = [...box.querySelectorAll('button[role="tab"]')];
+  const from = tabs.indexOf(btn), rects = tabs.map(t => t.getBoundingClientRect()), x0 = e.clientX;
+  let started = false, to = from;
+  btn.setPointerCapture(e.pointerId);
+  const move = ev => {
+    const dx = ev.clientX - x0;
+    if (!started) { if (Math.abs(dx) < 5) return; started = true; btn.classList.add('dragging'); }
+    const lo = rects[0].left - rects[from].left, hi = rects[rects.length - 1].right - rects[from].right;
+    const d = clamp(dx, lo, hi), mid = rects[from].left + rects[from].width / 2 + d, w = rects[from].width;
+    btn.style.transform = 'translateX(' + d + 'px)';
+    to = 0;
+    tabs.forEach((t, k) => { if (k !== from && rects[k].left + rects[k].width / 2 < mid) to++; });
+    tabs.forEach((t, k) => {
+      if (k === from) return;
+      const shift = from < to && k > from && k <= to ? -w : to < from && k >= to && k < from ? w : 0;
+      t.style.transform = shift ? 'translateX(' + shift + 'px)' : '';
+    });
+  };
+  const up = () => {
+    btn.removeEventListener('pointermove', move); btn.removeEventListener('pointerup', up); btn.removeEventListener('pointercancel', up);
+    if (!started) return;
+    btn._dragged = true;
+    tabs.forEach(t => { t.style.transform = ''; t.classList.remove('dragging'); });
+    if (to !== from) {
+      checkpoint();
+      const [m] = project.benches.splice(from, 1);
+      project.benches.splice(to, 0, m);
+      changed(true);
+    }
+    renderBenchTabs();
+  };
+  btn.addEventListener('pointermove', move); btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+}
 function renderBenchTabs() {
   const box = document.getElementById('benchTabs');
   if (!box) return;
   box.replaceChildren();
   for (const b of project.benches) {
     const btn = h('button', { type: 'button', role: 'tab', class: b.id === project.tab ? 'on' : '', 'aria-selected': b.id === project.tab ? 'true' : 'false',
-      title: b.id === project.tab ? 'Double-click to rename' : 'Show ' + b.name }, b.name);
-    btn.addEventListener('click', e => { if (e.target.classList.contains('x')) return; if (b.id !== project.tab) switchTab(b.id); });
+      title: (b.id === project.tab ? 'Double-click to rename. ' : 'Show ' + b.name + '. ') + 'Drag to reorder.' }, b.name);
+    btn.addEventListener('click', e => { if (e.target.classList.contains('x') || btn._dragged) { btn._dragged = false; return; } if (b.id !== project.tab) switchTab(b.id); });
+    btn.addEventListener('pointerdown', e => tabDragStart(e, btn, b));
     btn.addEventListener('dblclick', () => {
       const inp = h('input', { type: 'text', value: b.name, 'aria-label': 'Tab name' });
       let over = false;                    // Enter, then the blur as the field goes: once only

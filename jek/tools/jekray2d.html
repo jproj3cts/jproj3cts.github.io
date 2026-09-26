@@ -643,17 +643,17 @@
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 
   <dialog class="rt-dialog" id="zmxDialog">
-    <h2>Import from a Zemax file</h2>
+    <h2>Import a lens file (.zmx)</h2>
     <ol>
       <li>Open the Thorlabs product page for the lens, mirror, beam splitter or prism and find its part number in the table.</li>
-      <li>Click the document icon next to the part number and download the Zemax file (.zmx). If it arrives as a .zip, extract it first.</li>
+      <li>Click the document icon next to the part number and download the .zmx file. If it arrives as a .zip, extract it first.</li>
       <li>Choose the file below, or drop it straight onto the bench.</li>
     </ol>
     <div class="rt-f" style="margin-bottom:0.75rem">
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
-    <p>The part is placed at the centre of the view with light travelling left to right, as in the Zemax file. Lenses and mirrors come across with their exact surfaces. Zemax describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
+    <p>The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>
     <div class="rt-actions">
@@ -4554,7 +4554,7 @@ function sourcePanel(el) {
       const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
       bindSync(pn, () => { pn.textContent = popNote(el); });
       panel.append(pn);
-      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, as Zemax POP does, with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
+      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, physical optics propagation with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
     }
     panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. Beam width and divergence above stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
   }

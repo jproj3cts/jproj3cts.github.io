@@ -2217,7 +2217,7 @@ const TESTS = [
 
   { group: 'Import, files and tools' },
   {
-    name: 'Zemax import reads the radius',
+    name: '.zmx import reads the radius',
     why: 'CURV 5.0E-2 is R = 20 mm',
     want: 20, tol: 1e-9, unit: ' mm',
     run: J => {
@@ -2227,14 +2227,14 @@ const TESTS = [
     },
   },
   {
-    name: 'Zemax import reads the conic and the A4 term',
+    name: '.zmx import reads the conic and the A4 term',
     why: 'CONI \u22120.75 and PARM 2 = \u22121.5e-5',
     want: -0.75, tol: 1e-12, unit: '',
     run: () => TESTS_EXPECT.zmx.surfaces[0].k,
     extra: () => Math.abs(TESTS_EXPECT.zmx.surfaces[0].A[0] + 1.5e-5) < 1e-18 ? '' : ' (A4 wrong)',
   },
   {
-    name: 'Zemax import reads the centre thickness',
+    name: '.zmx import reads the centre thickness',
     why: 'DISZ 4.2',
     want: 4.2, tol: 1e-9, unit: ' mm',
     run: () => TESTS_EXPECT.zmx.gaps[0],

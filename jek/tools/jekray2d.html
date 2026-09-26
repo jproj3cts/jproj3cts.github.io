@@ -211,6 +211,10 @@
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
   .rt-plot { position: relative; }
   .rt-more { position: relative; }
+  .rt-addrow { flex: 1 1 0; flex-wrap: nowrap; min-width: 0; }
+  .rt-palette { display: flex; flex-wrap: nowrap; gap: 0.35rem; min-width: 0; overflow: hidden; }
+  .rt-btn.palette { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
+  .rt-btn.palette:hover { background: #d9602f; border-color: #d9602f; }
   .rt-menu {
     position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 15rem;
     display: flex; flex-direction: column; padding: 0.3rem;
@@ -510,52 +514,18 @@
 
       <div class="rt-row">
         <span class="rt-group-label">Add</span>
-        <div class="rt-group">
-          <button class="rt-btn" data-add="source">Source</button>
-          <button class="rt-btn" data-add="mirror">Mirror</button>
-          <button class="rt-btn" data-add="lens">Lens</button>
-          <button class="rt-btn" data-add="asphere">Asphere</button>
-          <button class="rt-btn" data-add="cube">Beam splitter</button>
-          <button class="rt-btn" data-add="prism">Prism</button>
-          <button class="rt-btn" data-add="waveplate">Waveplate</button>
-          <button class="rt-btn" data-add="polariser">Polariser</button>
-          <button class="rt-btn" data-add="stop">Stop</button>
-          <button class="rt-btn" data-add="mask">Mask</button>
-          <button class="rt-btn" data-add="screen">Screen</button>
+        <div class="rt-group rt-addrow" id="addRow">
           <div class="rt-more">
-            <button class="rt-btn" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">More ▾</button>
-            <div class="rt-menu" id="moreMenu" role="menu" hidden>
-              <button type="button" role="menuitem" data-add="cylinder">Cylindrical lens</button>
-              <button type="button" role="menuitem" data-add="axicon">Axicon</button>
-              <button type="button" role="menuitem" data-add="grating">Grating</button>
-              <button type="button" role="menuitem" data-add="crystal">Crystal: displacer, Wollaston, Glan–Taylor</button>
-              <button type="button" role="menuitem" data-add="filter">Filter</button>
-              <button type="button" role="menuitem" data-add="faraday">Faraday rotator</button>
-              <button type="button" role="menuitem" data-add="isolator">Isolator</button>
-              <button type="button" role="menuitem" data-add="gain">Gain medium</button>
-              <button type="button" role="menuitem" data-add="fibre">Fibre</button>
-              <button type="button" role="menuitem" data-add="detector">Photodetector</button>
-              <button type="button" role="menuitem" data-add="link">Link plane (to another tab)</button>
+            <button class="rt-btn palette" id="btnPalette" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="paletteMenu">Free space ▾</button>
+            <div class="rt-menu" id="paletteMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-palette="free">Free-space optics</button>
+              <button type="button" role="menuitem" data-palette="fibre">Fibre components</button>
             </div>
           </div>
-          <div class="rt-more">
-            <button class="rt-btn" id="btnFibre" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fibreMenu">Fibre ▾</button>
-            <div class="rt-menu" id="fibreMenu" role="menu" hidden>
-              <button type="button" role="menuitem" data-add="laser">Fibre laser</button>
-              <button type="button" role="menuitem" data-add="coupler">2×2 coupler</button>
-              <button type="button" role="menuitem" data-add="wdm">WDM</button>
-              <button type="button" role="menuitem" data-add="circ">Circulator</button>
-              <button type="button" role="menuitem" data-add="iso">Isolator</button>
-              <button type="button" role="menuitem" data-add="voa">Attenuator</button>
-              <button type="button" role="menuitem" data-add="pc">Polarisation controller</button>
-              <button type="button" role="menuitem" data-add="pol">In-line polariser</button>
-              <button type="button" role="menuitem" data-add="fm">Faraday mirror</button>
-              <button type="button" role="menuitem" data-add="fbg">Fibre Bragg grating</button>
-              <button type="button" role="menuitem" data-add="term">Terminator</button>
-              <button type="button" role="menuitem" data-add="pd">Fibre photodiode</button>
-              <button type="button" role="menuitem" data-add="thru">Feedthrough (to another tab)</button>
-              <button type="button" role="menuitem" data-add="fibre">Fibre tip (to free space)</button>
-            </div>
+          <div class="rt-palette" id="paletteBox"></div>
+          <div class="rt-more" id="moreWrap">
+            <button class="rt-btn" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">More ▾</button>
+            <div class="rt-menu" id="moreMenu" role="menu" hidden></div>
           </div>
         </div>
         <div class="rt-group">
@@ -1659,7 +1629,10 @@ function normFibres(list, els) {
     const a = F && end(F.a), b = F && end(F.b);
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
     used.add(pkey(...a)); used.add(pkey(...b));
-    out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, len: Math.max(0, num(F.len, 1)), loss: Math.max(0, num(F.loss, 0.2)) });
+    const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
+    const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
+    out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, len: Math.max(0, num(F.len, 1)), loss: Math.max(0, num(F.loss, 0.2)),
+      path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null });
   }
   return out;
 }
@@ -3506,7 +3479,7 @@ function drawJones(el, sel) {
 function drawFcomp(el, sel) {
   const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = FC_H / 2, s = V().scale;
   const laser = el.kind === 'laser';
-  pathLocal(f, [[-w, -hh], [w, -hh], [w, hh], [-w, hh]], true);
+  pathLocal(f, roundRect(w, hh, 1.6), true);
   ctx.fillStyle = laser ? 'rgba(0,0,0,0.35)' : '#2b373d'; ctx.fill();
   ctx.strokeStyle = sel ? '#ffffff' : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
   const tag = typeof K.tag === 'function' ? K.tag(el) : K.tag, fs = clamp(2.6 * s, 7, 14);
@@ -3515,6 +3488,13 @@ function drawFcomp(el, sel) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tag, sx(el.x), sy(el.y)); ctx.restore();
   }
   drawPorts(el);
+}
+/* a w x hh half-size rectangle with corners of radius r, as points */
+function roundRect(w, hh, r) {
+  const pts = [], k = 6;
+  for (const [cx, cy, a0] of [[w - r, -hh + r, -90], [w - r, hh - r, 0], [-w + r, hh - r, 90], [-w + r, -hh + r, 180]])
+    for (let i = 0; i <= k; i++) { const a = (a0 + 90 * i / k) * deg; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return pts;
 }
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
 function drawPorts(el) {
@@ -3532,18 +3512,92 @@ function drawPorts(el) {
   });
 }
 const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pkey(...F.a), pkey(...F.b)]));
-/* a fibre's spline on screen: leaving each port along its outward direction */
-function fibreCurve(F, overrideB) {
-  const A = getEl(F.a[0]), B = overrideB ? null : getEl(F.b[0]);
-  if (!A || (!B && !overrideB)) return null;
-  const pa = portWorld(A, F.a[1]), P0 = [sx(pa.x), sy(pa.y)];
-  let P3, db;
-  if (overrideB) { P3 = overrideB; db = null; }
-  else { const pb = portWorld(B, F.b[1]); P3 = [sx(pb.x), sy(pb.y)]; db = [pb.dx, -pb.dy]; }
-  const L = Math.max(24, 0.4 * Math.hypot(P3[0] - P0[0], P3[1] - P0[1]));
-  const P1 = [P0[0] + pa.dx * L, P0[1] - pa.dy * L];
-  const P2 = db ? [P3[0] + db[0] * L, P3[1] + db[1] * L] : [(P1[0] + P3[0]) / 2, (P1[1] + P3[1]) / 2];
-  return [P0, P1, P2, P3];
+/* A fibre's path, in bench coordinates: cubic segments from port to port through its nodes.
+   It leaves each port along the port's direction, ta and tb mm (or a length that suits the
+   span); each node has an in handle h1 and an out handle h2, offsets from it, as in a
+   drawing program. endB, a point, stands in for the far port while a fibre is being laid. */
+function fibreSegs(F, endB) {
+  const A = getEl(F.a[0]);
+  if (!A) return null;
+  const pa = portWorld(A, F.a[1]);
+  let pb = null;
+  if (!endB) { const B = getEl(F.b[0]); if (!B) return null; pb = portWorld(B, F.b[1]); }
+  const nodes = F.path || [], s0 = V().scale;
+  const P = [[pa.x, pa.y], ...nodes.map(n => [n.x, n.y]), endB || [pb.x, pb.y]];
+  const auto = i => Math.max(24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
+  const segs = [];
+  for (let i = 0; i < P.length - 1; i++) {
+    const ta = F.ta != null ? F.ta : auto(0);
+    const c1 = i === 0 ? [pa.x + pa.dx * ta, pa.y + pa.dy * ta] : [P[i][0] + nodes[i - 1].h2[0], P[i][1] + nodes[i - 1].h2[1]];
+    let c2;
+    if (i < P.length - 2) c2 = [P[i + 1][0] + nodes[i].h1[0], P[i + 1][1] + nodes[i].h1[1]];
+    else if (pb) { const tb = F.tb != null ? F.tb : auto(i); c2 = [pb.x + pb.dx * tb, pb.y + pb.dy * tb]; }
+    else c2 = [(c1[0] + P[i + 1][0]) / 2, (c1[1] + P[i + 1][1]) / 2];
+    segs.push([P[i], c1, c2, P[i + 1]]);
+  }
+  return segs;
+}
+const toScr = q => [sx(q[0]), sy(q[1])];
+function tracePath(segs) {
+  ctx.beginPath(); ctx.moveTo(...toScr(segs[0][0]));
+  for (const C of segs) ctx.bezierCurveTo(...toScr(C[1]), ...toScr(C[2]), ...toScr(C[3]));
+}
+/* the point of a fibre nearest a point on screen: its segment, parameter and distance (px) */
+function fibreNearest(F, px, py) {
+  const segs = fibreSegs(F);
+  if (!segs) return null;
+  let best = null;
+  segs.forEach((C, k) => {
+    for (let i = 0; i <= 60; i++) { const [x, y] = toScr(bez(C, i / 60)), d = Math.hypot(x - px, y - py); if (!best || d < best.d) best = { k, t: i / 60, d }; }
+  });
+  return best;
+}
+/* A node put into a fibre at segment k, parameter t, without changing its shape: the curve
+   split there (de Casteljau), the neighbours' handles shortened to match */
+function fibreSplit(F, k, t) {
+  const segs = fibreSegs(F), [P0, P1, P2, P3] = segs[k];
+  const L = (a, b) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const P01 = L(P0, P1), P12 = L(P1, P2), P23 = L(P2, P3), P012 = L(P01, P12), P123 = L(P12, P23), M = L(P012, P123);
+  F.path = F.path || [];
+  const nodes = F.path;
+  if (k === 0) F.ta = Math.hypot(P01[0] - P0[0], P01[1] - P0[1]);
+  else nodes[k - 1].h2 = [P01[0] - P0[0], P01[1] - P0[1]];
+  if (k === segs.length - 1) F.tb = Math.hypot(P23[0] - P3[0], P23[1] - P3[1]);
+  else nodes[k].h1 = [P23[0] - P3[0], P23[1] - P3[1]];
+  nodes.splice(k, 0, { x: M[0], y: M[1], h1: [P012[0] - M[0], P012[1] - M[1]], h2: [P123[0] - M[0], P123[1] - M[1]] });
+  return k;
+}
+/* the grip of the selected fibre under a point: a handle, a node, or an end's handle */
+function fibreGrip(F, px, py) {
+  const segs = fibreSegs(F);
+  if (!segs) return null;
+  const near = (q, r) => Math.hypot(sx(q[0]) - px, sy(q[1]) - py) <= (r || 7);
+  const nodes = F.path || [];
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (near([n.x + n.h1[0], n.y + n.h1[1]])) return { type: 'h1', i };
+    if (near([n.x + n.h2[0], n.y + n.h2[1]])) return { type: 'h2', i };
+  }
+  for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i };
+  if (near(segs[0][1])) return { type: 'ta' };
+  if (near(segs[segs.length - 1][2])) return { type: 'tb' };
+  return null;
+}
+/* moving a grip to a point on the bench; free (Shift) lets a node's two handles part */
+function moveGrip(F, g, X, Y, free) {
+  const nodes = F.path || [];
+  if (g.type === 'node') { nodes[g.i].x = X; nodes[g.i].y = Y; return; }
+  if (g.type === 'h1' || g.type === 'h2') {
+    const n = nodes[g.i], mine = g.type, other = mine === 'h1' ? 'h2' : 'h1';
+    n[mine] = [X - n.x, Y - n.y];
+    if (!free) {                               // a smooth node: the other handle stays opposite, its own length
+      const L = Math.hypot(...n[mine]), Lo = Math.hypot(...n[other]) || L;
+      if (L > 0) n[other] = [-n[mine][0] / L * Lo, -n[mine][1] / L * Lo];
+    }
+    return;
+  }
+  const end = g.type === 'ta' ? F.a : F.b, el = getEl(end[0]), P = portWorld(el, end[1]);
+  F[g.type] = Math.max(0, (X - P.x) * P.dx + (Y - P.y) * P.dy);     // along the port's own direction
 }
 const bez = (C, t) => { const u = 1 - t; return [0, 1].map(k => u * u * u * C[0][k] + 3 * u * u * t * C[1][k] + 3 * u * t * t * C[2][k] + t * t * t * C[3][k]); };
 /* the light a fibre carries, both ways, in mW; and its colour */
@@ -3558,20 +3612,41 @@ function drawFibres() {
   const list = (project.fibres || []).filter(F => { const A = getEl(F.a[0]), B = getEl(F.b[0]); return A && B && onTab(A) && onTab(B); });
   const lights = list.map(fibreLight), top = Math.max(1e-30, ...lights.map(l => l.mw));
   list.forEach((F, i) => {
-    const C = fibreCurve(F);
-    if (!C) return;
-    const path = () => { ctx.beginPath(); ctx.moveTo(...C[0]); ctx.bezierCurveTo(...C[1], ...C[2], ...C[3]); };
-    path(); ctx.strokeStyle = F.id === selFibreId ? '#ffffff' : '#f2c14e'; ctx.lineWidth = F.id === selFibreId ? 4 : 3; ctx.stroke();
+    const segs = fibreSegs(F);
+    if (!segs) return;
+    const sel = F.id === selFibreId;
+    tracePath(segs); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = sel ? 4 : 3; ctx.stroke();
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
-      path(); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
+      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
       ctx.shadowColor = L.colour; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
     }
+    if (sel) drawFibreNodes(F, segs);
   });
   if (drag && drag.mode === 'fibre' && drag.cur) {
     const el = getEl(drag.from[0]);
-    const C = el && fibreCurve({ a: drag.from }, drag.cur);
-    if (C) { ctx.beginPath(); ctx.moveTo(...C[0]); ctx.bezierCurveTo(...C[1], ...C[2], ...C[3]); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]); }
+    const segs = el && fibreSegs({ a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
+    if (segs) { tracePath(segs); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]); }
+  }
+}
+/* a selected fibre's nodes (squares) and handles (lines to round knobs), as in a drawing program */
+function drawFibreNodes(F, segs) {
+  const knob = (q, from) => {
+    const [X, Y] = toScr(q), [X0, Y0] = toScr(from);
+    ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(X, Y); ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(X, Y, 3.5, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#0092b2'; ctx.lineWidth = 1.2; ctx.stroke();
+  };
+  knob(segs[0][1], segs[0][0]);
+  const last = segs[segs.length - 1];
+  knob(last[2], last[3]);
+  for (const n of F.path || []) {
+    knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
+    knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+  }
+  for (const n of F.path || []) {
+    const [X, Y] = toScr([n.x, n.y]);
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#0092b2'; ctx.lineWidth = 1.4;
+    ctx.fillRect(X - 4.5, Y - 4.5, 9, 9); ctx.strokeRect(X - 4.5, Y - 4.5, 9, 9);
   }
 }
 /* the port under a point on screen, on this tab */
@@ -3589,9 +3664,8 @@ function fibreAtPx(px, py) {
   for (const F of project.fibres || []) {
     const A = getEl(F.a[0]), B = getEl(F.b[0]);
     if (!A || !B || !onTab(A)) continue;
-    const C = fibreCurve(F);
-    if (!C) continue;
-    for (let i = 0; i <= 40; i++) { const [x, y] = bez(C, i / 40), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = F; } }
+    const q = fibreNearest(F, px, py);
+    if (q && q.d < bd) { bd = q.d; best = F; }
   }
   return best;
 }
@@ -3816,6 +3890,12 @@ canvas.addEventListener('pointerdown', e => {
       return;
     }
   }
+  // the selected fibre's nodes and handles
+  const SF = selFibre();
+  if (SF) {
+    const g = fibreGrip(SF, px, py);
+    if (g) { drag = { mode: 'grip', F: SF, g, started: false, px0: px, py0: py }; return; }
+  }
   // a port: draw a fibre from it, or take up the end of the one already there
   const port = portAt(px, py);
   if (port) {
@@ -3826,6 +3906,8 @@ canvas.addEventListener('pointerdown', e => {
   const hit = hitTest(px, py);
   const fh = hit ? null : fibreAtPx(px, py);
   if (fh) {
+    // the selected fibre's curve: pulled, it gives up a node there to drag
+    if (fh === SF) { drag = { mode: 'bend', F: SF, px0: px, py0: py, started: false }; return; }
     selFibreId = fh.id; selectedId = null; renderPanel(); requestRender();
     drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true };
     return;
@@ -3852,7 +3934,7 @@ canvas.addEventListener('pointermove', e => {
     const sel = selected();
     let cls = '';
     if (sel) { const [hx, hy] = handlePos(sel); if (Math.hypot(px - hx, py - hy) < 11) cls = 'rotate'; }
-    if (!cls && hitTest(px, py)) cls = 'over';
+    if (!cls && (hitTest(px, py) || portAt(px, py) || (selFibre() && (fibreGrip(selFibre(), px, py) || fibreAtPx(px, py) === selFibre())))) cls = 'over';
     canvas.classList.toggle('rotate', cls === 'rotate');
     canvas.classList.toggle('over', cls === 'over');
     return;
@@ -3866,6 +3948,19 @@ canvas.addEventListener('pointermove', e => {
     V().scale = s;
     V().cx = drag.cxw - (mx - W / 2) / s;
     V().cy = drag.cyw + (my - H / 2) / s;
+    requestRender();
+    return;
+  }
+  if (drag.mode === 'bend') {
+    if (Math.hypot(px - drag.px0, py - drag.py0) < 3) return;
+    const q = fibreNearest(drag.F, drag.px0, drag.py0);
+    checkpoint();
+    const i = fibreSplit(drag.F, q.k, clamp(q.t, 0.02, 0.98));
+    drag = { mode: 'grip', F: drag.F, g: { type: 'node', i }, started: true, px0: px, py0: py };
+  }
+  if (drag.mode === 'grip') {
+    if (!drag.started) { if (Math.hypot(px - drag.px0, py - drag.py0) < 2) return; checkpoint(); drag.started = true; }
+    moveGrip(drag.F, drag.g, wx(px), wy(py), e.shiftKey);
     requestRender();
     return;
   }
@@ -3905,6 +4000,12 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (!drag) return;
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
+  if (drag.mode === 'grip' || drag.mode === 'bend') {
+    const moved = drag.mode === 'grip' && drag.started;
+    drag = null; canvas.classList.remove('dragging');
+    if (moved) changed(); else requestRender();
+    return;
+  }
   if (drag.mode === 'fibre') {
     const rect = canvas.getBoundingClientRect(), to = drag.cur ? portAt(e.clientX - rect.left, e.clientY - rect.top) : null;
     const d = drag, F = d.fib;
@@ -3931,6 +4032,16 @@ function endPointer(e) {
   requestRender();
 }
 canvas.addEventListener('pointerup', endPointer);
+/* on the selected fibre: double-click a node to take it out, the curve to put one in */
+canvas.addEventListener('dblclick', e => {
+  const F = selFibre();
+  if (!F) return;
+  const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const g = fibreGrip(F, px, py);
+  if (g && g.type === 'node') { checkpoint(); F.path.splice(g.i, 1); changed(); return; }
+  const q = fibreNearest(F, px, py);
+  if (q && q.d < 6) { checkpoint(); fibreSplit(F, q.k, clamp(q.t, 0.02, 0.98)); changed(); }
+});
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('pointerleave', () => { document.getElementById('coords').textContent = ''; });
 
@@ -6174,6 +6285,10 @@ function fibreLinkPanel(F) {
     out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
   });
   panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Single-mode fibre, index ' + FIBRE_N + ', keeping its polarisation. Its length is this number, not the length drawn. Drag either end off its port to take it away, or onto another port to move it.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Shaping it: drag the fibre to pull a node out of it; drag a node (square) to move it, and its handles (round) to bend the curve through it, Shift to move one handle on its own; the handle at each port sets how far the fibre runs straight out of it. Double-click the fibre to add a node, a node to remove it.'));
+  if ((F.path && F.path.length) || F.ta != null || F.tb != null)
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('button', { class: 'rt-btn wide', type: 'button',
+      onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
 }
 function linkPanel(el) {
@@ -7091,8 +7206,8 @@ function renderOverview() {
   panel.append(h('ul', { class: 'rt-keys' },
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
-    h('li', null, 'Fibre components (under Fibre) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away.'),
-    h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane (under More) and its partner on another tab carry light between them.'),
+    h('li', null, 'Fibre components (switch the orange button at the start of Add to Fibre) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
+    h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
     h('li', null, 'Drag empty space to pan. Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
     h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
     h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
@@ -11324,9 +11439,47 @@ function importZmx(file) {
    Wiring
    ========================================================================== */
 
-document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addElement(b.dataset.add)));
-/* the More and Fibre menus: the less common elements, kept out of the toolbar's way */
-for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnFibre', 'fibreMenu']]) {
+/* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
+   as fit on the row; the rest in More. The palette switch is the orange button before them. */
+const PALETTES = {
+  free: [['source', 'Source'], ['mirror', 'Mirror'], ['lens', 'Lens'], ['asphere', 'Asphere'], ['cube', 'Beam splitter'], ['prism', 'Prism'],
+    ['waveplate', 'Waveplate'], ['polariser', 'Polariser'], ['stop', 'Stop'], ['mask', 'Mask'], ['screen', 'Screen'],
+    ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
+    ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['fibre', 'Fibre tip'],
+    ['detector', 'Photodetector'], ['link', 'Link plane', 'Link plane (to another tab)']],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodiode', 'Fibre photodiode'],
+    ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
+    ['pol', 'Polariser', 'In-line polariser'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
+    ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
+};
+let palette = 'free';
+try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = 'fibre'; } catch (err) { /* private window: free space */ }
+function layoutPalette() {
+  const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
+  const row = document.getElementById('addRow'), items = PALETTES[palette];
+  document.getElementById('btnPalette').textContent = (palette === 'fibre' ? 'Fibre' : 'Free space') + ' \u25be';
+  box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
+  menu.replaceChildren();
+  moreWrap.hidden = false;
+  // as many as fit beside the palette switch and More, the rest into More
+  const room = row.clientWidth - (row.firstElementChild.offsetWidth + moreWrap.offsetWidth) - 2 * 6;
+  const btns = [...box.children];
+  let used = 0, n = 0;
+  for (const b of btns) { const w = b.offsetWidth + 6; if (used + w > room) break; used += w; n++; }
+  if (n === btns.length) { moreWrap.hidden = true; return; }
+  btns.slice(n).forEach((b, i) => { b.remove(); const it = items[n + i]; menu.append(h('button', { type: 'button', role: 'menuitem', 'data-add': it[0] }, it[2] || it[1])); });
+}
+document.querySelector('.rt-toolbar').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) addElement(b.dataset.add); });
+document.getElementById('paletteMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-palette]');
+  if (!b) return;
+  palette = b.dataset.palette;
+  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
+  layoutPalette();
+});
+new ResizeObserver(() => layoutPalette()).observe(document.getElementById('addRow').parentElement);
+/* the palette and More menus */
+for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
@@ -11836,7 +11989,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // fibres: join two ports by element name and port number; what a fibre photodiode reads
     connect(a, pa, b, pb, len, loss) { project.fibres = project.fibres || []; project.fibres.push({ id: uid(), a: [this.byName(a).id, pa], b: [this.byName(b).id, pb], len: len ?? 1, loss: loss ?? 0 }); traceScene(); },
     portScreen(id, i) { const Q = portWorld(getEl(id), i); return [sx(Q.x), sy(Q.y)]; },
-    fibreMid(id) { return bez(fibreCurve(project.fibres.find(F => F.id === id)), 0.5); },
+    fibrePoint(id, k, t) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[k], t)); },
+    fibreMid(id) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[Math.floor((segs.length - 1) / 2)], segs.length % 2 ? 0.5 : 1)); },
     fibrePd(name) { const el = this.byName(name), net = lastTrace.net; return net ? netPower(net.pd.get(el.id), net.keys) : 0; },
     portPower(name, p) { return portPower(this.byName(name), p); },
     fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },

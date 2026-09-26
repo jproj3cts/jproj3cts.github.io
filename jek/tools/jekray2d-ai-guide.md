@@ -79,6 +79,7 @@ Signs:
 - **Mirror "R"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.
 - **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{"R": 51.5}, {"R": −51.5}]; a plano-convex lens with its curved side first is [{"R": 51.5}, {"R": null}].
 - A source's **"z0"** is how far ahead of the source its waist is.
+- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes "pol": "s" or "p"; a fibre laser's "polAngle" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.
 
 ## Building blocks
 

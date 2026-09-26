@@ -2867,6 +2867,28 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: J => { J.importText(JSON.stringify({ name: 'N', notes: 'From Hu et al. 2023; lens f assumed.', elements: [] })); return +(J.serialize().notes === 'From Hu et al. 2023; lens f assumed.'); },
   },
+  { group: 'Masks as ideal lenses' },
+  {
+    name: 'An ideal-lens mask hit off-centre focuses as one hit in the middle',
+    why: 'a 1 mm Gaussian at 1064 nm, 50 µm off the axis of an f = 50 mm perfect-lens mask: the same focal spot (FWHM) as on the axis, on the axis',
+    want: 1, tol: 0.005, unit: '',
+    run: J => {
+      const spot = off => { J.importText(JSON.stringify({ elements: [
+        { type: 'source', name: 'S', x: -50, y: off, angle: 0, gauss: true, w0: 1, z0: 0, width: 2, rays: 3, pol: 's', popModel: '2d', popN: 256, beamView: 'field', wavelength: 1064 },
+        { type: 'mask', name: 'L', x: 0, y: 0, angle: 0, length: 10, delay: '-(sqrt(r^2+2500)-50)/lambda' },
+        { type: 'screen', name: 'Sc', x: 50, y: 0, angle: 180, length: 4 }] })); J.trace(); return J.diffraction('Sc').fwhm; };
+      return spot(0.05) / spot(0);
+    },
+  },
+  {
+    name: 'and a photodiode behind it sees the beam focused both ways',
+    why: 'the same mask focusing onto a 1 mm photodiode at its focus: all 1 mW lands on it (out of the plane as well as in it)',
+    want: 1, tol: 1e-3, unit: ' mW',
+    run: J => { J.importText(JSON.stringify({ elements: [
+        { type: 'source', name: 'S', x: -50, y: 0, angle: 0, gauss: true, w0: 1, z0: 0, width: 2, rays: 3, pol: 's', power: 1, wavelength: 1064 },
+        { type: 'mask', name: 'L', x: 0, y: 0, angle: 0, length: 10, delay: '-(sqrt(r^2+2500)-50)/lambda' },
+        { type: 'detector', name: 'D', x: 50, y: 0, angle: 180, length: 1, material: 'custom', resp: 1 }] })); J.trace(); return J.detector('D').mw; },
+  },
 ];
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */

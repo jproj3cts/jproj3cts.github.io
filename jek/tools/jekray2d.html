@@ -6362,8 +6362,9 @@ function sourcePanel(el) {
     bindSync(pl, () => { const r = splitRoot(el); pl.textContent = r.tau > 0 ? 'The pulse is ' + r.name + '\u2019s: ' + fmtFs(r.tau) + ', ' + (r.pshape === 'gauss' ? 'Gaussian' : 'sech\u00b2') + '. The extra fibre above delays it.' : r.name + ' is continuous.'; });
     panel.append(pl);
   } else {
-    const prow = h('div', { class: 'rt-rows' }, param('Duration (fs)', el, 'tau', { placeholder: '0: continuous' }));
-    if (el.tau > 0) prow.append(
+    panel.append(pulseToggle(el));
+    const prow = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' });
+    if (el.tau > 0) prow.append(param('Duration (fs)', el, 'tau'),
       selectField('Shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }),
       param('Repetition rate (MHz)', el, 'rep'),
       param('Chirp at the laser, GDD (fs\u00b2)', el, 'gdd0', { wide: true }));
@@ -6373,7 +6374,7 @@ function sourcePanel(el) {
     prow.addEventListener('focusout', flip);
     const pl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(pl, () => { pl.textContent = pulseLine(el); if (!prow.contains(document.activeElement)) flip(); });
-    panel.append(pl);
+    if (el.tau > 0) panel.append(pl);
   }
   if (!el.traceRays) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'The fan is off: no rays are drawn and the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays; a fan taken as a uniform pupil keeps its width and divergence, though its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
   panel.append(h('h3', null, 'Gaussian beam'));
@@ -6733,6 +6734,26 @@ function pulseSection(el) {
   panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit.'));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
+/* the checkbox that makes a laser pulsed (mode-locked) or continuous. Turning it on restores
+   the last duration (100 fs to start with); turning it off gives back the line it had */
+function pulseToggle(el) {
+  const cb = h('input', { type: 'checkbox' });
+  cb.checked = el.tau > 0;
+  cb.addEventListener('change', () => {
+    checkpoint();
+    const V = vs(el);
+    if (cb.checked) {
+      V.cw = { coh: el.coh, lineshape: el.lineshape };
+      el.tau = V.lastTau > 0 ? V.lastTau : 100;
+      applyPulse(el);
+    } else {
+      V.lastTau = el.tau; el.tau = 0;
+      if (V.cw) { el.coh = V.cw.coh; el.lineshape = V.cw.lineshape; }
+    }
+    changed(true);
+  });
+  return h('label', { class: 'rt-check' }, cb, 'Pulsed: a mode-locked laser');
+}
 /* is any laser pulsed? then screens, photodiodes and fibre tips offer the pulse */
 const anyPulse = () => project.elements.some(e => (e.type === 'source' || (e.type === 'fcomp' && e.kind === 'laser')) && e.tau > 0);
 /* the pulse a source launches, at the laser: bandwidth, coherence, energy and peak power */
@@ -7246,12 +7267,25 @@ function fcompPanel(el) {
   const K = FC[el.kind];
   panel.append(h('h3', null, K.label));
   const rows = h('div', { class: 'rt-rows' });
-  for (const [k, label] of K.params) rows.append(param(label, el, k));
-  if (el.kind === 'laser') rows.append(selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }),
-    selectField('Pulse shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }, { wide: true }));
-  if (el.kind === 'laser') { const pl = h('p', { class: 'note', style: 'margin-top:0.5rem' }); bindSync(pl, () => { pl.textContent = pulseLine(el); }); panel.append(rows, pl); }
+  // a laser's pulse has a section of its own; while pulsed, the pulse sets its line
+  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', ...(el.tau > 0 ? ['coh'] : [])] : [];
+  for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(param(label, el, k));
+  if (el.kind === 'laser' && !(el.tau > 0)) rows.append(selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+  if (el.kind === 'laser') {
+    panel.append(rows, h('h3', null, 'Pulse'), pulseToggle(el));
+    if (el.tau > 0) {
+      const prow = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, param('Duration (fs)', el, 'tau'),
+        selectField('Shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }),
+        param('Repetition rate (MHz)', el, 'rep'), param('Chirp at the laser, GDD (fs\u00b2)', el, 'gdd0', { wide: true }));
+      const flip = () => { if (!(el.tau > 0)) setTimeout(renderPanel); };
+      prow.addEventListener('focusout', flip);
+      const pl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+      bindSync(pl, () => { pl.textContent = pulseLine(el); if (!prow.contains(document.activeElement)) flip(); });
+      panel.append(prow, pl);
+    }
+  }
   if (el.kind === 'thru') rows.append(textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }));
-  panel.append(rows);
+  if (el.kind !== 'laser') panel.append(rows);
   if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));
   if (el.kind === 'thru') {
     const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });

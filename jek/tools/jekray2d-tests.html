@@ -2463,6 +2463,65 @@ const TESTS = [
       return D.wx < 0.05 ? D.wy : NaN;
     },
   },
+
+  { group: 'Coherence and beam quality' },
+  {
+    name: 'A laser\u2019s line washes out a Michelson\u2019s fringes',
+    why: 'Lorentzian line, coherence length 10 mm, arms 2 mm apart in round trip: contrast exp(\u2212\u03c0 \u0394L / Lc), from the output at two arm settings \u03bb/8 apart',
+    want: Math.exp(-0.2 * Math.PI), tol: 1e-4, unit: '',
+    run: J => {
+      const P = d => { J.load(michelsonCube(d, 0, { coh: 10 })); return J.diffraction('Out').power; };
+      const a = P(1), c = P(1 + LAM / 8);
+      return Math.hypot(2 * a - 1, 2 * c - 1);
+    },
+  },
+  {
+    name: 'and a Gaussian line by its own law',
+    why: 'the same with a Gaussian (Doppler) line: exp(\u2212(\u03c0 \u0394L / Lc)\u00b2 / 4 ln 2)',
+    want: Math.exp(-((0.2 * Math.PI) ** 2) / (4 * Math.LN2)), tol: 1e-4, unit: '',
+    run: J => {
+      const P = d => { J.load(michelsonCube(d, 0, { coh: 10, lineshape: 'gauss' })); return J.diffraction('Out').power; };
+      const a = P(1), c = P(1 + LAM / 8);
+      return Math.hypot(2 * a - 1, 2 * c - 1);
+    },
+  },
+  {
+    name: 'A photodiode on the output sees the same contrast',
+    why: 'the detector adds the arms as fields weighted the same way: from three arm settings, an eighth and a quarter of a wave apart',
+    want: Math.exp(-0.2 * Math.PI), tol: 1e-4, unit: '',
+    run: J => {
+      const P = d => { J.load(michelsonCube(d, 0, { coh: 10, power: 1 }, [{ type: 'detector', name: 'PD', x: 0, y: -40, angle: 90, length: 10, material: 'si', gain: 1e4 }])); return J.metric('PD', 'dmw'); };
+      const a = P(1), c = P(1 + LAM / 8), t = P(1 + LAM / 4), s2 = a + t;
+      return Math.hypot((a - t) / s2, 1 - 2 * c / s2);
+    },
+  },
+  {
+    name: 'A beam of M\u00b2 = 2 is \u221a2 wider one Rayleigh range out',
+    why: 'the Rayleigh range is \u03c0W\u2080\u00b2 / M\u00b2\u03bb; the diffracted field, summed over the Hermite\u2013Gauss modes, grows by \u221a2 there (second-moment width)',
+    want: Math.SQRT2 * 0.2, tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      const zR = Math.PI * 0.04 / (2 * LAM);
+      J.load(bench('m2', [src({ x: 0, rays: 3, width: 0.4, gauss: true, w0: 0.2, z0: 0, m2: 2, popN: 128, pol: 's' }), screen({ name: 'S', x: zR, length: 10 })], { minPower: 1e-6 }));
+      const D = J.diffraction('S');
+      return Math.abs(D.power - 1) < 1e-3 ? D.wx : NaN;
+    },
+  },
+  {
+    name: 'A Fabry\u2013Perot fed by a broad line transmits its average',
+    why: 'Lorentzian line of Lc = 5 m: T1 T2 (1 + \u03c1) / ((1 \u2212 r\u00b2)(1 \u2212 \u03c1)), r = \u221a(R1 R2), \u03c1 = r e^{\u2212\u03c0 Lrt / Lc}',
+    want: (() => { const r = Math.sqrt(0.99 * 0.999), rho = r * Math.exp(-Math.PI * 500 / 5000); return 1e-5 * (1 + rho) / ((1 - r * r) * (1 - rho)); })(),
+    tol: 0.01, rel: true, unit: '',
+    run: J => {
+      const b = fpBench(); b.elements[0].coh = 5000;
+      J.load(b); return J.diffraction('Trans').power;
+    },
+  },
+  {
+    name: 'and reflects the rest of it',
+    why: 'the mean field interferes with the prompt reflection; what the line holds beyond it adds as power: R + T = 1',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => J.diffraction('Refl').power + J.diffraction('Trans').power,
+  },
 ];
 
 const TESTS_EXPECT = {};

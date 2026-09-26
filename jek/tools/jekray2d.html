@@ -632,7 +632,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -922,6 +922,146 @@ function responsivity(el, nm) {
   return R[i - 1] + (R[i] - R[i - 1]) * (nm - W[i - 1]) / (W[i] - W[i - 1]);
 }
 
+/* ---------- Coherence ----------
+   A source's coherence length Lc (c over its linewidth) sets how well two branches of its
+   light interfere after paths that differ by dL: |gamma| = exp(-pi |dL| / Lc) for a
+   Lorentzian line (a laser), exp(-(pi dL / Lc)^2 / 4 ln 2) for a Gaussian one (an LED, a
+   Doppler-broadened line). Wherever fields of one launch add, the cross term of each pair is
+   weighted by it. Lc = 0 means a single frequency: every cross term counts in full.
+   A beam with M^2 above 1 is a Gaussian Schell-model beam: an incoherent sum of the
+   Hermite-Gauss modes of its embedded Gaussian (the one whose width is 1/M of the real
+   beam's), weighted (1 - k) k^m in each direction with k = (M^2 - 1)/(M^2 + 1), which
+   makes its M^2 exactly M^2. */
+function cohGamma(src) {
+  if (!src || !(src.coh > 0)) return null;
+  const Lc = src.coh, gauss = src.lineshape === 'gauss';
+  return dL => { const x = Math.abs(dL) / Lc; return gauss ? Math.exp(-((Math.PI * x) ** 2) / (4 * Math.LN2)) : Math.exp(-Math.PI * x); };
+}
+/* the gamma between every pair of parts of one launch, from their optical paths; null when
+   they all cohere in full */
+function cohMatrix(src, Ls) {
+  const f = cohGamma(src);
+  if (!f || Ls.length < 2) return null;
+  const n = Ls.length, G = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) G[i * n + j] = f(Ls[i] - Ls[j]);
+  return G;
+}
+/* |sum of v|^2 with each cross term weighted by G; each v a flat [re, im, re, im, ...] */
+function pcIntensity(vs, G) {
+  const n = vs.length, c = vs.length ? vs[0].length : 0;
+  let I = 0;
+  for (let i = 0; i < n; i++) for (let j = i; j < n; j++) {
+    const a = vs[i], b = vs[j];
+    let d = 0;
+    for (let k = 0; k < c; k++) d += a[k] * b[k];
+    I += (i === j ? 1 : 2 * G[i * n + j]) * d;
+  }
+  return I;
+}
+/* The same weighting as a sum of intensities: gamma's eigenvectors split one launch into
+   mutually incoherent parts, each a coherent sum of the launch's fields with weights of its
+   own. Returns those weights, one array per part, or null when the launch coheres in full.
+   Gamma is positive semi-definite (the Fourier transform of a line), so this is exact. */
+function cohModes(src, Ls) {
+  const G = cohMatrix(src, Ls);
+  if (!G) return null;
+  const n = Ls.length, A = Float64Array.from(G), V = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) V[i * n + i] = 1;
+  for (let sweep = 0; sweep < 60; sweep++) {           // Jacobi rotations
+    let off = 0;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += A[p * n + q] ** 2;
+    if (off < 1e-26) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
+      const apq = A[p * n + q];
+      if (Math.abs(apq) < 1e-300) continue;
+      const th = (A[q * n + q] - A[p * n + p]) / (2 * apq);
+      const t = (th >= 0 ? 1 : -1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), sn = t * c;
+      for (let k = 0; k < n; k++) { const a = A[k * n + p], b = A[k * n + q]; A[k * n + p] = c * a - sn * b; A[k * n + q] = sn * a + c * b; }
+      for (let k = 0; k < n; k++) { const a = A[p * n + k], b = A[q * n + k]; A[p * n + k] = c * a - sn * b; A[q * n + k] = sn * a + c * b; }
+      for (let k = 0; k < n; k++) { const a = V[k * n + p], b = V[k * n + q]; V[k * n + p] = c * a - sn * b; V[k * n + q] = sn * a + c * b; }
+    }
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const lam = A[k * n + k];
+    if (!(lam > 1e-10 * n)) continue;
+    const r = Math.sqrt(lam), c = new Float64Array(n);
+    for (let i = 0; i < n; i++) c[i] = V[i * n + k] * r;
+    out.push(c);
+  }
+  return out;
+}
+const m2Of = src => src && src.gauss && src.m2 > 1 ? src.m2 : 1;
+/* The Hermite-Gauss modes a beam of this M^2 is summed over, as [m, n, weight], strongest
+   first: those above 0.2% of the power, at most 36, the rest shared out among them */
+function gsmModes(m2) {
+  if (!(m2 > 1)) return [[0, 0, 1]];
+  const k = (m2 - 1) / (m2 + 1), per = [];
+  for (let m = 0; m < 16; m++) per.push((1 - k) * Math.pow(k, m));
+  const all = [];
+  for (let m = 0; m < per.length; m++) for (let n = 0; n < per.length; n++) { const w = per[m] * per[n]; if (w >= 2e-3) all.push([m, n, w]); }
+  all.sort((a, b) => b[2] - a[2]);
+  const kept = all.slice(0, 36);
+  // the modes left out are the widest: the kept ones are re-weighted, (1 - k') k'^(m + n)
+  // with k' found so that their mean of 2m + 1 (the second moment's share) is M^2 exactly
+  const mean = k => { let s = 0, t = 0; for (const [m, n] of kept) { const w = Math.pow(k, m + n); s += w * (2 * m + 1); t += w; } return s / t; };
+  let lo = 0, hi = 0.999;
+  if (mean(hi) > m2) for (let it = 0; it < 60; it++) { const mid = 0.5 * (lo + hi); if (mean(mid) < m2) lo = mid; else hi = mid; }
+  const kk = 0.5 * (lo + hi), ws = kept.map(([m, n]) => Math.pow(kk, m + n)), tot = ws.reduce((a, v) => a + v, 0);
+  return kept.map((v, i) => [v[0], v[1], ws[i] / tot]);
+}
+/* the physicists' Hermite polynomial H_n(u) */
+function hermite(n, u) {
+  if (n === 0) return 1;
+  let a = 1, b = 2 * u;
+  for (let k = 1; k < n; k++) { const c = 2 * u * b - 2 * k * a; a = b; b = c; }
+  return b;
+}
+/* A cavity driven by a laser with a line of its own: the circulating power averaged over
+   the line. The line is Lc wide in path, 2 pi Lopt / Lc in round-trip phase; the solve's
+   power against detuning is sampled over one free spectral range, more finely round each
+   resonance, and the line (repeated every free spectral range) weights it. */
+function cavLine(res, Lopt, src) {
+  if (!res || !(src && src.coh > 0)) return null;
+  const G = 2 * Math.PI * Lopt / src.coh;
+  if (!(G > 1e-7)) return null;
+  const key = G + '|' + src.lineshape;
+  if (res._line && res._line.key === key) return res._line;
+  const nodes = new Set();
+  const n0 = 4096;
+  for (let i = 0; i < n0; i++) nodes.add(-Math.PI + 2 * Math.PI * i / n0);
+  // each resonance: find its half width, and sample finely across it
+  const sc = res.scan, nS = sc.length, mx = Math.max(...sc);
+  for (let i = 0; i < nS; i++) {
+    const a = sc[(i - 1 + nS) % nS], b = sc[i], c = sc[(i + 1) % nS];
+    if (!(b >= a && b > c && b > 1e-4 * mx)) continue;
+    const d0 = -Math.PI + 2 * Math.PI * i / nS, h = res.at(d0).P / 2;
+    let lo = 0, hi = Math.PI;
+    for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (res.at(d0 + m).P > h) lo = m; else hi = m; }
+    const hw = Math.max(1e-9, lo);
+    for (let k = -64; k <= 64; k++) nodes.add(((d0 + k * hw / 8 + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+  }
+  const ds = [...nodes].sort((a, b) => a - b), N = ds.length, P = new Float64Array(N), wt = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    P[i] = res.at(ds[i]).P;
+    const prev = i ? ds[i - 1] : ds[N - 1] - 2 * Math.PI, next = i < N - 1 ? ds[i + 1] : ds[0] + 2 * Math.PI;
+    wt[i] = 0.5 * (next - prev);
+  }
+  const gauss = src.lineshape === 'gauss', sg = G / (2 * Math.sqrt(2 * Math.LN2));
+  const a2 = G / 2, ea = Math.exp(-a2), e2a = ea * ea;
+  const shape = x => {                       // the line, repeated every 2 pi
+    // a Lorentzian's repeats sum in closed form: sinh a / (2a (cosh a - cos x))
+    if (!gauss) return (1 - e2a) / (2 * a2 * (1 + e2a - 2 * ea * Math.cos(x)));
+    const k0 = Math.ceil((-x - 8 * sg) / (2 * Math.PI)), k1 = Math.min(k0 + 40, Math.floor((-x + 8 * sg) / (2 * Math.PI)));
+    let v = 0;
+    for (let k = k0; k <= k1; k++) { const u = x + 2 * Math.PI * k; v += Math.exp(-u * u / (2 * sg * sg)); }
+    return v;
+  };
+  const avg = d => { let a = 0, b = 0; for (let i = 0; i < N; i++) { const w = shape(ds[i] - d) * wt[i]; a += w * P[i]; b += w; } return b > 0 ? a / b : 0; };
+  res._line = { key, avg, G };
+  return res._line;
+}
+
 /* ==========================================================================
    Wavelength → display colour
    ========================================================================== */
@@ -1148,6 +1288,9 @@ function normElementBase(e) {
         lines: Array.isArray(e.lines) ? e.lines.map(Number).filter(v => isFinite(v) && v >= 100 && v <= 20000).slice(0, 12) : [],
         rays: Math.round(Math.min(501, Math.max(1, num(e.rays, 11)))),
         power: Math.max(0, num(e.power, 1)),                       // mW, for detectors and fibres
+        coh: Math.max(0, num(e.coh, 0)),                           // coherence length, mm; 0 for a single frequency
+        lineshape: e.lineshape === 'gauss' ? 'gauss' : 'lorentz',
+        m2: Math.max(1, num(e.m2, 1)),                             // beam quality: 1 for a pure Gaussian
         fibre: e.fibre && isFinite(e.fibre.core) && isFinite(e.fibre.na)
           ? { core: Math.max(0.5, +e.fibre.core), na: clamp(+e.fibre.na, 0.01, 0.9) } : undefined,
       });
@@ -2116,7 +2259,8 @@ function traceScene() {
     // not drawn. Its branches form the beam tree whose fields add coherently within a state.
     // A ray fan is a uniform pupil: its hidden axis ray carries the pilot the same way.
     const fanQ = src.gauss ? null : fanPilot(src, nm);
-    const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (nm * 1e-6)] : fanQ;
+    // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
+    const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
       const a = src.angle * deg, fam = src.id + ':' + wi + ':q' + si0;
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
@@ -2824,7 +2968,7 @@ function drawBeams(fieldShown) {
     const up = [], dn = [];
     for (let i = 0; i <= steps; i++) {
       const t = seg.len * i / steps;
-      const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm);
+      const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, m2Of(getEl(seg.src)));
       if (!b) continue;
       const x = seg.x0 + seg.dx * t, y = seg.y0 + seg.dy * t;
       up.push([sx(x + nxp * b.w), sy(y + nyp * b.w)]);
@@ -3414,6 +3558,8 @@ function setParam(el, path, v) {
     case 'extinction': v = clamp(v, 0, 80); break;
     case 'gain': case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
     case 'bandwidth': v = Math.max(1, v); break;
+    case 'coh': v = Math.max(0, v); break;
+    case 'm2': v = clamp(v, 1, 50); break;
     case 'vmax': v = Math.max(0.01, v); break;
     case 'size': case 'thickness': v = Math.max(0.1, v); break;
   }
@@ -3426,6 +3572,7 @@ function setParam(el, path, v) {
   }
   if (el.type === 'lens' && last === 'diameter') el.surfaces.forEach(s => s.semi = null);
   if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
+  if (el.type === 'source' && el.gauss && last === 'm2') fanFromGauss(el);
 }
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
@@ -3731,7 +3878,7 @@ function fibreMode(coreUm, na, nm) {
 /* a source launched from a fibre: its beam is the fibre's mode, waist on the tip */
 function applyFibre(src) {
   if (!src.fibre) return;
-  src.gauss = true; src.w0 = fibreMode(src.fibre.core, src.fibre.na, src.wavelength).w; src.z0 = 0;
+  src.gauss = true; src.w0 = fibreMode(src.fibre.core, src.fibre.na, src.wavelength).w; src.z0 = 0; src.m2 = 1;
   fanFromGauss(src);
 }
 function faceArrivals(el) {
@@ -3754,7 +3901,11 @@ function faceArrivals(el) {
     const qx = [(b.qr + b.len) / b.n, b.qi / b.n];
     const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
     const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
-    out.push({ b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, nm: b.nm });
+    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, nm: b.nm };
+    // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own
+    const modes = gsmModes(m2Of(src));
+    if (modes.length === 1) out.push(A);
+    else modes.forEach(([m, n, w], k) => out.push(Object.assign({}, A, { mode: [m, n], J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k })));
   });
   return out;
 }
@@ -3768,17 +3919,28 @@ function arrivalField(A, u, v) {
   const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0);
   // exp(-i k x^2 / 2q): the real part of 1/q curves it, the imaginary part is the envelope
   const re = -0.5 * k * (-ix[1] * xb * xb - iy[1] * v * v);
+  const mx = A.mode ? A.mode[0] : 0, my = A.mode ? A.mode[1] : 0;
   const ph = -0.5 * k * (ix[0] * xb * xb + iy[0] * v * v) - k * (A.opl + (u - A.u0) * A.ldy)
-    - 0.5 * (Math.atan2(A.qx[1], A.qx[0]) + Math.atan2(A.qy[1], A.qy[0]));
-  const amp = Math.sqrt(2 / (Math.PI * wx * wy)) * Math.exp(re) * Math.sqrt(cT);
+    - (mx + 0.5) * Math.atan2(A.qx[1], A.qx[0]) - (my + 0.5) * Math.atan2(A.qy[1], A.qy[0]);
+  let amp = Math.sqrt(2 / (Math.PI * wx * wy)) * Math.exp(re) * Math.sqrt(cT);
+  if (mx || my) {
+    let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
+    amp *= hermite(mx, Math.SQRT2 * xb / wx) * hermite(my, Math.SQRT2 * v / wy) / Math.sqrt(Math.pow(2, mx + my) * f);
+  }
   const c = amp * Math.cos(ph), sn = amp * Math.sin(ph), J = A.J;
   // the tracer's Jones vector, conjugated into this convention
   return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
 }
 function groupsOf(arr) {
-  const g = new Map();
+  const g = new Map(), out = [];
   for (const A of arr) { if (!g.has(A.coh)) g.set(A.coh, []); g.get(A.coh).push(A); }
-  return [...g.values()];
+  // a laser with a line of its own: each launch as its incoherent parts, the weights on J
+  for (const G of g.values()) {
+    const cm = cohModes(G[0].src, G.map(A => A.opl));
+    if (!cm) { out.push(G); continue; }
+    for (const c of cm) out.push(G.map((A, i) => Object.assign({}, A, { J: A.J.map(v => v * c[i]) })));
+  }
+  return out;
 }
 const deviceCache = new WeakMap();
 function deviceMemo(el, fn) {
@@ -4510,6 +4672,21 @@ function sourcePanel(el) {
     param('Power (mW)', el, 'power'),
   );
   panel.append(rows);
+  // the laser's own line: how far apart two paths can be and still interfere
+  panel.append(h('h3', null, 'Coherence'));
+  const crows = h('div', { class: 'rt-rows' }, param('Coherence length (mm)', el, 'coh'));
+  crows.append(selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']],
+    () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+  panel.append(crows);
+  const cl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+  bindSync(cl, () => {
+    if (!(el.coh > 0)) { cl.textContent = '0 is a single frequency: every path of this source interferes in full, however long.'; return; }
+    const dnu = 299792458e3 / el.coh, dl = el.wavelength * el.wavelength * 1e-6 / el.coh;
+    cl.textContent = 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
+      'Two paths of this source a distance \u0394L apart interfere with fringe contrast ' + (el.lineshape === 'gauss' ? 'exp(\u2212(\u03c0\u0394L/Lc)\u00b2/4 ln 2)' : 'exp(\u2212\u03c0|\u0394L|/Lc)') +
+      ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
+  });
+  panel.append(cl);
   if (!el.traceRays) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'The fan is off: no rays are drawn and the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays; a fan taken as a uniform pupil keeps its width and divergence, though its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
   panel.append(h('h3', null, 'Gaussian beam'));
   const gb = h('input', { type: 'checkbox' });
@@ -4534,13 +4711,16 @@ function sourcePanel(el) {
       param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
     else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Waist radius (mm)', el, 'w0'),
-      param('Waist distance (mm)', el, 'z0')));
+      param('Waist distance (mm)', el, 'z0'),
+      param('M\u00b2 (beam quality)', el, 'm2')));
     const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(line, () => {
-      const lam = el.wavelength * 1e-6;
-      const zR = Math.PI * el.w0 * el.w0 / lam;
+      const lam = el.wavelength * 1e-6, M2 = m2Of(el);
+      const zR = Math.PI * el.w0 * el.w0 / (M2 * lam);
       line.textContent = 'Rayleigh range ' + fmtLen(zR) + ', far-field half-angle ' +
-        (+(1000 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.';
+        (+(1000 * M2 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.' +
+        (M2 > 1 ? ' With M\u00b2 above 1 the beam is partly coherent across itself: a sum of ' + gsmModes(M2).length +
+          ' Hermite\u2013Gauss modes of a Gaussian ' + (+Math.sqrt(M2).toPrecision(3)) + '\u00d7 narrower, added as powers (a Gaussian Schell-model beam, as from a multimode laser or an LED). The diffracted field runs once per mode, so it is that much slower.' : '');
     });
     panel.append(line);
     const view = [selectField('Show the beam as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']],
@@ -4696,21 +4876,29 @@ function binnedFieldRaw(el) {
 
   for (const [nm, list] of byNm) {
     const lam = nm * 1e-6;
-    const acc = new Float64Array(n * 4);
+    let acc = new Float64Array(n * 4), Lw = null;
     const fams = new Map();
     for (const t of list) {
       const key = t.fam + '|' + t.path;
       if (!fams.has(key)) fams.set(key, []);
       fams.get(key).push(t);
     }
+    // a laser with a line of its own: each path family is binned on its own, with its mean
+    // optical path in each bin, and the families added pairwise, weighted by gamma
+    const famSrc = f => getEl(String(f[0].fam).split(':')[0]);
+    const partial = [...fams.values()].some(f => { const e = famSrc(f); return e && e.coh > 0; });
+    const own = partial ? [] : null;
     const deposit = (b, sr, si, pr, pi, opl) => {
       const ph = 2 * Math.PI * (opl / lam);
       const c = Math.cos(ph), s2 = Math.sin(ph);
       acc[b * 4] += sr * c - si * s2; acc[b * 4 + 1] += sr * s2 + si * c;
       acc[b * 4 + 2] += pr * c - pi * s2; acc[b * 4 + 3] += pr * s2 + pi * c;
-      inc[b] += sr * sr + si * si + pr * pr + pi * pi;
+      const w = sr * sr + si * si + pr * pr + pi * pi;
+      inc[b] += w;
+      if (Lw) { Lw[b * 2] += w * opl; Lw[b * 2 + 1] += w; }
     };
     for (const fam of fams.values()) {
+      if (own) { acc = new Float64Array(n * 4); Lw = new Float64Array(n * 2); own.push({ acc, Lw, fam: fam[0].fam, src: famSrc(fam) }); }
       if (!interp || fam.length < 2) {
         for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl);
         continue;
@@ -4727,6 +4915,24 @@ function binnedFieldRaw(el) {
         const L = (p0, p1) => p0 + (p1 - p0) * u;
         deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl));
       }
+    }
+    if (own) {
+      // same launch: gamma of the path difference; separate launches cohere only when both
+      // are single-frequency (as they always have here)
+      for (let b = 0; b < n; b++) {
+        const on = own.filter(F => F.Lw[b * 2 + 1] > 0);
+        for (let i = 0; i < on.length; i++) for (let j = i; j < on.length; j++) {
+          const A = on[i], B = on[j], o = b * 4;
+          const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
+          let g = 1;
+          if (i !== j) {
+            if (A.fam === B.fam) { const f = cohGamma(A.src); g = f ? f(A.Lw[b * 2] / A.Lw[b * 2 + 1] - B.Lw[b * 2] / B.Lw[b * 2 + 1]) : 1; }
+            else g = (A.src && A.src.coh > 0) || (B.src && B.src.coh > 0) ? 0 : 1;
+          }
+          coh[b] += (i === j ? 1 : 2 * g) * d;
+        }
+      }
+      continue;
     }
     for (let b = 0; b < n; b++) {
       coh[b] += acc[b*4]*acc[b*4] + acc[b*4+1]*acc[b*4+1] + acc[b*4+2]*acc[b*4+2] + acc[b*4+3]*acc[b*4+3];
@@ -5762,8 +5968,14 @@ function cavityCard(c) {
     if (c.axis && c.axis.miss > 1e-9) rows.push(['Cavity axis from the input beam', fmtLen(Math.abs(c.axis.h)) + ', ' + (1e3 * Math.abs(c.axis.t)).toPrecision(3) + ' mrad']);
     if (P) {
       const scale = S.eng === '2d' ? 1 : (() => { const J = c.segs[0].J; return J.reduce((a, v) => a + v * v, 0); })();
-      const circ = P.at(S.delta).P * scale, off = -P.dLock * c.fsr / (2 * Math.PI);
-      rows.push(['Circulating (\u00d7 the source)', String(+circ.toPrecision(4)) + (S.mode === 'lock' ? ', locked' : ', as built')]);
+      const off = -P.dLock * c.fsr / (2 * Math.PI), src = getEl(c.segs[0].src);
+      // every mode of a beam of M^2 above 1, and over the laser's line when it has one
+      const all = [S, ...(S.others || [])], line = r => cavLine(r.res, c.Lopt, src);
+      const circ0 = all.reduce((a, r) => a + r.res.at(r.delta).P, 0) * scale;
+      const circ = all.reduce((a, r) => { const l = line(r); return a + (l ? l.avg(r.delta) : r.res.at(r.delta).P); }, 0) * scale;
+      rows.push(['Circulating (\u00d7 the source)', String(+circ.toPrecision(4)) + (S.mode === 'lock' ? ', locked' : ', as built') + (circ !== circ0 ? ', over the laser\u2019s line' : '')]);
+      if (circ !== circ0) rows.push(['At the line\u2019s centre', String(+circ0.toPrecision(4))]);
+      if (all.length > 1) rows.push(['Beam modes summed (M\u00b2)', String(all.length)]);
       rows.push(['Built up from what gets in', String(+(P.at(S.delta).P / (P.beta * P.beta)).toPrecision(4)) + '\u00d7']);
       rows.push(['As built, off resonance by', fmtHz(Math.abs(off))]);
     } else rows.push(['Steady state', 'working it out\u2026']);
@@ -5823,18 +6035,31 @@ function drawCavityScan(cv, c, pseudo) {
   // across: the laser's detuning over one free spectral range; up: the circulating power, as
   // a share of its peak (a log scale shows the small higher-mode lines)
   const [xa, xb] = zoomRange(Z, 'x', -0.5, 0.5), [ya, yb] = zoomRange(Z, 'y', 0, 1);
-  const sx = { kind: 'hz', title: 'detuning' }, sy = { kind: 'plain', title: 'of the peak (dashed: as built, solid: locked)' };
+  const src0 = getEl(c.segs[0].src), broad = !!(src0 && src0.coh > 0);
+  const sx = { kind: 'hz', title: 'detuning' }, sy = { kind: 'plain', title: 'of the peak (dashed: as built, solid: locked' + (broad ? '; faint: the line\u2019s centre alone)' : ')') };
   const A = plotArea(g, w, hgt, [ya, yb], sy);
   cv._area = A; cv._full = { x: [-0.5 * c.fsr, 0.5 * c.fsr], y: [0, 1] };
-  const pk = P.Plock, n = Math.max(400, Math.round(A.w * 2));
+  const n = Math.max(400, Math.round(A.w * 2));
+  // every mode of a beam of M^2 above 1 adds its power; a laser with a line of its own
+  // builds up the average over it (solid), the line's centre alone shown faint
+  const all = [S, ...(S.others || [])], src = getEl(c.segs[0].src);
+  const lines = all.map(r => cavLine(r.res, c.Lopt, src));
+  const pk = all.reduce((a, r) => a + r.res.Plock, 0);
+  const curve = (fn, style, lw) => {
+    g.strokeStyle = style; g.lineWidth = lw; g.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const f = xa + (xb - xa) * i / n, d = -2 * Math.PI * f, v = fn(d) / pk;
+      const X = A.l + (f - xa) / (xb - xa) * A.w, Y = A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
+      i ? g.lineTo(X, Y) : g.moveTo(X, Y);
+    }
+    g.stroke();
+  };
   g.save(); g.beginPath(); g.rect(A.l, A.t - 2, A.w + 2, A.h + 4); g.clip();
-  g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.3; g.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const f = xa + (xb - xa) * i / n, d = -2 * Math.PI * f, v = P.at(d).P / pk;
-    const X = A.l + (f - xa) / (xb - xa) * A.w, Y = A.t + A.h - (v - ya) / ((yb - ya) || 1) * A.h;
-    i ? g.lineTo(X, Y) : g.moveTo(X, Y);
-  }
-  g.stroke();
+  const centre = d => all.reduce((a, r) => a + r.res.at(d).P, 0);
+  if (lines.some(Boolean)) {
+    curve(centre, 'rgba(90,180,200,0.35)', 1);
+    curve(d => all.reduce((a, r, k) => a + (lines[k] ? lines[k].avg(d) : r.res.at(d).P), 0), getCss('--jek-cyan'), 1.6);
+  } else curve(centre, getCss('--jek-cyan'), 1.3);
   // where the laser is as built (0) and where the lock puts it
   const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
   mark(0, [3, 3]);
@@ -5908,7 +6133,7 @@ let lastReadout = '';
 /* The ray fan and the Gaussian beam describe the same light, so keep them in step:
    the rays are the wavefront normals, and the fan's width is the beam diameter. */
 function gaussFromFan(el) {
-  const lam = el.wavelength * 1e-6;
+  const lam = el.wavelength * 1e-6 * m2Of(el);    // an M^2 beam spreads as if its wavelength were M^2 times longer
   const wsrc = el.width / 2;
   const half = el.divergence * deg / 2;
   if (wsrc <= 0) {                       // a point source: the divergence alone fixes the waist
@@ -5924,7 +6149,7 @@ function gaussFromFan(el) {
   el.z0 = -(invR / den);
 }
 function fanFromGauss(el) {
-  const lam = el.wavelength * 1e-6;
+  const lam = el.wavelength * 1e-6 * m2Of(el);
   const qr = -el.z0, qi = Math.PI * el.w0 * el.w0 / lam;
   const den = qr * qr + qi * qi;
   if (!den) return;
@@ -5935,18 +6160,19 @@ function fanFromGauss(el) {
 }
 
 /* Beam radius, wavefront radius and waist from the complex parameter q */
-function beamAt(qr, qi, n, nm) {
+function beamAt(qr, qi, n, nm, M2) {
   const den = qr * qr + qi * qi;
   if (!den) return null;
   const invR = qr / den, invI = -qi / den;          // 1/q
   const lam = nm * 1e-6;                             // mm, in vacuum
-  const w = Math.sqrt(Math.max(0, -lam / (Math.PI * n * invI)));
+  const M = Math.sqrt(M2 || 1);                      // q is the embedded Gaussian's; the beam is M times wider
+  const w = M * Math.sqrt(Math.max(0, -lam / (Math.PI * n * invI)));
   const zR = qi;
   return {
     w, zR,
     R: Math.abs(invR) < 1e-12 ? Infinity : 1 / invR,
     waistDist: -qr,                                  // positive: the waist is still ahead
-    w0: Math.sqrt(Math.max(0, lam * qi / (Math.PI * n))),
+    w0: M * Math.sqrt(Math.max(0, lam * qi / (Math.PI * n))),
   };
 }
 
@@ -7259,9 +7485,9 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
   const stokes = [0, 0, 0, 0];
   let axial = 0, total = 0;
   for (const L2 of launches.values()) {
-    const parts = L2.map(h2 => {
+    const parts = L2.map((h2, i) => {
       const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, P = pupils.get(h2);
-      return { h2, P, cz };
+      return { h2, P, cz, c: L2.cs ? L2.cs[i] : 1 };
     });
     for (let jv = 0; jv < MN; jv++) {
       const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
@@ -7270,7 +7496,7 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
         let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0, ii = 0;
         for (const q of parts) {
           if (!q.P) continue;
-          const s = u - q.h2.ly, e = vfAt(q.P, s * q.h2.p, v, q.h2.sg.b.len + s * q.cz);
+          const s = u - q.h2.ly, e = vfAt(q.P, s * q.h2.p, v, q.h2.sg.b.len + s * q.cz).map(x => x * q.c);
           xr += e[0]; xi += e[1]; yr += e[2]; yi += e[3]; zr += e[4]; zi += e[5];
           ii += e[0] ** 2 + e[1] ** 2 + e[2] ** 2 + e[3] ** 2 + e[4] ** 2 + e[5] ** 2;
         }
@@ -7290,11 +7516,11 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
     let I = 0;
     for (const L2 of launches.values()) {
       const e0 = [0, 0, 0, 0, 0, 0];
-      for (const h2 of L2) {
-        const P = pupils.get(h2); if (!P) continue;
-        const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, s = u - h2.ly, e = vfAt(P, s * h2.p, v, b.len + s * cz);
-        for (let m = 0; m < 6; m++) e0[m] += e[m];
-      }
+      L2.forEach((h2, i) => {
+        const P = pupils.get(h2); if (!P) return;
+        const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, s = u - h2.ly, e = vfAt(P, s * h2.p, v, b.len + s * cz), c = L2.cs ? L2.cs[i] : 1;
+        for (let m = 0; m < 6; m++) e0[m] += c * e[m];
+      });
       I += e0.reduce((a, x) => a + x * x, 0);
     }
     return I;
@@ -7647,7 +7873,7 @@ function popStats2(F) {
 }
 
 /* A Gaussian beam: qx and qy are the complex beam parameters in the two planes */
-function popGaussian2(N, qx, qy, n, lam0, power) {
+function popGaussian2(N, qx, qy, n, lam0, power, mx, my) {
   const k = 2 * Math.PI * n / lam0, lam = lam0 / n, G = Math.sqrt(Math.PI * N);
   const ax = { d: G * popW(qx[0], qx[1], lam) / N, z: qx[0], zR: qx[1] };
   const ay = { d: G * popW(qy[0], qy[1], lam) / N, z: qy[0], zR: qy[1] };
@@ -7656,9 +7882,11 @@ function popGaussian2(N, qx, qy, n, lam0, power) {
     const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -q[1] / den;
     const sph = !popInside(q[0], q[1]);
     const a = new Float64Array(N), ph = new Float64Array(N);
+    // a Hermite-Gauss mode of order m along this axis, for a beam of M^2 above 1
+    const m = q === qx ? (mx || 0) : (my || 0), wq = popW(q[0], q[1], lam);
     for (let i = 0; i < N; i++) {
       const x = (i - N / 2) * st.d, x2 = x * x;
-      a[i] = Math.exp(0.5 * k * x2 * ii);
+      a[i] = Math.exp(0.5 * k * x2 * ii) * (m ? hermite(m, Math.SQRT2 * x / wq) : 1);
       ph[i] = -0.5 * k * x2 * ir + (sph ? k * x2 / (2 * q[0]) : 0);
     }
     return [a, ph];
@@ -8154,7 +8382,7 @@ const popState = { key: '', result: null, timer: null, job: null };
 const popSources = () => project.elements.filter(e => e.type === 'source' && e.gauss && e.beamView === 'field');
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale]);
+  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e)]);
   return JSON.stringify([cfg, beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev])]);
 }
@@ -8209,9 +8437,15 @@ function* popRunGen(beams, srcs, opts = {}) {
     kids.get(b.parent).push(i);
     if (!popRoundEv(b.ev)) { if (!why.has(b.src)) why.set(b.src, new Set()); why.get(b.src).add(b.ev.el); }
   });
-  const engine = new Map(srcs.map(e => [e.id, (e.popModel === '2d' || why.has(e.id)) ? '2d' : 'round']));
+  // a beam of M^2 above 1 is a sum of Hermite-Gauss modes, which are not round
+  const engine = new Map(srcs.map(e => [e.id, (e.popModel === '2d' || why.has(e.id) || m2Of(e) > 1) ? '2d' : 'round']));
   const segs = [], notes = { clipped: new Set(), steep: new Set(), coarse: new Set(), why, engine };
-  const todo = (kids.get(-1) || []).map(i => ({ i, F: null, root: beams[i].w || 1, repr: 1 }));
+  // one root per launch, or per mode of a launch for a beam of M^2 above 1: the modes add as
+  // powers, so each runs through the tree on its own and counts as a launch of its own
+  // (the strongest mode is taken first, so a cavity's lock is its to set)
+  const todo = (kids.get(-1) || []).flatMap(i => gsmModes(m2Of(bySrc.get(beams[i].src))).map((md, k) =>
+    ({ i, F: null, root: beams[i].w || 1, repr: 1, mode: k, mn: md })).reverse());
+  const lockOf = new Map();
   const count = { round: 0, '2d': 0 };
   let truncated = false;
   // Cavities: each loop's first pass carries its steady state; the tracer's unrolled
@@ -8240,11 +8474,11 @@ function* popRunGen(beams, srcs, opts = {}) {
     if (!F0 && b.fan) {
       const shape = fanShape(src, b.nm);
       F0 = eng === '2d' ? popFan2(src.popN, q, b.n, lam0, 1, shape) : popFanRound(src.popN, q, b.n, lam0, 1, shape);
-    } else if (!F0) F0 = eng === '2d' ? popGaussian2(src.popN, q, q, b.n, lam0, 1) : popGaussian(src.popN, q, b.n, lam0, 1);
+    } else if (!F0) F0 = eng === '2d' ? popGaussian2(src.popN, q, q, b.n, lam0, job.mn ? job.mn[2] : 1, job.mn ? job.mn[0] : 0, job.mn ? job.mn[1] : 0) : popGaussian(src.popN, q, b.n, lam0, 1);
     // on the 2D engine the field carries its polarisation at every point from the start
     if (!job.F && eng === '2d') F0 = field2Vector(F0, b.J);
     if (job.F && loopAt.has(job.i) && job.decision) {
-      const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng;
+      const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng + (job.mode ? '|m' + job.mode : '');
       let store = cavRunCache.get(lastTrace); if (!store) { store = new Map(); cavRunCache.set(lastTrace, store); }
       let got = store.get(key);
       // The twin behind a Strehl ratio needs the cavity's build-up, not its every detail: the
@@ -8258,12 +8492,38 @@ function* popRunGen(beams, srcs, opts = {}) {
       if (!got) {
         const res = yield* cavSteady(L, beams, F0, job.decision, eng);
         const mode = (project.cavityLock && project.cavityLock[L.canon]) || 'lock';
-        const delta = mode === 'lock' && res ? res.dLock : 0;
-        let X = F0;
-        if (res) { const y = cavLS(res.H, res.m, res.beta, [Math.cos(delta), Math.sin(delta)]); X = cavLin(F0, y.map((c, k) => [c, res.Q[k]])); }
-        got = { X, res, delta, mode, bRef: F0 };
+        // one laser, one frequency: the higher modes of a beam of M^2 above 1 keep its lock
+        const lk = L.canon + '|' + eng + '|' + (opts.paraxial ? 'p' : '');
+        const delta = mode === 'lock' && res ? (job.mode && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
+        if (!job.mode) lockOf.set(lk, delta);
+        let X = F0, Xinc = null;
+        if (res) {
+          const y = cavLS(res.H, res.m, res.beta, [Math.cos(delta), Math.sin(delta)]);
+          X = cavLin(F0, y.map((c, k) => [c, res.Q[k]]));
+          // A laser with a line of its own. Round trip n is n Lopt longer than the light let in,
+          // so it adds to the rest weighted by gamma(n Lopt) = gamma(Lopt)^n (exact for a
+          // Lorentzian line, right to first order for a Gaussian): the mean field is the solve
+          // with the round trip damped by gamma(Lopt). It carries on as the launch itself,
+          // interfering with the prompt reflection; what the line's average power holds beyond
+          // it carries on as light of its own that interferes with nothing.
+          const Lopt = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+          const line = cavLine(res, Lopt, src), P = res.at(delta).P;
+          if (line && P > 0) {
+            const g1 = cohGamma(src)(Lopt), pw = F => (eng === '2d' ? popStats2(F) : popStats(F)).power;
+            const ym = cavLS(res.H, res.m, res.beta, [g1 * Math.cos(delta), g1 * Math.sin(delta)]);
+            const Xm = cavLin(F0, ym.map((c, k) => [c, res.Q[k]]));
+            const rest = line.avg(delta) - P * pw(Xm) / Math.max(1e-300, pw(X));
+            Xinc = rest > 1e-9 * P ? cavLin(X, [[[Math.sqrt(rest / P), 0], X]]) : null;
+            X = Xm;
+          }
+        }
+        got = { X, Xinc, res, delta, mode, bRef: F0 };
         store.set(key, got);
-        if (!opts.paraxial) cavSolved.set(L.canon, Object.assign({ eng, trace: lastTrace }, got));
+        if (!opts.paraxial && !job.mode) cavSolved.set(L.canon, Object.assign({ eng, trace: lastTrace, others: [] }, got));
+        else if (!opts.paraxial && res) {         // the other modes' solves, for the readouts
+          const S = cavSolved.get(L.canon);
+          if (S && S.trace === lastTrace) S.others.push({ res, delta });
+        }
       }
       // what the steady state holds against the injected light: a branch leaking out of the
       // loop is judged by that built-up power, not by one pass's
@@ -8274,11 +8534,14 @@ function* popRunGen(beams, srcs, opts = {}) {
       // gains delta each round trip, the leak back through the input coupler included, so
       // the prompt reflection and the leak meet with the right phase
       job.cavPhase = got.delta;
+      // the part of a broad laser line's build-up that coheres with nothing: on its own
+      if (got.Xinc && !opts.paraxial) todo.push(Object.assign({}, job, { F: got.Xinc, decision: null, tag: (job.tag || '') + '#i' }));
       notes.cavities.push(L.canon);
     }
     const leg = eng === '2d' ? popLeg2(F0) : popLeg(F0);
     const repr = job.F ? job.repr : (F0.repr || 1);
-    const sg = { i: job.i, b, src, eng, F0, leg, root: job.root, clipped: !!job.clipped, repr, boost: job.boost || 1 };
+    const sg = { i: job.i, b, src, eng, F0, leg, root: job.root, clipped: !!job.clipped, repr, boost: job.boost || 1,
+      mode: job.mode || 0, coh: b.coh + (job.mode ? '#m' + job.mode : '') + (job.tag || '') };
     segs.push(sg);
     busy += performance.now() - t0; yield; t0 = performance.now();
     // weaker branches go first when the budget runs short: the stack is last in, first out
@@ -8304,7 +8567,7 @@ function* popRunGen(beams, srcs, opts = {}) {
       if (out.coarse && ev.el) notes.coarse.add(ev.el);
       if (out.polErr) notes.polErr = Math.max(notes.polErr || 0, out.polErr);
       if (eng === '2d' && polEl(c) && beams[c].w < 1e-3 * job.root && popStats2(out.field).power < 1e-12 * job.root) continue;
-      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr, decision: out.decision, boost: job.boost });
+      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr, decision: out.decision, boost: job.boost, mode: job.mode, mn: job.mn, tag: job.tag });
     }
   }
   if (opts.draw) {
@@ -8348,7 +8611,7 @@ function popGroups(segs) {
   const w = segs.map(wAt);
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
     const a = segs[i].b, b = segs[j].b;
-    if (a.coh !== b.coh) continue;
+    if (segs[i].coh !== segs[j].coh) continue;
     if (a.dx * b.dx + a.dy * b.dy < Math.cos(POP_GROUP_ANGLE)) continue;
     const ox = b.x0 - a.x0, oy = b.y0 - a.y0;
     const side = Math.abs(-a.dy * ox + a.dx * oy), along = Math.abs(a.dx * ox + a.dy * oy);
@@ -8391,25 +8654,36 @@ function popGroupCut(item, t) {
     if (tm < -1e-9 || tm > b.len + 1e-9) continue;
     const c = m.leg.cutC(clamp(tm, 0, b.len));
     const x0 = -b.dy * ox + b.dx * oy, cx = exLx * -b.dy + exLy * b.dx, cz = exLx * b.dx + exLy * b.dy;
-    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k });
+    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k, L: (b.opl || 0) + b.n * tm });
     Yg = Math.max(Yg, Math.abs(x0) + 2.5 * c.w); wMax = Math.max(wMax, c.w);
   }
   const M = 2 * POP_ROWS, x = new Float64Array(M), I = new Float64Array(M);
   if (!parts.length) return { x, I, sym: false, w: 1, half: 1, gain: 0 };
   Yg = Math.min(Yg, Math.max(...parts.map(p => p.c.half)));
+  // a laser with a line of its own: the members add as its incoherent parts (cohModes)
+  const cm = cohModes(item.lead.src, parts.map(p => p.L)), vs = cm ? parts.map(() => [0, 0, 0, 0]) : null;
   let sumC = 0, sumI = 0;
   for (let i = 0; i < M; i++) {
     const y = ((i + 0.5) / M * 2 - 1) * Yg;
     x[i] = y;
     let sr = 0, si = 0, pr = 0, pi = 0, inc = 0;
-    for (const p of parts) {
-      const v = cutVec(p.c, p.x0 + y * p.cx, p.J, p.par);
+    for (let q = 0; q < parts.length; q++) {
+      const p = parts[q], v = cutVec(p.c, p.x0 + y * p.cx, p.J, p.par);
       const ph = -p.kn * y * p.cz, cs = Math.cos(ph), sn = Math.sin(ph);   // the member's own path to this row
       const a1 = v[0] * cs - v[1] * sn, b1 = v[0] * sn + v[1] * cs, a2 = v[2] * cs - v[3] * sn, b2 = v[2] * sn + v[3] * cs;
       sr += a1; si += b1; pr += a2; pi += b2;
+      if (vs) { const w = vs[q]; w[0] = a1; w[1] = b1; w[2] = a2; w[3] = b2; }
       inc += a1 * a1 + b1 * b1 + a2 * a2 + b2 * b2;
     }
-    I[i] = sr * sr + si * si + pr * pr + pi * pi;
+    if (cm) {
+      let v = 0;
+      for (const c of cm) {
+        let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
+        for (let q = 0; q < parts.length; q++) { const w = vs[q], k = c[q]; e0 += k * w[0]; e1 += k * w[1]; e2 += k * w[2]; e3 += k * w[3]; }
+        v += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+      }
+      I[i] = v;
+    } else I[i] = sr * sr + si * si + pr * pr + pi * pi;
     sumC += I[i]; sumI += inc;
   }
   const wSum = parts.reduce((s, p) => s + p.wJ, 0);
@@ -8443,9 +8717,28 @@ function closeupPrep(segs, cx, cy, hw) {
     const ts = [...new Set([clamp(tc - hw, 0, b.len), clamp(tc, 0, b.len), clamp(tc + hw, 0, b.len)])];
     const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
     const J = popJ(b);
-    out.push({ b, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: b.coh, bounds: closeupBounds(b), reach: 4 * c1.w });
+    out.push({ b, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
+      src: sg.src, L: (b.opl || 0) + b.n * clamp(tc, 0, b.len) });
   }
+  closeupLaunches(out);
   return out;
+}
+/* The launches the prepared segments add in, numbered: a launch whose light coheres over
+   its paths only in part is split into its incoherent parts (cohModes). Each segment gets
+   vl, pairs of [launch number, weight], and the list of the launches' colours. */
+function closeupLaunches(parts) {
+  const byL = new Map(), cols = [];
+  for (const P of parts) { if (!byL.has(P.coh)) byL.set(P.coh, []); byL.get(P.coh).push(P); }
+  for (const Ps of byL.values()) {
+    for (const P of Ps) P.vl = [];
+    const cm = cohModes(Ps[0].src, Ps.map(P => P.L));
+    for (const c of cm || [null]) {
+      Ps.forEach((P, i) => { if (!c || c[i]) P.vl.push(cols.length, c ? c[i] : 1); });
+      cols.push(Ps[0].colour);
+    }
+  }
+  parts.cols = cols;
+  return parts;
 }
 /* One segment's complex field at a world point, or null where it does not run */
 /* Which side of a surface a point is on, in the bench plane: +1 or -1, 0 on it */
@@ -8493,13 +8786,16 @@ function closeupAt(parts, X, Y) {
   for (const P of parts) {
     const e = closeupSeg(P, X, Y);
     if (!e) continue;
-    let A = acc.get(P.coh);
-    if (!A) acc.set(P.coh, A = { zr: 0, zi: 0, xr: 0, xi: 0, yr: 0, yi: 0, inc: 0, colour: P.colour });
-    const [sr, si, pr, pi] = e;
-    A.zr += sr; A.zi += si;                               // s: out of the bench plane
-    A.xr += pr * P.ex[0]; A.xi += pi * P.ex[0];           // p: in it, along the beam's own normal
-    A.yr += pr * P.ex[1]; A.yi += pi * P.ex[1];
-    A.inc += sr * sr + si * si + pr * pr + pi * pi;
+    for (let q = 0; q < P.vl.length; q += 2) {
+      const id = P.vl[q], c = P.vl[q + 1];
+      let A = acc.get(id);
+      if (!A) acc.set(id, A = { zr: 0, zi: 0, xr: 0, xi: 0, yr: 0, yi: 0, inc: 0, colour: P.colour });
+      const sr = c * e[0], si = c * e[1], pr = c * e[2], pi = c * e[3];
+      A.zr += sr; A.zi += si;                               // s: out of the bench plane
+      A.xr += pr * P.ex[0]; A.xi += pi * P.ex[0];           // p: in it, along the beam's own normal
+      A.yr += pr * P.ex[1]; A.yi += pi * P.ex[1];
+      A.inc += sr * sr + si * si + pr * pr + pi * pi;
+    }
   }
   let I = 0, inc = 0;
   const byColour = [];
@@ -8544,12 +8840,10 @@ function drawCloseup() {
 function closeupCompute(vkey, srcs, step) {
   const s = V().scale, hw = 0.5 * Math.hypot(W, H) / s;
   const parts = closeupPrep(popState.result.segs, V().cx, V().cy, hw);
-  // launches in a fixed order, so each pixel adds into plain arrays
-  const lid = new Map();
-  for (const P of parts) { if (!lid.has(P.coh)) lid.set(P.coh, lid.size); P.li = lid.get(P.coh); }
-  const nL = lid.size, acc = new Float64Array(nL * 6), launchCol = new Array(nL);
+  // launches in a fixed order (closeupLaunches), so each pixel adds into plain arrays
+  const nL = parts.cols.length, acc = new Float64Array(nL * 6);
   const probe = document.createElement('canvas').getContext('2d');
-  for (const P of parts) if (!launchCol[P.li]) { probe.fillStyle = P.colour; const h2 = probe.fillStyle; launchCol[P.li] = [1, 3, 5].map(i => parseInt(h2.slice(i, i + 2), 16)); }
+  const launchCol = parts.cols.map(col => { probe.fillStyle = col; const h2 = probe.fillStyle; return [1, 3, 5].map(i => parseInt(h2.slice(i, i + 2), 16)); });
   const nx = Math.ceil(W / step), ny = Math.ceil(H / step);
   const I = new Float32Array(nx * ny), INC = new Float32Array(nx * ny), RGB = new Float32Array(nx * ny * 3);
   let pk = 0, iMax = 0;
@@ -8562,10 +8856,13 @@ function closeupCompute(vkey, srcs, step) {
       for (const P of parts) {
         const e = closeupSeg(P, X, Y);
         if (!e) continue;
-        const sr = e[0], si = e[1], pr = e[2], pi = e[3], o = P.li * 6;
-        acc[o] += sr; acc[o + 1] += si;                                      // s, out of the plane
-        acc[o + 2] += pr * P.ex[0]; acc[o + 3] += pi * P.ex[0];              // p, along the beam's own normal
-        acc[o + 4] += pr * P.ex[1]; acc[o + 5] += pi * P.ex[1];
+        const sr = e[0], si = e[1], pr = e[2], pi = e[3], vl = P.vl;
+        for (let q = 0; q < vl.length; q += 2) {
+          const o = vl[q] * 6, c = vl[q + 1];
+          acc[o] += c * sr; acc[o + 1] += c * si;                                      // s, out of the plane
+          acc[o + 2] += c * pr * P.ex[0]; acc[o + 3] += c * pi * P.ex[0];              // p, along the beam's own normal
+          acc[o + 4] += c * pr * P.ex[1]; acc[o + 5] += c * pi * P.ex[1];
+        }
         inc += sr * sr + si * si + pr * pr + pi * pi;
       }
       let v = 0, R = 0, G = 0, Bc = 0;
@@ -8945,6 +9242,8 @@ function popDiffraction(el, R) {
   const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) > x.st.power * segW(x.sg) ? y : x);
   const { sg, G, st } = dom;
   const lam = G.lam0 / G.n, len = sg.b.len;
+  // the other modes of the dominant arrival's beam, when its M^2 is above 1
+  const sibs = hits.filter(h2 => h2 !== dom && h2.sg.b === sg.b && h2.sg.eng === '2d' && sg.eng === '2d');
 
   // The ideal: the same path with every surface's aberration taken out, leaving the last
   // surface and brought to a perfect focus on the screen. Its on-axis sum is coherent, so
@@ -9071,7 +9370,26 @@ function popDiffraction(el, R) {
   } else {
     const N = G.N, dx = G.ax.d, dy = G.ay.d, I = new Float64Array(N * N);
     let ip = 0;
-    for (let i = 0; i < N * N; i++) { I[i] = field2I(G, i); if (I[i] > I[ip]) ip = i; }
+    for (let i = 0; i < N * N; i++) I[i] = field2I(G, i);
+    // a beam of M^2 above 1: its other modes on the same segment, as intensities
+    for (const h2 of sibs) {
+      const F = h2.G;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const x = (i - N / 2) * dx, y = (j - N / 2) * dy, a = interp2(F, x, y);
+        let v = a[0] * a[0] + a[1] * a[1];
+        if (F.re2) { const b2 = interp2(F, x, y, F.re2, F.im2); v += b2[0] * b2[0] + b2[1] * b2[1]; }
+        I[j * N + i] += v;
+      }
+    }
+    for (let i = 0; i < N * N; i++) if (I[i] > I[ip]) ip = i;
+    if (sibs.length) {                                     // the whole beam's widths, from its moments
+      let s0 = 0, sx = 0, sy = 0, sxx = 0, syy = 0;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const v = I[j * N + i], x = (i - N / 2) * dx, y = (j - N / 2) * dy;
+        s0 += v; sx += v * x; sy += v * y; sxx += v * x * x; syy += v * y * y;
+      }
+      if (s0 > 0) { wx = 2 * Math.sqrt(Math.max(0, sxx / s0 - (sx / s0) ** 2)); wy = 2 * Math.sqrt(Math.max(0, syy / s0 - (sy / s0) ** 2)); }
+    }
     peak = I[ip];
     // centred on the light's centroid: the same as the peak for a spot, and the middle of a
     // pattern of lobes (a Maltese cross, a donut) rather than one of them
@@ -9154,8 +9472,16 @@ function popDiffraction(el, R) {
     H = Math.max(H, Math.abs(cu - cU) + ex / Math.abs(h2.p || 1), Math.abs(cv - cV) + ey);
   }
   const launches = new Map();
-  for (const h2 of hits) { if (!launches.has(h2.sg.b.coh)) launches.set(h2.sg.b.coh, []); launches.get(h2.sg.b.coh).push(h2); }
+  for (const h2 of hits) { if (!launches.has(h2.sg.coh)) launches.set(h2.sg.coh, []); launches.get(h2.sg.coh).push(h2); }
   const coherent = [...launches.values()].some(L2 => L2.length > 1);
+  // a laser with a line of its own: each launch split into its incoherent parts, each a
+  // weighted coherent sum of the launch's arrivals (the weights ride on the array as cs)
+  const vLaunches = new Map();
+  for (const [key, L2] of launches) {
+    const cm = cohModes(L2[0].sg.src, L2.map(h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len));
+    if (!cm) { vLaunches.set(key, L2); continue; }
+    cm.forEach((c, k) => { const a = L2.slice(); a.cs = c; vLaunches.set(key + '~' + k, a); });
+  }
   const MN = coherent ? 256 : MAP_N;
   const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN);
   // each arrival's complex field at a point on the screen
@@ -9203,8 +9529,8 @@ function popDiffraction(el, R) {
   // S1 = |Ep|^2 - |Es|^2 (in the bench plane against out of it), S2 at 45 degrees, S3 the
   // circular part, positive right-handed as the tracer counts it. Launches add as Stokes.
   const stokes = [0, 0, 0, 0];
-  for (const L2 of launches.values()) {
-    const parts = L2.map(h2 => ({ f: fieldAt(h2) }));
+  for (const L2 of vLaunches.values()) {
+    const parts = L2.map((h2, i) => ({ f: fieldAt(h2), c: L2.cs ? L2.cs[i] : 1 }));
     for (let jv = 0; jv < MN; jv++) {
       const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
       for (let iu = 0; iu < MN; iu++) {
@@ -9213,8 +9539,9 @@ function popDiffraction(el, R) {
         for (const P of parts) {
           const e = P.f(u, v);
           if (!e) continue;
-          sr += e[0]; si += e[1]; pr += e[2]; pi += e[3];
-          ii += e[0] * e[0] + e[1] * e[1] + e[2] * e[2] + e[3] * e[3];
+          const c = P.c, e0 = c * e[0], e1 = c * e[1], e2 = c * e[2], e3 = c * e[3];
+          sr += e0; si += e1; pr += e2; pi += e3;
+          ii += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
         }
         const Is = sr * sr + si * si, Ip = pr * pr + pi * pi;
         map[jv * MN + iu] += Is + Ip;
@@ -9244,7 +9571,7 @@ function popDiffraction(el, R) {
   const power = interference === null ? powerInc : powerInc * interference;
   const Dout = {
     symmetric: sg.eng !== '2d', engine: sg.eng, NA, nm: sg.b.nm, airy, cutoff,
-    strehl: Iideal > 0 ? peak * calib / Iideal : null, peak: peak * segW(sg), power, powerInc, interference, visibility, fine,
+    strehl: Iideal > 0 && !sibs.length ? peak * calib / Iideal : null, peak: peak * segW(sg), power, powerInc, interference, visibility, fine,
     coherent, wx, wy, arrivals: hits.length, launches: launches.size, tilt,
     stokes: stokes[0] > 0 ? stokes.map(v => v / stokes[0]) : null,
     dop: stokes[0] > 0 ? Math.hypot(stokes[1], stokes[2], stokes[3]) / stokes[0] : null,
@@ -9256,7 +9583,7 @@ function popDiffraction(el, R) {
     ee50: radiusAt(0.5), ee80: radiusAt(0.8),
     map: { v: map, inc, n: MN, u0: cU - H, u1: cU + H, v0: cV - H, v1: cV + H },
   };
-  vfApply(el, Dout, hits, launches, R, sYx, sYy);
+  vfApply(el, Dout, hits, vLaunches, R, sYx, sYy);
   return Dout;
 }
 
@@ -9328,7 +9655,7 @@ function screenStatsRaw(el) {
   const all = (lastTrace.screens && lastTrace.screens[el.id]) || [];
   const hits = all.filter(t => !t.chief);
   const chiefHit = all.find(t => t.chief);
-  const beam = chiefHit ? beamAt(chiefHit.qr, chiefHit.qi, chiefHit.n, chiefHit.nm) : null;
+  const beam = chiefHit ? beamAt(chiefHit.qr, chiefHit.qi, chiefHit.n, chiefHit.nm, m2Of(getEl(chiefHit.id.split(':')[0]))) : null;
   if (!hits.length) return beam ? { count: 0, power: 0, beam, empty: true } : null;
   let W0 = 0, m = 0, lo = Infinity, hi = -Infinity;
   let S0 = 0, S1 = 0, S2 = 0, S3 = 0;
@@ -10353,7 +10680,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         len: sg.b.len, dx: sg.b.dx, dy: sg.b.dy, clipped: sg.clipped, engine: sg.eng,
         pilot: sg.eng === '2d' ? { x: [sg.F0.ax.z, sg.F0.ax.zR], y: [sg.F0.ay.z, sg.F0.ay.zR] }
           : { x: [sg.F0.z, sg.F0.zR], y: [sg.F0.z, sg.F0.zR] },
-        start: withJ(sg, sg.leg.stats(0)), at: t => withJ(sg, sg.leg.stats(t)), coh: sg.b.coh, J: sg.b.J,
+        start: withJ(sg, sg.leg.stats(0)), at: t => withJ(sg, sg.leg.stats(t)), coh: sg.coh, J: sg.b.J, mode: sg.mode,
         profile: t => { const c = sg.leg.cut(t); return { r: c.x, I: c.I }; },
         // the start field's two components at a point across the beam (x in the plane, y out of it)
         fieldAt: (x, y) => { const F = sg.F0; if (!F.re2) return null; const a = interp2(F, x, y), b = interp2(F, x, y, F.re2, F.im2);

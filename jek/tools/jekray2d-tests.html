@@ -1538,9 +1538,9 @@ const TESTS = [
   { group: 'Measurements and the ray fan' },
   {
     name: 'Every optimiser metric says what it is measured with',
-    why: 'rays, the Gaussian beam, the diffracted field or first-order optics, so the dialogs can sort them into tabs',
+    why: 'rays, the Gaussian beam, the diffracted field, first-order optics or a fibre or detector, so the dialogs can sort them into tabs',
     want: 0, tol: 0, unit: ' unlabelled',
-    run: J => J.metricList().filter(m => !['rays', 'gauss', 'field', 'paraxial'].includes(m.fam)).length,
+    run: J => J.metricList().filter(m => !['rays', 'gauss', 'field', 'paraxial', 'device'].includes(m.fam)).length,
   },
   {
     name: 'The field metrics read the diffracted field',
@@ -2261,6 +2261,206 @@ const TESTS = [
       J.load(p);
       const r = J.optimise('Screen', 'x', 'Screen', 'rms', 'min', 0);
       return r.best;
+    },
+  },
+  { group: 'Gratings, fibres, detectors, crystals, filters and gain' },
+  {
+    name: 'A grating sends order +1 along the grating equation',
+    why: '600 lines/mm at 633 nm, square on: sinθ = λ/d, so 22.321°',
+    want: 22.321, tol: 0.002, unit: '°',
+    run: J => {
+      J.load(bench('grating', [src({ x: -50, width: 1, rays: 1, gauss: true, w0: 0.5 }),
+        { type: 'grating', name: 'G', x: 0, y: 0, angle: 180, length: 25, lpmm: 600, blaze: 633, eff: 80, mode: 'reflect' }], { minPower: 1e-6 }));
+      const b = J.lastTrace().beams.find(x => x.ev && x.ev.kind === 'grating' && x.ev.order === 1);
+      return Math.asin(Math.abs(b.dy)) * 180 / Math.PI;
+    },
+  },
+  {
+    name: 'A grating blazed for the wavelength puts its efficiency into order +1',
+    why: 'a thin sawtooth blazed at 633 nm, 80% peak efficiency',
+    want: 80, tol: 0.01, unit: '%',
+    run: J => 100 * J.lastTrace().beams.find(x => x.ev && x.ev.kind === 'grating').w,
+  },
+  {
+    name: 'A grating’s diffracted field keeps its power and narrows by cosθ',
+    why: '300 lines/mm transmission grating, 90% efficient: the order leaves 1 mm × cos 10.94° = 0.9818 mm wide in the bench plane',
+    want: 0.9818, tol: 0.002, unit: ' mm',
+    run: J => {
+      const t = Math.asin(LAM * 300);
+      J.load(bench('grating-field', [src({ x: -50, width: 1, rays: 1, gauss: true, w0: 1, popModel: '2d' }),
+        { type: 'grating', name: 'G', x: 0, y: 0, angle: 0, length: 25, lpmm: 300, blaze: 633, eff: 90, mode: 'transmit' },
+        screen({ name: 'Sc', x: 50 * Math.cos(t), y: 50 * Math.sin(t), angle: 180 + t * 180 / Math.PI, length: 20 })], { minPower: 1e-6 }));
+      const D = J.diffraction('Sc');
+      return Math.abs(D.power - 0.9) < 0.002 ? D.wx : NaN;
+    },
+  },
+  {
+    name: 'Two identical fibres a Rayleigh range apart couple 80%',
+    why: 'Gaussian overlap of two equal modes with waists z apart: 1 / (1 + (z / 2zᴿ)²)',
+    want: 80, tol: 0.05, unit: '%',
+    run: J => {
+      const V = 2 * Math.PI * 2.2 * 0.12 / (NM / 1000), w = 2.2e-3 * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6));
+      const zR = Math.PI * w * w / LAM;
+      J.load(bench('fibres', [src({ x: 0, rays: 1, width: 0.01, gauss: true, fibre: { core: 4.4, na: 0.12 } }),
+        { type: 'fibre', name: 'F', x: zR, y: 0, angle: 180, core: 4.4, na: 0.12 }], { minPower: 1e-6 }));
+      return J.metric('F', 'couple');
+    },
+  },
+  {
+    name: 'A 1 µm offset costs what the mode overlap says',
+    why: 'exp(−d²/w²) with the 2.289 µm mode radius Marcuse gives this fibre: 82.63%',
+    want: 82.63, tol: 0.1, unit: '%',
+    run: J => {
+      J.load(bench('fibres', [src({ x: 0, rays: 1, width: 0.01, gauss: true, fibre: { core: 4.4, na: 0.12 } }),
+        { type: 'fibre', name: 'F', x: 0.001, y: 0.001, angle: 180, core: 4.4, na: 0.12 }], { minPower: 1e-6 }));
+      return J.metric('F', 'couple');
+    },
+  },
+  {
+    name: 'A photodiode as wide as the beam catches 1 − e⁻² of it',
+    why: 'a Gaussian of 1/e² radius w on a disc of radius w: 86.47%',
+    want: 86.47, tol: 0.05, unit: '%',
+    run: J => {
+      J.load(bench('diode', [src({ x: -50, rays: 1, width: 1, gauss: true, w0: 0.5, power: 1 }),
+        { type: 'detector', name: 'D', x: 0, y: 0, angle: 180, length: 1, material: 'si', gain: 1e4 }], { minPower: 1e-6 }));
+      return 100 * J.metric('D', 'dmw');
+    },
+  },
+  {
+    name: 'A silicon photodiode and a 10 kΩ amplifier give the expected volts',
+    why: '1 mW at 633 nm, 0.39 A/W: 3.897 V',
+    want: 3.897, tol: 0.005, unit: ' V',
+    run: J => {
+      J.load(bench('diode', [src({ x: -50, rays: 1, width: 1, gauss: true, w0: 0.5, power: 1 }),
+        { type: 'detector', name: 'D', x: 0, y: 0, angle: 180, length: 10, material: 'si', gain: 1e4 }], { minPower: 1e-6 }));
+      return J.metric('D', 'dvolt');
+    },
+  },
+  {
+    name: 'A photodiode at a Michelson’s output sees the fringe',
+    why: 'moving a mirror λ/4 takes the output from bright to dark: the arms add as fields on the diode',
+    want: 0, tol: 0.001, unit: ' mW',
+    run: J => {
+      const p = michelson(0);
+      Object.assign(p.elements[0], { gauss: true, w0: 1, power: 1 });
+      Object.assign(p.elements.find(e => e.name === 'Output'), { type: 'detector', length: 10, material: 'si', gain: 1e4 });
+      J.load(p);
+      const bright = J.metric('Output', 'dmw');
+      J.setParam('M1', 'x', 40 + LAM / 4); J.trace();
+      const dark = J.metric('Output', 'dmw');
+      return Math.abs(bright - 1) < 0.01 ? dark : NaN;
+    },
+  },
+  {
+    name: 'An isolator stops the return by its extinction ratio',
+    why: 'p light, isolator at 40 dB, a mirror behind: 10⁻⁴ of the power comes back through',
+    want: 1e-4, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(bench('isolator', [src({ x: -50, rays: 1, width: 1, gauss: true, w0: 0.5 }),
+        { type: 'isolator', name: 'I', x: 0, y: 0, angle: 0, axis: 0, extinction: 40 },
+        { type: 'mirror', name: 'M', x: 30, y: 0, angle: 180, length: 25, reflect: 100 }], { minPower: 1e-9 }));
+      const back = J.lastTrace().beams.filter(b => b.dx < 0 && Math.abs(b.x0) < 1e-6);
+      return back.length ? back[0].w : NaN;
+    },
+  },
+  {
+    name: 'A Faraday mirror returns p as s',
+    why: '45° rotator and a mirror: the rotation adds on the way back instead of undoing',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(bench('faraday', [src({ x: -50, rays: 1, width: 1, gauss: true, w0: 0.5 }),
+        { type: 'faraday', name: 'F', x: 0, y: 0, angle: 0, rotation: 45 },
+        { type: 'mirror', name: 'M', x: 30, y: 0, angle: 180, length: 25, reflect: 100 }], { minPower: 1e-9 }));
+      const b = J.lastTrace().beams.find(x => x.dx < 0 && Math.abs(x.x0) < 1e-6);
+      return b.J[0] ** 2 + b.J[1] ** 2;
+    },
+  },
+  {
+    name: 'A calcite beam displacer walks p off sideways',
+    why: '10 mm long, optic axis at 45°: walk-off 6.2°, so the beams leave 1.084 mm apart (Thorlabs quote 1 mm per 10 mm)',
+    want: 1.084, tol: 0.005, unit: ' mm',
+    run: J => {
+      J.load(bench('displacer', [src({ x: -50, rays: 1, width: 0.5, pol: 'unpolarised' }),
+        { type: 'crystal', name: 'C', x: 0, y: 0, angle: 0, shape: 'displacer', crystal: 'calcite', size: 10, length: 10, axisAngle: 45 },
+        screen({ name: 'Sc', x: 30, length: 20 })], { minPower: 1e-6 }));
+      const h = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief);
+      return Math.max(...h.map(t => t.y)) - Math.min(...h.map(t => t.y));
+    },
+  },
+  {
+    name: 'A calcite Wollaston prism splits s and p apart',
+    why: '30° wedges: about 2 asin((nₒ − nₑ) tan 30°) = 11.3° between them',
+    want: 11.34, tol: 0.1, unit: '°',
+    run: J => {
+      J.load(bench('wollaston', [src({ x: -50, rays: 1, width: 0.5, pol: 'unpolarised' }),
+        { type: 'crystal', name: 'C', x: 0, y: 0, angle: 0, shape: 'wollaston', crystal: 'calcite', size: 10, wedge: 30 },
+        screen({ name: 'Sc', x: 40, length: 30 })], { minPower: 1e-6 }));
+      const h = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief);
+      const a = h.map(t => Math.asin(t.dly) * 180 / Math.PI);
+      return Math.max(...a) - Math.min(...a);
+    },
+  },
+  {
+    name: 'A Glan–Taylor passes p and turns s away',
+    why: 'the gap sits between the two critical angles, so the ordinary ray is totally reflected',
+    want: 0, tol: 1e-9, unit: ' s power',
+    run: J => {
+      J.load(bench('glan', [src({ x: -50, rays: 1, width: 0.5, pol: 'unpolarised' }),
+        { type: 'crystal', name: 'C', x: 0, y: 0, angle: 0, shape: 'glan', crystal: 'calcite', size: 10 },
+        screen({ name: 'Sc', x: 30, length: 10 })], { minPower: 1e-6 }));
+      const h = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief);
+      return h.length ? h.reduce((a, t) => a + t.sr ** 2 + t.si ** 2, 0) : NaN;
+    },
+  },
+  {
+    name: 'A long-pass filter passes red and a dichroic sends green back',
+    why: 'edge at 600 nm: 95% of 633 nm through, plus all of 532 nm returned by a reflective one',
+    want: 195, tol: 0.1, unit: '%',
+    run: J => {
+      const f = (nm, reflect) => {
+        J.load(bench('filter', [src({ x: -30, rays: 1, width: 1, wavelength: nm }),
+          { type: 'filter', name: 'F', x: 0, y: 0, angle: 0, ftype: 'longpass', edge: 600, slope: 10, tmax: 95, reflect },
+          screen({ name: 'Sc', x: 20, length: 10 }), screen({ name: 'Back', x: -20, angle: 0, length: 10, absorb: false })], { minPower: 1e-6 }));
+        return [J.metric('Sc', 'power') || 0, J.metric('Back', 'power') || 0];
+      };
+      return f(633, false)[0] + f(532, true)[1];
+    },
+  },
+  {
+    name: 'Gain inside a cavity lifts it over threshold',
+    why: 'mirrors of 99% and 99.9% keep 98.90% a round trip; a 1.01× sheet passed twice makes it 100.89%',
+    want: 1.00889, tol: 1e-4, unit: '',
+    run: J => {
+      J.load(bench('laser', [src({ x: -30, rays: 1, width: 1, gauss: true, w0: 0.3 }),
+        { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 180, length: 25, reflect: 99, R: -500 },
+        { type: 'gain', name: 'G', x: 50, y: 0, angle: 0, length: 10, g0: 1.01, centre: NM, fwhm: 50 },
+        { type: 'mirror', name: 'M2', x: 100, y: 0, angle: 180, length: 25, reflect: 99.9, R: 500 }], { minPower: 1e-6, maxBounces: 40 }));
+      const c = J.cavities()[0];
+      return c ? c.rho * c.rho : NaN;
+    },
+  },
+  {
+    name: 'An axicon bends a collimated beam into a cone',
+    why: 'a 10° fused-silica cone, apex first: Snell at the cone and at the flat back gives 4.603°',
+    want: 4.603, tol: 0.01, unit: '°',
+    run: J => {
+      J.load(bench('axicon', [src({ x: -30, rays: 3, width: 10, pol: 's' }),
+        { type: 'lens', name: 'Ax', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: null, odd: [Math.tan(10 * Math.PI / 180)] }, { R: null }], gaps: [5], materials: [{ glass: 'UVFS' }] },
+        screen({ name: 'Sc', x: 40, length: 20 })], { minPower: 1e-6 }));
+      const h = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief && Math.abs(t.dly) > 1e-6);
+      return Math.asin(Math.abs(h[0].dly)) * 180 / Math.PI;
+    },
+  },
+  {
+    name: 'A cylindrical lens focuses one way only',
+    why: 'power in the bench plane: the diffracted field stays 2 mm across out of the plane at the focus',
+    want: 2, tol: 0.02, unit: ' mm',
+    run: J => {
+      J.load(bench('cyl', [src({ x: -50, rays: 21, width: 4, gauss: true, w0: 2, pol: 's' }),
+        { type: 'lens', name: 'L', x: 0, y: 0, angle: 0, diameter: 25.4, cyl: 'plane', surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: 50.3, length: 20 })], { minPower: 1e-6 }));
+      const D = J.diffraction('Sc');
+      return D.wx < 0.05 ? D.wy : NaN;
     },
   },
 ];

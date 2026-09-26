@@ -192,6 +192,17 @@
   .rt-zb:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }
   .rt-plot { position: relative; }
+  .rt-more { position: relative; }
+  .rt-menu {
+    position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 15rem;
+    display: flex; flex-direction: column; padding: 0.3rem;
+    background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 6px; box-shadow: var(--jek-shadow);
+  }
+  .rt-menu button {
+    padding: 0.45rem 0.65rem; border: 0; border-radius: 4px; background: none; text-align: left;
+    font: inherit; font-size: 0.875rem; color: var(--jek-ink); cursor: pointer;
+  }
+  .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
   .rt-activity {
     position: fixed; z-index: 50; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     width: min(340px, calc(100vw - 32px)); padding: 0.5rem 0.7rem 0.55rem; box-sizing: border-box;
@@ -493,11 +504,27 @@
           <button class="rt-btn" data-add="stop">Stop</button>
           <button class="rt-btn" data-add="mask">Mask</button>
           <button class="rt-btn" data-add="screen">Screen</button>
+          <div class="rt-more">
+            <button class="rt-btn" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">More ▾</button>
+            <div class="rt-menu" id="moreMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-add="cylinder">Cylindrical lens</button>
+              <button type="button" role="menuitem" data-add="axicon">Axicon</button>
+              <button type="button" role="menuitem" data-add="grating">Grating</button>
+              <button type="button" role="menuitem" data-add="crystal">Crystal: displacer, Wollaston, Glan–Taylor</button>
+              <button type="button" role="menuitem" data-add="filter">Filter</button>
+              <button type="button" role="menuitem" data-add="faraday">Faraday rotator</button>
+              <button type="button" role="menuitem" data-add="isolator">Isolator</button>
+              <button type="button" role="menuitem" data-add="gain">Gain medium</button>
+              <button type="button" role="menuitem" data-add="fibre">Fibre</button>
+              <button type="button" role="menuitem" data-add="detector">Photodetector</button>
+            </div>
+          </div>
         </div>
         <div class="rt-group">
           <button class="rt-btn" id="btnImport">Import .zmx</button>
         </div>
       </div>
+
 
       <div class="rt-row">
         <span class="rt-group-label">Sweeps</span>
@@ -605,8 +632,8 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 \u00b5m, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy.</p>
-      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise.</p>
+      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
@@ -781,6 +808,121 @@ function matLabel(mat) {
 }
 
 /* ==========================================================================
+   Crystals, filters, gain, gratings and detectors: the numbers behind the newer elements
+   ========================================================================== */
+
+/* Uniaxial crystals: ordinary and extraordinary index, wavelength in µm */
+const CRYSTALS = {
+  calcite: { name: 'Calcite',            // Ghosh 1999
+    o: um => Math.sqrt(1.73358749 + 0.96464345 * um * um / (um * um - 0.0194325203) + 1.82831454 * um * um / (um * um - 120)),
+    e: um => Math.sqrt(1.35859695 + 0.82427830 * um * um / (um * um - 0.0106689543) + 0.14429128 * um * um / (um * um - 120)) },
+  yvo4: { name: 'YVO₄',             // Shi et al. 2001
+    o: um => Math.sqrt(3.77834 + 0.069736 / (um * um - 0.04724) - 0.0108133 * um * um),
+    e: um => Math.sqrt(4.59905 + 0.110534 / (um * um - 0.04813) - 0.0122676 * um * um) },
+  abbo: { name: 'α-BBO',             // Eimerl et al. 1987
+    o: um => Math.sqrt(2.7471 + 0.01878 / (um * um - 0.01822) - 0.01354 * um * um),
+    e: um => Math.sqrt(2.37153 + 0.01224 / (um * um - 0.01667) - 0.01516 * um * um) },
+};
+const CRYSTAL_SHAPES = { displacer: 'Beam displacer', wollaston: 'Wollaston prism', glan: 'Glan–Taylor polariser' };
+/* A crystal region's material. Rays inside a crystal are split into their s and p parts
+   (tag), and each sees its own index: ePol names the one polarised along the optic axis.
+   walk, where set, is the optic axis's angle from the face normal in the bench plane: the
+   extraordinary ray then sees an index between n_o and n_e and its energy walks off. */
+const bireMat = (crystal, ePol, walk) => ({ glass: 'bire', bire: crystal, ePol, walk: walk || 0, abs: 0 });
+function birefIndex(m, tag, nm) {
+  const C = CRYSTALS[m.bire] || CRYSTALS.calcite, um = nm / 1000, no = C.o(um), ne = C.e(um);
+  if (tag !== m.ePol) return no;
+  if (!m.walk) return ne;
+  const th = m.walk * deg;
+  return 1 / Math.sqrt(Math.cos(th) ** 2 / (no * no) + Math.sin(th) ** 2 / (ne * ne));
+}
+/* the angle the extraordinary ray's energy leaves its wave normal by, signed in the bench
+   plane: away from the optic axis in a negative crystal, towards it in a positive one */
+function walkOff(m, nm) {
+  const C = CRYSTALS[m.bire] || CRYSTALS.calcite, um = nm / 1000, no = C.o(um), ne = C.e(um), th = m.walk * deg;
+  return -Math.atan((no * no - ne * ne) * Math.sin(th) * Math.cos(th) / (ne * ne * Math.cos(th) ** 2 + no * no * Math.sin(th) ** 2));
+}
+
+/* A filter's power transmission. Edges are logistic, their 10–90% width given in nm; a band
+   is flat-topped (an eighth-order Butterworth) with its FWHM between the half points. */
+const FILTER_TYPES = { longpass: 'Long-pass', shortpass: 'Short-pass', bandpass: 'Band-pass', nd: 'Neutral density' };
+function filterT(el, nm) {
+  if (el.ftype === 'nd') return Math.pow(10, -el.od);
+  const t = el.tmax / 100, w = el.slope / 4.394;
+  if (el.ftype === 'longpass') return t / (1 + Math.exp(-(nm - el.edge) / w));
+  if (el.ftype === 'shortpass') return t / (1 + Math.exp((nm - el.edge) / w));
+  const u = 2 * (nm - el.centre) / el.fwhm;
+  return t / (1 + Math.pow(u * u, 4));
+}
+/* A gain sheet's single-pass power gain: g0 at its centre, falling to 1 with a Lorentzian line */
+function gainAt(el, nm) {
+  const u = 2 * (nm - el.centre) / el.fwhm;
+  return 1 + (el.g0 - 1) / (1 + u * u);
+}
+
+/* The orders a grating sends out for one ray: direction cosine along the grating (local y),
+   and the share of power in each. A thin sawtooth blazed for blaze nm in order +1 puts
+   sinc^2(m - blaze/lambda) into order m; the orders that cannot propagate carry theirs away,
+   and eff scales the rest for what the real surface absorbs and scatters. */
+function gratingOrders(el, nm, ldy, n) {
+  const G = el.lpmm, lam = nm * 1e-6, out = [], x0 = el.blaze / nm;
+  const sinc = x => Math.abs(x) < 1e-9 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+  const mMax = Math.ceil(2 * n / (lam * G)) + 1;
+  for (let m = -mMax; m <= mMax; m++) {
+    const ty = ldy + m * lam * G / n;
+    if (Math.abs(ty) >= 1) continue;
+    const eff = (el.eff / 100) * sinc(m - x0) ** 2;
+    if (eff >= 1e-4) out.push({ m, ty, eff });
+  }
+  return out;
+}
+
+/* Jones matrices in the tracer's (p, s) basis, [[pp, ps], [sp, ss]] with entries [re, im] */
+const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+function jmul(A, B) {
+  const e = (i, j) => { const x = cmul(A[i][0], B[0][j]), y = cmul(A[i][1], B[1][j]); return [x[0] + y[0], x[1] + y[1]]; };
+  return [[e(0, 0), e(0, 1)], [e(1, 0), e(1, 1)]];
+}
+/* a polariser passing th (from p) and leaking amplitude `leak` along the crossed axis */
+function jPol(th, leak) {
+  const c = Math.cos(th), sn = Math.sin(th), l = leak || 0;
+  return [[[c * c + l * sn * sn, 0], [c * sn * (1 - l), 0]], [[c * sn * (1 - l), 0], [sn * sn + l * c * c, 0]]];
+}
+const jRot = r => { const c = Math.cos(r), sn = Math.sin(r); return [[[c, 0], [-sn, 0]], [[sn, 0], [c, 0]]]; };
+/* What a thin polarisation element does to one ray. Waveplates and polarisers act in the
+   ray's own basis, as they always have. A Faraday rotator turns the field the same way in
+   the lab whichever way light crosses it, which is what makes it non-reciprocal: in the
+   ray's basis that is +rotation or -rotation, set by the direction of travel against the
+   element's field (fwd) and by the parity of the ray's p axis (sg, flipped at each
+   reflection). An isolator is a polariser, a 45° rotator and a second polariser at 45°,
+   all in the element's own basis, met in the order the light meets them. */
+function jonesAt(el, fwd, sg) {
+  if (el.type !== 'faraday' && el.type !== 'isolator') return jonesOf(el);
+  const sb = sg * (fwd ? 1 : -1);
+  const rot = jRot(sb * (el.type === 'faraday' ? el.rotation : 45) * deg);
+  if (el.type === 'faraday') return rot;
+  const leak = Math.pow(10, -el.extinction / 20), P1 = jPol(sb * el.axis * deg, leak), P2 = jPol(sb * (el.axis + 45) * deg, leak);
+  return fwd ? jmul(P2, jmul(rot, P1)) : jmul(P1, jmul(rot, P2));
+}
+const JONES_TYPES = new Set(['waveplate', 'polariser', 'faraday', 'isolator']);
+
+/* Photodiode responsivity (A/W) against wavelength: typical curves for each material */
+const DETECTOR_MATERIALS = {
+  si: { name: 'Silicon', wl: [350, 400, 500, 600, 700, 800, 900, 960, 1000, 1050, 1100, 1150], r: [0.08, 0.12, 0.26, 0.36, 0.45, 0.53, 0.60, 0.62, 0.55, 0.35, 0.12, 0.02] },
+  ingaas: { name: 'InGaAs', wl: [800, 900, 1000, 1100, 1300, 1550, 1600, 1650, 1700, 1750], r: [0.2, 0.55, 0.65, 0.75, 0.9, 1.0, 1.0, 0.9, 0.4, 0.05] },
+  ge: { name: 'Germanium', wl: [800, 900, 1000, 1200, 1400, 1550, 1600, 1700, 1800], r: [0.3, 0.4, 0.5, 0.65, 0.8, 0.85, 0.7, 0.2, 0.02] },
+  custom: { name: 'Fixed responsivity' },
+};
+function responsivity(el, nm) {
+  const M = DETECTOR_MATERIALS[el.material];
+  if (!M || !M.wl) return el.resp;
+  const W = M.wl, R = M.r;
+  if (nm <= W[0] || nm >= W[W.length - 1]) return 0;
+  let i = 1; while (W[i] < nm) i++;
+  return R[i - 1] + (R[i] - R[i - 1]) * (nm - W[i - 1]) / (W[i] - W[i - 1]);
+}
+
+/* ==========================================================================
    Wavelength → display colour
    ========================================================================== */
 
@@ -813,9 +955,12 @@ const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 const deg = Math.PI / 180;
 
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
-  cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask' };
+  cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
+  grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
+  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape] : TYPE_LABEL[el.type];
+const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+  : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
   const used = new Set(project.elements.map(e => e.name));
@@ -959,6 +1104,7 @@ function normSurface(s) {
 function normElement(e) {
   const o = normElementBase(e);
   if (!o) return null;
+  if (o.type === 'source' && o.fibre) applyFibre(o);     // a fibre launch sets its own beam
   o.sweeps = {};
   if (e.sweeps && typeof e.sweeps === 'object') {
     for (const [k, v] of Object.entries(e.sweeps)) {
@@ -1001,6 +1147,9 @@ function normElementBase(e) {
         polAngle: num(e.polAngle, 45),
         lines: Array.isArray(e.lines) ? e.lines.map(Number).filter(v => isFinite(v) && v >= 100 && v <= 20000).slice(0, 12) : [],
         rays: Math.round(Math.min(501, Math.max(1, num(e.rays, 11)))),
+        power: Math.max(0, num(e.power, 1)),                       // mW, for detectors and fibres
+        fibre: e.fibre && isFinite(e.fibre.core) && isFinite(e.fibre.na)
+          ? { core: Math.max(0.5, +e.fibre.core), na: clamp(+e.fibre.na, 0.01, 0.9) } : undefined,
       });
     }
     case 'mirror':
@@ -1077,9 +1226,65 @@ function normElementBase(e) {
       return Object.assign(base, {
         diameter: Math.max(0.1, num(e.diameter, 25.4)),
         surfaces, gaps, materials,
+        cyl: e.cyl === 'plane' || e.cyl === 'out' ? e.cyl : undefined,    // cylindrical: power in the bench plane, or out of it
         source: typeof e.source === 'string' ? e.source : undefined,
       });
     }
+    case 'grating':
+      return Object.assign(base, {
+        length: Math.max(0.1, num(e.length, 25)),
+        lpmm: clamp(num(e.lpmm, 600), 1, 10000),
+        mode: e.mode === 'transmit' ? 'transmit' : 'reflect',
+        blaze: clamp(num(e.blaze, 500), 100, 20000),
+        eff: clamp(num(e.eff, 80), 0, 100),
+      });
+    case 'fibre':
+      return Object.assign(base, {
+        length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
+        core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
+        na: clamp(num(e.na, 0.12), 0.01, 0.9),
+        absorb: true,
+      });
+    case 'detector':
+      return Object.assign(base, {
+        length: Math.max(0.01, num(e.length, 3.6)),      // active area's diameter
+        material: DETECTOR_MATERIALS[e.material] ? e.material : 'si',
+        resp: Math.max(0, num(e.resp, 0.5)),             // A/W, for a fixed responsivity
+        gain: Math.max(0, num(e.gain, 1e4)),             // transimpedance, V/A
+        bandwidth: Math.max(1, num(e.bandwidth, 1e6)),   // Hz
+        dark: Math.max(0, num(e.dark, 1)),               // nA
+        ampNoise: Math.max(0, num(e.ampNoise, 2)),       // input current noise, pA/rtHz
+        vmax: Math.max(0.01, num(e.vmax, 10)),           // output swing, V
+        absorb: true,
+      });
+    case 'faraday':
+      return Object.assign(base, { length: Math.max(0.1, num(e.length, 5)), rotation: num(e.rotation, 45) });
+    case 'isolator':
+      return Object.assign(base, { length: Math.max(0.1, num(e.length, 5)), axis: num(e.axis, 0), extinction: clamp(num(e.extinction, 40), 0, 80) });
+    case 'crystal':
+      return Object.assign(base, {
+        shape: CRYSTAL_SHAPES[e.shape] ? e.shape : 'displacer',
+        crystal: CRYSTALS[e.crystal] ? e.crystal : 'calcite',
+        size: Math.max(0.1, num(e.size, 10)),
+        length: Math.max(0.1, num(e.length, 10)),
+        axisAngle: clamp(num(e.axisAngle, 45), -89, 89),
+        wedge: clamp(num(e.wedge, 30), 5, 60),
+      });
+    case 'filter':
+      return Object.assign(base, {
+        length: Math.max(0.1, num(e.length, 25)),
+        ftype: FILTER_TYPES[e.ftype] ? e.ftype : 'longpass',
+        edge: clamp(num(e.edge, 600), 100, 20000), slope: Math.max(0.1, num(e.slope, 10)),
+        centre: clamp(num(e.centre, 550), 100, 20000), fwhm: Math.max(0.1, num(e.fwhm, 10)),
+        od: clamp(num(e.od, 1), 0, 10), tmax: clamp(num(e.tmax, 95), 0, 100),
+        reflect: e.reflect === true,
+      });
+    case 'gain':
+      return Object.assign(base, {
+        length: Math.max(0.1, num(e.length, 6)),
+        g0: clamp(num(e.g0, 1.2), 0, 1000),
+        centre: clamp(num(e.centre, 1064), 100, 20000), fwhm: Math.max(0.01, num(e.fwhm, 30)),
+      });
   }
   return null;
 }
@@ -1110,6 +1315,28 @@ function makeElement(kind, x, y) {
     case 'asphere':
       return normElement({ type: 'lens', name: nextName('Asphere'), x, y, diameter: 12.7,
         surfaces: [{ R: 8.2, k: -0.9 }, { R: null }], gaps: [5], materials: [{ glass: 'S-LAH64' }] });
+    case 'cylinder':
+      return normElement({ type: 'lens', name: nextName('Cylindrical lens'), x, y, diameter: 25.4, cyl: 'plane',
+        surfaces: [{ R: 25.8 }, { R: null }], gaps: [5], materials: [{ glass: 'N-BK7' }] });
+    case 'axicon':
+      return normElement({ type: 'lens', name: nextName('Axicon'), x, y, diameter: 25.4,
+        surfaces: [{ R: null, odd: [Math.tan(10 * deg)] }, { R: null }], gaps: [5], materials: [{ glass: 'UVFS' }] });
+    case 'grating':
+      return normElement({ type: 'grating', name: nextName('Grating'), x, y, angle: 180, length: 25, lpmm: 600, blaze: 500 });
+    case 'fibre':
+      return normElement({ type: 'fibre', name: nextName('Fibre'), x, y, angle: 180 });
+    case 'detector':
+      return normElement({ type: 'detector', name: nextName('Detector'), x, y, angle: 180 });
+    case 'faraday':
+      return normElement({ type: 'faraday', name: nextName('Faraday rotator'), x, y, angle: 0 });
+    case 'isolator':
+      return normElement({ type: 'isolator', name: nextName('Isolator'), x, y, angle: 0 });
+    case 'crystal':
+      return normElement({ type: 'crystal', name: nextName('Crystal'), x, y, angle: 0, shape: 'displacer' });
+    case 'filter':
+      return normElement({ type: 'filter', name: nextName('Filter'), x, y, angle: 0 });
+    case 'gain':
+      return normElement({ type: 'gain', name: nextName('Gain medium'), x, y, angle: 0 });
   }
 }
 
@@ -1249,6 +1476,9 @@ function rawDsag(s, y) {
 
 /* Local curvature of a sag surface at height y: what a Gaussian beam sees there */
 function curvAt(s, y) {
+  // an axicon's cone (the odd r^1 term) has no curvature away from its tip; the tip's kink
+  // is not a lens the beam's pilot should take
+  if (s.odd && s.odd[0]) s = Object.assign({}, s, { odd: [0, ...s.odd.slice(1)] });
   const h = Math.max(1e-4, s.semi * 1e-3);
   const d1 = dsagFn(s, y);
   const d2 = (dsagFn(s, y + h) - dsagFn(s, y - h)) / (2 * h);
@@ -1286,9 +1516,13 @@ function lensSurfaces(el) {
   for (let i = 0; i < el.surfaces.length; i++) {
     const sd = el.surfaces[i];
     const c = sd.R === null ? 0 : 1 / sd.R;
-    const s = makeSurf(el, z, c, sd.k, sd.a2, sd.A,
+    // a cylinder curved out of the bench plane is flat to the rays in it; its profile rides
+    // along for the field and the cavity matrices, which trace out of the plane
+    const out2 = el.cyl === 'out';
+    const s = makeSurf(el, z, out2 ? 0 : c, out2 ? 0 : sd.k, out2 ? 0 : sd.a2, out2 ? [] : sd.A,
       sd.semi || el.diameter / 2, {
-        odd: sd.odd,
+        odd: out2 ? undefined : sd.odd,
+        cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat,
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
         back: i === el.surfaces.length - 1 ? { glass: 'AIR' } : el.materials[i],
@@ -1335,8 +1569,55 @@ function polySurfaces(el) {
   return out;
 }
 
+/* One flat face between two regions of an element: (x1, y1) to (x2, y2) in its local frame,
+   (nx, ny) the normal from the front region into the back one */
+function faceSurf(el, x1, y1, x2, y2, nx, ny, front, back) {
+  return makeSurf(el, 0, 0, 0, 0, [], Math.hypot(x2 - x1, y2 - y1) / 2, {
+    kind: 'refract', coat: { mode: 'bare' }, front, back,
+    lf: { x: (x1 + x2) / 2, y: (y1 + y2) / 2, a: Math.atan2(ny, nx) } });
+}
+/* A crystal's outline and the regions inside it, in its local frame, beam along +x */
+function crystalGeom(el) {
+  const a = el.size / 2, air = { glass: 'AIR' };
+  if (el.shape === 'wollaston') {
+    // two wedges on the diagonal: the first with its axis across the beam in the bench plane
+    // (p extraordinary), the second with it out of the plane (s extraordinary)
+    const L = el.size * Math.tan(el.wedge * deg), l = L / 2;
+    const A = bireMat(el.crystal, 'p'), B = bireMat(el.crystal, 's');
+    const dl = Math.hypot(2 * l, 2 * a), nx = 2 * a / dl, ny = -2 * l / dl;     // from A (upper left) into B
+    return { outline: [[-l, -a], [l, -a], [l, a], [-l, a]], cut: [[-l, -a], [l, a]], faces: [
+      [-l, a, -l, -a, -1, 0, A, air], [-l, -a, l, -a, 0, -1, B, air], [l, -a, l, a, 1, 0, B, air], [l, a, -l, a, 0, 1, A, air],
+      [-l, -a, l, a, nx, ny, A, B]] };
+  }
+  if (el.shape === 'glan') {
+    // an air gap tilted between the two critical angles: the higher index reflects, the
+    // lower one passes; both halves have the optic axis across the beam in the bench plane
+    const C = CRYSTALS[el.crystal], um = 0.633, nHi = Math.max(C.o(um), C.e(um)), nLo = Math.min(C.o(um), C.e(um));
+    const b = 0.5 * (Math.asin(1 / nHi) + Math.asin(1 / nLo)), g = 0.005;
+    const l = a * Math.tan(b) + 0.15 * a, M = bireMat(el.crystal, 'p');
+    const nx = Math.cos(b), ny = Math.sin(b), tx = -ny, ty = nx, h = a / Math.cos(b);
+    const line = off => [off * nx - h * tx, off * ny - h * ty, off * nx + h * tx, off * ny + h * ty];
+    return { outline: [[-l, -a], [l, -a], [l, a], [-l, a]], gap: [line(-g), line(g)], faces: [
+      [-l, a, -l, -a, -1, 0, M, air], [-l, -a, l, -a, 0, -1, M, air], [l, -a, l, a, 1, 0, M, air], [l, a, -l, a, 0, 1, M, air],
+      [...line(-g), nx, ny, M, air], [...line(g), nx, ny, air, M]] };
+  }
+  // a beam displacer: its optic axis tilted in the bench plane, so p walks off sideways
+  const l = el.length / 2, M = bireMat(el.crystal, 'p', el.axisAngle);
+  return { outline: [[-l, -a], [l, -a], [l, a], [-l, a]], faces: [
+    [-l, a, -l, -a, -1, 0, M, air], [-l, -a, l, -a, 0, -1, M, air], [l, -a, l, a, 1, 0, M, air], [l, a, -l, a, 0, 1, M, air]] };
+}
+function crystalSurfaces(el) {
+  return crystalGeom(el).faces.map(f => faceSurf(el, ...f));
+}
+
 function elementSurfaces(el) {
   if (el.type === 'cube' || el.type === 'prism') return polySurfaces(el);
+  if (el.type === 'crystal') return crystalSurfaces(el);
+  if (el.type === 'grating') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
+  if (el.type === 'fibre' || el.type === 'detector') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
+  if (el.type === 'faraday' || el.type === 'isolator') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
+  if (el.type === 'filter') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'filter' })];
+  if (el.type === 'gain') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'gain' })];
   if (el.type === 'stop') {
     return stopBlades(el).map(([lo, hi]) => makeSurf(el, 0, 0, 0, 0, [], (hi - lo) / 2,
       { kind: 'absorb', lf: { x: 0, y: (lo + hi) / 2, a: 0 } }));
@@ -1790,14 +2071,17 @@ function traceScene() {
   const ghosts = project.ghosts;
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
   const blocked = {};
-  for (const el of project.elements) if (el.type === 'screen') screens[el.id] = [];
+  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') screens[el.id] = [];
 
   for (const src of project.elements) {
     if (src.type !== 'source') continue;
     for (const [wi, nm] of sourceLines(src).entries()) {
     const colour = src.colourAuto ? wavelengthColour(nm) : src.colour;
     const idx = new Map();
-    const nOf = m => { const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd; if (!idx.has(k)) idx.set(k, refIndex(m, nm)); return idx.get(k); };
+    const nOf = (m, tag) => {
+      if (m.bire) return birefIndex(m, tag, nm);          // a crystal: each polarisation its own index
+      const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd; if (!idx.has(k)) idx.set(k, refIndex(m, nm)); return idx.get(k);
+    };
     const stack = [];
     const states = sourcePol(src);
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
@@ -1842,7 +2126,9 @@ function traceScene() {
     });
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk } = stack.pop();
+      wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
+      const rayK = k;                   // the ray's number (k is reused for other things further in)
       par = par || 0;                   // how many reflections so far, mod 2: the sense of p
       const isQ = chief && !probe;      // the beam-parameter ray: its segments form the beam tree
       aCur = aCur || 0;
@@ -1869,13 +2155,13 @@ function traceScene() {
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
-            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par });
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
           beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par },
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl },
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
         }
@@ -1893,6 +2179,8 @@ function traceScene() {
         if (hitSeg) break;           // absorbed by a lens rim
 
         const s = hit;
+        // leaving a walk-off crystal: its faces refract the wave normal, not the energy
+        if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
         const [lx, ly] = toLocal(s.f, px, py);
         let [ldx, ldy] = toLocalDir(s.f, dx, dy);
         // surface normal pointing towards local +x
@@ -1943,8 +2231,19 @@ function traceScene() {
           last = s;
           continue;
         }
+        if (s.kind === 'jones' && (s.el.type === 'faraday' || s.el.type === 'isolator')) {
+          const M = jonesAt(s.el, ldx > 0, par ? -1 : 1);
+          if (isQ) { evt = passEv(); evt.jm = M; }
+          const np = [cmul(M[0][0], [pr, pi]), cmul(M[0][1], [sr, si])], ns = [cmul(M[1][0], [pr, pi]), cmul(M[1][1], [sr, si])];
+          pr = np[0][0] + np[1][0]; pi = np[0][1] + np[1][1]; sr = ns[0][0] + ns[1][0]; si = ns[0][1] + ns[1][1];
+          ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
+          if (w < minW && !chief) { dropped++; break; }
+          pts.length -= 2;
+          last = s;
+          continue;
+        }
         if (s.kind === 'jones') {
-          if (isQ) evt = passEv();
+          if (isQ) { evt = passEv(); evt.jm = jonesOf(s.el); }
           const el = s.el;
           const th = el.axis * deg, c = Math.cos(th), sn = Math.sin(th);
           let a11, a12r = 0, a12i = 0, a22r, a22i = 0, a11i = 0;
@@ -1970,6 +2269,45 @@ function traceScene() {
           pts.length -= 2;             // no kink in the drawn ray
           last = s;
           continue;
+        }
+        if (s.kind === 'gain' || (s.kind === 'filter' && !s.el.reflect)) {
+          // a thin sheet that scales the power: the beam's reference ray carries it too, as its
+          // Jones vector is the beam's amplitude
+          const g = Math.sqrt(s.kind === 'gain' ? gainAt(s.el, nm) : filterT(s.el, nm));
+          sr *= g; si *= g; pr *= g; pi *= g;
+          ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
+          if (isQ) evt = passEv();
+          if (w < minW && !chief) { dropped++; break; }
+          pts.length -= 2;
+          last = s;
+          continue;
+        }
+        if (s.kind === 'grating') {
+          const el = s.el, refl = el.mode === 'reflect', lam = nm * 1e-6;
+          if (refl && cosd >= 0) break;                              // the back of a reflection grating
+          const ords = gratingOrders(el, nm, ldy, nCur);
+          const use = probe ? ords.slice().sort((a, b) => b.eff - a.eff).slice(0, 1) : ords;
+          const sx0 = ldx < 0 ? -1 : 1, cIn = Math.abs(ldx);
+          for (const o of use) {
+            // an order too weak to matter is dropped, the beam's reference ray included, as a
+            // weak reflection is: orders bouncing between a grating and a mirror multiply fast
+            if (!probe && w * o.eff < minW) { dropped++; continue; }
+            // each order leaves along the grating equation, n sin(out) = n sin(in) + m lambda G,
+            // reflected back across the normal or carried on through it
+            const tx = (refl ? -sx0 : sx0) * Math.sqrt(1 - o.ty * o.ty);
+            const [odx, ody] = toWorldDir(s.f, tx, o.ty);
+            const a = (refl ? -1 : 1) * Math.sqrt(probe ? 1 : o.eff);
+            // the beam is stretched across by cos(out)/cos(in) in the bench plane
+            const A = Math.abs(tx) / (cIn || 1);
+            const ev = isQ ? withSurf({ el: el.id, kind: 'grating', semi: s.semi, ly, cth: cIn || 1, A, C: 0, D: 1 / A,
+              n1: nCur, n2: nCur, mode: refl ? 'R' : 'T', order: o.m, hx: px, hy: py, dIn: [dx, dy], dOut: [odx, ody] }) : null;
+            stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a,
+              bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
+              qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam, k, path: path + 'g' + o.m + '.' + bounce,
+              probe, probeH, tag, wk: 0 });
+          }
+          if (probe) probeLast = { px, py, dx, dy };
+          break;                                                     // this ray ends here; its orders carry on
         }
         if (s.kind === 'screen') {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
@@ -1998,7 +2336,7 @@ function traceScene() {
               stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi,
                 bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
-                fam, k, path: path + 'r' + bounce });
+                fam, k, path: path + 'r' + bounce, tag, wk: 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
               rays.push({ pts: pts.slice(), colour, w });
@@ -2019,7 +2357,7 @@ function traceScene() {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
-            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: s.kind === 'mirror' && cosd >= 0,
+            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter') && cosd >= 0,
               n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = s.c ? curvAt(s, ly) : 0;
@@ -2028,8 +2366,8 @@ function traceScene() {
           let tr = abcd(1, 0, 1, nCur, 'T');
           if (s.kind === 'refract') {
             const goingBack0 = cosd > 0;
-            const n1 = nOf(goingBack0 ? s.front : s.back);
-            const n2 = nOf(goingBack0 ? s.back : s.front);
+            const n1 = nOf(goingBack0 ? s.front : s.back, tag);
+            const n2 = nOf(goingBack0 ? s.back : s.front, tag);
             const ci0 = Math.abs(cosd);
             const k0 = 1 - (n1 / n2) * (n1 / n2) * (1 - ci0 * ci0);
             if (k0 > 0) {
@@ -2042,30 +2380,58 @@ function traceScene() {
           }
           qT = tr.q; evT = tr.ev; qRf = rf.q; evR = rf.ev;
         }
-        if (s.kind === 'mirror' && probe) {
+        const Rm = s.kind === 'filter' ? 1 - filterT(s.el, nm) : s.kind === 'mirror' ? s.el.reflect / 100 : 0;
+        if ((s.kind === 'mirror' || s.kind === 'filter') && probe) {
           // a probe is a measuring ray, not light: it follows whichever arm is stronger
-          if (s.el.reflect >= 50) {
+          if (Rm >= 0.5) {
             if (cosd >= 0) break;
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
             wentR = true;
           }
-        } else if (s.kind === 'mirror') {
-          const R = s.el.reflect / 100;
+        } else if (s.kind === 'mirror' || s.kind === 'filter') {
+          // a reflective filter (a dichroic) is a partial mirror whose reflectance is what it rejects
+          const R = Rm;
           // A mirror turns the field over from its coated face: half a wave. From behind, a
           // partial mirror reflects the other way up, as a lossless one must (Stokes: t t' - r r'
           // = 1). With the same sign both ways a cavity would not conserve energy, and its
           // reflected light would not cancel on resonance.
           const a = cosd >= 0 ? Math.sqrt(R) : -Math.sqrt(R);
           if (R >= 1) {
-            if (cosd >= 0) break;           // back of a full mirror absorbs
+            if (cosd >= 0 && s.kind === 'mirror') break;           // back of a full mirror absorbs
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
             wentR = true;
             sr = -sr; si = -si; pr = -pr; pi = -pi;
           } else if (R > 0) branch(a, 0, a, 0);
         } else {
           const goingBack = cosd > 0;
-          const n1 = nOf(goingBack ? s.front : s.back);
-          const n2 = nOf(goingBack ? s.back : s.front);
+          // Entering a crystal: its two polarisations go their own ways from here, so the ray
+          // splits. The p part starts again a hair before this face and meets it as p alone;
+          // this one carries on as s alone. The beam tree splits the same way.
+          const mInto = goingBack ? s.back : s.front;
+          if (mInto.bire && !tag && !probe && ws > 1e-12 * w && wp > 1e-12 * w) {
+            const back = 1e-5;
+            stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null,
+              opl: opl - nCur * back, nCur, aCur, id, chief, fan, pol, par, qr: chief ? qr - back : qr, qi, bid,
+              evt: isQ ? passEv() : evt, fam, k: rayK, path: path + 'e', tag: 'p', wk: 0 });
+            pr = 0; pi = 0; wp = 0; w = ws;
+            tag = 's';
+          } else if (mInto.bire && !tag) {
+            tag = wp > ws ? 'p' : 's';          // already one polarisation: it goes that one's way
+          }
+          if (tag && chief && qT && mInto.bire && !(goingBack ? s.front : s.back).bire) {
+            // the reference ray's matrices above were worked out before it knew its polarisation
+            const n1t = nOf(goingBack ? s.front : s.back, tag), n2t = nOf(mInto, tag), ci0 = Math.abs(cosd);
+            const k0 = 1 - (n1t / n2t) ** 2 * (1 - ci0 * ci0);
+            if (k0 > 0) {
+              const ct0 = Math.sqrt(k0), kp = (s.c ? curvAt(s, ly) : 0) * (goingBack ? 1 : -1);
+              const A = ct0 / ci0, C = (n1t * ci0 - n2t * ct0) * kp / (n2t * ci0 * ct0), D = n1t * ci0 / (n2t * ct0);
+              const dr = C * qr + D, di = C * qi, den = dr * dr + di * di;
+              qT = [(A * qr * dr + A * qi * di) / den, (A * qi * dr - A * qr * di) / den];
+              Object.assign(evT, { A, C, D, n2: n2t, nIn: n1t, nOut: n2t });
+            }
+          }
+          const n1 = nOf(goingBack ? s.front : s.back, tag);
+          const n2 = nOf(goingBack ? s.back : s.front, tag);
           const tnx = goingBack ? nx : -nx, tny = goingBack ? ny : -ny;   // normal along the ray
           const ci = ldx * tnx + ldy * tny;
           const eta = n1 / n2;
@@ -2123,6 +2489,14 @@ function traceScene() {
             ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny;
             nCur = n2;               // the ray is now travelling in the second medium
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
+            const mNow = goingBack ? s.back : s.front;
+            if (!mNow.bire) tag = undefined;                     // out of the crystal
+            else if (mNow.walk && tag === mNow.ePol) {
+              // the extraordinary ray's energy leaves its wave normal by the walk-off angle
+              wk = walkOff(mNow, nm);
+              const l0 = Math.hypot(ldx, ldy), c = Math.cos(wk), sn = Math.sin(wk);
+              [ldx, ldy] = [(ldx * c - ldy * sn) / l0, (ldx * sn + ldy * c) / l0];
+            }
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
@@ -2519,6 +2893,9 @@ function halfSize(el) {
   if (el.type === 'waveplate' || el.type === 'polariser') return el.length / 2;
   if (el.type === 'cube') return el.size / Math.SQRT2;
   if (el.type === 'prism') return el.shape === 'window' ? Math.hypot(el.size, el.thickness) / 2 : el.size * 0.72;
+  if (el.type === 'crystal') { const o = crystalGeom(el).outline; return Math.max(...o.map(v => Math.hypot(v[0], v[1]))); }
+  if (el.type === 'detector') return Math.max(el.length / 2 + 1.5, 4);
+  if (el.type === 'fibre') return Math.max(el.length / 2, 3);
   return el.length / 2;
 }
 function elementExtentPx(el) {
@@ -2595,7 +2972,8 @@ function render() {
   traceScene();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
-  const order = { lens: 0, prism: 0, cube: 0, mirror: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2, source: 3 };
+  const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, source: 3 };
   const els = project.elements.slice().sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type !== 'source') draw(el);
   drawRays();
@@ -2671,8 +3049,93 @@ function drawJones(el, sel) {
   ctx.strokeStyle = el.type === 'polariser' ? '#b79bff' : '#73b9ca';
   ctx.lineWidth = 2; ctx.stroke();
 }
+/* A thin plate seen edge-on: the shared look of the newer thin elements */
+function drawPlate(el, sel, stroke, fill, half) {
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
+  pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : stroke; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+  return { f, L, k };
+}
+/* an arrow along the element's axis above it: the direction of a Faraday rotator's field */
+function drawAxisArrow(f, L, k, colour, bar) {
+  const [ax, ay] = toWorld(f, -7 * k, L + 9 * k), [bx, by] = toWorld(f, 7 * k, L + 9 * k);
+  const X1 = sx(ax), Y1 = sy(ay), X2 = sx(bx), Y2 = sy(by), an = Math.atan2(Y2 - Y1, X2 - X1);
+  ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(X2, Y2);
+  ctx.moveTo(X2, Y2); ctx.lineTo(X2 - 5 * Math.cos(an - 0.5), Y2 - 5 * Math.sin(an - 0.5));
+  ctx.moveTo(X2, Y2); ctx.lineTo(X2 - 5 * Math.cos(an + 0.5), Y2 - 5 * Math.sin(an + 0.5));
+  if (bar) { const px = -Math.sin(an) * 5, py = Math.cos(an) * 5; ctx.moveTo(X2 + px, Y2 + py); ctx.lineTo(X2 - px, Y2 - py); }
+  ctx.strokeStyle = colour; ctx.lineWidth = 1.6; ctx.stroke();
+}
+function drawGrating(el, sel) {
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, refl = el.mode === 'reflect';
+  // substrate behind a reflection grating, thin plate for a transmission one
+  const back = refl ? -Math.max(2, 6 * k) : -1.2 * k;
+  pathLocal(f, [[back, -L], [0, -L], [0, L], [back, L]], true);
+  ctx.fillStyle = refl ? 'rgba(216,222,227,0.14)' : 'rgba(115,185,202,0.14)'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
+  // grooves on the working face
+  const n = Math.max(4, Math.min(60, Math.round(2 * L * V().scale / 5))), pts = [];
+  for (let i = 0; i <= n; i++) { const y = -L + 2 * L * i / n; pts.push([0, y]); if (i < n) pts.push([2.5 * k, y + 2 * L / n * 0.8]); }
+  pathLocal(f, pts);
+  ctx.strokeStyle = sel ? '#ffffff' : '#c9a6ff'; ctx.lineWidth = 1.2; ctx.stroke();
+}
+function drawFibre(el, sel) {
+  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = Math.max(8, 30 * k);
+  pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
+  ctx.fillStyle = '#39454c'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  // the jacketed fibre leaving the back of the ferrule
+  pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
+  ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 3; ctx.stroke();
+  // the core on the face
+  pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
+  ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 3; ctx.stroke();
+}
+function drawDetector(el, sel) {
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, H = Math.max(L + 1.5, 4), body = Math.max(6, 24 * k);
+  pathLocal(f, [[-body, -H], [0, -H], [0, H], [-body, H]], true);
+  ctx.fillStyle = '#2b3338'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : '#9aa4ab'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  pathLocal(f, [[0, -L], [0, L]]);
+  ctx.strokeStyle = '#7ee0a1'; ctx.lineWidth = 3.5; ctx.stroke();
+  const hits = lastTrace.screens[el.id] || [];
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const t of hits) { if (t.chief) continue; const [x1, y1] = toWorld(f, 0, t.y); ctx.fillRect(sx(x1) - 1.5, sy(y1) - 1.5, 3, 3); }
+}
+function drawCrystal(el, sel) {
+  const f = frame(el), G = crystalGeom(el), k = 1 / V().scale;
+  pathLocal(f, G.outline, true);
+  ctx.fillStyle = 'rgba(183,155,255,0.13)'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : '#b79bff'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = sel ? '#ffffff' : '#b79bff';
+  if (G.cut) { pathLocal(f, G.cut); ctx.stroke(); }
+  if (G.gap) for (const g of G.gap) { pathLocal(f, [[g[0], g[1]], [g[2], g[3]]]); ctx.stroke(); }
+  // the optic axis, where it lies in the bench plane
+  if (el.shape === 'displacer') {
+    const a = el.axisAngle * deg, r = 0.35 * Math.min(el.length, el.size);
+    pathLocal(f, [[-r * Math.cos(a), -r * Math.sin(a)], [r * Math.cos(a), r * Math.sin(a)]]);
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(183,155,255,0.8)'; ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+function filterColour(el) {
+  if (el.ftype === 'nd') return '#9aa4ab';
+  if (el.ftype === 'bandpass') return wavelengthColour(el.centre);
+  return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
+}
 function draw(el) {
   const sel = el.id === selectedId;
+  if (el.type === 'grating') return drawGrating(el, sel);
+  if (el.type === 'fibre') return drawFibre(el, sel);
+  if (el.type === 'detector') return drawDetector(el, sel);
+  if (el.type === 'crystal') return drawCrystal(el, sel);
+  if (el.type === 'filter') { const c = filterColour(el); drawPlate(el, sel, c, c + '33'); return; }
+  if (el.type === 'gain') { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2.2); return; }
+  if (el.type === 'faraday' || el.type === 'isolator') {
+    const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
+    drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
+    return;
+  }
   if (el.type === 'waveplate' || el.type === 'polariser') return drawJones(el, sel);
   if (el.type === 'mask') return drawMask(el, sel);
   if (el.type === 'stop') return drawStop(el, sel);
@@ -2690,7 +3153,8 @@ function draw(el) {
 function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
-  const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mirror: 2, lens: 3, cube: 3, prism: 3 };
+  const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
+    filter: 1, gain: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
   const els = project.elements.slice().sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
@@ -2702,6 +3166,20 @@ function hitTest(px, py) {
     }
     if (el.type === 'cube' || el.type === 'prism') {
       if (inPolygon(polyVerts(el), lx, ly, tol)) return el;
+      continue;
+    }
+    if (el.type === 'crystal') {
+      if (inPolygon(crystalGeom(el).outline, lx, ly, tol)) return el;
+      continue;
+    }
+    if (el.type === 'fibre' || el.type === 'detector') {
+      const H = el.type === 'detector' ? Math.max(el.length / 2 + 1.5, 4) : Math.max(el.length / 2, 0.6);
+      const body = el.type === 'detector' ? Math.max(6, 24 / V().scale) : Math.max(8, 30 / V().scale);
+      if (lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol) return el;
+      continue;
+    }
+    if (['grating', 'faraday', 'isolator', 'filter', 'gain'].includes(el.type)) {
+      if (lx <= tol + 0.4 && lx >= -(el.type === 'grating' && el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4) - tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
     }
     const ss = elementSurfaces(el);
@@ -2923,6 +3401,20 @@ function setParam(el, path, v) {
     case 'retard': break;
     case 'R': if (keys[keys.length - 1] === 'coat' || (o && o.mode)) v = clamp(v, 0, 100); break;
     case 'outer': v = Math.max(0.2, v); break;
+    case 'lpmm': v = clamp(v, 1, 10000); break;
+    case 'eff': case 'tmax': v = clamp(v, 0, 100); break;
+    case 'blaze': case 'edge': case 'centre': v = clamp(v, 100, 20000); break;
+    case 'core': v = Math.max(0.5, v); break;
+    case 'na': v = clamp(v, 0.01, 0.9); break;
+    case 'od': v = clamp(v, 0, 10); break;
+    case 'slope': case 'fwhm': v = Math.max(0.01, v); break;
+    case 'g0': v = clamp(v, 0, 1000); break;
+    case 'axisAngle': v = clamp(v, -89, 89); break;
+    case 'wedge': v = clamp(v, 5, 60); break;
+    case 'extinction': v = clamp(v, 0, 80); break;
+    case 'gain': case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
+    case 'bandwidth': v = Math.max(1, v); break;
+    case 'vmax': v = Math.max(0.01, v); break;
     case 'size': case 'thickness': v = Math.max(0.1, v); break;
   }
   if (keys[0] === 'gaps') v = Math.max(0, v);
@@ -2933,6 +3425,7 @@ function setParam(el, path, v) {
     else if (last === 'w0' || last === 'z0' || last === 'wavelength') fanFromGauss(el);
   }
   if (el.type === 'lens' && last === 'diameter') el.surfaces.forEach(s => s.semi = null);
+  if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
 }
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
@@ -3221,6 +3714,153 @@ function updateActivity() {
   activity.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 
+/* ---------- Fibres and photodetectors: the field that reaches their face ----------
+   A fibre takes in the overlap of the arriving field with its own mode; a photodiode takes
+   all of |E|^2 over its active area. Both are worked out from the Gaussian beams that arrive,
+   rebuilt on the face: each branch's q in the bench plane (from the tracer) and out of it
+   (carried along its branch by the same matrices the cavities use), where it lands, its
+   tilt and its optical path. Branches of one launch add as fields, so a Michelson's output
+   diode sees its fringe; separate launches add as powers. Ray fans reaching a detector count
+   ray by ray instead. */
+/* Marcuse's fit for a step-index fibre's fundamental mode: its 1/e^2 radius from the core
+   radius a and V = 2 pi a NA / lambda */
+function fibreMode(coreUm, na, nm) {
+  const a = coreUm / 2, V = 2 * Math.PI * a * na / (nm / 1000);
+  return { w: 1e-3 * a * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6)), V };
+}
+/* a source launched from a fibre: its beam is the fibre's mode, waist on the tip */
+function applyFibre(src) {
+  if (!src.fibre) return;
+  src.gauss = true; src.w0 = fibreMode(src.fibre.core, src.fibre.na, src.wavelength).w; src.z0 = 0;
+  fanFromGauss(src);
+}
+function faceArrivals(el) {
+  const B = lastTrace.beams || [], out = [], f = frame(el);
+  B.forEach((b, i) => {
+    if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
+    const src = getEl(b.src);
+    if (!src || !src.gauss) return;
+    const lam0 = b.nm * 1e-6;
+    const chain = [];
+    for (let j = i; j >= 0; j = B[j].parent) chain.push(j);
+    chain.reverse();
+    const r0 = B[chain[0]];
+    let qy = [r0.qr / r0.n, r0.qi / r0.n];
+    for (let c = 0; c < chain.length && qy; c++) {
+      const bb = B[chain[c]];
+      if (c > 0) { const m = cavEventABCD(bb.ev, lam0); qy = m ? qThrough(m.y, qy) : null; }
+      if (qy) qy = qThrough(mfree(bb.len, bb.n), qy);
+    }
+    const qx = [(b.qr + b.len) / b.n, b.qi / b.n];
+    const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
+    const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
+    out.push({ b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, nm: b.nm });
+  });
+  return out;
+}
+const qW = (q, lam0) => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
+/* One arrival's s and p field at a point (u along the face, v out of the plane), in power
+   per unit face area, in the field's e^{-ikz} convention */
+function arrivalField(A, u, v) {
+  const k = 2 * Math.PI / A.lam0, xb = (u - A.u0) * A.ldx, cT = Math.abs(A.ldx) || 1;
+  const iq = q => { const d = q[0] * q[0] + q[1] * q[1]; return [q[0] / d, -q[1] / d]; };
+  const ix = iq(A.qx), iy = iq(A.qy);
+  const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0);
+  // exp(-i k x^2 / 2q): the real part of 1/q curves it, the imaginary part is the envelope
+  const re = -0.5 * k * (-ix[1] * xb * xb - iy[1] * v * v);
+  const ph = -0.5 * k * (ix[0] * xb * xb + iy[0] * v * v) - k * (A.opl + (u - A.u0) * A.ldy)
+    - 0.5 * (Math.atan2(A.qx[1], A.qx[0]) + Math.atan2(A.qy[1], A.qy[0]));
+  const amp = Math.sqrt(2 / (Math.PI * wx * wy)) * Math.exp(re) * Math.sqrt(cT);
+  const c = amp * Math.cos(ph), sn = amp * Math.sin(ph), J = A.J;
+  // the tracer's Jones vector, conjugated into this convention
+  return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
+}
+function groupsOf(arr) {
+  const g = new Map();
+  for (const A of arr) { if (!g.has(A.coh)) g.set(A.coh, []); g.get(A.coh).push(A); }
+  return [...g.values()];
+}
+const deviceCache = new WeakMap();
+function deviceMemo(el, fn) {
+  let M = deviceCache.get(lastTrace);
+  if (!M) { M = new Map(); deviceCache.set(lastTrace, M); }
+  const key = el.id + JSON.stringify(el);
+  if (!M.has(key)) M.set(key, fn());
+  return M.get(key);
+}
+/* What a fibre takes in: per launch, |<E, mode>|^2 for each polarisation */
+function fibreCoupling(el) {
+  return deviceMemo(el, () => {
+    const arr = faceArrivals(el);
+    if (!arr.length) return null;
+    const N = 96;
+    let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
+    for (const G of groupsOf(arr)) {
+      const src = G[0].src, nm = G[0].nm;
+      mode = fibreMode(el.core, el.na, nm);
+      const wf = mode.w, L = 3.5 * wf, d = 2 * L / N;
+      let cs = [0, 0], cp = [0, 0], pin = 0;
+      for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
+      const mAmp = Math.sqrt(2 / (Math.PI * wf * wf));
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d;
+        const M = mAmp * Math.exp(-(u * u + v * v) / (wf * wf));
+        for (const A of G) {
+          const E = arrivalField(A, u, v);
+          cs[0] += E[0] * M; cs[1] += E[1] * M; cp[0] += E[2] * M; cp[1] += E[3] * M;
+        }
+      }
+      const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d;
+      arrivingShare += pin; coupledShare += got;
+      inMw += pin * src.power; coupledMw += got * src.power;
+    }
+    return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
+  });
+}
+/* What a photodiode sees, and what its amplifier makes of it */
+function detectorReading(el) {
+  return deviceMemo(el, () => {
+    const a = el.length / 2;
+    let I = 0, P = 0;
+    // Gaussian launches: |E|^2 over the active disc, fields added within each launch
+    for (const G of groupsOf(faceArrivals(el))) {
+      let u0 = Infinity, u1 = -Infinity, v1 = 0;
+      for (const A of G) {
+        const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0);
+        u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v1 = Math.max(v1, 4 * wy);
+      }
+      u0 = Math.max(u0, -a); u1 = Math.min(u1, a); v1 = Math.min(v1, a);
+      if (!(u1 > u0) || !(v1 > 0)) continue;
+      const N = 128, du = (u1 - u0) / N, dv = 2 * v1 / N;
+      let pw = 0;
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv;
+        if (u * u + v * v > a * a) continue;
+        let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
+        for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
+        pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+      }
+      const mw = pw * du * dv * G[0].src.power;
+      P += mw; I += mw * responsivity(el, G[0].nm);
+    }
+    // ray fans, ray by ray: each launched ray carries its share of its source's power
+    const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
+    for (const t of hits) {
+      const src = getEl(t.id.split(':')[0]);
+      if (!src || src.gauss) continue;
+      const mw = t.w * src.power / (Math.max(1, src.rays) * sourceLines(src).length);
+      P += mw; I += mw * responsivity(el, t.nm);
+    }
+    // noise: shot noise on the photocurrent and dark current, the feedback resistor's
+    // Johnson noise, and the amplifier's own input current noise, all over the bandwidth
+    const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = el.bandwidth, Ia = I * 1e-3;
+    const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
+    const noiseI = Math.sqrt(i2), V = Ia * el.gain;
+    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI,
+      snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
+  });
+}
+
 /* ---------- One-parameter search over a swept range ---------- */
 
 let lastOptNm = 587.6;
@@ -3285,16 +3925,26 @@ const METRICS = [
   { key: 'blocked', fam: 'rays', on: 'stop', label: 'Power stopped', fmt: pctTxt, goals: ['min', 'max', 'match'],
     getEl: el => 100 * (lastTrace.blocked[el.id] || 0) / Math.max(1, lastTrace.emitted) },
   { key: 'efl', fam: 'paraxial', on: 'lens', label: 'EFL', fmt: fmtLen, goals: ['match', 'min', 'max'], getEl: el => paraxial(el, refNm()).efl },
+  { key: 'couple', fam: 'device', on: 'fibre', label: 'Coupling efficiency', fmt: pctTxt, goals: ['max', 'match', 'min'],
+    getEl: el => { const r = fibreCoupling(el); return r ? 100 * r.eff : null; } },
+  { key: 'fibremw', fam: 'device', on: 'fibre', label: 'Power into the fibre (mW)', fmt: plainTxt, goals: ['max', 'match', 'min'],
+    getEl: el => { const r = fibreCoupling(el); return r ? r.mw : null; } },
+  { key: 'dmw', fam: 'device', on: 'detector', label: 'Optical power on the diode (mW)', fmt: plainTxt, goals: ['max', 'match', 'min'],
+    getEl: el => detectorReading(el).mw },
+  { key: 'dvolt', fam: 'device', on: 'detector', label: 'Output voltage (V)', fmt: plainTxt, goals: ['max', 'match', 'min'],
+    getEl: el => detectorReading(el).V },
+  { key: 'dsnr', fam: 'device', on: 'detector', label: 'Signal to noise (dB)', fmt: plainTxt, goals: ['max', 'match'],
+    getEl: el => detectorReading(el).snr },
   { key: 'bfl', fam: 'paraxial', on: 'lens', label: 'BFL', fmt: fmtLen, goals: ['match', 'min', 'max'], getEl: el => paraxial(el, refNm()).bfl },
 ];
 const GOAL_LABEL = { min: 'Smallest', max: 'Largest', match: 'Match a target' };
 /* What each metric is measured from: the ray fan, the Gaussian beam's envelope, the
    diffracted field, or first-order optics */
-const METRIC_FAMS = [['rays', 'Rays'], ['gauss', 'Gaussian beam'], ['field', 'Diffracted field'], ['paraxial', 'First order']];
+const METRIC_FAMS = [['rays', 'Rays'], ['gauss', 'Gaussian beam'], ['field', 'Diffracted field'], ['paraxial', 'First order'], ['device', 'Fibre and detector']];
 const metricsFor = kind => METRICS.filter(m => m.on === kind);
 const metricByKey = key => METRICS.find(m => m.key === key);
 const measurable = () => {                    // screens first: they are what most studies measure
-  const rank = { screen: 0, stop: 1, lens: 2 };
+  const rank = { screen: 0, detector: 0, fibre: 0, stop: 1, lens: 2 };
   return project.elements.filter(e => rank[e.type] !== undefined).sort((a, b) => rank[a.type] - rank[b.type]);
 };
 
@@ -3797,7 +4447,8 @@ function renderPanelBody(el) {
     param('X (mm)', el, 'x'),
     param('Y (mm)', el, 'y'),
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
-      stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
+      faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
   );
   panel.append(rows);
 
@@ -3810,6 +4461,13 @@ function renderPanelBody(el) {
   if (el.type === 'mask') maskPanel(el);
   if (el.type === 'cube') cubePanel(el);
   if (el.type === 'prism') prismPanel(el);
+  if (el.type === 'grating') gratingPanel(el);
+  if (el.type === 'fibre') fibrePanel(el);
+  if (el.type === 'detector') detectorPanel(el);
+  if (el.type === 'faraday' || el.type === 'isolator') faradayPanel(el);
+  if (el.type === 'crystal') crystalPanel(el);
+  if (el.type === 'filter') filterPanel(el);
+  if (el.type === 'gain') gainPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -3848,7 +4506,8 @@ function sourcePanel(el) {
     h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
     param('Beam width (mm)', el, 'width'),
     param('Divergence, full (°)', el, 'divergence'),
-    param('Rays', el, 'rays', { wide: true }),
+    param('Rays', el, 'rays'),
+    param('Power (mW)', el, 'power'),
   );
   panel.append(rows);
   if (!el.traceRays) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'The fan is off: no rays are drawn and the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays; a fan taken as a uniform pupil keeps its width and divergence, though its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
@@ -3863,7 +4522,17 @@ function sourcePanel(el) {
   });
   panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
   if (el.gauss) {
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+    const fb = h('input', { type: 'checkbox' });
+    fb.checked = !!el.fibre;
+    fb.addEventListener('change', () => {
+      checkpoint();
+      if (fb.checked) { el.fibre = { core: 4.4, na: 0.12 }; applyFibre(el); } else delete el.fibre;
+      changed(true);
+    });
+    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, fb, 'Launch from a single-mode fibre'));
+    if (el.fibre) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+      param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
+    else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Waist radius (mm)', el, 'w0'),
       param('Waist distance (mm)', el, 'z0')));
     const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
@@ -4297,6 +4966,95 @@ function blockNote(el) {
   const nm = wl ? wl.wavelength : 587.6;
   return h('p', { style: 'margin-top:0.6rem' }, matLabel(el.material) + ' n = ' + refIndex(el.material, nm).toFixed(4) + ' at ' + nm + ' nm.' +
     (el.source ? ' Imported from ' + el.source + '.' : ''));
+}
+/* The source wavelengths on the bench, for readouts that depend on wavelength */
+function benchNms() {
+  const v = [...new Set(project.elements.filter(e => e.type === 'source').flatMap(e => sourceLines(e)).map(x => +x.toFixed(2)))];
+  return v.length ? v : [633];
+}
+const readoutBox = kind => h('div', { class: 'rt-readout', 'data-readout': kind });
+function gratingPanel(el) {
+  panel.append(h('h3', null, 'Grating'));
+  panel.append(h('div', { class: 'rt-rows' },
+    selectField('Type', [['reflect', 'Reflection'], ['transmit', 'Transmission']], () => el.mode, v => { el.mode = v; }, { wide: true }),
+    param('Lines per mm', el, 'lpmm'), param('Width (mm)', el, 'length'),
+    param('Blaze (nm)', el, 'blaze'), param('Efficiency (%)', el, 'eff')));
+  panel.append(readoutBox('grating'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
+}
+function fibrePanel(el) {
+  panel.append(h('h3', null, 'Fibre'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Core (µm)', el, 'core'), param('NA', el, 'na'),
+    param('Ferrule face (mm)', el, 'length', { wide: true })));
+  panel.append(readoutBox('fibre'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
+}
+function detectorPanel(el) {
+  panel.append(h('h3', null, 'Photodiode'));
+  const rows = h('div', { class: 'rt-rows' },
+    param('Diameter (mm)', el, 'length'),
+    selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
+  if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp', { wide: true }));
+  panel.append(rows);
+  panel.append(h('h3', null, 'Amplifier'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
+    param('Dark (nA)', el, 'dark'), param('Noise (pA/√Hz)', el, 'ampNoise'),
+    param('Output limit (V)', el, 'vmax', { wide: true })));
+  panel.append(readoutBox('detector'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the bandwidth.'));
+}
+function faradayPanel(el) {
+  const iso = el.type === 'isolator';
+  panel.append(h('h3', null, iso ? 'Isolator' : 'Faraday rotator'));
+  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length'));
+  if (iso) rows.append(param('Extinction (dB)', el, 'extinction'), param('Input polariser from p (°)', el, 'axis', { wide: true }));
+  else rows.append(param('Rotation (°)', el, 'rotation'));
+  panel.append(rows);
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, iso
+    ? 'A polariser, a 45° Faraday rotator and a second polariser at 45° to the first. Light going the way of the arrow passes; light coming back is turned a further 45° and stopped, as far as the extinction ratio allows.'
+    : 'Turns the polarisation by its rotation, the same way in the lab whichever way the light goes, so a double pass turns it twice as far rather than undoing it. That is what an isolator and a Faraday mirror are built on. The arrow is the direction of its magnetic field.'));
+}
+function crystalPanel(el) {
+  panel.append(h('h3', null, 'Crystal'));
+  const rows = h('div', { class: 'rt-rows' },
+    selectField('Type', Object.entries(CRYSTAL_SHAPES), () => el.shape, v => { el.shape = v; }, { wide: true }),
+    selectField('Material', Object.entries(CRYSTALS).map(([k, v]) => [k, v.name]), () => el.crystal, v => { el.crystal = v; }),
+    param('Aperture (mm)', el, 'size'));
+  if (el.shape === 'displacer') rows.append(param('Length (mm)', el, 'length'), param('Optic axis from the normal (°)', el, 'axisAngle', { wide: true }));
+  if (el.shape === 'wollaston') rows.append(param('Wedge angle (°)', el, 'wedge', { wide: true }));
+  panel.append(rows);
+  panel.append(readoutBox('crystal'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, {
+    displacer: 'The optic axis lies in the bench plane, tilted from the faces, so p light is the extraordinary ray: its energy walks off sideways while s goes straight, and they leave parallel, side by side.',
+    wollaston: 'Two wedges with their optic axes crossed: s and p swap between the ordinary and extraordinary index at the join, so they bend opposite ways and leave diverging.',
+    glan: 'Two prisms with an air gap cut between the two critical angles: the polarisation with the higher index is totally reflected out of the side, the other passes.',
+  }[el.shape]));
+}
+function filterPanel(el) {
+  panel.append(h('h3', null, 'Filter'));
+  const rows = h('div', { class: 'rt-rows' },
+    selectField('Type', Object.entries(FILTER_TYPES), () => el.ftype, v => { el.ftype = v; }, { wide: true }));
+  if (el.ftype === 'longpass' || el.ftype === 'shortpass') rows.append(param('Edge (nm)', el, 'edge'), param('10–90% (nm)', el, 'slope'));
+  if (el.ftype === 'bandpass') rows.append(param('Centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm'));
+  if (el.ftype === 'nd') rows.append(param('Optical density', el, 'od'));
+  else rows.append(param('Peak T (%)', el, 'tmax'));
+  rows.append(param('Aperture (mm)', el, 'length'));
+  panel.append(rows);
+  const rf = h('input', { type: 'checkbox' });
+  rf.checked = el.reflect;
+  rf.addEventListener('change', () => { checkpoint(); el.reflect = rf.checked; changed(false); });
+  panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, rf, 'Reflect what it blocks (a dichroic)'));
+  panel.append(readoutBox('filter'));
+}
+function gainPanel(el) {
+  panel.append(h('h3', null, 'Gain medium'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Gain a pass (×)', el, 'g0'), param('Aperture (mm)', el, 'length'),
+    param('Line centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm')));
+  panel.append(readoutBox('gain'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it. In a cavity, the Cavity tab shows whether the round trip gains more than it loses: above threshold it lases, and the modes show which ones. The gain is the small-signal gain; it does not saturate, so above threshold the steady state has no meaning, only the modes and threshold do.'));
 }
 function cubePanel(el) {
   panel.append(h('h3', null, 'Beam splitter cube'));
@@ -4864,7 +5622,9 @@ function removeSweeps(el, prefix) {
 
 function lensPanel(el) {
   panel.append(h('h3', null, 'Lens'));
-  panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true })));
+  panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true }),
+    selectField('Shape', [['round', 'Round'], ['plane', 'Cylinder, power in the bench plane'], ['out', 'Cylinder, power out of the plane']],
+      () => el.cyl || 'round', v => { el.cyl = v === 'round' ? undefined : v; }, { wide: true })));
 
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {
@@ -4875,6 +5635,12 @@ function lensPanel(el) {
       param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }),
     );
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
+    if (s.odd && s.odd[0]) {
+      // an axicon's cone, given as its base angle; stored as the odd r^1 sag term
+      const cid = 'rtf' + (++fid);
+      const cone = numInput(cid, () => +(Math.atan(s.odd[0]) / deg).toPrecision(6), v => { if (Math.abs(v) < 80) s.odd[0] = Math.tan(v * deg); });
+      rows.append(h('div', { class: 'rt-f wide' }, h('label', { for: cid }, 'Cone angle (°)'), cone));
+    }
     s.A.forEach((_, j) => rows.append(param('A' + (4 + 2 * j), el, `surfaces.${i}.A.${j}`, { blank: 0 })));
     rows.append(h('div', { class: 'rt-inline wide' },
       h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); s.A.push(0); changed(true); } },
@@ -4940,6 +5706,15 @@ function cavityLater() {
   };
   setTimeout(step, 20);
 }
+/* With a gain medium in the loop: is the round trip above threshold, and by how much */
+function cavGainRows(c) {
+  const gains = c.surfaces.map(id => getEl(id)).filter(e => e && e.type === 'gain');
+  if (!gains.length || c.rho === null) return [];
+  const net = c.rho * c.rho, passes = gains.length;
+  if (net >= 1) return [['Laser threshold', 'above: the round trip gains ' + ((net - 1) * 100).toPrecision(3) + '%, so it lases']];
+  const g = gains[0], need = g.g0 * Math.pow(1 / net, 1 / passes);
+  return [['Laser threshold', 'below: needs a single-pass gain of ×' + (+need.toPrecision(4)) + ' in ' + g.name]];
+}
 function cavitiesOf(el) { return findCavities().filter(c => !el || c.surfaces.includes(el.id)); }
 function cavityCard(c) {
   const box = h('div', { class: 'rt-cavity' });
@@ -4966,6 +5741,7 @@ function cavityCard(c) {
       ['Finesse', c.finesse ? String(+c.finesse.toPrecision(4)) : '\u2014'.replace('\u2014', 'n/a')],
       ['Linewidth (FWHM)', c.linewidth ? fmtHz(c.linewidth) : 'n/a'],
       ['Round-trip power kept', c.rho !== null ? (100 * c.rho * c.rho).toPrecision(5) + '%' : 'n/a'],
+      ...cavGainRows(c),
       ['Input coupler lets in', c.Tin !== null ? (100 * c.Tin).toPrecision(3) + '%' : 'n/a'],
       ['Build-up on resonance', c.buildup !== null ? String(+c.buildup.toPrecision(4)) + '\u00d7' : 'n/a'],
       ['Stability', c.stability.x === c.stability.y && Math.abs(c.stability.hx - c.stability.hy) < 1e-9 ? c.stability.x + ', m = ' + (+c.stability.hx.toFixed(4))
@@ -5003,7 +5779,7 @@ function cavityCard(c) {
       for (const md of ms) {
         const th = h('canvas');
         modesBox.append(h('div', { class: 'rt-mode' }, th, h('div', null,
-          h('div', null, 'Loses ' + (100 * md.loss).toPrecision(4) + '% a round trip'),
+          h('div', null, md.loss >= 0 ? 'Loses ' + (100 * md.loss).toPrecision(4) + '% a round trip' : 'Gains ' + (-100 * md.loss).toPrecision(4) + '% a round trip, so it lases'),
           h('div', null, md.offset === 0 ? 'The strongest line' : (md.offset > 0 ? '+' : '\u2212') + fmtHz(Math.abs(md.offset)) + ' from it'),
           h('div', { class: 'note' }, 'Takes ' + (100 * md.share).toPrecision(3) + '% of the light let in'))));
         drawModeThumb(th, md.field);
@@ -5085,7 +5861,9 @@ function renderOverview() {
   if (project.elements.length) {
     const list = h('ul', { class: 'rt-list' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
-      screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff' };
+      screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
+      grating: '#c9a6ff', crystal: '#b79bff', fibre: '#f2c14e', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
+      filter: '#9aa4ab', gain: '#ff6a3d' };
     for (const el of project.elements) {
       list.append(h('li', null, h('button', { onclick: () => { selectedId = el.id; renderPanel(); requestRender(); } },
         h('span', { class: 'swatch', style: 'background:' + (col[el.type] || el.colour) }),
@@ -5715,7 +6493,10 @@ let cavCache = null;
 const surfIds = new WeakMap(); let surfNext = 1;
 const surfId = s => {
   // an element and where along it: the same across reloads, so a cavity keeps its name and settings
-  if (s.el && s.el.id && s.z !== undefined) return s.el.id + '@' + (+s.z).toFixed(6) + (s.kind === 'split' ? 's' : '');
+  // faces of a block sit in frames of their own, all at z = 0: their frame tells them apart, or
+  // a window's two faces met the same way read as one surface repeating (a cavity of one)
+  if (s.el && s.el.id && s.z !== undefined) return s.el.id + '@' + (+s.z).toFixed(6) + (s.kind === 'split' ? 's' : '')
+    + (s.lf ? '/' + s.lf.x.toFixed(4) + ',' + s.lf.y.toFixed(4) : '');
   if (!surfIds.has(s)) surfIds.set(s, surfNext++); return surfIds.get(s);
 };
 function cavKey(ev) {
@@ -6202,6 +6983,11 @@ function polCoeff(ev, nm) {
   if (s.kind === 'split') {
     return mode === 'R' ? () => [0, Math.sqrt(s.Rs), 0, Math.sqrt(s.Rp)] : () => [Math.sqrt(1 - s.Rs), 0, Math.sqrt(1 - s.Rp), 0];
   }
+  if (s.kind === 'filter') {
+    const T = filterT(s.el, nm), r = ev.back ? Math.sqrt(1 - T) : -Math.sqrt(1 - T);
+    return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(T), 0, Math.sqrt(T), 0];
+  }
+  if (s.kind === 'grating') return mode === 'R' ? () => [-1, 0, -1, 0] : () => [1, 0, 1, 0];
   const n1 = ev.nIn, n2 = ev.nOut;
   if (!(n1 > 0 && n2 > 0)) return () => [1, 0, 1, 0];
   const refl = ci => {
@@ -6603,13 +7389,26 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
 function popScreen(ev, invRx, invRy, lam0) {
   const s = ev.surf;
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
-  const fn = s.maskFn || null;
+  // a grating is a phase ramp of m waves per line across it, which is what turns the
+  // light into its order: the mask machinery carries it
+  const fn = s.maskFn || (s.kind === 'grating' ? (u, v) => [1, (ev.order || 0) * s.el.lpmm * u] : null);
   const Hx = ev.hx, Hy = ev.hy, di = ev.dIn, dO = ev.dOut || ev.dIn;
   const exix = -di[1], exiy = di[0], exox = -dO[1], exoy = dO[0];
   const f = s.f, y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
   const n1 = ev.n1, n2 = ev.mode === 'T' ? ev.n2 : ev.n1;
-  const bend = ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
+  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
   const flat = s.flat;
+  // a cylinder is curved one way only: across the beam in the bench plane ('plane'), or out
+  // of it ('out', flat to the bench's own rays; its profile is kept aside in cylS)
+  const cyl = s.cyl, cs = s.cylS;
+  const sagAt = (u, lz) => {
+    if (cyl === 'out') return [rawSag(cs, lz), 0, rawDsag(cs, lz)];
+    if (cyl === 'plane') return flat ? [0, 0, 0] : [rawSag(s, u) - sag0, rawDsag(s, u), 0];
+    const rho = Math.sqrt(u * u + lz * lz);
+    if (flat) return [0, 0, 0];
+    const Sp = rawDsag(s, rho);
+    return [rawSag(s, rho) - sag0, rho > 0 ? Sp * u / rho : 0, rho > 0 ? Sp * lz / rho : 0];
+  };
   return function trace(x, y) {
     // start point and direction in the world, then into the surface's frame
     let X = Hx + x * exix, Y = Hy + x * exiy, Z = y;
@@ -6618,15 +7417,13 @@ function popScreen(ev, invRx, invRy, lam0) {
     const ox = X - f.ox, oy = Y - f.oy;
     const px = ox * f.c + oy * f.s - s.z, py = -ox * f.s + oy * f.c, pz = Z;
     const ldx = dx * f.c + dy * f.s, ldy = -dx * f.s + dy * f.c, ldz = dz;
-    // Newton on x(t) = sag(rho(t)), starting on the entry plane, which touches the surface
-    let t = 0, ly = py, lz = pz, rho = 0, S = 0, Sp = 0, ok = true;
+    // Newton on x(t) = sag(y(t), z(t)), starting on the entry plane, which touches the surface
+    let t = 0, ly = py, lz = pz, ok = true;
     for (let it = 0; it < 40; it++) {
       ly = py + t * ldy; lz = pz + t * ldz;
-      const u = ly + y0;
-      rho = Math.sqrt(u * u + lz * lz);
-      if (flat) { S = 0; Sp = 0; } else { S = rawSag(s, rho) - sag0; Sp = rawDsag(s, rho); }
+      const [S, Sy, Sz] = sagAt(ly + y0, lz);
       const g = px + t * ldx - S;
-      const gp = ldx - (rho > 0 ? Sp * (u * ldy + lz * ldz) / rho : 0);
+      const gp = ldx - (Sy * ldy + Sz * ldz);
       if (!(Math.abs(gp) > 1e-12)) { ok = false; break; }
       const dt = -g / gp;
       t += dt;
@@ -6635,14 +7432,19 @@ function popScreen(ev, invRx, invRy, lam0) {
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
     ly = py + t * ldy; lz = pz + t * ldz;
-    const u = ly + y0;
-    rho = Math.sqrt(u * u + lz * lz);
-    Sp = flat ? 0 : rawDsag(s, rho);
+    const [, Sy, Sz] = sagAt(ly + y0, lz);
     // bend in the local frame
     let ex = ldx, ey = ldy, ez = ldz;
-    let nx = 1, ny = rho > 0 ? -Sp * u / rho : 0, nz = rho > 0 ? -Sp * lz / rho : 0;
+    let nx = 1, ny = -Sy, nz = -Sz;
     { const nl = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= nl; ny /= nl; nz /= nl; }
-    if (bend !== 'pass') {
+    if (bend === 'grating') {
+      // along the grooves' normal the grating equation, n sin(out) = n sin(in) + m lambda G;
+      // along the grooves nothing changes; reflected back across, or carried on through
+      ey = ldy + (ev.order || 0) * lam0 * s.el.lpmm / n1; ez = ldz;
+      const kk = 1 - ey * ey - ez * ez;
+      if (kk < 0) ok = false;
+      ex = (s.el.mode === 'reflect' ? -1 : 1) * (ldx < 0 ? -1 : 1) * Math.sqrt(Math.max(0, kk));
+    } else if (bend !== 'pass') {
       let c = -(ldx * nx + ldy * ny + ldz * nz);
       if (c < 0) { nx = -nx; ny = -ny; nz = -nz; c = -c; }        // normal against the ray
       if (bend === 'reflect') { ex = ldx + 2 * c * nx; ey = ldy + 2 * c * ny; ez = ldz + 2 * c * nz; }
@@ -6971,9 +7773,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   if (tr) {
     const px = tr(hh, 0), mx = tr(-hh, 0), py = tr(0, hh), my = tr(0, -hh);
     Ax = (px[1] - mx[1]) / (2 * hh); Ay = (py[2] - my[2]) / (2 * hh);
-    if (ev.surf && ev.mode !== 'P') {
+    if (ev.surf && ev.mode !== 'P' && !(ev.surf.odd && ev.surf.odd[0])) {
       // a jump in path across the tiny step is an edge in the phase (a mask's step, a
-      // vortex's cut), not a curvature: only a smooth path gives the pilot a lens
+      // vortex's cut), not a curvature: only a smooth path gives the pilot a lens. Nor is
+      // an axicon's tip: its cone goes in whole as the aberration.
       const jump = u => Math.abs(u) > 0.05 * lam0;
       if (!jump(px[0] + mx[0]) && !jump(px[0] - mx[0])) bx = -k0 * (px[0] + mx[0]) / (2 * hh * hh);
       if (!jump(py[0] + my[0]) && !jump(py[0] - my[0])) by = -k0 * (py[0] + my[0]) / (2 * hh * hh);
@@ -7096,8 +7899,8 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     const dI = ev.dIn, dO = ev.dOut || ev.dIn, si = pol && pol.parIn ? -1 : 1, so = pol && pol.parOut ? -1 : 1;
     eIn = { sg: si, v: [-dI[1] * si, dI[0] * si, 0] }; eOut = { sg: so, v: [-dO[1] * so, dO[0] * so, 0] };
     const el = ev.surf && ev.surf.el;
-    if (ev.mode === 'P' && el && (el.type === 'waveplate' || el.type === 'polariser')) {
-      const Jm = jonesOf(el), cj = v => [v[0], -v[1]];
+    if (ev.mode === 'P' && el && JONES_TYPES.has(el.type)) {
+      const Jm = ev.jm || jonesOf(el), cj = v => [v[0], -v[1]];
       jonesM = [cj(Jm[1][1]), cj(Jm[1][0]), cj(Jm[0][1]), cj(Jm[0][0])];   // [ss, sp, ps, pp]
     } else coef = polCoeff(ev, lam0 * 1e6);
   }
@@ -7164,13 +7967,26 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
             const nv = [r[11], r[12], r[13]];
             let c = -(d[0] * nv[0] + d[1] * nv[1] + d[2] * nv[2]), N3 = nv;
             if (c < 0) { N3 = nv.map(v => -v); c = -c; }
-            if (ev.mode === 'R') d2 = d.map((v, i2) => v + 2 * c * N3[i2]);
+            if (ev.surf && ev.surf.kind === 'grating') {
+              // the grating equation along the surface in the bench plane, as the tracer does
+              const f = ev.surf.f, tY0 = [-f.s, f.c], nn = [f.c, f.s];
+              const dn = d[0] * nn[0] + d[1] * nn[1];
+              const tY = d[0] * tY0[0] + d[1] * tY0[1] + (ev.order || 0) * lam0 * ev.surf.el.lpmm / n1, tZ = d[2];
+              const dN = (ev.mode === 'R' ? -1 : 1) * (dn < 0 ? -1 : 1) * Math.sqrt(Math.max(0, 1 - tY * tY - tZ * tZ));
+              d2 = [dN * nn[0] + tY * tY0[0], dN * nn[1] + tY * tY0[1], tZ];
+            } else if (ev.mode === 'R') d2 = d.map((v, i2) => v + 2 * c * N3[i2]);
             else if (ev.mode === 'T' && ev.surf && ev.surf.kind === 'refract' && n1 !== n2) {
               const eta = n1 / n2, kk = 1 - eta * eta * (1 - c * c), m = eta * c - Math.sqrt(Math.max(0, kk));
               d2 = d.map((v, i2) => eta * v + m * N3[i2]);
             } else d2 = d.slice();
           }
-          PM = polMatrix(coef, d, [r[11], r[12], r[13]], d2, eIn, eOut, [ev.dIn[0], ev.dIn[1], 0]);
+          if (ev.surf && ev.surf.kind === 'grating') {
+            // the grooves run out of the plane and this grating treats s and p alike, so each
+            // keeps its own axis; a ray's plane of incidence is no guide once the grating has
+            // turned it in the bench plane
+            const cc = coef(1);
+            PM = [[cc[0], -cc[1]], [0, 0], [0, 0], [cc[2], -cc[3]]];
+          } else PM = polMatrix(coef, d, [r[11], r[12], r[13]], d2, eIn, eOut, [ev.dIn[0], ev.dIn[1], 0]);
         }
         if (!r[4]) { prev = null; continue; }
         // A sample the edge crosses passes the share of it on the open side. For a straight
@@ -7232,7 +8048,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   let nxD = null, nyD = null;
   // A surface that cuts nothing loses nothing to its grid: what resampling the input onto
   // the new grid gains or loses is interpolation, and comes back out (see the round step)
-  const isPol = ev.surf && ev.surf.el && ev.surf.el.type === 'polariser';
+  const isPol = ev.surf && ev.surf.el && (ev.surf.el.type === 'polariser' || ev.surf.el.type === 'isolator');
   const resScale = fixed ? fixed.resScale || 1 : (!clipped && ev.mode !== 'M' && !isPol && pU > 0 ? Math.sqrt(pIn / (pU * g * g * ax.d * ay.d)) : 1);
   if (resScale !== 1) scaleAll(resScale);
   if (clipped) {
@@ -7307,7 +8123,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     const J = pol.Jin, cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
     let ps, pp;
     if (jonesM) {
-      const Jm = jonesOf(ev.surf.el);
+      const Jm = ev.jm || jonesOf(ev.surf.el);
       pp = [cm(Jm[0][0], [J[2], J[3]])[0] + cm(Jm[0][1], [J[0], J[1]])[0], cm(Jm[0][0], [J[2], J[3]])[1] + cm(Jm[0][1], [J[0], J[1]])[1]];
       ps = [cm(Jm[1][0], [J[2], J[3]])[0] + cm(Jm[1][1], [J[0], J[1]])[0], cm(Jm[1][0], [J[2], J[3]])[1] + cm(Jm[1][1], [J[0], J[1]])[1]];
     } else if (coef) {
@@ -7369,6 +8185,7 @@ function popRoundEv(ev) {
   if (Math.abs(ev.ly) > 1e-9 * Math.max(1, ev.semi)) return false;
   const s = ev.surf;
   if (s && s.y0) return false;
+  if (s && s.cyl) return false;                 // a cylinder focuses one way only
   if (s && !s.flat && ev.mode !== 'P' && Math.abs(ev.cth - 1) > 1e-9) return false;
   return true;
 }
@@ -7469,7 +8286,7 @@ function* popRunGen(beams, srcs, opts = {}) {
     // waveplate or polariser: the tracer's Jones vector speaks for the beam's centre only, and a
     // vector field can carry light off-centre that the centre lacks (a lens between crossed
     // polarisers leaks at its edges). Those are judged by their field instead, below.
-    const polEl = c => { const e = beams[c].ev; return e && e.mode === 'P' && e.surf && e.surf.el && (e.surf.el.type === 'polariser' || e.surf.el.type === 'waveplate'); };
+    const polEl = c => { const e = beams[c].ev; return e && e.mode === 'P' && e.surf && e.surf.el && JONES_TYPES.has(e.surf.el.type); };
     const ch = (kids.get(job.i) || []).filter(c => entries.has(job.i) || beams[c].w * (job.boost || 1) >= (eng === '2d' ? 1e-3 : 1e-4) * job.root || (eng === '2d' && polEl(c)))
       .sort((a, c) => beams[a].w - beams[c].w);
     if (!ch.length) continue;
@@ -8658,6 +9475,41 @@ function updateReadoutsIn(container, el) {
     }
     parts = [rows, 'Spot statistics are measured along the screen from its centre and weighted by ray power. Wavefront error is the spread in optical path to the centroid.' +
       (st && st.mixed ? ' Path figures use the most common wavelength on this screen.' : '')];
+  } else if (el.type === 'fibre') {
+    const r = fibreCoupling(el), nm = benchNms()[0], m = fibreMode(el.core, el.na, nm);
+    const rows = [['Mode field diameter', fmtLen(2 * m.w) + ' at ' + nm + ' nm'], ['V number', (+m.V.toPrecision(3)) + (m.V < 2.405 ? ', single mode' : ', multimode: the fundamental only is shown')]];
+    if (r) rows.push(['Arriving', (+r.inMw.toPrecision(4)) + ' mW'], ['Coupling efficiency', (100 * r.eff).toPrecision(4) + '%'], ['Into the fibre', (+r.mw.toPrecision(4)) + ' mW']);
+    else rows.push(['Arriving', 'no Gaussian beam reaches the face']);
+    parts = [rows, 'Efficiency is what enters the fibre’s mode against what arrives on its face.'];
+  } else if (el.type === 'detector') {
+    const r = detectorReading(el), nm = benchNms()[0];
+    const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
+    parts = [[['Optical power', f(r.mw) + ' mW'], ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+      ['Photocurrent', f(r.mA) + ' mA'], ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
+      ['Noise', f(r.noiseV * 1e3) + ' mV rms'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
+      'Sources count at the power set on each. Noise is over the bandwidth given.'];
+  } else if (el.type === 'grating') {
+    const nm = benchNms()[0], arr = (lastTrace.beams || []).find(b => b.endEl === el.id);
+    const f = frame(el), ldy = arr ? toLocalDir(f, arr.dx, arr.dy)[1] : 0;
+    const rows = gratingOrders(el, nm, ldy, 1).map(o => ['Order ' + (o.m > 0 ? '+' : '') + o.m,
+      (Math.asin(o.ty) / deg).toFixed(2) + '°, ' + (100 * o.eff).toPrecision(3) + '%']);
+    const lit = Math.asin(clamp(nm * 1e-6 * el.lpmm / 2, -1, 1)) / deg;
+    rows.push(['Littrow angle, order 1', lit.toFixed(2) + '°']);
+    parts = [rows, 'At ' + nm + ' nm, for the light ' + (arr ? 'arriving' : 'arriving square on') + '. Angles from the grating’s normal.'];
+  } else if (el.type === 'crystal') {
+    const nm = benchNms()[0], C = CRYSTALS[el.crystal], no = C.o(nm / 1000), ne = C.e(nm / 1000);
+    const rows = [['nₒ, nₑ at ' + nm + ' nm', no.toFixed(4) + ', ' + ne.toFixed(4)]];
+    if (el.shape === 'displacer') {
+      const rho = walkOff(bireMat(el.crystal, 'p', el.axisAngle), nm);
+      rows.push(['Walk-off angle', (Math.abs(rho) / deg).toFixed(2) + '°'], ['Beams separated by', fmtLen(el.length * Math.abs(Math.tan(rho)))]);
+    }
+    if (el.shape === 'wollaston') rows.push(['Divergence, about', (2 * Math.abs(Math.asin((no - ne) * Math.tan(el.wedge * deg))) / deg).toFixed(2) + '°']);
+    if (el.shape === 'glan') rows.push(['Passes', no < ne ? 's (ordinary)' : 'p (extraordinary)']);
+    parts = [rows, 'Rays entering the crystal split into s and p, each with its own index. Dispersion of ' + C.name + ' from its Sellmeier equations.'];
+  } else if (el.type === 'filter' || el.type === 'gain') {
+    const rows = benchNms().slice(0, 6).map(nm => [nm + ' nm', el.type === 'filter' ? (100 * filterT(el, nm)).toPrecision(4) + '% through'
+      : '×' + (+gainAt(el, nm).toPrecision(4)) + ' a pass']);
+    parts = [rows, el.type === 'filter' ? 'Transmission at each source wavelength.' : 'Power gain at each source wavelength.'];
   } else if (el.type === 'stop') {
     const w = lastTrace.blocked[el.id] || 0;
     const pct = 100 * w / Math.max(1, lastTrace.emitted);
@@ -8674,7 +9526,7 @@ function updateReadoutsIn(container, el) {
     }
     const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
-    parts = [rows, 'Paraxial values. ' + n0 + ' at ' + wls[0] + ' nm.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
+    parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + wls[0] + ' nm.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
   } else return;
   const sig = JSON.stringify(parts);
@@ -9094,6 +9946,15 @@ function importZmx(file) {
    ========================================================================== */
 
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addElement(b.dataset.add)));
+/* the More menu: the less common elements, kept out of the toolbar's way */
+{
+  const btn = document.getElementById('btnMore'), menu = document.getElementById('moreMenu');
+  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
+  btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+  menu.addEventListener('click', () => show(false));
+  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+}
 document.getElementById('btnSave').addEventListener('click', saveFile);
 document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileJekray').click());
 document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
@@ -9431,7 +10292,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     project() { return project; },
     lastTrace() { return lastTrace; },
     popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
-      popGaussian2, popLeg2, popStats2 },
+      popGaussian2, popLeg2, popStats2, popSurface2, popScreen },
     // every Gaussian source's beam tree as fields, whatever it is set to show
     popNotes() {
       const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));

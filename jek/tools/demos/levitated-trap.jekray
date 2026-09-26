@@ -208,5 +208,6 @@
   "cx": 0,
   "cy": 0,
   "scale": 40000
- }
+ },
+ "keepView": true
 }

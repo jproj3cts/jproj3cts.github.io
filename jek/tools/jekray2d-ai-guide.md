@@ -20,7 +20,7 @@ What it cannot do: anything out of the plane. There are no skew rays, no out-of-
 2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.
 3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.
 4. **Record your assumptions.** Put in "notes" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.
-5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either click **Paste text** and paste it, or save it as `name.jekray` and use **Open .jekray**.
+5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
 6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.
 
 ## The file

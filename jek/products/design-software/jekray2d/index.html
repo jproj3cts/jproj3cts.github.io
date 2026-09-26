@@ -158,6 +158,7 @@
         <ul>
           <li>Nothing to install and no account. Your bench is saved in your browser as you work</li>
           <li>Lenses, aspheres, mirrors, beam splitters, prisms, waveplates, polarisers, stops and masks</li>
+          <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, photodiodes) joined by drag-drawn fibres, on as many bench tabs as you need</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
           <li>Save and share benches as <code>.jekray</code> files; export the layout as PNG, SVG or PDF, and any plot as a picture or CSV</li>
           <li>Box-select, copy and paste between tabs (fibres included), right-click menu, lock, align, ruler and optical-path measure, minimap</li>
@@ -223,6 +224,18 @@
         <h2>Cavities and polarisation</h2>
         <p>When light loops back on itself, JEKray2D finds the cavity for you and reports its free spectral range, finesse, linewidth, stability, Gaussian mode and losses. It also solves the steady-state field and the cavity’s own modes, in the same way as the Fox–Li method.</p>
         <p>Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser. For steep focusing it switches to a full vector calculation of the focal field.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/split-laser.png" alt="A fibre laser split by a coupler into two fibre launches, collimated and recombined on a 50/50 cube in front of a photodiode" loading="lazy">
+        <figcaption>Two fibre launches from one laser, recombined in free space</figcaption>
+      </figure>
+      <div>
+        <h2>Fibre, free space and the signals between</h2>
+        <p>Draw fibre subsystems next to the free-space optics: lasers, couplers, WDMs, circulators, Bragg gratings, AOMs and EOMs, joined port to port with fibres you shape by dragging. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
+        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal.</p>
       </div>
     </section>
 
@@ -300,6 +313,30 @@
           <div class="rt-example-body">
             <h3>Fox–Li resonator</h3>
             <p>Two flat mirrors whose edges shape the modes. The classic Fox and Li calculation, done by the solver.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=pdh-lock">
+          <img src="img/pdh-lock.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Pound–Drever–Hall lock</h3>
+            <p>A 20 MHz EOM, a pick-off and a Fabry–Perot cavity. The photodiode’s mixer gives the PDH error signal: zero when locked, changing sign either side of resonance.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
+          <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre heterodyne</h3>
+            <p>A fibre Mach–Zehnder with an 80 MHz AOM in one arm. The photodiode shows the beat note in its RF spectrum and on its oscilloscope.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=split-laser">
+          <img src="img/split-laser.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Two launches from one laser</h3>
+            <p>One fibre laser split by a coupler into two collimated launches that meet on a cube. Change the fibre lengths or the coherence length and watch the fringe contrast.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>

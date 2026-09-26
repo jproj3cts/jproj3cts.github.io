@@ -1,0 +1,107 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Pound-Drever-Hall lock",
+ "view": {
+  "cx": 0,
+  "cy": 0,
+  "scale": 3
+ },
+ "snap": 0,
+ "maxBounces": 40,
+ "minPower": 0.0001,
+ "ghosts": false,
+ "elements": [
+  {
+   "type": "source",
+   "name": "Laser",
+   "x": -130,
+   "y": 0,
+   "angle": 0,
+   "wavelength": 1064,
+   "gauss": true,
+   "w0": 0.3,
+   "z0": 130,
+   "width": 0.5,
+   "rays": 1,
+   "pol": "s",
+   "power": 1,
+   "popN": 256,
+   "beamView": "field"
+  },
+  {
+   "type": "eom",
+   "name": "EOM, 20 MHz",
+   "x": -100,
+   "y": 0,
+   "angle": 0,
+   "fm": 20,
+   "beta": 1.08
+  },
+  {
+   "type": "cube",
+   "name": "Pick-off",
+   "x": -50,
+   "y": 0,
+   "angle": 0,
+   "size": 12.7,
+   "mode": "npbs",
+   "reflect": 50,
+   "material": {
+    "glass": "N-BK7"
+   },
+   "coat": {
+    "mode": "custom",
+    "R": 0
+   }
+  },
+  {
+   "type": "mirror",
+   "name": "Input coupler",
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "length": 25,
+   "reflect": 99
+  },
+  {
+   "type": "mirror",
+   "name": "End mirror",
+   "x": 250,
+   "y": 0,
+   "angle": 180,
+   "length": 25,
+   "reflect": 99.9,
+   "R": 500
+  },
+  {
+   "type": "screen",
+   "name": "Beam dump",
+   "x": -50,
+   "y": 35,
+   "angle": -90,
+   "length": 10
+  },
+  {
+   "type": "detector",
+   "name": "PDH photodiode",
+   "x": -50,
+   "y": -40,
+   "angle": 90,
+   "length": 10,
+   "material": "custom",
+   "resp": 1,
+   "gain": 1000,
+   "bandwidth": 1000000000,
+   "demodF": 20
+  },
+  {
+   "type": "screen",
+   "name": "Transmitted",
+   "x": 300,
+   "y": 0,
+   "angle": 180,
+   "length": 20
+  }
+ ]
+}

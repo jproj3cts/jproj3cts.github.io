@@ -226,7 +226,7 @@
   .rt-btn[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-stage canvas.rt-minimap { position: absolute; right: 0.6rem; bottom: 1.9rem; width: 180px; height: 120px; border: 1px solid rgba(255,255,255,0.22);
     border-radius: 3px; background: rgba(12,16,18,0.72); cursor: pointer; touch-action: none; display: block; z-index: 3; }
-  .rt-measurebar { position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); display: flex; z-index: 4;
+  .rt-measurebar { position: absolute; left: 50%; bottom: 0.6rem; transform: translateX(-50%); display: flex; z-index: 4;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
   .rt-measurebar button { font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12);
     padding: 0.35rem 0.8rem; cursor: pointer; }
@@ -441,6 +441,21 @@
     color: var(--jek-ink);
   }
 
+  dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
+  .rt-welcome { text-align: left; }
+  .rt-keycols { columns: 2 22rem; column-gap: 1.6rem; }
+  .rt-keycols h3 { break-after: avoid; margin: 0.2rem 0 0.35rem; font-size: 0.9rem; }
+  .rt-keys { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; margin: 0 0 0.9rem; font-size: 0.85rem; break-inside: avoid; }
+  .rt-keys dt { font-family: var(--jek-mono); font-size: 0.8rem; color: var(--jek-ink); max-width: 14rem; text-align: left; }
+  .rt-keycols h3 { text-align: left; }
+  .rt-keys dd { margin: 0; color: var(--jek-ink-soft); }
+  .rt-btn.rt-help { min-width: 2.2rem; font-weight: 700; }
+  /* first visit: a few words on the bench, once */
+  .rt-welcome { position: absolute; left: 0.8rem; bottom: 2.2rem; z-index: 5; max-width: min(24rem, calc(100% - 1.6rem)); padding: 0.8rem 0.95rem;
+    background: var(--jek-panel); color: var(--jek-ink); border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-size: 0.85rem; line-height: 1.45; }
+  .rt-welcome h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+  .rt-welcome ul { margin: 0 0 0.6rem; padding-left: 1.1rem; color: var(--jek-ink-soft); }
+  .rt-welcome .rt-actions { display: flex; gap: 0.4rem; justify-content: flex-end; margin: 0; }
   dialog.rt-dialog {
     width: min(34rem, calc(100vw - 2rem));
     padding: 1.25rem 1.4rem;
@@ -528,6 +543,23 @@
       <div class="rt-row">
         <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         <div class="rt-group rt-right">
+          <div class="rt-more">
+            <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="examplesMenu">Examples ▾</button>
+            <div class="rt-menu rt-menu-right" id="examplesMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-demo="michelson">Michelson interferometer</button>
+              <button type="button" role="menuitem" data-demo="mach-zehnder">Mach–Zehnder interferometer</button>
+              <button type="button" role="menuitem" data-demo="fabry-perot">Fabry–Perot cavity</button>
+              <button type="button" role="menuitem" data-demo="fox-li">Fox–Li: a cavity finds its mode</button>
+              <button type="button" role="menuitem" data-demo="pdh-lock">Pound–Drever–Hall lock</button>
+              <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
+              <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
+              <button type="button" role="menuitem" data-demo="youngs-double-slit">Young’s double slit</button>
+              <button type="button" role="menuitem" data-demo="poissons-spot">Poisson’s spot</button>
+              <button type="button" role="menuitem" data-demo="plano-convex">Plano-convex lens, both ways round</button>
+              <button type="button" role="menuitem" data-demo="tight-focus">A tight focus, vector</button>
+              <button type="button" role="menuitem" data-demo="maltese-cross">Maltese cross</button>
+            </div>
+          </div>
           <button class="rt-btn" id="btnOpen">Open .jekray</button>
           <button class="rt-btn primary" id="btnSave">Save .jekray</button>
           <button class="rt-btn" id="btnNew">New</button>
@@ -580,6 +612,7 @@
               <button type="button" role="menuitem" data-export="pdf">Layout as PDF (vector)</button>
             </div>
           </div>
+          <button class="rt-btn rt-help" id="btnHelp" type="button" title="Keyboard and mouse shortcuts (?)" aria-label="Shortcuts">?</button>
         </div>
       </div>
       <div class="rt-row" style="border-top:none;padding-top:0">
@@ -593,7 +626,7 @@
         <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
         <canvas class="rt-minimap" id="minimap" hidden aria-label="Minimap: click or drag to move the view"></canvas>
         <div class="rt-measurebar" id="measureBar" hidden>
-          <button type="button" data-mtool="ruler" class="on">Ruler</button><button type="button" data-mtool="angle">Angle</button><button type="button" data-mtool="clear">Clear</button><button type="button" data-mtool="done">Done</button>
+          <button type="button" data-mtool="ruler" class="on">Ruler</button><button type="button" data-mtool="angle">Angle</button><button type="button" data-mtool="clear" title="Remove every measurement on this tab (Delete removes the last one; Ctrl+Z brings them back)">Clear</button><button type="button" data-mtool="done">Done</button>
         </div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
@@ -664,6 +697,12 @@
       <button class="rt-btn" id="optClose">Close</button>
       <button class="rt-btn primary" id="optRun">Run</button>
     </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">Shortcuts</h2>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-keys"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-keys"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-keys"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-keys"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-keys"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-keys"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog" id="newDialog">
@@ -1686,6 +1725,7 @@ function serialize() {
     benches: project.benches, tab: project.tab,
     elements: project.elements,
     fibres: project.fibres || [],
+    measures: project.measures || [],
   };
 }
 
@@ -1717,7 +1757,23 @@ function loadProject(data) {
   } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
   ensureBenches(p);
   p.fibres = normFibres(data.fibres, p.elements);
+  p.measures = normMeasures(data.measures, p.benches);
   return p;
+}
+/* Rulers and angles left on the bench: points, and for those on a beam its direction there */
+function normMeasures(list, benches) {
+  const ids = new Set(benches.map(b => b.id)), out = [];
+  for (const m of Array.isArray(list) ? list : []) {
+    if (!m || (m.type !== 'ruler' && m.type !== 'angle') || !ids.has(m.bench) || !Array.isArray(m.pts) || m.pts.length !== (m.type === 'ruler' ? 2 : 3)) continue;
+    const pts = m.pts.map(q => {
+      if (!q || !isFinite(q.x) || !isFinite(q.y)) return null;
+      const o = { x: +q.x, y: +q.y };
+      if (isFinite(q.dx) && isFinite(q.dy) && q.beam !== undefined) Object.assign(o, { beam: 0, dx: +q.dx, dy: +q.dy });
+      return o;
+    });
+    if (pts.every(Boolean)) out.push({ type: m.type, bench: m.bench, pts });
+  }
+  return out;
 }
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
 function normFibres(list, els) {
@@ -1877,11 +1933,12 @@ function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [] });
+const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [] });
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
   project.fibres = S.f || [];
+  project.measures = S.m || [];
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
@@ -3371,16 +3428,26 @@ function drawBeams(fieldShown) {
   const B = lastTrace.beams;
   if (!B || !B.length) return;
   ctx.save();
+  // a cavity's round trips land on one another: each envelope once, to the pixel
+  const done = new Set(), m2 = new Map();
   for (const seg of B) {
     if (seg.fan || seg.pol || seg.bench !== project.tab) continue;       // a ray fan's pilot is not a beam; one envelope per beam
     if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
     const outline = fieldShown && fieldShown.has(seg.src);   // the field is drawn: just mark 1/e²
+    if (!m2.has(seg.src)) m2.set(seg.src, m2Of(getEl(seg.src)));
+    const M2 = m2.get(seg.src);
+    const bA = beamAt(seg.qr, seg.qi, seg.n, seg.nm, M2), bB = beamAt(seg.qr + seg.len, seg.qi, seg.n, seg.nm, M2);
+    if (bA && bB) {
+      const k = [sx(seg.x0), sy(seg.y0), sx(seg.x0 + seg.dx * seg.len), sy(seg.y0 + seg.dy * seg.len), bA.w * V().scale, bB.w * V().scale].map(Math.round).join(',') + seg.colour + outline;
+      if (done.has(k)) continue;
+      done.add(k);
+    }
     const nxp = -seg.dy, nyp = seg.dx;
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
     const up = [], dn = [];
     for (let i = 0; i <= steps; i++) {
       const t = seg.len * i / steps;
-      const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, m2Of(getEl(seg.src)));
+      const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, M2);
       if (!b) continue;
       const x = seg.x0 + seg.dx * t, y = seg.y0 + seg.dy * t;
       up.push([sx(x + nxp * b.w), sy(y + nyp * b.w)]);
@@ -4233,6 +4300,7 @@ canvas.addEventListener('pointermove', e => {
 function endPointer(e) {
   pointers.delete(e.pointerId);
   if (!drag) return;
+  setTimeout(() => { if (!midDrag()) fwPump(); }, 0);    // what the drag held back
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
   if (drag.mode === 'grip' || drag.mode === 'bend') {
     const moved = drag.mode === 'grip' && drag.started;
@@ -4320,6 +4388,13 @@ document.addEventListener('keydown', e => {
   if (!mod && (e.key === 'z' || e.key === 'Z')) { zoomToSelection(); return; }
   if (!mod && (e.key === 'm' || e.key === 'M')) { setMeasure(!measureMode); return; }
   if (e.key === 'Escape' && measureMode) { if (measureDraft) { measureDraft = null; requestRender(); } else setMeasure(false); return; }
+  if (measureMode && (e.key === 'Delete' || e.key === 'Backspace')) {
+    // the last one on this tab
+    e.preventDefault();
+    const M = project.measures || [], i = M.map(m => m.bench).lastIndexOf(project.tab);
+    if (i >= 0) { checkpoint(); M.splice(i, 1); scheduleSave(); requestRender(); }
+    return;
+  }
   const group = selection();
   if (group.length > 1) {
     if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return; }
@@ -4726,6 +4801,7 @@ function activityNow() {
   const J0 = [...popScreenState.jobs.values()], scr = J0.map(J => J.el.name);
   if (scr.length) jobs.push((J0[0].finishing ? 'the figures at ' : 'the field at ') + scr[0] + (scr.length > 1 ? ' and ' + (scr.length - 1) + ' more screen' + (scr.length > 2 ? 's' : '') : ''));
   if (cavJob && !cavJob.done) jobs.push('the cavity’s steady state');
+  if (!jobs.length && FW.busy) jobs.push({ detector: 'the light at the photodiodes', closeup: 'the close-up', cavity: 'the cavity’s steady state', screen: 'the field at the screens', bench: 'the diffracted field on the bench' }[FW.busy.kind] || 'the field');
   if (!jobs.length) return null;
   const text = jobs.join(', ');
   return { text: 'Computing ' + text, frac: null };
@@ -7028,7 +7104,15 @@ function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {
     c.fillText(t.text, x0 - 5, p); last = p - 5;
   }
   const titleY = axisTitle(sy, ty.unit);
-  if (titleY && A.t >= 16) { c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText(titleY, 0, A.t - 8); }   // clear of the top tick's label
+  if (titleY && A.t >= 16) {
+    // clear of the top tick's label, and of the sync button in the corner: a long title shrinks, then is cut short
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    const room = (c.canvas.clientWidth || right + 6) - 30;
+    let t = titleY, px = parseFloat(c.font) || 11;
+    while (c.measureText(t).width > room && px > 8.5) { px -= 0.5; c.font = c.font.replace(/[\d.]+px/, px + 'px'); }
+    while (c.measureText(t + '\u2026').width > room && t.length > 4) t = t.slice(0, -1);
+    c.fillText(t === titleY ? t : t.trimEnd() + '\u2026', 2, A.t - 8);
+  }
   c.restore();
 }
 
@@ -10018,11 +10102,16 @@ const POP_MAX_SEGS = 300;
 const popState = { key: '', result: null, timer: null, job: null };
 
 const popSources = () => allSources().filter(e => e.gauss && e.beamView === 'field');
+// asked for several times a frame: the beams part once per trace
+let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e)]);
-  return JSON.stringify([cfg, beams.filter(b => ids.has(b.src)).map(b =>
-    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh])]);
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e)]));
+  if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
+  const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
+    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh])) + ']';
+  popKeyMemo = { beams, cfg, key };
+  return key;
 }
 
 /* Clear radius a surface offers the beam: its semi-aperture less the decentre, seen
@@ -10745,6 +10834,8 @@ function schedulePop() {
 function drawPop() {
   const srcs = popSources();
   if (!srcs.length) return new Set();
+  // mid-drag the field is stale at every step: the outlines show, and it is worked out on release
+  if (drag && drag.started && (drag.mode === 'move' || drag.mode === 'rotate') && !playing.size) return new Set();
   const key = popKeyOf(lastTrace.beams, srcs);
   if (key !== popState.key && fieldFrames.bench.has(key)) {
     popState.key = key; popState.result = fieldFrames.bench.get(key); popState.job = null;
@@ -11971,7 +12062,8 @@ function drawMinimap() {
    its vertex, then a point on each arm). Ends snap to elements' middles, fibre ports and
    the beams; Shift turns snapping off. A ruler with both ends on one beam's path also gives
    the optical path between them. Measurements stay on their tab until cleared. */
-let measureMode = false, measureTool = 'ruler', measures = [], measureDraft = null;
+let measureMode = false, measureTool = 'ruler', measureDraft = null;
+const addMeasure = m => { checkpoint(); (project.measures = project.measures || []).push(m); scheduleSave(); };
 function setMeasure(on) {
   measureMode = on; measureDraft = null;
   document.getElementById('btnMeasure').setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -12005,7 +12097,7 @@ function measureDown(px, py, e) {
   else {
     if (!measureDraft) measureDraft = { type: 'angle', bench: project.tab, pts: [P, P] };
     else if (measureDraft.pts.length === 2) measureDraft.pts.push(P);
-    else { measureDraft.pts[2] = P; measures.push(measureDraft); measureDraft = null; }
+    else { measureDraft.pts[2] = P; addMeasure(measureDraft); measureDraft = null; }
     drag = { mode: 'measure', angle: true };
   }
   requestRender();
@@ -12020,34 +12112,42 @@ function measureUp() {
   const d = drag; drag = null;
   if (d && !d.angle && measureDraft && measureDraft.type === 'ruler') {
     const [a, b] = measureDraft.pts;
-    if (Math.hypot(sx(a.x) - sx(b.x), sy(a.y) - sy(b.y)) > 3) measures.push(measureDraft);
+    if (Math.hypot(sx(a.x) - sx(b.x), sy(a.y) - sy(b.y)) > 3) addMeasure(measureDraft);
     measureDraft = null;
   }
   requestRender();
 }
 /* the optical path between two points on beams, if one is downstream of the other */
-/* a point taken on a beam, found again in the latest trace: the beam through it, going its way */
-function beamThrough(p) {
-  if (p.beam === undefined) return null;
-  const B = lastTrace.beams || [], tol = Math.max(1e-6, 0.5 / V().scale);
-  const fits = b => b && b.bench === project.tab && !b.fan && !b.pol && Math.abs(b.dx - p.dx) < 1e-6 && Math.abs(b.dy - p.dy) < 1e-6 &&
-    Math.abs((p.x - b.x0) * b.dy - (p.y - b.y0) * b.dx) < tol && (p.x - b.x0) * b.dx + (p.y - b.y0) * b.dy > -tol &&
-    (p.x - b.x0) * b.dx + (p.y - b.y0) * b.dy < b.len + tol;
-  const i = fits(B[p.beam]) ? p.beam : B.findIndex(fits);
-  return i < 0 ? null : { beam: i, t: (p.x - B[i].x0) * B[i].dx + (p.y - B[i].y0) * B[i].dy };
+/* a point taken on a beam, found again in the latest trace: every beam through it going its
+   way (overlapping beams, like the two arms of a Michelson on its way out, give several) */
+function beamsThrough(p) {
+  if (p.dx === undefined) return [];
+  const B = lastTrace.beams || [], tol = Math.max(1e-6, 0.5 / V().scale), out = [];
+  B.forEach((b, i) => {
+    if (b.bench !== project.tab || b.fan || b.pol || Math.abs(b.dx - p.dx) > 1e-6 || Math.abs(b.dy - p.dy) > 1e-6) return;
+    const t = (p.x - b.x0) * b.dx + (p.y - b.y0) * b.dy;
+    if (Math.abs((p.x - b.x0) * b.dy - (p.y - b.y0) * b.dx) < tol && t > -tol && t < b.len + tol) out.push({ beam: i, t });
+  });
+  return out;
 }
+/* the optical paths from one point to the other, along the light: each different one once */
 function measureOpl(a0, b0) {
-  const a = beamThrough(a0), b = beamThrough(b0);
-  if (!a || !b) return null;
+  const A = beamsThrough(a0), Bs = beamsThrough(b0);
+  if (!A.length || !Bs.length) return [];
   const B = lastTrace.beams, at = p => (B[p.beam].opl || 0) + B[p.beam].n * p.t;
   const up = (i, j) => { for (let k = j; k >= 0; k = B[k].parent) if (k === i) return true; return false; };
-  if (a.beam === b.beam) return Math.abs(at(b) - at(a));
-  if (up(a.beam, b.beam)) return at(b) - at(a);
-  if (up(b.beam, a.beam)) return at(a) - at(b);
-  return null;
+  const vals = [];
+  for (const a of A) for (const b of Bs) {
+    let v = null;
+    if (a.beam === b.beam) v = Math.abs(at(b) - at(a));
+    else if (up(a.beam, b.beam)) v = at(b) - at(a);
+    else if (up(b.beam, a.beam)) v = at(a) - at(b);
+    if (v !== null && !vals.some(w => Math.abs(w - v) < 1e-6)) vals.push(v);
+  }
+  return vals.sort((x, y) => x - y);
 }
 function drawMeasures() {
-  const list = measures.filter(m => m.bench === project.tab);
+  const list = (project.measures || []).filter(m => m.bench === project.tab);
   if (measureDraft && measureDraft.bench === project.tab) list.push(measureDraft);
   if (!list.length) return;
   ctx.save();
@@ -12067,7 +12167,8 @@ function drawMeasures() {
     if (m.type === 'ruler') {
       const L = Math.hypot(b.x - a.x, b.y - a.y), brg = Math.atan2(b.y - a.y, b.x - a.x) / deg, opl = measureOpl(a, b);
       const lines = [fmtLen(L) + ', at ' + brg.toFixed(2) + '\u00b0', 'across ' + fmtLen(Math.abs(b.x - a.x)) + ', up ' + fmtLen(Math.abs(b.y - a.y))];
-      if (opl !== null) lines.push('optical path ' + fmtLen(opl));
+      if (opl.length === 1) lines.push('optical path ' + fmtLen(opl[0]));
+      else if (opl.length) lines.push('optical paths ' + opl.slice(0, 3).map(fmtLen).join(', ') + (opl.length > 3 ? '\u2026' : ''), '(beams overlap here: one per route)');
       label((sx(a.x) + sx(b.x)) / 2 + 8, (sy(a.y) + sy(b.y)) / 2 + 6, lines);
     } else if (c2) {
       const a1 = Math.atan2(b.y - a.y, b.x - a.x), a2 = Math.atan2(c2.y - a.y, c2.x - a.x);
@@ -12081,7 +12182,7 @@ function drawMeasures() {
 document.getElementById('measureBar').addEventListener('click', e => {
   const b = e.target.closest('[data-mtool]'); if (!b) return;
   const t = b.dataset.mtool;
-  if (t === 'clear') { measures = measures.filter(m => m.bench !== project.tab); measureDraft = null; requestRender(); return; }
+  if (t === 'clear') { measureDraft = null; if ((project.measures || []).some(m => m.bench === project.tab)) { checkpoint(); project.measures = project.measures.filter(m => m.bench !== project.tab); scheduleSave(); } requestRender(); return; }
   if (t === 'done') { setMeasure(false); return; }
   measureTool = t; measureDraft = null;
   document.querySelectorAll('#measureBar [data-mtool]').forEach(x => x.classList.toggle('on', x.dataset.mtool === t));
@@ -12107,6 +12208,13 @@ function fitView() {
     const r = halfSize(e);
     x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r);
     y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r);
+    // the ports too, and the shaped fibres from them: a fibre tip's tail, a route drawn wide
+    for (let i = 0; i < portsOf(e).length; i++) { const Q = portWorld(e, i); x0 = Math.min(x0, Q.x); x1 = Math.max(x1, Q.x); y0 = Math.min(y0, Q.y); y1 = Math.max(y1, Q.y); }
+  }
+  const ids = new Set(els.map(e => e.id));
+  for (const F of project.fibres || []) {
+    if (!ids.has(F.a[0]) || !ids.has(F.b[0])) continue;
+    for (const n of F.path || []) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); }
   }
   const pad = 1.25;
   const s = Math.min(W / ((x1 - x0) * pad || 1), H / ((y1 - y0) * pad || 1));
@@ -12785,7 +12893,7 @@ document.getElementById('paletteMenu').addEventListener('click', e => {
 });
 new ResizeObserver(() => layoutPalette()).observe(document.getElementById('addRow').parentElement);
 /* the palette and More menus */
-for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu']]) {
+for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu'], ['btnExamples', 'examplesMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
@@ -12794,6 +12902,36 @@ for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu']
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
 }
 document.getElementById('btnSave').addEventListener('click', saveFile);
+document.getElementById('examplesMenu').addEventListener('click', e => { const b = e.target.closest('[data-demo]'); if (b) { hideWelcome(); openDemo(b.dataset.demo, true); } });
+{
+  const dlg = document.getElementById('helpDialog');
+  document.getElementById('btnHelp').addEventListener('click', () => { hideWelcome(); dlg.showModal(); });
+  document.getElementById('helpClose').addEventListener('click', () => dlg.close());
+  document.addEventListener('keydown', e => {
+    if (e.key !== '?' || e.ctrlKey || e.metaKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
+    e.preventDefault(); hideWelcome(); dlg.showModal();
+  });
+}
+/* the first visit: what to do first, and where the examples are */
+function hideWelcome() {
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+  try { localStorage.setItem('jek-raytracer-welcomed', '1'); } catch (err) { /* shown again next time: fine */ }
+}
+function showWelcome() {
+  try { if (localStorage.getItem('jek-raytracer-welcomed')) return; } catch (err) { return; }
+  const pick = h('select', { 'aria-label': 'Open an example' }, h('option', { value: '' }, 'Open an example\u2026'),
+    ...[...document.querySelectorAll('#examplesMenu [data-demo]')].map(b => h('option', { value: b.dataset.demo }, b.textContent)));
+  pick.addEventListener('change', () => { if (pick.value) { const d = pick.value; hideWelcome(); openDemo(d, true); } });
+  document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
+    h('h3', null, 'Welcome to JEKray2D'),
+    h('ul', null,
+      h('li', null, 'Add parts from the Add row above; the orange button switches to fibre parts.'),
+      h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
+      h('li', null, 'Click anything for its settings and readings; right-click for more.'),
+      h('li', null, 'Press ? for every shortcut.')),
+    h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
+}
 document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileJekray').click());
 document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 document.getElementById('btnImport').addEventListener('click', () => {
@@ -12846,7 +12984,7 @@ document.getElementById('fileZmx').addEventListener('change', e => { const f = e
 }
 /* Open one of the example benches in demos/, by its file name. The product page links
    here with #demo=<name>, so the examples live there rather than on the tool. */
-async function openDemo(name) {
+async function openDemo(name, undoable) {
   try {
     if (!/^[a-z0-9-]+$/.test(name)) throw new Error('there is no example by that name');
     const built = window.JEK_DEMOS && window.JEK_DEMOS[name];
@@ -12857,9 +12995,11 @@ async function openDemo(name) {
       data = await res.json();
     }
     pauseAll();
+    if (undoable && project && project.elements.length) checkpoint();
     loadProject(data);
     playing.clear(); updateSweepButtons();
-    history = []; future = []; selectOne(null);
+    if (!undoable) { history = []; future = []; }
+    selectOne(null); updateUndoButtons();
     document.getElementById('projName').value = project.name;
     renderBenchTabs();
     changed(true);
@@ -12869,7 +13009,7 @@ async function openDemo(name) {
     toast('Could not open that example (' + err.message + ').', true);
   }
 }
-document.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', () => openDemo(btn.dataset.demo)));
+document.querySelectorAll('[data-demo]:not([role=menuitem])').forEach(btn => btn.addEventListener('click', () => openDemo(btn.dataset.demo, true)));
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);
@@ -13145,12 +13285,15 @@ function fwRequest(kind, slot, args) {
     const k = FW.queue.findIndex(j => j.slot === slot);
     if (k >= 0) { FW.queue[k].resolve(null); FW.queue.splice(k, 1); }
     FW.queue.push(job);
+    // mid-drag each step replaces the last: the worker gets the one where the drag ends
+    if (midDrag()) return;
     if (FW.busy && FW.busy.slot === slot && performance.now() - FW.busy.t0 > 250) fwRestart();
     fwPump();
   });
 }
+const midDrag = () => !!(typeof drag !== 'undefined' && drag && drag.started && /^(move|rotate|grip|bend)$/.test(drag.mode));
 function fwPump() {
-  if (FW.busy || !FW.queue.length || !fieldWorker()) return;
+  if (FW.busy || !FW.queue.length || midDrag() || !fieldWorker()) return;
   const job = FW.queue.shift();
   FW.busy = job; job.t0 = performance.now(); job.id = ++FW.seq;
   const msg = { id: job.id, kind: job.kind, args: job.args };
@@ -13285,6 +13428,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
+  if (!restored && !TEST_MODE && !/[#?&]demo=/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();
@@ -13341,9 +13485,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     rotateGroup(names, degs) { rotateEls(names.map(n => this.byName(n)), degs); },
     align(names, how) { alignEls(names.map(n => this.byName(n)), how); },
     // the optical path between two bench points on beams, as the ruler finds it
-    oplBetween(a, b) { traceScene(); return measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); },
+    oplBetween(a, b) { traceScene(); const v = measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); return v.length === 1 ? v[0] : v; },
     layoutSvg() { return layoutSvg(recordLayout()); },
-    measures() { return JSON.parse(JSON.stringify(measures)); },
+    measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
     lastTrace() { return lastTrace; },
     popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },

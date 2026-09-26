@@ -632,7 +632,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -684,7 +684,11 @@
    ========================================================================== */
 
 const STORE_KEY = 'jek-raytracer-session-v1';
-const TEST_MODE = /(^|[#?&])test\b/.test(location.hash + location.search);
+// This same script also runs as the field worker (see "The field worker" near the end): there
+// it has no page, and runs the way the tests do, without timers or drawing
+const IN_WORKER = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+const APP_SRC = !IN_WORKER && document.currentScript ? document.currentScript.textContent : null;
+const TEST_MODE = IN_WORKER || /(^|[#?&])test\b/.test(location.hash + location.search);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -3106,6 +3110,13 @@ function drawScaleBar() {
 }
 
 const cssCache = {};
+/* A canvas to draw into off screen: in the worker, an OffscreenCanvas */
+function mkCanvas(w, h) {
+  w = Math.max(1, Math.round(w || 1)); h = Math.max(1, Math.round(h || 1));
+  if (IN_WORKER) return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  return c;
+}
 function getCss(v) {
   if (!(v in cssCache)) cssCache[v] = getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#000';
   return cssCache[v];
@@ -3766,6 +3777,54 @@ function renderSweepFrames(list, onDone) {
     else toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
+  if (fieldWorker()) {
+    // the same, each field worked out in the worker while the page stays free
+    const live = () => sweepJob === job;
+    (async () => {
+      for (let i = 0; i < FIELD_FRAMES; i++) {
+        job.i = i;
+        const t = i * period / FIELD_FRAMES;
+        list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
+        job.stage = 'tracing'; job.part = 0;
+        traceScene();
+        requestRender(); syncPanel();
+        await new Promise(r => setTimeout(r, 0));
+        if (!live()) return;
+        const srcs = popSources();
+        if (srcs.length) {
+          traceScene();
+          const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
+          if (!fieldFrames.bench.has(key)) {
+            job.stage = 'the bench';
+            const o = await fwRequest('bench', 'sweep');
+            if (!live()) return;
+            if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); requestRender(); }
+          }
+        }
+        const screens = project.elements.filter(e => e.type === 'screen');
+        for (const [k, scr] of screens.entries()) {
+          job.part = (k + 1) / (screens.length + 1);
+          list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
+          traceScene();
+          const J = popScreenPrep(scr);
+          if (!J || fieldFrames.screens.has(J.key)) continue;
+          job.stage = scr.name;
+          const o = await fwRequest('screen', 'sweep', { id: scr.id });
+          if (!live()) return;
+          if (o && o.key === J.key && o.D) keepFrame(fieldFrames.screens, J.key, diffFns(o.D));
+        }
+      }
+      finish(true);
+    })().catch(() => {
+      // the worker failed: start the rendering again on the page
+      if (!live()) return;
+      sweepJob = null;
+      list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+      renderSweepFrames(list, onDone);
+    });
+    updateSweepButtons(); syncPanel();
+    return;
+  }
   // run a field to the end, a slice at a time, handing control back between slices
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
@@ -5900,6 +5959,13 @@ const fmtHz = v => { const a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPreci
 let cavJob = null;
 function cavityLater() {
   if (TEST_MODE || (cavJob && cavJob.trace === lastTrace)) return;
+  if (fieldWorker()) {
+    const job = { trace: lastTrace };
+    cavJob = job;
+    fwRequest('cavity', 'cavity').then(() => { if (cavJob === job) { job.done = true; syncPanel(); } })
+      .catch(() => { if (cavJob === job) cavJob = null; cavityLater(); });
+    return;
+  }
   const gen = popRunGen(lastTrace.beams, project.elements.filter(e => e.type === 'source'), {});
   const job = { trace: lastTrace, gen };
   cavJob = job;
@@ -7028,6 +7094,8 @@ function cavLS(H, m, beta, z) {
   return y;
 }
 /* The steady state of one loop from its injected field b, and its resonance scan */
+/* the steady state's amplitudes in the Krylov space, and the circulating power, at a detuning */
+const cavAtOf = (H, m, beta) => delta => { const y = cavLS(H, m, beta, [Math.cos(delta), Math.sin(delta)]); return { y, P: y.reduce((a, c) => a + cavC.abs2(c), 0) }; };
 function* cavSteady(inst, beams, b, decision0, eng) {
   const { path, s, p } = inst;
   const steps = [];
@@ -7083,7 +7151,7 @@ function* cavSteady(inst, beams, b, decision0, eng) {
     if (hn < 1e-9 * beta) break;
     Q.push(cavLin(v, [[[1 / hn, 0], v]]));
   }
-  const at = delta => { const y = cavLS(H, m, beta, [Math.cos(delta), Math.sin(delta)]); return { y, P: y.reduce((a, c) => a + cavC.abs2(c), 0) }; };
+  const at = cavAtOf(H, m, beta);
   // the scan over one free spectral range, and its strongest resonance found finely
   const nS = 2048, scan = new Float64Array(nS);
   let kBest = 0;
@@ -7562,13 +7630,6 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
   const mtfOf = L => { const re = Float64Array.from(L), im = new Float64Array(NF); cdft(re, im, -1); const c = NF / 2, m0 = Math.hypot(re[c], im[c]) || 1, out = new Float64Array(NF / 2); for (let q = 0; q < NF / 2; q++) out[q] = Math.hypot(re[c + q], im[c + q]) / m0; return out; };
   const freq = new Float64Array(NF / 2); for (let q = 0; q < NF / 2; q++) freq[q] = q / (NF * du);
   const mtf = mtfOf(lsf(true)), mtfY = mtfOf(lsf(false));
-  const curveAt = (ys, nu) => {
-    const fmax = freq[freq.length - 1];
-    if (nu <= 0) return 1;
-    if (nu >= fmax) return ys[ys.length - 1];
-    const x = nu / fmax * (freq.length - 1), i = Math.min(freq.length - 2, Math.floor(x));
-    return ys[i] + (ys[i + 1] - ys[i]) * (x - i);
-  };
   const fall = ys => {
     for (let j = 1; j < ys.length; j++) if (ys[j] <= 0.5) { const t = (0.5 - ys[j - 1]) / ((ys[j] - ys[j - 1]) || 1); return freq[j - 1] + t * (freq[j] - freq[j - 1]); }
     return freq[freq.length - 1];
@@ -7596,7 +7657,7 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
     map: { v: map, inc, n: MN, u0: cU - H, u1: cU + H, v0: cV - H, v1: cV + H },
     peak: peakI, strehl, fwhmX, fwhmY, fwhm: fwhmX && fwhmY ? Math.sqrt(fwhmX * fwhmY) : null, wx: wxV, wy: wyV,
     cutX, cutY, symmetric: false, rho, psf, ee, freq, mtf, mtfY,
-    mtfAt: nu => curveAt(mtf, nu), mtfAtY: nu => curveAt(mtfY, nu), mtf50: fall(mtf), mtf50Y: fall(mtfY),
+    mtf50: fall(mtf), mtf50Y: fall(mtfY),
     stokes: stokes[0] > 0 ? stokes.map(v => v / stokes[0]) : D.stokes,
     dop: stokes[0] > 0 ? Math.hypot(stokes[1], stokes[2], stokes[3]) / stokes[0] : D.dop,
   });
@@ -8816,17 +8877,22 @@ function drawCloseup() {
   const key = popKeyOf(lastTrace.beams, srcs);
   if (key !== popState.key || !popState.result) { schedulePop(); return false; }
   const vkey = key.length + '|' + key.slice(0, 64) + '|' + [V().cx, V().cy, s, W, H].join(',');
-  if (closeState.key !== vkey) {
+  if (closeState.key !== vkey && closeState.asked !== vkey) {
+    closeState.asked = vkey;
     closeupCompute(vkey, srcs, 2 * CLOSEUP_STEP);
     clearTimeout(closeState.timer);
     closeState.timer = setTimeout(() => {
-      if (closeState.key === vkey && closeState.step > CLOSEUP_STEP) { closeupCompute(vkey, srcs, CLOSEUP_STEP); requestRender(); }
+      if (closeState.asked === vkey && !(closeState.key === vkey && closeState.step <= CLOSEUP_STEP)) { closeupCompute(vkey, srcs, CLOSEUP_STEP); requestRender(); }
     }, 180);
   }
+  // until the new one is ready (from the field worker), the last image, put where its view was
+  if (!closeState.img) return false;
+  const v0 = closeState.view, k = s / v0.s;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(closeState.img, 0, 0, closeState.img.width * closeState.step, closeState.img.height * closeState.step);
+  ctx.drawImage(closeState.img, W / 2 + (v0.cx - V().cx) * s - v0.W / 2 * k, H / 2 - (v0.cy - V().cy) * s - v0.H / 2 * k,
+    closeState.img.width * closeState.step * k, closeState.img.height * closeState.step * k);
   ctx.restore();
   const inf = closeState.info;
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
@@ -8838,11 +8904,36 @@ function drawCloseup() {
   return true;
 }
 function closeupCompute(vkey, srcs, step) {
-  const s = V().scale, hw = 0.5 * Math.hypot(W, H) / s;
-  const parts = closeupPrep(popState.result.segs, V().cx, V().cy, hw);
+  const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H }, log = srcs.some(e => e.beamScale === 'log');
+  const done = r => {
+    const cv = mkCanvas(r.img.width, r.img.height);
+    cv.getContext('2d').putImageData(r.img, 0, 0);
+    Object.assign(closeState, { key: vkey, img: cv, step, info: r.info, view });
+  };
+  if (fieldWorker()) {
+    fwRequest('closeup', 'closeup' + step, { key: popState.key, view, step, log }).then(r => {
+      // a coarse answer never replaces a fine one of the same view
+      if (!r || r.mismatch) {                       // dropped: ask again
+        if (r) fwMismatch(false);
+        if (closeState.asked === vkey && closeState.key !== vkey) { closeState.asked = null; requestRender(); }
+        return;
+      }
+      fwMismatch(true);
+      if (closeState.asked !== vkey || (closeState.key === vkey && closeState.step <= step)) return;
+      done(r); requestRender();
+    }).catch(() => { closeState.asked = null; requestRender(); });
+    return;
+  }
+  done(closeupImage(popState.result.segs, view, step, log));
+}
+/* The close-up's pixels for a view ({cx, cy, s, W, H}), one sample every step CSS pixels */
+function closeupImage(segs, view, step, log) {
+  const s = view.s, W = view.W, H = view.H, hw = 0.5 * Math.hypot(W, H) / s;
+  const wx = px => view.cx + (px - W / 2) / s, wy = py => view.cy - (py - H / 2) / s;
+  const parts = closeupPrep(segs, view.cx, view.cy, hw);
   // launches in a fixed order (closeupLaunches), so each pixel adds into plain arrays
   const nL = parts.cols.length, acc = new Float64Array(nL * 6);
-  const probe = document.createElement('canvas').getContext('2d');
+  const probe = mkCanvas(1, 1).getContext('2d');
   const launchCol = parts.cols.map(col => { probe.fillStyle = col; const h2 = probe.fillStyle; return [1, 3, 5].map(i => parseInt(h2.slice(i, i + 2), 16)); });
   const nx = Math.ceil(W / step), ny = Math.ceil(H / step);
   const I = new Float32Array(nx * ny), INC = new Float32Array(nx * ny), RGB = new Float32Array(nx * ny * 3);
@@ -8880,7 +8971,6 @@ function closeupCompute(vkey, srcs, step) {
   // standing-wave contrast where the light is: the spread of the coherent sum there
   let lo = Infinity, hi = 0;
   for (let q = 0; q < nx * ny; q++) if (INC[q] >= 0.5 * iMax) { if (I[q] < lo) lo = I[q]; if (I[q] > hi) hi = I[q]; }
-  const log = srcs.some(e => e.beamScale === 'log');
   const img = new ImageData(nx, ny);
   for (let q = 0; q < nx * ny; q++) {
     let v = pk > 0 ? I[q] / pk : 0;
@@ -8888,11 +8978,8 @@ function closeupCompute(vkey, srcs, step) {
     img.data[q * 4] = RGB[q * 3]; img.data[q * 4 + 1] = RGB[q * 3 + 1]; img.data[q * 4 + 2] = RGB[q * 3 + 2];
     img.data[q * 4 + 3] = Math.round(255 * Math.min(1, v));
   }
-  const cv = document.createElement('canvas'); cv.width = nx; cv.height = ny;
-  cv.getContext('2d').putImageData(img, 0, 0);
-  closeState.key = vkey; closeState.img = cv; closeState.step = step;
-  closeState.info = { contrast: hi + lo > 0 && isFinite(lo) ? (hi - lo) / (hi + lo) : null, beams: parts.length,
-    lamN: parts.length ? 2 * Math.PI / parts[0].k : null };
+  return { img, info: { contrast: hi + lo > 0 && isFinite(lo) ? (hi - lo) / (hi + lo) : null, beams: parts.length,
+    lamN: parts.length ? 2 * Math.PI / parts[0].k : null } };
 }
 
 /* The field at one world point, for the checks: every Gaussian source's tree, as the
@@ -8932,7 +9019,7 @@ function popSlices(items, perIn) {
   const per = perIn || clamp(Math.floor(POP_SLICES / Math.max(1, items.length)), 6, 48);
   const per2 = Math.min(per, 32);
   const SUB = 4;                                   // drawn columns per slice gap
-  const probe = document.createElement('canvas').getContext('2d');
+  const probe = mkCanvas(1, 1).getContext('2d');
   for (const item of items) {
     const sg = item.lead, grouped = item.members.length > 1;
     const Fp = sg.eng === '2d' ? { z: sg.F0.ax.z, zR: sg.F0.ax.zR } : sg.F0;
@@ -9013,8 +9100,7 @@ function popSlices(items, perIn) {
         }
       }
     });
-    const cv = document.createElement('canvas');
-    cv.width = 3 * dts.length; cv.height = POP_ROWS;
+    const cv = mkCanvas(3 * dts.length, POP_ROWS);
     cv.getContext('2d').putImageData(img, 0, 0);
     // each branch as bright as the power it carries, so round trips fade as they leak
     // a lone branch as bright as the power it carries; a group column by column, from
@@ -9027,6 +9113,26 @@ function popSlices(items, perIn) {
 /* Runs the field a few tens of milliseconds at a time; a change to the bench restarts it */
 function schedulePop() {
   if (popState.timer || TEST_MODE || sweepJob) return;
+  if (fieldWorker()) {
+    popState.timer = setTimeout(() => {
+      popState.timer = null;
+      const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+      if (key === popState.key || (popState.job && popState.job.key === key)) return;
+      if (!srcs.length) { popState.result = null; popState.key = key; popState.job = null; requestRender(); return; }
+      const job = { key }, beams = lastTrace.beams;
+      popState.job = job;
+      fwRequest('bench', 'bench').then(o => {
+        if (popState.job !== job) return;
+        popState.job = null;
+        if (!o) { requestRender(); return; }             // abandoned: the next frame asks again if still wanted
+        fwMismatch(o.key === key);
+        if (o.key !== key) { requestRender(); return; }
+        popState.result = fwUnpackRun(o.R, beams); popState.key = key;
+        requestRender(); syncPanel();
+      }).catch(() => { if (popState.job === job) popState.job = null; schedulePop(); });
+    }, 60);
+    return;
+  }
   popState.timer = setTimeout(function step() {
     const srcs = popSources();
     const key = popKeyOf(lastTrace.beams, srcs);
@@ -9434,13 +9540,6 @@ function popDiffraction(el, R) {
       freq[q] = nu; mtf[q] = tf(lx, dx, nu) * g; mtfY[q] = tf(lyy, dy, nu) * g;
     }
   }
-  const curveAt = (ys, nu) => {
-    const fmax = freq[freq.length - 1];
-    if (nu <= 0) return 1;
-    if (nu >= fmax) return cutoff ? 0 : ys[ys.length - 1];
-    const x = nu / fmax * (freq.length - 1), i = Math.min(freq.length - 2, Math.floor(x));
-    return ys[i] + (ys[i + 1] - ys[i]) * (x - i);
-  };
   const fall = ys => {
     for (let j = 1; j < ys.length; j++) if (ys[j] <= 0.5) {
       const t = (0.5 - ys[j - 1]) / ((ys[j] - ys[j - 1]) || 1);
@@ -9577,14 +9676,28 @@ function popDiffraction(el, R) {
     dop: stokes[0] > 0 ? Math.hypot(stokes[1], stokes[2], stokes[3]) / stokes[0] : null,
     curved: !!el.R, steep: [...R.notes.steep], coarse: [...R.notes.coarse], clipped: [...R.notes.clipped], fan: !!sg.b.fan,
     rho, psf, ee, freq, mtf, mtfY, cutX, cutY,
-    mtfAt: nu => curveAt(mtf, nu), mtfAtY: nu => curveAt(mtfY, nu),
     mtf50: fall(mtf), mtf50Y: fall(mtfY),
     fwhm: fwhmX && fwhmY ? Math.sqrt(fwhmX * fwhmY) : null, fwhmX, fwhmY,
     ee50: radiusAt(0.5), ee80: radiusAt(0.8),
     map: { v: map, inc, n: MN, u0: cU - H, u1: cU + H, v0: cV - H, v1: cV + H },
   };
   vfApply(el, Dout, hits, vLaunches, R, sYx, sYy);
-  return Dout;
+  return diffFns(Dout);
+}
+/* A screen's MTF at any frequency, from its sampled curves: past the last sample, nothing
+   where a pupil sets a cut-off, else the last value. Kept apart from the figures, so they
+   can come back from the field worker as plain data and get these again. */
+function diffFns(D) {
+  if (!D) return D;
+  const at = (ys, nu) => {
+    const freq = D.freq, fmax = freq[freq.length - 1];
+    if (nu <= 0) return 1;
+    if (nu >= fmax) return D.cutoff && !D.vector ? 0 : ys[ys.length - 1];
+    const x = nu / fmax * (freq.length - 1), i = Math.min(freq.length - 2, Math.floor(x));
+    return ys[i] + (ys[i + 1] - ys[i]) * (x - i);
+  };
+  D.mtfAt = nu => at(D.mtf, nu); D.mtfAtY = nu => at(D.mtfY, nu);
+  return D;
 }
 
 /* The screen's answer, now: for the optimiser, the tests and the export */
@@ -9612,6 +9725,20 @@ function diffractionLater(el) {
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (sweepJob) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
   const S = popScreenState, J0 = S.jobs.get(el.id);
+  if (fieldWorker()) {
+    if (!J0 || J0.key !== job.key) {
+      const J = { key: job.key, el, worker: true };
+      S.jobs.set(el.id, J);
+      fwRequest('screen', 'screen:' + el.id, { id: el.id }).then(o => {
+        if (S.jobs.get(el.id) !== J) return;
+        S.jobs.delete(el.id);
+        if (o) fwMismatch(o.key === job.key);
+        if (o && o.key === job.key) popScreenCache.set(el.id, { key: job.key, D: diffFns(o.D) });
+        syncPanel(); requestRender();
+      }).catch(() => { if (S.jobs.get(el.id) === J) S.jobs.delete(el.id); syncPanel(); });
+    }
+    return { D: c ? c.D : null, busy: true };
+  }
   if (!J0 || J0.key !== job.key) {
     S.jobs.set(el.id, { key: job.key, el, gen: popRunGen(lastTrace.beams, job.srcs, { keep: job.keep }) });
     showActivityNow();                 // a slice can run long: up before the first one
@@ -10574,6 +10701,185 @@ stage.addEventListener('drop', e => {
   else toast(f.name + ' isn\u2019t a .zmx or .jekray file.', true);
 });
 
+/* ==========================================================================
+   The field worker
+   The diffracted field (the bench's, each screen's, a cavity's steady state, the close-up
+   and a sweep's frames rendered ahead) is worked out in a background thread, so the page
+   never waits on it. The worker is this same script, run with a few stand-ins for the
+   page it does not have: it is sent the bench as saved, traces it exactly as the page does,
+   runs the job and sends back plain data (fields, figures, images), which the page takes
+   up under the same keys it would have computed them by. One job runs at a time; a newer
+   request for the same thing replaces one still waiting, and one already running is
+   abandoned (the worker started afresh) once the bench has moved on. Where workers are not
+   available, or one fails, everything runs on the page as before, a slice at a time.
+   ========================================================================== */
+
+/* Stand-ins for the page, set up in the worker before the script runs: whatever the script
+   reaches for while setting itself up gets a harmless object that accepts anything */
+function workerShim() {
+  const stub = new Proxy(function () {}, {
+    get: (t, k) => k === Symbol.toPrimitive ? () => '' : k === Symbol.iterator ? function* () {} : k === 'then' ? undefined : stub,
+    set: () => true, apply: () => stub, construct: () => stub, has: () => false, deleteProperty: () => true,
+  });
+  Object.assign(self, {
+    window: self, document: stub,
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    getComputedStyle: () => ({ getPropertyValue: () => '' }),
+    ResizeObserver: class { observe() {} disconnect() {} },
+    matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),
+    requestAnimationFrame: () => 0, cancelAnimationFrame() {}, alert() {}, confirm: () => false,
+    HTMLElement: class {}, Element: class {}, Node: class {},
+  });
+}
+
+const FW = { w: null, failed: false, seq: 0, queue: [], busy: null, sent: null };
+function fieldWorker() {
+  if (FW.w) return FW.w;
+  if (FW.failed || TEST_MODE || !APP_SRC || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
+  try {
+    const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    URL.revokeObjectURL(url);
+    w.onmessage = fwReply;
+    w.onerror = e => { e.preventDefault(); fwFail(e.message || 'the field worker stopped'); };
+    FW.w = w;
+  } catch (err) { FW.failed = true; return null; }
+  return FW.w;
+}
+/* the bench as the worker needs it: what is saved, less the view and the time */
+function fwProject() { const d = serialize(); d.saved = ''; d.view = null; return JSON.stringify(d); }
+/* Asks the worker for a job; resolves with its answer, or null if it was replaced or
+   abandoned, and rejects if the worker failed (the caller then does it on the page) */
+function fwRequest(kind, slot, args) {
+  return new Promise((resolve, reject) => {
+    const job = { kind, slot, args: args || {}, proj: fwProject(), trace: lastTrace, resolve, reject };
+    const k = FW.queue.findIndex(j => j.slot === slot);
+    if (k >= 0) { FW.queue[k].resolve(null); FW.queue.splice(k, 1); }
+    FW.queue.push(job);
+    if (FW.busy && FW.busy.slot === slot && performance.now() - FW.busy.t0 > 250) fwRestart();
+    fwPump();
+  });
+}
+function fwPump() {
+  if (FW.busy || !FW.queue.length || !fieldWorker()) return;
+  const job = FW.queue.shift();
+  FW.busy = job; job.t0 = performance.now(); job.id = ++FW.seq;
+  const msg = { id: job.id, kind: job.kind, args: job.args };
+  if (job.proj !== FW.sent) { msg.proj = job.proj; FW.sent = job.proj; }
+  FW.w.postMessage(msg);
+}
+function fwReply(e) {
+  const m = e.data, job = FW.busy;
+  if (!job || job.id !== m.id) return;
+  FW.busy = null;
+  if (!m.ok) { console.warn('JEKray2D field worker:', m.err); job.reject(new Error(m.err)); fwFail(m.err); return; }
+  if (m.cav && m.cav.length) fwCavities(m.cav, job.trace);
+  job.resolve(m.out);
+  fwPump();
+}
+/* The worker traced a different bench from the page's: it happens in passing (a change
+   between asking and answering) and the answer is simply dropped; if it keeps happening,
+   something is wrong, and the page takes the work back */
+function fwMismatch(same) {
+  FW.mismatch = same ? 0 : (FW.mismatch || 0) + 1;
+  if (FW.mismatch > 4) { console.warn('JEKray2D field worker: its trace keeps differing from the page\u2019s; working on the page instead'); fwFail('trace mismatch'); }
+}
+/* the running job is out of date: drop it and start a fresh worker for what is waiting */
+function fwRestart() {
+  const job = FW.busy;
+  FW.busy = null;
+  if (FW.w) FW.w.terminate();
+  FW.w = null; FW.sent = null;
+  if (job) job.resolve(null);
+}
+/* the worker cannot be relied on: every job waiting is handed back, to be done on the page */
+function fwFail(msg) {
+  FW.failed = true;
+  if (FW.w) FW.w.terminate();
+  FW.w = null;
+  const all = [FW.busy, ...FW.queue].filter(Boolean);
+  FW.busy = null; FW.queue = [];
+  for (const j of all) j.reject(new Error(msg));
+}
+
+/* A field run as plain data: each segment by its beam's index and its source's id, with its
+   starting field; the drawn slices as images. The page puts the rest back (fwUnpackRun). */
+function fwPackRun(R, transfer) {
+  const segs = R.segs.map(sg => {
+    let draw = null;
+    if (sg.draw) {
+      const bm = sg.draw.cv.transferToImageBitmap();
+      transfer.push(bm);
+      draw = Object.assign({}, sg.draw, { cv: bm });
+    }
+    return { i: sg.i, src: sg.src.id, eng: sg.eng, F0: sg.F0, root: sg.root, clipped: sg.clipped, repr: sg.repr, boost: sg.boost, mode: sg.mode, coh: sg.coh, draw };
+  });
+  return { segs, notes: R.notes, truncated: R.truncated, ms: R.ms };
+}
+function fwUnpackRun(R, beams) {
+  for (const sg of R.segs) {
+    sg.b = beams[sg.i]; sg.src = getEl(sg.src);
+    sg.leg = sg.eng === '2d' ? popLeg2(sg.F0) : popLeg(sg.F0);
+  }
+  return R;
+}
+/* a screen's figures without their functions (diffFns puts them back) */
+function fwPackD(D) {
+  if (!D) return null;
+  const o = {};
+  for (const k in D) if (typeof D[k] !== 'function') o[k] = D[k];
+  return o;
+}
+/* the cavities a job solved, for the cards; their responses rebuilt from the Krylov space */
+function fwPackCavities(before) {
+  const out = [], pr = r => r && { Q: r.Q, H: r.H, m: r.m, beta: r.beta, scan: r.scan, dLock: r.dLock, P0: r.P0, Plock: r.Plock };
+  for (const [k, v] of cavSolved) {
+    if (v.trace !== lastTrace || (before && before.get(k) === v)) continue;
+    out.push({ k, eng: v.eng, delta: v.delta, mode: v.mode, res: pr(v.res), others: (v.others || []).map(o => ({ delta: o.delta, res: pr(o.res) })) });
+  }
+  return out;
+}
+function fwCavities(list, trace) {
+  if (trace !== lastTrace) return;
+  const fix = r => { if (r) r.at = cavAtOf(r.H, r.m, r.beta); return r; };
+  for (const c of list) cavSolved.set(c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) });
+  syncPanel();
+}
+
+/* The worker's side: load the bench when it changes, trace it, run the job, answer */
+function workerMain() {
+  let bench = { key: null, R: null };
+  self.onmessage = e => {
+    const { id, kind, proj, args } = e.data;
+    try {
+      if (proj) { loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; }
+      const before = kind === 'cavity' ? null : new Map(cavSolved);
+      const transfer = [];
+      let out = null;
+      if (kind === 'bench') {
+        const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+        const R = popRun(lastTrace.beams, srcs, { draw: true });
+        bench = { key, R };
+        out = { key, R: fwPackRun(R, transfer) };
+      } else if (kind === 'screen') {
+        const el = getEl(args.id), J = el && popScreenPrep(el);
+        out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
+      } else if (kind === 'cavity') {
+        popRun(lastTrace.beams, project.elements.filter(e2 => e2.type === 'source'), {});
+      } else if (kind === 'closeup') {
+        const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+        if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
+        if (key === args.key) { out = closeupImage(bench.R.segs, args.view, args.step, args.log); transfer.push(out.img.data.buffer); }
+        else out = { mismatch: true };
+      }
+      self.postMessage({ id, ok: true, out, cav: fwPackCavities(before) }, transfer);
+    } catch (err) {
+      self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
+    }
+  };
+}
+if (IN_WORKER) { workerMain(); return; }
+
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
 /* Start-up: restore the last session in this browser, or show a demo bench */
@@ -10597,6 +10903,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     load(data) { loadProject(data); selectedId = null; history = []; future = []; renderPanel(); traceScene(); },
     trace: traceScene,
     serialize,
+    // the field worker's state, and a screen's figures as the panels last got them
+    worker() { return { on: !!FW.w, failed: FW.failed, busy: FW.busy ? FW.busy.kind : null, queued: FW.queue.map(j => j.kind), sent: FW.seq }; },
+    shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
+    shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
     byName(name) { return project.elements.find(e => e.name === name); },
     stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     metric(name, key) { return metricRaw(this.byName(name), key); },

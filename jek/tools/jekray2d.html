@@ -538,6 +538,25 @@
               <button type="button" role="menuitem" data-add="link">Link plane (to another tab)</button>
             </div>
           </div>
+          <div class="rt-more">
+            <button class="rt-btn" id="btnFibre" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fibreMenu">Fibre ▾</button>
+            <div class="rt-menu" id="fibreMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-add="laser">Fibre laser</button>
+              <button type="button" role="menuitem" data-add="coupler">2×2 coupler</button>
+              <button type="button" role="menuitem" data-add="wdm">WDM</button>
+              <button type="button" role="menuitem" data-add="circ">Circulator</button>
+              <button type="button" role="menuitem" data-add="iso">Isolator</button>
+              <button type="button" role="menuitem" data-add="voa">Attenuator</button>
+              <button type="button" role="menuitem" data-add="pc">Polarisation controller</button>
+              <button type="button" role="menuitem" data-add="pol">In-line polariser</button>
+              <button type="button" role="menuitem" data-add="fm">Faraday mirror</button>
+              <button type="button" role="menuitem" data-add="fbg">Fibre Bragg grating</button>
+              <button type="button" role="menuitem" data-add="term">Terminator</button>
+              <button type="button" role="menuitem" data-add="pd">Fibre photodiode</button>
+              <button type="button" role="menuitem" data-add="thru">Feedthrough (to another tab)</button>
+              <button type="button" role="menuitem" data-add="fibre">Fibre tip (to free space)</button>
+            </div>
+          </div>
         </div>
         <div class="rt-group">
           <button class="rt-btn" id="btnImport">Import .zmx</button>
@@ -652,7 +671,7 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium, so a cavity shows whether it is above threshold; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion, and no gain saturation: a gain medium sets the threshold, not the power a laser settles at. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
@@ -1024,6 +1043,7 @@ function cohModes(src, Ls) {
    worked out for the launch is in the laser source's units. */
 const FIBRE_NG = 1.468;                  // group index of silica fibre near 1 um
 function splitChain(src) {
+  if (src.virtual) return [src, src.vRoot];              // from a fibre tip: the laser behind it
   const out = [src], seen = new Set([src.id]);
   let s = src;
   while (s.splitFrom) {
@@ -1036,6 +1056,7 @@ function splitChain(src) {
 const splitRoot = src => { const c = splitChain(src); return c[c.length - 1]; };
 /* extra optical path before the launch against the laser's source, and the phase, radians */
 function splitOffset(src) {
+  if (src.virtual) return { lag: src.vLag, ph: 0 };      // its phase is in its amplitudes
   const c = splitChain(src);
   let lag = 0, ph = 0;
   for (let i = 0; i < c.length - 1; i++) { lag += FIBRE_NG * (c[i].splitPath || 0); ph += (c[i].splitPhase || 0) * Math.PI / 180; }
@@ -1045,7 +1066,7 @@ const lagOf = src => src ? splitOffset(src).lag : 0;
 /* a split copy takes the laser's wavelengths and line */
 function syncSplit(src) {
   const r = splitRoot(src);
-  if (r === src) return;
+  if (r === src || src.virtual) return;
   const moved = src.wavelength !== r.wavelength;
   src.wavelength = r.wavelength; src.lines = (r.lines || []).slice(); src.coh = r.coh; src.lineshape = r.lineshape;
   if (moved) {
@@ -1161,7 +1182,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', link: 'Link plane' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -1451,6 +1472,8 @@ function normElementBase(e) {
         length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
         core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
         na: clamp(num(e.na, 0.12), 0.01, 0.9),
+        emitView: e.emitView === 'field' ? 'field' : 'envelope',   // what it sends out, from the fibre network
+        emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
         absorb: true,
       });
     case 'detector':
@@ -1489,6 +1512,15 @@ function normElementBase(e) {
       });
     case 'link':
       return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), pair: String(e.pair || 'Link 1').slice(0, 60) });
+    case 'fcomp': {
+      const K = FC[e.kind];
+      if (!K) return null;
+      Object.assign(base, { kind: e.kind });
+      for (const [k, , d] of K.params) base[k] = num(e[k], d);
+      if (e.kind === 'laser') { base.lineshape = e.lineshape === 'gauss' ? 'gauss' : 'lorentz'; base.wavelength = clamp(base.wavelength, 100, 20000); base.power = Math.max(0, base.power); base.coh = Math.max(0, base.coh); }
+      if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
+      return base;
+    }
     case 'gain':
       return Object.assign(base, {
         length: Math.max(0.1, num(e.length, 6)),
@@ -1547,6 +1579,11 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'filter', name: nextName('Filter'), x, y, angle: 0 });
     case 'gain':
       return normElement({ type: 'gain', name: nextName('Gain medium'), x, y, angle: 0 });
+    case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru': {
+      const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
+      let n = 1; while (used.has('Feedthrough ' + n)) n++;
+      return normElement({ type: 'fcomp', kind: k, name: nextName(FC[k].label), x, y, angle: 0, pair: 'Feedthrough ' + n });
+    }
     case 'link': {
       // a new pair's name: the first "Link n" not in use
       const used = new Set(project.elements.filter(e => e.type === 'link').map(e => e.pair));
@@ -1579,6 +1616,7 @@ function serialize() {
     cavityLock: project.cavityLock || {},
     benches: project.benches, tab: project.tab,
     elements: project.elements,
+    fibres: project.fibres || [],
   };
 }
 
@@ -1609,10 +1647,27 @@ function loadProject(data) {
     p.tab = data.tab;
   } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
   ensureBenches(p);
+  p.fibres = normFibres(data.fibres, p.elements);
   return p;
 }
+/* Fibres: port to port, each port taking one; length in m, loss in dB/km */
+function normFibres(list, els) {
+  const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
+  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : 0;
+  const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
+  for (const F of Array.isArray(list) ? list : []) {
+    const a = F && end(F.a), b = F && end(F.b);
+    if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
+    used.add(pkey(...a)); used.add(pkey(...b));
+    out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, len: Math.max(0, num(F.len, 1)), loss: Math.max(0, num(F.loss, 0.2)) });
+  }
+  return out;
+}
 
-const getEl = id => project.elements.find(e => e.id === id);
+let VSRC = new Map();                  // the sources fibre tips make, by id (see tipSources)
+const getEl = id => project.elements.find(e => e.id === id) || VSRC.get(id);
+/* every source: those on the benches, and those fibre tips make */
+const allSources = () => project.elements.filter(e => e.type === 'source').concat([...VSRC.values()]);
 const selected = () => selectedId ? getEl(selectedId) : null;
 
 /* ---------- Tabs: benches of their own ----------
@@ -1711,10 +1766,11 @@ function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })) });
+const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [] });
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
+  project.fibres = S.f || [];
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
@@ -2412,12 +2468,13 @@ function traceScene() {
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') screens[el.id] = [];
 
   for (const src of project.elements) if (src.type === 'source') syncSplit(src);
-  for (const src of project.elements) {
+  const runSources = list => {
+  for (const src of list) {
     if (src.type !== 'source') continue;
     // a copy split from a laser launches as part of the laser's launch, with its own share
     // of power and its phase against it
     const root = splitRoot(src), launch = root.id;
-    const sAmp = root === src ? 1 : Math.sqrt(Math.max(0, src.power) / Math.max(1e-12, root.power)), sPh = splitOffset(src).ph;
+    const sAmp = root === src || src.virtual ? 1 : Math.sqrt(Math.max(0, src.power) / Math.max(1e-12, root.power)), sPh = splitOffset(src).ph;
     const cA = sAmp * Math.cos(sPh), sA = sAmp * Math.sin(sPh);
     for (const [wi, nm] of sourceLines(src).entries()) {
     const colour = src.colourAuto ? wavelengthColour(nm) : src.colour;
@@ -2427,7 +2484,10 @@ function traceScene() {
       const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd; if (!idx.has(k)) idx.set(k, refIndex(m, nm)); return idx.get(k);
     };
     const stack = [];
-    const states = sourcePol(src);
+    // a fibre tip's source carries its amplitudes as they are, and its launch's own name
+    const states = src.virtual ? [{ vs: src.vJ }] : sourcePol(src);
+    const amp = st => st.vs || [st.as * cA, st.as * sA, st.ap * cA, st.ap * sA];
+    const famOf = (idx, q) => src.virtual ? (q ? src.vKey : src.vKey.replace(':q', ':')) : launch + ':' + wi + ':' + (q ? 'q' : '') + idx;
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
     const n = src.traceRays === false ? 0 : src.rays;
     emitted += n;
@@ -2438,9 +2498,9 @@ function traceScene() {
       for (const st of states) {
         stack.push({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
           dx: Math.cos(a), dy: Math.sin(a),
-          sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA,
+          sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3],
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: launch + ':' + wi + ':' + states.indexOf(st), k: i, path: '', bn: src.bench });
+          fam: famOf(states.indexOf(st), false), k: i, path: '', bn: src.bench });
       }
     }
     if (src === probeSrc) {
@@ -2463,9 +2523,9 @@ function traceScene() {
     // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
     const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
-      const a = src.angle * deg, fam = launch + ':' + wi + ':q' + si0;
+      const a = src.angle * deg, fam = famOf(si0, true);
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a), dy: Math.sin(a),
-        sr: st.as * cA, si: st.as * sA, pr: st.ap * cA, pi: st.ap * sA, bounce: 0, last: null, opl: 0, nCur: 1,
+        sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1,
         id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
         bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench });
     });
@@ -2874,8 +2934,16 @@ function traceScene() {
     }
     }
   }
+  };
+  runSources(project.elements);
+  // The fibre network, from what reached its tips, and the light it sends back out of them
+  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed, system: null };
+  const net = fibreNetCached();
+  const vs = tipSources(net);
+  VSRC = new Map(vs.map(v => [v.id, v]));
+  if (vs.length) runSources(vs);
   lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed,
-    system: firstOrder(probes, probeSrc) };
+    system: firstOrder(probes, probeSrc), net };
   // when the set of cavities changes, the panels that show them are rebuilt
   if (!TEST_MODE && typeof findCavities === 'function') {
     const sig = findCavities().map(c => c.id).join('/');
@@ -3249,6 +3317,7 @@ function drawRays() {
 }
 
 function halfSize(el) {
+  if (el.type === 'fcomp') return FC_H / 2 + 1;
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return Math.max(el.width / 2, 5);
   if (el.type === 'stop') return el.outer / 2;
@@ -3283,6 +3352,12 @@ function drawLabels() {
     const X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6) + 14 + (el.type === 'lens' ? 4 : 0);
     ctx.fillStyle = el.id === selectedId ? '#ffffff' : 'rgba(255,255,255,0.5)';
     if (ex >= 0) ctx.fillText(el.name, X, Y);
+    if (el.type === 'fcomp' && el.kind === 'thru') {
+      const P = thruPartner(el);
+      ctx.fillStyle = P ? '#f2c14e' : 'rgba(242,193,78,0.55)';
+      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    }
     if (el.type === 'link') {                 // where it leads
       const P = linkPartner(el);
       ctx.fillStyle = P ? '#7fdcff' : 'rgba(127,220,255,0.55)';
@@ -3349,8 +3424,9 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, link: 2, source: 3 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, link: 2, fcomp: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
+  drawFibres();
   for (const el of els) if (el.type !== 'source') draw(el);
   drawRays();
   closeupOn = drawCloseup();
@@ -3426,6 +3502,107 @@ function drawJones(el, sel) {
   ctx.lineWidth = 2; ctx.stroke();
 }
 /* A thin plate seen edge-on: the shared look of the newer thin elements */
+/* A fibre component: a box with its tag, and its ports */
+function drawFcomp(el, sel) {
+  const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = FC_H / 2, s = V().scale;
+  const laser = el.kind === 'laser';
+  pathLocal(f, [[-w, -hh], [w, -hh], [w, hh], [-w, hh]], true);
+  ctx.fillStyle = laser ? 'rgba(0,0,0,0.35)' : '#2b373d'; ctx.fill();
+  ctx.strokeStyle = sel ? '#ffffff' : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+  const tag = typeof K.tag === 'function' ? K.tag(el) : K.tag, fs = clamp(2.6 * s, 7, 14);
+  if (fs * tag.length * 0.62 < FC_W * s) {
+    ctx.save(); ctx.fillStyle = laser ? wavelengthColour(el.wavelength) : 'rgba(255,255,255,0.8)'; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tag, sx(el.x), sy(el.y)); ctx.restore();
+  }
+  drawPorts(el);
+}
+/* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
+function drawPorts(el) {
+  const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
+  ps.forEach((P, i) => {
+    const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
+    ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = on ? '#f2c14e' : '#1b2327'; ctx.fill();
+    ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 1.4; ctx.stroke();
+    if (ps.length > 1 && s > 3) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '9px ' + getCss('--jek-mono'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(portName(el, i), X - Q.dx * (r + 6), Y + Q.dy * (r + 6));      // just inside the box
+      ctx.textBaseline = 'alphabetic';
+    }
+  });
+}
+const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pkey(...F.a), pkey(...F.b)]));
+/* a fibre's spline on screen: leaving each port along its outward direction */
+function fibreCurve(F, overrideB) {
+  const A = getEl(F.a[0]), B = overrideB ? null : getEl(F.b[0]);
+  if (!A || (!B && !overrideB)) return null;
+  const pa = portWorld(A, F.a[1]), P0 = [sx(pa.x), sy(pa.y)];
+  let P3, db;
+  if (overrideB) { P3 = overrideB; db = null; }
+  else { const pb = portWorld(B, F.b[1]); P3 = [sx(pb.x), sy(pb.y)]; db = [pb.dx, -pb.dy]; }
+  const L = Math.max(24, 0.4 * Math.hypot(P3[0] - P0[0], P3[1] - P0[1]));
+  const P1 = [P0[0] + pa.dx * L, P0[1] - pa.dy * L];
+  const P2 = db ? [P3[0] + db[0] * L, P3[1] + db[1] * L] : [(P1[0] + P3[0]) / 2, (P1[1] + P3[1]) / 2];
+  return [P0, P1, P2, P3];
+}
+const bez = (C, t) => { const u = 1 - t; return [0, 1].map(k => u * u * u * C[0][k] + 3 * u * u * t * C[1][k] + 3 * u * t * t * C[2][k] + t * t * t * C[3][k]); };
+/* the light a fibre carries, both ways, in mW; and its colour */
+function fibreLight(F) {
+  const net = lastTrace.net;
+  if (!net) return { mw: 0, colour: null };
+  const mw = netPower(net.out.get(pkey(...F.a)), net.keys) + netPower(net.out.get(pkey(...F.b)), net.keys);
+  const K = net.keys.find(k => (net.out.get(pkey(...F.a)) || new Map()).has(k.gk) || (net.out.get(pkey(...F.b)) || new Map()).has(k.gk));
+  return { mw, colour: K ? wavelengthColour(K.nm) : null };
+}
+function drawFibres() {
+  const list = (project.fibres || []).filter(F => { const A = getEl(F.a[0]), B = getEl(F.b[0]); return A && B && onTab(A) && onTab(B); });
+  const lights = list.map(fibreLight), top = Math.max(1e-30, ...lights.map(l => l.mw));
+  list.forEach((F, i) => {
+    const C = fibreCurve(F);
+    if (!C) return;
+    const path = () => { ctx.beginPath(); ctx.moveTo(...C[0]); ctx.bezierCurveTo(...C[1], ...C[2], ...C[3]); };
+    path(); ctx.strokeStyle = F.id === selFibreId ? '#ffffff' : '#f2c14e'; ctx.lineWidth = F.id === selFibreId ? 4 : 3; ctx.stroke();
+    const L = lights[i];
+    if (L.colour && L.mw > 1e-9 * top) {
+      path(); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
+      ctx.shadowColor = L.colour; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+    }
+  });
+  if (drag && drag.mode === 'fibre' && drag.cur) {
+    const el = getEl(drag.from[0]);
+    const C = el && fibreCurve({ a: drag.from }, drag.cur);
+    if (C) { ctx.beginPath(); ctx.moveTo(...C[0]); ctx.bezierCurveTo(...C[1], ...C[2], ...C[3]); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]); }
+  }
+}
+/* the port under a point on screen, on this tab */
+function portAt(px, py) {
+  const r = 8;
+  for (const el of project.elements) {
+    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre')) continue;
+    const n = portsOf(el).length;
+    for (let i = 0; i < n; i++) { const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
+  }
+  return null;
+}
+function fibreAtPx(px, py) {
+  let best = null, bd = 6;
+  for (const F of project.fibres || []) {
+    const A = getEl(F.a[0]), B = getEl(F.b[0]);
+    if (!A || !B || !onTab(A)) continue;
+    const C = fibreCurve(F);
+    if (!C) continue;
+    for (let i = 0; i <= 40; i++) { const [x, y] = bez(C, i / 40), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = F; } }
+  }
+  return best;
+}
+let selFibreId = null;
+const selFibre = () => selFibreId ? (project.fibres || []).find(F => F.id === selFibreId) || null : null;
+function removeFibre(F) {
+  checkpoint();
+  project.fibres = project.fibres.filter(G => G !== F);
+  if (selFibreId === F.id) selFibreId = null;
+  changed(true);
+}
 /* A link plane: a dashed line, with where it leads */
 function drawLink(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, P = linkPartner(el);
@@ -3478,6 +3655,7 @@ function drawFibre(el, sel) {
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
   ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 3; ctx.stroke();
+  drawPorts(el);
 }
 function drawDetector(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, H = Math.max(L + 1.5, 4), body = Math.max(6, 24 * k);
@@ -3519,6 +3697,7 @@ function draw(el) {
   if (el.type === 'filter') { const c = filterColour(el); drawPlate(el, sel, c, c + '33'); return; }
   if (el.type === 'gain') { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2.2); return; }
   if (el.type === 'link') { drawLink(el, sel); return; }
+  if (el.type === 'fcomp') { drawFcomp(el, sel); return; }
   if (el.type === 'faraday' || el.type === 'isolator') {
     const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
     drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
@@ -3542,7 +3721,7 @@ function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, link: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
+    filter: 1, gain: 1, link: 1, fcomp: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
@@ -3564,6 +3743,10 @@ function hitTest(px, py) {
       const H = el.type === 'detector' ? Math.max(el.length / 2 + 1.5, 4) : Math.max(el.length / 2, 0.6);
       const body = el.type === 'detector' ? Math.max(6, 24 / V().scale) : Math.max(8, 30 / V().scale);
       if (lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol) return el;
+      continue;
+    }
+    if (el.type === 'fcomp') {
+      if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= FC_H / 2 + tol) return el;
       continue;
     }
     if (['grating', 'faraday', 'isolator', 'filter', 'gain', 'link'].includes(el.type)) {
@@ -3633,8 +3816,22 @@ canvas.addEventListener('pointerdown', e => {
       return;
     }
   }
+  // a port: draw a fibre from it, or take up the end of the one already there
+  const port = portAt(px, py);
+  if (port) {
+    const F = (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
+    drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null };
+    return;
+  }
   const hit = hitTest(px, py);
+  const fh = hit ? null : fibreAtPx(px, py);
+  if (fh) {
+    selFibreId = fh.id; selectedId = null; renderPanel(); requestRender();
+    drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true };
+    return;
+  }
   if (hit) {
+    selFibreId = null;
     if (selectedId !== hit.id) { selectedId = hit.id; renderPanel(); }
     drag = { mode: 'move', el: hit, ox: wx(px) - hit.x, oy: wy(py) - hit.y, px0: px, py0: py, started: false };
   } else {
@@ -3672,6 +3869,12 @@ canvas.addEventListener('pointermove', e => {
     requestRender();
     return;
   }
+  if (drag.mode === 'fibre') {
+    if (!drag.cur && Math.hypot(px - drag.px0, py - drag.py0) < 3) return;
+    drag.cur = [px, py];
+    requestRender();
+    return;
+  }
   if (drag.mode === 'pan') {
     if (Math.hypot(px - drag.px0, py - drag.py0) > 3) drag.moved = true;
     V().cx = drag.cx0 - (px - drag.px0) / V().scale;
@@ -3702,7 +3905,25 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (!drag) return;
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
-  if (drag.mode === 'pan' && !drag.moved && selectedId) { selectedId = null; renderPanel(); }
+  if (drag.mode === 'fibre') {
+    const rect = canvas.getBoundingClientRect(), to = drag.cur ? portAt(e.clientX - rect.left, e.clientY - rect.top) : null;
+    const d = drag, F = d.fib;
+    drag = null; canvas.classList.remove('dragging');
+    if (!d.cur) {                              // a click on a port: select its fibre
+      if (F) { selFibreId = F.id; selectedId = null; renderPanel(); }
+      requestRender(); return;
+    }
+    const busy = to && (project.fibres || []).some(G => G !== F && (pkey(...G.a) === pkey(...to) || pkey(...G.b) === pkey(...to)));
+    if (to && !busy && pkey(...to) !== pkey(...d.from)) {
+      checkpoint();
+      if (F) { if (pkey(...F.a) === pkey(...d.from)) F.b = to; else F.a = to; }
+      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; project.fibres.push(G); selFibreId = G.id; selectedId = null; }
+      changed(true);
+    } else if (F && !to) removeFibre(F);        // pulled off its port: the fibre goes
+    else requestRender();
+    return;
+  }
+  if (drag.mode === 'pan' && !drag.moved && (selectedId || selFibreId)) { selectedId = null; selFibreId = null; renderPanel(); }
   if ((drag.mode === 'move' || drag.mode === 'rotate') && drag.started) changed();
   else scheduleSave();
   drag = null;
@@ -3736,7 +3957,12 @@ document.addEventListener('keydown', e => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   const el = selected();
-  if (!el) return;
+  if (!el) {
+    const F = selFibre();
+    if (F && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeFibre(F); }
+    if (F && e.key === 'Escape') { selFibreId = null; renderPanel(); requestRender(); }
+    return;
+  }
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(el); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeEl(el); return; }
   if (e.key === 'Escape') { selectedId = null; renderPanel(); requestRender(); return; }
@@ -3803,6 +4029,9 @@ function setParam(el, path, v) {
     case 'gain': case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
     case 'bandwidth': v = Math.max(1, v); break;
     case 'coh': v = Math.max(0, v); break;
+    case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
+    case 'att': case 'iso': case 'rl': case 'loss': v = Math.max(0, v); break;
+    case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
     case 'm2': v = clamp(v, 1, 50); break;
     case 'vmax': v = Math.max(0.01, v); break;
     case 'size': case 'thickness': v = Math.max(0.1, v); break;
@@ -4314,6 +4543,298 @@ function detectorReading(el) {
     return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI,
       snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
   });
+}
+
+/* ==========================================================================
+   Fibre subsystems
+   Fibre components sit on the bench as boxes with ports; fibres join ports and are drawn
+   as splines. Their lengths are properties, not what the drawing shows. A single-mode
+   fibre carries one mode, so what travels along it is two complex amplitudes, s and p
+   (s out of the bench plane where a fibre tip meets free space), in the field's
+   convention, in units of the laser's own amplitude (the square is a share of that laser's
+   power). Fibres here keep polarisation (as polarisation-maintaining fibre does, or
+   standard fibre held still); a polarisation controller sets it.
+
+   The network is solved by following the light: every wave leaving a port goes down its
+   fibre (loss, phase k n L, group delay n_g L) to the next component, which scatters it
+   out of its ports by its 2x2 Jones matrices; waves meeting at one port with one delay add
+   as fields. Loops (rings, reflections, circulators) are followed round until what is left
+   is negligible. Keeping each wave's delay makes coherence exact: what reaches a
+   photodiode adds pairwise, weighted by the laser's gamma of the delay between each pair.
+   Light arriving at a fibre tip from free space is taken in by its overlap with the tip's
+   mode; light the network sends to a tip leaves it into free space as a source split from
+   the same laser (a "virtual" source), so it interferes with the rest of that laser's
+   light. That light is not taken back into the fibres a second time: a loop that runs
+   fibre, free space, fibre is followed one way round.
+   ========================================================================== */
+const FIBRE_N = 1.468;                  // phase and group index of the fibre
+const ci = { mul: cmul, add: (a, b) => [a[0] + b[0], a[1] + b[1]], sc: (a, s) => [a[0] * s, a[1] * s], e: ph => [Math.cos(ph), Math.sin(ph)] };
+/* 2x2 complex matrices on (s, p): [[ss, sp], [ps, pp]] */
+const J2 = {
+  I: s => [[[s, 0], [0, 0]], [[0, 0], [s, 0]]],
+  mul(A, B) { const e = (i, j) => ci.add(cmul(A[i][0], B[0][j]), cmul(A[i][1], B[1][j])); return [[e(0, 0), e(0, 1)], [e(1, 0), e(1, 1)]]; },
+  T: A => [[A[0][0], A[1][0]], [A[0][1], A[1][1]]],
+  sc: (A, z) => A.map(r => r.map(v => cmul(v, z))),
+  app: (A, E) => {                       // A on [sr, si, pr, pi]
+    const s = [E[0], E[1]], p = [E[2], E[3]];
+    const o0 = ci.add(cmul(A[0][0], s), cmul(A[0][1], p)), o1 = ci.add(cmul(A[1][0], s), cmul(A[1][1], p));
+    return [o0[0], o0[1], o1[0], o1[1]];
+  },
+  // a waveplate of retardance r waves, fast axis at th from s; a polariser at th, leaking amplitude l
+  plate(th, r) {
+    const c = Math.cos(th), sn = Math.sin(th), d = 2 * Math.PI * r, e = [Math.cos(d), Math.sin(d)];
+    const a = ci.add([c * c, 0], ci.sc(e, sn * sn)), b = ci.sc(ci.add([1, 0], ci.sc(e, -1)), c * sn), dd = ci.add([sn * sn, 0], ci.sc(e, c * c));
+    return [[a, b], [b, dd]];
+  },
+  pol(th, l) { const c = Math.cos(th), sn = Math.sin(th); return [[[c * c + l * sn * sn, 0], [c * sn * (1 - l), 0]], [[c * sn * (1 - l), 0], [sn * sn + l * c * c, 0]]]; },
+};
+const dBa = dB => Math.pow(10, -Math.max(0, dB) / 20);          // a loss in dB, as an amplitude
+/* The kinds of fibre component: their ports (local position and outward direction, mm),
+   their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2]. */
+const FC_W = 14, FC_H = 9;
+const fcPorts = sides => sides.map(([x, y]) => ({ x: x * FC_W / 2, y: y * FC_H / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y) }));
+const FC = {
+  laser: { label: 'Fibre laser', tag: 'LASER', ports: [[1, 0]], names: ['out'],
+    params: [['wavelength', 'Wavelength (nm)', 1550], ['power', 'Power (mW)', 1], ['coh', 'Coherence length (mm)', 0], ['polAngle', 'Polarisation (° from s)', 0]],
+    S: () => [] },
+  coupler: { label: '2×2 coupler', tag: el => Math.round(100 - el.ratio) + ':' + Math.round(el.ratio), ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
+    params: [['ratio', 'Coupled across (%)', 50], ['loss', 'Excess loss (dB)', 0]],
+    S: el => {
+      const k = clamp(el.ratio, 0, 100) / 100, a = dBa(el.loss), t = J2.I(a * Math.sqrt(1 - k)), x = J2.sc(J2.I(a * Math.sqrt(k)), [0, 1]);
+      return [[0, 2, t], [0, 3, x], [1, 2, x], [1, 3, t], [2, 0, t], [3, 0, x], [2, 1, x], [3, 1, t]];
+    } },
+  wdm: { label: 'WDM', tag: 'WDM', ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['common', 'pass', 'rest'],
+    params: [['centre', 'Pass band centre (nm)', 1550], ['fwhm', 'Pass band width (nm)', 20], ['loss', 'Insertion loss (dB)', 0.3]],
+    S: (el, nm) => {
+      const T = Math.exp(-Math.LN2 * Math.pow(2 * Math.abs(nm - el.centre) / Math.max(1e-3, el.fwhm), 6)), a = dBa(el.loss);
+      const P = J2.I(a * Math.sqrt(T)), R = J2.I(a * Math.sqrt(1 - T));
+      return [[0, 1, P], [1, 0, P], [0, 2, R], [2, 0, R]];
+    } },
+  circ: { label: 'Circulator', tag: 'CIRC', ports: [[-1, 0], [1, 0], [0, -1]], names: ['1', '2', '3'],
+    params: [['loss', 'Insertion loss (dB)', 0.8], ['iso', 'Isolation (dB)', 40]],
+    S: el => { const t = J2.I(dBa(el.loss)), l = J2.I(dBa(el.iso)); return [[0, 1, t], [1, 2, t], [1, 0, l], [2, 1, l]]; } },
+  iso: { label: 'Isolator', tag: 'ISO →', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
+    params: [['loss', 'Insertion loss (dB)', 0.5], ['iso', 'Isolation (dB)', 40]],
+    S: el => [[0, 1, J2.I(dBa(el.loss))], [1, 0, J2.I(dBa(el.iso))]] },
+  voa: { label: 'Attenuator', tag: el => (+el.att.toPrecision(3)) + ' dB', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['att', 'Attenuation (dB)', 3]],
+    S: el => { const t = J2.I(dBa(el.att)); return [[0, 1, t], [1, 0, t]]; } },
+  pc: { label: 'Polarisation controller', tag: 'PC', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['a1', 'Paddle 1, λ/4 (°)', 0], ['a2', 'Paddle 2, λ/2 (°)', 0], ['a3', 'Paddle 3, λ/4 (°)', 0]],
+    S: el => {
+      const M = J2.mul(J2.plate(el.a3 * deg, 0.25), J2.mul(J2.plate(el.a2 * deg, 0.5), J2.plate(el.a1 * deg, 0.25)));
+      return [[0, 1, M], [1, 0, J2.T(M)]];             // reciprocal: back through it, the transpose
+    } },
+  pol: { label: 'In-line polariser', tag: 'POL', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['axis', 'Axis (° from s)', 0], ['extinction', 'Extinction (dB)', 30], ['loss', 'Insertion loss (dB)', 0.5]],
+    S: el => { const M = J2.sc(J2.pol(el.axis * deg, dBa(el.extinction)), [dBa(el.loss), 0]); return [[0, 1, M], [1, 0, J2.T(M)]]; } },
+  fm: { label: 'Faraday mirror', tag: 'FM', ports: [[-1, 0]], names: ['in'],
+    params: [['rmax', 'Reflectance (%)', 99], ['loss', 'Extra loss (dB)', 0]],
+    // a 45 degree rotator and a mirror: back out orthogonal to what came in, whatever went
+    // before it, since M^T J M = det(M) J for J = [[0, 1], [-1, 0]]
+    S: el => { const r = Math.sqrt(clamp(el.rmax, 0, 100) / 100) * dBa(el.loss); return [[0, 0, [[[0, 0], [r, 0]], [[-r, 0], [0, 0]]]]]; } },
+  fbg: { label: 'Fibre Bragg grating', tag: 'FBG', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['centre', 'Bragg wavelength (nm)', 1550], ['fwhm', 'Bandwidth (nm)', 0.5], ['rmax', 'Peak reflectance (%)', 90]],
+    S: (el, nm) => {
+      const R = clamp(el.rmax, 0, 100) / 100 * Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2);
+      const r = J2.I(Math.sqrt(R)), t = J2.I(Math.sqrt(1 - R));
+      return [[0, 0, r], [1, 1, r], [0, 1, t], [1, 0, t]];
+    } },
+  term: { label: 'Terminator', tag: 'TERM', ports: [[-1, 0]], names: ['in'],
+    params: [['rl', 'Return loss (dB)', 60]],
+    S: el => [[0, 0, J2.I(dBa(el.rl))]] },
+  pd: { label: 'Fibre photodiode', tag: 'PD', ports: [[-1, 0]], names: ['in'],
+    params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10]],
+    S: () => [] },
+  thru: { label: 'Feedthrough', tag: '⇄', ports: [[1, 0]], names: ['port'],
+    params: [], S: () => [] },
+};
+for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
+const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru'];
+
+/* A component's ports, local: a fibre tip has one at the end of its tail */
+function portsOf(el) {
+  if (el.type === 'fcomp') return FC[el.kind].portList;
+  if (el.type === 'fibre') { const L = fibreTail(el); return [{ x: -L, y: 0, dx: -1, dy: 0 }]; }
+  return [];
+}
+const fibreTail = el => Math.max(8, 30 / V().scale) + Math.max(10, 40 / V().scale);
+const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : 'fibre';
+function portWorld(el, p) {
+  const P = portsOf(el)[p], f = frame(el);
+  const [x, y] = toWorld(f, P.x, P.y), [dx, dy] = toWorldDir(f, P.dx, P.dy);
+  return { x, y, dx, dy };
+}
+const pkey = (id, p) => id + '#' + p;
+/* feedthroughs pair by name, like link planes */
+function thruPartner(el) {
+  const L = project.elements.filter(e => e.type === 'fcomp' && e.kind === 'thru' && e.pair === el.pair);
+  const i = L.indexOf(el);
+  return i === 0 && L.length > 1 ? L[1] : i === 1 ? L[0] : null;
+}
+
+/* What light from free space a fibre tip takes in: each arrival's overlap with the tip's
+   mode, s and p, in the field's convention, with the arrival's own delay (its optical path,
+   plus the path before its source's launch). Arrivals of one launch keep their own delays,
+   so the network weighs them against each other by gamma. */
+function tipInputs(el) {
+  const out = [];
+  for (const A of faceArrivals(el)) {
+    const mode = fibreMode(el.core, el.na, A.nm), wf = mode.w, L = 3.5 * wf, N = 64, d = 2 * L / N;
+    const mAmp = Math.sqrt(2 / (Math.PI * wf * wf));
+    let s0 = 0, s1 = 0, p0 = 0, p1 = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, M = mAmp * Math.exp(-(u * u + v * v) / (wf * wf));
+      const E = arrivalField(A, u, v);
+      s0 += E[0] * M; s1 += E[1] * M; p0 += E[2] * M; p1 += E[3] * M;
+    }
+    const dd = d * d;
+    out.push({ E: [s0 * dd, s1 * dd, p0 * dd, p1 * dd], key: A.coh, nm: A.nm, dl: A.opl + A.lag, root: splitRoot(A.src) });
+  }
+  return out;
+}
+
+/* The network: every source of light in it, followed round. Returns what each port sends
+   and receives (for the readouts and the drawing), what each photodiode reads, and what
+   each tip sends back out into free space. */
+/* the network again only when something it depends on has changed */
+let fibreNetMemo = { key: null, net: null };
+function fibreNetCached() {
+  const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre');
+  if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }
+  const conn = new Set((project.fibres || []).flatMap(F => [F.a[0], F.b[0]]));
+  const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.lag, A.nm, A.src.id]));
+  const srcs = project.elements.filter(e => e.type === 'source').map(e => [e.id, e.power, e.coh, e.lineshape]);
+  const key = JSON.stringify([fels, project.fibres || [], arr, srcs]);
+  if (fibreNetMemo.key !== key) fibreNetMemo = { key, net: fibreNet() };
+  return fibreNetMemo.net;
+}
+function fibreNet() {
+  const comps = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre');
+  const fibres = (project.fibres || []).filter(F => getEl(F.a[0]) && getEl(F.b[0]));
+  if (!fibres.length && !comps.some(e => e.type === 'fcomp' && e.kind === 'laser')) return null;
+  // where each port's fibre goes, with its transfer
+  const to = new Map();
+  for (const F of fibres) {
+    const Lmm = Math.max(0, F.len) * 1000, a = dBa(F.loss * F.len / 1000);
+    to.set(pkey(...F.a), { port: F.b, Lmm, a, F, end: 'a' });
+    to.set(pkey(...F.b), { port: F.a, Lmm, a, F, end: 'b' });
+  }
+  // the light put in: lasers, and tips taking in free-space light
+  const inputs = [];
+  for (const el of comps) {
+    if (el.type === 'fcomp' && el.kind === 'laser') {
+      const th = el.polAngle * deg;
+      inputs.push({ port: [el.id, 0], E: [Math.cos(th), 0, Math.sin(th), 0], key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el });
+    }
+    if (el.type === 'fibre' && to.has(pkey(el.id, 0))) for (const I of tipInputs(el)) inputs.push(Object.assign(I, { port: [el.id, 0] }));
+  }
+  const groups = new Map();
+  for (const I of inputs) { const g = I.key + '|' + I.nm; if (!groups.has(g)) groups.set(g, { key: I.key, nm: I.nm, root: I.root, list: [] }); groups.get(g).list.push(I); }
+  const res = { out: new Map(), inn: new Map(), pd: new Map(), tips: new Map(), truncated: false, keys: [] };
+  const rec = (map, k, g, w) => { if (!map.has(k)) map.set(k, new Map()); const m = map.get(k); if (!m.has(g)) m.set(g, []); m.get(g).push(w); };
+  for (const [gk, G] of groups) {
+    res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root });
+    const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
+    const floor = 1e-14 * Math.max(P0, 1e-30);
+    const Smemo = new Map(), Sof = el => { if (!Smemo.has(el.id)) Smemo.set(el.id, el.type === 'fcomp' ? FC[el.kind].S(el, G.nm) : []); return Smemo.get(el.id); };
+    // waves leaving components into fibres, keyed by port and delay (added as fields there)
+    let wave = new Map();
+    const emit = (map, port, dl, E) => {
+      const k = pkey(...port) + '|' + Math.round(dl * 1e6);
+      const w = map.get(k);
+      if (w) { for (let i = 0; i < 4; i++) w.E[i] += E[i]; } else map.set(k, { port, dl, E: E.slice() });
+    };
+    for (const I of G.list) emit(wave, I.port, I.dl, I.E);
+    let gen = 0;
+    while (wave.size && gen++ < 20000) {
+      const next = new Map();
+      for (const w of wave.values()) {
+        const pw = w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2;
+        if (pw < floor) continue;
+        rec(res.out, pkey(...w.port), gk, { dl: w.dl, E: w.E });
+        const f = to.get(pkey(...w.port));
+        if (!f) continue;                              // an open port: the light leaves the network
+        const z = ci.sc(ci.e(-k0 * FIBRE_N * f.Lmm), f.a);
+        const E = [w.E[0] * z[0] - w.E[1] * z[1], w.E[0] * z[1] + w.E[1] * z[0], w.E[2] * z[0] - w.E[3] * z[1], w.E[2] * z[1] + w.E[3] * z[0]];
+        const dl = w.dl + FIBRE_NG * f.Lmm, q = f.port, el = getEl(q[0]);
+        rec(res.inn, pkey(...q), gk, { dl, E });
+        if (!el) continue;
+        if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E }); continue; }        // out into free space
+        if (el.kind === 'pd') { rec(res.pd, el.id, gk, { dl, E }); continue; }
+        if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E); continue; }
+        for (const [a, b, M] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl, J2.app(M, E));
+      }
+      wave = next;
+      if (wave.size > 20000) { res.truncated = true; break; }
+    }
+    if (wave.size && gen >= 20000) res.truncated = true;
+  }
+  return res;
+}
+/* The power in a set of waves of one launch, in mW: pairwise, weighted by gamma */
+function netPower(byGroup, keys) {
+  let mw = 0;
+  if (!byGroup) return 0;
+  for (const K of keys) {
+    const ws = byGroup.get(K.gk);
+    if (!ws) continue;
+    const g = cohGamma(K.root);
+    let s = 0;
+    for (let i = 0; i < ws.length; i++) for (let j = i; j < ws.length; j++) {
+      const A = ws[i].E, B = ws[j].E, d = A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3];
+      s += (i === j ? 1 : 2 * (g ? g(ws[i].dl - ws[j].dl) : 1)) * d;
+    }
+    mw += s * (K.root.power || 0);
+  }
+  return mw;
+}
+/* The light a tip sends into free space, as sources split from each laser: one per launch,
+   or, for a laser with a line of its own, one per group of delays close enough (a fiftieth
+   of the coherence length) to count as one; at most six, the weakest folded into the
+   nearest in delay */
+function tipSources(net) {
+  const out = [];
+  if (!net) return out;
+  for (const [tipId, byG] of net.tips) {
+    const tip = getEl(tipId);
+    if (!tip) continue;
+    for (const K of net.keys) {
+      const ws = byG.get(K.gk);
+      if (!ws || !ws.length) continue;
+      const Lc = K.root.coh > 0 ? K.root.coh : Infinity;
+      const sorted = ws.slice().sort((a, b) => a.dl - b.dl);
+      let cl = [];
+      for (const w of sorted) {
+        const last = cl[cl.length - 1];
+        if (last && w.dl - last.d0 <= Lc / 50) { for (let i = 0; i < 4; i++) last.E[i] += w.E[i]; last.dw += w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2); }
+        else cl.push({ d0: w.dl, E: w.E.slice(), dw: w.dl * (w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2) });
+      }
+      const pw = c => c.E[0] ** 2 + c.E[1] ** 2 + c.E[2] ** 2 + c.E[3] ** 2;
+      while (cl.length > 6) {
+        let k = 0; for (let i = 1; i < cl.length; i++) if (pw(cl[i]) < pw(cl[k])) k = i;
+        const c = cl.splice(k, 1)[0];
+        let n = 0; for (let i = 1; i < cl.length; i++) if (Math.abs(cl[i].d0 - c.d0) < Math.abs(cl[n].d0 - c.d0)) n = i;
+        for (let i = 0; i < 4; i++) cl[n].E[i] += c.E[i];
+      }
+      cl.forEach((c, n) => {
+        const P = pw(c);
+        if (!(P > 1e-12)) return;
+        const nm = K.nm, v = {
+          type: 'source', virtual: true, id: tipId + '~' + out.length, name: tip.name, bench: tip.bench,
+          x: tip.x, y: tip.y, angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
+          gauss: true, w0: fibreMode(tip.core, tip.na, nm).w, z0: 0, m2: 1, rays: tip.emitRays, traceRays: tip.emitRays > 0,
+          popN: 256, popModel: 'auto', beamView: tip.emitView, beamScale: 'lin', pol: 's', polAngle: 0,
+          coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
+          // the tracer's amplitudes are the field's, conjugated
+          vJ: [c.E[0], -c.E[1], c.E[2], -c.E[3]], vRoot: K.root, vLag: c.dw / P, vKey: K.key, sweeps: {},
+        };
+        fanFromGauss(v);
+        out.push(v);
+      });
+    }
+  }
+  return out;
 }
 
 /* ---------- One-parameter search over a swept range ---------- */
@@ -4886,7 +5407,7 @@ function renderInto(box, el) {
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
-  if (!el) { renderOverview(); return; }
+  if (!el) { const F = selFibre(); if (F && panel === mainPanel) fibreLinkPanel(F); else renderOverview(); return; }
 
   const pinned = pins.includes(el.id);
   const pinBtn = h('button', { class: 'rt-pin' + (pinned ? ' on' : ''), type: 'button', 'aria-pressed': pinned ? 'true' : 'false',
@@ -4904,7 +5425,7 @@ function renderPanelBody(el) {
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
       faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)',
-      link: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
   );
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
@@ -4928,6 +5449,7 @@ function renderPanelBody(el) {
   if (el.type === 'filter') filterPanel(el);
   if (el.type === 'gain') gainPanel(el);
   if (el.type === 'link') linkPanel(el);
+  if (el.type === 'fcomp') fcompPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -5505,6 +6027,10 @@ function fibrePanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
     param('Ferrule face (mm)', el, 'length', { wide: true })));
+  panel.append(h('h3', null, 'Light from the fibre network'));
+  panel.append(h('div', { class: 'rt-rows' },
+    selectField('Show it as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']], () => el.emitView, v => { el.emitView = v; }),
+    param('Rays', el, 'emitRays')));
   panel.append(readoutBox('fibre'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
@@ -5565,6 +6091,90 @@ function filterPanel(el) {
   rf.addEventListener('change', () => { checkpoint(); el.reflect = rf.checked; changed(false); });
   panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, rf, 'Reflect what it blocks (a dichroic)'));
   panel.append(readoutBox('filter'));
+}
+const fmtMw = v => v === 0 ? '0 mW' : Math.abs(v) >= 0.01 ? (+v.toPrecision(4)) + ' mW' : (+(v * 1000).toPrecision(4)) + ' \u00b5W';
+/* power leaving and entering a port, mW */
+function portPower(el, p) {
+  const net = lastTrace.net;
+  if (!net) return { out: 0, inn: 0 };
+  return { out: netPower(net.out.get(pkey(el.id, p)), net.keys), inn: netPower(net.inn.get(pkey(el.id, p)), net.keys) };
+}
+function portRows(el) {
+  const rows = [];
+  portsOf(el).forEach((_, i) => {
+    const F = (project.fibres || []).find(G => pkey(...G.a) === pkey(el.id, i) || pkey(...G.b) === pkey(el.id, i));
+    const other = F ? (pkey(...F.a) === pkey(el.id, i) ? F.b : F.a) : null, oe = other && getEl(other[0]);
+    const P = portPower(el, i);
+    rows.push(['Port ' + portName(el, i), (oe ? '\u2192 ' + oe.name + (portsOf(oe).length > 1 ? ' ' + portName(oe, other[1]) : '') : 'open') +
+      (P.out || P.inn ? ', out ' + fmtMw(P.out) + ', in ' + fmtMw(P.inn) : '')]);
+  });
+  return rows;
+}
+function fcompPanel(el) {
+  const K = FC[el.kind];
+  panel.append(h('h3', null, K.label));
+  const rows = h('div', { class: 'rt-rows' });
+  for (const [k, label] of K.params) rows.append(param(label, el, k));
+  if (el.kind === 'laser') rows.append(selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+  if (el.kind === 'thru') rows.append(textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }));
+  panel.append(rows);
+  if (el.kind === 'thru') {
+    const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
+    panel.append(st, acts);
+    let sig = null;
+    bindSync(st, () => {
+      const P = thruPartner(el);
+      st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': a fibre goes in here and comes out there, and back.' : 'No partner yet: give a feedthrough on another tab the same pair name, or make one below.';
+      const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
+      if (s2 === sig) return;
+      sig = s2; acts.replaceChildren();
+      if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
+      else {
+        const make = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
+          const c = normElement({ type: 'fcomp', kind: 'thru', name: nextName('Feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle + 180, pair: el.pair, bench: bId });
+          project.elements.push(c); selectEl(c); changed(true); };
+        for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(b.id) }, 'Make its partner on ' + b.name));
+        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(null) }, 'Make its partner on a new tab'));
+      }
+    });
+  }
+  panel.append(readoutBox('fcomp'));
+  const notes = {
+    laser: 'A laser coupled straight into fibre. Its polarisation angle is from s: where a tip meets free space, s is out of the bench plane. Give it a coherence length and the network weighs every pair of paths by it.',
+    coupler: 'Ports 1 and 2 on one side, 3 and 4 on the other: 1 goes to 3 and, across, to 4; 2 goes to 4 and, across, to 3. The light crossing over picks up a quarter-wave, as in a real coupler, so two equal arms recombine all into one port.',
+    wdm: 'The pass band goes between the common port and the pass port; everything else between the common port and the rest port.',
+    circ: '1 to 2, and 2 to 3; back the other way only what its isolation lets through.',
+    iso: 'Forward from in to out; backward only what its isolation lets through.',
+    voa: 'The same loss both ways.',
+    pc: 'Three paddles, a quarter-wave, a half-wave and a quarter-wave, each turned about the fibre: any polarisation in to any out. The light going back through it sees the transpose, as in a real fibre.',
+    pol: 'Passes the polarisation along its axis (from s) and the crossed one weakened by its extinction.',
+    fm: 'A Faraday rotator and a mirror: what comes back is orthogonal to what went in, whatever the fibre did to it on the way, so a Michelson made with two stays at full contrast however its fibres are bent.',
+    fbg: 'Reflects a narrow band about its Bragg wavelength, back out of the port the light came in by; passes the rest.',
+    term: 'Absorbs what arrives, sending back only its return loss.',
+    pd: 'Reads the power arriving, the paths of one laser added as fields (weighted by its coherence), different lasers as powers.',
+    thru: 'Carries a fibre to the partner of the same name, on another tab.',
+  };
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
+}
+/* A fibre: its length, loss and what it carries */
+function fibreLinkPanel(F) {
+  const A = getEl(F.a[0]), B = getEl(F.b[0]);
+  panel.append(h('h2', null, h('span', null, 'Fibre'), h('span', { class: 'kind' }, (A ? A.name : '?') + ' \u2192 ' + (B ? B.name : '?'))));
+  const id1 = 'rtf' + (++fid), id2 = 'rtf' + (++fid);
+  panel.append(h('div', { class: 'rt-rows' },
+    h('div', { class: 'rt-f' }, h('label', { for: id1 }, 'Length (m)'), numInput(id1, () => F.len, v => { F.len = Math.max(0, v); })),
+    h('div', { class: 'rt-f' }, h('label', { for: id2 }, 'Loss (dB/km)'), numInput(id2, () => F.loss, v => { F.loss = Math.max(0, v); }))));
+  const out = h('div', { class: 'rt-readout' });
+  panel.append(out);
+  bindSync(out, () => {
+    const pa = portPower(A, F.a[1]), pb = portPower(B, F.b[1]);
+    const rows = [['Delay', (+(FIBRE_NG * F.len / 0.299792458).toPrecision(4)) + ' ns (optical path ' + fmtLen(FIBRE_NG * F.len * 1000) + ')'],
+      ['Loss over it', (+(F.loss * F.len / 1000).toPrecision(3)) + ' dB'],
+      [(A ? A.name : '?') + ' \u2192 ' + (B ? B.name : '?'), fmtMw(pa.out)], [(B ? B.name : '?') + ' \u2192 ' + (A ? A.name : '?'), fmtMw(pb.out)]];
+    out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+  });
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Single-mode fibre, index ' + FIBRE_N + ', keeping its polarisation. Its length is this number, not the length drawn. Drag either end off its port to take it away, or onto another port to move it.'));
+  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
 }
 function linkPanel(el) {
   panel.append(h('h3', null, 'Link'));
@@ -6255,7 +6865,7 @@ function cavityLater() {
       .catch(() => { if (cavJob === job) cavJob = null; cavityLater(); });
     return;
   }
-  const gen = popRunGen(lastTrace.beams, project.elements.filter(e => e.type === 'source'), {});
+  const gen = popRunGen(lastTrace.beams, allSources(), {});
   const job = { trace: lastTrace, gen };
   cavJob = job;
   const step = () => {
@@ -6443,7 +7053,7 @@ function renderOverview() {
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
       grating: '#c9a6ff', crystal: '#b79bff', fibre: '#f2c14e', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
-      filter: '#9aa4ab', gain: '#ff6a3d', link: '#7fdcff' };
+      filter: '#9aa4ab', gain: '#ff6a3d', link: '#7fdcff', fcomp: '#f2c14e' };
     // this tab's first, then the others', each under its name when there are several
     const multi = project.benches.length > 1;
     for (const b of [curBench(), ...project.benches.filter(b2 => b2 !== curBench())]) {
@@ -6481,6 +7091,7 @@ function renderOverview() {
   panel.append(h('ul', { class: 'rt-keys' },
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
+    h('li', null, 'Fibre components (under Fibre) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away.'),
     h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane (under More) and its partner on another tab carry light between them.'),
     h('li', null, 'Drag empty space to pan. Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
     h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
@@ -8736,7 +9347,7 @@ const POP_SLICES = 1800;           // slices drawn over the whole scene
 const POP_MAX_SEGS = 300;
 const popState = { key: '', result: null, timer: null, job: null };
 
-const popSources = () => project.elements.filter(e => e.type === 'source' && e.gauss && e.beamView === 'field');
+const popSources = () => allSources().filter(e => e.gauss && e.beamView === 'field');
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
   const cfg = srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e)]);
@@ -9283,7 +9894,7 @@ function closeupImage(segs, view, step, log) {
    close-up would show it */
 const fieldPointCache = { key: '', R: null };
 function fieldAtPoint(X, Y) {
-  const srcs = project.elements.filter(e => e.type === 'source' && e.gauss);
+  const srcs = allSources().filter(e => e.gauss);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, X, Y, 1e-3);
@@ -9291,7 +9902,7 @@ function fieldAtPoint(X, Y) {
 }
 /* Intensities along a line, prepared once for the whole of it */
 function fieldAlongLine(x0, y0, x1, y1, n) {
-  const srcs = project.elements.filter(e => e.type === 'source' && e.gauss);
+  const srcs = allSources().filter(e => e.gauss);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, 0.5 * (x0 + x1), 0.5 * (y0 + y1), 0.5 * Math.hypot(x1 - x0, y1 - y0) + 1e-4);
@@ -9626,7 +10237,7 @@ function popScreenPrep(el) {
   const keep = new Set();
   for (let i of arrive) while (i >= 0 && !keep.has(i)) { keep.add(i); i = B[i].parent; }
   const ids = new Set([...keep].map(i => B[i].src));
-  const srcs = project.elements.filter(e => ids.has(e.id));
+  const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
   const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {});
   return { keep, srcs, key };
@@ -10226,11 +10837,24 @@ function updateReadoutsIn(container, el) {
     }
     parts = [rows, 'Spot statistics are measured along the screen from its centre and weighted by ray power. Wavefront error is the spread in optical path to the centroid.' +
       (st && st.mixed ? ' Path figures use the most common wavelength on this screen.' : '')];
+  } else if (el.type === 'fcomp') {
+    const rows = portRows(el);
+    if (el.kind === 'pd') {
+      const net = lastTrace.net, mw = net ? netPower(net.pd.get(el.id), net.keys) : 0, mA = mw * el.resp, V = mA * 1e-3 * el.gain;
+      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ['Output', (+Math.min(V, el.vmax).toPrecision(4)) + ' V' + (V > el.vmax ? ', at its limit' : '')]);
+    }
+    if (el.kind === 'laser') rows.unshift(['Linewidth', el.coh > 0 ? fmtHz(299792458e3 / el.coh) : 'a single frequency']);
+    if (lastTrace.net && lastTrace.net.truncated) rows.push(['Note', 'the light was followed round a very long way: the readings leave out what was left']);
+    parts = [rows, 'Powers are for the light leaving each port into its fibre and arriving from it.'];
   } else if (el.type === 'fibre') {
     const r = fibreCoupling(el), nm = benchNms()[0], m = fibreMode(el.core, el.na, nm);
     const rows = [['Mode field diameter', fmtLen(2 * m.w) + ' at ' + nm + ' nm'], ['V number', (+m.V.toPrecision(3)) + (m.V < 2.405 ? ', single mode' : ', multimode: the fundamental only is shown')]];
     if (r) rows.push(['Arriving', (+r.inMw.toPrecision(4)) + ' mW'], ['Coupling efficiency', (100 * r.eff).toPrecision(4) + '%'], ['Into the fibre', (+r.mw.toPrecision(4)) + ' mW']);
     else rows.push(['Arriving', 'no Gaussian beam reaches the face']);
+    if (portsInUse().has(pkey(el.id, 0))) {
+      const P = portPower(el, 0);
+      rows.push(['Into the fibre network', fmtMw(P.out)], ['Out into free space', fmtMw(P.inn)]);
+    }
     parts = [rows, 'Efficiency is what enters the fibre’s mode against what arrives on its face.'];
   } else if (el.type === 'detector') {
     const r = detectorReading(el), nm = benchNms()[0];
@@ -10322,6 +10946,7 @@ function removeEl(el) {
   checkpoint();
   stopSweepsFor(el);
   project.elements = project.elements.filter(e => e.id !== el.id);
+  project.fibres = (project.fibres || []).filter(F => F.a[0] !== el.id && F.b[0] !== el.id);
   selectedId = null;
   changed(true);
 }
@@ -10700,9 +11325,9 @@ function importZmx(file) {
    ========================================================================== */
 
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addElement(b.dataset.add)));
-/* the More menu: the less common elements, kept out of the toolbar's way */
-{
-  const btn = document.getElementById('btnMore'), menu = document.getElementById('moreMenu');
+/* the More and Fibre menus: the less common elements, kept out of the toolbar's way */
+for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnFibre', 'fibreMenu']]) {
+  const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
   menu.addEventListener('click', () => show(false));
@@ -10975,7 +11600,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
 function newProject() {
   pauseAll();
   checkpoint();
-  project.elements = [];
+  project.elements = []; project.fibres = [];
   project.benches = [{ id: 'b1', name: 'Bench 1', view: project.view }]; project.tab = 'b1';
   ensureBenches(project); renderBenchTabs();
   project.name = 'Untitled bench';
@@ -11168,7 +11793,7 @@ function workerMain() {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
       } else if (kind === 'cavity') {
-        popRun(lastTrace.beams, project.elements.filter(e2 => e2.type === 'source'), {});
+        popRun(lastTrace.beams, allSources(), {});
       } else if (kind === 'closeup') {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
@@ -11208,6 +11833,13 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     trace: traceScene,
     serialize,
     benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
+    // fibres: join two ports by element name and port number; what a fibre photodiode reads
+    connect(a, pa, b, pb, len, loss) { project.fibres = project.fibres || []; project.fibres.push({ id: uid(), a: [this.byName(a).id, pa], b: [this.byName(b).id, pb], len: len ?? 1, loss: loss ?? 0 }); traceScene(); },
+    portScreen(id, i) { const Q = portWorld(getEl(id), i); return [sx(Q.x), sy(Q.y)]; },
+    fibreMid(id) { return bez(fibreCurve(project.fibres.find(F => F.id === id)), 0.5); },
+    fibrePd(name) { const el = this.byName(name), net = lastTrace.net; return net ? netPower(net.pd.get(el.id), net.keys) : 0; },
+    portPower(name, p) { return portPower(this.byName(name), p); },
+    fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) switchTab(b.id); return project.tab; },
     addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them
@@ -11239,7 +11871,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },
     // every Gaussian source's beam tree as fields, whatever it is set to show
     popNotes() {
-      const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
+      const R = popRun(lastTrace.beams, allSources());
       const name = id => (getEl(id) || {}).name;
       return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name), coarse: [...R.notes.coarse].map(name), polErr: R.notes.polErr || 0 };
     },
@@ -11269,7 +11901,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       buildup: c.buildup, Tin: c.Tin, stability: c.stability, gouy: c.gouy, tms: c.tms, waists: c.mode.waists, along: c.mode.along.map(a => ({ name: a.name, wx: a.wx, wy: a.wy })),
       axis: c.axis, match: c.match, Mx: c.Mx, My: c.My })); },
     vfPupilOf(name) {
-      const el = this.byName(name), R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
+      const el = this.byName(name), R = popRun(lastTrace.beams, allSources());
       const sg = R.segs.find(s2 => s2.b.endEl === el.id); if (!sg) return null;
       const P = vfPupil(sg, R); if (!P) return null;
       let pw = 0; for (let o = 0; o < P.n; o++) { let I = 0; for (let m = 0; m < 4; m++) I += P.U[m][o] ** 2; pw += I * P.W[o]; }
@@ -11283,14 +11915,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     maskExpr(src, x, y, lam) { return compileMaskExpr(src)(x || 0, y || 0, lam || 633e-6); },
     // the bench's groups of branches drawn as one, with the power their fields add up to
     popGroups() {
-      const R = popRun(lastTrace.beams, project.elements.filter(e => e.type === 'source'));
+      const R = popRun(lastTrace.beams, allSources());
       const name = id => id ? (getEl(id) || {}).name : null;
       return popGroups(R.segs).map(g => ({ size: g.members.length, to: name(g.lead.b.endEl),
         dx: g.lead.b.dx, dy: g.lead.b.dy, gain: popGroupCut(g, 0.5 * g.lead.b.len).gain }));
     },
     popSegments() {
       const withJ = (sg, s) => Object.assign({}, s, { power: s.power * segW(sg) });
-      const srcs = project.elements.filter(e => e.type === 'source');
+      const srcs = allSources();
       const R = popRun(lastTrace.beams, srcs);
       return R.segs.map(sg => ({
         el: sg.b.ev ? (getEl(sg.b.ev.el) || {}).name : null, kind: sg.b.ev ? sg.b.ev.kind : 'source',

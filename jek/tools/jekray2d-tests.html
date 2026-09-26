@@ -2604,7 +2604,90 @@ const TESTS = [
       return J.cavities().length === 1 ? J.diffraction('Trans').power : NaN;
     },
   },
+
+  { group: 'Fibre networks' },
+  {
+    name: 'A 2\u00d72 coupler splits a fibre laser evenly',
+    why: '1 mW into port 1 of a 50:50 coupler: 0.5 mW at each output',
+    want: 0.5, tol: 1e-9, unit: ' mW',
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0]]));
+      return Math.abs(J.fibrePd('P3') - J.fibrePd('P4')) < 1e-12 ? J.fibrePd('P3') : NaN; },
+  },
+  {
+    name: 'A fibre Mach\u2013Zehnder with equal arms sends everything to one port',
+    why: 'each crossing adds a quarter-wave: through both arms, the light meets in phase at the cross port',
+    want: 1, tol: 1e-9, unit: ' mW',
+    run: J => fmz(J, 0)[1],
+  },
+  {
+    name: 'and half a wave longer, to the other',
+    why: 'one arm longer by \u03bb / 2n swaps the ports',
+    want: 1, tol: 1e-9, unit: ' mW',
+    run: J => fmz(J, 1550e-9 / (2 * 1.468))[0],
+  },
+  {
+    name: 'A fibre Mach\u2013Zehnder washes out by the laser\u2019s line',
+    why: 'arms 1 m apart (group index 1.468), Lorentzian line Lc = 3 m: fringe contrast exp(\u2212\u03c0 \u00d7 1468 / 3000), from each path followed with its own delay',
+    want: Math.exp(-Math.PI * 1468 / 3000), tol: 1e-5, unit: '',
+    run: J => { const q = 1550e-9 / (4 * 1.468), a = fmz(J, 1, 3000)[0], c = fmz(J, 1 + q, 3000)[0], t = fmz(J, 1 + 2 * q, 3000)[0], m = (a + t) / 2; return Math.hypot((a - t) / 2, c - m) / m; },
+  },
+  {
+    name: 'A lossy fibre ring dips on resonance as the all-pass formula says',
+    why: '90% of the ring\u2019s light stays in it each pass through a 10:90 coupler; ring loss a: minimum ((r \u2212 a) / (1 \u2212 r a))\u00b2, found by scanning the ring\u2019s length over a wavelength',
+    want: (() => { const a = Math.pow(10, -0.013 / 20), r = Math.sqrt(0.9); return ((r - a) / (1 - r * a)) ** 2; })(), tol: 2e-3, unit: '',
+    run: J => {
+      let mn = Infinity;
+      for (let i = 0; i < 400; i++) {
+        J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C', { ratio: 90 }), fc('pd', 'P')], [['L', 0, 'C', 0], ['C', 2, 'C', 1, 0.1 + i / 400 * 1550e-9 / 1.468, 130], ['C', 3, 'P', 0]]));
+        mn = Math.min(mn, J.fibrePd('P'));
+      }
+      return mn;
+    },
+  },
+  {
+    name: 'A Faraday-mirror Michelson keeps full contrast whatever the fibre does',
+    why: 'a polarisation controller set anyhow in one arm: each mirror sends back the light orthogonal to what came, so the two return in the same state',
+    want: 1, tol: 1e-9, unit: '',
+    run: J => {
+      const v = [0, 1, 2, 3].map(k => {
+        J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pc', 'PC', { a1: 33, a2: 71, a3: 17 }), fc('fm', 'M1', { rmax: 100 }), fc('fm', 'M2', { rmax: 100 }), fc('pd', 'P')],
+          [['L', 0, 'C', 0], ['C', 1, 'P', 0], ['C', 2, 'PC', 0], ['PC', 1, 'M1', 0], ['C', 3, 'M2', 0, 2 + k * 1550e-9 / (8 * 1.468)]]));
+        return J.fibrePd('P');
+      });
+      const lo = Math.min(...v), hi = Math.max(...v); return (hi - lo) / (hi + lo);
+    },
+  },
+  {
+    name: 'A Bragg grating on a circulator reflects its band to the third port',
+    why: 'laser 0.2 nm off a 90%, 0.5 nm grating: R = 0.9 exp(\u22124 ln 2 (0.2/0.5)\u00b2), times the circulator\u2019s 0.8 dB twice',
+    want: 0.9 * Math.exp(-4 * Math.LN2 * 0.16) * Math.pow(10, -1.6 / 10), tol: 1e-9, unit: ' mW',
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550.2 }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+      [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
+  },
+  {
+    name: 'Light coupled into a fibre tip leaves the other end with what went in',
+    why: 'a focused beam into one tip, a lossless fibre, out of a second tip onto a screen: the power there against the first tip\u2019s coupling efficiency',
+    want: null, tol: 1e-6, rel: true, unit: '',
+    run: J => {
+      J.load(bench('tips', [src({ name: 'S', x: -60, width: 1, rays: 1, gauss: true, w0: 0.5, z0: 0, pol: 's', power: 1, wavelength: 1550, popN: 256 }),
+        bk7Lens({ name: 'Lens' }), { type: 'fibre', name: 'In', x: 50.6, y: 0, angle: 180, core: 9, na: 0.14 },
+        { type: 'fibre', name: 'Out', x: 0, y: 40, angle: 0, core: 9, na: 0.14 }, screen({ name: 'Sc', x: 80, y: 40, length: 30 })], { minPower: 1e-4 }));
+      J.connect('In', 0, 'Out', 0, 2, 0);
+      TESTS_EXPECT.tipEff = J.portPower('In', 0).out;
+      return J.diffraction('Sc').power;
+    },
+    wantFrom: () => TESTS_EXPECT.tipEff,
+  },
 ];
+
+/* Fibre networks: components by name, fibres as [from, port, to, port, length m, loss dB/km] */
+const fc = (kind, name, o) => Object.assign({ type: 'fcomp', kind, name, id: name, x: 0, y: 0, angle: 0 }, o || {});
+const fnet = (els, fibres) => bench('fibre', els, { fibres: fibres.map(([a, pa, b, pb, len, loss]) => ({ a: [a, pa], b: [b, pb], len: len ?? 1, loss: loss ?? 0 })) });
+function fmz(J, dL, coh) {
+  J.load(fnet([fc('laser', 'L', { power: 1, coh: coh || 0 }), fc('coupler', 'C1'), fc('coupler', 'C2'), fc('pd', 'P3'), fc('pd', 'P4')],
+    [['L', 0, 'C1', 0], ['C1', 2, 'C2', 0, 1], ['C1', 3, 'C2', 1, 1 + dL], ['C2', 2, 'P3', 0], ['C2', 3, 'P4', 0]]));
+  return [J.fibrePd('P3'), J.fibrePd('P4')];
+}
 
 /* A lens focusing a Gaussian beam onto a screen; split, the source is on another tab and the
    lens and screen follow a link plane, its partner turned by turn degrees */

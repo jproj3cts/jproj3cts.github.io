@@ -5991,7 +5991,7 @@ let refs = [];          // { node, sync() }, refreshed while dragging or animati
 /* Tabs and plot choices belong to each element, so two pinned screens can show different plots */
 const viewState = new Map();
 function vs(el) {
-  if (!viewState.has(el.id)) viewState.set(el.id, { screenTab: 'params', rayView: 'bins', diffView: 'map' });
+  if (!viewState.has(el.id)) viewState.set(el.id, { screenTab: 'params', rayView: 'power', diffView: 'map' });
   return viewState.get(el.id);
 }
 /* Panels kept open while other elements are selected: element ids, newest first */
@@ -6796,7 +6796,6 @@ function screenPanel(el) {
 }
 
 const RAY_PLOTS = [
-  ['bins', 'Binned intensity'],
   ['power', 'Power of each ray against position'],
   ['phase', 'Phase against position'],
   ['wave', 'Wavefront error against position'],
@@ -6806,29 +6805,19 @@ const RAY_PLOTS = [
 ];
 function rayPlots(el) {
   const st = screenStats(el);
+  if (!RAY_PLOTS.some(([v]) => v === vs(el).rayView)) vs(el).rayView = 'power';
   const sel = h('select', { id: 'rtf' + (++fid) });
   for (const [v, t] of RAY_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).rayView;
   sel.addEventListener('change', () => { vs(el).rayView = sel.value; renderPanel(); });
   const rows = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel));
-  if (vs(el).rayView === 'bins') {
-    rows.append(param('Bin width (mm)', el, 'binWidth',
-      { blank: 0, placeholder: 'leave blank for 96 bins', wide: true, fmt: v => v ? fmtNum(v) : '' }));
-  }
   panel.append(rows);
-  if (vs(el).rayView === 'bins') {
-    const ip = h('input', { type: 'checkbox' });
-    ip.checked = el.binInterp !== false;
-    ip.addEventListener('change', () => { checkpoint(); el.binInterp = ip.checked; changed(false); });
-    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, ip,
-      'Interpolate each beam across the bins'));
-  }
 
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const getZ = () => plotZoom(el, 'ray-' + vs(el).rayView), redraw = () => drawRayPlot(cv, note, el);
   panel.append(h('div', { style: 'margin-top:0.35rem' }, plotFrame(cv, () => 'ray-' + vs(el).rayView, getZ, redraw)),
-    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'bins' || vs(el).rayView === 'power'), note);
+    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
@@ -6961,43 +6950,6 @@ function drawRayPlot(cv, note, el) {
   const centroid = st.centroid;
 
   const Z = plotZoom(el, 'ray-' + vs(el).rayView);
-  if (vs(el).rayView === 'bins') {
-    const B = binnedField(el);
-    if (!B) { note.textContent = 'Nothing has reached this screen.'; return; }
-    const peak = Math.max(B.max, B.incMax) || 1;
-    plotCsv(cv, el.name + ' binned intensity', ['position_mm', 'coherent', 'incoherent'], () => Array.from(B.coh, (v, i) => [B.lo + (i + 0.5) * B.width, v, B.inc[i]]));
-    // up is a share of the peak bin, so plots of different screens compare by shape
-    const [xa, xb] = zoomRange(Z, 'x', B.lo, B.hi), [fa, fb] = zoomRange(Z, 'y', 0, 1);
-    const sx = { kind: 'len' }, sy = { kind: 'plain', title: 'of the peak bin' };
-    const A = plotArea(c, w, hgt, [fa, fb], sy);
-    cv._area = A; cv._full = { x: [B.lo, B.hi], y: [0, 1] };
-    const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
-    const Y = v => A.t + A.h - (v / peak - fa) / ((fb - fa) || 1) * A.h;
-    const base = Math.min(A.t + A.h, Y(0));
-    c.save(); c.beginPath(); c.rect(A.l, A.t - 2, A.w, A.h + 2); c.clip();
-    // the incoherent sum behind, as a reference, and the coherent bins in front
-    c.fillStyle = 'rgba(0,0,0,0.12)';
-    for (let i = 0; i < B.n; i++) {
-      const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.inc[i]);
-      if (x1 < A.l || x0 > A.l + A.w) continue;
-      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), base - y);
-    }
-    c.fillStyle = getCss('--jek-cyan');
-    for (let i = 0; i < B.n; i++) {
-      const x0 = X(B.lo + i * B.width), x1 = X(B.lo + (i + 1) * B.width), y = Y(B.coh[i]);
-      if (x1 < A.l || x0 > A.l + A.w) continue;
-      c.fillRect(x0 + 0.5, y, Math.max(1, x1 - x0 - 1), base - y);
-    }
-    c.restore();
-    drawAxes(c, A, [xa, xb], [fa, fb], sx, sy);
-    updateSyncButtons();
-    note.textContent = B.n + ' bins of ' + fmtLen(B.width) + ' across ' + fmtLen(B.hi - B.lo) +
-      (B.interp ? ', interpolated' : ', rays dropped straight in') +
-      '. Fields add within a beam and a wavelength; the grey behind is the incoherent sum' +
-      (B.interference !== null ? ', and the coherent total is ' + (+(100 * B.interference).toPrecision(4)) + '% of it' : '') + '.';
-    return;
-  }
-
   let pts = [], xl = 'position (mm)', yl = '', sx = { kind: 'len' }, sy = { kind: 'plain' };
   if (vs(el).rayView === 'power') {
     pts = all.map(t => [t.y, t.w]); yl = 'power per ray'; sy.title = 'power per ray';
@@ -7643,7 +7595,7 @@ function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {
    may mean zooming a small pattern out past its own data so both show the same span. */
 const SYNC_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 6.3A5.3 5.3 0 0 0 3.6 4.4L2.4 5.6"/><path d="M2.4 2.4v3.2h3.2"/><path d="M2.8 9.7a5.3 5.3 0 0 0 9.6 1.9l1.2-1.2"/><path d="M13.6 13.6v-3.2h-3.2"/></svg>';
 const SYNC_NAMES = { 'diff-map': 'irradiance maps', 'diff-psf': 'profiles', 'diff-mtf': 'MTF plots', 'diff-ee': 'enclosed energy plots',
-  'cav-scan': 'resonance scans', 'ray-bins': 'binned intensity plots', 'ray-power': 'ray power plots', 'ray-phase': 'phase plots',
+  'cav-scan': 'resonance scans', 'ray-power': 'ray power plots', 'ray-phase': 'phase plots',
   'ray-wave': 'wavefront plots', 'ray-fan': 'ray fans', 'ray-angle': 'arrival angle plots', 'ray-opl': 'optical path plots' };
 function plotFrame(cv, getKey, getZ, redraw) {
   cv._sync = { getKey, getZ, redraw };

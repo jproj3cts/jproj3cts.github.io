@@ -1644,6 +1644,16 @@ const TESTS = [
       return J.popNotes().coarse.includes('Disc') ? 1 : 0;
     },
   },
+  {
+    name: 'and so is a mask formula finer than the grid, while one it resolves is not',
+    why: 'binary π gratings on a 2 mm beam: 0.05 mm on 256 points leaves 5e-3 in the zero order and is flagged; 0.5 mm on 128 points leaves none and is not. Rings 0.02 mm apart are flagged by the round engine, a 1 mm pinhole by neither',
+    want: 4, tol: 0, unit: ' of 4',
+    run: J => {
+      const flag = (m, n) => { J.load(oneEl(Object.assign({ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, amp: '1', delay: '0' }, m), { popN: n })); J.popSegments(); return J.popNotes().coarse.includes('G'); };
+      return (flag({ delay: '0.5*step(sin(2*pi*x/0.05))' }, 256) ? 1 : 0) + (flag({ delay: '0.5*step(sin(2*pi*x/0.5))' }, 128) ? 0 : 1)
+        + (flag({ amp: 'step(sin(2*pi*r/0.02))' }, 256) ? 1 : 0) + (flag({ amp: 'circ(r/0.5)' }, 256) ? 0 : 1);
+    },
+  },
 
 
   { group: 'Double slits, slit combs and hard-edged masks' },

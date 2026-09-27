@@ -2757,6 +2757,11 @@ function maskFootprint(fn, u, v, du, dv, lam, radial) {
   const c = Math.cos(-2 * Math.PI * d0), s = Math.sin(-2 * Math.PI * d0), mr = sr / n, mi = si / n;
   return [mr * c - mi * s, mr * s + mi * c, sp / n];
 }
+/* A mask whose formula jumps inside more than this share of the samples (by the light they
+   pass) has detail finer than about four samples: features W samples wide put an edge in
+   about 2/W of them. Those samples are averaged, which keeps the power right but not the
+   shape of what the detail sends out. */
+const MASK_EDGE_SHARE = 0.5;
 /* Does a mask's formula jump anywhere along a line through the beam? */
 function maskJumps(fn, u0, v0, du, dv, lam) {
   let prev = null;
@@ -9729,7 +9734,7 @@ function popSurface(F, q, ev) {
   const g = Math.sqrt(ev.gain === undefined ? 1 : ev.gain) / aA;
   // the real surface, by tracing rays in the plane: what it adds beyond the paraxial
   // quadratic above is the aberration. Only meaningful while the beam stays round.
-  let pArea = 0, pAmp = 0, pAreaM = 0, pAmpM = 0;
+  let pArea = 0, pAmp = 0, pAreaM = 0, pAmpM = 0, pEdgeM = 0;
   const maskFnR = raw && raw.surf && raw.surf.maskFn && !ev.paraxial ? raw.surf.maskFn : null;
   for (let i = 0; i < N; i++) {
     if (mask) { const I = (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i]; pArea += I * mask[i]; pAmp += I * mask[i] * mask[i]; }
@@ -9749,7 +9754,7 @@ function popSurface(F, q, ev) {
         if (fp) {
           const ph0 = 2 * Math.PI * maskFnR(r[6], 0, lam0)[1], c0 = Math.cos(ph0), s0 = Math.sin(ph0);
           fr = fp[0] * c0 - fp[1] * s0; fi = fp[0] * s0 + fp[1] * c0;
-          pAreaM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fp[2]; pAmpM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * (fr * fr + fi * fi);
+          pAreaM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fp[2]; pEdgeM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fp[2]; pAmpM += (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * (fr * fr + fi * fi);
         } else { const I0 = (ure[i] ** 2 + uim[i] ** 2) * Q.inv[i] * fr * fr; pAreaM += I0; pAmpM += I0; }
       }
       const xr0 = ure[i] * fr - uim[i] * fi, yi0 = ure[i] * fi + uim[i] * fr;
@@ -9770,7 +9775,10 @@ function popSurface(F, q, ev) {
   let resScale = ev.fixed ? ev.fixed.resScale || 1 : 1;
   if (!ev.fixed && !clipped && !(raw && raw.mode === 'M')) { const pO = popStats(field).power, pI = popStats(F).power; if (pO > 0 && pI > 0) resScale = Math.sqrt(pI / pO); }
   if (resScale !== 1) for (let i = 0; i < N; i++) { ure[i] *= resScale; uim[i] *= resScale; }
-  return { field, q: [qr, qi], clipped, steep,
+  // a mask formula that changes inside a sample is averaged over it; when that averaging throws
+  // away a noticeable share of the light, the formula has detail the grid cannot hold
+  const coarse = !ev.fixed && pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM ? 1 : 0;
+  return { field, q: [qr, qi], clipped, steep, coarse,
     decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
 }
 
@@ -11214,7 +11222,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   if (!(pol && pol.fixed && pol.fixed.cache)) for (let i = 0; i < N * N; i++) peakIn = Math.max(peakIn, field2I(F, i));
   // an edge that cuts a sample passes the sample's share of the area; with its amplitude at
   // that share its power would fall short, so the whole is rescaled to the area's power
-  let pArea = 0, pAmp = 0, pU = 0;
+  let pArea = 0, pAmp = 0, pU = 0, pF = 0, pFe = 0;
   // A cavity's later round trips reuse what the first fixed pass worked out for each sample
   // (where it reads the incoming field, its phase and amplitude, its polarisation matrix),
   // so they cost an interpolation and a multiply, not a ray trace, per sample
@@ -11238,9 +11246,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   } else
   for (let j = 0; j < N; j++) {
     const y = (j - N / 2) * ay.d / Ay;
-    let prev = null;
+    let prev = null, prevEdge = false;
     for (let i = 0; i < N; i++) {
       const x = (i - N / 2) * ax.d / Ax;
+      let edgeHere = false;
       const [ur, ui] = interp2(F, x, y);
       const [vr, vi] = vec ? interp2(F, x, y, F.re2, F.im2) : [0, 0];
       if (!record && ur === 0 && ui === 0 && vr === 0 && vi === 0) { prev = null; continue; }
@@ -11315,6 +11324,9 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
             fr = fp[0] * c0 - fp[1] * s0; fi = fp[0] * s0 + fp[1] * c0; T2 = fp[2];
             if (!traced) { fr = Math.hypot(fr, fi); fi = 0; }
           }
+          const U0 = (ur * ur + ui * ui + vr * vr + vi * vi) * cov * T2;
+          pF += U0; if (fp) pFe += U0;
+          edgeHere = !!fp;
         }
         m = cov;
         if (m === 0 || (fr === 0 && fi === 0)) { prev = null; continue; }
@@ -11322,9 +11334,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
         pArea += U * T2 * cov; pAmp += U * (fr * fr + fi * fi) * cov * cov;
         if (traced) ab = abAt(x, y, r);
       }
-      // how fast the sampled phase turns from one sample to the next
-      if (prev !== null && Math.abs(ab - prev) > 2 && ur * ur + ui * ui + vr * vr + vi * vi > 1e-6 * peakIn && m > 0.01) steep = 1;
-      prev = ab;
+      // how fast the sampled phase turns from one sample to the next (a mask's step, which
+      // its footprint average already handles, is not a slope)
+      if (prev !== null && !edgeHere && !prevEdge && Math.abs(ab - prev) > 2 && ur * ur + ui * ui + vr * vr + vi * vi > 1e-6 * peakIn && m > 0.01) steep = 1;
+      prev = ab; prevEdge = edgeHere;
       const ph = ab + cx * x * x + cy * y * y, amp = m * g, o = j * N + i;
       const c0 = Math.cos(ph) * amp, s0 = Math.sin(ph) * amp;
       const c = c0 * fr - s0 * fi, s = c0 * fi + s0 * fr;
@@ -11444,6 +11457,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     }
   }
   if (record) fixed.cache = record;
+  if (!replay && pF > 0 && pFe > MASK_EDGE_SHARE * pF) coarse = 1;
   return { field: out, clipped, steep, coarse, polErr, decision: { axd: ax.d, ayd: ay.d, clipped, nx: nxD, ny: nyD, areaScale, resScale } };
 }
 

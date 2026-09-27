@@ -7683,7 +7683,7 @@ function trapReport(el, T) {
   if (!T || T.error) return T || null;
   const I = 0.5 * T.nMed * EPS0 * C_SI * T.E2;                            // W/m^2
   const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
-    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass };
+    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
   if (T.isAtom) {
     const nm = el.trap && lastTraceNm(el);
     out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s
@@ -7737,12 +7737,13 @@ function trapSection(el) {
     const { D, busy } = diffractionLater(el), rows = [];
     const T = D && D.trap ? trapReport(el, D.trap) : null;
     if (!T) rows.push(['', busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
-    else if (T.error) rows.push(['', 'No trap: ' + (T.error === 'no focused beam' ? 'no beam through here converges to a focus.' : T.error)]);
+    else if (T.error) rows.push(['', 'No trap: ' + (T.error === 'no focused beam' ? 'no beam through here has a field to take.' : T.error)]);
     else {
       const sph = el.trap === 'sphere';
       rows.push(['Light', (T.beams > 1 ? T.beams + ' beams' + (T.launches < T.beams ? ', interfering' : ', from separate lasers') : 'one beam') + ', ' + (T.I >= 1e7 ? (+(T.I / 1e7).toPrecision(4)) + ' kW/cm²' : (+(T.I / 1e4).toPrecision(4)) + ' W/cm²') + ' where it sits']);
       if (sph) rows.push(['Particle', el.trapMat + ', n = ' + (+T.np.toPrecision(5)) + ', radius ' + fmtLen(el.trapR * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
       if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
+      else if (!T.trap && T.away) rows.push(['', 'No trap near the screen: the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
       else {
         rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
@@ -7764,12 +7765,12 @@ function trapSection(el) {
       }
       if (sph && T.ka > 0.6) rows.push(['', 'The sphere is ' + (+T.ka.toPrecision(2)) + ' of a wavelength/2π across (ka): past the Rayleigh regime (ka below about 0.5) these forces are only a guide; a Mie calculation is needed.']);
       if (sph && el.trapMed !== 'bench' && Math.abs(T.nMed - T.nBench) > 1e-3) rows.push(['', 'The medium set here (n = ' + (+T.nMed.toPrecision(4)) + ') is not the bench’s where the light is (n = ' + (+T.nBench.toPrecision(4)) + '): the focus is the bench’s. For a liquid, put the trap in a block of it on the bench (Water is in the catalogue) so the focus is right too.']);
-      if (T.skipped) rows.push(['', T.skipped + ' beam' + (T.skipped > 1 ? 's' : '') + ' through here not converging to a focus left out.']);
+      if (T.skipped) rows.push(['', T.skipped + ' beam' + (T.skipped > 1 ? 's' : '') + ' through here left out: no field could be taken for ' + (T.skipped > 1 ? 'them.' : 'it.')]);
     }
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count), beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
     (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
@@ -9942,10 +9943,38 @@ function popAxis(F) {
    back at any radius. Returns r -> intensity. (Linear interpolation of the intensity samples
    misplaces a sharp core's half-height by as much as a tenth of its width.) */
 function popIntensityAt(F) {
+  const f = popFieldSeries(F);
+  return r => { const [a, b] = f(r); return a * a + b * b; };
+}
+/* the same, the residual field itself, [re, im] */
+function popFieldSeries(F) {
+  if (F._series) return F._series;
   const Q = qdht(F.re.length), [sr, si] = hankel(Q, F.R, F.re, F.im), V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * F.R * F.R);
   const nu = new Float64Array(Q.N), wr = new Float64Array(Q.N), wi = new Float64Array(Q.N);
   for (let m = 0; m < Q.N; m++) { nu[m] = Q.j[m] * V / Q.S; wr[m] = sr[m] * Q.inv[m] * k; wi[m] = si[m] * Q.inv[m] * k; }
-  return r => { let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; } return a * a + b * b; };
+  const f = r => { let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; } return [a, b]; };
+  Object.defineProperty(F, '_series', { value: f, enumerable: false });
+  return f;
+}
+/* A 2D grid's field at (x, y) by high-order interpolation (eight samples each way), smooth
+   enough that curvatures taken from it are the field's, not the interpolation's */
+function interpL(F, x, y, RE, IM) {
+  RE = RE || F.re; IM = IM || F.im;
+  const N = F.N, fx = x / F.ax.d + N / 2, fy = y / F.ay.d + N / 2, A = 4;
+  const ix = Math.floor(fx), iy = Math.floor(fy);
+  if (ix < A || iy < A || ix > N - A - 1 || iy > N - A - 1) return interp2(F, x, y, RE, IM);
+  // Lagrange weights over the 2A nearest samples: a polynomial between them, its curvature (a
+  // trap's stiffness) the field's to order (d/w)^2A, where a windowed sinc ripples
+  const lag = u => { const w = []; for (let j = -A + 1; j <= A; j++) { let l = 1; for (let m = -A + 1; m <= A; m++) if (m !== j) l *= (u - m) / (j - m); w.push(l); } return w; };
+  const wx = lag(fx - ix), wy = lag(fy - iy), sx = 1, sy = 1;
+  let r = 0, i = 0;
+  for (let b = 0; b < 2 * A; b++) {
+    const row = (iy - A + 1 + b) * N + ix - A + 1;
+    let rr = 0, ri = 0;
+    for (let a = 0; a < 2 * A; a++) { rr += wx[a] * RE[row + a]; ri += wx[a] * IM[row + a]; }
+    r += wy[b] * rr; i += wy[b] * ri;
+  }
+  return [r / (sx * sy), i / (sx * sy)];
 }
 /* A 2D field between its samples along a row (axis 'x', row j) or a column ('y', column i),
    by the trigonometric interpolation its periodic grid implies; both polarisations. Returns
@@ -12890,6 +12919,52 @@ function trapShape(sg, len) {
    the stiffness there, -dF_i/dx_i, gives the trap frequencies. Frame: z along the arriving
    beam, x across it in the bench plane, y out of the plane; offsets from where that beam
    crosses the screen. */
+/* A beam's field near a trap from its propagation rather than a pupil: cuts along it on a grid
+   a twentieth of a Rayleigh range apart, made as they are needed, each cut's residual
+   interpolated across (in the plane and out of it) with its reference sphere put back and
+   its polarisation; the smooth envelope interpolated between the four nearest cuts, the fast
+   phase exact, as the close-up does. Paraxial: no field along the beam. Returns the same
+   [x, y, z] components, re and im, as vfAt. */
+function trapLegPart(sg, P0) {
+  const b = sg.b, rx = P0[0] - b.x0, ry = P0[1] - b.y0, tc = clamp(rx * b.dx + ry * b.dy, 0, b.len);
+  const G0 = sg.leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
+  const zR = two ? Math.min(G0.ax.zR, G0.ay.zR) : G0.zR;
+  return { sg, H: Math.max(0.05 * zR, 20 * lam), k, two, J: popJ(b), par: b.par, cuts: new Map() };
+}
+function trapLegCut(L, i) {
+  let c = L.cuts.get(i);
+  // before the leg's start, its field carried back through free space: smooth, as the stencil needs
+  if (!c) { c = L.sg.leg.at(i * L.H); L.cuts.set(i, c); }
+  return c;
+}
+function trapLegAt(L, px, py, pz) {
+  const acc = [0, 0, 0, 0], u = pz / L.H, i0 = Math.floor(u) - 1;
+  for (let j = 0; j < 4; j++) {
+    const ij = i0 + j, tj = ij * L.H;
+    let l = 1;
+    for (let m = 0; m < 4; m++) if (m !== j) l *= (u - (i0 + m)) / (j - m);
+    const G = trapLegCut(L, ij), k = L.k;
+    let s, p;
+    if (L.two) {
+      const refX = popInside(G.ax.z, G.ax.zR) ? 0 : -k / (2 * G.ax.z), refY = popInside(G.ay.z, G.ay.zR) ? 0 : -k / (2 * G.ay.z);
+      const ph = refX * px * px + refY * py * py, c = Math.cos(ph), sn = Math.sin(ph), rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+      const a = interpL(G, px, py);
+      if (G.re2) { s = rot(a); const q = interpL(G, px, py, G.re2, G.im2); p = rot([(L.par ? -1 : 1) * q[0], (L.par ? -1 : 1) * q[1]]); }
+      else { const v = rot(a), J = L.J; s = [v[0] * J[0] - v[1] * J[1], v[0] * J[1] + v[1] * J[0]]; p = [v[0] * J[2] - v[1] * J[3], v[0] * J[3] + v[1] * J[2]]; }
+    } else {
+      // the round field between its radii exactly, by its Hankel series, and its reference sphere
+      const r2 = px * px + py * py, uv = popFieldSeries(G)(Math.sqrt(r2)), bph = (G.sphere ? -k / (2 * G.z) : 0) * r2, cb = Math.cos(bph), sb = Math.sin(bph);
+      const v = [uv[0] * cb - uv[1] * sb, uv[0] * sb + uv[1] * cb], J = L.J;
+      s = [v[0] * J[0] - v[1] * J[1], v[0] * J[1] + v[1] * J[0]]; p = [v[0] * J[2] - v[1] * J[3], v[0] * J[3] + v[1] * J[2]];
+    }
+    // the fast phase off at each cut, the envelope interpolated, then back on exactly
+    const ph = k * tj, c = Math.cos(ph), sn = Math.sin(ph);
+    acc[0] += l * (p[0] * c - p[1] * sn); acc[1] += l * (p[0] * sn + p[1] * c);
+    acc[2] += l * (s[0] * c - s[1] * sn); acc[3] += l * (s[0] * sn + s[1] * c);
+  }
+  const ph = -L.k * pz, c = Math.cos(ph), sn = Math.sin(ph);
+  return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c, 0, 0];
+}
 function trapSolve(el, R, dom, len) {
   const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
   const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
@@ -12914,10 +12989,14 @@ function trapSolve(el, R, dom, len) {
   const skipped = [];
   const parts = [];
   for (const sg of beams) {
-    const P = vfPupil(sg, R, { reach: 4.2, M: 96 });
-    if (!P) { skipped.push(sg); continue; }
+    const force = self.__trapLeg && self.__trapLeg(sg);            // tests: take this beam by its propagated field
+    const P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
     const src = sg.src, root = splitRoot(src);
-    parts.push({ sg, P, b: sg.b, coh: sg.coh, Pw: Math.max(0, root.power) * 1e-3 });
+    // a beam not converging on a focus ahead (collimated, or past its focus) has no pupil to sum
+    // from: its propagated field is taken instead, cut along the beam as the search needs
+    const leg = P ? null : trapLegPart(sg, P0);
+    if (!P && !leg) { skipped.push(sg); continue; }
+    parts.push({ sg, P, leg, b: sg.b, coh: sg.coh, Pw: Math.max(0, root.power) * 1e-3 });
   }
   if (!parts.length) return { error: 'no focused beam' };
   const isAtom = el.trap in TRAP_ATOMS;
@@ -12937,7 +13016,7 @@ function trapSolve(el, R, dom, len) {
     const [X, Y, Zo] = world(x, y, z), E = [0, 0, 0, 0, 0, 0];         // world X, Y (bench), Z (out of plane)
     for (const q of L) {
       const b = q.b, rx = X - b.x0, ry = Y - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx;
-      const e = vfAt(q.P, px, Zo, pz), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI));
+      const e = q.P ? vfAt(q.P, px, Zo, pz) : trapLegAt(q.leg, px, Zo, pz), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI));
       const ax = [-b.dy, b.dx];
       // beam frame x (across, in the plane), y (out of it), z (along) to world X, Y, Z
       E[0] += s * (e[0] * ax[0] + e[4] * b.dx); E[1] -= s * (e[1] * ax[0] + e[5] * b.dx);
@@ -12997,7 +13076,11 @@ function trapSolve(el, R, dom, len) {
   // the scalar field's estimate can be well off at a steep or aberrated focus: scan the true
   // (vector) intensity along the beam over a couple of Rayleigh ranges, then refine
   // without a usable estimate, the scan reaches as far as the screen's region
-  const zr0 = S0.cz > 0 && isFinite(S0.cz) ? Math.sqrt(2 / S0.cz) : H / 2.5, Z = 2.5 * zr0 + 20 * lamM;
+  // a gentle beam (collimated, or its focus far off) is looked at near the screen, not wherever
+  // its waist is: the start and the scan stay within the screen's region and a Rayleigh range
+  const zr0 = S0.cz > 0 && isFinite(S0.cz) ? Math.sqrt(2 / S0.cz) : H / 2.5, reach = H + Math.min(zr0, H);
+  const Z = Math.min(2.5 * zr0, reach) + 20 * lamM;
+  S0.dz = clamp(S0.dz, -reach, reach);
   let zb = S0.dz, best = -1;
   for (let k = -60; k <= 60; k++) { const z = S0.dz + k * Z / 60, v = intensityInc(0, 0, z); if (v > best) { best = v; zb = z; } }
   { let a = zb - Z / 60, b = zb + Z / 60; for (let it = 0; it < 30; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (intensityInc(0, 0, m1) > intensityInc(0, 0, m2)) b = m2; else a = m1; } zb = 0.5 * (a + b); }
@@ -13048,11 +13131,13 @@ function trapSolve(el, R, dom, len) {
     if (f === 1 && dx.every((v, i) => Math.abs(v) < 1e-4 * scale[i])) { ok = true; scale = scales(r); K = stiff(r); break; }
   }
   const kd = K ? [K[0][0], K[1][1], K[2][2]] : [NaN, NaN, NaN];
-  const stable = ok && kd.every(v => v > 0);
+  // an equilibrium well away from the screen (a gentle beam's pull back along itself) is not the trap here
+  const away = Math.abs(r[2]) > 2 * reach || Math.hypot(r[0], r[1]) > H;
+  const stable = ok && !away && kd.every(v => v > 0);
   const E2v = intensity(...r);
   const fr = k => k > 0 ? Math.sqrt(k / mass) / (2 * Math.PI) : null;
   return Object.assign(out, { trap: stable, converged: ok, x: r[0], y: r[1], z: r[2], E2: E2v, U: Uat(...r), k: kd, fx: fr(kd[0]), fy: fr(kd[1]), fz: fr(kd[2]),
-    zStart: S0.dz });
+    zStart: S0.dz, away });
 }
 function popDiffraction(el, R) {
   const f = frame(el), a = el.angle * deg, sYx = -Math.sin(a), sYy = Math.cos(a), nX = Math.cos(a), nY = Math.sin(a);

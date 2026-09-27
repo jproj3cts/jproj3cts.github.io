@@ -3365,6 +3365,26 @@ const TESTS = [
     },
   },
   {
+    name: 'Collimated beams trap too, by their propagated field',
+    why: 'two 0.5 mm beams of one laser, their waists at the sources 100 mm either side, meeting unfocused: a lattice site near the screen, four times one beam’s intensity there, (k/2π)√(2U/m) along and √(4U/mw²)/2π across (w the width there); one beam alone pulls the atom away along itself, no trap near the screen; round and 2D field (worst relative error)',
+    want: 0, tol: 0.003, unit: '',
+    run: J => {
+      const w0 = 0.5, m = 86.909180527 * 1.66053906660e-27, kB = 1.380649e-23, k = 2 * Math.PI / 1064e-9;
+      const zR = Math.PI * w0 * w0 / 1064e-6, w = w0 * Math.sqrt(1 + (100 / zR) ** 2), I0 = 2 / (Math.PI * (w * 1e-3) ** 2);
+      let worst = 0;
+      for (const model of ['auto', '2d']) {
+        const S = (id, x, ang, split) => src({ id, name: id, x, angle: ang, wavelength: 1064, gauss: true, w0, z0: 0, width: 3, rays: 1, pol: 's', power: 1000, popN: 256, popModel: model, splitFrom: split });
+        J.load(bench('col1', [S('A', -100, 0, null), screen({ name: 'Sc', x: 0, length: 4, absorb: false, trap: 'Rb87' })], { minPower: 1e-6 }));
+        const T1 = J.trap('Sc');
+        J.load(bench('col2', [S('A', -100, 0, null), S('B', 100, 180, 'A'), screen({ name: 'Sc', x: 0, length: 4, absorb: false, trap: 'Rb87' })], { minPower: 1e-6 }));
+        const T = J.trap('Sc'), U = T.depthK * kB;
+        if (!T.trap || T1.trap || !T1.away || Math.abs(T.dz) > 0.002) return 1;
+        worst = Math.max(worst, Math.abs(T.I / (4 * I0) - 1), Math.abs(T.fz / (k * Math.sqrt(2 * U / m) / (2 * Math.PI)) - 1), Math.abs(T.fx / (Math.sqrt(4 * U / (m * (w * 1e-3) ** 2)) / (2 * Math.PI)) - 1));
+      }
+      return worst;
+    },
+  },
+  {
     name: 'Four beams of one laser make a two-dimensional lattice, by their polarisation',
     why: 'two crossed standing waves at one focus: polarised out of the plane (s) all four interfere, (cos kx + cos kz)², sixteen times one beam’s depth and √2 times the 1D lattice’s frequency each way in the plane; in the plane (p) the two pairs are polarised at right angles and add as intensities, eight times deep with each pair’s own lattice frequency (worst relative error)',
     want: 0, tol: 0.003, unit: '',

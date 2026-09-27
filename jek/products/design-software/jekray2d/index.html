@@ -183,7 +183,8 @@
           <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, amplifiers, photodiodes) joined by drag-drawn fibres that keep, scramble or maintain polarisation, single-mode or multimode, on as many bench tabs as you need</li>
           <li>Lasers built from parts that settle at their output power, atomic vapour cells (Rb, Cs, K) with Doppler-broadened hyperfine lines, saturated absorption and Zeeman splitting in a magnetic field (DAVLL, Faraday filters, polarisation spectroscopy), and optical traps for atoms and dielectric nanoparticles: where the particle sits, depth and trap frequencies each way, from the vector field of every beam through the focus, standing waves and radiation pressure included</li>
           <li>Aberrations across the field at any screen: Seidel and Zernike terms, full-field spot diagrams, ray fans, field curvature and distortion</li>
-          <li>Femtosecond pulses: glass, prism and grating compressors, chirped mirrors and fibre dispersion, with the arriving pulse's duration, GDD and TOD</li>
+          <li>Femtosecond pulses: glass, prism and grating compressors, chirped mirrors and fibre dispersion, with the arriving pulse's duration, GDD and TOD; self-phase modulation and solitons in fibre</li>
+          <li>Frequency doubling in PPLN and PPKTP crystals, with focusing, phase matching, temperature tuning and pump depletion</li>
           <li>Hermite–Gauss, Laguerre–Gauss and vortex beams, and spatial light modulator patterns: spiral phase plates, fork holograms and blazed gratings</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
           <li>Save benches as <code>.jekray</code> files or share one as a link; export the layout as PNG, SVG or PDF, and any plot as a picture or CSV</li>
@@ -277,6 +278,7 @@
         <h2>Spectra and ultrafast pulses</h2>
         <p>Every source can carry several wavelengths, so gratings and prisms spread light into its spectrum and chromatic focal shift shows up on its own. Filters and dichroics pass or reflect by wavelength.</p>
         <p>Give a laser a pulse duration and JEKray2D traces its spectrum through glass, prism and grating compressors, chirped mirrors and fibre. Any screen or photodiode shows the pulse that arrives: its duration against the transform limit, peak power, group delay dispersion and third-order dispersion, spatial chirp and pulse-front tilt.</p>
+        <p>Nonlinear optics too: periodically poled PPLN and PPKTP crystals double a laser’s frequency (1560 → 780 nm, 1064 → 532 nm) from Boyd and Kleinman’s theory, with the focusing, poling period and temperature tuning and the fundamental used up as it converts. In fibre, strong pulses pick up self-phase modulation, worked out by the nonlinear Schrödinger equation: their spectra broaden, and in anomalous dispersion they can travel as solitons.</p>
       </div>
     </section>
 
@@ -490,7 +492,7 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Polarisation and spectra</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Polarisation and spectra</span><span class="rt-exdrop-count">6 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=wollaston-polarimeter">
           <img src="img/wollaston-polarimeter.png" alt="" loading="lazy">
@@ -529,6 +531,14 @@
           <div class="rt-example-body">
             <h3>Dichroic combiner, two tables</h3>
             <p>A 532 nm and a 1064 nm laser combined on a dichroic, carried to a second tab by link planes, and focused by one lens.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=frequency-doubling">
+          <img src="img/frequency-doubling.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Frequency doubling</h3>
+            <p>Two lasers doubled in periodically poled crystals: 1560 → 780 nm in PPLN and 1064 → 532 nm in PPKTP, with efficiency, phase matching and temperature tuning.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
@@ -604,7 +614,7 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Fibre and pulses</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Fibre and pulses</span><span class="rt-exdrop-count">6 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
           <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
@@ -643,6 +653,14 @@
           <div class="rt-example-body">
             <h3>Grating pulse compressor</h3>
             <p>A chirped 100 fs pulse through a Treacy grating pair. The Pulse tab shows it compressed from 460 fs back to 102 fs.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-solitons">
+          <img src="img/fibre-solitons.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Self-phase modulation and a soliton</h3>
+            <p>One fibre laser, two spools: a soliton that arrives as short as it left, and a pulse whose spectrum self-phase modulation broadens while normal dispersion stretches it.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>

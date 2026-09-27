@@ -45,7 +45,7 @@ A `.jekray` file is one JSON object:
 | name | the project's title |
 | notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |
 | elements | the elements (see the reference) |
-| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "path": [{"x", "y"}, ...]} |
+| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "gamma": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "path": [{"x", "y"}, ...]} |
 | benches | optional, for several tabs: [{"id": "b1", "name": "Laser table"}, ...]; then give each element "bench": its tab's id |
 | maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
@@ -97,6 +97,8 @@ Signs:
 - **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
 - **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on) or to "sphere" with "trapMat", "trapR" (nm) and "trapMed". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of "Water" so the optics are right too.
 - **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a "divergence" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field ("abAng" degrees, or "abH" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a "stop" where the system's aperture stop is, first on the axis, so the pupil stays filled across the field.
+- **Frequency doubling:** a Gaussian laser focused into an "nlc" (a periodically poled crystal: "material" "ppln" or "ppktp", "nlLen" mm, "temp" °C, "axis" the polarisation that converts), the crystal's middle at the focus; leave "period" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass "filter". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.
+- **Self-phase modulation and solitons:** a pulsed fibre laser ("tau", "rep", "power") into fibre long and strong enough for a nonlinear phase (standard fibre has "gamma" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
@@ -435,6 +437,21 @@ An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absor
 | line | `"D2"` | "D2" or "D1". |
 | temp | `25` | °C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60). |
 | bField | `0` | gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none. |
+
+### "nlc": Nonlinear crystal
+
+A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the frequency of light polarised along its z axis: the second harmonic leaves as a beam of its own, from Boyd and Kleinman’s theory for the focusing, the poling period and the temperature, and the fundamental leaves depleted. Put a lens before it so the beam focuses in its middle.
+
+**angle:** its axis: 0 for a beam travelling ±x (the crystal lies along x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `3` | mm: the aperture across the beam. |
+| nlLen | `20` | mm along the beam (10 to 50 is usual). |
+| material | `"ppln"` | "ppln" (MgO:PPLN, d_eff 14 pm/V) or "ppktp" (d_eff 9.5 pm/V). |
+| period | `0` | poling period, µm; 0 (the default) picks the best period for the beam through it. |
+| temp | `40` | °C: tunes the phase matching (PPLN is usually run hot, 40 to 200). |
+| axis | `"s"` | "s" (z axis out of the bench plane: s light converts) or "p". |
 
 ### "link": Link plane
 

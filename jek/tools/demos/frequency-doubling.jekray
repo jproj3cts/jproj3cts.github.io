@@ -1,0 +1,333 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Frequency doubling: 1560 → 780 nm and 1064 → 532 nm",
+  "saved": "2026-09-27T21:13:51.424Z",
+  "view": {
+    "cx": 30,
+    "cy": 0,
+    "scale": 3.6
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.000001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 30,
+        "cy": 0,
+        "scale": 3.6
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "lA",
+      "type": "source",
+      "name": "Er fibre amplifier, 1560 nm, 2 W",
+      "x": -90,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1560,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "power": 2000,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "fA",
+      "type": "lens",
+      "name": "Lens, f ≈ 100 mm",
+      "x": -50,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3.6
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "xA",
+      "type": "nlc",
+      "name": "MgO:PPLN, 50 mm",
+      "x": 54,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "length": 3,
+      "nlLen": 50,
+      "material": "ppln",
+      "period": 19.622,
+      "temp": 40,
+      "axis": "s",
+      "sweeps": {
+        "temp": {
+          "min": 38.5,
+          "max": 41.5,
+          "freq": 0.25,
+          "phase": 0,
+          "wave": "triangle"
+        }
+      }
+    },
+    {
+      "id": "fAf",
+      "type": "filter",
+      "name": "Short-pass, 1100 nm",
+      "x": 92,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "ftype": "shortpass",
+      "edge": 1100,
+      "slope": 20,
+      "centre": 550,
+      "fwhm": 10,
+      "od": 1,
+      "tmax": 95,
+      "reflect": false,
+      "sweeps": {}
+    },
+    {
+      "id": "dA",
+      "type": "detector",
+      "name": "Photodiode, 780 nm",
+      "x": 140,
+      "y": 25,
+      "angle": 180,
+      "bench": "b1",
+      "length": 10,
+      "material": "si",
+      "resp": 0.5,
+      "gain": 100,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
+      "absorb": true,
+      "sweeps": {}
+    },
+    {
+      "id": "lB",
+      "type": "source",
+      "name": "Nd:YAG, 1064 nm, 1 W",
+      "x": -90,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1064,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "power": 1000,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "fB",
+      "type": "lens",
+      "name": "Lens, f ≈ 100 mm",
+      "x": -50,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3.6
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "xB",
+      "type": "nlc",
+      "name": "PPKTP, 20 mm",
+      "x": 54,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "length": 2,
+      "nlLen": 20,
+      "material": "ppktp",
+      "period": 8.999,
+      "temp": 40,
+      "axis": "s",
+      "sweeps": {}
+    },
+    {
+      "id": "fBf",
+      "type": "filter",
+      "name": "Short-pass, 800 nm",
+      "x": 92,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "ftype": "shortpass",
+      "edge": 800,
+      "slope": 20,
+      "centre": 550,
+      "fwhm": 10,
+      "od": 1,
+      "tmax": 95,
+      "reflect": false,
+      "sweeps": {}
+    },
+    {
+      "id": "dB",
+      "type": "detector",
+      "name": "Photodiode, 532 nm",
+      "x": 140,
+      "y": -25,
+      "angle": 180,
+      "bench": "b1",
+      "length": 10,
+      "material": "si",
+      "resp": 0.5,
+      "gain": 100,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
+      "absorb": true,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "Second-harmonic generation in periodically poled crystals. Top: 2 W at 1560 nm (an erbium fibre amplifier’s output, collimated to 1 mm) focused into 50 mm of MgO:PPLN, doubled to 780 nm (the rubidium line, the usual way to reach it from telecom lasers). Bottom: 1 W at 1064 nm into 20 mm of PPKTP, doubled to 532 nm. Each crystal’s period is the best for its beam at the temperature set; a short-pass filter passes the harmonic to a photodiode. Select a crystal to read the efficiency (%/W), the phase matching and the focusing against Boyd and Kleinman’s optimum, and to see the harmonic against temperature. Press Play on the PPLN’s temperature sweep: a degree off and the harmonic is gone. Raise the pump power and watch the conversion saturate as the fundamental is used up; move the crystal off the focus, or change the lens, and the efficiency falls.",
+  "ui": {
+    "sel": "xA",
+    "pins": [],
+    "views": {}
+  }
+}

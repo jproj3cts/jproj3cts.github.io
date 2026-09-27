@@ -3412,6 +3412,60 @@ const TESTS = [
       return lo * hi < 0 && Math.abs(lo) > 0.01 && Math.abs(hi) > 0.01 && Math.abs(sig(780.24373 + dl, true)) < 1e-4 ? 1 : 0;
     },
   },
+  {
+    name: 'Self-phase modulation broadens a pulse’s spectrum as Agrawal’s formula says',
+    why: 'a 1 ps Gaussian pulse through 100 m of dispersion-free fibre (γ = 1.3 /(W km)) at the peak power that gives 5 rad of nonlinear phase: the rms spectral width grows by √(1 + 4φ²/3√3) (Agrawal, Nonlinear Fiber Optics, eq. 4.1.12), and φ is 5 rad (worst relative error)',
+    want: 0, tol: 0.002, unit: '',
+    run: J => {
+      const tau = 1000, P0 = 5 / (1.3e-3 * 100), Ep = P0 * tau * 1e-15 * Math.sqrt(Math.PI / (4 * Math.LN2));
+      const r = J.fibreSPM({ disp: 0, gamma: 1.3 }, 1560, 100, { tau, pshape: 'gauss', rep: 1 }, Ep * 1e6, 0);
+      return Math.max(Math.abs(r.broad / Math.sqrt(1 + 4 / (3 * Math.sqrt(3)) * 25) - 1), Math.abs(r.B / 5 - 1));
+    },
+  },
+  {
+    name: 'A fundamental soliton keeps its shape down a fibre',
+    why: 'a 500 fs sech² pulse at 1560 nm in standard fibre (D = 17 ps/(nm km)) at the soliton’s peak power |β₂|/γT₀², over five dispersion lengths, out of a fibre tip onto a screen: its spectrum the same to 1%, and it arrives 500 fs long at its launch peak power, where at a hundredth of the power it spreads to nearly four times as long (worst relative error)',
+    want: 0, tol: 0.01, unit: '',
+    run: J => {
+      const b2 = -17 * 1e-3 * 1560 ** 2 / (2 * Math.PI * 299.792458) * 1e3, T0 = 500 / 1.7627, g = 1.3e-3, Ps = Math.abs(b2) / (g * T0 * T0), LD = T0 * T0 / Math.abs(b2), Es = 2 * Ps * T0 * 1e-15;
+      const r = J.fibreSPM({ disp: 17, gamma: 1.3 }, 1560, 5 * LD, { tau: 500, pshape: 'sech2', rep: 80 }, Es * 80e6, 0);
+      const dW = 2 * Math.PI * 0.3148 / 500;
+      let dev = 0; for (let i = 0; i < r.re.length; i++) { const d = r.d0 + i * r.dd, x = 0.8814 * 2 * d / dW; dev = Math.max(dev, Math.abs(r.re[i] ** 2 + r.im[i] ** 2 - 1 / Math.cosh(x) ** 2)); }
+      const mk = P => bench('sol', [{ type: 'fcomp', kind: 'laser', name: 'L', id: 'L', x: -60, y: 20, angle: 0, wavelength: 1560, power: P, tau: 500, rep: 80, pshape: 'sech2' },
+        { type: 'fibre', name: 'T', id: 'T', x: 0, y: 0, angle: 0 }, screen({ x: 50, length: 20 })], { fibres: [{ a: ['L', 0], b: ['T', 0], len: 5 * LD, loss: 0, disp: 17, gamma: 1.3 }] });
+      J.load(mk(Es * 80e6 * 1e3)); const R = J.pulse('Screen');
+      J.load(mk(Es * 80e6 * 10)); const Rl = J.pulse('Screen');
+      return Math.max(dev, Math.abs(R.dur / 500 - 1), Math.abs(R.peak / Ps - 1), Rl.dur > 3.5 * 500 ? 0 : 1);
+    },
+  },
+  {
+    name: 'A pulse broadened by self-phase modulation arrives on a screen with its new spectrum',
+    why: 'the Gaussian pulse and fibre of the formula check, from a fibre laser through a fibre tip to a screen’s Pulse tab: its spectrum 4.5 times as wide (rms) as the same laser’s at low power, and the pulse itself as long as it started (self-phase modulation alone changes only the phase in time) (worst relative error)',
+    want: 0, tol: 0.02, unit: '',
+    run: J => {
+      const tau = 1000, P0 = 5 / (1.3e-3 * 100), Ep = P0 * tau * 1e-15 * Math.sqrt(Math.PI / (4 * Math.LN2));
+      const mk = P => bench('spm', [{ type: 'fcomp', kind: 'laser', name: 'L', id: 'L', x: -60, y: 20, angle: 0, wavelength: 1560, power: P, tau, rep: 1, pshape: 'gauss' },
+        { type: 'fibre', name: 'T', id: 'T', x: 0, y: 0, angle: 0 }, screen({ x: 50, length: 20 })], { fibres: [{ a: ['L', 0], b: ['T', 0], len: 100, loss: 0, disp: 0, gamma: 1.3 }] });
+      const rms = R => { const f = R.nm.map(nm => 2 * Math.PI * 299.792458 / nm); let s0 = 0, s1 = 0, s2 = 0; f.forEach((x, i) => { const y = R.S[i] || 0; s0 += y; s1 += y * x; s2 += y * x * x; }); return Math.sqrt(s2 / s0 - (s1 / s0) ** 2); };
+      J.load(mk(0.001)); const A = J.pulseSpectrum('Screen');
+      J.load(mk(Ep * 1e9)); const B = J.pulseSpectrum('Screen');
+      return Math.max(Math.abs(rms(B) / rms(A) / Math.sqrt(1 + 4 / (3 * Math.sqrt(3)) * 25) - 1), Math.abs(B.dur / tau - 1));
+    },
+  },
+  {
+    name: 'A pulse split by a fibre coupler arrives with half the energy, not a quarter',
+    why: 'a 200 fs fibre laser into a fibre tip directly, then through a 50:50 coupler (linear fibre): the peak power on the screen halves (relative error)',
+    want: 0, tol: 1e-3, unit: '',
+    run: J => {
+      const f = (kind, name, o) => Object.assign({ id: name, type: 'fcomp', kind, name, x: 0, y: 0, angle: 0 }, o || {});
+      const mk = split => bench('cp', [f('laser', 'L', { x: -100, y: 20, wavelength: 1560, power: 10, tau: 200, rep: 50 }), ...(split ? [f('coupler', 'C', { x: -50, y: 20 })] : []),
+        { type: 'fibre', name: 'T', id: 'T', x: 0, y: 0, angle: 0 }, screen({ x: 50, length: 20 })],
+        { fibres: split ? [{ a: ['L', 0], b: ['C', 0], len: 1, loss: 0, gamma: 0 }, { a: ['C', 2], b: ['T', 0], len: 1, loss: 0, gamma: 0 }] : [{ a: ['L', 0], b: ['T', 0], len: 2, loss: 0, gamma: 0 }] });
+      J.load(mk(false)); const a = J.pulse('Screen').peak;
+      J.load(mk(true)); const b = J.pulse('Screen').peak;
+      return Math.abs(b / a - 0.5);
+    },
+  },
   { group: 'Tracing' },
   {
     name: 'The bench is traced again only when it changes',
@@ -3428,6 +3482,50 @@ const TESTS = [
       const settings = J.traceInfo().count === n0 + 2;
       J.load(J.serialize());
       return same && moved && settings && J.traceInfo().count === n0 + 3 ? 1 : 0;
+    },
+  },
+  { group: 'Nonlinear crystals' },
+  {
+    name: 'The crystals’ indices and poling periods are the published ones',
+    why: 'MgO:LiNbO₃ n_e at 1064 nm (2.148) and KTP n_z at 1064 and 532 nm (1.8302, 1.8888, Kato and Takaoka); the first-order periods for 1064 → 532 nm (PPLN about 6.9 µm, PPKTP 9.0 µm) and 1560 → 780 nm in PPLN (about 19.5 µm), at 25 to 100 °C (worst relative error)',
+    want: 0, tol: 0.02, unit: '',
+    run: J => Math.max(Math.abs(J.nlcIndex('ppln', 1064, 25) / 2.148 - 1), Math.abs(J.nlcIndex('ppktp', 1064, 25) / 1.8302 - 1), Math.abs(J.nlcIndex('ppktp', 532, 25) / 1.8888 - 1),
+      Math.abs(J.nlcPeriod('ppln', 1064, 60) / 6.9 - 1), Math.abs(J.nlcPeriod('ppktp', 1064, 25) / 9.0 - 1), Math.abs(J.nlcPeriod('ppln', 1560, 60) / 19.5 - 1)),
+  },
+  {
+    name: 'Boyd and Kleinman’s focusing function peaks at 1.068 and tends to ξ for a loose focus',
+    why: 'h(σ, ξ) at ξ = 2.84 with the best σ (0.57), against 1.068; and h / ξ at ξ = 0.01, σ = 0, against 1 (worst relative error)',
+    want: 0, tol: 0.002, unit: '',
+    run: J => { const B = J.bkBest(2.84, 0); return Math.max(Math.abs(B.h / 1.068 - 1), Math.abs(B.sigma / 0.57 - 1) * 0.1, Math.abs(J.bkH(0, 0.01, 0) / 0.01 - 1)); },
+  },
+  {
+    name: 'A crystal doubles a laser as Boyd and Kleinman say, depletion and all',
+    why: '1560 nm focused to ξ = 2.84 in 50 mm of MgO:PPLN at the best period: the harmonic through a short-pass filter against 16π²d²Lh/(ε₀cλ³n₁n₂) · P₁ with P₂ = P₁ tanh²(√(ηP₁)), at 0.1, 1 and 10 W (worst relative error); p light makes none; and without the filter, fundamental and harmonic add up to what went in',
+    want: 0, tol: 1e-3, unit: '',
+    run: J => {
+      const n1 = J.nlcIndex('ppln', 1560, 40), n2 = J.nlcIndex('ppln', 780, 40), zR = 50 / 2.84 / (2 * n1), w0 = Math.sqrt(1.56e-3 * zR / Math.PI);
+      const mk = (P, pol, filt) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 50, width: 2 * w0, rays: 1, pol, power: P }),
+        { type: 'nlc', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: 40 },
+        ...(filt ? [{ type: 'filter', name: 'F', x: 60, y: 0, angle: 0, ftype: 'shortpass', edge: 1100, slope: 1, tmax: 100 }] : []),
+        { type: 'detector', name: 'D', x: 80, y: 0, angle: 180, length: 20, material: 'custom', resp: 1 }], { minPower: 1e-6 });
+      const eta = 16 * Math.PI ** 2 * (14e-12) ** 2 * 0.05 * 1.068 / (8.8541878128e-12 * 299792458 * (1.56e-6) ** 3 * n1 * n2);
+      let worst = 0;
+      for (const P of [100, 1000, 10000]) { J.load(mk(P, 's', true)); const Pw = P * 1e-3; worst = Math.max(worst, Math.abs(J.detector('D').mw / (Pw * Math.tanh(Math.sqrt(eta * Pw)) ** 2 * 1e3) - 1)); }
+      J.load(mk(1000, 'p', true)); worst = Math.max(worst, J.detector('D').mw);
+      J.load(mk(10000, 's', false)); worst = Math.max(worst, Math.abs(J.detector('D').mw / 10000 - 1));
+      return worst;
+    },
+  },
+  {
+    name: 'A crystal off its phase-matching temperature makes little',
+    why: 'the same 50 mm PPLN, its period held at the best for 40 °C, run at 45 °C (well outside its acceptance, about a degree): under 5% of the harmonic',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const n1 = J.nlcIndex('ppln', 1560, 40), zR = 50 / 2.84 / (2 * n1), w0 = Math.sqrt(1.56e-3 * zR / Math.PI);
+      const mk = (T, period) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 50, width: 2 * w0, rays: 1, pol: 's', power: 1000 }),
+        { type: 'nlc', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: T, period }], { minPower: 1e-6 });
+      J.load(mk(40, 0)); const H = J.nlc('X')[0], best = H.r.P2, per = H.r.period;
+      J.load(mk(45, per)); return J.nlc('X')[0].r.P2 < 0.05 * best ? 1 : 0;
     },
   },
   { group: 'The close-up' },
@@ -3798,7 +3896,7 @@ function fibrePulse(disp, nm) {
   return bench('fp', [
     { type: 'fcomp', kind: 'laser', name: 'L', id: 'L', x: -60, y: 20, angle: 0, wavelength: nm || 1560, power: 10, tau: 200, rep: 50 },
     { type: 'fibre', name: 'T', id: 'T', x: 0, y: 0, angle: 0 },
-    screen({ x: 50, length: 20 })], { fibres: [{ a: ['L', 0], b: ['T', 0], len: 2, loss: 0, disp }] });
+    screen({ x: 50, length: 20 })], { fibres: [{ a: ['L', 0], b: ['T', 0], len: 2, loss: 0, disp, gamma: 0 }] });     // linear: these check dispersion alone
 }
 
 /* A Fabry-Perot fed through a phase EOM (beta; none at 0), its reflection on a diode */

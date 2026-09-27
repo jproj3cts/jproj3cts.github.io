@@ -329,7 +329,7 @@ body {
   max-width: 760px;
 }
 
-/* Each product is a postage stamp: the cover sits on a paper border with
+/* On Anomalies (and anywhere .stamp is used) each product is a postage stamp: the cover sits on a paper border with
    perforated edges, and the title, price and description sit underneath
    like a label in a stamp album. No card box around the whole tile. */
 .image-item {
@@ -337,7 +337,7 @@ body {
   flex-direction: column;
 }
 
-.image-item > a,
+body.ground-anomalies .image-item > a,
 .stamp {
   --perf: 4px;                          /* perforation hole radius */
   position: relative;
@@ -350,7 +350,7 @@ body {
 
 /* The paper, drawn on a layer behind the cover so the perforations can be
    cut out of it with a mask while the drop shadow on the link still shows. */
-.image-item > a::before,
+body.ground-anomalies .image-item > a::before,
 .stamp::before {
   content: "";
   position: absolute;
@@ -372,11 +372,13 @@ body {
 }
 
 /* Lifted off the page: a small tilt and a longer shadow */
-.image-item > a:hover,
+body.ground-anomalies .image-item > a:hover,
 .stamp:hover {
   transform: translateY(-3px) rotate(-1.25deg);
   filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
 }
+
+.image-item > a { display: block; }
 
 .image-item > a:focus-visible {
   outline: 2px solid var(--urpg-accent);

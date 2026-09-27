@@ -600,6 +600,9 @@
               </div>
               <div class="rt-mgroup" role="group" aria-label="Atoms and traps"><div class="rt-mhead">Atoms and traps</div>
                 <button type="button" role="menuitem" data-demo="saturated-absorption">Saturated absorption, rubidium</button>
+                <button type="button" role="menuitem" data-demo="polarisation-spectroscopy">Polarisation spectroscopy</button>
+                <button type="button" role="menuitem" data-demo="davll-lock">DAVLL: a lock from a magnetic field</button>
+                <button type="button" role="menuitem" data-demo="faraday-filter">Faraday filter</button>
                 <button type="button" role="menuitem" data-demo="dipole-trap">Optical dipole trap, rubidium</button>
                 <button type="button" role="menuitem" data-demo="optical-lattice">Two-dimensional optical lattice</button>
                 <button type="button" role="menuitem" data-demo="optical-tweezers">Optical tweezers in water</button>
@@ -1208,6 +1211,121 @@ function atomLines(atom, line) {
   atomLineCache.set(key, out);
   return out;
 }
+/* ---------- A magnetic field on the cell ----------
+   A field B along the cell's axis splits each line into its Zeeman components. The hyperfine
+   and Zeeman Hamiltonian of each level, A I.J (+ B's quadrupole term for J' = 3/2) +
+   mu_B B (g_J m_J + g_I m_I), is diagonalised in the uncoupled basis |m_I m_J>, one block of
+   m_F at a time, so it holds from the weak field through the Paschen-Back regime (as ElecSus
+   does). Light along the field drives sigma+ (m up by one) and sigma- only; each transition's
+   strength is 3 (2J+1) |sum c_g c_e <J' m_J'|d_q|J m_J>|^2, so the strengths of either
+   hand from each ground state average one, as the field-free lines' do. */
+const MU_B = 1.39962449361;                         // Bohr magneton / h, MHz per gauss
+const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489 } };
+const zeeGJ = (L, J) => { const gL = 0.99999369, S = 0.5, Lq = L; return gL * (J * (J + 1) - S * (S + 1) + Lq * (Lq + 1)) / (2 * J * (J + 1)) + ZEE_G.gS * (J * (J + 1) + S * (S + 1) - Lq * (Lq + 1)) / (2 * J * (J + 1)); };
+/* the Wigner 3j symbol, by Racah's formula (half-integer arguments allowed) */
+function threej(j1, j2, j3, m1, m2, m3) {
+  if (Math.abs(m1 + m2 + m3) > 1e-9 || Math.abs(m1) > j1 + 1e-9 || Math.abs(m2) > j2 + 1e-9 || Math.abs(m3) > j3 + 1e-9) return 0;
+  if (j3 > j1 + j2 + 1e-9 || j3 < Math.abs(j1 - j2) - 1e-9) return 0;
+  const r = Math.round, F = x => FACT[r(x)];
+  const tri = F(j1 + j2 - j3) * F(j1 - j2 + j3) * F(-j1 + j2 + j3) / F(j1 + j2 + j3 + 1);
+  const pre = Math.sqrt(tri * F(j1 + m1) * F(j1 - m1) * F(j2 + m2) * F(j2 - m2) * F(j3 + m3) * F(j3 - m3));
+  let sum = 0;
+  const kLo = r(Math.max(0, j2 - j3 - m1, j1 - j3 + m2)), kHi = r(Math.min(j1 + j2 - j3, j1 - m1, j2 + m2));
+  for (let k = kLo; k <= kHi; k++) sum += (k % 2 ? -1 : 1) / (F(k) * F(j3 - j2 + k + m1) * F(j3 - j1 + k - m2) * F(j1 + j2 - j3 - k) * F(j1 - k - m1) * F(j2 - k + m2));
+  return (r(j1 - j2 - m3) % 2 ? -1 : 1) * pre * sum;
+}
+/* a real symmetric matrix's eigenvalues and (column) eigenvectors, by Jacobi rotations */
+function symEig(A) {
+  const n = A.length, a = A.map(r => r.slice()), V = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => i === j ? 1 : 0));
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += a[i][j] * a[i][j];
+    if (off < 1e-24) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
+      if (Math.abs(a[p][q]) < 1e-300) continue;
+      const th = (a[q][q] - a[p][p]) / (2 * a[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), sn = t * c;
+      for (let k = 0; k < n; k++) { const akp = a[k][p], akq = a[k][q]; a[k][p] = c * akp - sn * akq; a[k][q] = sn * akp + c * akq; }
+      for (let k = 0; k < n; k++) { const apk = a[p][k], aqk = a[q][k]; a[p][k] = c * apk - sn * aqk; a[q][k] = sn * apk + c * aqk; }
+      for (let k = 0; k < n; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - sn * vkq; V[k][q] = sn * vkp + c * vkq; }
+    }
+  }
+  return { vals: a.map((r, i) => r[i]), vecs: V };
+}
+/* one level's states in a field of B gauss: [{ E (MHz from the fine-structure centroid), mF, c: Map 'mI|mJ' -> amplitude }] */
+function zeemanStates(iso, level, B) {
+  const X = ATOM_ISO[iso], I = X.I;
+  const J = level === 'S' ? 0.5 : level === 'D1' ? 0.5 : 1.5, Lq = level === 'S' ? 0 : 1;
+  const A = level === 'S' ? X.Ag : X[level].Ae, Bq = level === 'D2' ? X[level].Be : 0;
+  const gJ = zeeGJ(Lq, J), gI = ZEE_G.gI[iso] || 0, out = [];
+  const ms = j => { const v = []; for (let m = -j; m <= j + 1e-9; m++) v.push(m); return v; };
+  const lad = (j, m, up) => Math.sqrt(Math.max(0, j * (j + 1) - m * (m + (up ? 1 : -1))));
+  for (let mF = -(I + J); mF <= I + J + 1e-9; mF++) {
+    const basis = [];
+    for (const mJ of ms(J)) { const mI = mF - mJ; if (Math.abs(mI) <= I + 1e-9) basis.push([mI, mJ]); }
+    const n = basis.length, IJ = Array.from({ length: n }, () => new Array(n).fill(0));
+    basis.forEach(([mI, mJ], a) => {
+      IJ[a][a] = mI * mJ;
+      basis.forEach(([mI2, mJ2], b) => {
+        if (Math.abs(mI2 - mI - 1) < 1e-9 && Math.abs(mJ2 - mJ + 1) < 1e-9) { const v = 0.5 * lad(I, mI, true) * lad(J, mJ, false); IJ[b][a] += v; IJ[a][b] += v; }
+      });
+    });
+    const H = IJ.map(r => r.map(v => A * v));
+    if (Bq && I >= 1 && J >= 1) {
+      const IJ2 = IJ.map((r, i) => r.map((_, j) => r.reduce((s2, v, k) => s2 + v * IJ[k][j], 0))), den = 2 * I * (2 * I - 1) * J * (2 * J - 1);
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) H[i][j] += Bq * (3 * IJ2[i][j] + 1.5 * IJ[i][j] - (i === j ? I * (I + 1) * J * (J + 1) : 0)) / den;
+    }
+    basis.forEach(([mI, mJ], a) => { H[a][a] += MU_B * B * (gJ * mJ + gI * mI); });
+    const { vals, vecs } = symEig(H);
+    vals.forEach((E, k) => { const c = new Map(); basis.forEach(([mI, mJ], a) => c.set(mI + '|' + mJ, vecs[a][k])); out.push({ E, mF, c }); });
+  }
+  return out;
+}
+/* every sigma+ and sigma- transition of a cell's line in a field of B gauss along its axis (q is
+   the change of m about the field), each as atomLines gives a line; Fg names its ground state */
+const zeeLineCache = new Map();
+function zeemanLines(atom, line, B) {
+  const key = atom + '|' + line + '|' + (+B.toPrecision(9));
+  if (zeeLineCache.has(key)) return zeeLineCache.get(key);
+  const out = [], Jp = line === 'D1' ? 0.5 : 1.5, J = 0.5;
+  for (const [isoName, ab] of ATOMS[atom].iso) {
+    const X = ATOM_ISO[isoName], L = X[line], I = X.I, Aw = 1e9 / L.tau, lam = C_SI / L.nu;
+    const G = zeemanStates(isoName, 'S', B), E = zeemanStates(isoName, line, B);
+    const sInt = lam * lam / (8 * Math.PI) * (2 * Jp + 1) / (2 * J + 1) * Aw, Isat0 = Math.PI * HPL * C_SI * Aw / (3 * lam ** 3);
+    G.forEach((g, gi) => E.forEach(e => {
+      const q = Math.round(e.mF - g.mF);
+      if (Math.abs(q) !== 1) return;
+      let amp = 0;
+      for (const [k, cg] of g.c) {
+        const [mI, mJ] = k.split('|').map(Number), mJp = mJ + q, ce = e.c.get(mI + '|' + mJp);
+        if (!ce) continue;
+        amp += cg * ce * (Math.round(Jp - mJp) % 2 ? -1 : 1) * threej(Jp, 1, J, -mJp, q, mJ);
+      }
+      const S = 3 * (2 * J + 1) * amp * amp;
+      if (S < 1e-9) return;
+      out.push({ iso: isoName, Fg: 'g' + gi, q, nu: L.nu + 1e6 * (e.E - g.E), S, share: ab / ((2 * J + 1) * (2 * I + 1)), m: X.m * AMU, A: Aw, lam, sInt,
+        // saturation against the cycling transition's strength, 3 (2J+1) / (2J'+1)
+        Isat: Isat0 * 3 * (2 * J + 1) / (2 * Jp + 1) });
+    }));
+  }
+  if (zeeLineCache.size > 64) zeeLineCache.clear();
+  zeeLineCache.set(key, out);
+  return out;
+}
+/* whether a cell must tell the hands of circular light apart: a field on it, or a beam through
+   it circularly polarised enough to pump one hand harder (polarisation spectroscopy) */
+const cellPolar = el => el.bField !== 0 || (cellPumps.get(el.id) || []).some(r => r.circ && Math.abs(r.circ[0] - r.circ[1]) > 1e-3);
+/* a ray's share of each hand about the cell's axis, from its Jones vector: py is its p axis
+   along the cell's local y (+1 or -1); A_+- = (E_y -+ i E_z) / sqrt 2 */
+function circShares(pr, pi, sr, si, py) {
+  const ap = 0.5 * ((py * pr + si) ** 2 + (py * pi - sr) ** 2), am = 0.5 * ((py * pr - si) ** 2 + (py * pi + sr) ** 2), t = ap + am;
+  return t > 0 ? [ap / t, am / t] : [0.5, 0.5];
+}
+/* the Jones matrix, in the ray's (p, s), of a cell passing t+ and t- ([re, im]) on each hand */
+function cellJones(tp, tm, py) {
+  const sum = [0.5 * (tp[0] + tm[0]), 0.5 * (tp[1] + tm[1])], d = [0.5 * (tp[0] - tm[0]), 0.5 * (tp[1] - tm[1])];
+  const iD = [-d[1] * py, d[0] * py];          // i py (t+ - t-) / 2
+  return [[sum, [-iD[0], -iD[1]]], [iD, sum]];
+}
 /* atoms per m^3 in the vapour at the cell's temperature */
 function cellDensity(el) {
   const T = el.temp + 273.15;
@@ -1279,8 +1397,13 @@ function beamShapePeak(R) {
   }
   return shapePeakMemo.get(k);
 }
-function cellPlan(el, nu, dir, self, others) {
-  const lines = atomLines(el.atom, el.line), T = el.temp + 273.15, n = cellDensity(el), L = el.cellLen;
+function cellPlan(el, nu, dir, self, others, qLab) {
+  // one hand of circular light about the cell's axis (qLab +1 or -1), or both alike (null)
+  const hand = qLab === 1 || qLab === -1, sB = el.bField < 0 ? -1 : 1;
+  const all = hand ? zeemanLines(el.atom, el.line, Math.abs(el.bField)) : null;
+  const frac = (R, q) => R && R.circ ? R.circ[q * sB > 0 ? 0 : 1] : 0.5;     // a beam's share of the hand that drives q about the field
+  const lines = hand ? all.filter(a => a.q === qLab * sB) : atomLines(el.atom, el.line), T = el.temp + 273.15, n = cellDensity(el), L = el.cellLen;
+  if (hand && self) self = Object.assign({}, self, { I: self.I * 2 * frac(self, qLab * sB) });
   const tr = lines.map(a => {
     const u = a.nu / C_SI * Math.sqrt(2 * KB * T / a.m), gam = a.A / (4 * Math.PI), w = faddeeva((nu - a.nu) / u, gam / u);
     const pref = n * a.share * a.S * a.sInt / (u * Math.sqrt(Math.PI));
@@ -1296,16 +1419,23 @@ function cellPlan(el, nu, dir, self, others) {
     if (!(P.I > 0)) return;
     const cos = clamp(dir[0] * P.dir[0] + dir[1] * P.dir[1], -1, 1), sin = Math.sqrt(Math.max(0, 1 - cos * cos));
     const pp = { I: P.I, w: P.w > 0 ? P.w : Infinity, ly: P.ly || 0, tan: tanOf(P.dir), prof: P.prof || null, comps: P.comps || null, holes: 0 };
-    for (const q of tr) for (const qb of tr) {
-      const a = q.a, b = qb.a;
-      if (b.iso !== a.iso || b.Fg !== a.Fg) continue;
-      const sPk = P.I * beamShapePeak(P) * b.S / b.Isat;
+    const pumpLines = hand ? all.map(a => ({ a, f: 2 * frac(P, a.q) })) : tr.map(qb => ({ a: qb.a, f: 1 }));
+    for (const q of tr) for (const { a: b, f } of pumpLines) {
+      const a = q.a;
+      if (b.iso !== a.iso || b.Fg !== a.Fg || !(f > 0)) continue;
+      const sPk = P.I * f * beamShapePeak(P) * b.S / b.Isat;
       if (!(sPk > 1e-6)) continue;
       const D = nu - a.nu - cos * (P.nu - b.nu), G = q.gam * (1 + Math.abs(cos) * Math.sqrt(1 + sPk)), sg = q.u * sin;
       // the hole's shape at this light's frequency, 1 at its centre for a Lorentzian of the same area
-      const H = sg < 1e-3 * G ? 1 / (1 + (D / G) ** 2) : Math.sqrt(Math.PI) * (G / sg) * faddeeva(D / sg, G / sg)[0];
-      const wgt = (b === a ? 1 : 2 * b.S / (a.S + b.S)) * H;
-      if (wgt > 1e-7) { q.holes.push({ p: pi, wgt, k: b.S / b.Isat }); pp.holes++; }
+      // and its dispersive companion (Kramers and Kronig: the atoms taken out delay the light too)
+      let H, Hd;
+      if (sg < 1e-3 * G) { H = 1 / (1 + (D / G) ** 2); Hd = (D / G) * H; }
+      else { const wv = faddeeva(D / sg, G / sg); H = Math.sqrt(Math.PI) * (G / sg) * wv[0]; Hd = Math.sqrt(Math.PI) * (G / sg) * wv[1]; }
+      // between Zeeman sublevels, by the populations: the pump on the probe's own transition
+      // empties its lower level and fills its upper (the full hole); on another from the same
+      // lower level it only empties that (half)
+      const w0 = b === a ? 1 : hand ? 0.5 : 2 * b.S / (a.S + b.S), wgt = w0 * H;
+      if (wgt > 1e-7 || Math.abs(w0 * Hd) > 1e-7) { q.holes.push({ p: pi, wgt, wd: w0 * Hd, k: f * b.S / b.Isat }); pp.holes++; }
     }
     plan.pumps[pi] = pp;
     if (pp.holes) plan.varies = true;
@@ -1330,9 +1460,9 @@ function evalPlan(plan, u, v) {
       let al = 0, dp = 0;
       for (const q of plan.tr) {
         const sat = I0 > 0 ? 1 / Math.sqrt(1 + I0 * q.k) : 1;
-        let keep = 1;
-        for (const hl of q.holes) { const s = IP[hl.p] * hl.k; if (s > 1e-9) keep -= hl.wgt * 0.5 * (1 - 1 / Math.sqrt(1 + s)); }
-        al += q.al * sat * Math.max(0, keep); dp += q.dp * sat;
+        let keep = 1, kd = 0;
+        for (const hl of q.holes) { const s = IP[hl.p] * hl.k; if (s > 1e-9) { const h2 = 0.5 * (1 - 1 / Math.sqrt(1 + s)); keep -= hl.wgt * h2; kd += hl.wd * h2; } }
+        al += q.al * sat * Math.max(0, keep); dp += q.dp * sat - q.al * sat * kd;
       }
       return [al, dp];
     };
@@ -1361,22 +1491,22 @@ function cellProfile(el, rec) {
 /* The plan for light of one beam (a record of the last trace, or none) through a cell, with
    the others there as they were: memoised for the trace */
 let cellPlanMemo = new Map();
-function cellPlanFor(el, nu, dir, srcId) {
+function cellPlanFor(el, nu, dir, srcId, qLab) {
   const recs = cellPumps.get(el.id) || [];
   const sameDir = r => r.dir[0] * dir[0] + r.dir[1] * dir[1] > 0.9999;
   const self = srcId === undefined ? null : recs.filter(r => r.src === srcId && sameDir(r) && Math.abs(r.nu - nu) < 1).sort((a, b) => b.I - a.I)[0] || null;
-  const key = el.id + '|' + nu + '|' + dir[0].toFixed(9) + ',' + dir[1].toFixed(9) + '|' + (self ? recs.indexOf(self) : -1);
+  const key = el.id + '|' + nu + '|' + dir[0].toFixed(9) + ',' + dir[1].toFixed(9) + '|' + (self ? recs.indexOf(self) : -1) + '|' + (qLab || 0);
   if (cellPlanMemo.has(key)) return cellPlanMemo.get(key);
   const others = recs.filter(r => r !== self).map(r => Object.assign({}, r, { prof: isFinite(r.w) ? cellProfileMemo(el, r) : null }));
-  const plan = cellPlan(el, nu, dir, self, others);
+  const plan = cellPlan(el, nu, dir, self, others, qLab);
   cellPlanMemo.set(key, plan);
   return plan;
 }
 const cellProfileMemo = (el, r) => { const k = 'prof|' + el.id + '|' + r.nu + '|' + r.I + '|' + r.w + '|' + r.dir + '|' + (r.comps ? JSON.stringify(r.comps) : ''); if (!cellPlanMemo.has(k)) cellPlanMemo.set(k, cellProfile(el, r)); return cellPlanMemo.get(k); };
 /* At its simplest: light at nu on the cell's axis, with beams { nu, I (W/m^2) } crossing it
    head on and wide (the readouts, the tests) */
-function cellResponse(el, nu, pumps) {
-  const plan = cellPlan(el, nu, [1, 0], null, (pumps || []).map(P => ({ nu: P.nu, I: P.I, w: P.w || Infinity, ly: P.ly || 0, dir: P.dir || [-1, 0] })));
+function cellResponse(el, nu, pumps, qLab) {
+  const plan = cellPlan(el, nu, [1, 0], null, (pumps || []).map(P => ({ nu: P.nu, I: P.I, w: P.w || Infinity, ly: P.ly || 0, dir: P.dir || [-1, 0], circ: P.circ || null })), qLab);
   return evalPlan(plan, 0, 0);
 }
 
@@ -2195,6 +2325,7 @@ function normElementBase(e) {
         atom: ATOMS[e.atom] ? e.atom : 'Rb',
         line: e.line === 'D1' ? 'D1' : 'D2',
         temp: clamp(num(e.temp, 25), -20, 250),              // deg C
+        bField: clamp(num(e.bField, 0), -20000, 20000),      // gauss, along the cell's axis (+x of its frame)
       });
     case 'gain':
       return Object.assign(base, {
@@ -3546,7 +3677,43 @@ function traceScene() {
             const hm = isHigherMode(src), comps = hm ? srcModes(src)[0].c : null;
             bw = beamAt(qr, qi, nCur, nm, hm ? 1 : m2Env(src)).w;
             const Pw = w * Math.max(0, splitRoot(src).power) * 1e-3;
-            if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps }); }
+            if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps, circ: circShares(pr, pi, sr, si, (par ? -1 : 1) * Math.sign(ldx || 1)) }); }
+          }
+          if (cellPolar(s.el)) {
+            // the two hands of circular light about the field, each through its own lines: the
+            // cell turns and sorts polarisation (Faraday rotation, circular dichroism)
+            const py = (par ? -1 : 1) * Math.sign(ldx || 1), plans = [1, -1].map(q => cellPlanFor(s.el, nu, ldir, src.id, q));
+            const hand = pl => {
+              const c0 = evalPlan(pl, ly, 0);
+              if (!isQ || !pl.varies) return { c0, T: c0.amp * c0.amp };
+              const SR = pl.self || { w: bw, comps: null }, sw = SR.w;
+              if (!(sw > 0)) return { c0, T: c0.amp * c0.amp };
+              let num = 0, den = 0;
+              const K = SR.comps ? 7 : 3, st = SR.comps ? 0.55 * sw * beamReach(SR) * 3 / 7 : 0.55 * sw;
+              for (let a = -K; a <= K; a++) for (let b2 = -K; b2 <= K; b2++) { const g = beamShape(SR, a * st, b2 * st), r = evalPlan(pl, ly + a * st, b2 * st); num += g * r.amp * r.amp; den += g; }
+              return { c0, T: num / den };
+            };
+            const [hp, hm] = plans.map(hand);
+            const tq = h2 => [Math.sqrt(h2.T) * Math.cos(h2.c0.ph), Math.sqrt(h2.T) * Math.sin(h2.c0.ph)];
+            const M = cellJones(tq(hp), tq(hm), py);
+            if (isQ) {
+              evt = passEv(); evt.jm = M;
+              if (plans.some(pl => pl.varies)) {
+                // across the beam, what the two hands share: their mean transmission and phase against the centre's
+                const T0 = 0.5 * (hp.T + hm.T), ph0 = 0.5 * (hp.c0.ph + hm.c0.ph);
+                const sp = Object.create(s);
+                sp.maskFn = (u, v) => { const a = evalPlan(plans[0], u, v), b = evalPlan(plans[1], u, v);
+                  return [Math.sqrt(0.5 * (a.amp * a.amp + b.amp * b.amp) / Math.max(1e-300, T0)), (0.5 * (a.ph + b.ph) - ph0) / (2 * Math.PI)]; };
+                Object.defineProperty(evt, 'surf', { value: sp, enumerable: false, configurable: true });
+              }
+            }
+            const np = [cmul(M[0][0], [pr, pi]), cmul(M[0][1], [sr, si])], ns = [cmul(M[1][0], [pr, pi]), cmul(M[1][1], [sr, si])];
+            pr = np[0][0] + np[1][0]; pi = np[0][1] + np[1][1]; sr = ns[0][0] + ns[1][0]; si = ns[0][1] + ns[1][1];
+            ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
+            if (w < minW && !chief) { dropped++; break; }
+            pts.length -= 2;
+            last = s;
+            continue;
           }
           const plan = cellPlanFor(s.el, nu, ldir, src.id);
           let cr, ci;
@@ -3856,8 +4023,8 @@ function traceScene() {
     if (hasGain) for (const c of findCavities()) { const L = laserState(c); if (L && L.clamp) for (const [id, s] of L.clamp) next.set(id, s); }
     if (!(next.size === gainSat.size && [...next].every(([k, v]) => gainSat.has(k) && Math.abs(gainSat.get(k) - v) < 1e-6 * Math.abs(v)))) { gainSat = next; again = true; }
     const pumps = new Map();
-    for (const hh of cellHits) { if (!pumps.has(hh.id)) pumps.set(hh.id, []); pumps.get(hh.id).push({ dir: hh.dir, nu: hh.nu, I: hh.I, w: hh.w, ly: hh.ly, src: hh.src, comps: hh.comps }); }
-    const sig = m => [...m].map(([k, v]) => k + ':' + v.map(P => P.dir.map(q => q.toFixed(6)) + '/' + P.nu.toPrecision(12) + '/' + P.I.toPrecision(4) + '/' + P.w.toPrecision(4) + '/' + P.ly.toFixed(4) + '/' + P.src + (P.comps ? '/' + JSON.stringify(P.comps) : '')).join(',')).join(';');
+    for (const hh of cellHits) { if (!pumps.has(hh.id)) pumps.set(hh.id, []); pumps.get(hh.id).push({ dir: hh.dir, nu: hh.nu, I: hh.I, w: hh.w, ly: hh.ly, src: hh.src, comps: hh.comps, circ: hh.circ }); }
+    const sig = m => [...m].map(([k, v]) => k + ':' + v.map(P => P.dir.map(q => q.toFixed(6)) + '/' + P.nu.toPrecision(12) + '/' + P.I.toPrecision(4) + '/' + P.w.toPrecision(4) + '/' + P.ly.toFixed(4) + '/' + P.src + (P.comps ? '/' + JSON.stringify(P.comps) : '') + (P.circ ? '/' + P.circ[0].toFixed(4) : '')).join(',')).join(';');
     if (sig(pumps) !== sig(cellPumps)) { cellPumps = pumps; cellPlanMemo = new Map(); again = true; }
     if (again) { gainSatBusy = true; try { traceScene(); } finally { gainSatBusy = false; } return; }
   }
@@ -8626,7 +8793,7 @@ function cellPanel(el) {
     selectField('Atoms', Object.entries(ATOMS).map(([k, v]) => [k, v.name]), () => el.atom, v => { el.atom = v; }, { wide: true }),
     selectField('Line', [['D2', 'D2 (Rb 780, Cs 852, K 767 nm)'], ['D1', 'D1 (Rb 795, Cs 894, K 770 nm)']], () => el.line, v => { el.line = v; }, { wide: true }),
     param('Temperature (°C)', el, 'temp'), param('Length (mm)', el, 'cellLen'),
-    param('Window diameter (mm)', el, 'length', { wide: true })));
+    param('Window (mm)', el, 'length'), param('Field (G)', el, 'bField')));
   panel.append(readoutBox('cell'));
   const vsEl = vs(el);
   vsEl.cellSpan = vsEl.cellSpan || 'all';
@@ -8640,7 +8807,8 @@ function cellPanel(el) {
   panel.append(tabs, cv, plotSaveRow(cv));
   bindSync(cv, draw);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Alkali vapour at the temperature set: its density from the vapour pressure, each hyperfine line of the D line with the Doppler width of the vapour and the natural width of the excited state (a Voigt profile), weighted by how many atoms sit in its lower level and how strong it is. The light is absorbed and delayed by the same lines, so a laser tuned through them sees the familiar Doppler-broadened dips, and a beam off to one side of a line picks up its phase. Tune the laser with its wavelength (a sweep scans it), or shift it with an AOM.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Saturation, worked out slice by slice along the cell and point by point across each beam: a beam bleaches the lines it is on where it is strong (its centre more than its edges, less as it fades), and a beam crossing the cell burns holes in the atoms\u2019 velocities for the others. Head on, a weak probe sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level; a pump a few milliradians off head-on broadens them (the atoms moving across it), one going the same way makes no narrow feature at all, and a probe only partly inside the pump, or crossing it at an angle, sees them only where the two overlap. The diffracted field and the photodiodes take all of this across the beam. The plot shows the weakest beam on its axis with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no magnetic field, no windows.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Saturation, worked out slice by slice along the cell and point by point across each beam: a beam bleaches the lines it is on where it is strong (its centre more than its edges, less as it fades), and a beam crossing the cell burns holes in the atoms\u2019 velocities for the others. Head on, a weak probe sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level; a pump a few milliradians off head-on broadens them (the atoms moving across it), one going the same way makes no narrow feature at all, and a probe only partly inside the pump, or crossing it at an angle, sees them only where the two overlap. The diffracted field and the photodiodes take all of this across the beam. The plot shows the weakest beam on its axis with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no windows.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'A magnetic field along the cell (positive along its +x axis, as a solenoid or ring magnets would put it) splits each line into its Zeeman components, worked out exactly from the weak field through the Paschen\u2013Back regime by diagonalising each level\u2019s hyperfine and Zeeman energy. Light along the field drives \u03c3+ and \u03c3\u2212 transitions, so the two hands of circular light see lines shifted apart: the cell absorbs them differently (circular dichroism, the signal of a DAVLL lock: a quarter-wave plate at 45\u00b0 and a polarising cube after the cell, a detector on each port, their difference the error signal) and delays them differently (Faraday rotation: between crossed polarisers, a Faraday filter passing light only near the lines). With no field, a circularly polarised pump against the probe saturates one hand more than the other, which is polarisation spectroscopy (the probe through a polariser at 45\u00b0, or a cube with two detectors); that comes from saturation alone here, no optical pumping, so its shape is right and its size only roughly. \u03c0 transitions, which light along the field cannot drive, are left out. With a field, the plot shows each hand\u2019s transmission on its own: \u03c3+ in blue, \u03c3\u2212 in orange.'));
 }
 /* the cell's lines and the beams through it, relative to the strongest isotope's line centre */
 function cellInfo(el) {
@@ -8668,22 +8836,29 @@ function drawCellSpectrum(cv, el, span) {
   let lo = Math.min(...nus) - 2 * C.doppler, hi = Math.max(...nus) + 2 * C.doppler;
   const at = probe ? probe.nu - C.nu0 : null;
   if (span === 'laser' && at !== null) { lo = at - 600e6; hi = at + 600e6; }
-  const N = span === 'laser' ? 2400 : 6000, xs = [], lin = [], sat = [];
+  const hands = el.bField !== 0;
+  if (hands) { const zs = el.bField ? 3 * MU_B * 1e6 * Math.abs(el.bField) : 0; lo -= zs; hi += zs; }
+  const N = span === 'laser' ? 2400 : hands ? 3000 : 6000, xs = [], lin = [], sat = [], sp = [], sm = [];
   for (let i = 0; i < N; i++) {
     const d = lo + (hi - lo) * i / (N - 1), shift = probe ? d - at : 0;
     xs.push(d / 1e9);
-    lin.push(cellResponse(el, C.nu0 + d, null).amp ** 2);
-    if (pumps.length) sat.push(scanned(shift));
+    if (hands) { sp.push(cellResponse(el, C.nu0 + d, null, 1).amp ** 2); sm.push(cellResponse(el, C.nu0 + d, null, -1).amp ** 2); lin.push(0.5 * (sp[i] + sm[i])); }
+    else lin.push(cellResponse(el, C.nu0 + d, null).amp ** 2);
+    if (pumps.length && !hands) sat.push(scanned(shift));
   }
-  plotCsv(cv, el.name + ' transmission', pumps.length ? ['detuning_GHz', 'transmission', 'with_pumps'] : ['detuning_GHz', 'transmission'],
-    () => xs.map((x, i) => pumps.length ? [x, lin[i], sat[i]] : [x, lin[i]]));
+  if (hands) plotCsv(cv, el.name + ' transmission', ['detuning_GHz', 'mean', 'sigma_plus', 'sigma_minus'], () => xs.map((x, i) => [x, lin[i], sp[i], sm[i]]));
+  else plotCsv(cv, el.name + ' transmission', sat.length ? ['detuning_GHz', 'transmission', 'with_pumps'] : ['detuning_GHz', 'transmission'],
+    () => xs.map((x, i) => sat.length ? [x, lin[i], sat[i]] : [x, lin[i]]));
   const yr = [Math.min(0, ...lin, ...(sat.length ? sat : [1])), 1.02];
   const A = plotArea(g, w, hgt, yr, { kind: 'plain', title: 'transmission' });
   const X = v => A.l + (v - lo / 1e9) / ((hi - lo) / 1e9) * A.w, Y = v => A.t + A.h - (v - yr[0]) / (yr[1] - yr[0]) * A.h;
   g.save(); g.beginPath(); g.rect(A.l, A.t - 2, A.w, A.h + 4); g.clip();
   const line = (ys, col, wd) => { g.strokeStyle = col; g.lineWidth = wd; g.beginPath(); ys.forEach((v, i) => i ? g.lineTo(X(xs[i]), Y(v)) : g.moveTo(X(xs[i]), Y(v))); g.stroke(); };
-  line(lin, pumps.length ? 'rgba(160,170,178,0.9)' : getCss('--jek-cyan'), pumps.length ? 1 : 1.5);
-  if (pumps.length) line(sat, getCss('--jek-cyan'), 1.4);
+  if (hands) { line(sp, getCss('--jek-cyan'), 1.3); line(sm, getCss('--jek-orange'), 1.3); }
+  else {
+    line(lin, sat.length ? 'rgba(160,170,178,0.9)' : getCss('--jek-cyan'), sat.length ? 1 : 1.5);
+    if (sat.length) line(sat, getCss('--jek-cyan'), 1.4);
+  }
   // where the laser is now
   if (at !== null) { g.strokeStyle = getCss('--jek-orange'); g.lineWidth = 1.2; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(at / 1e9), A.t); g.lineTo(X(at / 1e9), A.t + A.h); g.stroke(); g.setLineDash([]); }
   g.restore();
@@ -11832,7 +12007,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     const dI = ev.dIn, dO = ev.dOut || ev.dIn, si = pol && pol.parIn ? -1 : 1, so = pol && pol.parOut ? -1 : 1;
     eIn = { sg: si, v: [-dI[1] * si, dI[0] * si, 0] }; eOut = { sg: so, v: [-dO[1] * so, dO[0] * so, 0] };
     const el = ev.surf && ev.surf.el;
-    if (ev.mode === 'P' && el && JONES_TYPES.has(el.type)) {
+    if (ev.mode === 'P' && el && (JONES_TYPES.has(el.type) || ev.jm)) {
       const Jm = ev.jm || jonesOf(el), cj = v => [v[0], -v[1]];
       jonesM = [cj(Jm[1][1]), cj(Jm[1][0]), cj(Jm[0][1]), cj(Jm[0][0])];   // [ss, sp, ps, pp]
     } else coef = polCoeff(ev, lam0 * 1e6);
@@ -12273,7 +12448,7 @@ function* popRunGen(beams, srcs, opts = {}) {
     // waveplate or polariser: the tracer's Jones vector speaks for the beam's centre only, and a
     // vector field can carry light off-centre that the centre lacks (a lens between crossed
     // polarisers leaks at its edges). Those are judged by their field instead, below.
-    const polEl = c => { const e = beams[c].ev; return e && e.mode === 'P' && e.surf && e.surf.el && JONES_TYPES.has(e.surf.el.type); };
+    const polEl = c => { const e = beams[c].ev; return e && e.mode === 'P' && e.surf && e.surf.el && (JONES_TYPES.has(e.surf.el.type) || !!e.jm); };
     const ch = (kids.get(job.i) || []).filter(c => entries.has(job.i) || beams[c].w * (job.boost || 1) >= (eng === '2d' ? 1e-3 : 1e-4) * job.root || (eng === '2d' && polEl(c)))
       .sort((a, c) => beams[a].w - beams[c].w);
     if (!ch.length) continue;
@@ -14276,8 +14451,15 @@ function updateReadoutsIn(container, el) {
     const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' per cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler) + '; natural ' + fmtHz(C.natural)],
       ['Saturation intensity', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2 (cycling transition)']];
     C.beams.slice(0, 4).forEach(b => {
-      const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src), b.ly, 0);
-      rows.push([getEl(b.src) ? getEl(b.src).name : 'Beam', (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ' + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w)]);
+      const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
+      if (cellPolar(el)) {
+        // each hand of circular light on its own
+        const [P, M] = [1, -1].map(q => evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, q), b.ly, 0));
+        rows.push([nm, at + 'on its axis, ' + (100 * P.amp ** 2).toPrecision(3) + '% of \u03c3+ light through and ' + (100 * M.amp ** 2).toPrecision(3) + '% of \u03c3\u2212, the hands ' + (+((P.ph - M.ph) / deg).toPrecision(3)) + '\u00b0 apart in phase (a linear polarisation turned by half that); ' + tail]);
+      } else {
+        const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src), b.ly, 0);
+        rows.push([nm, at + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + tail]);
+      }
     });
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);
     parts = [rows, ''];
@@ -15227,7 +15409,7 @@ const AI_FIELDS = {
     emitView: '"envelope" or "field": how the light it sends out is shown.', emitRays: 'rays in the fan it sends out, 0 to 51.',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
   cell: { length: 'mm: the window diameter.', cellLen: 'mm along the beam (75 is usual).', atom: '"Rb" (natural), "Rb85", "Rb87", "Cs" or "K".', line: '"D2" or "D1".',
-    temp: '°C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60).' },
+    temp: '°C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60).', bField: 'gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none.' },
   detector: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
     bandwidth: 'Hz.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
     demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
@@ -15346,7 +15528,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\"; a fibre laser's \"polAngle\" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is, first on the axis, so the pupil stays filled across the field.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
+const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\"; a fibre laser's \"polAngle\" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is, first on the axis, so the pupil stays filled across the field.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -16576,7 +16758,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     select(name, tab) { const el = this.byName(name); if (!el) return false; if (tab) vs(el).screenTab = tab; traceScene(); selectOne(el.id); renderPanel(); requestRender(); return true; },
     // vapour cells: a line's transitions, and what a cell does at a frequency (Hz), with pumps { nu, I W/m^2 }
     atomLines: (atom, line) => atomLines(atom, line).map(a => ({ iso: a.iso, Fg: a.Fg, Fe: a.Fe, nu: a.nu, S: a.S, share: a.share, Isat: a.Isat, A: a.A })),
-    cellAt(name, nu, pumps) { return cellResponse(this.byName(name), nu, pumps || null); },
+    cellAt(name, nu, pumps, q) { return cellResponse(this.byName(name), nu, pumps || null, q); },
+    cellBeams(name) { const el = this.byName(name); return (lastTrace.cells || []).filter(c => c.id === el.id).map(c => ({ dir: c.dir, I: c.I, circ: c.circ, src: c.src })); },
+    zeemanLines(atom, line, B) { return zeemanLines(atom, line, B).map(a => ({ iso: a.iso, Fg: a.Fg, q: a.q, nu: a.nu, S: a.S, share: a.share })); },
+    zeemanStates(iso, level, B) { return zeemanStates(iso, level, B).map(z => ({ E: z.E, mF: z.mF })); },
     // the full model: light at nu going dir through the cell at (u, v), its own beam self { I, w, ly }, others { nu, I, w, ly, dir }
     cellField(name, nu, o) { const el = this.byName(name); o = o || {}; const others = (o.others || []).map(r => Object.assign({ w: Infinity, ly: 0, dir: [-1, 0] }, r));
       others.forEach(r => { if (isFinite(r.w) && o.profiles !== false) r.prof = cellProfile(el, r); });

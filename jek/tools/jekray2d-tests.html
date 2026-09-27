@@ -3324,6 +3324,96 @@ const TESTS = [
       J.load(satCellBench(false, o)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
   },
   {
+    name: 'A field splits the lines as the sum rules say, weak or strong',
+    why: 'rubidium in 50 G and 2000 G: the strength-weighted centres of the σ+ and σ− lines lie about 2 × 7/6 μB B apart on D2 and 2 × 4/3 μB B on D1 (exactly, from Landé’s g), whatever the hyperfine mixing, each hand’s strengths averaging one per ground state (worst relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      // Landé's g: P3/2 (2 gL + gS)/3, about 4/3; P1/2 (4 gL - gS)/3, about 2/3
+      const gS = 2.00231930436, gL = 0.99999369, gP32 = (2 * gL + gS) / 3, gP12 = (4 * gL - gS) / 3;
+      const want = { D2: 2 * ((1 / 3) * (gP32 / 2 + gS / 2) + (1.5 * gP32 - gS / 2)) / (4 / 3), D1: 2 * (gP12 / 2 + gS / 2) };
+      let worst = 0;
+      for (const line of ['D2', 'D1']) for (const B of [50, 2000]) {
+        const L = J.zeemanLines('Rb', line, B), cen = q => { let s = 0, w = 0; for (const a of L) if (a.q === q) { s += a.share * a.S * a.nu; w += a.share * a.S; } return [s / w, w]; };
+        const [cp, wp] = cen(1), [cm, wm] = cen(-1);
+        worst = Math.max(worst, Math.abs((cp - cm) / (1.39962449361e6 * B) / want[line] - 1), Math.abs(wp - 1), Math.abs(wm - 1));
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'Rubidium 87’s ground state follows Breit and Rabi into the Paschen–Back regime',
+    why: 'its eight levels at 1000 G, from diagonalising the hyperfine and Zeeman energy, against the Breit–Rabi formula (worst, MHz)',
+    want: 0, tol: 1e-6, unit: ' MHz',
+    run: J => {
+      const B = 1000, I = 1.5, dE = 3417.341305452 * (I + 0.5), gJ = 2.00231930436, gI = -0.0009951414, muB = 1.39962449361, x = (gJ - gI) * muB * B / dE;
+      const br = (m, sg) => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + sg * dE / 2 * Math.sqrt(1 + 4 * m * x / (2 * I + 1) + x * x);
+      // the stretched states, m = ±2, are the formula's with the root taken as 1 ± x
+      const stretched = m => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + dE / 2 * (1 + Math.sign(m) * x);
+      return Math.max(...J.zeemanStates('Rb87', 'S', B).map(z => Math.abs(z.mF) > 1.9 ? Math.abs(z.E - stretched(z.mF)) : Math.min(Math.abs(z.E - br(z.mF, 1)), Math.abs(z.E - br(z.mF, -1)))));
+    },
+  },
+  {
+    name: 'Without a field, either hand of circular light sees the lines as before',
+    why: 'a 40 °C rubidium cell across 8 GHz of the D2 line: the σ+ and σ− transmissions from the Zeeman sublevels against the field-free hyperfine model (worst amplitude difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(bench('c', [{ type: 'cell', name: 'C', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 40 }]));
+      let w = 0;
+      for (let d = -4e9; d <= 4e9; d += 2e8) { const nu = 384.2304844685e12 + d, a = J.cellAt('C', nu).amp; w = Math.max(w, Math.abs(J.cellAt('C', nu, null, 1).amp - a), Math.abs(J.cellAt('C', nu, null, -1).amp - a)); }
+      return w;
+    },
+  },
+  {
+    name: 'A thin cell in a field absorbs the two hands apart, as a DAVLL lock needs',
+    why: 'a 1 mm rubidium cell (optically thin) in 100 G: the absorption-weighted centre of σ+ light lies above σ− light’s by the sum rule’s 2 × 7/6 μB B, to the thin cell’s saturation-free first order (relative error)',
+    want: 0, tol: 0.02, unit: '',
+    run: J => {
+      J.load(bench('c', [{ type: 'cell', name: 'C', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 20, cellLen: 1, bField: 100 }]));
+      const gS = 2.00231930436, gP = (2 * 0.99999369 + gS) / 3, want = 2 * ((1 / 3) * (gP / 2 + gS / 2) + (1.5 * gP - gS / 2)) / (4 / 3) * 1.39962449361e6 * 100;
+      const cen = q => { let s = 0, w = 0; for (let d = -6e9; d <= 7e9; d += 5e6) { const od = J.cellAt('C', 384.2304844685e12 + d, null, q).od; s += od * d; w += od; } return s / w; };
+      return Math.abs((cen(1) - cen(-1)) / want - 1);
+    },
+  },
+  {
+    name: 'A Faraday filter passes light near the lines and blocks it elsewhere',
+    why: 'rubidium at 80 °C, 50 mm, between crossed polarisers: nothing through with no field or 20 GHz from the lines; in 100 G, the Faraday rotation near the D2 line passes over half the light somewhere within 5 GHz',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const T = (B, d) => { J.load(bench('ff', [src({ name: 'L', x: -60, width: 1, rays: 1, pol: 'p', power: 0.001, wavelength: 299792458 / (384.2304844685e12 + d) * 1e9 }),
+        { type: 'polariser', name: 'P1', x: -40, y: 0, angle: 0, axis: 0 },
+        { type: 'cell', name: 'C', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 80, cellLen: 50, bField: B },
+        { type: 'polariser', name: 'P2', x: 40, y: 0, angle: 0, axis: 90 },
+        screen({ name: 'S', x: 60, length: 10 })], { minPower: 1e-6 })); const st = J.stats('S'); return st ? st.powerPct : 0; };
+      let best = 0; for (let d = -3e9; d <= 5e9; d += 2.5e8) best = Math.max(best, T(100, d));
+      return T(0, 1e9) < 1e-3 && T(100, 20e9) < 0.1 && best > 50 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A circularly polarised pump makes the probe’s two hands differ: polarisation spectroscopy',
+    why: 'no field, a strong pump against the probe on the ⁸⁷Rb F = 2 → 3 line: circular, it saturates the σ+ and σ− transitions differently and the probe’s two hands part; linear, they stay together',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('ps', [{ type: 'cell', name: 'C', x: 0, y: 0, angle: 0, atom: 'Rb87', line: 'D2', temp: 25 }]));
+      const nu = 384.2304844685e12 + 1e6 * (193.7407 - 2563.005979), P = circ => [{ nu, I: 100, circ }];
+      const d = circ => Math.abs(J.cellAt('C', nu, P(circ), 1).amp - J.cellAt('C', nu, P(circ), -1).amp);
+      return d([1, 0]) > 1e-3 && d([0.5, 0.5]) < 1e-9 ? 1 : 0;
+    },
+  },
+  {
+    name: 'Polarisation spectroscopy gives a dispersive signal only with a circular pump',
+    why: 'the example bench: 40 MHz either side of the ⁸⁵Rb F = 3 → 4 line the balanced diodes’ (A − B)/(A + B) swings from one sign to the other by more than 1%; with the pump’s quarter-wave plate taken out it is nothing',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const d = JSON.parse(getDemo('polarisation-spectroscopy')), src = d.elements.find(e => e.id === 'probe');
+      delete src.sweeps;
+      const sig = (lam, noQwp) => { src.wavelength = lam; const d2 = Object.assign({}, d, { elements: d.elements.filter(e => !(noQwp && e.id === 'qwp')) });
+        J.load(d2); const A = J.detector('Diode A (p)').mw, B = J.detector('Diode B (s)').mw; return (A - B) / (A + B); };
+      const dl = 780.24373 ** 2 * 40e6 / 299792458e9, lo = sig(780.24373 + dl), hi = sig(780.24373 - dl);
+      return lo * hi < 0 && Math.abs(lo) > 0.01 && Math.abs(hi) > 0.01 && Math.abs(sig(780.24373 + dl, true)) < 1e-4 ? 1 : 0;
+    },
+  },
+  { group: 'The close-up' },
+  {
     name: 'The close-up counts beams, not the pieces a screen cuts them into',
     why: 'zoomed in on a screen that lets the light through: one beam and no fringes; two beams of one laser meeting there, equal, full contrast (1 − contrast, worst of the two)',
     want: 0, tol: 0.02, unit: '',

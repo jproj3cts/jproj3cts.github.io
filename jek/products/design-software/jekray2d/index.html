@@ -181,7 +181,8 @@
           <li>Nothing to install and no account. Your bench is saved in your browser as you work</li>
           <li>Lenses, aspheres, cylinders and axicons; mirrors and off-axis parabolas; beam splitters, prisms and gratings; waveplates, polarisers, birefringent crystals and isolators; filters, dichroics, gain media, stops and masks</li>
           <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, amplifiers, photodiodes) joined by drag-drawn fibres that keep, scramble or maintain polarisation, single-mode or multimode, on as many bench tabs as you need</li>
-          <li>Lasers built from parts that settle at their output power, atomic vapour cells (Rb, Cs, K) with Doppler-broadened hyperfine lines and saturated absorption, and optical traps for atoms and dielectric nanoparticles: where the particle sits, depth and trap frequencies each way, from the vector field of every beam through the focus, standing waves and radiation pressure included</li>
+          <li>Lasers built from parts that settle at their output power, atomic vapour cells (Rb, Cs, K) with Doppler-broadened hyperfine lines, saturated absorption and Zeeman splitting in a magnetic field (DAVLL, Faraday filters, polarisation spectroscopy), and optical traps for atoms and dielectric nanoparticles: where the particle sits, depth and trap frequencies each way, from the vector field of every beam through the focus, standing waves and radiation pressure included</li>
+          <li>Aberrations across the field at any screen: Seidel and Zernike terms, full-field spot diagrams, ray fans, field curvature and distortion</li>
           <li>Femtosecond pulses: glass, prism and grating compressors, chirped mirrors and fibre dispersion, with the arriving pulse's duration, GDD and TOD</li>
           <li>Hermite–Gauss, Laguerre–Gauss and vortex beams, and spatial light modulator patterns: spiral phase plates, fork holograms and blazed gratings</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
@@ -263,7 +264,7 @@
       <div>
         <h2>Fibre, free space and the signals between</h2>
         <p>Draw fibre subsystems next to the free-space optics: lasers, couplers, WDMs, circulators, Bragg gratings, AOMs and EOMs, joined port to port with fibres you shape by dragging. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
-        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to.</p>
+        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to. Put a magnetic field on a cell and its lines split into their Zeeman components, worked out exactly from weak fields to the Paschen–Back regime, so DAVLL locks, Faraday filters and polarisation spectroscopy work as on the bench.</p>
       </div>
     </section>
 
@@ -534,13 +535,37 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Atoms and traps</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Atoms and traps</span><span class="rt-exdrop-count">8 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=saturated-absorption">
           <img src="img/saturated-absorption.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Saturated absorption, rubidium</h3>
             <p>A weak probe and a strong pump through a rubidium cell: the Doppler-broadened D2 line, with sub-Doppler Lamb dips and crossovers where pump and probe meet the same atoms.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=polarisation-spectroscopy">
+          <img src="img/polarisation-spectroscopy.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Polarisation spectroscopy</h3>
+            <p>A circularly polarised pump makes the cell birefringent for the probe at the sub-Doppler lines: a balanced pair of diodes reads a dispersive lock signal with no Doppler background.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=davll-lock">
+          <img src="img/davll-lock.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>DAVLL laser lock</h3>
+            <p>A magnetic field splits the rubidium lines for the two hands of circular light; a quarter-wave plate, a polarising cube and two diodes turn that into an error signal across the whole line.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=faraday-filter">
+          <img src="img/faraday-filter.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Faraday filter</h3>
+            <p>A hot rubidium cell in a field between crossed polarisers: Faraday rotation passes light only within a few GHz of the lines.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>

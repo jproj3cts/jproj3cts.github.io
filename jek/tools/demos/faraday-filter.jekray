@@ -1,0 +1,153 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Faraday filter: a vapour cell between crossed polarisers",
+  "saved": "2026-09-27T19:37:28.478Z",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4.5
+  },
+  "snap": 1,
+  "maxBounces": 30,
+  "minPower": 0.000001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 0,
+        "cy": 0,
+        "scale": 4.5
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "Laser, 780 nm",
+      "x": -80,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 780.2393376173025,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 1,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 0.5,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 1,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {
+        "wavelength": {
+          "min": 780.2312151036072,
+          "max": 780.2494909972456,
+          "freq": 0.25,
+          "phase": 0,
+          "wave": "triangle"
+        }
+      }
+    },
+    {
+      "id": "p1",
+      "type": "polariser",
+      "name": "Polariser (p)",
+      "x": -50,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "axis": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "cell",
+      "type": "cell",
+      "name": "Rb cell, 80 °C, 100 G",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 25,
+      "cellLen": 50,
+      "atom": "Rb",
+      "line": "D2",
+      "temp": 80,
+      "bField": 100,
+      "sweeps": {}
+    },
+    {
+      "id": "p2",
+      "type": "polariser",
+      "name": "Crossed polariser (s)",
+      "x": 45,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "axis": 90,
+      "sweeps": {}
+    },
+    {
+      "id": "pd",
+      "type": "detector",
+      "name": "Photodiode",
+      "x": 75,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 5,
+      "material": "si",
+      "resp": 0.5,
+      "gain": 10000,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
+      "absorb": true,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A Faraday anomalous dispersion optical filter (FADOF). A hot rubidium cell (80 °C, 50 mm) in a 100 G field sits between crossed polarisers. Away from the atomic lines nothing gets through: the second polariser blocks what the first passed. Near the lines, the field makes the atoms delay the two circular halves of the light differently, which turns its plane of polarisation (Faraday rotation), by many turns close to resonance, so light at some frequencies is turned by 90° and passes. The result is a filter a few GHz wide with deep rejection outside it, used for daylight-proof lidar and to narrow lasers. Press Play on the laser’s sweep and watch the photodiode; select the cell for the σ+ and σ− spectra, and change the field or the temperature to reshape the passband.",
+  "ui": {
+    "sel": "cell",
+    "pins": [],
+    "views": {
+      "cell": {}
+    }
+  }
+}

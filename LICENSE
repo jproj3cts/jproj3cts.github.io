@@ -1,0 +1,22 @@
+Copyright (c) 2025-2026 JEK Systems. All rights reserved.
+
+This repository holds the jeksys.net website and the software published on it.
+Its contents are published so the website can be served. They are not open
+source, and no licence to copy, modify or redistribute them is granted except
+as stated below or in writing by JEK Systems.
+
+JEKray2D
+--------
+JEKray2D (jek/tools/jekray2d.html and its supporting files in jek/tools/,
+including the example benches in jek/tools/demos/) is licensed under the
+JEKray2D Licence:
+
+    jek/tools/jekray2d-licence.html
+    https://jeksys.net/jek/tools/jekray2d-licence.html
+
+In short: free for personal use and teaching; research and commercial use is
+free for now and will need a paid licence for future versions once they are
+offered; no copying, hosting, modifying or redistributing the software.
+The full licence governs; this summary does not.
+
+Licensing enquiries: sales@jeksys.net

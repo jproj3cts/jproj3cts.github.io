@@ -2079,6 +2079,18 @@ const TESTS = [
     },
   },
 
+  {
+    name: 'A beam larger than a filter, cell or modulator splits at its edge too, and adds up',
+    why: 'a 4 mm beam on 2 mm elements: behind a neutral density filter of OD 6 the photodiode reads the 60.7% that misses it, exp(−2 · 1² / 2²); behind a modulator doing nothing, all of it, the two parts adding as powers (worst relative error)',
+    want: 0, tol: 0.01, unit: '',
+    run: J => {
+      const read = el => { J.load(bench('split', [src({ name: 'L', x: -60, width: 4, rays: 1, gauss: true, w0: 2, z0: 60, pol: 's', power: 1 }),
+        Object.assign({ name: 'X', x: 0, y: 0, angle: 0, length: 2 }, el),
+        { type: 'detector', name: 'D', x: 60, y: 0, angle: 180, length: 40, material: 'custom', resp: 1 }], { minPower: 1e-6 })); return J.detector('D').mw; };
+      return Math.max(Math.abs(read({ type: 'filter', ftype: 'nd', od: 6 }) / Math.exp(-0.5) - 1), Math.abs(read({ type: 'eom', fm: 20, beta: 0 }) - 1));
+    },
+  },
+
   { group: 'Cavities: their own modes (Fox and Li)' },
   {
     name: 'Fox and Li\u2019s flat-mirror resonator at Fresnel number 1',
@@ -3535,20 +3547,34 @@ const TESTS = [
   },
   {
     name: 'A crystal doubles a laser as Boyd and Kleinman say, depletion and all',
-    why: '1560 nm focused to ξ = 2.84 in 50 mm of MgO:PPLN at the best period: the harmonic through a short-pass filter against 16π²d²Lh/(ε₀cλ³n₁n₂) · P₁ with P₂ = P₁ tanh²(√(ηP₁)), at 0.1, 1 and 10 W (worst relative error); p light makes none; and without the filter, fundamental and harmonic add up to what went in',
+    why: '1560 nm focused to ξ = 2.84 in the middle of 50 mm of MgO:PPLN (the crystal’s index moving the focus), at the best period: the harmonic through a short-pass filter against 16π²d²Lh/(ε₀cλ³n₁n₂) · P₁ with P₂ = P₁ tanh²(√(ηP₁)), at 0.1, 1 and 10 W (worst relative error); p light makes none; and without the filter, fundamental and harmonic add up to what went in, less the coated faces’ 0.1% each',
     want: 0, tol: 1e-3, unit: '',
     run: J => {
+      // focused so the waist sits in the crystal's middle inside it: L / 2n past its face, as seen in air
       const n1 = J.nlcIndex('ppln', 1560, 40), n2 = J.nlcIndex('ppln', 780, 40), zR = 50 / 2.84 / (2 * n1), w0 = Math.sqrt(1.56e-3 * zR / Math.PI);
-      const mk = (P, pol, filt) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 50, width: 2 * w0, rays: 1, pol, power: P }),
+      const mk = (P, pol, filt) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 25 + 25 / n1, width: 2 * w0, rays: 1, pol, power: P }),
         { type: 'nlc', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: 40 },
         ...(filt ? [{ type: 'filter', name: 'F', x: 60, y: 0, angle: 0, ftype: 'shortpass', edge: 1100, slope: 1, tmax: 100 }] : []),
         { type: 'detector', name: 'D', x: 80, y: 0, angle: 180, length: 20, material: 'custom', resp: 1 }], { minPower: 1e-6 });
       const eta = 16 * Math.PI ** 2 * (14e-12) ** 2 * 0.05 * 1.068 / (8.8541878128e-12 * 299792458 * (1.56e-6) ** 3 * n1 * n2);
       let worst = 0;
-      for (const P of [100, 1000, 10000]) { J.load(mk(P, 's', true)); const Pw = P * 1e-3; worst = Math.max(worst, Math.abs(J.detector('D').mw / (Pw * Math.tanh(Math.sqrt(eta * Pw)) ** 2 * 1e3) - 1)); }
+      // the entrance face's coating keeps 0.1% of the fundamental back
+      for (const P of [100, 1000, 10000]) { J.load(mk(P, 's', true)); const Pw = P * 1e-3 * 0.999; worst = Math.max(worst, Math.abs(J.detector('D').mw / (Pw * Math.tanh(Math.sqrt(eta * Pw)) ** 2 * 1e3) - 1)); }
       J.load(mk(1000, 'p', true)); worst = Math.max(worst, J.detector('D').mw);
-      J.load(mk(10000, 's', false)); worst = Math.max(worst, Math.abs(J.detector('D').mw / 10000 - 1));
+      J.load(mk(10000, 's', false)); const P2 = J.nlc('X')[0].r.P2 * 1e3;
+      worst = Math.max(worst, Math.abs(J.detector('D').mw / (P2 + (10000 * 0.999 - P2) * 0.999) - 1));
       return worst;
+    },
+  },
+  {
+    name: 'The crystal’s index moves the focus inside it',
+    why: 'a beam focused, in air, 25 mm past the face of 50 mm of PPLN: inside, the waist lands n × 25 mm past the face, 25(n − 1) mm beyond the middle (relative error)',
+    want: 0, tol: 1e-3, unit: '',
+    run: J => {
+      J.load(bench('shift', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0: 0.05, z0: 50, width: 0.1, rays: 1, pol: 's', power: 1000 }),
+        { type: 'nlc', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: 40 }], { minPower: 1e-6 }));
+      const n = J.nlcIndex('ppln', 1560, 40), r = J.nlc('X')[0].r;
+      return Math.abs(r.mu * 25 / (25 * (n - 1)) - 1);
     },
   },
   {
@@ -3557,7 +3583,7 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: J => {
       const n1 = J.nlcIndex('ppln', 1560, 40), zR = 50 / 2.84 / (2 * n1), w0 = Math.sqrt(1.56e-3 * zR / Math.PI);
-      const mk = (T, period) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 50, width: 2 * w0, rays: 1, pol: 's', power: 1000 }),
+      const mk = (T, period) => bench('shg', [src({ name: 'L', x: -50, wavelength: 1560, gauss: true, w0, z0: 25 + 25 / n1, width: 2 * w0, rays: 1, pol: 's', power: 1000 }),
         { type: 'nlc', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: T, period }], { minPower: 1e-6 });
       J.load(mk(40, 0)); const H = J.nlc('X')[0], best = H.r.P2, per = H.r.period;
       J.load(mk(45, per)); return J.nlc('X')[0].r.P2 < 0.05 * best ? 1 : 0;
@@ -3623,6 +3649,19 @@ const TESTS = [
         return J.aberrations('Sc', { abAng: 5, abN: 5, abRays: 61 }).seidel.distPct; };
       const a = d(-30), b = d(-5), c = d(-1);
       return a < b && b < c && c < 0 && a < -0.2 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A stop behind a positive lens makes pincushion distortion, and every field fills it',
+    why: 'the singlet with its 6 mm stop 30 mm behind it: each field’s chief ray aimed through the stop’s centre, so the same number of rays gets through at every field, and the chief ray lands beyond its paraxial height at the edge of a 5° field (the opposite of a stop in front)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('ab', [src({ name: 'S', x: -60, width: 12, rays: 11, pol: 's', wavelength: 587.6 }),
+        { type: 'stop', name: 'Stop', x: 30, y: 0, angle: 0, aperture: 6, outer: 60 },
+        { type: 'lens', name: 'L', x: 0, y: 0, angle: 0, diameter: 50.8, surfaces: [{ R: 102.4 }, { R: -102.4 }], gaps: [7], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: 100, length: 60 })]));
+      const A = J.aberrations('Sc', { abAng: 5, abN: 5, abRays: 61 }), n = A.fields.map(f => f.n);
+      return A.seidel.distPct > 0.2 && Math.max(...n) - Math.min(...n) <= 1 ? 1 : 0;
     },
   },
   { group: 'Dipole traps' },

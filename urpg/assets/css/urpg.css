@@ -337,7 +337,8 @@ body {
   flex-direction: column;
 }
 
-.image-item > a {
+.image-item > a,
+.stamp {
   --perf: 4px;                          /* perforation hole radius */
   position: relative;
   display: block;
@@ -349,7 +350,8 @@ body {
 
 /* The paper, drawn on a layer behind the cover so the perforations can be
    cut out of it with a mask while the drop shadow on the link still shows. */
-.image-item > a::before {
+.image-item > a::before,
+.stamp::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -370,7 +372,8 @@ body {
 }
 
 /* Lifted off the page: a small tilt and a longer shadow */
-.image-item > a:hover {
+.image-item > a:hover,
+.stamp:hover {
   transform: translateY(-3px) rotate(-1.25deg);
   filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
 }
@@ -534,10 +537,25 @@ body {
 .action-button:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
 
 /* --------------------------------------------------------------------------
+   Donations — each Stripe button sits in its own stamp
+   -------------------------------------------------------------------------- */
+
+.donate-stamps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.75rem;
+  margin-top: 1rem;
+}
+
+.donate-stamps stripe-buy-button { display: block; }
+
+/* --------------------------------------------------------------------------
    Footer — stays transparent
    -------------------------------------------------------------------------- */
 
 footer {
+  position: relative;
   flex-shrink: 0;
   width: 100%;
   display: flex;
@@ -545,6 +563,18 @@ footer {
   align-items: center;
   padding: 1.25rem 1.5rem 1.75rem;
   background: transparent;
+}
+
+/* A tear-off line of perforations right across the bottom of the page */
+footer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: radial-gradient(circle, var(--urpg-line-2) 3px, transparent 3.5px)
+              0 50% / 14px 8px repeat-x;
 }
 
 footer .bottom-image {

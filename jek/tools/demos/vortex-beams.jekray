@@ -1,0 +1,304 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Vortex beams: mode converter and SLM",
+  "saved": "2026-09-27T11:22:37.563Z",
+  "view": {
+    "cx": 100,
+    "cy": 0,
+    "scale": 2.2
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 100,
+        "cy": 0,
+        "scale": 2.2
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "lg",
+      "type": "source",
+      "name": "LG01 vortex beam",
+      "x": -100,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 632.8,
+      "colourAuto": true,
+      "colour": "#ff4300",
+      "width": 0.6952866965109046,
+      "divergence": -0.21057630840435074,
+      "gauss": true,
+      "w0": 0.13112142029301638,
+      "z0": 135.35533905932738,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 1,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "lg",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "c1",
+      "type": "lens",
+      "name": "Cylindrical lens, f 50 mm",
+      "x": 0,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 12.7,
+      "surfaces": [
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": -25.8,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "cyl": "plane",
+      "sweeps": {}
+    },
+    {
+      "id": "c2",
+      "type": "lens",
+      "name": "Cylindrical lens, f 50 mm",
+      "x": 70.71067811865476,
+      "y": 25,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 12.7,
+      "surfaces": [
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": -25.8,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "cyl": "plane",
+      "sweeps": {}
+    },
+    {
+      "id": "s1",
+      "type": "screen",
+      "name": "HG mode, turned 45°",
+      "x": 300,
+      "y": 25,
+      "angle": 180,
+      "bench": "b1",
+      "length": 6,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    },
+    {
+      "id": "g",
+      "type": "source",
+      "name": "Laser",
+      "x": -100,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 632.8,
+      "colourAuto": true,
+      "colour": "#ff4300",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 512,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "slm",
+      "type": "mask",
+      "name": "SLM: blazed fork, charge 1",
+      "x": 0,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "amp": "1",
+      "delay": "mod(x/0.1 + theta/(2*pi), 1)",
+      "preset": "fork",
+      "sweeps": {}
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "name": "Lens, f 200 mm",
+      "x": 50,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 103,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        4
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "s2",
+      "type": "screen",
+      "name": "Focus: a ring off the axis",
+      "x": 250,
+      "y": -25,
+      "angle": 180,
+      "bench": "b1",
+      "length": 6,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "Two ways to handle light with orbital angular momentum. Top: a Laguerre–Gauss LG01 beam, a vortex of charge 1 with a dark centre, through a π/2 mode converter (Beijersbergen et al. 1993): two cylindrical lenses of focal length 50 mm, √2 × 50 = 70.7 mm apart, with the beam focused to a waist between them whose Rayleigh range is (1 + 1/√2) × 50 mm. Inside the lenses the two directions pick up different Gouy phases, and the vortex leaves as a Hermite–Gauss HG10 mode turned 45°: two lobes on a diagonal on the screen’s Diffraction tab. Set the source to Hermite–Gauss m 1, n 0 and it passes unchanged, because it lines up with the lenses. Bottom: a Gaussian beam onto a spatial light modulator showing a blazed fork hologram (period 0.1 mm, charge 1). The fork puts a vortex on the light it diffracts, and the blaze sends it all into the first order, so the rays and the beam leave in the first order, 6.3 mrad off the axis, and the lens focuses a ring 1.27 mm to the side instead of a spot: a donut 68 µm across its bright rim, dark in the middle. Try the mask’s other presets."
+}

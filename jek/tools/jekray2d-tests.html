@@ -231,6 +231,10 @@ const oneEl = (el, srcOpts) => bench('one', [
   el,
 ]);
 const after = (J, name) => J.popSegments().find(g => g.el === name);
+/* A 0.5 mm Gaussian, or a higher-order mode built on it, from 100 mm before the origin */
+const modeSrc = o => src(Object.assign({ name: 'Beam', x: -100, width: 2, rays: 3, gauss: true, w0: 0.5, z0: 0, popN: 256, pol: 's', power: 1 }, o));
+/* the light on the axis just before the last segment ends, as a share of the power per mm² */
+const axisBefore = J => { const S = J.popSegments(), g = S[S.length - 1], a = g.at(g.len * 0.999); return a.axis / a.power; };
 
 /* Minima along a sampled line, refined by a parabola, and their mean spacing */
 function minSpacing(I, L) {
@@ -2548,6 +2552,75 @@ const TESTS = [
     why: 'the mean field interferes with the prompt reflection; what the line holds beyond it adds as power: R + T = 1',
     want: 1, tol: 1e-3, unit: '',
     run: J => J.diffraction('Refl').power + J.diffraction('Trans').power,
+  },
+
+  { group: 'Higher-order beams and phase masks' },
+  {
+    name: 'Hermite–Gauss modes are √(2m + 1) and √(2n + 1) wider than their Gaussian',
+    why: 'HG₁₀ and HG₂₁ of a 0.5 mm waist, 300 mm on: second-moment widths against TEM₀₀ at the same screen, √3 and √5 by √3 (M² = 2m + 1)',
+    want: 0, tol: 1e-3, unit: ' (worst relative error)',
+    run: J => {
+      const W = o => { J.load(bench('hg', [modeSrc(o), screen({ name: 'Sc', x: 200, length: 40 })], { minPower: 1e-6 })); const D = J.diffraction('Sc'); return [D.wx, D.wy]; };
+      const [g] = W({}), a = W({ tem: 'hg', hm: 1, hn: 0 }), b = W({ tem: 'hg', hm: 2, hn: 1 });
+      return Math.max(Math.abs(a[0] / g / Math.sqrt(3) - 1), Math.abs(a[1] / g - 1), Math.abs(b[0] / g / Math.sqrt(5) - 1), Math.abs(b[1] / g / Math.sqrt(3) - 1));
+    },
+  },
+  {
+    name: 'Laguerre–Gauss modes are √(2p + |l| + 1) wider, round, and dark on the axis',
+    why: 'LG₀₁ (√2) and LG₁₂ (√5), 300 mm on; a vortex has no light at its centre',
+    want: 0, tol: 1e-3, unit: ' (worst relative error)',
+    run: J => {
+      const W = o => { J.load(bench('lg', [modeSrc(o), screen({ name: 'Sc', x: 200, length: 40 })], { minPower: 1e-6 })); const D = J.diffraction('Sc'); return [D.wx, D.wy, axisBefore(J)]; };
+      const [g] = W({}), a = W({ tem: 'lg', lp: 0, ll: 1 }), b = W({ tem: 'lg', lp: 1, ll: -2 });
+      return Math.max(Math.abs(a[0] / g / Math.SQRT2 - 1), Math.abs(a[1] / g / Math.SQRT2 - 1), Math.abs(b[0] / g / Math.sqrt(5) - 1), Math.abs(b[1] / g / Math.sqrt(5) - 1), a[2] * 1e6, b[2] * 1e6);
+    },
+  },
+  {
+    name: 'A vortex of charge l is undone by a mask of charge −l, not +l',
+    why: 'LG₀₁ through a spiral phase plate: charge −1 leaves light on the axis, +1 makes charge 2 and none; so a source’s charge means what a mask’s does',
+    want: 0, tol: 1e-5, unit: ' (dark over bright axis)',
+    run: J => {
+      const A = q => { J.load(bench('v', [modeSrc({ tem: 'lg', lp: 0, ll: 1 }), { type: 'mask', name: 'V', x: -50, y: 0, angle: 0, amp: '1', delay: q + '*theta/(2*pi)' }, screen({ name: 'Sc', x: 200, length: 40 })], { minPower: 1e-6 })); return axisBefore(J); };
+      const bright = A(-1);
+      return bright > 0.3 ? A(1) / bright : NaN;
+    },
+  },
+  {
+    name: 'Higher-order modes couple nothing into a single-mode fibre matched to their Gaussian',
+    why: 'the fibre’s mode is the Gaussian they are built on, so the overlap is zero (HG₁₀, LG₀₁, LG₁₀) where TEM₀₀ couples all; from the fields arriving at the tip',
+    want: 0, tol: 0.01, unit: '%',
+    run: J => {
+      const V = 2 * Math.PI * 2.2 * 0.12 / (NM / 1000), w = 2.2e-3 * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6));
+      const C = o => { J.load(bench('f', [src(Object.assign({ x: -0.0001, rays: 1, width: 0.01, gauss: true, w0: w, z0: 0.0001, pol: 's' }, o)),
+        { type: 'fibre', name: 'F', x: 0, y: 0, angle: 180, core: 4.4, na: 0.12 }], { minPower: 1e-6 })); return J.metric('F', 'couple'); };
+      if (C({}) < 99.9) return NaN;
+      return C({ tem: 'hg', hm: 1, hn: 0 }) + C({ tem: 'lg', lp: 0, ll: 1 }) + C({ tem: 'lg', lp: 1, ll: 0 });
+    },
+  },
+  {
+    name: 'A blazed grating on an SLM steers the beam by λ/Λ',
+    why: 'the sawtooth preset, 0.1 mm period: its whole-wave resets bend nothing, so the rays leave in the first order, 250 · tan(asin(λ/Λ)) to the side 250 mm on, and the field goes with them, all of its power centred on them',
+    wantFrom: () => 250 * Math.tan(Math.asin(LAM / 0.1)), tol: 0.003, unit: ' mm',
+    run: J => {
+      J.load(bench('b', [modeSrc({}), { type: 'mask', name: 'G', x: -50, y: 0, angle: 0, amp: '1', delay: 'mod(x/0.1, 1)' }, screen({ name: 'Sc', x: 200, length: 40 })], { minPower: 1e-6 }));
+      const g = after(J, 'G'), a = g.at(g.len * 0.999);
+      const hits = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief), y = hits.reduce((q, t) => q + t.y, 0) / hits.length;
+      return Math.abs(a.power - 1) < 1e-3 && Math.abs(a.cx) < 1e-3 ? Math.abs(y) : NaN;
+    },
+  },
+
+  {
+    name: 'A fork hologram focuses to a dark-centred ring in its first order',
+    why: 'a blazed fork (0.1 mm, charge 1) and a 200 mm lens: the rays, the reference ray on the fork\u2019s core included, meet 200 \u00b7 \u03bb/\u039b = 1.27 mm to the side, and the field there is a ring, dark at its centre (the map\u2019s middle pixel under 5% of its peak)',
+    want: 1.269, tol: 0.002, unit: ' mm (with the centre under 5% of the peak)',
+    run: J => {
+      J.load(bench('fork', [modeSrc({ x: -100, w0: 1, width: 2, rays: 3 }), { type: 'mask', name: 'SLM', x: 0, y: 0, angle: 0, length: 12.7, amp: '1', delay: 'mod(x/0.1 + theta/(2*pi), 1)' },
+        { type: 'lens', name: 'L', x: 50, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 103 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: 250, length: 6 })], { minPower: 1e-6 }));
+      const hits = J.lastTrace().screens[J.byName('Sc').id], y = hits.reduce((q, t) => q + t.y, 0) / hits.length;
+      const M = J.diffraction('Sc').map, n = M.n, c = M.v[(n >> 1) * n + (n >> 1)] / Math.max(...M.v);
+      return c < 0.05 ? Math.abs(y) : NaN;
+    },
   },
 
   { group: 'Sources split from one laser' },

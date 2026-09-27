@@ -94,6 +94,7 @@ Signs:
 - **Short pulses:** give a source (or a fibre laser) "tau" in fs, with "pshape", "rep" and "power" as the average power. Glass, prisms, gratings, chirped mirrors ("gdd" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by "blaze"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.
 - **A laser from parts:** a gain element ("g0", "isat", "centre" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.
 - **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector.
+- **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
@@ -148,6 +149,11 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | splitPath | `0` | mm of extra fibre before this launch, against the other. |
 | lineshape | `"lorentz"` | "lorentz" or "gauss": the laser line’s shape, with coh. |
 | m2 | `1` | beam quality M² ≥ 1. |
+| tem | `"gauss"` | "gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2. |
+| hm | `1` | HG m: nodes across the beam in the bench plane, 0–10. |
+| hn | `0` | HG n: nodes out of the bench plane, 0–10. |
+| lp | `0` | LG p: radial order (rings), 0–10. |
+| ll | `1` | LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it. |
 | tau | `0` | fs: a mode-locked laser’s pulse duration (intensity FWHM at its transform limit); 0 for a continuous laser. Its bandwidth then sets coh. |
 | pshape | `"sech2"` | "sech2" or "gauss": the pulse’s shape. |
 | rep | `80` | MHz: the repetition rate (power is the average power). |

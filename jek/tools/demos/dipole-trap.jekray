@@ -2,7 +2,7 @@
   "format": "jekray",
   "version": 1,
   "name": "Optical dipole trap, rubidium",
-  "saved": "2026-09-27T16:42:05.849Z",
+  "saved": "2026-09-27T18:32:07.909Z",
   "view": {
     "cx": 60,
     "cy": 0,
@@ -130,6 +130,12 @@
       "mapScale": "lin",
       "vectorFocus": "auto",
       "trap": "Rb87",
+      "trapMat": "Fused silica",
+      "trapR": 100,
+      "trapRho": 2200,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
       "mtfFreq": 50,
       "sweeps": {}
     },
@@ -149,11 +155,26 @@
       "mapScale": "lin",
       "vectorFocus": "auto",
       "trap": "none",
+      "trapMat": "Fused silica",
+      "trapR": 100,
+      "trapRho": 2200,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
       "mtfFreq": 50,
       "sweeps": {}
     }
   ],
   "fibres": [],
   "measures": [],
-  "notes": "A single-beam optical dipole trap: 2 W of 1064 nm light, collimated at 2 mm diameter, focused by a 100 mm plano-convex lens to a waist of about 34 µm. Far red of rubidium’s D lines, the light pulls atoms towards the brightest point. Select the screen at the focus and open its Trap tab: for ⁸⁷Rb the trap is about 150 µK deep (8% of the light is lost to the uncoated lens’s reflections), with radial trap frequencies near 1.1 kHz and an axial one near 8 Hz, while each atom scatters a photon only every couple of seconds. Change the atom, the power or the lens and watch the numbers; halve the laser’s beam size and the focus doubles in width, so the trap is four times shallower and its frequencies drop. The screen lets the light through to the dump."
+  "notes": "A single-beam optical dipole trap: 2 W of 1064 nm light, collimated at 2 mm diameter, focused by a 100 mm plano-convex lens to a waist of about 34 µm. Far red of rubidium’s D lines, the light pulls atoms towards the brightest point. Select the screen at the focus and open its Trap tab: for ⁸⁷Rb the trap is about 150 µK deep (8% of the light is lost to the uncoated lens’s reflections), with radial trap frequencies near 1.1 kHz and an axial one near 8 Hz, while each atom scatters a photon only every couple of seconds. Change the atom, the power or the lens and watch the numbers; halve the laser’s beam size and the focus doubles in width, so the trap is four times shallower and its frequencies drop. The screen lets the light through to the dump.",
+  "ui": {
+    "sel": "trap",
+    "pins": [],
+    "views": {
+      "trap": {
+        "screenTab": "trap"
+      }
+    }
+  }
 }

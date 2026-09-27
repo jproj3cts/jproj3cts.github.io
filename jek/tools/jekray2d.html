@@ -597,9 +597,12 @@
                 <button type="button" role="menuitem" data-demo="dispersing-prism">Dispersing prism</button>
                 <button type="button" role="menuitem" data-demo="dichroic-combiner">Dichroic combiner, two tables</button>
               </div>
-              <div class="rt-mgroup" role="group" aria-label="Atoms"><div class="rt-mhead">Atoms</div>
+              <div class="rt-mgroup" role="group" aria-label="Atoms and traps"><div class="rt-mhead">Atoms and traps</div>
                 <button type="button" role="menuitem" data-demo="saturated-absorption">Saturated absorption, rubidium</button>
                 <button type="button" role="menuitem" data-demo="dipole-trap">Optical dipole trap, rubidium</button>
+                <button type="button" role="menuitem" data-demo="optical-lattice">Two-dimensional optical lattice</button>
+                <button type="button" role="menuitem" data-demo="optical-tweezers">Optical tweezers in water</button>
+                <button type="button" role="menuitem" data-demo="levitated-nanoparticle">Levitated nanoparticle in air</button>
               </div>
               <div class="rt-mgroup" role="group" aria-label="Fibre and pulses"><div class="rt-mhead">Fibre and pulses</div>
                 <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
@@ -2946,7 +2949,7 @@ function maskMeanSlope(fn, u, lam) {
   let sum = 0;
   for (const [a, b] of [[e, 0], [-e, 0], [0, e], [0, -e]]) {
     const D = (x) => fn(u + a + x, b, lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
-    if (Math.abs(dp) > 0.025 || Math.abs(dm) > 0.025 || Math.abs(dp - dm) > 0.05) return 0;
+    if (Math.abs(dp) > 0.45 || Math.abs(dm) > 0.45 || Math.abs(dp - dm) > 0.05) return 0;
     sum += (dp + dm) / (2 * h);
   }
   return sum / 4;
@@ -3452,7 +3455,8 @@ function traceScene() {
           // jump of whole waves is no jump at all (a blazed grating's or a kinoform's reset, as an
           // SLM writes them), so the differences are taken modulo whole waves.
           const wrap = d => d - Math.round(d), dp = wrap(fp[1] - f0[1]), dm = wrap(f0[1] - fm[1]);
-          const smooth = Math.abs(dp) < 0.025 && Math.abs(dm) < 0.025 && Math.abs(dp - dm) < 0.05;
+          // smooth where the slope does not jump across the step (a steep lens is smooth; a step is not)
+          const smooth = Math.abs(dp) < 0.45 && Math.abs(dm) < 0.45 && Math.abs(dp - dm) < 0.05;
           const A = f0[0];
           let slope = smooth ? (dp + dm) / (2 * hh) * lam : 0;
           const curv = smooth ? (dp - dm) / (hh * hh) * lam : 0;
@@ -3460,8 +3464,11 @@ function traceScene() {
           // the slope is the mean of those just round it: the vortex's cancel, the carrier's stay
           if (!smooth) slope = maskMeanSlope(s.maskFn, ly, lam) * lam;
           if (isQ) {
-            evt = Object.assign(passEv(), { C: curv, mode: 'M' });
-            const dr = curv * qr + 1, di = curv * qi, den = dr * dr + di * di;
+            // in a medium the delay's curvature bends the light by 1/n of it, as the rays' slope
+            // does: a mask inside water or glass focuses at its focal length there
+            const cN = curv / nCur;
+            evt = Object.assign(passEv(), { C: cN, mode: 'M' });
+            const dr = cN * qr + 1, di = cN * qi, den = dr * dr + di * di;
             const nr = (qr * dr + qi * di) / den, ni = (qi * dr - qr * di) / den;
             qr = nr; qi = ni;
           }

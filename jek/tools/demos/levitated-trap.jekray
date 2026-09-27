@@ -224,5 +224,14 @@
     "cy": 0,
     "scale": 40000
   },
-  "keepView": true
+  "keepView": true,
+  "ui": {
+    "sel": "trapScreen",
+    "pins": [],
+    "views": {
+      "trapScreen": {
+        "screenTab": "trap"
+      }
+    }
+  }
 }

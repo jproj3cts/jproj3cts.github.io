@@ -2587,6 +2587,19 @@ const TESTS = [
   },
   { group: 'Higher-order beams and phase masks' },
   {
+    name: 'A steep ideal-lens mask brings its rays to its focus',
+    why: 'an NA 0.8 perfect-lens delay, f = 2 mm, in air and as a water-immersion lens inside water (its delay n times as long): the rays of a 4 mm fan all cross the axis at f (the largest miss, \u00b5m); a steep delay is smooth, not an edge',
+    want: 0, tol: 0.5, unit: ' \u00b5m',
+    run: J => {
+      const miss = els => { J.load(bench('steep', els, { minPower: 1e-6 })); const h = J.lastTrace().screens[J.byName('Sc').id].filter(t => !t.chief); return h.length === 5 ? Math.max(...h.map(t => Math.abs(t.y))) * 1e3 : NaN; };
+      const fan = src({ name: 'L', x: -10, wavelength: 1064, width: 4, rays: 5, pol: 's' });
+      const a = miss([fan, { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 6.7, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' }, screen({ name: 'Sc', x: 2, length: 1, absorb: false })]);
+      const b = miss([fan, { type: 'prism', shape: 'window', name: 'W', x: 2.5, y: 0, angle: 0, size: 20, thickness: 15, material: { glass: 'Water' } },
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 6.7, amp: '1', delay: '-1.3242*(sqrt(r^2+4)-2)/lambda' }, screen({ name: 'Sc', x: 2, length: 1, absorb: false })]);
+      return Math.max(a, b);
+    },
+  },
+  {
     name: 'Hermite–Gauss modes are √(2m + 1) and √(2n + 1) wider than their Gaussian',
     why: 'HG₁₀ and HG₂₁ of a 0.5 mm waist, 300 mm on: second-moment widths against TEM₀₀ at the same screen, √3 and √5 by √3 (M² = 2m + 1)',
     want: 0, tol: 1e-3, unit: ' (worst relative error)',

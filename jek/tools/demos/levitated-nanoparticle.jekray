@@ -1,0 +1,125 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Levitated nanoparticle in air",
+  "saved": "2026-09-27T18:32:07.924Z",
+  "view": {
+    "cx": -5,
+    "cy": 0,
+    "scale": 12
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.0001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": -5,
+        "cy": 0,
+        "scale": 12
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "1064 nm laser, 200 mW",
+      "x": -30,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1064,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 3,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1.5,
+      "z0": 0,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 5,
+      "power": 200,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "obj",
+      "type": "mask",
+      "name": "Objective, NA 0.8",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 5.333,
+      "amp": "1",
+      "delay": "-(sqrt(r^2+4)-2)/lambda",
+      "preset": "custom",
+      "sweeps": {}
+    },
+    {
+      "id": "trap",
+      "type": "screen",
+      "name": "Trap at the focus",
+      "x": 2,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 0.1,
+      "absorb": false,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "sphere",
+      "trapMat": "Fused silica",
+      "trapR": 75,
+      "trapRho": 2200,
+      "trapMed": "air",
+      "trapP": 5,
+      "trapT": 295,
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A single-beam optical tweezer holding a 150 nm silica sphere in air at 5 mbar, as in levitated optomechanics: 200 mW of 1064 nm light focused by an NA 0.8 objective (an ideal lens, f = 2 mm). Select the screen at the focus and open its Trap tab: trap frequencies of order 100 kHz, softer along the polarisation, and the air’s damping with the quality factor of each motion. At 5 mbar Q is about 50 across the beam. Lower the pressure (Pressure, mbar) and Q climbs in proportion as the gas thins: at 0.01 mbar the sphere rings for tens of thousands of cycles. The Medium is set to Air, so the pressure is the one the sphere feels.",
+  "ui": {
+    "sel": "trap",
+    "pins": [],
+    "views": {
+      "trap": {
+        "screenTab": "trap"
+      }
+    }
+  }
+}

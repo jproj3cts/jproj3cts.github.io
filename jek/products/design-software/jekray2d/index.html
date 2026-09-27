@@ -97,6 +97,20 @@
   .rt-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
   .rt-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
 
+  /* every example, by topic: full white boxes that open */
+  .rt-exdrop { margin-top: 0.75rem; background: #ffffff; border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: var(--jek-shadow); }
+  .rt-examples > .rt-example-grid + .rt-exdrop { margin-top: 2rem; }
+  .rt-exdrop > summary { display: flex; align-items: center; gap: 0.75rem; padding: 0.95rem 1.15rem; cursor: pointer; list-style: none; user-select: none; }
+  .rt-exdrop > summary::-webkit-details-marker { display: none; }
+  .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 6px; }
+  .rt-exdrop-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: #7a5a44; }   /* the page's sand, deepened to read on white */
+  .rt-exdrop-count { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-exdrop > summary::after { content: '\25BE'; font-size: 0.95rem; color: #7a5a44; transition: transform 0.2s ease; }
+  .rt-exdrop[open] > summary::after { transform: rotate(180deg); }
+  .rt-exdrop > summary:hover .rt-exdrop-title { color: #5e4332; }
+  .rt-exdrop > .rt-example-grid { padding: 0.25rem 1.15rem 1.25rem; }
+  .rt-exdrop .rt-example { background: var(--jek-well); }
+  .rt-example-grid.rt-featured { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
   .tech-section p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.55; text-align: left; }
 
   @media (max-width: 760px) {
@@ -200,6 +214,7 @@
         <h2>Build a bench in minutes</h2>
         <p>Add parts from the toolbar and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
         <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed an optimiser, which varies several values at once against several weighted goals, and a Monte Carlo tolerance study.</p>
+        <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play.</p>
       </div>
     </section>
 
@@ -263,12 +278,88 @@
       </div>
     </section>
 
+    <section class="rt-feature">
+      <figure class="rt-shot" style="background: var(--jek-panel)">
+        <img src="img/structured-light.png" alt="Two irradiance maps: a Hermite-Gauss mode turned 45 degrees after a cylindrical-lens mode converter, and a dark-centred vortex ring focused from a fork hologram" loading="lazy">
+        <figcaption>Structured light: a mode converter and an SLM fork hologram</figcaption>
+      </figure>
+      <div>
+        <h2>Structured light</h2>
+        <p>A source can launch a Hermite–Gauss or Laguerre–Gauss mode, a vortex of any charge, carried as a coherent sum of modes that each keep their own Gouy phase. A pair of cylindrical lenses turns a vortex into a Hermite–Gauss mode, as it does in the lab.</p>
+        <p>Masks cover what a spatial light modulator shows: spiral phase plates, fork holograms, blazed gratings and any phase you can write as a formula. Rays and beams follow a blazed pattern into its first order, and a mask with detail finer than the field’s grid is flagged rather than quietly smoothed.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/levitated-trap.png" alt="The standing wave where two counter-propagating beams meet at a focus, computed on every pixel" loading="lazy">
+        <figcaption>The standing-wave trap of a levitated-particle experiment</figcaption>
+      </figure>
+      <div>
+        <h2>Optical traps, atoms to nanoparticles</h2>
+        <p>Put a screen at a focus and its Trap tab reads the trap the light makes for rubidium, caesium, potassium or sodium atoms, or for a dielectric sphere of any glass. It finds where the particle settles, with radiation pressure pushing it along, and gives the depth, the trap frequency in each direction and the light it scatters.</p>
+        <p>Every beam through the focus counts, as its full vector field: counter-propagating beams make a standing wave, crossed ones a lattice, and a steep focus traps more softly along its polarisation. The particle can sit in vacuum, in air at a set pressure, which gives its damping and quality factor, or in water on the bench.</p>
+      </div>
+    </section>
+
     <!-- Examples: moved here from the editor -->
     <div class="rt-examples" id="examples">
       <h2>Examples</h2>
-      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results.</p>
-      <h3 class="rt-exgroup">Interference and cavities</h3>
-      <div class="rt-example-grid">
+      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. A few to start with, then every example by topic.</p>
+      <h3 class="rt-exgroup">Key examples</h3>
+      <div class="rt-example-grid rt-featured">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=michelson">
+          <img src="img/michelson.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Michelson interferometer</h3>
+            <p>A 50/50 cube with one fixed and one moving mirror. Sweep the moving mirror to see the output port go light and dark.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fabry-perot">
+          <img src="img/fabry-perot.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fabry–Perot cavity</h3>
+            <p>Two mirrors with screens on the reflected and transmitted light. Shows finesse, linewidth and the resonance scan.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=pdh-lock">
+          <img src="img/pdh-lock.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Pound–Drever–Hall lock</h3>
+            <p>A 20 MHz EOM, a pick-off and a Fabry–Perot cavity. The photodiode’s mixer gives the PDH error signal: zero when locked, changing sign either side of resonance.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=vortex-beams">
+          <img src="img/vortex-beams.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Vortex beams: mode converter and SLM</h3>
+            <p>A Laguerre–Gauss vortex through a cylindrical-lens mode converter comes out as a Hermite–Gauss mode turned 45°. A fork hologram on an SLM focuses to a dark-centred ring.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-tweezers">
+          <img src="img/optical-tweezers.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Optical tweezers in water</h3>
+            <p>A water-immersion objective, NA 1.2, holding a 120 nm polystyrene bead: stiffer across the polarisation than along it, and overdamped by the water.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=levitated-trap">
+          <img src="img/levitated-trap.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Levitated nanorod trap</h3>
+            <p>The optics of Hu et al., Nat. Commun. 2023: two counter-propagating 1550 nm beams focused to a standing wave. Play the sweep to see it tilt.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Interference and cavities</span><span class="rt-exdrop-count">6 examples</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=michelson">
           <img src="img/michelson.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -317,9 +408,11 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
-      <h3 class="rt-exgroup">Diffraction and imaging</h3>
-      <div class="rt-example-grid">
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Diffraction and imaging</span><span class="rt-exdrop-count">8 examples</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=youngs-double-slit">
           <img src="img/youngs-double-slit.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -384,9 +477,11 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
-      <h3 class="rt-exgroup">Polarisation and spectra</h3>
-      <div class="rt-example-grid">
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Polarisation and spectra</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=wollaston-polarimeter">
           <img src="img/wollaston-polarimeter.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -427,9 +522,11 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
-      <h3 class="rt-exgroup">Atoms</h3>
-      <div class="rt-example-grid">
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Atoms and traps</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=saturated-absorption">
           <img src="img/saturated-absorption.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -446,9 +543,35 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
-      <h3 class="rt-exgroup">Fibre and pulses</h3>
-      <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-lattice">
+          <img src="img/optical-lattice.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Two-dimensional optical lattice</h3>
+            <p>Four beams from one laser, crossed at a point: a checkerboard of traps for rubidium, each site 0.3 mK deep with 160 kHz trap frequencies.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-tweezers">
+          <img src="img/optical-tweezers.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Optical tweezers in water</h3>
+            <p>A water-immersion objective, NA 1.2, holding a 120 nm polystyrene bead: stiffer across the polarisation than along it, and overdamped by the water.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=levitated-nanoparticle">
+          <img src="img/levitated-nanoparticle.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Levitated nanoparticle in air</h3>
+            <p>A 150 nm silica sphere in an NA 0.8 tweezer at 5 mbar: trap frequencies near 180 kHz and the quality factor the gas leaves each motion.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Fibre and pulses</span><span class="rt-exdrop-count">5 examples</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
           <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -489,9 +612,11 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
-      <h3 class="rt-exgroup">From a paper</h3>
-      <div class="rt-example-grid">
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">From a paper</span><span class="rt-exdrop-count">1 example</span></summary>
+        <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=levitated-trap">
           <img src="img/levitated-trap.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -500,7 +625,8 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-      </div>
+        </div>
+      </details>
     </div>
 
     <!-- Central technical info section -->

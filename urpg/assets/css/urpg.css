@@ -105,10 +105,60 @@ body.ground-anomalies .page-title,
 body.ground-anomalies .page-lede {
   text-shadow: 0 1px 3px rgba(0, 20, 40, 0.55);
 }
-body.ground-anomalies .image-item {
-  background: rgba(4, 12, 9, 0.72);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+/* Each label is a yellow luggage tag hanging from its stamp on a string:
+   clipped top corners, a punched and reinforced hole, a slight tilt. The
+   tag's shape is drawn on ::after so the string on ::before isn't clipped. */
+body.ground-anomalies .tag {
+  --tag-yellow: #f3c94b;
+  --tag-hole-y: 16px;
+  position: relative;
+  margin-top: 26px;
+  padding: 34px 16px 16px;
+  color: #231c0e;
+  transform-origin: 50% var(--tag-hole-y);
+  transform: rotate(-1.5deg);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+body.ground-anomalies .image-item:nth-child(even) .tag { transform: rotate(1.5deg); }
+
+body.ground-anomalies .tag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% var(--tag-hole-y),
+      #0000 5.5px, #d4a62a 6px 9px, #0000 9.5px),
+    var(--tag-yellow);
+  clip-path: polygon(22px 0, calc(100% - 22px) 0, 100% 22px,
+                     100% 100%, 0 100%, 0 22px);
+  -webkit-mask: radial-gradient(circle at 50% var(--tag-hole-y), #0000 5.5px, #000 6px);
+  mask: radial-gradient(circle at 50% var(--tag-hole-y), #0000 5.5px, #000 6px);
+}
+
+/* The string, from the bottom of the stamp through the hole */
+body.ground-anomalies .tag::before {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  top: -26px;
+  width: 2px;
+  height: calc(26px + var(--tag-hole-y));
+  background: #e8e0cc;
+  border-radius: 1px;
+}
+
+body.ground-anomalies .tag .info-line {
+  margin: 0;
+  padding: 0 0 0.55rem;
+  border-top: 0;
+  border-bottom: 1px dashed rgba(35, 28, 14, 0.45);
+}
+body.ground-anomalies .tag .price { color: #9b2a1c; }
+body.ground-anomalies .tag .title { color: #231c0e; }
+body.ground-anomalies .tag .description {
+  margin: 0.55rem 0 0;
+  color: rgba(35, 28, 14, 0.82);
 }
 
 /* --------------------------------------------------------------------------
@@ -323,40 +373,83 @@ body {
   max-width: 760px;
 }
 
-/* No fill — the card is drawn with a hairline and a spectrum top edge */
+/* A lone product (For Makers) keeps the width of one column of three
+   rather than stretching across the whole grid */
+.image-grid:has(> .image-item:only-child) {
+  grid-template-columns: minmax(0, 234px);
+  justify-content: center;
+}
+
+/* On Anomalies (and anywhere .stamp is used) each product is a postage stamp: the cover sits on a paper border with
+   perforated edges, and the title, price and description sit underneath
+   like a label in a stamp album. No card box around the whole tile. */
 .image-item {
-  position: relative;
   display: flex;
   flex-direction: column;
-  padding: 0.85rem;
-  overflow: hidden;
-  border: 1px solid var(--urpg-line);
-  border-radius: var(--urpg-radius);
-  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.image-item::before {
+body.ground-anomalies .image-item > a,
+.stamp {
+  --perf: 4px;                          /* perforation hole radius */
+  position: relative;
+  display: block;
+  padding: 14px;                        /* the paper border */
+  isolation: isolate;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+/* The paper, drawn on a layer behind the cover so the perforations can be
+   cut out of it with a mask while the drop shadow on the link still shows. */
+body.ground-anomalies .image-item > a::before,
+.stamp::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg,
-    var(--urpg-amber), var(--urpg-orange), var(--urpg-red),
-    var(--urpg-sky), var(--urpg-cyan));
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  inset: 0;
+  z-index: -1;
+  background: #f3eee2;
+  /* One strip of holes per edge, each a fixed-size tile repeated from the
+     middle of its edge, so the holes keep their shape whatever the stamp's
+     size (phones give fractional sizes). The plain rectangle fills the
+     middle; the corners are left solid. */
+  --holes-top:    radial-gradient(circle at 50% 0,    #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-bottom: radial-gradient(circle at 50% 100%, #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-left:   radial-gradient(circle at 0 50%,    #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-right:  radial-gradient(circle at 100% 50%, #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  -webkit-mask:
+    var(--holes-top)    50% 0    / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-bottom) 50% 100% / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-left)   0 50%    / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    var(--holes-right)  100% 50% / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    linear-gradient(#000 0 0) 50% 50% /
+      calc(100% - 2.5 * var(--perf)) calc(100% - 2.5 * var(--perf)) no-repeat;
+  mask:
+    var(--holes-top)    50% 0    / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-bottom) 50% 100% / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-left)   0 50%    / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    var(--holes-right)  100% 50% / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    linear-gradient(#000 0 0) 50% 50% /
+      calc(100% - 2.5 * var(--perf)) calc(100% - 2.5 * var(--perf)) no-repeat;
 }
 
-.image-item:hover { border-color: var(--urpg-line-2); transform: translateY(-2px); }
-.image-item:hover::before { opacity: 1; }
+/* Lifted off the page: a small tilt and a longer shadow */
+@media (hover: hover) {
+  body.ground-anomalies .image-item > a:hover {
+    transform: translateY(-3px) rotate(-1.25deg);
+    filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
+  }
+}
 
-.image-item a { display: block; border-radius: 8px; }
+/* Donation stamps stay put on hover and grey out instead */
+.stamp:hover { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)) grayscale(1) brightness(0.7); }
 
-.image-item a:focus-visible {
-  outline: none;
-  box-shadow: var(--urpg-focus);
+/* Core and For Makers: the cover in a plain white border */
+.image-item > a { display: block; }
+body:not(.ground-anomalies) .image-item > a { border: 6px solid #fff; }
+
+.image-item > a:focus-visible {
+  outline: 2px solid var(--urpg-accent);
+  outline-offset: 4px;
 }
 
 .image-item img {
@@ -365,11 +458,7 @@ body {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
-  border-radius: 8px;
-  transition: filter 0.3s ease;
 }
-
-.image-item:hover img { filter: brightness(0.55); }
 
 .info-line {
   display: flex;
@@ -515,6 +604,20 @@ body {
 .action-button:hover { background: #f47742; border-color: #f47742; }
 .action-button:active { transform: translateY(1px); }
 .action-button:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+
+/* --------------------------------------------------------------------------
+   Donations — each Stripe button sits in its own stamp
+   -------------------------------------------------------------------------- */
+
+.donate-stamps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.75rem;
+  margin-top: 1rem;
+}
+
+.donate-stamps stripe-buy-button { display: block; }
 
 /* --------------------------------------------------------------------------
    Footer — stays transparent

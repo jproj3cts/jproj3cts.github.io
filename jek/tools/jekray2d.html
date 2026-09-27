@@ -911,6 +911,10 @@ const GLASS = {
   'ZnSe':         [4.45813734, 0.467216334, 2.8956629, 0.0403446215, 0.153171194, 2221.82944],
   'Silicon':      [10.6684293, 0.0030434748, 1.54133408, 0.0909120621, 1.28765977, 1218816],
   'Germanium':    [0.4886331, 14.5142535, 0.0091224, 1.393959, 0.1626427, 752.19],
+  // four terms and a constant in n^2 (the first value): Daimon and Masumura's fit, set to the
+  // standard 20 C values (1.33712, 1.33299, 1.33115 at the F, D and C lines); 0.2 to 1.1 um
+  'Water':        [-0.00095737512, 0.5684027565, 0.1726177391, 0.02086189578, 0.1130748688, 0.005101829712, 0.01821153936, 0.02620722293, 10.69792721],
+  'Polystyrene':  [1.4435, 0, 0, 0.020216, 0, 0],       // Sultanova et al. 2009
 };
 const GLASS_ALIAS = {
   'BK7': 'N-BK7', 'NBK7': 'N-BK7', 'H-K9L': 'N-BK7', 'HK9L': 'N-BK7',
@@ -921,6 +925,7 @@ const GLASS_ALIAS = {
   'MGF2': 'MgF2', 'AL2O3': 'Sapphire', 'SAPPHIRE': 'Sapphire',
   'SI': 'Silicon', 'SILICON': 'Silicon', 'GE': 'Germanium', 'GERMANIUM': 'Germanium',
   'ZNSE': 'ZnSe', 'ZNSE_BROAD': 'ZnSe',
+  'WATER': 'Water', 'H2O': 'Water', 'PS': 'Polystyrene', 'POLYSTYRENE': 'Polystyrene',
 };
 function glassKey(name) {
   if (!name) return null;
@@ -936,8 +941,11 @@ function glassKey(name) {
   return null;
 }
 function sellmeier(c, um) {
-  const l2 = um * um;
-  return Math.sqrt(1 + c[0]*l2/(l2-c[3]) + c[1]*l2/(l2-c[4]) + c[2]*l2/(l2-c[5]));
+  // B1..Bk then C1..Ck; an odd count leads with a constant added to n^2
+  const l2 = um * um, a0 = c.length % 2 ? 1 : 0, k = (c.length - a0) / 2;
+  let n2 = 1 + (a0 ? c[0] : 0);
+  for (let i = 0; i < k; i++) { const B = c[a0 + i]; if (B) n2 += B * l2 / (l2 - c[a0 + k + i]); }
+  return Math.sqrt(n2);
 }
 /* Linear interpolation in a measured table, wavelengths in micrometres */
 function tableAt(wl, vals, um) {
@@ -1108,6 +1116,21 @@ function trapAlpha(atom, nm) {
   }
   re += A.core * 1.64877727436e-41 / 8.8541878128e-12;      // atomic units to alpha / eps0
   return [re, im];
+}
+/* Dielectric spheres: a Rayleigh particle (radius well under the wavelength in the medium).
+   Its polarisability in a medium of index nm (SI), Clausius-Mossotti with the relative index
+   m = np / nm, and the radiation reaction that gives it the scattering it must have:
+     alpha0 = 4 pi eps0 nm^2 a^3 (m^2 - 1) / (m^2 + 2),  alpha = alpha0 / (1 - i k^3 alpha0 / (6 pi eps0 nm^2)),
+   k = 2 pi nm / lambda. The force in a field E (V/m, the physicists' convention) is then
+   F = Re(alpha sum_j E_j grad E_j*) / 2: its real part the gradient force, its imaginary
+   part the scattering force (radiation pressure, and none in a standing wave's balance). */
+const EPS0 = 8.8541878128e-12;
+const SPHERE_DENSITY = { 'Fused silica': 2200, 'Polystyrene': 1050, 'N-BK7': 2510, 'Sapphire': 3980, 'CaF2': 3180, 'Silicon': 2330, 'Germanium': 5323, 'ZnSe': 5270, 'MgF2': 3170 };
+function sphereAlpha(glass, radiusNm, nm, nMed) {
+  const np = refIndex({ glass }, nm), m = np / nMed, a = radiusNm * 1e-9, cm = (m * m - 1) / (m * m + 2);
+  const a0 = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3 * cm, k = 2 * Math.PI * nMed / (nm * 1e-9);
+  const g = k ** 3 * a0 / (6 * Math.PI * EPS0 * nMed * nMed);                     // alpha = a0 / (1 - i g)
+  return { re: a0 / (1 + g * g), im: a0 * g / (1 + g * g), a0, np, m, cm, sigma: k ** 4 * (a0 / (EPS0 * nMed * nMed)) ** 2 / (6 * Math.PI), ka: k * a };
 }
 /* A trap at peak intensity I (W/m^2) whose intensity falls off as I (1 - c x^2 / 2) across it
    and along it (c in 1/mm^2): depth, scattering, heating and trap frequencies */
@@ -2000,7 +2023,13 @@ function normElementBase(e) {
         binInterp: e.binInterp !== false,
         mapScale: e.mapScale === 'log' ? 'log' : 'lin',
         vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
-        trap: e.trap in TRAP_ATOMS ? e.trap : 'none',                // an atom to read a dipole trap at this focus for
+        trap: e.trap in TRAP_ATOMS || e.trap === 'sphere' ? e.trap : 'none',   // an atom or a sphere to read an optical trap at this focus for
+        trapMat: glassKey(e.trapMat) || 'Fused silica',              // the sphere's material
+        trapR: Math.max(1, num(e.trapR, 100)),                       // its radius, nm
+        trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[glassKey(e.trapMat) || 'Fused silica'] || 2200)),   // kg/m^3
+        trapMed: ['bench', 'vacuum', 'water', 'custom'].includes(e.trapMed) ? e.trapMed : 'bench',
+        trapN: Math.max(1, num(e.trapN, 1.33)),
+        trapT: Math.max(0.001, num(e.trapT, 295)),                   // K, for the depth in kT
         mtfFreq: Math.max(0, num(e.mtfFreq, 50)) });
     case 'waveplate':
       return Object.assign(base, {
@@ -5192,6 +5221,9 @@ function setParam(el, path, v) {
     case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
+    case 'trapR': case 'trapRho': v = Math.max(1, v); break;
+    case 'trapN': v = Math.max(1, v); break;
+    case 'trapT': v = Math.max(0.001, v); break;
     case 'll': v = Math.round(clamp(v, -10, 10)); break;
     case 'vmax': v = Math.max(0.01, v); break;
     case 'size': case 'thickness': v = Math.max(0.1, v); break;
@@ -7625,43 +7657,87 @@ function pulseSection(el) {
   });
   panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit.'));
 }
-/* The screen's Trap tab: a dipole trap for a chosen atom where the beam arriving here is brightest */
+/* What a trap solution means for its particle: intensity, depth, frequencies, scattering */
+function trapReport(el, T) {
+  if (!T || T.error) return T || null;
+  const I = 0.5 * T.nMed * EPS0 * C_SI * T.E2;                            // W/m^2
+  const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
+    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass };
+  if (T.isAtom) {
+    const nm = el.trap && lastTraceNm(el);
+    out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s
+    const k = 2 * Math.PI / (nm * 1e-9), Erec = HBAR * HBAR * k * k / (2 * T.mass);
+    out.heat = (2 * Erec / KB) * out.sc / 3;
+    const A = TRAP_ATOMS[el.trap];
+    out.near = Math.min(...['D1', 'D2'].map(q => Math.abs(C_SI / (nm * 1e-9) - A[q][0]))) < 1e12;
+  } else {
+    const S = T.sphere;
+    out.kT = -T.U / (KB * el.trapT);
+    out.Psc = S.sigma * I;                                                // W scattered
+    out.Fscat = T.nMed * S.sigma * I / C_SI;                              // N, one beam's worth
+    out.np = S.np; out.m = S.m; out.ka = S.ka;
+  }
+  return out;
+}
+const lastTraceNm = el => { const all = (lastTrace.screens && lastTrace.screens[el.id]) || []; const c = all.find(t => t.chief); return c ? c.nm : 1064; };
+/* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
-  panel.append(h('h3', null, 'Dipole trap'));
-  panel.append(h('div', { class: 'rt-rows' }, selectField('Atom', [['none', 'None'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name])],
-    () => el.trap, v => { el.trap = v; }, { wide: true })));
+  panel.append(h('h3', null, 'Optical trap'));
+  const rows0 = h('div', { class: 'rt-rows' }, selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
+    () => el.trap, v => { el.trap = v; }, { wide: true }));
+  if (el.trap === 'sphere') {
+    const mats = Object.keys(GLASS).filter(g => g !== 'Water');
+    rows0.append(
+      selectField('Material', mats.map(g => [g, g]), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
+      param('Radius (nm)', el, 'trapR'),
+      param('Density (kg/m³)', el, 'trapRho'),
+      param('Temperature (K)', el, 'trapT'),
+      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['water', 'Water'], ['custom', 'Custom index']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'custom' }));
+    if (el.trapMed === 'custom') rows0.append(param('Medium index', el, 'trapN'));
+  }
+  panel.append(rows0);
   if (el.trap === 'none') {
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Choose an atom to read the dipole trap the light arriving here makes: its depth, the photon scattering rate and heating, and the trap frequencies. Put the screen at (or near) the focus and untick \u201cStop the rays it records\u201d on the Screen tab if the beam should carry on.'));
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'));
     return;
   }
   const box = h('div', { class: 'rt-readout' });
   panel.append(box);
   let sig = '';
-  const fq = f => f === null ? 'none' : f >= 1e3 ? (+(f / 1e3).toPrecision(4)) + ' kHz' : (+f.toPrecision(4)) + ' Hz';
-  const tK = K => Math.abs(K) >= 1e-3 ? (+(K * 1e3).toPrecision(4)) + ' mK' : Math.abs(K) >= 1e-6 ? (+(K * 1e6).toPrecision(4)) + ' \u00b5K' : (+(K * 1e9).toPrecision(4)) + ' nK';
+  const fq = f => f === null || f === undefined ? 'none (not trapped this way)' : f >= 1e3 ? (+(f / 1e3).toPrecision(4)) + ' kHz' : (+f.toPrecision(4)) + ' Hz';
+  const tK = K => Math.abs(K) >= 1 ? (+K.toPrecision(4)) + ' K' : Math.abs(K) >= 1e-3 ? (+(K * 1e3).toPrecision(4)) + ' mK' : Math.abs(K) >= 1e-6 ? (+(K * 1e6).toPrecision(4)) + ' µK' : (+(K * 1e9).toPrecision(4)) + ' nK';
+  const off = (v, what) => fmtLen(Math.abs(v)) + ' ' + what;
   bindSync(box, () => {
     const { D, busy } = diffractionLater(el), rows = [];
-    if (!D || !D.trap) rows.push(['', busy || (D && !D.trap) ? 'Working out the field\u2026' : 'No Gaussian beam reaches this screen.']);
+    const T = D && D.trap ? trapReport(el, D.trap) : null;
+    if (!T) rows.push(['', busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
+    else if (T.error) rows.push(['', 'No trap: ' + (T.error === 'no focused beam' ? 'no beam through here converges to a focus.' : T.error)]);
     else {
-      const T = D.trap, src = getEl(T.src), root = src ? splitRoot(src) : null, nm = D.nm;
-      const I = D.peak * T.ratio * (root ? root.power : 0) * 1e-3 * 1e6;         // W/m^2
-      const P = trapPhysics(el.trap, nm, I, T.cx, T.cy, T.cz);
-      rows.push(['Light', (+nm.toPrecision(6)) + ' nm from ' + (src ? src.name : 'a source') + ', peak ' + (I >= 1e7 ? (+(I / 1e7).toPrecision(4)) + ' kW/cm\u00b2' : (+(I / 1e4).toPrecision(4)) + ' W/cm\u00b2')]);
-      rows.push(['Where', T.edge ? 'no focus within three Rayleigh ranges: the figures are for the brightest point found, ' + fmtLen(Math.abs(T.dz)) + (T.dz >= 0 ? ' past' : ' before') + ' the screen'
-        : Math.abs(T.dz) < 0.02 * Math.sqrt(2 / Math.max(T.cz, 1e-30)) ? 'at the screen (the brightest point, within 2% of a Rayleigh range)' : 'the brightest point, ' + fmtLen(Math.abs(T.dz)) + (T.dz >= 0 ? ' past the screen' : ' before the screen')]);
-      if (P.trap) {
-        rows.push(['Trap depth', tK(P.depthK) + ' (' + fmtHz(P.depthHz) + ')']);
-        rows.push(['Trap frequencies', 'across ' + fq(P.fx) + ' in the plane, ' + fq(P.fy) + ' out of it; along the beam ' + fq(P.fz)]);
-      } else rows.push(['Light shift', 'the light is blue of the D lines, so it repels the atoms: a barrier ' + tK(-P.depthK) + ' (' + fmtHz(-P.depthHz) + ') high, not a trap']);
-      rows.push(['Scattering', (+P.sc.toPrecision(3)) + ' photons/s at the ' + (P.trap ? 'bottom' : 'peak')]);
-      rows.push(['Recoil heating', tK(P.heat) + '/s' + (P.trap && P.heat > 0 ? ', the depth in ' + (+(P.depthK / P.heat).toPrecision(3)) + ' s' : '')]);
-      if (P.near) rows.push(['', 'Within 1 THz of a D line: hyperfine structure and saturation, left out here, matter.']);
-      if (D.vector) rows.push(['', 'A steep focus: the figures come from the scalar field, so its shape across the beam is only roughly right.']);
+      const sph = el.trap === 'sphere';
+      rows.push(['Light', (T.beams > 1 ? T.beams + ' beams' + (T.launches < T.beams ? ', interfering' : ', from separate lasers') : 'one beam') + ', ' + (T.I >= 1e7 ? (+(T.I / 1e7).toPrecision(4)) + ' kW/cm²' : (+(T.I / 1e4).toPrecision(4)) + ' W/cm²') + ' where it sits']);
+      if (sph) rows.push(['Particle', el.trapMat + ', n = ' + (+T.np.toPrecision(5)) + ', radius ' + fmtLen(el.trapR * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
+      if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
+      else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
+      else {
+        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
+        rows.push(['Depth', tK(T.depthK) + (sph ? ' (' + (+T.kT.toPrecision(4)) + ' kT at ' + el.trapT + ' K)' : ' (' + fmtHz(T.depthHz) + ')')]);
+        rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
+      }
+      const pw = v => v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' mW' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' \u00b5W' : v >= 1e-9 ? (+(v * 1e9).toPrecision(3)) + ' nW' : (+(v * 1e12).toPrecision(3)) + ' pW';
+      if (sph) rows.push(['Scattering', pw(T.Psc) + ' scattered; radiation pressure ' + (+(T.Fscat * 1e15).toPrecision(3)) + ' fN from one beam of this intensity']);
+      else {
+        rows.push(['Scattering', (+T.sc.toPrecision(3)) + ' photons/s']);
+        rows.push(['Recoil heating', tK(T.heat) + '/s' + (T.trap && T.heat > 0 ? ', the depth in ' + (+(T.depthK / T.heat).toPrecision(3)) + ' s' : '')]);
+        if (T.near) rows.push(['', 'Within 1 THz of a D line: hyperfine structure and saturation, left out here, matter.']);
+      }
+      if (sph && T.ka > 0.6) rows.push(['', 'The sphere is ' + (+T.ka.toPrecision(2)) + ' of a wavelength/2π across (ka): past the Rayleigh regime (ka below about 0.5) these forces are only a guide; a Mie calculation is needed.']);
+      if (sph && el.trapMed !== 'bench' && Math.abs(T.nMed - T.nBench) > 1e-3) rows.push(['', 'The medium set here (n = ' + (+T.nMed.toPrecision(4)) + ') is not the bench’s where the light is (n = ' + (+T.nBench.toPrecision(4)) + '): the focus is the bench’s. Put the trap in a block of the medium on the bench for a focus that is right too.']);
+      if (T.skipped) rows.push(['', T.skipped + ' beam' + (T.skipped > 1 ? 's' : '') + ' through here not converging to a focus left out.']);
     }
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'The far-detuned dipole potential of the D1 and D2 lines, counter-rotating terms included, for linear polarisation (Grimm et al. 2000): U = \u2212Re(\u03b1) I / 2\u03b5\u2080c. The intensity is the diffracted field of the strongest beam arriving here at its brightest point along the beam, and the trap frequencies come from how fast it falls off there each way, so an aberrated or elliptical focus is taken as it is. The ion core is included; hyperfine structure, circular light\u2019s vector shift and the higher transitions (a few tenths of a percent at 1064 nm) are left out; heating is photon recoil only.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count), beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+    (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
 /* the checkbox that makes a laser pulsed (mode-locked) or continuous. Turning it on restores
@@ -10702,7 +10778,10 @@ const VF_NA = 0.3;          // above this, automatically
    paraxial reference, which after a steep focusing surface differs from the true sphere by
    far more than any grid could follow; the trace has no such limit. Otherwise (after a
    window, a waveplate, in free space) the stored field is used. */
-function vfPupil(sg, R) {
+function vfPupil(sg, R, opts) {
+  // how far out the pupil reaches, in beam radii (a gently focused beam's axial profile feels
+  // an edge even where its light is a thousandth), and samples across it
+  const reach = (opts && opts.reach) || 2.4, Mp = (opts && opts.M) || 64;
   const F = sg.F0, two = !!F.ax, k = 2 * Math.PI * F.n / F.lam0, lamM = F.lam0 / F.n, lam0 = F.lam0;
   const zx = two ? F.ax.z : F.z, zy = two ? F.ay.z : F.z;
   const Rf = -0.5 * (zx + zy);                          // distance from the segment's start to its focus
@@ -10728,8 +10807,8 @@ function vfPupil(sg, R) {
     const tr = popScreen(ev, inv(qx), inv(qy), lam0);
     const stI = twoIn ? popStats2(Fin) : popStats(Fin);
     const wx = twoIn ? stI.wx : stI.w, wy = twoIn ? stI.wy : stI.w;
-    const hx = Math.min(twoIn ? Fin.N / 2 * Fin.ax.d : Fin.R, 2.4 * wx + Math.abs(stI.cx || 0)), hy = Math.min(twoIn ? Fin.N / 2 * Fin.ay.d : Fin.R, 2.4 * wy + Math.abs(stI.cy || 0));
-    const M = 64, dA = (2 * hx / M) * (2 * hy / M), hs = 0.25 * Math.min(2 * hx, 2 * hy) / M;   // smooth once the sphere is off: 64 across is plenty
+    const hx = Math.min(twoIn ? Fin.N / 2 * Fin.ax.d : Fin.R, reach * wx + Math.abs(stI.cx || 0)), hy = Math.min(twoIn ? Fin.N / 2 * Fin.ay.d : Fin.R, reach * wy + Math.abs(stI.cy || 0));
+    const M = Mp, dA = (2 * hx / M) * (2 * hy / M), hs = 0.25 * Math.min(2 * hx, 2 * hy) / M;   // smooth once the sphere is off: 64 across is plenty
     const J = popJ(par.b), gi = par.b.par ? -1 : 1;
     const rR = twoIn ? null : popRadii(qdht(Fin.re.length), Fin.R);
     const refX = twoIn ? (popInside(Fin.ax.z, Fin.ax.zR) ? 0 : -k1 / (2 * Fin.ax.z)) : 0;
@@ -10783,8 +10862,8 @@ function vfPupil(sg, R) {
   } else {
     const st = two ? popStats2(F) : popStats(F);
     const wx = two ? st.wx : st.w, wy = two ? st.wy : st.w;
-    const hx = Math.min(two ? F.N / 2 * F.ax.d : F.R, 2.4 * wx + Math.abs(st.cx || 0)), hy = Math.min(two ? F.N / 2 * F.ay.d : F.R, 2.4 * wy + Math.abs(st.cy || 0));
-    const M = 64, dA = (2 * hx / M) * (2 * hy / M), J = popJ(sg.b);
+    const hx = Math.min(two ? F.N / 2 * F.ax.d : F.R, reach * wx + Math.abs(st.cx || 0)), hy = Math.min(two ? F.N / 2 * F.ay.d : F.R, reach * wy + Math.abs(st.cy || 0));
+    const M = Mp, dA = (2 * hx / M) * (2 * hy / M), J = popJ(sg.b);
     const rR = two ? null : popRadii(qdht(F.re.length), F.R);
     const refX = two ? (popInside(F.ax.z, F.ax.zR) ? 0 : -k / (2 * F.ax.z)) : 0, refY = two ? (popInside(F.ay.z, F.ay.zR) ? 0 : -k / (2 * F.ay.z)) : 0;
     const refR = two ? 0 : (F.sphere ? -k / (2 * F.z) : 0);
@@ -10804,9 +10883,14 @@ function vfPupil(sg, R) {
         s = [er * J[0] - ei * J[1], er * J[1] + ei * J[0]]; p = [er * J[2] - ei * J[3], er * J[3] + ei * J[2]];
       }
       if (s[0] === 0 && s[1] === 0 && p[0] === 0 && p[1] === 0) continue;
-      const ph = two ? refX * x * x + refY * y * y : refR * (x * x + y * y), c = Math.cos(ph), sn = Math.sin(ph);
-      const rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+      // the field is held against the paraxial sphere, a quadratic; the light it stands for
+      // converges on a true one. Taken as the quadratic, a beam spread wide at its start (a
+      // small waist not far off) would carry a quartic error, a false spherical aberration of
+      // many waves; so where the reference is one round sphere onto this focus, it is that sphere.
       const rho = Math.sqrt(x * x + y * y + Rf * Rf);
+      const exact = two ? (refX && refX === refY && Math.abs(F.ax.z + Rf) < 1e-9 * Rf) : (refR && Math.abs(F.z + Rf) < 1e-9 * Rf);
+      const ph = exact ? Math.sign(two ? refX : refR) * k * (rho - Rf) : two ? refX * x * x + refY * y * y : refR * (x * x + y * y), c = Math.cos(ph), sn = Math.sin(ph);
+      const rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
       push(x, y, rot(s), rot(p), [-x / rho, -y / rho, Rf / rho], dA);
     }
     out.M = M;
@@ -12715,11 +12799,20 @@ function popScreenPrep(el) {
   B.forEach((b, i) => { if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0) arrive.push(i); });
   if (!arrive.length) return null;
   const keep = new Set();
+  // a trap takes every beam through the screen's region, whichever way it goes
+  if (el.trap && el.trap !== 'none') {
+    const H = Math.min(Math.max(el.length / 2, 0.005), 2);
+    B.forEach((b, i) => {
+      if (b.fan || b.bench !== el.bench) return;
+      const rx = el.x - b.x0, ry = el.y - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx;
+      if (t >= -H && t <= b.len + H && Math.abs(x) <= H) arrive.push(i);
+    });
+  }
   for (let i of arrive) while (i >= 0 && !keep.has(i)) { keep.add(i); i = B[i].parent; }
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' : '');
+  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapN]) : '');
   return { keep, srcs, key };
 }
 
@@ -12756,6 +12849,160 @@ function trapShape(sg, len) {
   const cz = t - hz > 0 ? -(up - 2 * F.I + dn) / (hz * hz) / F.I : -2 * (up - F.I) / (hz * hz) / F.I;
   const edge = t < Math.max(1e-6, len - span) + 0.02 * span || t > len + 0.98 * span;
   return { dz: t - len, ratio: F.I / P0.I, cx: F.cx, cy: F.cy, cz, edge, src: sg.src.id };
+}
+/* The trap itself, from every beam of the field run that passes through the screen's region:
+   each beam's vector field from its pupil (vfAt, exact at any numerical aperture), the beams
+   of one launch added as fields (a standing wave, crossing-beam fringes) and separate launches
+   as forces. From the brightest point, Newton's method on the force finds where it is zero;
+   the stiffness there, -dF_i/dx_i, gives the trap frequencies. Frame: z along the arriving
+   beam, x across it in the bench plane, y out of the plane; offsets from where that beam
+   crosses the screen. */
+function trapSolve(el, R, dom, len) {
+  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
+  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+  const P0 = [b0.x0 + b0.dx * len, b0.y0 + b0.dy * len];
+  const H = Math.min(Math.max(el.length / 2, 0.005), 2);
+  // the beams through the region; a beam passing through a screen that lets it by is one beam
+  const near = [], passed = new Set();
+  for (const sg of R.segs) {
+    const b = sg.b;
+    if (b.fan || b.bench !== b0.bench) continue;
+    const rx = P0[0] - b.x0, ry = P0[1] - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx;
+    if (t < -H || t > b.len + H || Math.abs(x) > H) continue;
+    near.push(sg);
+  }
+  const inSet = new Set(near.map(sg => sg.i));
+  const beams = near.filter(sg => {
+    const par = lastTrace.beams[sg.b.parent];
+    const thru = par && inSet.has(sg.b.parent) && par.endEl && (() => { const e = getEl(par.endEl); return e && e.type === 'screen' && !e.absorb; })();
+    if (thru) passed.add(sg.b.parent);
+    return !thru;
+  });
+  const skipped = [];
+  const parts = [];
+  for (const sg of beams) {
+    const P = vfPupil(sg, R, { reach: 4.2, M: 96 });
+    if (!P) { skipped.push(sg); continue; }
+    const src = sg.src, root = splitRoot(src);
+    parts.push({ sg, P, b: sg.b, coh: sg.coh, Pw: Math.max(0, root.power) * 1e-3 });
+  }
+  if (!parts.length) return { error: 'no focused beam' };
+  const isAtom = el.trap in TRAP_ATOMS;
+  // the medium: where the light is, or as set
+  const nBench = b0.n;
+  const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'water' ? refIndex({ glass: 'Water' }, b0.nm) : el.trapMed === 'custom' ? el.trapN : nBench;
+  // the particle: its polarisability (SI, complex) and mass
+  let alpha, mass, sph = null;
+  if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
+  else { sph = sphereAlpha(el.trapMat, el.trapR, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (el.trapR * 1e-9) ** 3; }
+  // the field in SI (V/m) at a point of the trap frame, per launch, as the physicists write it (conjugated)
+  const byL = new Map();
+  for (const q of parts) { if (!byL.has(q.coh)) byL.set(q.coh, []); byL.get(q.coh).push(q); }
+  const launches = [...byL.values()];
+  const world = (x, y, z) => [P0[0] + x * a0v[0] + z * d0[0], P0[1] + x * a0v[1] + z * d0[1], y];
+  const fieldL = (L, x, y, z) => {
+    const [X, Y, Zo] = world(x, y, z), E = [0, 0, 0, 0, 0, 0];         // world X, Y (bench), Z (out of plane)
+    for (const q of L) {
+      const b = q.b, rx = X - b.x0, ry = Y - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx;
+      const e = vfAt(q.P, px, Zo, pz), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI));
+      const ax = [-b.dy, b.dx];
+      // beam frame x (across, in the plane), y (out of it), z (along) to world X, Y, Z
+      E[0] += s * (e[0] * ax[0] + e[4] * b.dx); E[1] -= s * (e[1] * ax[0] + e[5] * b.dx);
+      E[2] += s * (e[0] * ax[1] + e[4] * b.dy); E[3] -= s * (e[1] * ax[1] + e[5] * b.dy);
+      E[4] += s * e[2]; E[5] -= s * e[3];
+    }
+    return E;
+  };
+  const E2 = E => E[0] * E[0] + E[1] * E[1] + E[2] * E[2] + E[3] * E[3] + E[4] * E[4] + E[5] * E[5];
+  const intensity = (x, y, z) => launches.reduce((sI, L) => sI + E2(fieldL(L, x, y, z)), 0);   // |E|^2, (V/m)^2
+  // the same without interference, every beam on its own: the envelope a standing wave sits in
+  const intensityInc = (x, y, z) => parts.reduce((sI, q) => sI + E2(fieldL([q], x, y, z)), 0);
+  const hd = lam0 / nMed / 400;                                            // mm, for the phase gradient
+  const dirs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  // each direction's own length scale where the particle is: how far until the light falls by
+  // 0.2%. Derivatives are taken over a fraction of it, so a millimetre-long focus and a
+  // standing wave's half-wavelength are both resolved without rounding swamping them.
+  let scale = [1, 1, 1];
+  const scales = p => dirs.map(dv => {
+    const I0 = intensity(...p);
+    const drop = st => 1 - 0.5 * (intensity(p[0] + dv[0] * st, p[1] + dv[1] * st, p[2] + dv[2] * st) + intensity(p[0] - dv[0] * st, p[1] - dv[1] * st, p[2] - dv[2] * st)) / I0;
+    let st = lam0 / nMed / 16;
+    if (drop(st) > 0.002) { for (let n = 0; n < 30 && drop(st) > 0.002; n++) st /= 2; }
+    else for (let n = 0; n < 40 && drop(2 * st) <= 0.002; n++) st *= 2;
+    return st;
+  });
+  // the force (N): the gradient part from the intensity over each direction's scale, the
+  // scattering part from the field's phase gradient, -(Im alpha / 2) Im(sum E dE*)
+  const force = (x, y, z) => {
+    const F = [0, 0, 0];
+    dirs.forEach((dv, i) => {
+      const g = scale[i] / 4;
+      const dI = (intensity(x + dv[0] * g, y + dv[1] * g, z + dv[2] * g) - intensity(x - dv[0] * g, y - dv[1] * g, z - dv[2] * g)) / (2 * g * 1e-3);
+      F[i] += 0.25 * alpha[0] * dI;
+    });
+    if (alpha[1]) for (const L of launches) {
+      const E = fieldL(L, x, y, z);
+      dirs.forEach((dv, i) => {
+        const Ep = fieldL(L, x + dv[0] * hd, y + dv[1] * hd, z + dv[2] * hd), Em = fieldL(L, x - dv[0] * hd, y - dv[1] * hd, z - dv[2] * hd);
+        let im = 0;
+        for (let c = 0; c < 3; c++) {
+          const er = E[2 * c], ei = E[2 * c + 1], gr = (Ep[2 * c] - Em[2 * c]) / (2 * hd * 1e-3), gi = -(Ep[2 * c + 1] - Em[2 * c + 1]) / (2 * hd * 1e-3);
+          im += er * gi + ei * gr;
+        }
+        F[i] -= 0.5 * alpha[1] * im;
+      });
+    }
+    return F;
+  };
+  const Uat = (x, y, z) => -0.25 * alpha[0] * intensity(x, y, z);      // J, the gradient part
+  // start: the arriving beam's brightest point along it, then its brightest fringe within a wavelength
+  let S0 = { dz: 0, cz: NaN };
+  try { S0 = trapShape(sg0, len); } catch (err) { /* the scan below finds it */ }
+  if (!isFinite(S0.dz)) S0 = { dz: 0, cz: NaN };
+  const lamM = lam0 / nMed;
+  // the scalar field's estimate can be well off at a steep or aberrated focus: scan the true
+  // (vector) intensity along the beam over a couple of Rayleigh ranges, then refine
+  // without a usable estimate, the scan reaches as far as the screen's region
+  const zr0 = S0.cz > 0 && isFinite(S0.cz) ? Math.sqrt(2 / S0.cz) : H / 2.5, Z = 2.5 * zr0 + 20 * lamM;
+  let zb = S0.dz, best = -1;
+  for (let k = -60; k <= 60; k++) { const z = S0.dz + k * Z / 60, v = intensityInc(0, 0, z); if (v > best) { best = v; zb = z; } }
+  { let a = zb - Z / 60, b = zb + Z / 60; for (let it = 0; it < 30; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (intensityInc(0, 0, m1) > intensityInc(0, 0, m2)) b = m2; else a = m1; } zb = 0.5 * (a + b); }
+  let r = [0, 0, zb];
+  best = -1;
+  for (let k = -16; k <= 16; k++) { const z = zb + k * lamM / 32, v = intensity(0, 0, z); if (v > best) { best = v; r = [0, 0, z]; } }
+  const out = { nMed, nBench, alpha, mass, sphere: sph, launches: launches.length, beams: parts.length, skipped: skipped.length, isAtom };
+  if (!(alpha[0] > 0)) {
+    // repelled from the light: no trap at the focus, a barrier
+    const I2 = intensity(...r);
+    return Object.assign(out, { trap: false, x: r[0], y: r[1], z: r[2], E2: I2, U: -0.25 * alpha[0] * I2 });
+  }
+  // Newton's method on F = 0, the steps limited to a few of each direction's scale
+  scale = scales(r);
+  const stiff = p => dirs.map((dv, j) => { const hk = scale[j] / 2, Fp = force(p[0] + dv[0] * hk, p[1] + dv[1] * hk, p[2] + dv[2] * hk), Fm = force(p[0] - dv[0] * hk, p[1] - dv[1] * hk, p[2] - dv[2] * hk);
+    return [0, 1, 2].map(i => -(Fp[i] - Fm[i]) / (2 * hk * 1e-3)); });            // K[j][i] = -dF_i/dx_j, N/m
+  let K = null, ok = false;
+  for (let it = 0; it < 40; it++) {
+    const F = force(...r);
+    K = stiff(r);
+    // solve K dx = F (K symmetric enough); in mm
+    const A = [[K[0][0], K[1][0], K[2][0]], [K[0][1], K[1][1], K[2][1]], [K[0][2], K[1][2], K[2][2]]];
+    const det = A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1]) - A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0]) + A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+    if (!isFinite(det) || Math.abs(det) < 1e-300) break;
+    const inv = [[(A[1][1] * A[2][2] - A[1][2] * A[2][1]) / det, (A[0][2] * A[2][1] - A[0][1] * A[2][2]) / det, (A[0][1] * A[1][2] - A[0][2] * A[1][1]) / det],
+      [(A[1][2] * A[2][0] - A[1][0] * A[2][2]) / det, (A[0][0] * A[2][2] - A[0][2] * A[2][0]) / det, (A[0][2] * A[1][0] - A[0][0] * A[1][2]) / det],
+      [(A[1][0] * A[2][1] - A[1][1] * A[2][0]) / det, (A[0][1] * A[2][0] - A[0][0] * A[2][1]) / det, (A[0][0] * A[1][1] - A[0][1] * A[1][0]) / det]];
+    const dx = [0, 1, 2].map(i => (inv[i][0] * F[0] + inv[i][1] * F[1] + inv[i][2] * F[2]) * 1e3);   // m to mm
+    const cap = scale.map(v => 5 * v), stepMax = Math.max(...dx.map((v, i) => Math.abs(v) / cap[i]));
+    const f = stepMax > 1 ? 1 / stepMax : 1;
+    r = r.map((v, i) => v + dx[i] * f);
+    if (f === 1 && dx.every((v, i) => Math.abs(v) < 1e-4 * scale[i])) { ok = true; scale = scales(r); K = stiff(r); break; }
+  }
+  const kd = K ? [K[0][0], K[1][1], K[2][2]] : [NaN, NaN, NaN];
+  const stable = ok && kd.every(v => v > 0);
+  const E2v = intensity(...r);
+  const fr = k => k > 0 ? Math.sqrt(k / mass) / (2 * Math.PI) : null;
+  return Object.assign(out, { trap: stable, converged: ok, x: r[0], y: r[1], z: r[2], E2: E2v, U: Uat(...r), k: kd, fx: fr(kd[0]), fy: fr(kd[1]), fz: fr(kd[2]),
+    zStart: S0.dz });
 }
 function popDiffraction(el, R) {
   const f = frame(el), a = el.angle * deg, sYx = -Math.sin(a), sYy = Math.cos(a), nX = Math.cos(a), nY = Math.sin(a);
@@ -13094,7 +13341,7 @@ function popDiffraction(el, R) {
     ee50: radiusAt(0.5), ee80: radiusAt(0.8),
     map: { v: map, inc, n: MN, u0: cU - H, u1: cU + H, v0: cV - H, v1: cV + H },
   };
-  if (el.trap && el.trap !== 'none') Dout.trap = trapShape(sg, len);
+  if (el.trap && el.trap !== 'none') { try { Dout.trap = trapSolve(el, R, dom, len); } catch (err) { Dout.trap = { error: String(err && err.message || err) }; } }
   vfApply(el, Dout, hits, vLaunches, R, sYx, sYy);
   return diffFns(Dout);
 }
@@ -14487,7 +14734,7 @@ const AI_FIELDS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
   screen: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
-    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none" or an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') to read a dipole trap for at the brightest point of the beam arriving here: depth, scattering and trap frequencies (the Trap tab).', mtfFreq: 'lp/mm at which the MTF is quoted.' },
+    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is), "vacuum", "water" or "custom" (with trapN).', trapN: 'a custom medium index.', trapT: 'temperature (K) for the depth in kT.', mtfFreq: 'lp/mm at which the MTF is quoted.' },
   stop: { shape: 'one of the stop shapes below.', aperture: 'mm: the opening (an iris’s diameter, a slit’s width).', outer: 'mm: the outer size (a beam block’s diameter).',
     sep: 'mm: a double slit’s centre-to-centre separation.', pitch: 'mm: a slit comb’s pitch.', count: 'a comb’s number of slits, 2 to 400.',
     offset: 'mm: the opening’s centre along the stop.', height: 'mm: a slit’s height out of the plane (0 unlimited).', side: '1 or −1: which side a knife edge covers.' },
@@ -14623,7 +14870,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\"; a fibre laser's \"polAngle\" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical dipole trap:** focus the trapping laser with a lens and put a screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on). Its Trap tab gives the depth, scattering rate, heating and trap frequencies at the brightest point of the beam, from the diffracted field.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
+const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\"; a fibre laser's \"polAngle\" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -15825,7 +16072,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     cellDensity(name) { return cellDensity(this.byName(name)); },
     lgComps: (p, l) => lgComps(p, l).map(c => c.slice()),
     trapAlpha, trapPhysics,
-    trap(name) { const el = this.byName(name), D = diffraction(el); if (!D || !D.trap || el.trap === 'none') return null; const T = D.trap, root = splitRoot(getEl(T.src)); const I = D.peak * T.ratio * root.power * 1e3; return Object.assign({ I, dz: T.dz, cx: T.cx, cy: T.cy, cz: T.cz, edge: T.edge }, trapPhysics(el.trap, D.nm, I, T.cx, T.cy, T.cz)); },
+    sphereAlpha,
+    trap(name) { const el = this.byName(name), D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
     cellBeams(name) { traceScene(); const el = this.byName(name); return (lastTrace.cells || []).filter(c => c.id === el.id); },
     faddeeva,
     laser(cavName) { traceScene(); const c = findCavities().find(q => !cavName || q.name === cavName); const L = c && laserState(c); return L && { P: L.P, above: L.above, need: L.need, Gsat: L.Gsat, outs: (L.outs || []).map(o => ({ name: o.e.name, T: o.T, P: o.P })), best: L.best && { R: L.best.R, P: L.best.P }, lnPassive: L.lnPassive, w: L.G.map(g => g.w), Psat: L.G.map(g => g.Psat) }; },

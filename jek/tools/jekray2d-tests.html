@@ -3328,6 +3328,79 @@ const TESTS = [
     },
   },
   {
+    name: 'Two counter-propagating beams of one laser trap in a standing wave',
+    why: 'the same focus from both sides, one beam split from the other: four times one beam’s depth, the particle on an antinode, the axial frequency the lattice’s (k/2π)√(2U/m) and the radial √(4U/mw₀²)/2π; from two separate lasers instead, twice the depth and no lattice (worst relative error)',
+    want: 0, tol: 0.003, unit: '',
+    run: J => {
+      const w0 = 0.05, m = 86.909180527 * 1.66053906660e-27, kB = 1.380649e-23, k = 2 * Math.PI / 1064e-9;
+      const mk = (two, split) => bench('sw', [src({ id: 'A', name: 'A', x: -100, wavelength: 1064, gauss: true, w0, z0: 100, width: 0.1, rays: 1, pol: 's', power: 1000, popN: 256 }),
+        ...(two ? [src({ id: 'B', name: 'B', x: 100, angle: 180, wavelength: 1064, gauss: true, w0, z0: 100, width: 0.1, rays: 1, pol: 's', power: 1000, popN: 256, splitFrom: split ? 'A' : null })] : []),
+        screen({ name: 'S', x: 0, length: 4, absorb: false, trap: 'Rb87' })], { minPower: 1e-6 });
+      J.load(mk(false)); const T1 = J.trap('S');
+      J.load(mk(true, true)); const T = J.trap('S');
+      const U = T.depthK * kB, fz = k * Math.sqrt(2 * U / m) / (2 * Math.PI), fr = Math.sqrt(4 * U / (m * (w0 * 1e-3) ** 2)) / (2 * Math.PI);
+      const fringe = Math.abs(T.dz * 1e6 / 532 - Math.round(T.dz * 1e6 / 532));
+      J.load(mk(true, false)); const T2 = J.trap('S');
+      return Math.max(Math.abs(T.depthK / T1.depthK / 4 - 1), Math.abs(T.fz / fz - 1), Math.abs(T.fx / fr - 1), fringe * 0.1, Math.abs(T2.depthK / T1.depthK / 2 - 1), T2.fz / fz);
+    },
+  },
+  {
+    name: 'Radiation pressure pushes a sphere past the focus as the force balance says',
+    why: 'a 20 nm silica sphere in vacuum at a 5 µm, 1064 nm focus: where the gradient force, αI/(ε₀c zᴿ) · u/(1+u²)², meets the scattering force σI/c, Gouy phase included (u = z/zᴿ); paraxial, so good to the (k w₀)⁻² corrections of a few percent the exact field has',
+    want: 1, tol: 0.05, unit: ' (shift over the balance)',
+    run: J => {
+      const w0 = 0.005, a = 20e-9, lam = 1.064e-6, k = 2 * Math.PI / lam, eps0 = 8.8541878128e-12, c = 299792458, zR = Math.PI * w0 * w0 / 1064e-6 * 1e-3;
+      const n = J.index({ glass: 'Fused silica' }, 1064), CM = (n * n - 1) / (n * n + 2), al = 4 * Math.PI * eps0 * a ** 3 * CM, sig = (8 * Math.PI / 3) * k ** 4 * a ** 6 * CM * CM;
+      J.load(bench('rp', [src({ name: 'L', x: -5, wavelength: 1064, gauss: true, w0, z0: 5, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
+        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 20, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      const T = J.trap('S');
+      const g = u => (al / (eps0 * c)) * u / (zR * (1 + u * u) ** 2) - (sig / c) / (1 + u * u) * (1 - 1 / (k * zR * (1 + u * u)));
+      let lo = 0, hi = 0.5; for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (g(mid) < 0) lo = mid; else hi = mid; }
+      return T.trap ? T.dz * 1e-3 / (lo * zR) : NaN;
+    },
+  },
+  {
+    name: 'A gentle focus cannot hold a sphere radiation pressure pushes too hard',
+    why: 'a 30 nm silica sphere at a 10 µm focus: the scattering force beats the gradient force’s strongest pull along the beam (the balance has no root), so there is no stable trap',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('rp2', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.01, z0: 20, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
+        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      return J.trap('S').trap ? 1 : 0;
+    },
+  },
+  {
+    name: 'A steep focus traps more softly along its polarisation',
+    why: 'NA about 0.85 from an ideal lens: the vector field’s focus is wider along the light’s polarisation, so f_x/f_y is well under 1 for p light (in the plane) and the same the other way round for s',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const r = pol => { J.load(bench('na', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol, power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum' })], { minPower: 1e-6 })); const T = J.trap('S'); return T.fx / T.fy; };
+      const p = r('p'), s2 = r('s');
+      return p < 0.92 && s2 > 1 / 0.92 && Math.abs(p * s2 - 1) < 0.01 ? 0 : 1;
+    },
+  },
+  {
+    name: 'A sphere in water takes the water’s index from the bench',
+    why: 'an ideal lens focusing into a water cell, the trap screen inside it: the medium is where the light is, water at 1064 nm (Daimon and Masumura’s fit, 1.3242), and the sphere still traps',
+    wantFrom: () => rigJ().index({ glass: 'Water' }, 1064), tol: 1e-9, unit: '',
+    run: J => {
+      J.load(bench('water', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda' },
+        { type: 'prism', shape: 'window', name: 'Water', x: 3, y: 0, angle: 0, size: 10, thickness: 4, material: { glass: 'Water' } },
+        screen({ name: 'S', x: 3.5, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50 })], { minPower: 1e-6 }));
+      const T = J.trap('S');
+      return T.trap ? T.nMed : NaN;
+    },
+  },
+  {
+    name: 'Water’s index is the standard one',
+    why: 'at the F, D and C lines at 20 °C: 1.33712, 1.33299, 1.33115 (worst difference)',
+    want: 0, tol: 5e-5, unit: '',
+    run: J => Math.max(...[[486.1, 1.33712], [589.3, 1.33299], [656.3, 1.33115]].map(([nm, n]) => Math.abs(J.index({ glass: 'Water' }, nm) - n))),
+  },
+  {
     name: 'Light blue of the D lines makes a barrier, not a trap',
     why: '532 nm on rubidium: the light shift is positive and there are no trap frequencies',
     want: 1, tol: 0, unit: '',

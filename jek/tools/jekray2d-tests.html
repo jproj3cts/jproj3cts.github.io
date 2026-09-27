@@ -362,6 +362,11 @@ const fpBench = o => { o = Object.assign({ R1: 99, R2: 99.9, Rc: 500, L: 250, w0
   ], { maxBounces: 40, minPower: 0.001 }); };
 const C0 = 299792458;
 
+/* A Gaussian beam (w 2 mm) and a 25 mm lens, its centre `off` mm below the beam's (none: no lens) */
+const edgeBench = off => bench('edge', [src({ name: 'Laser', x: -50, width: 4, rays: 1, gauss: true, w0: 2, z0: 50, pol: 's', popN: 256, popModel: '2d', beamView: 'field' }),
+  ...(off === null ? [] : [{ type: 'lens', name: 'Lens', x: 0, y: -off, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }]),
+  screen({ name: 'Far', x: 300, length: 200 })], { minPower: 1e-6 });
+
 /* Fox and Li's resonator: two flat mirrors of radius a, Fresnel number N = a^2 / (lambda L) */
 const foxLiBench = N => { const a = 0.5, L = a * a / (LAM * N); return bench('foxli', [
   src({ name: 'Laser', x: -50, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 }),
@@ -2043,6 +2048,36 @@ const TESTS = [
     wantFrom: () => TESTS_EXPECT.tr,
   },
 
+
+  { group: 'A beam across an element’s edge' },
+  {
+    name: 'A lens half in a beam lets the rest of the beam past',
+    why: 'a 4 mm Gaussian beam with the rim of a 25 mm lens 1 mm above its centre: 250 mm on, the beam above the rim is as it would be with no lens (to the ripple the edge adds), and below it the light is gone (it went through the lens); the part past holds the share of the Gaussian outside the lens’s round rim, about 19% (worst error)',
+    want: 0, tol: 0.35, unit: '',
+    run: J => {
+      const band = (lo, hi) => { const I = J.fieldAlong(250, lo, 250, hi, 60); return I.reduce((a, v) => a + v, 0) / I.length; };
+      J.load(edgeBench(null)); const up0 = band(2, 4), dn0 = band(-4, -2);
+      J.load(edgeBench(11.7)); const up = band(2, 4), dn = band(-4, -2);
+      const T = J.beamTree(), by = T.find(t => t.ev === 'bypass'), root = T.find(t => t.parent === -1);
+      // the Gaussian (w = 2 mm) outside a circle of radius 12.7 mm whose centre is 11.7 mm off the beam's
+      let tot = 0, out = 0;
+      for (let i = 0; i < 400; i++) for (let j = 0; j < 400; j++) { const u = (i + 0.5) / 400 * 12 - 6, v = (j + 0.5) / 400 * 12 - 6, g = Math.exp(-(u * u + v * v) / 2); tot += g; if (Math.hypot(u + 11.7, v) > 12.7) out += g; }
+      const tail = out / tot;
+      return Math.max(Math.abs(up / up0 - 1), dn / dn0, by ? Math.abs(by.w / root.w / tail - 1) * 5 : 1);
+    },
+  },
+  {
+    name: 'A lens a beam’s centre misses still takes the part of the beam that lands on it',
+    why: 'the same lens moved so its rim is 1 mm below the beam’s centre: the light below the rim is gone from the straight path, the light above it goes on as before, and what landed on the lens comes to its focus, far brighter than the beam (worst error; 1 if the focus is missing)',
+    want: 0, tol: 0.35, unit: '',
+    run: J => {
+      const band = (lo, hi) => { const I = J.fieldAlong(250, lo, 250, hi, 60); return I.reduce((a, v) => a + v, 0) / I.length; };
+      J.load(edgeBench(null)); const up0 = band(2, 4), dn0 = band(-4, -2), peak0 = Math.max(...J.fieldAlong(100, -3, 100, 3, 200));
+      J.load(edgeBench(13.7)); const up = band(2, 4), dn = band(-4, -2);
+      const focus = Math.max(...J.fieldAlong(90, -13.7, 110, -13.7, 800));
+      return Math.max(Math.abs(up / up0 - 1), dn / dn0, focus > 5 * peak0 ? 0 : 1);
+    },
+  },
 
   { group: 'Cavities: their own modes (Fox and Li)' },
   {

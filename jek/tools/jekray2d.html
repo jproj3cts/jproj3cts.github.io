@@ -7078,23 +7078,111 @@ function sourcePanel(el) {
     if (el.colourAuto) el.colour = wavelengthColour(el.wavelength);
     changed(false);
   });
-  const tr = h('input', { type: 'checkbox' });
-  tr.checked = el.traceRays;
-  tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
   const root = splitRoot(el), linked = root !== el;
   const wlId = 'rtf' + (++fid);
   rows.append(
-    h('label', { class: 'rt-check wide' }, tr, 'Trace the ray fan'),
     // a copy split from a laser has the laser's wavelength
     linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
-    h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Ray colour'), col),
-    h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
-    param('Beam width (mm)', el, 'width'),
-    param('Divergence, full (°)', el, 'divergence'),
-    param('Rays', el, 'rays'),
     param('Power (mW)', el, 'power'),
+    h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col),
+    h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
   );
   panel.append(rows);
+
+  // the ray fan: on its own, and hidden with its settings when it is off
+  panel.append(h('h3', null, 'Rays'));
+  const tr = h('input', { type: 'checkbox' });
+  tr.checked = el.traceRays;
+  tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
+  panel.append(h('label', { class: 'rt-check' }, tr, 'Trace the ray fan'));
+  if (el.traceRays) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+    param('Beam width (mm)', el, 'width'),
+    param('Divergence, full (°)', el, 'divergence'),
+    param('Rays', el, 'rays')));
+  else if (!el.gauss) {
+    // without a Gaussian beam the fan's width and divergence still shape the diffracted field
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+      param('Beam width (mm)', el, 'width'),
+      param('Divergence, full (°)', el, 'divergence')));
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
+  } else panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'));
+
+  panel.append(h('h3', null, 'Beam propagation'));
+  const gb = h('input', { type: 'checkbox' });
+  gb.checked = el.gauss;
+  gb.addEventListener('change', () => {
+    checkpoint();
+    el.gauss = gb.checked;
+    if (el.gauss) gaussFromFan(el);    // start from the fan that is already there
+    changed(true);
+  });
+  panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
+  if (el.gauss) {
+    const fb = h('input', { type: 'checkbox' });
+    fb.checked = !!el.fibre;
+    fb.addEventListener('change', () => {
+      checkpoint();
+      if (fb.checked) { el.fibre = { core: 4.4, na: 0.12 }; applyFibre(el); } else delete el.fibre;
+      changed(true);
+    });
+    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, fb, 'Launch from a single-mode fibre'));
+    if (el.fibre) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+      param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
+    else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+      param('Waist radius (mm)', el, 'w0'),
+      param('Waist distance (mm)', el, 'z0'),
+      ...(el.tem === 'gauss' ? [param('M\u00b2 (beam quality)', el, 'm2')] : [])));
+    if (!el.fibre) {
+      panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
+        selectField('Beam mode', [['gauss', 'Gaussian (TEM\u2080\u2080)'], ['hg', 'Hermite\u2013Gauss HG\u2098\u2099'], ['lg', 'Laguerre\u2013Gauss LG\u209a\u2097 (vortex)']],
+          () => el.tem, v => { el.tem = v; fanFromGauss(el); }, { wide: el.tem === 'gauss' }),
+        ...(el.tem === 'hg' ? [param('m, nodes in the bench plane', el, 'hm'), param('n, nodes out of it', el, 'hn')]
+          : el.tem === 'lg' ? [param('p, radial order', el, 'lp'), param('l, vortex charge', el, 'll')] : [])));
+    }
+    const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+    bindSync(line, () => {
+      if (isHigherMode(el)) {
+        const lam = el.wavelength * 1e-6, [mx, my] = modeM2(el), zR = Math.PI * el.w0 * el.w0 / lam;
+        line.textContent = (el.tem === 'hg' ? 'HG' + el.hm + el.hn : 'LG' + el.lp + (el.ll < 0 ? '\u2212' : '') + Math.abs(el.ll)) + ' of a Gaussian of waist ' + fmtLen(el.w0) +
+          ': M\u00b2 ' + mx + (my !== mx ? ' in the bench plane, ' + my + ' out of it' : '') + ', so its second-moment waist is ' + fmtLen(el.w0 * Math.sqrt(mx)) +
+          ' and its far-field half-angle ' + (+(1000 * Math.sqrt(mx) * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad; Rayleigh range ' + fmtLen(zR) + '. ' +
+          (el.tem === 'lg' ? 'It is carried as a coherent sum of ' + lgComps(el.lp, el.ll).length + ' Hermite\u2013Gauss modes, each with its own Gouy phase, so a pair of cylindrical lenses converts it as in the lab. ' : '') +
+          'The diffracted field uses the 2D model.';
+        return;
+      }
+      const lam = el.wavelength * 1e-6, M2 = m2Of(el);
+      const zR = Math.PI * el.w0 * el.w0 / (M2 * lam);
+      line.textContent = 'Rayleigh range ' + fmtLen(zR) + ', far-field half-angle ' +
+        (+(1000 * M2 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.' +
+        (M2 > 1 ? ' With M\u00b2 above 1 the beam is partly coherent across itself: a sum of ' + gsmModes(M2).length +
+          ' Hermite\u2013Gauss modes of a Gaussian ' + (+Math.sqrt(M2).toPrecision(3)) + '\u00d7 narrower, added as powers (a Gaussian Schell-model beam, as from a multimode laser or an LED). The diffracted field runs once per mode, so it is that much slower.' : '');
+    });
+    panel.append(line);
+    const view = [selectField('Show the beam as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']],
+      () => el.beamView, v => { el.beamView = v; })];
+    if (el.beamView === 'field') view.push(
+      selectField('Intensity scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.beamScale, v => { el.beamScale = v; }),
+      selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
+      selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; }));
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, ...view));
+    if (el.beamView === 'field') {
+      const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+      bindSync(pn, () => { pn.textContent = popNote(el); });
+      panel.append(pn);
+      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, physical optics propagation with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
+    }
+    panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. The ray fan\u2019s width and divergence (under Rays) stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
+  }
+
+  panel.append(h('h3', null, 'Polarisation'));
+  const prows = h('div', { class: 'rt-rows' },
+    selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
+      () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
+  if (el.pol === 'linear') prows.append(param('Angle from p (°)', el, 'polAngle'));
+  panel.append(prows);
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
+
+
   // the laser's own line: how far apart two paths can be and still interfere
   panel.append(h('h3', null, 'Coherence'));
   // split from another laser's source: one launch with it
@@ -7152,81 +7240,6 @@ function sourcePanel(el) {
     bindSync(pl, () => { pl.textContent = pulseLine(el); if (!prow.contains(document.activeElement)) flip(); });
     if (el.tau > 0) panel.append(pl);
   }
-  if (!el.traceRays) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'The fan is off: no rays are drawn and the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays; a fan taken as a uniform pupil keeps its width and divergence, though its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
-  panel.append(h('h3', null, 'Gaussian beam'));
-  const gb = h('input', { type: 'checkbox' });
-  gb.checked = el.gauss;
-  gb.addEventListener('change', () => {
-    checkpoint();
-    el.gauss = gb.checked;
-    if (el.gauss) gaussFromFan(el);    // start from the fan that is already there
-    changed(true);
-  });
-  panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
-  if (el.gauss) {
-    const fb = h('input', { type: 'checkbox' });
-    fb.checked = !!el.fibre;
-    fb.addEventListener('change', () => {
-      checkpoint();
-      if (fb.checked) { el.fibre = { core: 4.4, na: 0.12 }; applyFibre(el); } else delete el.fibre;
-      changed(true);
-    });
-    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, fb, 'Launch from a single-mode fibre'));
-    if (el.fibre) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
-    else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Waist radius (mm)', el, 'w0'),
-      param('Waist distance (mm)', el, 'z0'),
-      ...(el.tem === 'gauss' ? [param('M\u00b2 (beam quality)', el, 'm2')] : [])));
-    if (!el.fibre) {
-      panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-        selectField('Beam mode', [['gauss', 'Gaussian (TEM\u2080\u2080)'], ['hg', 'Hermite\u2013Gauss HG\u2098\u2099'], ['lg', 'Laguerre\u2013Gauss LG\u209a\u2097 (vortex)']],
-          () => el.tem, v => { el.tem = v; fanFromGauss(el); }),
-        ...(el.tem === 'hg' ? [param('m, nodes in the bench plane', el, 'hm'), param('n, nodes out of it', el, 'hn')]
-          : el.tem === 'lg' ? [param('p, radial order', el, 'lp'), param('l, vortex charge', el, 'll')] : [])));
-    }
-    const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-    bindSync(line, () => {
-      if (isHigherMode(el)) {
-        const lam = el.wavelength * 1e-6, [mx, my] = modeM2(el), zR = Math.PI * el.w0 * el.w0 / lam;
-        line.textContent = (el.tem === 'hg' ? 'HG' + el.hm + el.hn : 'LG' + el.lp + (el.ll < 0 ? '\u2212' : '') + Math.abs(el.ll)) + ' of a Gaussian of waist ' + fmtLen(el.w0) +
-          ': M\u00b2 ' + mx + (my !== mx ? ' in the bench plane, ' + my + ' out of it' : '') + ', so its second-moment waist is ' + fmtLen(el.w0 * Math.sqrt(mx)) +
-          ' and its far-field half-angle ' + (+(1000 * Math.sqrt(mx) * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad; Rayleigh range ' + fmtLen(zR) + '. ' +
-          (el.tem === 'lg' ? 'It is carried as a coherent sum of ' + lgComps(el.lp, el.ll).length + ' Hermite\u2013Gauss modes, each with its own Gouy phase, so a pair of cylindrical lenses converts it as in the lab. ' : '') +
-          'The diffracted field uses the 2D model.';
-        return;
-      }
-      const lam = el.wavelength * 1e-6, M2 = m2Of(el);
-      const zR = Math.PI * el.w0 * el.w0 / (M2 * lam);
-      line.textContent = 'Rayleigh range ' + fmtLen(zR) + ', far-field half-angle ' +
-        (+(1000 * M2 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.' +
-        (M2 > 1 ? ' With M\u00b2 above 1 the beam is partly coherent across itself: a sum of ' + gsmModes(M2).length +
-          ' Hermite\u2013Gauss modes of a Gaussian ' + (+Math.sqrt(M2).toPrecision(3)) + '\u00d7 narrower, added as powers (a Gaussian Schell-model beam, as from a multimode laser or an LED). The diffracted field runs once per mode, so it is that much slower.' : '');
-    });
-    panel.append(line);
-    const view = [selectField('Show the beam as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']],
-      () => el.beamView, v => { el.beamView = v; })];
-    if (el.beamView === 'field') view.push(
-      selectField('Intensity scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.beamScale, v => { el.beamScale = v; }),
-      selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
-      selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; }));
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, ...view));
-    if (el.beamView === 'field') {
-      const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-      bindSync(pn, () => { pn.textContent = popNote(el); });
-      panel.append(pn);
-      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, physical optics propagation with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
-    }
-    panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. Beam width and divergence above stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
-  }
-
-  panel.append(h('h3', null, 'Polarisation'));
-  const prows = h('div', { class: 'rt-rows' },
-    selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
-      () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
-  if (el.pol === 'linear') prows.append(param('Angle from p (°)', el, 'polAngle'));
-  panel.append(prows);
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
 
   panel.append(h('h3', null, 'Extra wavelengths'));
   const presets = [['', 'Just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],

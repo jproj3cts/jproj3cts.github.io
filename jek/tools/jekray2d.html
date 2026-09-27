@@ -12296,7 +12296,7 @@ function closeupPrep(segs, cx, cy, hw, tab) {
     const ts = [...new Set([clamp(tc - hw, 0, b.len), clamp(tc, 0, b.len), clamp(tc + hw, 0, b.len)])];
     const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
     const J = popJ(b);
-    out.push({ b, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
+    out.push({ b, i: sg.i, parent: b.parent, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
       src: sg.src, L: (b.gpl || 0) + (b.ng || b.n) * clamp(tc, 0, b.len) + lagOf(sg.src) });
   }
   closeupLaunches(out);
@@ -12420,7 +12420,7 @@ function drawCloseup() {
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = '11px ' + getCss('--jek-mono');
   ctx.textAlign = 'left';
-  ctx.fillText('Close-up: the field on each pixel' + (inf.beams ? ', ' + inf.beams + ' beam segment' + (inf.beams === 1 ? '' : 's') : ', no beam here') +
+  ctx.fillText('Close-up: the field on each pixel' + (inf.beams ? ', ' + inf.beams + ' beam' + (inf.beams === 1 ? '' : 's') : ', no beam here') +
     (inf.contrast !== null && inf.beams > 1 ? ' \u00b7 fringe contrast ' + inf.contrast.toFixed(3) : '') +
     (inf.lamN ? ' \u00b7 \u03bb/2n = ' + fmtLen(inf.lamN / 2) : ''), 14, closeupCaptionY());
   return true;
@@ -12500,9 +12500,14 @@ function closeupImage(segs, view, step, log) {
       if (inc > iMax) iMax = inc;
     }
   }
-  // standing-wave contrast where the light is: the spread of the coherent sum there
-  let lo = Infinity, hi = 0;
-  for (let q = 0; q < nx * ny; q++) if (INC[q] >= 0.5 * iMax) { if (I[q] < lo) lo = I[q]; if (I[q] > hi) hi = I[q]; }
+  // fringe contrast where the light is: how far the coherent sum strays from the beams' own
+  // intensities added, 2ab/(a² + b²) for two; nothing for one beam, whatever its envelope
+  let vis = 0;
+  for (let q = 0; q < nx * ny; q++) if (INC[q] >= 0.5 * iMax && INC[q] > 0) vis = Math.max(vis, Math.abs(I[q] / INC[q] - 1));
+  // the beams: a segment carrying straight on from another in view (through a screen that lets
+  // the light by, a window square to it) is the same beam
+  // the same beam (its modes of an M² above 1 too)
+  const beams = new Set(parts.filter(P => !parts.some(Q => Q.i === P.parent && Math.abs(Q.b.dx - P.b.dx) + Math.abs(Q.b.dy - P.b.dy) < 1e-9)).map(P => P.i)).size;
   const img = new ImageData(nx, ny);
   for (let q = 0; q < nx * ny; q++) {
     let v = pk > 0 ? I[q] / pk : 0;
@@ -12510,7 +12515,7 @@ function closeupImage(segs, view, step, log) {
     img.data[q * 4] = RGB[q * 3]; img.data[q * 4 + 1] = RGB[q * 3 + 1]; img.data[q * 4 + 2] = RGB[q * 3 + 2];
     img.data[q * 4 + 3] = Math.round(255 * Math.min(1, v));
   }
-  return { img, info: { contrast: hi + lo > 0 && isFinite(lo) ? (hi - lo) / (hi + lo) : null, beams: parts.length,
+  return { img, info: { contrast: iMax > 0 ? Math.min(1, vis) : null, beams,
     lamN: parts.length ? 2 * Math.PI / parts[0].k : null } };
 }
 
@@ -12523,6 +12528,13 @@ function fieldAtPoint(X, Y) {
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, X, Y, 1e-3);
   return closeupAt(parts, X, Y);
+}
+/* The close-up's caption numbers for a square view span mm across, centred on (X, Y) */
+function closeupInfoAt(X, Y, span) {
+  const srcs = allSources().filter(e => e.gauss);
+  const key = popKeyOf(lastTrace.beams, srcs);
+  if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
+  return closeupImage(fieldPointCache.R.segs, { cx: X, cy: Y, s: 240 / span, W: 240, H: 240, tab: project.tab }, 2, false).info;
 }
 /* Intensities along a line, prepared once for the whole of it */
 function fieldAlongLine(x0, y0, x1, y1, n) {
@@ -16341,6 +16353,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return { route: P.route, Rf: P.Rf, NA: P.NA, n: P.n, pupilPowerTransverse: pw, inPower: Fin ? (Fin.ax ? popStats2(Fin).power : popStats(Fin).power) : null, len: sg.b.len };
     },
     fieldAt(x, y) { return fieldAtPoint(x, y); },
+    closeupInfo(x, y, span) { return closeupInfoAt(x, y, span); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },
     metricOf(name, key) { return metricRaw(this.byName(name), key); },
     fieldAlong(x0, y0, x1, y1, n) { return fieldAlongLine(x0, y0, x1, y1, n); },

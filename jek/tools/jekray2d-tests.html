@@ -3323,6 +3323,21 @@ const TESTS = [
     run: J => { const o = { tem: 'lg', lp: 0, ll: 1 }; J.load(satCellBench(true, o)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
       J.load(satCellBench(false, o)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
   },
+  {
+    name: 'The close-up counts beams, not the pieces a screen cuts them into',
+    why: 'zoomed in on a screen that lets the light through: one beam and no fringes; two beams of one laser meeting there, equal, full contrast (1 − contrast, worst of the two)',
+    want: 0, tol: 0.02, unit: '',
+    run: J => {
+      const A = src({ id: 'A', name: 'A', x: -50, wavelength: 1064, gauss: true, w0: 0.05, z0: 50, width: 0.3, rays: 1, pol: 's', power: 1 });
+      const B = src({ id: 'B', name: 'B', x: 50, angle: 180, wavelength: 1064, gauss: true, w0: 0.05, z0: 50, width: 0.3, rays: 1, pol: 's', power: 1, splitFrom: 'A' });
+      J.load(bench('c1', [A, screen({ name: 'S', x: 0, length: 4, absorb: false })], { minPower: 1e-9 }));
+      const one = J.closeupInfo(0, 0, 0.02);
+      J.load(bench('c2', [A, B, screen({ name: 'S', x: 0, length: 4, absorb: false })], { minPower: 1e-9 }));
+      const two = J.closeupInfo(0, 0, 0.02);
+      if (one.beams !== 1 || two.beams !== 2 || one.contrast > 1e-6) return 1;
+      return 1 - two.contrast;
+    },
+  },
   { group: 'Dipole traps' },
   {
     name: 'Rubidium\u2019s polarisability at 1064 nm is the published one',

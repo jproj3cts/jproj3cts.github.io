@@ -96,6 +96,7 @@ Signs:
 - **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector.
 - **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
 - **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on) or to "sphere" with "trapMat", "trapR" (nm) and "trapMed". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of "Water" so the optics are right too.
+- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a "divergence" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field ("abAng" degrees, or "abH" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a "stop" where the system's aperture stop is, first on the axis, so the pupil stays filled across the field.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
@@ -212,6 +213,11 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | trapP | `1013.25` | air pressure, mbar: sets the gas damping and quality factors. |
 | trapT | `295` | temperature (K): the depth in kT and the gas. |
 | mtfFreq | `50` | lp/mm at which the MTF is quoted. |
+| abSrc | `""` | the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen). |
+| abAng | `2` | its largest field angle, degrees, for a collimated source. |
+| abH | `1` | its largest object height, mm, for a diverging source (a point object). |
+| abN | `7` | fields across, 3 to 21. |
+| abRays | `61` | rays in each field’s fan, odd, 11 to 401. |
 
 ### "stop": Stop
 

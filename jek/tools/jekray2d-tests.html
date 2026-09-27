@@ -3338,6 +3338,52 @@ const TESTS = [
       return 1 - two.contrast;
     },
   },
+  { group: 'Aberrations' },
+  {
+    name: 'A spherical mirror has Seidel’s spherical aberration and coma',
+    why: 'a 10 mm collimated fan on a concave mirror, R 100 mm, the stop at the mirror, swept to ±2°, the screen at the paraxial focus: W040 = h⁴/4R³ and |W131| = h³θ/R² (in waves), no focus error on axis and no distortion (worst relative error)',
+    want: 0, tol: 0.01, unit: '',
+    run: J => {
+      J.load(bench('ab', [src({ name: 'S', x: -200, width: 10, rays: 11, pol: 's', wavelength: 633 }),
+        { type: 'mirror', name: 'M', x: 0, y: 0, angle: 180, R: 100, length: 25.4, reflect: 100 },
+        screen({ name: 'Sc', x: -50, angle: 0, length: 20 })]));
+      const A = J.aberrations('Sc', { abAng: 2, abN: 7, abRays: 61 }), S = A.seidel, lam = 633e-6, h = 5, R = 100, th = 2 * Math.PI / 180;
+      return Math.max(Math.abs(S.W040 / (h ** 4 / (4 * R ** 3) / lam) - 1), Math.abs(Math.abs(S.W131) / (h ** 3 * th / R ** 2 / lam) - 1), Math.abs(S.W020), Math.abs(S.distPct));
+    },
+  },
+  {
+    name: 'A thin lens’s spherical aberration is the third-order formula’s, and its field curve the wavefront’s',
+    why: 'a thin equiconvex N-BK7 lens at f/8, collimated light: W040 = h⁴K³/32 · [n²/(n−1)² + (3n+2)/n] (Welford’s thin-lens Seidel sum, B = 0, C = 1), to its fifth-order remainder; and the best focus at the edge of the field moves by 8(f/#)² W22T λ from the axis’s (worst relative error)',
+    want: 0, tol: 0.03, unit: '',
+    run: J => {
+      const n = J.index({ glass: 'N-BK7' }, 587.6), K = (n - 1) * (2 / 102.4), h = 6, lam = 587.6e-6;
+      const mk = xs => bench('ab', [src({ name: 'S', x: -40, width: 12, rays: 11, pol: 's', wavelength: 587.6 }),
+        { type: 'lens', name: 'L', x: 0, y: 0, angle: 0, diameter: 13, surfaces: [{ R: 102.4 }, { R: -102.4 }], gaps: [0.5], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: xs, length: 40 })]);
+      // the paraxial focus: where the fitted focus term is nothing on axis
+      let a = 98.8, b = 99.2, fa, fb;
+      const W = xs => { J.load(mk(xs)); return J.aberrations('Sc', { abAng: 1, abN: 7, abRays: 61 }); };
+      fa = W(a).seidel.W020; fb = W(b).seidel.W020;
+      for (let i = 0; i < 4; i++) { const c = b - fb * (b - a) / (fb - fa); a = b; fa = fb; b = c; fb = W(c).seidel.W020; }
+      const A = W(b), S = A.seidel, W040 = h ** 4 * K ** 3 / 32 * (n * n / (n - 1) ** 2 + (3 * n + 2) / n) / lam;
+      const f0 = A.fields[3], edge = A.fields[6], F = f0.R / (2 * f0.rp);
+      return Math.max(Math.abs(S.W040 / W040 - 1), Math.abs(edge.curv / (8 * F * F * S.W22T * lam) - 1));
+    },
+  },
+  {
+    name: 'A stop before a positive lens makes barrel distortion',
+    why: 'a singlet with a 6 mm stop 30 mm in front of it, the field turned about the stop’s centre: the chief ray lands short of its paraxial height at the edge of a 5° field, more so the further ahead the stop (30, 5 and 1 mm)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const d = xStop => { J.load(bench('ab', [src({ name: 'S', x: -60, width: 12, rays: 11, pol: 's', wavelength: 587.6 }),
+        { type: 'stop', name: 'Stop', x: xStop, y: 0, angle: 0, aperture: 6, outer: 60 },
+        { type: 'lens', name: 'L', x: 0, y: 0, angle: 0, diameter: 50.8, surfaces: [{ R: 102.4 }, { R: -102.4 }], gaps: [7], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: 100, length: 60 })]));
+        return J.aberrations('Sc', { abAng: 5, abN: 5, abRays: 61 }).seidel.distPct; };
+      const a = d(-30), b = d(-5), c = d(-1);
+      return a < b && b < c && c < 0 && a < -0.2 ? 1 : 0;
+    },
+  },
   { group: 'Dipole traps' },
   {
     name: 'Rubidium\u2019s polarisability at 1064 nm is the published one',

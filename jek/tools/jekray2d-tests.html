@@ -2885,6 +2885,17 @@ const TESTS = [
       return ok;
     },
   },
+  {
+    name: 'A ray through an axicon\u2019s tip goes straight on',
+    why: 'a 1\u00b0 fused silica axicon: the ray on its axis is not bent, and rays 1 mm either side cross the axis at equal and opposite angles',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('ax', [src({ x: -20, width: 2, rays: 3, pol: 's', wavelength: 632.8 }),
+        { type: 'lens', name: 'Ax', x: 0, y: 0, angle: 0, diameter: 12.7, surfaces: [{ R: null }, { R: null, odd: [-Math.tan(Math.PI / 180)] }], gaps: [3], materials: [{ glass: 'UVFS' }] }]));
+      const ends = J.rayPaths().filter(r => r[0] > 1).map(r => r[r.length - 1]);
+      return Math.abs(ends.reduce((a, v) => a + v, 0)) + Math.abs(ends.sort((a, b) => Math.abs(a) - Math.abs(b))[0]);
+    },
+  },
   { group: 'Masks as ideal lenses' },
   {
     name: 'An ideal-lens mask hit off-centre focuses as one hit in the middle',

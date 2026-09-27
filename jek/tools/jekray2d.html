@@ -2170,7 +2170,8 @@ function rawDsag(s, y) {
   let p = y2 * y;
   for (let j = 0; j < s.A.length; j++) { v += (4 + 2*j) * s.A[j] * p; p *= y2; }
   if (s.odd) {
-    const r = Math.abs(y), sg = y < 0 ? -1 : 1;
+    // a ray on the tip itself sees the two sides of the cone equally, so no slope: it goes straight
+    const r = Math.abs(y), sg = y < -1e-12 ? -1 : y > 1e-12 ? 1 : 0;
     let q = 1;
     for (let j = 0; j < s.odd.length; j++) { v += (j + 1) * s.odd[j] * q * sg; q *= r; }
   }

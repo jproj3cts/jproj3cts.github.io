@@ -2,9 +2,9 @@
   "format": "jekray",
   "version": 1,
   "name": "Laser cavity with gain",
-  "saved": "2026-09-26T23:43:04.709Z",
+  "saved": "2026-09-27T09:17:37.808Z",
   "view": {
-    "cx": 50,
+    "cx": 60,
     "cy": 0,
     "scale": 5
   },
@@ -19,7 +19,7 @@
       "id": "b1",
       "name": "Bench 1",
       "view": {
-        "cx": 50,
+        "cx": 60,
         "cy": 0,
         "scale": 5
       }
@@ -90,13 +90,14 @@
       "angle": 0,
       "bench": "b1",
       "length": 6,
-      "g0": 1.02,
+      "g0": 1.06,
+      "isat": 2.9,
       "centre": 1064,
       "fwhm": 0.6,
       "sweeps": {
         "g0": {
           "min": 1,
-          "max": 1.05,
+          "max": 1.1,
           "freq": 0.25,
           "phase": 0,
           "wave": "triangle"
@@ -121,24 +122,27 @@
     },
     {
       "id": "out",
-      "type": "screen",
-      "name": "Output",
+      "type": "detector",
+      "name": "Output power",
       "x": 130,
       "y": 0,
       "angle": 180,
       "bench": "b1",
-      "length": 10,
+      "length": 8,
+      "material": "custom",
+      "resp": 1,
+      "gain": 100,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
       "absorb": true,
-      "R": null,
-      "binWidth": 0,
-      "binInterp": true,
-      "mapScale": "lin",
-      "vectorFocus": "auto",
-      "mtfFreq": 50,
       "sweeps": {}
     }
   ],
   "fibres": [],
   "measures": [],
-  "notes": "A plano-concave cavity, 100 mm long, with a gain sheet (a Nd:YAG rod as a thin sheet, line centre 1064 nm) inside. The flat mirror reflects 99%, the output coupler 95%. A weak seed shows the cavity’s mode. The round trip loses 6%, so the gain must make that up. Click either mirror and press Show on its cavity card: below threshold it gives the gain a pass needed (×1.031 here); above it, it says the cavity lases and by how much the round trip gains. Sweep the gain a pass to find the threshold, or change the output coupler. Gain saturation, and so the power a laser settles at, is not modelled."
+  "notes": "A plano-concave cavity, 100 mm long, with a Nd:YAG gain sheet inside (line centre 1064 nm, saturation intensity 2.9 kW/cm²). The flat mirror reflects 99%, the output coupler 95%, so a round trip loses about 6% and the gain needs ×1.031 a pass to reach threshold. A weak seed finds the cavity and its mode. Above threshold the gain saturates until the round trip is exactly one: click either mirror and press Show on its cavity card for the circulating power, the output through each mirror and the best output coupler. The output leaves the output coupler as a beam of its own, onto the photodiode. Press Play on the gain sweep to go from below threshold (nothing out) to above it (tens of mW), or change the output coupler’s reflectance."
 }

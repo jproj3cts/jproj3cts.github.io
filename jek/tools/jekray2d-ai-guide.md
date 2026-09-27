@@ -45,7 +45,7 @@ A `.jekray` file is one JSON object:
 | name | the project's title |
 | notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |
 | elements | the elements (see the reference) |
-| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "path": [{"x", "y"}, ...]} |
+| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "path": [{"x", "y"}, ...]} |
 | benches | optional, for several tabs: [{"id": "b1", "name": "Laser table"}, ...]; then give each element "bench": its tab's id |
 | maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
@@ -92,6 +92,9 @@ Signs:
 - **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set "maxBounces" to about 40 and "minPower" to 1e-4.
 - **Photodiode signals:** a "detector" (free space) or an fcomp "pd" (fibre) reads DC and beat notes. "demodF" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.
 - **Short pulses:** give a source (or a fibre laser) "tau" in fs, with "pshape", "rep" and "power" as the average power. Glass, prisms, gratings, chirped mirrors ("gdd" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by "blaze"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.
+- **A laser from parts:** a gain element ("g0", "isat", "centre" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.
+- **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector.
+- **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
 ## Checklist
@@ -307,6 +310,7 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | na | `0.12` | numerical aperture. |
 | emitView | `"envelope"` | "envelope" or "field": how the light it sends out is shown. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
+| mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
 
 ### "detector": Photodetector
 
@@ -385,16 +389,31 @@ A filter: long-pass, short-pass, band-pass or neutral density, optionally reflec
 
 ### "gain": Gain medium
 
-A thin gain medium with a Lorentzian gain line, so a cavity shows whether it is above threshold.
+A thin gain medium with a Lorentzian gain line that saturates: in a cavity above threshold the laser settles at its output power and the output leaves each partly transmitting mirror as a beam.
 
 **angle:** its normal: 0 for a beam travelling ±x.
 
 | field | default | meaning |
 |---|---|---|
 | length | `6` | mm along the beam. |
-| g0 | `1.2` | single-pass power gain at the line centre (×). |
+| g0 | `1.2` | small-signal single-pass power gain at the line centre (×); the pump sets it. |
+| isat | `2.9` | kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam. |
 | centre | `1064` | nm line centre. |
 | fwhm | `30` | nm line width. |
+
+### "cell": Vapour cell
+
+An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light’s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source’s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).
+
+**angle:** its axis: 0 for a beam travelling ±x (the cell lies along x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm: the window diameter. |
+| cellLen | `75` | mm along the beam (75 is usual). |
+| atom | `"Rb"` | "Rb" (natural), "Rb85", "Rb87", "Cs" or "K". |
+| line | `"D2"` | "D2" or "D1". |
+| temp | `25` | °C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60). |
 
 ### "link": Link plane
 
@@ -586,6 +605,19 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | bias | `90` | Bias (°, amplitude mode) |
 | loss | `3` | Insertion loss (dB) |
 | emode | `"phase"` | "phase" or "amplitude" |
+
+### kind "amp": Fibre amplifier
+
+**ports:** 0 = in, 1 = out
+
+| field | default | meaning |
+|---|---|---|
+| g0 | `20` | Small-signal gain (dB) |
+| psat | `17` | Saturated output (dBm) |
+| nf | `5` | Noise figure (dB) |
+| centre | `1545` | Band centre (nm) |
+| bw | `35` | Band width (nm) |
+| iso | `40` | Isolation backwards (dB) |
 
 ## Catalogues
 

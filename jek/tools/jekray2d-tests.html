@@ -2433,7 +2433,7 @@ const TESTS = [
     run: J => {
       J.load(bench('laser', [src({ x: -30, rays: 1, width: 1, gauss: true, w0: 0.3 }),
         { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 180, length: 25, reflect: 99, R: -500 },
-        { type: 'gain', name: 'G', x: 50, y: 0, angle: 0, length: 10, g0: 1.01, centre: NM, fwhm: 50 },
+        { type: 'gain', name: 'G', x: 50, y: 0, angle: 0, length: 10, g0: 1.01, centre: NM, fwhm: 50, isat: 0 },
         { type: 'mirror', name: 'M2', x: 100, y: 0, angle: 180, length: 25, reflect: 99.9, R: 500 }], { minPower: 1e-6, maxBounces: 40 }));
       const c = J.cavities()[0];
       return c ? c.rho * c.rho : NaN;
@@ -3007,7 +3007,163 @@ const TESTS = [
     want: 1, tol: 1e-9, unit: '',
     run: J => { J.load(bench('p', [pulseSrc({ gdd0: 500 }), screen({ x: 60 })])); return J.metric('Screen', 'pdur') / J.pulse('Screen').dur; },
   },
+  { group: 'Lasers that settle' },
+  {
+    name: 'A laser cavity reaches threshold where its gain makes up its loss',
+    why: 'mirrors of 99% and 95%, a gain sheet passed twice a round trip: threshold at ×1/√(0.99 × 0.95) a pass',
+    want: 1 / Math.sqrt(0.99 * 0.95), tol: 1e-4, rel: true, unit: '×',
+    run: J => { J.load(laserBench(1.02)); return J.laser().need; },
+  },
+  {
+    name: 'Above threshold it settles where saturation holds the round trip at one',
+    why: 'g0 = 1.06 a pass, Isat 2.9 kW/cm² over the mode: P = (Psat / 2)(ln g0 / ln g_th − 1), Psat = Isat π w² / 2 at the gain',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); const L = J.laser(); return L.Psat[0] / 2 * (Math.log(1.06) / Math.log(1 / Math.sqrt(0.99 * 0.95)) - 1); },
+    tol: 1e-3, rel: true, unit: ' W',
+    run: J => { J.load(laserBench(1.06)); return J.laser().P; },
+  },
+  {
+    name: 'and its output leaves the output coupler as a beam',
+    why: 'the photodiode behind the 95% mirror reads the circulating power times its 5% transmission',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); return J.laser().P * 0.05 * 1000; },
+    tol: 0.01, rel: true, unit: ' mW',
+    run: J => { J.load(laserBench(1.06)); J.trace(); return J.detector('Out').mw; },
+  },
+  {
+    name: 'Below threshold nothing comes out but the seed',
+    why: 'g0 = 1.02, below the ×1.031 needed: the photodiode sees only what of the 1 \u00b5W seed the cavity lets through',
+    want: 0, tol: 0.01, unit: ' mW',
+    run: J => { J.load(laserBench(1.02)); J.trace(); return J.detector('Out').mw; },
+  },
+  {
+    name: 'The best output coupler maximises the output',
+    why: 'P_out(T) = T (Psat / 2)(2 ln g0 / −ln(0.99 (1 − T)) − 1), maximised over T numerically',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); const Ps = J.laser().Psat[0
+]; let best = [0, 0];
+      for (let T = 1e-4; T < 0.2; T += 1e-5) { const P = T * Ps / 2 * (2 * Math.log(1.06) / -Math.log(0.99 * (1 - T)) - 1); if (P > best[0]) best = [P, T]; } return 1 - best[1]; },
+    tol: 2e-4, unit: ' (reflectance)',
+    run: J => { J.load(laserBench(1.06)); return J.laser().best.R; },
+  },
+  { group: 'Atomic vapour cells' },
+  {
+    name: 'Rubidium vapour has its density at room temperature',
+    why: 'Steck: 3.92 × 10⁻⁷ torr at 25 °C, n = P / kT',
+    want: 3.92e-7 * 133.322368 / (1.380649e-23 * 298.15) * 1e-6, tol: 0.03, rel: true, unit: ' /cm³',
+    run: J => { J.load(cellBench({})); return J.cellDensity('Cell') * 1e-6; },
+  },
+  {
+    name: 'Hyperfine line strengths come out of the 6j symbols',
+    why: '⁸⁷Rb D2 F = 2 → F′ = 3 is 7/10 of its ground level’s; Cs D1 F = 3 → F′ = 4 is 3/4 (Steck)',
+    want: 0.7 + 0.75, tol: 1e-9, unit: '',
+    run: J => J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).S + J.atomLines('Cs', 'D1').find(a => a.Fg === 3 && a.Fe === 4).S,
+  },
+  {
+    name: 'and the hyperfine splittings from A and B',
+    why: '⁸⁷Rb 5S₁/₂ ground splitting 6834.683 MHz; 5P₃/₂ F′ = 3 to 2, 266.650 MHz (Steck)',
+    want: 6834.683 + 266.650, tol: 0.01, unit: ' MHz',
+    run: J => { const L = J.atomLines('Rb87', 'D2'), f = (g, e) => L.find(a => a.Fg === g && a.Fe === e).nu;
+      return (f(1, 2) - f(2, 2)) / 1e6 + (f(2, 3) - f(2, 2)) / 1e6; },
+  },
+  {
+    name: 'A cell absorbs each line with its full strength',
+    why: 'the absorption summed over the ⁸⁷Rb F = 2 lines, ∫α dν L, against n (5/8 × 27.83%) (λ²/8π) 2A L: the lines’ total strength, whatever their shape',
+    wantFrom: () => { const J = rigJ(); J.load(cellBench({})); const n = J.cellDensity('Cell'), lam = 299792458 / 384.2304844685e12;
+      return n * 0.2783 * 5 / 8 * lam * lam / (8 * Math.PI) * 2 * (1e9 / 26.2348) * 0.075; },
+    tol: 0.01, rel: true, unit: ' Hz',
+    run: J => { J.load(cellBench({})); const c = 384.2304844685e12 - 2563.005e6; let s = 0, d = 0.5e6;
+      // the F = 2 lines only (the F = 1 ones sit 6.8 GHz away), minus the ⁸⁵Rb tail under them
+      for (let x = -3e9; x <= 3e9; x += d) { const nu = c + x, od = J.cellAt('Cell', nu).od; s += od * d; }
+      J.load(cellBench({ atom: 'Rb85' })); let s85 = 0; for (let x = -3e9; x <= 3e9; x += d) s85 += J.cellAt('Cell', c + x).od * d;
+      J.load(cellBench({ atom: 'Rb' })); return s - s85 * 0.7217; },
+  },
+  {
+    name: 'Saturated absorption puts Lamb dips at each line and crossovers halfway',
+    why: '⁸⁷Rb F = 2 → F′ = 1, 2, 3 with a counter-propagating pump: six narrow features, at the three lines and the three midpoints (MHz off, in all)',
+    want: 0, tol: 1.5, unit: ' MHz',
+    run: J => { J.load(cellBench({ atom: 'Rb87' })); const L = J.atomLines('Rb87', 'D2').filter(a => a.Fg === 2).map(a => a.nu).sort((a, b) => a - b);
+      const expect = [L[0], (L[0] + L[1]) / 2, L[1], (L[0] + L[2]) / 2, (L[1] + L[2]) / 2, L[2]];
+      const pts = []; for (let nu = L[0] - 40e6; nu <= L[2] + 40e6; nu += 0.25e6) pts.push([nu, J.cellAt('Cell', nu, [{ nu, I: 30 }]).od - J.cellAt('Cell', nu).od]);
+      const found = []; for (let i = 1; i < pts.length - 1; i++) if (pts[i][1] < pts[i - 1][1] && pts[i][1] < pts[i + 1][1] && pts[i][1] < -1e-4) found.push(pts[i][0]);
+      if (found.length !== 6) return NaN;
+      return expect.reduce((s, e) => s + Math.min(...found.map(f => Math.abs(f - e))), 0) / 1e6; },
+  },
+  {
+    name: 'A saturated-absorption bench shows it on its photodiode',
+    why: 'the rubidium example: the probe reaching the photodiode with its pump on, against with it off, near the ⁸⁵Rb F = 3 → 4 line (ratio)',
+    want: 1.1, tol: 0.1, unit: '× or more',
+    run: J => { J.importText(getDemo('saturated-absorption')); J.trace(); const on = J.detector('Photodiode').mw;
+      J.setParam('Pump (from the same laser)', 'power', 0); J.trace(); const off = J.detector('Photodiode').mw; return Math.min(on / off, 1.2); },
+  },
+  { group: 'Fibre extras' },
+  {
+    name: 'PM fibre launched off its axis turns the polarisation by its beat',
+    why: '1.001 m of fibre, beat length 4 mm, key at 45° to the light: through a polariser along the light, 1 − sin² 2θ sin²(πL/L_b)',
+    want: 0.5, tol: 1e-6, unit: '',
+    run: J => { J.load(pmBench(45, 1.001)); return J.fibrePd('D'); },
+  },
+  {
+    name: 'and launched on its axis, keeps it',
+    why: 'the same fibre with its key along the light: all of it through the polariser, to the extinction ratio',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => { J.load(pmBench(0, 1.001)); return J.fibrePd('D'); },
+  },
+  {
+    name: 'Standard fibre as laid scrambles polarisation but keeps the power',
+    why: '5 m of randomly birefringent fibre with no loss: all of the power arrives',
+    want: 1, tol: 1e-9, unit: '',
+    run: J => { const b = fnet([fc('laser', 'L', { power: 1 }), fc('pd', 'D')], []); b.fibres.push({ a: ['L', 0], b: ['D', 0], len: 5, loss: 0, ftype: 'random', seed: 3 }); J.load(b); return J.fibrePd('D'); },
+  },
+  {
+    name: 'A fibre amplifier saturates as it should',
+    why: '20 dB small-signal gain, 17 dBm saturated output, 1 mW in: G = (−1 + √(1 + 4 G₀ x)) / 2x, x = Pin / Psat',
+    wantFrom: () => { const G0 = 100, x = 1 / Math.pow(10, 1.7); return 10 * Math.log10((-1 + Math.sqrt(1 + 4 * G0 * x)) / (2 * x)); },
+    tol: 0.02, unit: ' dB',
+    run: J => { J.load(ampBench(1, true)); J.trace(); return 10 * Math.log10(J.fibrePd('D') / 1); },
+  },
+  {
+    name: 'and adds its spontaneous emission',
+    why: 'no input: ASE out of each end, both polarisations, ∫ n_sp hν (G(ν) − 1) dν with n_sp = NF / 2',
+    wantFrom: () => { let s = 0; const c = 299792458, h = 6.62607015e-34;
+      for (let nm = 1545 - 28; nm <= 1545 + 28; nm += 0.01) { const G = Math.pow(10, 2 / (1 + ((nm - 1545) / 17.5) ** 6)); s += 2 * (Math.pow(10, 0.5) / 2) * h * c / (nm * 1e-9) * (G - 1) * c * 0.01e-9 / (nm * 1e-9) ** 2; } return s * 1e3; },
+    tol: 0.03, rel: true, unit: ' mW',
+    run: J => { J.load(ampBench(0, false)); J.trace(); return J.fibrePd('D'); },
+  },
+  {
+    name: 'A multimode tip takes in a beam that fits its core and NA',
+    why: 'a 1550 nm beam focused to a 10 µm waist on a 50 µm, NA 0.22 fibre: nearly all of it, where a single-mode fibre takes much less',
+    want: 1, tol: 0.01, unit: '',
+    run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
+  },
 ];
+
+/* ---------- Lasers, cells and fibre benches ---------- */
+const rigJ = () => document.getElementById('rig').contentWindow.JEKray2D;
+const getDemo = k => { const x = new XMLHttpRequest(); x.open('GET', 'demos/' + k + '.jekray', false); x.send(); return x.responseText; };
+function laserBench(g0) {
+  return bench('laser', [
+    src({ name: 'Seed', x: -30, wavelength: 1064, gauss: true, w0: 0.25, z0: 30, width: 0.5, rays: 1, pol: 's', power: 0.001 }),
+    { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 180, length: 12.7, reflect: 99 },
+    { type: 'gain', name: 'Gain', x: 30, y: 0, angle: 0, length: 6, g0, centre: 1064, fwhm: 0.6, isat: 2.9 },
+    { type: 'mirror', name: 'OC', x: 100, y: 0, angle: 180, length: 12.7, reflect: 95, R: 250 },
+    { type: 'detector', name: 'Out', x: 130, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
+}
+const cellBench = o => bench('cell', [Object.assign({ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 25, cellLen: 75 }, o)]);
+function pmBench(key, len) {
+  const b = fnet([fc('laser', 'L', { power: 1, polAngle: 0 }), fc('pol', 'P', { axis: 0, extinction: 60, loss: 0 }), fc('pd', 'D')], [['P', 1, 'D', 0, 0.1, 0]]);
+  b.fibres.push({ a: ['L', 0], b: ['P', 0], len, loss: 0, ftype: 'pm', key, beat: 4, per: 60 });
+  return b;
+}
+function ampBench(P, signal) {
+  const els = [fc('amp', 'A', { g0: 20, psat: 17, nf: 5, centre: 1545, bw: 35, iso: 60 }), fc('pd', 'D'), fc('pd', 'Back')];
+  const fib = [['A', 1, 'D', 0, 0.01, 0], ['A', 0, 'Back', 0, 0.01, 0]];
+  if (signal) { els.push(fc('laser', 'L', { power: P, wavelength: 1545 }), fc('wdm', 'F', { centre: 1545, fwhm: 0.05, loss: 0 })); fib.splice(0, 2, ['L', 0, 'A', 0, 0.01, 0], ['A', 1, 'F', 0, 0.01, 0], ['F', 1, 'D', 0, 0.01, 0]); }
+  return fnet(els, fib);
+}
+function mmBench(mm) {
+  return bench('mm', [src({ name: 'Beam', x: -20, wavelength: 1550, gauss: true, w0: 0.02, z0: 20, width: 0.04, rays: 1, pol: 's', power: 1 }),
+    Object.assign({ type: 'fibre', name: 'T', x: 0, y: 0, angle: 180 }, mm ? { core: 62.5, na: 0.275, mm: true } : { core: 9, na: 0.14 })]);
+}
+
+
 
 /* ---------- Short-pulse benches ---------- */
 const pulseSrc = o => src(Object.assign({ name: 'Laser', wavelength: 800, tau: 30, pshape: 'gauss', rays: 3, width: 2, power: 1000, rep: 80, pol: 's' }, o));

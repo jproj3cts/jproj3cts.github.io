@@ -166,7 +166,8 @@
         <ul>
           <li>Nothing to install and no account. Your bench is saved in your browser as you work</li>
           <li>Lenses, aspheres, cylinders and axicons; mirrors and off-axis parabolas; beam splitters, prisms and gratings; waveplates, polarisers, birefringent crystals and isolators; filters, dichroics, gain media, stops and masks</li>
-          <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, photodiodes) joined by drag-drawn fibres, on as many bench tabs as you need</li>
+          <li>Fibre subsystems (couplers, circulators, AOMs, EOMs, amplifiers, photodiodes) joined by drag-drawn fibres that keep, scramble or maintain polarisation, single-mode or multimode, on as many bench tabs as you need</li>
+          <li>Lasers built from parts that settle at their output power, and atomic vapour cells (Rb, Cs, K) with Doppler-broadened hyperfine lines and saturated absorption</li>
           <li>Femtosecond pulses: glass, prism and grating compressors, chirped mirrors and fibre dispersion, with the arriving pulse's duration, GDD and TOD</li>
           <li>Import Thorlabs parts straight from their .zmx lens files</li>
           <li>Save benches as <code>.jekray</code> files or share one as a link; export the layout as PNG, SVG or PDF, and any plot as a picture or CSV</li>
@@ -233,7 +234,7 @@
       <div>
         <h2>Cavities and polarisation</h2>
         <p>When light loops back on itself, JEKray2D finds the cavity for you and reports its free spectral range, finesse, linewidth, stability, Gaussian mode and losses. It also solves the steady-state field and the cavity’s own modes, in the same way as the Fox–Li method.</p>
-        <p>Put a gain medium inside and it tells you whether the cavity lases. Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser, and through birefringent crystals (beam displacers, Wollaston and Glan–Taylor prisms) and Faraday isolators, which pass light one way only. For steep focusing it switches to a full vector calculation of the focal field.</p>
+        <p>Put a gain medium inside and it tells you whether the cavity lases and, above threshold, the power it settles at, which leaves the output coupler as a beam on the bench. Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser, and through birefringent crystals (beam displacers, Wollaston and Glan–Taylor prisms) and Faraday isolators, which pass light one way only. For steep focusing it switches to a full vector calculation of the focal field.</p>
       </div>
     </section>
 
@@ -245,7 +246,7 @@
       <div>
         <h2>Fibre, free space and the signals between</h2>
         <p>Draw fibre subsystems next to the free-space optics: lasers, couplers, WDMs, circulators, Bragg gratings, AOMs and EOMs, joined port to port with fibres you shape by dragging. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
-        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal.</p>
+        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to.</p>
       </div>
     </section>
 
@@ -311,7 +312,7 @@
           <img src="img/laser-threshold.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Laser cavity with gain</h3>
-            <p>A plano-concave cavity with a Nd:YAG gain sheet. Sweep the gain and the cavity reports when the round trip crosses threshold.</p>
+            <p>A Nd:YAG gain sheet in a two-mirror cavity. Above threshold the gain saturates: the card gives circulating and output power and the best output coupler, and the output leaves as a beam.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
@@ -417,6 +418,14 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=saturated-absorption">
+          <img src="img/saturated-absorption.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Saturated absorption, rubidium</h3>
+            <p>A weak probe and a strong pump through a rubidium cell: the Doppler-broadened D2 line, with sub-Doppler Lamb dips and crossovers where pump and probe meet the same atoms.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
       </div>
       <h3 class="rt-exgroup">Fibre and pulses</h3>
       <div class="rt-example-grid">
@@ -441,6 +450,14 @@
           <div class="rt-example-body">
             <h3>Fibre Michelson, Faraday mirrors</h3>
             <p>A circulator, a coupler and two Faraday mirrors. Turn the polarisation controller: the fringes keep full contrast.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-amplifier">
+          <img src="img/fibre-amplifier.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre amplifier and its noise</h3>
+            <p>A weak signal through 20 km of fibre and an erbium amplifier. Its spontaneous emission reaches both photodiodes; a narrow filter takes out most of it.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>

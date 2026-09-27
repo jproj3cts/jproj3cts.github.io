@@ -364,24 +364,36 @@ body.ground-anomalies .image-item > a::before,
   inset: 0;
   z-index: -1;
   background: #f3eee2;
+  /* One strip of holes per edge, each a fixed-size tile repeated from the
+     middle of its edge, so the holes keep their shape whatever the stamp's
+     size (phones give fractional sizes). The plain rectangle fills the
+     middle; the corners are left solid. */
+  --holes-top:    radial-gradient(circle at 50% 0,    #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-bottom: radial-gradient(circle at 50% 100%, #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-left:   radial-gradient(circle at 0 50%,    #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
+  --holes-right:  radial-gradient(circle at 100% 50%, #0000 var(--perf), #000 calc(var(--perf) + 0.5px));
   -webkit-mask:
-    radial-gradient(var(--perf), #0000 98%, #000) round
-      calc(-1.5 * var(--perf)) calc(-1.5 * var(--perf)) /
-      calc(3 * var(--perf)) calc(3 * var(--perf)),
-    linear-gradient(#000 0 0) no-repeat 50% /
-      calc(100% - 3 * var(--perf)) calc(100% - 3 * var(--perf));
+    var(--holes-top)    50% 0    / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-bottom) 50% 100% / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-left)   0 50%    / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    var(--holes-right)  100% 50% / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    linear-gradient(#000 0 0) 50% 50% /
+      calc(100% - 2.5 * var(--perf)) calc(100% - 2.5 * var(--perf)) no-repeat;
   mask:
-    radial-gradient(var(--perf), #0000 98%, #000) round
-      calc(-1.5 * var(--perf)) calc(-1.5 * var(--perf)) /
-      calc(3 * var(--perf)) calc(3 * var(--perf)),
-    linear-gradient(#000 0 0) no-repeat 50% /
-      calc(100% - 3 * var(--perf)) calc(100% - 3 * var(--perf));
+    var(--holes-top)    50% 0    / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-bottom) 50% 100% / calc(3 * var(--perf)) calc(1.5 * var(--perf)) repeat-x,
+    var(--holes-left)   0 50%    / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    var(--holes-right)  100% 50% / calc(1.5 * var(--perf)) calc(3 * var(--perf)) repeat-y,
+    linear-gradient(#000 0 0) 50% 50% /
+      calc(100% - 2.5 * var(--perf)) calc(100% - 2.5 * var(--perf)) no-repeat;
 }
 
 /* Lifted off the page: a small tilt and a longer shadow */
-body.ground-anomalies .image-item > a:hover {
-  transform: translateY(-3px) rotate(-1.25deg);
-  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
+@media (hover: hover) {
+  body.ground-anomalies .image-item > a:hover {
+    transform: translateY(-3px) rotate(-1.25deg);
+    filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
+  }
 }
 
 /* Donation stamps stay put on hover and grey out instead */

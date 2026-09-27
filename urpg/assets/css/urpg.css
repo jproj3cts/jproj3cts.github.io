@@ -557,7 +557,6 @@ body.ground-anomalies .image-item > a:hover,
    -------------------------------------------------------------------------- */
 
 footer {
-  position: relative;
   flex-shrink: 0;
   width: 100%;
   display: flex;
@@ -565,18 +564,6 @@ footer {
   align-items: center;
   padding: 1.25rem 1.5rem 1.75rem;
   background: transparent;
-}
-
-/* A tear-off line of perforations right across the bottom of the page */
-footer::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: radial-gradient(circle, var(--urpg-line-2) 3px, transparent 3.5px)
-              0 50% / 14px 8px repeat-x;
 }
 
 footer .bottom-image {

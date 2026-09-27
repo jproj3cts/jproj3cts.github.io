@@ -3251,6 +3251,15 @@ const TESTS = [
       return J.cellField('Cell', nuA, { others: [{ nu: nuA, I: 50, w: 0.5, ly: 0, dir: [-1, 0] }], u: 1, profiles: false }).od / J.cellField('Cell', nuA).od; },
   },
   {
+    name: 'A vortex pump burns no hole on its dark axis, and on its ring what its intensity there would',
+    why: 'an LG\u2080\u2081 pump (w 0.5 mm) on \u2078\u2077Rb F = 2 \u2192 3: on the axis the probe\u2019s absorption is as with no pump; on the ring, r = w/\u221a2, it is as under a Gaussian pump of peak I/e, the vortex\u2019s intensity there (worst difference in optical depth, relative)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => { J.load(cellBench({ atom: 'Rb87' })); const nu = J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu, c = J.lgComps(0, 1);
+      const od = (P, u) => J.cellField('Cell', nu, { others: P ? [Object.assign({ nu, w: 0.5, ly: 0, dir: [-1, 0] }, P)] : [], u, profiles: false }).od;
+      const r = 0.5 / Math.SQRT2, base = od(null, 0), axis = od({ I: 50, comps: c }, 0), ring = od({ I: 50, comps: c }, r), gauss = od({ I: 50 * Math.exp(-1), w: Infinity }, r);
+      return Math.max(Math.abs(axis / base - 1), Math.abs(ring / gauss - 1)) * (ring < 0.999 * base ? 1 : NaN); },
+  },
+  {
     name: 'The diffracted field and a photodiode see a saturated cell across the beam',
     why: '0.3 mW at 1 mm through ⁸⁷Rb at 30 °C on its F = 2 → 3 line: the power reaching the screen’s field and a photodiode, against the Gaussian-weighted mean of the local transmission (both, averaged)',
     wantFrom: () => { const J = rigJ(); J.load(satCellBench(true)); J.trace(); const rec = J.cellBeams('Cell')[0], nuA = rec.nu; let num = 0, den = 0;
@@ -3259,6 +3268,17 @@ const TESTS = [
     tol: 0.005, rel: true, unit: '',
     run: J => { J.load(satCellBench(true)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
       J.load(satCellBench(false)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
+  },
+  {
+    name: 'and so do they a vortex beam, by its own ring-shaped profile',
+    why: 'the same with the laser an LG\u2080\u2081 mode: the mean of the local transmission is now weighted by the donut, each point saturating by the vortex\u2019s intensity there',
+    wantFrom: () => { const J = rigJ(), o = { tem: 'lg', lp: 0, ll: 1 }; J.load(satCellBench(true, o)); J.trace(); const rec = J.cellBeams('Cell')[0], nuA = rec.nu, c = J.lgComps(0, 1); let num = 0, den = 0;
+      for (let i = -40; i <= 40; i++) for (let j = -40; j <= 40; j++) { const u = i * 0.04, v = j * 0.04, x = Math.SQRT2 * u / rec.w, y = Math.SQRT2 * v / rec.w;
+        const g = ((x * x + y * y) / 2) * Math.exp(-2 * (u * u + v * v) / (rec.w * rec.w));
+        num += g * J.cellField('Cell', nuA, { self: { I: rec.I, w: rec.w, ly: 0, comps: c }, u, v }).amp ** 2; den += g; } return num / den; },
+    tol: 0.005, rel: true, unit: '',
+    run: J => { const o = { tem: 'lg', lp: 0, ll: 1 }; J.load(satCellBench(true, o)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
+      J.load(satCellBench(false, o)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
   },
   { group: 'Optimising several parameters' },
   {
@@ -3336,9 +3356,9 @@ function laserBench(g0) {
     { type: 'mirror', name: 'OC', x: 100, y: 0, angle: 180, length: 12.7, reflect: 95, R: 250 },
     { type: 'detector', name: 'Out', x: 130, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
 }
-function satCellBench(cell) {
+function satCellBench(cell, o) {
   const lam = 299792458e9 / rigJ().atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu;
-  return bench('satcell', [src({ name: 'L', x: -60, wavelength: lam, gauss: true, w0: 0.5, width: 1, rays: 3, pol: 's', power: 0.3, popN: 256 }),
+  return bench('satcell', [src(Object.assign({ name: 'L', x: -60, wavelength: lam, gauss: true, w0: 0.5, width: 1, rays: 3, pol: 's', power: 0.3, popN: 256 }, o || {})),
     ...(cell ? [{ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb87', temp: 30 }] : []),
     screen({ name: 'S', x: 50, length: 4, absorb: false }), { type: 'detector', name: 'D', x: 70, y: 0, angle: 180, length: 5, material: 'custom', resp: 1 }]);
 }

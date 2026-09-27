@@ -224,6 +224,7 @@
   .rt-menu.rt-examples { display: block; columns: 2 15rem; column-gap: 0.3rem; width: min(33rem, calc(100vw - 2rem)); max-height: calc(100vh - 9rem); overflow-y: auto; }
   .rt-examples .rt-mgroup { break-inside: avoid; display: flex; flex-direction: column; margin-bottom: 0.3rem; }
   .rt-examples .rt-mhead { padding: 0.35rem 0.65rem 0.15rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-beta { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 4px; background: var(--jek-orange); color: #ffffff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-examples .sep { column-span: all; }
   .rt-examples .rt-menulink { display: block; column-span: all; }
   /* the optimiser's goals: one box each */
@@ -599,7 +600,13 @@
                 <button type="button" role="menuitem" data-demo="dichroic-combiner">Dichroic combiner, two tables</button>
                 <button type="button" role="menuitem" data-demo="frequency-doubling">Frequency doubling: PPLN and PPKTP</button>
               </div>
-              <div class="rt-mgroup" role="group" aria-label="Atoms and traps"><div class="rt-mhead">Atoms and traps</div>
+              <div class="rt-mgroup" role="group" aria-label="Fibre"><div class="rt-mhead">Fibre</div>
+                <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
+                <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
+                <button type="button" role="menuitem" data-demo="fibre-michelson">Fibre Michelson, Faraday mirrors</button>
+                <button type="button" role="menuitem" data-demo="fibre-amplifier">Fibre amplifier and its noise</button>
+              </div>
+              <div class="rt-mgroup" role="group" aria-label="Atoms and traps (beta)"><div class="rt-mhead">Atoms and traps<span class="rt-beta">Beta</span></div>
                 <button type="button" role="menuitem" data-demo="saturated-absorption">Saturated absorption, rubidium</button>
                 <button type="button" role="menuitem" data-demo="polarisation-spectroscopy">Polarisation spectroscopy</button>
                 <button type="button" role="menuitem" data-demo="davll-lock">DAVLL: a lock from a magnetic field</button>
@@ -609,11 +616,7 @@
                 <button type="button" role="menuitem" data-demo="optical-tweezers">Optical tweezers in water</button>
                 <button type="button" role="menuitem" data-demo="levitated-nanoparticle">Levitated nanoparticle in air</button>
               </div>
-              <div class="rt-mgroup" role="group" aria-label="Fibre and pulses"><div class="rt-mhead">Fibre and pulses</div>
-                <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
-                <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
-                <button type="button" role="menuitem" data-demo="fibre-michelson">Fibre Michelson, Faraday mirrors</button>
-                <button type="button" role="menuitem" data-demo="fibre-amplifier">Fibre amplifier and its noise</button>
+              <div class="rt-mgroup" role="group" aria-label="Pulses (beta)"><div class="rt-mhead">Pulses<span class="rt-beta">Beta</span></div>
                 <button type="button" role="menuitem" data-demo="pulse-compressor">Grating pulse compressor</button>
                 <button type="button" role="menuitem" data-demo="fibre-solitons">Self-phase modulation and a soliton</button>
               </div>

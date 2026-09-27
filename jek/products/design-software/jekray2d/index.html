@@ -105,6 +105,7 @@
   .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 6px; }
   .rt-exdrop-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: #7a5a44; }   /* the page's sand, deepened to read on white */
   .rt-exdrop-count { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-beta { display: inline-block; margin-left: 0.55rem; padding: 0.12rem 0.5rem; border-radius: 4px; background: var(--jek-orange); color: #ffffff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 0.15em; }
   .rt-exdrop > summary::after { content: '\25BE'; font-size: 0.95rem; color: #7a5a44; transition: transform 0.2s ease; }
   .rt-exdrop[open] > summary::after { transform: rotate(180deg); }
   .rt-exdrop > summary:hover .rt-exdrop-title { color: #5e4332; }
@@ -545,7 +546,44 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Atoms and traps</span><span class="rt-exdrop-count">8 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Fibre</span><span class="rt-exdrop-count">4 examples</span></summary>
+        <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
+          <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre heterodyne</h3>
+            <p>A fibre Mach–Zehnder with an 80 MHz AOM in one arm. The photodiode shows the beat note in its RF spectrum and on its oscilloscope.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=split-laser">
+          <img src="img/split-laser.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Two launches from one laser</h3>
+            <p>One fibre laser split by a coupler into two collimated launches that meet on a cube. Change the fibre lengths or the coherence length and watch the fringe contrast.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-michelson">
+          <img src="img/fibre-michelson.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre Michelson, Faraday mirrors</h3>
+            <p>A circulator, a coupler and two Faraday mirrors. Turn the polarisation controller: the fringes keep full contrast.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-amplifier">
+          <img src="img/fibre-amplifier.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Fibre amplifier and its noise</h3>
+            <p>A weak signal through 20 km of fibre and an erbium amplifier. Its spontaneous emission reaches both photodiodes; a narrow filter takes out most of it.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+      </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Atoms and traps<span class="rt-beta">Beta</span></span><span class="rt-exdrop-count">8 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=saturated-absorption">
           <img src="img/saturated-absorption.png" alt="" loading="lazy">
@@ -614,40 +652,8 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Fibre and pulses</span><span class="rt-exdrop-count">6 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Pulses<span class="rt-beta">Beta</span></span><span class="rt-exdrop-count">2 examples</span></summary>
         <div class="rt-example-grid">
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-heterodyne">
-          <img src="img/fibre-heterodyne.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Fibre heterodyne</h3>
-            <p>A fibre Mach–Zehnder with an 80 MHz AOM in one arm. The photodiode shows the beat note in its RF spectrum and on its oscilloscope.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=split-laser">
-          <img src="img/split-laser.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Two launches from one laser</h3>
-            <p>One fibre laser split by a coupler into two collimated launches that meet on a cube. Change the fibre lengths or the coherence length and watch the fringe contrast.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-michelson">
-          <img src="img/fibre-michelson.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Fibre Michelson, Faraday mirrors</h3>
-            <p>A circulator, a coupler and two Faraday mirrors. Turn the polarisation controller: the fringes keep full contrast.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=fibre-amplifier">
-          <img src="img/fibre-amplifier.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Fibre amplifier and its noise</h3>
-            <p>A weak signal through 20 km of fibre and an erbium amplifier. Its spontaneous emission reaches both photodiodes; a narrow filter takes out most of it.</p>
-            <span class="rt-open">Open in JEKray2D →</span>
-          </div>
-        </a>
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=pulse-compressor">
           <img src="img/pulse-compressor.png" alt="" loading="lazy">
           <div class="rt-example-body">
@@ -664,7 +670,7 @@
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
-        </div>
+      </div>
       </details>
       <details class="rt-exdrop">
         <summary><span class="rt-exdrop-title">From a paper</span><span class="rt-exdrop-count">1 example</span></summary>

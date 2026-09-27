@@ -3303,6 +3303,36 @@ const TESTS = [
     run: J => { const o = { tem: 'lg', lp: 0, ll: 1 }; J.load(satCellBench(true, o)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
       J.load(satCellBench(false, o)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
   },
+  { group: 'Dipole traps' },
+  {
+    name: 'Rubidium\u2019s polarisability at 1064 nm is the published one',
+    why: 'from the D lines with their counter-rotating terms and the ion core: against 687.3 atomic units (Safronova, Williams and Clark 2006)',
+    want: 687.3, tol: 0.01, rel: true, unit: ' a.u.',
+    run: J => J.trapAlpha('Rb87', 1064)[0] * 8.8541878128e-12 / 1.64877727436e-41,
+  },
+  {
+    name: 'A Gaussian focus traps as its formulas say, wherever the screen is',
+    why: '1 W at 1064 nm focused to w\u2080 = 50 \u00b5m, the screen 0.3 Rayleigh ranges short of the waist: the brightest point found there, radial frequency \u221a(4U/mw\u2080\u00b2)/2\u03c0 and axial \u221a(2U/mz\u1d3f\u00b2)/2\u03c0 for \u2078\u2077Rb, at the depth U it reports; round and 2D field (worst relative error, the focus position in Rayleigh ranges)',
+    want: 0, tol: 0.003, unit: '',
+    run: J => {
+      const w0 = 0.05, zR = Math.PI * w0 * w0 / 1064e-6, m = 86.909180527 * 1.66053906660e-27;
+      let worst = 0;
+      for (const model of ['auto', '2d']) {
+        J.load(bench('trap', [src({ name: 'L', x: -100, wavelength: 1064, gauss: true, w0, z0: 100 + 0.3 * zR, width: 0.1, rays: 1, pol: 's', power: 1000, popN: 256, popModel: model }),
+          screen({ name: 'S', x: 0, length: 4, absorb: false, trap: 'Rb87' })]));
+        const T = J.trap('S'), U = T.depthK * 1.380649e-23, fr = Math.sqrt(4 * U / (m * (w0 * 1e-3) ** 2)) / (2 * Math.PI), fz = Math.sqrt(2 * U / (m * (zR * 1e-3) ** 2)) / (2 * Math.PI);
+        const I0 = 2 / (Math.PI * (w0 * 1e-3) ** 2);
+        worst = Math.max(worst, Math.abs(T.fx / fr - 1), Math.abs(T.fy / fr - 1), Math.abs(T.fz / fz - 1), Math.abs(T.dz / zR - 0.3), Math.abs(T.I / I0 - 1));
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'Light blue of the D lines makes a barrier, not a trap',
+    why: '532 nm on rubidium: the light shift is positive and there are no trap frequencies',
+    want: 1, tol: 0, unit: '',
+    run: J => { const P = J.trapPhysics('Rb87', 532, 1e9, 1, 1, 1); return P.U > 0 && !P.trap && P.fx === null ? 1 : 0; },
+  },
   { group: 'Optimising several parameters' },
   {
     name: 'Two parameters, two goals: a lens moved to its focus and onto the axis',

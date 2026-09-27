@@ -95,6 +95,7 @@ Signs:
 - **A laser from parts:** a gain element ("g0", "isat", "centre" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.
 - **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector.
 - **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
+- **Optical dipole trap:** focus the trapping laser with a lens and put a screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on). Its Trap tab gives the depth, scattering rate, heating and trap frequencies at the brightest point of the beam, from the diffracted field.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
@@ -203,6 +204,7 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | binInterp | `true` | true interpolates the rays into the bins. |
 | mapScale | `"lin"` | "lin" or "log" irradiance map. |
 | vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams. |
+| trap | `"none"` | "none" or an atom ("Rb87", "Rb85", "Cs133", "K39", "Na23") to read a dipole trap for at the brightest point of the beam arriving here: depth, scattering and trap frequencies (the Trap tab). |
 | mtfFreq | `50` | lp/mm at which the MTF is quoted. |
 
 ### "stop": Stop

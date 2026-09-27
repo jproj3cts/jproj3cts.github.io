@@ -1,0 +1,159 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Optical dipole trap, rubidium",
+  "saved": "2026-09-27T16:42:05.849Z",
+  "view": {
+    "cx": 60,
+    "cy": 0,
+    "scale": 5
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 60,
+        "cy": 0,
+        "scale": 5
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "1064 nm laser, 2 W",
+      "x": -40,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1064,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 5,
+      "power": 2000,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "name": "Lens, f 100 mm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3.6
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "trap",
+      "type": "screen",
+      "name": "Trap at the focus",
+      "x": 101,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 3,
+      "absorb": false,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "Rb87",
+      "mtfFreq": 50,
+      "sweeps": {}
+    },
+    {
+      "id": "dump",
+      "type": "screen",
+      "name": "Beam dump",
+      "x": 180,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 12,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "none",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A single-beam optical dipole trap: 2 W of 1064 nm light, collimated at 2 mm diameter, focused by a 100 mm plano-convex lens to a waist of about 34 µm. Far red of rubidium’s D lines, the light pulls atoms towards the brightest point. Select the screen at the focus and open its Trap tab: for ⁸⁷Rb the trap is about 150 µK deep (8% of the light is lost to the uncoated lens’s reflections), with radial trap frequencies near 1.1 kHz and an axial one near 8 Hz, while each atom scatters a photon only every couple of seconds. Change the atom, the power or the lens and watch the numbers; halve the laser’s beam size and the focus doubles in width, so the trap is four times shallower and its frequencies drop. The screen lets the light through to the dump."
+}

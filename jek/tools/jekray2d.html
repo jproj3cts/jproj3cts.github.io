@@ -343,6 +343,7 @@
   }
   .rt-tab.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   .rt-tab.empty { opacity: 0.45; }
+  .rt-muted { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-lab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 0.5rem; }
   .rt-lab label { white-space: nowrap; }
@@ -7536,6 +7537,11 @@ function drawPulse(cv, el, view) {
   drawAxes(g, A, xr, yr, sx, sy);
 }
 /* the pulse section of a screen's, photodiode's or fibre tip's panel */
+/* with nothing pulsed on the bench, the section is there but greyed, as the screens' Pulse tab is */
+function pulseSectionEmpty() {
+  panel.append(h('h3', { class: 'rt-muted' }, 'Pulse'),
+    h('p', { class: 'note rt-muted' }, 'No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'));
+}
 function pulseSection(el) {
   const vsEl = vs(el);
   vsEl.pulseView = vsEl.pulseView || 'time';
@@ -7995,7 +8001,7 @@ function fibrePanel(el) {
     selectField('Show it as', [['envelope', 'Gaussian envelope'], ['field', 'Diffracted field']], () => el.emitView, v => { el.emitView = v; }),
     param('Rays', el, 'emitRays')));
   panel.append(readoutBox('fibre'));
-  if (anyPulse()) pulseSection(el);
+  if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
   else panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
@@ -8013,7 +8019,7 @@ function detectorPanel(el) {
     param('Output limit (V)', el, 'vmax', { wide: true })));
   panel.append(readoutBox('detector'));
   signalSection(el);
-  if (anyPulse()) pulseSection(el);
+  if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the bandwidth.'));
 }
 function faradayPanel(el) {

@@ -3097,6 +3097,18 @@ const TESTS = [
     run: J => pulseGDD(J, treacyPair().els),
   },
   {
+    name: 'A glass stretcher and a grating compressor net to zero',
+    why: 'a 100 fs pulse through 50 mm of N-SF11, then a Treacy pair set by its formula to cancel the glass\u2019s GDD: stretched to nearly three times its limit in between, the net GDD under 0.5% of the glass\u2019s, and the pulse back at its transform limit (duration over limit)',
+    want: 1, tol: 0.01, unit: '',
+    run: J => {
+      const glass = 50 * glassGDD('N-SF11', 800), G = 40 * glass / -treacyPair(40).want;
+      const T = treacyPair(G, [pulseSrc({ x: -100, width: 1, tau: 100 }), Object.assign(windowOf('N-SF11', 50), { name: 'Stretcher', x: -50 })]);
+      J.load(bench('st', [T.els[0], T.els[1], screen({ name: 'Mid', x: 0, length: 20 })])); const M = J.pulse('Mid');
+      J.load(bench('sc', T.els)); const R = J.pulse(T.els[T.els.length - 1].name), net = R.branches[R.main - 1].GDD;
+      return Math.abs(net) < 0.005 * glass && M.dur > 2 * M.tl ? R.dur / R.tl : NaN;
+    },
+  },
+  {
     name: 'A prism pair: its GDD falls with separation as the angular dispersion says',
     why: 'two fused silica equilateral prisms at minimum deviation, 200 then 400 mm apart: the slope is −λ³(dθ/dλ)²/(2πc²), dθ/dλ = 2 sin(A/2) n′/cos θ (Fork et al.)',
     wantFrom: () => prismPair(null, 0).slope, tol: 0.005, rel: true, unit: ' fs²/mm',
@@ -3399,13 +3411,13 @@ function glassGDD(glass, nm) {
   const lmm = nm * 1e-6, c = 2.99792458e-4;
   return lmm ** 3 / (2 * Math.PI * c * c) * d2;
 }
-function treacyPair() {
-  const d2r = Math.PI / 180, lam = 800, lpmm = 600, A = 150, G = 40;
+function treacyPair(G = 40, pre) {
+  const d2r = Math.PI / 180, lam = 800, lpmm = 600, A = 150;
   const ty = Math.sin(-A * d2r) + lam * 1e-6 * lpmm, th = Math.asin(ty), ang = A + th / d2r;
   const bs = G / Math.cos(th), x2 = 50 + bs * Math.cos(ang * d2r), y2 = bs * Math.sin(ang * d2r);
   const c = 299792458, d = 1e-3 / lpmm, L = lam * 1e-9;
   return { want: -(L ** 3) * (G * 1e-3) / (2 * Math.PI * c * c * d * d * Math.cos(th) ** 3) * 1e30, els: [
-    pulseSrc({ x: 0, width: 1 }),
+    ...(pre ? pre : [pulseSrc({ x: 0, width: 1 })]),
     { type: 'grating', name: 'G1', x: 50, y: 0, angle: A, lpmm, length: 8, blaze: 800, eff: 90 },
     { type: 'grating', name: 'G2', x: x2, y: y2, angle: A - 180, lpmm, length: 14, blaze: 800, eff: 90 },
     screen({ x: x2 + 60, y: y2, length: 60 })] };

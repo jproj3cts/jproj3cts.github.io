@@ -105,17 +105,61 @@ body.ground-anomalies .page-title,
 body.ground-anomalies .page-lede {
   text-shadow: 0 1px 3px rgba(0, 20, 40, 0.55);
 }
-/* Keep the label readable over the valley: a dark strip under the stamp */
-body.ground-anomalies .info-line,
-body.ground-anomalies .image-item .description {
-  background: rgba(4, 12, 9, 0.72);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
+/* Each label is a yellow luggage tag hanging from its stamp on a string:
+   clipped top corners, a punched and reinforced hole, a slight tilt. The
+   tag's shape is drawn on ::after so the string on ::before isn't clipped. */
+body.ground-anomalies .tag {
+  --tag-yellow: #f3c94b;
+  --tag-hole-y: 16px;
+  position: relative;
+  margin-top: 26px;
+  padding: 34px 16px 16px;
+  color: #231c0e;
+  transform-origin: 50% var(--tag-hole-y);
+  transform: rotate(-1.5deg);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
-body.ground-anomalies .info-line { border-top: 0; padding-top: 0.7rem; }
-body.ground-anomalies .image-item .description { margin-top: 0; padding-top: 0.5rem; padding-bottom: 0.75rem; }
+body.ground-anomalies .image-item:nth-child(even) .tag { transform: rotate(1.5deg); }
+
+body.ground-anomalies .tag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% var(--tag-hole-y),
+      #0000 5.5px, #d4a62a 6px 9px, #0000 9.5px),
+    var(--tag-yellow);
+  clip-path: polygon(22px 0, calc(100% - 22px) 0, 100% 22px,
+                     100% 100%, 0 100%, 0 22px);
+  -webkit-mask: radial-gradient(circle at 50% var(--tag-hole-y), #0000 5.5px, #000 6px);
+  mask: radial-gradient(circle at 50% var(--tag-hole-y), #0000 5.5px, #000 6px);
+}
+
+/* The string, from the bottom of the stamp through the hole */
+body.ground-anomalies .tag::before {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  top: -26px;
+  width: 2px;
+  height: calc(26px + var(--tag-hole-y));
+  background: #e8e0cc;
+  border-radius: 1px;
+}
+
+body.ground-anomalies .tag .info-line {
+  margin: 0;
+  padding: 0 0 0.55rem;
+  border-top: 0;
+  border-bottom: 1px dashed rgba(35, 28, 14, 0.45);
+}
+body.ground-anomalies .tag .price { color: #9b2a1c; }
+body.ground-anomalies .tag .title { color: #231c0e; }
+body.ground-anomalies .tag .description {
+  margin: 0.55rem 0 0;
+  color: rgba(35, 28, 14, 0.82);
+}
 
 /* --------------------------------------------------------------------------
    Base

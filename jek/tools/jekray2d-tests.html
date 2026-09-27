@@ -2564,6 +2564,16 @@ const TESTS = [
       return J.stats('SA').powerPct + J.stats('SB').powerPct;
     },
   },
+  {
+    name: 'and a stop\u2019s stopped power, the sources that reach it',
+    why: 'the same two lasers, a beam block across the split one: it stops 100% of that source\u2019s light, whatever the other sends out',
+    want: 100, tol: 1e-6, unit: '%',
+    run: J => {
+      J.load(bench('two', [src({ id: 'A', name: 'A', x: -60, y: 20, rays: 1, width: 1, power: 10 }), src({ id: 'B', name: 'B', x: -60, y: -20, rays: 7, width: 2, power: 1, splitFrom: 'A' }),
+        { type: 'stop', name: 'Block', x: 0, y: -20, angle: 0, shape: 'disc', aperture: 10, offset: 0, outer: 25.4 }, screen({ name: 'SA', x: 60, y: 20, length: 10 })]));
+      return J.metric('Block', 'blocked');
+    },
+  },
   { group: 'Higher-order beams and phase masks' },
   {
     name: 'Hermite–Gauss modes are √(2m + 1) and √(2n + 1) wider than their Gaussian',

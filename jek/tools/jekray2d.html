@@ -14920,6 +14920,38 @@ const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teach
    after #, which browsers never send to the server: the link is the file. It opens through
    the same door as a pasted project, so a damaged link gets the same report. */
 const SHARE_LONG = 2000;                 // characters past which some apps cut a link
+/* The panels as they are: the element shown, those pinned (in order), each one's tab and plot
+   choices and where each panel and the page are scrolled. A link carries them, so whoever
+   opens it sees what was being looked at and can press Play straight away. */
+const plainVal = x => typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean';
+function uiState() {
+  const views = {}, ids = new Set([selectedId, ...pins].filter(Boolean));
+  for (const id of ids) if (viewState.has(id)) {
+    const v = {};
+    for (const [k, x] of Object.entries(viewState.get(id))) if (plainVal(x)) v[k] = x;
+    views[id] = v;
+  }
+  const scroll = { main: Math.round(mainPanel.scrollTop), page: Math.round(window.scrollY || 0) };
+  for (const [id, box] of pinBoxes) scroll[id] = Math.round(box._hold != null ? box._hold : box.scrollTop);
+  return { sel: selectedId, pins: pins.slice(), views, scroll };
+}
+function applyUi(ui) {
+  if (!ui || typeof ui !== 'object') return;
+  for (const [id, v] of Object.entries(ui.views || {})) {
+    const el = getEl(id);
+    if (el && v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (plainVal(x)) vs(el)[k] = x;
+  }
+  pins = (Array.isArray(ui.pins) ? ui.pins : []).filter(id => typeof id === 'string' && getEl(id));
+  if (typeof ui.sel === 'string' && getEl(ui.sel)) selectOne(ui.sel);
+  traceScene();
+  renderPanel(); requestRender();
+  const sc = ui.scroll && typeof ui.scroll === 'object' ? ui.scroll : {};
+  requestAnimationFrame(() => {
+    if (sc.main > 0) holdScroll(mainPanel, sc.main);
+    for (const [id, box] of pinBoxes) if (sc[id] > 0) holdScroll(box, sc[id]);
+    if (sc.page > 0) window.scrollTo(0, sc.page);
+  });
+}
 function shareData() {
   const d = serialize(), multi = d.benches.length > 1;
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -14958,6 +14990,8 @@ function shareData() {
     return o;
   });
   if (d.measures.length) out.measures = d.measures;
+  const ui = uiState();
+  if (ui.sel || ui.pins.length || ui.scroll.page) out.ui = ui;
   return out;
 }
 const b64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -14988,7 +15022,7 @@ async function shareLink() {
   box.value = url;
   note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
-    : 'Anyone with the link opens this bench as it is now; nothing is uploaded, the bench travels in the link itself.');
+    : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
   dlg.showModal(); box.focus(); box.select();
   try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
   catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
@@ -15181,6 +15215,8 @@ function openProjectData(data, label) {
   if (!raw.view) fitView();
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
+  // a link (or an example) may say which panels to show and how
+  if (raw.ui) applyUi(raw.ui);
   return notes;
 }
 function showImportReport(notes) {
@@ -16159,6 +16195,13 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const d = JSON.parse(new TextDecoder().decode(unb64u(h.slice(1)))); openProjectData(d, 'test'); const after = JSON.stringify(Object.assign(serialize(), { saved: '' }));
       return { same: before === after, before, after, length: h.length }; },
     shareHash: () => shareHash(),
+    uiState: () => uiState(),
+    pin(name) { const el = this.byName(name); if (el && !pins.includes(el.id)) togglePin(el); return pins.slice(); },
+    // a link's panels, there and back: pins, selection and tabs as sent against as opened
+    shareUiRoundTrip() { const before = uiState(), d = JSON.parse(JSON.stringify(shareData())); pins = []; viewState.clear(); selectOne(null); openProjectData(d, 'test');
+      const after = uiState(); return { before, after, same: JSON.stringify([before.sel, before.pins, before.views]) === JSON.stringify([after.sel, after.pins, after.views]) }; },
+    pinned: () => pins.slice(),
+    panelOf: id => pinBoxes.get(id) || null,
     openShareHash,
     aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },

@@ -3412,6 +3412,24 @@ const TESTS = [
       return lo * hi < 0 && Math.abs(lo) > 0.01 && Math.abs(hi) > 0.01 && Math.abs(sig(780.24373 + dl, true)) < 1e-4 ? 1 : 0;
     },
   },
+  { group: 'Tracing' },
+  {
+    name: 'The bench is traced again only when it changes',
+    why: 'a redraw, a selection or a pan leaves the trace as it is; moving a lens, or changing the bench’s settings, traces it again; loading the same bench again traces it afresh',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('memo', [src({ name: 'S', x: -40 }), bk7Lens({ name: 'L' }), screen({ name: 'Sc', x: 60 })]));
+      const n0 = J.traceInfo().count;
+      J.select('L'); J.select('Sc');
+      const same = J.traceInfo().count === n0 && J.traceInfo().current;
+      J.byName('L').x += 1; J.select('L');
+      const moved = J.traceInfo().count === n0 + 1;
+      J.project().minPower = 0.05; J.select('L');
+      const settings = J.traceInfo().count === n0 + 2;
+      J.load(J.serialize());
+      return same && moved && settings && J.traceInfo().count === n0 + 3 ? 1 : 0;
+    },
+  },
   { group: 'The close-up' },
   {
     name: 'The close-up counts beams, not the pieces a screen cuts them into',

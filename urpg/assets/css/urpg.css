@@ -329,6 +329,13 @@ body {
   max-width: 760px;
 }
 
+/* A lone product (For Makers) keeps the width of one column of three
+   rather than stretching across the whole grid */
+.image-grid:has(> .image-item:only-child) {
+  grid-template-columns: minmax(0, 234px);
+  justify-content: center;
+}
+
 /* On Anomalies (and anywhere .stamp is used) each product is a postage stamp: the cover sits on a paper border with
    perforated edges, and the title, price and description sit underneath
    like a label in a stamp album. No card box around the whole tile. */
@@ -372,13 +379,17 @@ body.ground-anomalies .image-item > a::before,
 }
 
 /* Lifted off the page: a small tilt and a longer shadow */
-body.ground-anomalies .image-item > a:hover,
-.stamp:hover {
+body.ground-anomalies .image-item > a:hover {
   transform: translateY(-3px) rotate(-1.25deg);
   filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
 }
 
+/* Donation stamps stay put on hover and grey out instead */
+.stamp:hover { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)) grayscale(1) brightness(0.7); }
+
+/* Core and For Makers: the cover in a plain white border */
 .image-item > a { display: block; }
+body:not(.ground-anomalies) .image-item > a { border: 6px solid #fff; }
 
 .image-item > a:focus-visible {
   outline: 2px solid var(--urpg-accent);

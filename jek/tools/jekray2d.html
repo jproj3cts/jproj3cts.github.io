@@ -226,6 +226,10 @@
   .rt-examples .rt-mhead { padding: 0.35rem 0.65rem 0.15rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
   .rt-examples .sep { column-span: all; }
   .rt-examples .rt-menulink { display: block; column-span: all; }
+  /* the optimiser's goals: one box each */
+  .rt-opt-h { margin: 0.9rem 0 0.35rem; font-size: 0.9rem; }
+  .rt-opt-term { border: 1px solid var(--jek-line); border-radius: 6px; padding: 0.6rem 0.7rem; margin-top: 0.5rem; }
+  .rt-opt-del { text-align: right; margin-top: 0.4rem; }
   .rt-menu .sep { height: 1px; margin: 0.25rem 0.3rem; background: var(--jek-line); }
   .rt-menu button .k { float: right; margin-left: 1.5rem; color: var(--jek-ink-soft); font-size: 0.78rem; }
   .rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; }
@@ -648,7 +652,7 @@
           <button class="rt-btn" id="btnPlayAll" disabled>Play all</button>
           <button class="rt-btn" id="btnPauseAll" disabled>Pause all</button>
           <button class="rt-btn" id="btnSync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
-          <button class="rt-btn" id="btnOptimise" disabled title="Search a swept range for the best value">Optimise…</button>
+          <button class="rt-btn" id="btnOptimise" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
           <button class="rt-btn" id="btnTol" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
         </div>
         <div class="rt-group rt-right">
@@ -733,21 +737,20 @@
     </div>
   </dialog>
 
-  <dialog class="rt-dialog" id="optDialog">
-    <h2>Optimise one value</h2>
-    <p>Searches a swept parameter over its From–To range for the setting that gives the best result. Give the value a sweep first; its range is the search range.</p>
-    <div class="rt-rows">
-      <div class="rt-f wide"><label for="optVar">Vary</label><select id="optVar"></select></div>
-      <div class="rt-f"><label for="optTarget">Measured on</label><select id="optTarget"></select></div>
-      <div class="rt-f wide"><label>Measured with</label><div class="rt-tabs" id="optFam" style="margin:0"></div></div>
-      <div class="rt-f"><label for="optMetric">Metric</label><select id="optMetric"></select></div>
-      <div class="rt-f"><label for="optGoal">Looking for</label><select id="optGoal"></select></div>
-      <div class="rt-f" id="optTargetWrap" hidden><label for="optTargetVal">Target</label><input id="optTargetVal" type="text" inputmode="decimal"></div>
-    </div>
+  <dialog class="rt-dialog rt-wide" id="optDialog">
+    <h2>Optimise</h2>
+    <p>Varies the swept parameters you tick, each within its From–To range, for the best result on the goals below. Give a value a sweep first; its range is where it is searched. With several goals, each counts against its size at the start, times its weight.</p>
+    <h3 class="rt-opt-h">Vary</h3>
+    <div id="optVars" class="rt-tol-vars"></div>
+    <h3 class="rt-opt-h">Goals</h3>
+    <div id="optTerms"></div>
+    <button class="rt-btn" type="button" id="optAddTerm" style="margin-top:0.4rem">Add a goal</button>
     <canvas id="optScan" height="120" style="width:100%;margin-top:0.75rem;display:none"></canvas>
     <p id="optResult" class="rt-hint"></p>
+    <div id="optTable" class="rt-readout" hidden></div>
     <div class="rt-actions">
       <button class="rt-btn" id="optClose">Close</button>
+      <button class="rt-btn" id="optStop" hidden>Stop</button>
       <button class="rt-btn primary" id="optRun">Run</button>
     </div>
   </dialog>
@@ -6329,6 +6332,135 @@ function optimise(el, path, target, key, goal, targetVal) {
   const bestValue = metricRaw(target, key);
   if (!improved) { setParam(el, path, start); traceScene(); }
   return { best, bestMerit, startMerit, start, traces, improved, scan, bestValue, startValue };
+}
+
+/* ---------- Several parameters against several goals ----------
+   vars: [[el, path]], each searched within its sweep's From-To range. terms: goals, each
+   { target, key, goal, targetVal, weight }. With one goal the merit is that goal's own (as
+   the one-parameter search has it); with more, each is divided by its size at the start
+   (for "match", by its distance from the target then) and weighted, so goals in different
+   units add up sensibly, and 1 on each means "as far from the start as it was".
+   One parameter: a scan over its range and a golden-section search in the best bracket.
+   More: a spread of samples across the ranges (a Latin hypercube, the start included), then
+   Nelder-Mead from the best of them in the ranges scaled to 0-1, clamped to them. */
+function* optimiseGen(vars, terms, opts) {
+  opts = opts || {};
+  pauseAll();
+  const n = vars.length;
+  const rng = vars.map(([el, path]) => { const sw = el.sweeps[path]; return [Math.min(sw.min, sw.max), Math.max(sw.min, sw.max)]; });
+  const start = vars.map(([el, path]) => getPath(el, path));
+  const toX = u => u.map((v, i) => rng[i][0] + (rng[i][1] - rng[i][0]) * clamp(v, 0, 1));
+  const toU = x => x.map((v, i) => rng[i][1] > rng[i][0] ? (v - rng[i][0]) / (rng[i][1] - rng[i][0]) : 0);
+  const set = x => { vars.forEach(([el, path], i) => setParam(el, path, x[i])); traceScene(); };
+  const raws = () => terms.map(t => metricRaw(t.target, t.key));
+  // sizes for normalising, from the start
+  set(start);
+  const raw0 = raws();
+  const scale = terms.map((t, i) => {
+    if (terms.length === 1) return 1;
+    const v = raw0[i];
+    if (v === null) return 1;
+    const s = t.goal === 'match' ? Math.abs(v - t.targetVal) : Math.abs(v);
+    return s > 1e-12 ? s : 1;
+  });
+  const meritOf = rs => {
+    let m = 0;
+    for (let i = 0; i < terms.length; i++) {
+      const t = terms[i], v = rs[i];
+      if (v === null || !isFinite(v)) return Infinity;
+      const M = metricByKey(t.key);
+      const f = t.goal === 'max' ? -v : t.goal === 'match' ? Math.abs(v - t.targetVal) : (M && M.absolute ? Math.abs(v) : v);
+      m += (terms.length === 1 ? 1 : (t.weight > 0 ? t.weight : 1)) * f / scale[i];
+    }
+    return m;
+  };
+  let evals = 0, best = { m: Infinity, x: start.slice(), raw: raw0 };
+  const history = [], scan = [];
+  // asked to stop: every further evaluation is skipped, and the searches run out at once
+  let stopped = false;
+  const f = u => {
+    if (!stopped && opts.stop && opts.stop()) { stopped = true; evals = Math.max(evals, budget); }
+    if (stopped) return Infinity;
+    const x = toX(u); set(x); evals++;
+    const rs = raws(), m = meritOf(rs);
+    if (m < best.m) best = { m, x: x.slice(), raw: rs };
+    history.push(best.m);
+    return m;
+  };
+  const startMerit = meritOf(raw0);
+  best = { m: startMerit, x: start.slice(), raw: raw0 };
+  history.push(startMerit);
+  let budget = opts.budget || (n === 1 ? 90 : Math.min(600, 80 + 70 * n));
+  if (n === 1) {
+    const N = 40;
+    let bi = 0, bv = Infinity;
+    for (let i = 0; i <= N; i++) { const m = f([i / N]); scan.push({ v: toX([i / N])[0], m, raw: best && terms.length === 1 ? metricRaw(terms[0].target, terms[0].key) : m }); if (m < bv) { bv = m; bi = i; } yield { evals, budget, best: best.m }; }
+    let a = Math.max(0, bi - 1) / N, b = Math.min(N, bi + 1) / N;
+    const g = (Math.sqrt(5) - 1) / 2;
+    let c = b - g * (b - a), d = a + g * (b - a), fc = f([c]), fd = f([d]);
+    for (let it = 0; it < 40 && (b - a) > 1e-5 && !stopped; it++) {
+      if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = f([c]); }
+      else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = f([d]); }
+      yield { evals, budget, best: best.m };
+    }
+  } else {
+    // a Latin hypercube: each range cut into S strata, one sample in each, shuffled per axis
+    const S = Math.min(80, 10 + 10 * n);
+    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
+    const P = vars.map(perm), samples = [{ u: toU(start), m: startMerit }];
+    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + Math.random()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
+    samples.sort((a, b) => a.m - b.m);
+    // Nelder-Mead from the best sample, then once more from where it ended with a small simplex
+    const nm = function* (u0, step) {
+      let simp = [u0.slice()];
+      for (let i = 0; i < n; i++) { const u = u0.slice(); u[i] = u[i] + step <= 1 ? u[i] + step : u[i] - step; simp.push(u); }
+      let vals = simp.map(u => f(u));
+      const cl = u => u.map(v => clamp(v, 0, 1));
+      while (evals < budget) {
+        const o = simp.map((u, i) => i).sort((a, b) => vals[a] - vals[b]);
+        simp = o.map(i => simp[i]); vals = o.map(i => vals[i]);
+        const size = Math.max(...simp.slice(1).map(u => Math.max(...u.map((v, i) => Math.abs(v - simp[0][i])))));
+        if (size < 1e-5 || Math.abs(vals[n] - vals[0]) < 1e-12 * (1 + Math.abs(vals[0])) && size < 1e-3) break;
+        const cen = simp[0].map((_, i) => simp.slice(0, n).reduce((s, u) => s + u[i], 0) / n);
+        const along = (t) => cl(cen.map((c, i) => c + t * (simp[n][i] - c)));
+        const xr = along(-1), fr = f(xr);
+        if (fr < vals[0]) { const xe = along(-2), fe = f(xe); if (fe < fr) { simp[n] = xe; vals[n] = fe; } else { simp[n] = xr; vals[n] = fr; } }
+        else if (fr < vals[n - 1]) { simp[n] = xr; vals[n] = fr; }
+        else {
+          const xc = fr < vals[n] ? along(-0.5) : along(0.5), fc = f(xc);
+          if (fc < Math.min(fr, vals[n])) { simp[n] = xc; vals[n] = fc; }
+          else for (let i = 1; i <= n; i++) { simp[i] = cl(simp[i].map((v, k) => simp[0][k] + 0.5 * (v - simp[0][k]))); vals[i] = f(simp[i]); }
+        }
+        yield { evals, budget, best: best.m };
+      }
+    };
+    yield* nm(samples[0].u, 0.08);
+    if (evals < budget) yield* nm(toU(best.x), 0.01);
+  }
+  const improved = best.m < startMerit;
+  set(improved ? best.x : start);
+  return { vars, terms, start, best: best.x, startMerit, bestMerit: best.m, improved, evals: stopped ? history.length - 1 : evals, history, scan, raw0, rawBest: improved ? best.raw : raw0, scale, stopped };
+}
+/* the whole search at once (the tests, and a script) */
+function optimiseMany(vars, terms, opts) {
+  const g = optimiseGen(vars, terms, opts);
+  let r; do r = g.next(); while (!r.done);
+  return r.value;
+}
+/* how the best merit fell, trace by trace */
+function drawConvergence(cv, hist) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, hgt = 120;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+  const ys = hist.filter(isFinite);
+  plotCsv(cv, 'optimiser merit', ['trace', 'best_merit'], () => hist.map((m, i) => [i, m]));
+  if (ys.length < 2) return;
+  let y0 = Math.min(...ys), y1 = Math.max(...ys); if (y1 - y0 < 1e-12) { y0 -= 1; y1 += 1; }
+  const A = plotArea(c, w, hgt, [y0, y1], { kind: 'plain', title: 'best merit so far' }, { top: 20 });
+  c.strokeStyle = getCss('--jek-cyan'); c.lineWidth = 1.5; c.beginPath();
+  hist.forEach((m, i) => { if (!isFinite(m)) return; const X = A.l + i / (hist.length - 1) * A.w, Y = A.t + A.h - (m - y0) / (y1 - y0) * A.h; i ? c.lineTo(X, Y) : c.moveTo(X, Y); });
+  c.stroke();
+  drawAxes(c, A, [0, hist.length - 1], [y0, y1], { kind: 'plain', title: 'trace' }, { kind: 'plain', title: 'best merit so far' });
 }
 
 /* The axis a metric's values go on: lengths get the length units, the rest their own format */
@@ -14885,66 +15017,101 @@ function fillMetrics(targetSel, metricSel, famBox) {
 
 {
   const dlg = document.getElementById('optDialog');
-  const varSel = document.getElementById('optVar');
-  const targetSel = document.getElementById('optTarget'), metricSel = document.getElementById('optMetric');
-  const goalSel = document.getElementById('optGoal'), tWrap = document.getElementById('optTargetWrap');
-  const tVal = document.getElementById('optTargetVal');
-  const famBox = document.getElementById('optFam');
-  const result = document.getElementById('optResult'), scanCv = document.getElementById('optScan');
+  const varsBox = document.getElementById('optVars'), termsBox = document.getElementById('optTerms');
+  const result = document.getElementById('optResult'), scanCv = document.getElementById('optScan'), table = document.getElementById('optTable');
+  const runBtn = document.getElementById('optRun'), stopBtn = document.getElementById('optStop');
   scanCv.after(plotSaveRow(scanCv, true));
-
-  const fillGoals = () => {
-    const m = metricByKey(metricSel.value);
-    goalSel.replaceChildren();
-    if (!m) return;
-    for (const g of m.goals) goalSel.append(h('option', { value: g }, GOAL_LABEL[g]));
-    showTarget();
-  };
-  const showTarget = () => {
-    const match = goalSel.value === 'match';
-    tWrap.hidden = !match;
-    if (match && !tVal.value) {
-      const now = metricRaw(getEl(targetSel.value), metricSel.value);
+  let job = null;
+  // one goal: what it is measured on, with what, which way, and its weight among several
+  const termRow = k => {
+    const targetSel = h('select'), metricSel = h('select'), goalSel = h('select'), famBox = h('div', { class: 'rt-tabs', style: 'margin:0' });
+    const tVal = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'target' }), wVal = h('input', { type: 'text', inputmode: 'decimal', value: '1' });
+    const tWrap = h('div', { class: 'rt-f', hidden: '' }, h('label', null, 'Target'), tVal), wWrap = h('div', { class: 'rt-f' }, h('label', null, 'Weight'), wVal);
+    const del = h('button', { class: 'rt-btn', type: 'button', title: 'Remove this goal', onclick: () => { row.remove(); relabel(); } }, 'Remove');
+    const row = h('div', { class: 'rt-opt-term' },
+      h('div', { class: 'rt-rows' },
+        h('div', { class: 'rt-f' }, h('label', null, 'Measured on'), targetSel),
+        h('div', { class: 'rt-f wide' }, h('label', null, 'Measured with'), famBox),
+        h('div', { class: 'rt-f' }, h('label', null, 'Metric'), metricSel),
+        h('div', { class: 'rt-f' }, h('label', null, 'Looking for'), goalSel), tWrap, wWrap),
+      h('div', { class: 'rt-opt-del' }, del));
+    const showTarget = () => {
+      const match = goalSel.value === 'match';
+      tWrap.hidden = !match;
+      if (match && !tVal.value) {
+        const now = metricRaw(getEl(targetSel.value), metricSel.value), m = metricByKey(metricSel.value);
+        tVal.value = now !== null ? String(+now.toPrecision(5)) : (m && m.absolute ? '0' : '');
+      }
+    };
+    const fillGoals = () => {
       const m = metricByKey(metricSel.value);
-      tVal.value = now !== null ? String(+now.toPrecision(5)) : (m && m.absolute ? '0' : '');
-    }
-  };
-  targetSel.addEventListener('change', () => { fillMetrics(targetSel, metricSel, famBox); tVal.value = ''; fillGoals(); });
-  metricSel.addEventListener('change', () => { tVal.value = ''; fillGoals(); });
-  goalSel.addEventListener('change', showTarget);
-
-  document.getElementById('btnOptimise').addEventListener('click', () => {
-    varSel.replaceChildren();
-    for (const [el, path] of allSweeps()) varSel.append(h('option', { value: el.id + '|' + path }, el.name + ': ' + paramLabel(path)));
+      goalSel.replaceChildren();
+      if (m) for (const g of m.goals) goalSel.append(h('option', { value: g }, GOAL_LABEL[g]));
+      showTarget();
+    };
+    targetSel.addEventListener('change', () => { fillMetrics(targetSel, metricSel, famBox); tVal.value = ''; fillGoals(); });
+    metricSel.addEventListener('change', () => { tVal.value = ''; fillGoals(); });
+    goalSel.addEventListener('change', showTarget);
     fillTargets(targetSel);
-    fillMetrics(targetSel, metricSel, famBox);
-    tVal.value = '';
-    fillGoals();
-    result.textContent = '';
-    scanCv.style.display = 'none';
+    if (k > 0 && targetSel.options.length) targetSel.selectedIndex = Math.min(k, targetSel.options.length - 1);     // a new goal: the next thing to measure
+    fillMetrics(targetSel, metricSel, famBox); fillGoals();
+    row._read = () => ({ target: getEl(targetSel.value), key: metricSel.value, goal: goalSel.value, targetVal: Number(tVal.value), weight: Number(wVal.value) });
+    return row;
+  };
+  // weights and Remove only mean something with more than one goal
+  const relabel = () => { const rows = [...termsBox.children]; rows.forEach(r => { r.querySelector('.rt-opt-del').hidden = rows.length < 2; r.querySelectorAll('.rt-f')[5].hidden = rows.length < 2; }); };
+  document.getElementById('optAddTerm').addEventListener('click', () => { termsBox.append(termRow(termsBox.children.length)); relabel(); });
+  document.getElementById('btnOptimise').addEventListener('click', () => {
+    varsBox.replaceChildren();
+    allSweeps().forEach(([el, path], i) => {
+      const cb = h('input', { type: 'checkbox', 'data-k': el.id + '|' + path });
+      if (i === 0) cb.checked = true;
+      const sw = el.sweeps[path];
+      varsBox.append(h('label', null, cb, el.name + ': ' + paramLabel(path), h('span', { class: 'r' }, (+sw.min.toPrecision(5)) + ' to ' + (+sw.max.toPrecision(5)))));
+    });
+    termsBox.replaceChildren(termRow(0)); relabel();
+    result.textContent = ''; table.hidden = true; scanCv.style.display = 'none';
     dlg.showModal();
   });
-  document.getElementById('optClose').addEventListener('click', () => dlg.close());
-  document.getElementById('optRun').addEventListener('click', () => {
-    const [id, path] = varSel.value.split('|');
-    const el = getEl(id), target = getEl(targetSel.value);
-    const key = metricSel.value, goal = goalSel.value;
-    const targetVal = Number(tVal.value);
-    if (!el || !target || !key) return;
-    if (goal === 'match' && !isFinite(targetVal)) { result.textContent = 'Give a target value to match.'; return; }
-    result.textContent = 'Searching\u2026';
-    setTimeout(() => {
-      checkpoint();
-      const r = optimise(el, path, target, key, goal, targetVal);
+  const stop = () => { if (job) job.stop = true; };
+  document.getElementById('optClose').addEventListener('click', () => { stop(); dlg.close(); });
+  stopBtn.addEventListener('click', stop);
+  const f = v => +(+v).toPrecision(6);
+  runBtn.addEventListener('click', () => {
+    if (job) return;
+    const vars = [...varsBox.querySelectorAll('input:checked')].map(cb => { const [id, path] = cb.dataset.k.split('|'); return [getEl(id), path]; }).filter(([el, path]) => el && el.sweeps[path]);
+    const terms = [...termsBox.children].map(r => r._read());
+    if (!vars.length) { result.textContent = 'Tick at least one parameter to vary.'; return; }
+    if (terms.some(q => !q.target || !q.key)) { result.textContent = 'Every goal needs something to measure.'; return; }
+    if (terms.some(q => q.goal === 'match' && !isFinite(q.targetVal))) { result.textContent = 'Give each Match goal a target value.'; return; }
+    checkpoint();
+    const me = job = { stop: false };
+    const gen = optimiseGen(vars, terms, { stop: () => me.stop });
+    runBtn.disabled = true; stopBtn.hidden = false; table.hidden = true;
+    const finish = r => {
+      job = null; runBtn.disabled = false; stopBtn.hidden = true;
       changed(true);
       scanCv.style.display = 'block';
-      drawScan(scanCv, r.scan, key, r.improved ? r.best : r.start);
-      result.textContent = r.improved
-        ? 'Best at ' + (+r.best.toPrecision(6)) + ': ' + metricText(key, r.bestValue) +
-          ', from ' + metricText(key, r.startValue) + ' (' + r.traces + ' traces).'
-        : 'Nothing in that range beat the current setting of ' + (+r.start.toPrecision(6)) +
-          ' at ' + metricText(key, r.startValue) + ' (' + r.traces + ' traces).';
-    }, 20);
+      if (vars.length === 1 && terms.length === 1 && r.scan.length && !r.stopped) drawScan(scanCv, r.scan, terms[0].key, r.improved ? r.best[0] : r.start[0]);
+      else drawConvergence(scanCv, r.history);
+      result.textContent = (r.improved ? 'Better' : 'Nothing beat the starting settings; they are kept') + ' (' + r.evals + ' traces' + (r.stopped ? ', stopped early' : '') + ').';
+      const rows = vars.map(([el, path], i) => [el.name + ': ' + paramLabel(path), f(r.start[i]) + (r.improved ? ' \u2192 ' + f(r.best[i]) : '')]);
+      terms.forEach((q, i) => rows.push([q.target.name + ', ' + (metricByKey(q.key) || {}).label + (q.goal === 'match' ? ' (target ' + q.targetVal + ')' : ''),
+        metricText(q.key, r.raw0[i]) + (r.improved ? ' \u2192 ' + metricText(q.key, r.rawBest[i]) : '')]));
+      if (terms.length > 1) rows.push(['Merit (1 each at the start, weighted)', f(r.startMerit) + (r.improved ? ' \u2192 ' + f(r.bestMerit) : '')]);
+      table.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+      table.hidden = false;
+    };
+    const step = () => {
+      const until = performance.now() + 60;
+      let r;
+      do r = gen.next(); while (!r.done && performance.now() < until);
+      if (r.done) return finish(r.value);
+      result.textContent = 'Searching: ' + r.value.evals + ' of about ' + r.value.budget + ' traces, best merit ' + f(r.value.best) + '\u2026';
+      setTimeout(step, 0);
+    };
+    result.textContent = 'Searching\u2026';
+    setTimeout(step, 20);
   });
 }
 
@@ -15240,6 +15407,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     stackAmp,
     system() { return lastTrace.system; },
     diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
+    // several parameters [[name, path]] against goals [{ target, key, goal, targetVal, weight }]
+    optimiseMany(vars, terms, opts) { const r = optimiseMany(vars.map(([n, p]) => [this.byName(n), p]), terms.map(q => Object.assign({}, q, { target: this.byName(q.target) })), opts);
+      return { best: r.best, start: r.start, improved: r.improved, evals: r.evals, startMerit: r.startMerit, bestMerit: r.bestMerit, raw0: r.raw0, rawBest: r.rawBest }; },
     optimise(name, path, targetName, key, goal, targetVal) {
       return optimise(this.byName(name), path, this.byName(targetName), key, goal, targetVal);
     },

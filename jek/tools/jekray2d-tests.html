@@ -3140,6 +3140,29 @@ const TESTS = [
     run: J => { J.load(satCellBench(true)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
       J.load(satCellBench(false)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
   },
+  { group: 'Optimising several parameters' },
+  {
+    name: 'Two parameters, two goals: a lens moved to its focus and onto the axis',
+    why: 'a lens free in x and y, goals: the smallest spot and the spot centred on the screen. Its x against the one-parameter search for x alone (mm off), with the centre within a micron',
+    want: 0, tol: 0.05, unit: ' mm',
+    run: J => { J.load(lensXY()); const r = J.optimiseMany([['L', 'x'], ['L', 'y']], [{ target: 'S', key: 'rms', goal: 'min', weight: 1 }, { target: 'S', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }]);
+      if (Math.abs(J.metric('S', 'centroid')) > 1e-3) return NaN;
+      J.load(lensXY()); J.setParam('L', 'y', r.best[1]); const one = J.optimiseMany([['L', 'x']], [{ target: 'S', key: 'rms', goal: 'min' }]).best[0]; return Math.abs(r.best[0] - one); },
+  },
+  {
+    name: 'Walking a beam with two mirrors',
+    why: 'a beam off in height and angle, two fold mirrors free to tilt: the beam centred on two screens 100 mm apart, which needs both mirrors together (mm off centre on the two, in all)',
+    want: 0, tol: 0.005, unit: ' mm',
+    run: J => { J.load(walkBench()); J.optimiseMany([['M1', 'angle'], ['M2', 'angle']], [{ target: 'S1', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }, { target: 'S2', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }]);
+      return Math.abs(J.metric('S1', 'centroid')) + Math.abs(J.metric('S2', 'centroid')); },
+  },
+  {
+    name: 'Stopped early, it keeps the best it found',
+    why: 'the same beam walk, stopped after 25 traces: no more traces than that, and the bench left no worse than it started',
+    want: 1, tol: 0, unit: '',
+    run: J => { J.load(walkBench()); let n = 0; const r = J.optimiseMany([['M1', 'angle'], ['M2', 'angle']], [{ target: 'S1', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }, { target: 'S2', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }], { stop: () => ++n > 25 });
+      return +(r.evals <= 25 && r.bestMerit <= r.startMerit); },
+  },
   { group: 'Fibre extras' },
   {
     name: 'PM fibre launched off its axis turns the polarisation by its beat',
@@ -3199,6 +3222,13 @@ function satCellBench(cell) {
     ...(cell ? [{ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb87', temp: 30 }] : []),
     screen({ name: 'S', x: 50, length: 4, absorb: false }), { type: 'detector', name: 'D', x: 70, y: 0, angle: 180, length: 5, material: 'custom', resp: 1 }]);
 }
+const lensXY = () => bench('lensxy', [src({ name: 'Beam', x: -50, y: 0.8, width: 4, rays: 21, pol: 's', wavelength: 587.6 }),
+  Object.assign(bk7Lens({ name: 'L', x: 20, y: 1.5, surfaces: [{ R: 51.5 }, { R: null }] }), { sweeps: { x: { min: 0, max: 60, f: 0.1, wave: 'sine', phase: 0 }, y: { min: -3, max: 3, f: 0.1, wave: 'sine', phase: 0 } } }),
+  screen({ name: 'S', x: 150, length: 20 })]);
+const walkBench = () => bench('walk', [src({ name: 'Beam', x: 0, y: 0.4, angle: 0.3, width: 0.5, rays: 3, pol: 's', wavelength: 633 }),
+  { type: 'mirror', name: 'M1', x: 50, y: 0, angle: 135, length: 12.7, reflect: 100, sweeps: { angle: { min: 133, max: 137, f: 0.1, wave: 'sine', phase: 0 } } },
+  { type: 'mirror', name: 'M2', x: 50, y: 60, angle: 315, length: 12.7, reflect: 100, sweeps: { angle: { min: 313, max: 317, f: 0.1, wave: 'sine', phase: 0 } } },
+  screen({ name: 'S1', x: 100, y: 60, length: 20, absorb: false }), screen({ name: 'S2', x: 200, y: 60, length: 20 })]);
 const cellBench = o => bench('cell', [Object.assign({ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 25, cellLen: 75 }, o)]);
 function pmBench(key, len) {
   const b = fnet([fc('laser', 'L', { power: 1, polAngle: 0 }), fc('pol', 'P', { axis: 0, extinction: 60, loss: 0 }), fc('pd', 'D')], [['P', 1, 'D', 0, 0.1, 0]]);

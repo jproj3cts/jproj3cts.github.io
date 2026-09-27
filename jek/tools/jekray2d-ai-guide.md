@@ -208,9 +208,9 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | trapMat | `"Fused silica"` | the sphere’s glass ("Fused silica", "Polystyrene" and so on). |
 | trapR | `100` | the sphere’s radius, nm. |
 | trapRho | `2200` | its density, kg/m³. |
-| trapMed | `"bench"` | "bench" (the index where the light is), "vacuum", "water" or "custom" (with trapN). |
-| trapN | `1.33` | a custom medium index. |
-| trapT | `295` | temperature (K) for the depth in kT. |
+| trapMed | `"bench"` | "bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP). |
+| trapP | `1013.25` | air pressure, mbar: sets the gas damping and quality factors. |
+| trapT | `295` | temperature (K): the depth in kT and the gas. |
 | mtfFreq | `50` | lp/mm at which the MTF is quoted. |
 
 ### "stop": Stop

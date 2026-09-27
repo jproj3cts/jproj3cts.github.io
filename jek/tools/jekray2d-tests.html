@@ -3345,6 +3345,23 @@ const TESTS = [
     },
   },
   {
+    name: 'Four beams of one laser make a two-dimensional lattice, by their polarisation',
+    why: 'two crossed standing waves at one focus: polarised out of the plane (s) all four interfere, (cos kx + cos kz)², sixteen times one beam’s depth and √2 times the 1D lattice’s frequency each way in the plane; in the plane (p) the two pairs are polarised at right angles and add as intensities, eight times deep with each pair’s own lattice frequency (worst relative error)',
+    want: 0, tol: 0.003, unit: '',
+    run: J => {
+      const w0 = 0.05;
+      const S = (id, x, y, ang, pol, split) => src({ id, name: id, x, y, angle: ang, wavelength: 1064, gauss: true, w0, z0: 100, width: 0.1, rays: 1, pol, power: 1000, popN: 256, splitFrom: split });
+      const run = (n, pol) => { const els = [S('A', -100, 0, 0, pol, null)];
+        if (n >= 2) els.push(S('B', 100, 0, 180, pol, 'A'));
+        if (n >= 4) els.push(S('C', 0, -100, 90, pol, 'A'), S('D', 0, 100, 270, pol, 'A'));
+        els.push(screen({ name: 'Sc', x: 0, length: 4, absorb: false, trap: 'Rb87' }));
+        J.load(bench('lat', els, { minPower: 1e-6 })); return J.trap('Sc'); };
+      const T1 = run(1, 's'), L = run(2, 's'), Ts = run(4, 's'), Tp = run(4, 'p');
+      return Math.max(Math.abs(Ts.depthK / T1.depthK / 16 - 1), Math.abs(Ts.fx / (Math.SQRT2 * L.fz) - 1), Math.abs(Ts.fz / (Math.SQRT2 * L.fz) - 1), Math.abs(Ts.fy / (2 * L.fy) - 1),
+        Math.abs(Tp.depthK / T1.depthK / 8 - 1), Math.abs(Tp.fx / L.fz - 1), Math.abs(Tp.fz / L.fz - 1), Math.abs(Tp.fy / (Math.SQRT2 * L.fy) - 1));
+    },
+  },
+  {
     name: 'Radiation pressure pushes a sphere past the focus as the force balance says',
     why: 'a 20 nm silica sphere in vacuum at a 5 µm, 1064 nm focus: where the gradient force, αI/(ε₀c zᴿ) · u/(1+u²)², meets the scattering force σI/c, Gouy phase included (u = z/zᴿ); paraxial, so good to the (k w₀)⁻² corrections of a few percent the exact field has',
     want: 1, tol: 0.05, unit: ' (shift over the balance)',
@@ -3399,6 +3416,26 @@ const TESTS = [
     why: 'at the F, D and C lines at 20 °C: 1.33712, 1.33299, 1.33115 (worst difference)',
     want: 0, tol: 5e-5, unit: '',
     run: J => Math.max(...[[486.1, 1.33712], [589.3, 1.33299], [656.3, 1.33115]].map(([nm, n]) => Math.abs(J.index({ glass: 'Water' }, nm) - n))),
+  },
+  {
+    name: 'Air damps a sphere as Epstein says at low pressure',
+    why: 'at 0.01 mbar and 295 K the air is free-molecular round a 100 nm sphere: diffuse Epstein drag, (4π/3)(1 + π/8) a² ρ_gas v̄, against the tool’s Gieseler formula (the kinetic viscosity it uses is the measured 18.27 µPa s, so a percent or so apart)',
+    want: 1, tol: 0.02, unit: ' (ratio)',
+    run: J => {
+      const kB = 1.380649e-23, T = 295, P = 1, mg = 28.97 * 1.66053906660e-27, a = 100e-9, m = 2200 * 4 / 3 * Math.PI * a ** 3;
+      const rho = P * mg / (kB * T), vbar = Math.sqrt(8 * kB * T / (Math.PI * mg)), GE = (4 * Math.PI / 3) * (1 + Math.PI / 8) * a * a * rho * vbar / m;
+      return J.gasDamping(100, m, 0.01, T).G / GE;
+    },
+  },
+  {
+    name: 'and as Stokes at high pressure, in proportion to the pressure at low',
+    why: 'a 5 µm sphere at 10 bar is in the viscous limit, 6πηa/m; below a millibar the damping halves with the pressure (worst relative error)',
+    want: 0, tol: 0.005, unit: '',
+    run: J => {
+      const m = a => 2200 * 4 / 3 * Math.PI * (a * 1e-9) ** 3;
+      const stokes = 6 * Math.PI * 18.27e-6 * 5e-6 / m(5000);
+      return Math.max(Math.abs(J.gasDamping(5000, m(5000), 10000, 295).G / stokes - 1), Math.abs(J.gasDamping(100, m(100), 1e-3, 295).G / J.gasDamping(100, m(100), 5e-4, 295).G / 2 - 1));
+    },
   },
   {
     name: 'Light blue of the D lines makes a barrier, not a trap',

@@ -1132,6 +1132,20 @@ function sphereAlpha(glass, radiusNm, nm, nMed) {
   const g = k ** 3 * a0 / (6 * Math.PI * EPS0 * nMed * nMed);                     // alpha = a0 / (1 - i g)
   return { re: a0 / (1 + g * g), im: a0 * g / (1 + g * g), a0, np, m, cm, sigma: k ** 4 * (a0 / (EPS0 * nMed * nMed)) ** 2 / (6 * Math.PI), ka: k * a };
 }
+/* Air's index at a pressure (mbar) and temperature (K): n - 1 = 2.74e-4 at 1013.25 mbar and
+   15 C in the near infrared, in proportion to the density */
+const airIndex = (mbar, T) => 1 + 2.74e-4 * (mbar / 1013.25) * (288.15 / T);
+/* A sphere's damping by the medium, the rate G in x'' + G x' + W^2 x = 0 (1/s): in air, Gieseler
+   et al.'s interpolation (PRL 109, 103603, 2012) from the viscous (Stokes) limit to the free-
+   molecular one, through the Knudsen number; in water, Stokes */
+function gasDamping(radiusNm, mass, mbar, T) {
+  const a = radiusNm * 1e-9, eta = 18.27e-6, dm = 0.372e-9, P = mbar * 100;
+  const l = KB * T / (Math.SQRT2 * Math.PI * dm * dm * P), Kn = l / a, ck = 0.31 * Kn / (0.785 + 1.152 * Kn + Kn * Kn);
+  return { G: 6 * Math.PI * eta * a / mass * 0.619 / (0.619 + Kn) * (1 + ck), l, Kn };
+}
+/* water's viscosity, Pa s (Vogel's fit, good from 0 to 100 C), and Stokes damping in it */
+const waterViscosity = T => 2.414e-5 * Math.pow(10, 247.8 / (T - 140));
+const waterDamping = (radiusNm, mass, T) => 6 * Math.PI * waterViscosity(T) * radiusNm * 1e-9 / mass;
 /* A trap at peak intensity I (W/m^2) whose intensity falls off as I (1 - c x^2 / 2) across it
    and along it (c in 1/mm^2): depth, scattering, heating and trap frequencies */
 function trapPhysics(atom, nm, I, cx, cy, cz) {
@@ -2027,8 +2041,8 @@ function normElementBase(e) {
         trapMat: glassKey(e.trapMat) || 'Fused silica',              // the sphere's material
         trapR: Math.max(1, num(e.trapR, 100)),                       // its radius, nm
         trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[glassKey(e.trapMat) || 'Fused silica'] || 2200)),   // kg/m^3
-        trapMed: ['bench', 'vacuum', 'water', 'custom'].includes(e.trapMed) ? e.trapMed : 'bench',
-        trapN: Math.max(1, num(e.trapN, 1.33)),
+        trapMed: ['bench', 'vacuum', 'air'].includes(e.trapMed) ? e.trapMed : 'bench',
+        trapP: Math.max(1e-12, num(e.trapP, 1013.25)),                // mbar, for air
         trapT: Math.max(0.001, num(e.trapT, 295)),                   // K, for the depth in kT
         mtfFreq: Math.max(0, num(e.mtfFreq, 50)) });
     case 'waveplate':
@@ -5222,7 +5236,7 @@ function setParam(el, path, v) {
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
     case 'trapR': case 'trapRho': v = Math.max(1, v); break;
-    case 'trapN': v = Math.max(1, v); break;
+    case 'trapP': v = Math.max(1e-12, v); break;
     case 'trapT': v = Math.max(0.001, v); break;
     case 'll': v = Math.round(clamp(v, -10, 10)); break;
     case 'vmax': v = Math.max(0.01, v); break;
@@ -7676,6 +7690,12 @@ function trapReport(el, T) {
     out.Psc = S.sigma * I;                                                // W scattered
     out.Fscat = T.nMed * S.sigma * I / C_SI;                              // N, one beam's worth
     out.np = S.np; out.m = S.m; out.ka = S.ka;
+    // damping by the medium, and each direction's quality factor
+    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
+    if (el.trapMed === 'air') { const g = gasDamping(el.trapR, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
+    else if (el.trapMed === 'bench' && water) { out.G = waterDamping(el.trapR, T.mass, el.trapT); out.dampBy = 'water'; }
+    else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
+    out.Q = [T.fx, T.fy, T.fz].map(f => f && out.G > 0 ? 2 * Math.PI * f / out.G : null);
   }
   return out;
 }
@@ -7692,8 +7712,8 @@ function trapSection(el) {
       param('Radius (nm)', el, 'trapR'),
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
-      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['water', 'Water'], ['custom', 'Custom index']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'custom' }));
-    if (el.trapMed === 'custom') rows0.append(param('Medium index', el, 'trapN'));
+      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
+    if (el.trapMed === 'air') rows0.append(param('Pressure (mbar)', el, 'trapP'));
   }
   panel.append(rows0);
   if (el.trap === 'none') {
@@ -7723,6 +7743,12 @@ function trapSection(el) {
         rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
       }
       const pw = v => v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' mW' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' \u00b5W' : v >= 1e-9 ? (+(v * 1e9).toPrecision(3)) + ' nW' : (+(v * 1e12).toPrecision(3)) + ' pW';
+      if (sph && T.trap) {
+        const q = v => v === null ? '\u2013' : v >= 1e4 ? v.toExponential(2).replace('e+', ' \u00d7 10^') : (+v.toPrecision(3)).toString();
+        if (T.G > 0) rows.push(['Damping', '\u0393/2\u03c0 = ' + fmtHz(T.G / (2 * Math.PI)) + ' by ' + (T.dampBy === 'air' ? 'the air (mean free path ' + fmtLen(T.mfp * 1e3) + ', Knudsen number ' + (+T.Kn.toPrecision(3)) + ')' : 'the water\u2019s viscosity') +
+          '; Q ' + q(T.Q[0]) + ', ' + q(T.Q[1]) + ', ' + q(T.Q[2]) + ' (x, y, z)' + (T.Q.some(v => v !== null && v < 0.5) ? ': overdamped where Q is under \u00bd' : '')]);
+        else rows.push(['Damping', T.dampBy === 'vacuum' ? 'none from a gas (vacuum): only photon recoil and the laser\u2019s noise, not modelled' : 'none from a gas here: set the medium to Air for a pressure']);
+      }
       if (sph) rows.push(['Scattering', pw(T.Psc) + ' scattered; radiation pressure ' + (+(T.Fscat * 1e15).toPrecision(3)) + ' fN from one beam of this intensity']);
       else {
         rows.push(['Scattering', (+T.sc.toPrecision(3)) + ' photons/s']);
@@ -7730,13 +7756,13 @@ function trapSection(el) {
         if (T.near) rows.push(['', 'Within 1 THz of a D line: hyperfine structure and saturation, left out here, matter.']);
       }
       if (sph && T.ka > 0.6) rows.push(['', 'The sphere is ' + (+T.ka.toPrecision(2)) + ' of a wavelength/2π across (ka): past the Rayleigh regime (ka below about 0.5) these forces are only a guide; a Mie calculation is needed.']);
-      if (sph && el.trapMed !== 'bench' && Math.abs(T.nMed - T.nBench) > 1e-3) rows.push(['', 'The medium set here (n = ' + (+T.nMed.toPrecision(4)) + ') is not the bench’s where the light is (n = ' + (+T.nBench.toPrecision(4)) + '): the focus is the bench’s. Put the trap in a block of the medium on the bench for a focus that is right too.']);
+      if (sph && el.trapMed !== 'bench' && Math.abs(T.nMed - T.nBench) > 1e-3) rows.push(['', 'The medium set here (n = ' + (+T.nMed.toPrecision(4)) + ') is not the bench’s where the light is (n = ' + (+T.nBench.toPrecision(4)) + '): the focus is the bench’s. For a liquid, put the trap in a block of it on the bench (Water is in the catalogue) so the focus is right too.']);
       if (T.skipped) rows.push(['', T.skipped + ' beam' + (T.skipped > 1 ? 's' : '') + ' through here not converging to a focus left out.']);
     }
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count), beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count), beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
     (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
@@ -12812,7 +12838,7 @@ function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapN]) : '');
+  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
   return { keep, srcs, key };
 }
 
@@ -12890,7 +12916,7 @@ function trapSolve(el, R, dom, len) {
   const isAtom = el.trap in TRAP_ATOMS;
   // the medium: where the light is, or as set
   const nBench = b0.n;
-  const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'water' ? refIndex({ glass: 'Water' }, b0.nm) : el.trapMed === 'custom' ? el.trapN : nBench;
+  const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT) : nBench;
   // the particle: its polarisability (SI, complex) and mass
   let alpha, mass, sph = null;
   if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
@@ -12925,7 +12951,8 @@ function trapSolve(el, R, dom, len) {
   let scale = [1, 1, 1];
   const scales = p => dirs.map(dv => {
     const I0 = intensity(...p);
-    const drop = st => 1 - 0.5 * (intensity(p[0] + dv[0] * st, p[1] + dv[1] * st, p[2] + dv[2] * st) + intensity(p[0] - dv[0] * st, p[1] - dv[1] * st, p[2] - dv[2] * st)) / I0;
+    // how much the light changes a step either way (it may rise: at a saddle, a fringe's dark line)
+    const drop = st => Math.abs(1 - 0.5 * (intensity(p[0] + dv[0] * st, p[1] + dv[1] * st, p[2] + dv[2] * st) + intensity(p[0] - dv[0] * st, p[1] - dv[1] * st, p[2] - dv[2] * st)) / I0);
     let st = lam0 / nMed / 16;
     if (drop(st) > 0.002) { for (let n = 0; n < 30 && drop(st) > 0.002; n++) st /= 2; }
     else for (let n = 0; n < 40 && drop(2 * st) <= 0.002; n++) st *= 2;
@@ -12980,8 +13007,8 @@ function trapSolve(el, R, dom, len) {
   scale = scales(r);
   const stiff = p => dirs.map((dv, j) => { const hk = scale[j] / 2, Fp = force(p[0] + dv[0] * hk, p[1] + dv[1] * hk, p[2] + dv[2] * hk), Fm = force(p[0] - dv[0] * hk, p[1] - dv[1] * hk, p[2] - dv[2] * hk);
     return [0, 1, 2].map(i => -(Fp[i] - Fm[i]) / (2 * hk * 1e-3)); });            // K[j][i] = -dF_i/dx_j, N/m
-  let K = null, ok = false;
-  for (let it = 0; it < 40; it++) {
+  let K = null, ok = false, unstableSteps = 0;
+  for (let it = 0; it < 60; it++) {
     const F = force(...r);
     K = stiff(r);
     // solve K dx = F (K symmetric enough); in mm
@@ -12991,10 +13018,26 @@ function trapSolve(el, R, dom, len) {
     const inv = [[(A[1][1] * A[2][2] - A[1][2] * A[2][1]) / det, (A[0][2] * A[2][1] - A[0][1] * A[2][2]) / det, (A[0][1] * A[1][2] - A[0][2] * A[1][1]) / det],
       [(A[1][2] * A[2][0] - A[1][0] * A[2][2]) / det, (A[0][0] * A[2][2] - A[0][2] * A[2][0]) / det, (A[0][2] * A[1][0] - A[0][0] * A[1][2]) / det],
       [(A[1][0] * A[2][1] - A[1][1] * A[2][0]) / det, (A[0][1] * A[2][0] - A[0][0] * A[2][1]) / det, (A[0][0] * A[1][1] - A[0][1] * A[1][0]) / det]];
-    const dx = [0, 1, 2].map(i => (inv[i][0] * F[0] + inv[i][1] * F[1] + inv[i][2] * F[2]) * 1e3);   // m to mm
-    const cap = scale.map(v => 5 * v), stepMax = Math.max(...dx.map((v, i) => Math.abs(v) / cap[i]));
+    let dx = [0, 1, 2].map(i => (inv[i][0] * F[0] + inv[i][1] * F[1] + inv[i][2] * F[2]) * 1e3);   // m to mm
+    // Newton heads for any zero of the force, a saddle as readily as a trap; where the light
+    // does not hold the particle some way (a stiffness not above zero), step with the force
+    // instead, downhill, and off a symmetric saddle to one side
+    if (!(A[0][0] > 0 && A[1][1] > 0 && A[2][2] > 0 && det > 0 && A[0][0] * A[1][1] - A[0][1] * A[1][0] > 0)) {
+      // along each direction that does not hold, jump to the brightest point within half a
+      // wavelength (or a few of its scales), where the light's pull there has its minimum
+      dx = [0, 1, 2].map(i => {
+        if (A[i][i] > 0) return F[i] / A[i][i] * 1e3;
+        const span = Math.max(lamM / 2, 2 * scale[i]), dv = dirs[i];
+        let bi = 0, bv = -1;
+        for (let q = -20; q <= 20; q++) { const t = q / 20 * span, v = intensity(r[0] + dv[0] * t, r[1] + dv[1] * t, r[2] + dv[2] * t); if (v > bv) { bv = v; bi = t; } }
+        return bi || 0.5 * scale[i];
+      });
+      unstableSteps++;
+    }
+    const cap = scale.map((v, i) => unstableSteps && !(A[i][i] > 0) ? Infinity : 5 * v), stepMax = Math.max(...dx.map((v, i) => Math.abs(v) / cap[i]));
     const f = stepMax > 1 ? 1 / stepMax : 1;
     r = r.map((v, i) => v + dx[i] * f);
+    if (unstableSteps) scale = scales(r);            // the scales where it now is
     if (f === 1 && dx.every((v, i) => Math.abs(v) < 1e-4 * scale[i])) { ok = true; scale = scales(r); K = stiff(r); break; }
   }
   const kd = K ? [K[0][0], K[1][1], K[2][2]] : [NaN, NaN, NaN];
@@ -14734,7 +14777,7 @@ const AI_FIELDS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
   screen: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
-    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is), "vacuum", "water" or "custom" (with trapN).', trapN: 'a custom medium index.', trapT: 'temperature (K) for the depth in kT.', mtfFreq: 'lp/mm at which the MTF is quoted.' },
+    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.' },
   stop: { shape: 'one of the stop shapes below.', aperture: 'mm: the opening (an iris’s diameter, a slit’s width).', outer: 'mm: the outer size (a beam block’s diameter).',
     sep: 'mm: a double slit’s centre-to-centre separation.', pitch: 'mm: a slit comb’s pitch.', count: 'a comb’s number of slits, 2 to 400.',
     offset: 'mm: the opening’s centre along the stop.', height: 'mm: a slit’s height out of the plane (0 unlimited).', side: '1 or −1: which side a knife edge covers.' },
@@ -16072,7 +16115,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     cellDensity(name) { return cellDensity(this.byName(name)); },
     lgComps: (p, l) => lgComps(p, l).map(c => c.slice()),
     trapAlpha, trapPhysics,
-    sphereAlpha,
+    sphereAlpha, gasDamping, waterViscosity,
     trap(name) { const el = this.byName(name), D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
     cellBeams(name) { traceScene(); const el = this.byName(name); return (lastTrace.cells || []).filter(c => c.id === el.id); },
     faddeeva,

@@ -3411,6 +3411,59 @@ const toWorldDir = (f, x, y) => [x*f.c - y*f.s, x*f.s + y*f.c];
    Ray tracing
    ========================================================================== */
 
+/* ---------- A beam across an element's edge ----------
+   A Gaussian beam wider than the part of an element it meets is split there, in two
+   branches of the beam tree: the part that lands on the element goes through it (or off
+   it), and the part that misses carries straight on past it. Each branch has its own
+   reference ray: the one through meets the element (its surfaces carried on past the rim
+   where the beam's own centre misses it, so its reference still refracts or reflects as the
+   light near the edge does, while its field is still cut to the real aperture), and the one
+   past ignores the element and has its field cut to what misses it. They share the beam's
+   power as the Gaussian lands. Splits smaller than SPLIT_MIN of the power are not made. */
+const SPLIT_MIN = 0.01;
+const SPLIT_KINDS = new Set(['iris', 'link', 'mask', 'cell', 'nlc', 'absorb', 'eom', 'aom']);
+const splittable = s => s && s.el && !SPLIT_KINDS.has(s.kind) && s.semi > 0 && !s.y0;
+/* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface,
+   travelling at cos(theta) = cth to the element's axis, that lands inside its aperture */
+function apertureShare(s, ly, cth, w, wv) {
+  const edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
+  // each sample counted by how far inside it is (the edge function is a distance), which
+  // takes the edge between samples smoothly and the share to a fraction of a percent
+  const N = 64, c = Math.max(1e-6, cth), h = 2 * 2.6 * Math.max(w / c, wv) / N;
+  let tot = 0, inn = 0;
+  for (let i = 0; i < N; i++) {
+    const x = ((i + 0.5) / N * 2 - 1) * 2.6 * w, gx = Math.exp(-2 * x * x / (w * w));
+    for (let j = 0; j < N; j++) {
+      const y = ((j + 0.5) / N * 2 - 1) * 2.6 * wv, g = gx * Math.exp(-2 * y * y / (wv * wv));
+      tot += g; inn += g * clamp(0.5 + edge(ly + x / c, y) / h, 0, 1);
+    }
+  }
+  return tot > 0 ? inn / tot : 1;
+}
+/* a surface carried on past its rim, for a reference ray that must meet it off the element */
+function extendedSurf(s) {
+  if (s._ext) return s._ext;
+  let semi = s.semi * 3 + 10;
+  if (!s.flat && s.c) semi = Math.min(semi, 0.98 / Math.abs(s.c) / Math.sqrt(Math.max(1, 1 + (s.k || 0))));
+  const e = Object.create(s);
+  e.semi = semi;
+  if (!s.flat) {
+    let lo = s.xmin, hi = s.xmax;
+    for (let i = -20; i <= 20; i++) { const v = s.z + sagFn(s, semi * i / 20); if (isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+    e.xmin = lo - 1e-6; e.xmax = hi + 1e-6;
+  }
+  Object.defineProperty(s, '_ext', { value: e, enumerable: false });
+  return e;
+}
+/* the event where a beam's part past an element starts: nothing but a cut to what misses it */
+function bypassEvent(s, base) {
+  const edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
+  const surf = Object.create(s);
+  surf.flat = true; surf.cyl = null; surf.maskFn = null; surf.odd = null;
+  surf.maskMargin = (u, v) => -edge(u, v);
+  const ev = Object.assign(base, { bypass: true, mask: { shape: 'disc', a: s.semi, o: 0, ext: s.semi } });
+  return Object.defineProperty(ev, 'surf', { value: surf, enumerable: false, configurable: true });
+}
 function intersectSurf(s, px, py, dx, dy, tmin) {
   px -= s.z;
   const xmin = s.xmin - s.z, xmax = s.xmax - s.z;
@@ -3573,7 +3626,7 @@ function traceSceneRaw() {
     const ss = elementSurfaces(el);
     for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; surfs.push(s); }
     if (el.type === 'link') linkSurf.set(el.id, ss[0]);
-    if (el.type === 'lens') for (const sg of lensEdges(el, ss)) segs.push({ f, sg });
+    if (el.type === 'lens') for (const sg of lensEdges(el, ss)) segs.push({ f, sg, el: el.id });
     // The whole plane of a stop, seen only by the beam-parameter ray. That ray is a
     // reference, not light: it passes the blades, and the stop becomes a mask on the field,
     // so a slit or knife edge anywhere across the beam still leaves a field behind it.
@@ -3690,7 +3743,8 @@ function traceSceneRaw() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur, skipEl, forceEl, qShare } = stack.pop();
+      qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
@@ -3706,29 +3760,48 @@ function traceSceneRaw() {
         if (--budget < 0) { truncated = true; break; }
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
+        // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
+        const splits = isQ && src.gauss && !pls;
+        let near = null, nearT = Infinity;
         for (const s of surfs) {
           if (s.kind === 'iris' && !isQ) continue;
           if (isQ && s.kind === 'absorb' && s.el.type === 'stop') continue;   // the iris stands in for them
+          if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
-          const tt = intersectSurf(s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+          const forced = forceEl && s.el.id === forceEl && splittable(s);
+          const tt = intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
           if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = false; }
+          if (splits && tt === null && !forced && splittable(s)) {
+            const te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+            if (te !== null && te < nearT) { nearT = te; near = s; }
+          }
         }
         for (const g of segs) {
+          if (g.el && (g.el === skipEl || g.el === forceEl)) continue;       // its rim is no rim to these
           const [lx, ly] = toLocal(g.f, px, py);
           const [ldx, ldy] = toLocalDir(g.f, dx, dy);
           const tt = intersectSeg(g.sg, lx, ly, ldx, ldy, EPS);
           if (tt !== null && tt < best) { best = tt; hit = g; hitSeg = true; }
         }
+        // the beam overlaps an element its reference ray misses: if enough of it lands on the
+        // element, it splits there (the ray itself carries on past, a new one goes through)
+        let nearShare = null;
+        if (near && nearT < best - 1e-9) {
+          const [lx, ly] = toLocal(near.f, px + dx * nearT, py + dy * nearT), [ldx, ldy] = toLocalDir(near.f, dx, dy);
+          const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w, cth = Math.abs(ldx);     // the rim is seen along the element's axis
+          const fin = apertureShare(near, ly, cth, bw, bw);
+          if (fin > SPLIT_MIN) { best = nearT; hit = near; hitSeg = false; nearShare = fin; }
+        }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-          if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
+          if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
             J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
-          beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
+          beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
             fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo },
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
@@ -3745,6 +3818,34 @@ function traceSceneRaw() {
         if (chief) qr += best;         // free space just adds the distance to q
         pts.push(px, py);
         if (hitSeg) break;           // absorbed by a lens rim
+        // leaving the element it was split at, a branch is an ordinary ray again
+        if (skipEl && hit.el.id !== skipEl) skipEl = null;
+        if (forceEl && hit.el.id !== forceEl) forceEl = null;
+        // (a branch's field keeps the power its cut leaves it, so its reference ray's amplitude
+        // stays as it was; its share is noted for what counts power by the reference ray)
+        const splitState = (share, extra) => Object.assign({ px, py, dx, dy, sr, si, pr, pi, qShare: qShare * share,
+          bn, fo, bounce: bounce + 1, last: null, opl, nCur, aCur, gpl, gCur, id, chief, fan, pol, par, qr, qi, bid, fam, k: rayK, probe, probeH, tag, wk }, extra);
+        if (nearShare !== null) {
+          // this ray goes on past the element, cut to what misses it; a new one goes through
+          stack.push(splitState(nearShare, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, forceEl: hit.el.id, path: path + 'f' + bounce }));
+          qShare *= 1 - nearShare;
+          const [, lyH] = toLocal(hit.f, px, py);
+          evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+          skipEl = hit.el.id; path += 'b' + bounce;
+          pts.length -= 2; last = null;
+          continue;
+        }
+        // the beam meets the element but part of it misses: that part carries on past it
+        if (splits && !hitSeg && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
+          const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
+          const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
+          const fin = apertureShare(hit, lyH, cth, bw, bw);
+          if (1 - fin > SPLIT_MIN) {
+            stack.push(splitState(1 - fin, { skipEl: hit.el.id, path: path + 'b' + bounce,
+              evt: bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
+            qShare *= fin;
+          }
+        }
 
         const s = hit;
         // leaving a walk-off crystal: its faces refract the wave normal, not the energy
@@ -3882,7 +3983,7 @@ function traceSceneRaw() {
           // light along the axis leaves with what the harmonic took from it
           const ax = s.el.axis === 'p', k = s.el.id + '|' + src.id + '|' + nm + '|' + (pol || 0);
           if (isQ && w > 0 && !src.shg) {
-            const Pw = w * Math.max(0, splitRoot(src).power) * 1e-3, share = (ax ? wp : ws) / w;
+            const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3, share = (ax ? wp : ws) / w;
             nlcHits.push({ id: s.el.id, k, src: src.id, nm, fo, P: Pw * share, q: [qr, qi], n: nCur, x: px, y: py, dir: [dx, dy], bench: bn });
           }
           const c = src.shg ? 0 : nlcConv.get(k) || 0, f = Math.sqrt(Math.max(0, 1 - c));
@@ -3906,7 +4007,7 @@ function traceSceneRaw() {
             // a higher-order mode: the Gaussian it is built on, and its Hermite-Gauss sum for the shape
             const hm = isHigherMode(src), comps = hm ? srcModes(src)[0].c : null;
             bw = beamAt(qr, qi, nCur, nm, hm ? 1 : m2Env(src)).w;
-            const Pw = w * Math.max(0, splitRoot(src).power) * 1e-3;
+            const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3;
             if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps, circ: circShares(pr, pi, sr, si, (par ? -1 : 1) * Math.sign(ldx || 1)) }); }
           }
           if (cellPolar(s.el)) {
@@ -12673,6 +12774,9 @@ const popClear = ev => {
     if (M.shape === 'knife' || M.shape === 'disc') return Infinity;
     return M.a * ev.cth;                               // the opening's own size sets the sampling
   }
+  // a beam's part that meets an element its reference ray is carried past the rim of: the
+  // light is all to one side, and the grid is sized by the light itself
+  if (ev && ev.semi > 0 && Math.abs(ev.ly) >= ev.semi) return Infinity;
   return (ev && ev.semi > 0) ? Math.max(0, ev.semi - Math.abs(ev.ly)) * ev.cth : Infinity;
 };
 
@@ -17313,6 +17417,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return { route: P.route, Rf: P.Rf, NA: P.NA, n: P.n, pupilPowerTransverse: pw, inPower: Fin ? (Fin.ax ? popStats2(Fin).power : popStats(Fin).power) : null, len: sg.b.len };
     },
     fieldAt(x, y) { return fieldAtPoint(x, y); },
+    beamTree() { return lastTrace.beams.map((b, i) => ({ i, parent: b.parent, x0: +b.x0.toFixed(3), y0: +b.y0.toFixed(3), dx: +b.dx.toFixed(4), dy: +b.dy.toFixed(4), len: +b.len.toFixed(3), w: +b.w.toFixed(4), end: b.endEl && getEl(b.endEl) ? getEl(b.endEl).name : null, ev: b.ev ? (b.ev.bypass ? 'bypass' : b.ev.mode + ':' + (getEl(b.ev.el) || {}).name + ' ly ' + (+b.ev.ly).toFixed(2)) : null })); },
     closeupInfo(x, y, span) { return closeupInfoAt(x, y, span); },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },

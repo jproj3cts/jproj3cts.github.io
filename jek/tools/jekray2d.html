@@ -3125,6 +3125,7 @@ function traceScene() {
   const minW = project.minPower / 100;
   const ghosts = project.ghosts;
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
+  const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blocked = {};
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [];
@@ -3174,6 +3175,7 @@ function traceScene() {
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
     const n = src.traceRays === false ? 0 : src.rays;
     emitted += n;
+    emittedBy[src.id] = (emittedBy[src.id] || 0) + n * sAmp * sAmp;
     for (let i = n - 1; i >= 0; i--) {
       const t = n === 1 ? 0 : i / (n - 1) - 0.5;
       const a = (src.angle + t * src.divergence) * deg;
@@ -3487,7 +3489,7 @@ function traceScene() {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
           if (cosd < 0) {
             if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
-            else if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, gpl, nm, id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
+            else if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
             if (s.el.absorb && !probe) break;     // probe rays are not light; they measure the system
           }
           if (isQ) evt = passEv();
@@ -3695,12 +3697,12 @@ function traceScene() {
   };
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed, system: null, pulses };
+  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, absorbed, system: null, pulses };
   const net = fibreNetCached();
   const vs = tipSources(net);
   VSRC = new Map(vs.map(v => [v.id, v]));
   if (vs.length) runSources(vs);
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed,
+  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
   // Lasers: a cavity with gain above threshold saturates it until the round trip is one. The
   // gain that holds is found from this trace; if it differs from what the trace used, the
@@ -3725,7 +3727,7 @@ function traceScene() {
     if (las.length) {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
-      lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, absorbed, system: lastTrace.system, net, pulses };
+      lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, absorbed, system: lastTrace.system, net, pulses };
       cavCache = null;
     }
   }
@@ -13137,7 +13139,9 @@ function screenStatsRaw(el) {
     interference,
     beam,
     perNm,
-    powerPct: 100 * W0 / Math.max(1, lastTrace.emitted),
+    // of the light the sources that reach this screen send out, not every source on the bench
+    powerPct: (() => { const by = lastTrace.emittedBy || {}, E = [...new Set(hits.map(t => t.sid))].reduce((a, id) => a + (by[id] || 0), 0);
+      return E > 0 ? 100 * W0 / E : 100 * W0 / Math.max(1, lastTrace.emitted); })(),
     centroid: m,
     rms: Math.sqrt(v2 / W0),
     full: hi - lo,
@@ -13182,7 +13186,7 @@ function updateReadoutsIn(container, el) {
     if (!st || st.empty) rows = [[el.absorb ? 'Rays hitting' : 'Crossings recorded', '0']];
     else {
       rows = [[el.absorb ? 'Rays hitting' : 'Crossings recorded', String(st.count)],
-        [el.absorb ? 'Power received' : 'Power, all crossings', (+st.powerPct.toPrecision(4)) + '% of emitted'],
+        [el.absorb ? 'Power received' : 'Power, all crossings', (+st.powerPct.toPrecision(4)) + '% of what its sources emit'],
         ['Centroid', fmtLen(st.centroid)], ['RMS spot', fmtLen(st.rms)], ['Full width', fmtLen(st.full)],
         ['Mean optical path', fmtLen(st.oplMean)]];
       const K = st.stokes;

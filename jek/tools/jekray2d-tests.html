@@ -2554,6 +2554,16 @@ const TESTS = [
     run: J => J.diffraction('Refl').power + J.diffraction('Trans').power,
   },
 
+  {
+    name: 'A screen\u2019s received power counts only the sources that reach it',
+    why: 'two lasers side by side, each onto its own screen, one of them split off another at a tenth of its power: each screen has all of its own source\u2019s rays, 100%, however many rays the other sends out',
+    want: 200, tol: 1e-6, unit: '%',
+    run: J => {
+      J.load(bench('two', [src({ id: 'A', name: 'A', x: -60, y: 20, rays: 1, width: 1, power: 10 }), src({ id: 'B', name: 'B', x: -60, y: -20, rays: 7, width: 2, power: 1, splitFrom: 'A' }),
+        screen({ name: 'SA', x: 60, y: 20, length: 10 }), screen({ name: 'SB', x: 60, y: -20, length: 10 })]));
+      return J.stats('SA').powerPct + J.stats('SB').powerPct;
+    },
+  },
   { group: 'Higher-order beams and phase masks' },
   {
     name: 'Hermite–Gauss modes are √(2m + 1) and √(2n + 1) wider than their Gaussian',

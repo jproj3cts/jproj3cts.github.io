@@ -2496,6 +2496,23 @@ const TESTS = [
     },
   },
   {
+    name: 'Glass in one arm: fringes need the group paths matched, not the phase paths',
+    why: 'a 5 mm N-BK7 plate in one arm, coherence length 1 mm, group index n_g: with the mirror pulled back by t(n_g \u2212 1) the contrast is 1 (required); pulled back by t(n \u2212 1), where only the phase paths match, it is exp(\u2212\u03c0 \u00b7 2t(n_g \u2212 n) / Lc)',
+    wantFrom: () => { const W = document.getElementById('rig').contentWindow.JEKray2D, g = { glass: 'N-BK7' };
+      const n = W.index(g, LAM * 1e6), ng = n - LAM * 1e6 * (W.index(g, LAM * 1e6 + 0.05) - W.index(g, LAM * 1e6 - 0.05)) / 0.1;
+      return Math.exp(-Math.PI * 2 * 5 * (ng - n) / 1); },
+    tol: 2e-3, unit: '',
+    run: J => {
+      const W = document.getElementById('rig').contentWindow.JEKray2D, g = { glass: 'N-BK7' };
+      const n = W.index(g, LAM * 1e6), ng = n - LAM * 1e6 * (W.index(g, LAM * 1e6 + 0.05) - W.index(g, LAM * 1e6 - 0.05)) / 0.1;
+      const plate = { type: 'prism', shape: 'window', name: 'W', x: 25, y: 0, angle: 0, size: 20, thickness: 5, material: g, coat: { mode: 'custom', R: 0 } };
+      const vis = back => { const P = d => { J.load(michelsonCube(d - back, 0, { coh: 1 }, [plate])); return J.diffraction('Out').power; };
+        const a = P(0), c = P(LAM / 8); return Math.hypot(2 * a - 1, 2 * c - 1); };
+      const vg = vis(5 * (ng - 1));
+      return Math.abs(vg - 1) < 2e-3 ? vis(5 * (n - 1)) : NaN;
+    },
+  },
+  {
     name: 'A beam of M\u00b2 = 2 is \u221a2 wider one Rayleigh range out',
     why: 'the Rayleigh range is \u03c0W\u2080\u00b2 / M\u00b2\u03bb; the diffracted field, summed over the Hermite\u2013Gauss modes, grows by \u221a2 there (second-moment width)',
     want: Math.SQRT2 * 0.2, tol: 1e-3, rel: true, unit: ' mm',

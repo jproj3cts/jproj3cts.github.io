@@ -3060,6 +3060,15 @@ function traceScene() {
       if (m.bire) return birefIndex(m, tag, nm);          // a crystal: each polarisation its own index
       const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd; if (!idx.has(k)) idx.set(k, refIndex(m, nm)); return idx.get(k);
     };
+    // the group index, n - lambda dn/dlambda: what sets how far apart two paths can be and still interfere
+    const gIdx = new Map();
+    const ngOf = (m, tag) => {
+      const k = (m.bire ? 'b' + tag : '') + m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd;
+      if (gIdx.has(k)) return gIdx.get(k);
+      const at = l => m.bire ? birefIndex(m, tag, l) : refIndex(m, l), d = 0.05;
+      const v = at(nm) - nm * (at(nm + d) - at(nm - d)) / (2 * d);
+      gIdx.set(k, v); return v;
+    };
     const stack = [];
     // a fibre tip's source carries its amplitudes as they are, and its launch's own name
     const states = src.virtual ? [{ vs: src.vJ }] : sourcePol(src);
@@ -3117,7 +3126,7 @@ function traceScene() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur } = stack.pop();
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
@@ -3125,6 +3134,7 @@ function traceScene() {
       const pls = chief && id.indexOf('::pulse') > 0;     // a pulse's spectral sample
       const isQ = chief && !probe && !pls;      // the beam-parameter ray: its segments form the beam tree
       aCur = aCur || 0;
+      gpl = gpl || 0; gCur = gCur || 1;          // the group path, and the medium's group index
       let ws = sr * sr + si * si, wp = pr * pr + pi * pi;
       let w = ws + wp;
       const pts = [px, py];
@@ -3149,19 +3159,19 @@ function traceScene() {
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push({ x0: px, y0: py, dx, dy, len: FAR / 20, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w, fan: !!fan, endEl: null,
-            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn, fo });
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo });
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
           beams.push(Object.defineProperty({ x0: px, y0: py, dx, dy, len: best, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, bench: bn, fo },
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo },
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
         }
         px += dx * best; py += dy * best;
         if (probe && hit.kind !== 'screen') probeLast = { px, py, dx, dy };   // the last optic it met
-        opl += nCur * best;
+        opl += nCur * best; gpl += gCur * best;
         if (aCur > 0) {                       // Beer-Lambert over the path just travelled
           const a = Math.exp(-0.5 * aCur * best);
           sr *= a; si *= a; pr *= a; pi *= a;
@@ -3193,7 +3203,7 @@ function traceScene() {
             const nsr = sr * c[0] - si * c[1], nsi = sr * c[1] + si * c[0], npr = pr * c[0] - pi * c[1], npi = pr * c[1] + pi * c[0];
             if (!probe && nsr * nsr + nsi * nsi + npr * npr + npi * npi < minW) { dropped++; continue; }
             const f2 = fo + n * s.el.fm * 1e6;
-            stack.push({ px, py, dx, dy, sr: nsr, si: nsi, pr: npr, pi: npi, bn, fo: f2, bounce: bounce + 1, last: s, opl, nCur, aCur, id, chief, fan, pol, par,
+            stack.push({ px, py, dx, dy, sr: nsr, si: nsi, pr: npr, pi: npi, bn, fo: f2, bounce: bounce + 1, last: s, opl, nCur, aCur, gpl, gCur, id, chief, fan, pol, par,
               qr, qi, bid, evt: isQ ? passEv() : null, fam: famAt(fam, f2), k, path: path + 'e' + n + '.' + bounce, probe, probeH, tag, wk: 0 });
           }
           break;                                                     // this ray ends here; its sidebands carry on
@@ -3370,7 +3380,7 @@ function traceScene() {
             // the phase across the grooves that makes the order: m waves a line, as a path
             const gph = (o.m || 0) * nm * 1e-6 * linesPerMm(el) * ly;
             stack.push({ px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a, bn, fo: f2,
-              bounce: bounce + 1, last: s, opl: opl + gph, nCur, aCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
+              bounce: bounce + 1, last: s, opl: opl + gph, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
               qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam: famAt(fam, f2), k, path: path + 'g' + o.m + '.' + bounce,
               probe, probeH, tag, wk: 0 });
           }
@@ -3381,7 +3391,7 @@ function traceScene() {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
           if (cosd < 0) {
             if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
-            else if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, nm, id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
+            else if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, gpl, nm, id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi });
             if (s.el.absorb && !probe) break;     // probe rays are not light; they measure the system
           }
           if (isQ) evt = passEv();
@@ -3405,7 +3415,7 @@ function traceScene() {
             if (wr >= minW && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
               stack.push({ px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn, fo,
-                bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, id, chief, fan, pol, par: par ^ 1,
+                bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
                 fam, k, path: path + 'r' + bounce, tag, wk: 0 });
             } else dropped++;
@@ -3483,7 +3493,7 @@ function traceScene() {
           if (mInto.bire && !tag && !probe && ws > 1e-12 * w && wp > 1e-12 * w) {
             const back = 1e-5;
             stack.push({ px: px - dx * back, py: py - dy * back, dx, dy, sr: 0, si: 0, pr, pi, bounce, last: null, bn, fo,
-              opl: opl - nCur * back, nCur, aCur, id, chief, fan, pol, par, qr: chief ? qr - back : qr, qi, bid,
+              opl: opl - nCur * back, nCur, aCur, gpl: gpl - gCur * back, gCur, id, chief, fan, pol, par, qr: chief ? qr - back : qr, qi, bid,
               evt: isQ ? passEv() : evt, fam, k: rayK, path: path + 'e', tag: 'p', wk: 0 });
             pr = 0; pi = 0; wp = 0; w = ws;
             tag = 's';
@@ -3560,6 +3570,7 @@ function traceScene() {
             const q = eta * ci - Math.sqrt(k);
             ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny;
             nCur = n2;               // the ray is now travelling in the second medium
+            gCur = ngOf(goingBack ? s.back : s.front, tag);
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
             const mNow = goingBack ? s.back : s.front;
             if (!mNow.bire) tag = undefined;                     // out of the crystal
@@ -5412,7 +5423,7 @@ function faceArrivals(el) {
     const qx = [(b.qr + b.len) / b.n, b.qi / b.n];
     const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
     const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
-    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
+    const A = { b, src, lam0, qx, qy: qy || qx, u0, ldx, ldy, J: b.J, coh: b.coh, opl: (b.opl || 0) + b.n * b.len, gpl: (b.gpl || 0) + (b.ng || b.n) * b.len, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own
     const modes = gsmModes(m2Of(src));
     if (modes.length === 1) out.push(A);
@@ -5447,7 +5458,7 @@ function groupsOf(arr) {
   for (const A of arr) { if (!g.has(A.coh)) g.set(A.coh, []); g.get(A.coh).push(A); }
   // a laser with a line of its own: each launch as its incoherent parts, the weights on J
   for (const G of g.values()) {
-    const cm = cohModes(G[0].src, G.map(A => A.opl + A.lag));
+    const cm = cohModes(G[0].src, G.map(A => A.gpl + A.lag));
     if (!cm) { out.push(G); continue; }
     for (const c of cm) out.push(G.map((A, i) => Object.assign({}, A, { J: A.J.map(v => v * c[i]) })));
   }
@@ -5766,7 +5777,7 @@ function tipInputs(el) {
   const out = [];
   // multimode: each beam's own polarisation, scaled to the share it gets in
   if (el.mm) {
-    for (const A of faceArrivals(el)) { const f = Math.sqrt(mmShare(el, A)); out.push({ E: A.J.map(v => v * f), key: A.coh, nm: A.nm, dl: A.opl + A.lag, root: splitRoot(A.src) }); }
+    for (const A of faceArrivals(el)) { const f = Math.sqrt(mmShare(el, A)); out.push({ E: A.J.map(v => v * f), key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src) }); }
     return out;
   }
   for (const A of faceArrivals(el)) {
@@ -5779,7 +5790,7 @@ function tipInputs(el) {
       s0 += E[0] * M; s1 += E[1] * M; p0 += E[2] * M; p1 += E[3] * M;
     }
     const dd = d * d;
-    out.push({ E: [s0 * dd, s1 * dd, p0 * dd, p1 * dd], key: A.coh, nm: A.nm, dl: A.opl + A.lag, root: splitRoot(A.src) });
+    out.push({ E: [s0 * dd, s1 * dd, p0 * dd, p1 * dd], key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src) });
   }
   return out;
 }
@@ -5793,7 +5804,7 @@ function fibreNetCached() {
   const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre');
   if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }
   const conn = new Set((project.fibres || []).flatMap(F => [F.a[0], F.b[0]]));
-  const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.lag, A.nm, A.src.id]));
+  const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id]));
   const srcs = project.elements.filter(e => e.type === 'source').map(e => [e.id, e.power, e.coh, e.lineshape]);
   const key = JSON.stringify([fels, project.fibres || [], arr, srcs]);
   if (fibreNetMemo.key !== key) {
@@ -6050,7 +6061,7 @@ function freePdTones(el) {
     re *= dA; im *= dA;
     if (same) {
       if (A.fo > B.fo) { [A, B] = [B, A]; im = -im; }
-      const g = cohGamma(root(A)), w = 2 * (g ? g(A.opl + A.lag - B.opl - B.lag) : 1) * (root(A).power || 0);
+      const g = cohGamma(root(A)), w = 2 * (g ? g(A.gpl + A.lag - B.gpl - B.lag) : 1) * (root(A).power || 0);
       add(B.fo - A.fo, w * re, w * im, false);
     } else {
       let df = C_MM / (B.nm * 1e-6) + B.fo - (C_MM / (A.nm * 1e-6) + A.fo);
@@ -7538,21 +7549,21 @@ function binnedFieldRaw(el) {
     }
     const own = [];
     let acc = null, Lw = null;
-    const deposit = (b, sr, si, pr, pi, opl) => {
+    const deposit = (b, sr, si, pr, pi, opl, gp) => {
       const ph = 2 * Math.PI * (opl / lam);
       const c = Math.cos(ph), s2 = Math.sin(ph);
       acc[b * 4] += sr * c - si * s2; acc[b * 4 + 1] += sr * s2 + si * c;
       acc[b * 4 + 2] += pr * c - pi * s2; acc[b * 4 + 3] += pr * s2 + pi * c;
       const w = sr * sr + si * si + pr * pr + pi * pi;
       inc[b] += w;
-      Lw[b * 2] += w * opl; Lw[b * 2 + 1] += w;
+      Lw[b * 2] += w * (gp === undefined ? opl : gp); Lw[b * 2 + 1] += w;
     };
     for (const fam of fams.values()) {
       const src = getEl(fam[0].id.split(':')[0]);
       acc = new Float64Array(n * 4); Lw = new Float64Array(n * 2);
       own.push({ acc, Lw, fam: fam[0].fam, lag: lagOf(src), g: src ? cohGamma(splitRoot(src)) : null });
       if (!interp || fam.length < 2) {
-        for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl);
+        for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl, t.gpl);
         continue;
       }
       fam.sort((a, b) => a.y - b.y);
@@ -7565,7 +7576,7 @@ function binnedFieldRaw(el) {
         const dy0 = c2.y - a.y;
         const u = dy0 === 0 ? 0 : (yb - a.y) / dy0;
         const L = (p0, p1) => p0 + (p1 - p0) * u;
-        deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl));
+        deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl), L(a.gpl, c2.gpl));
       }
     }
     const launches = new Map();
@@ -11730,7 +11741,7 @@ function popGroupCut(item, t) {
     if (tm < -1e-9 || tm > b.len + 1e-9) continue;
     const c = m.leg.cutC(clamp(tm, 0, b.len));
     const x0 = -b.dy * ox + b.dx * oy, cx = exLx * -b.dy + exLy * b.dx, cz = exLx * b.dx + exLy * b.dy;
-    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k, L: (b.opl || 0) + b.n * tm + lagOf(m.src) });
+    parts.push({ c, x0, cx, cz, J: popJ(b), par: b.par, wJ: popWJ(b) * (m.boost || 1), kn: c.k, L: (b.gpl || 0) + (b.ng || b.n) * tm + lagOf(m.src) });
     Yg = Math.max(Yg, Math.abs(x0) + 2.5 * c.w); wMax = Math.max(wMax, c.w);
   }
   const M = 2 * POP_ROWS, x = new Float64Array(M), I = new Float64Array(M);
@@ -11795,7 +11806,7 @@ function closeupPrep(segs, cx, cy, hw, tab) {
     const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
     const J = popJ(b);
     out.push({ b, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
-      src: sg.src, L: (b.opl || 0) + b.n * clamp(tc, 0, b.len) + lagOf(sg.src) });
+      src: sg.src, L: (b.gpl || 0) + (b.ng || b.n) * clamp(tc, 0, b.len) + lagOf(sg.src) });
   }
   closeupLaunches(out);
   return out;
@@ -12609,7 +12620,7 @@ function popDiffraction(el, R) {
   // weighted coherent sum of the launch's arrivals (the weights ride on the array as cs)
   const vLaunches = new Map();
   for (const [key, L2] of launches) {
-    const cm = cohModes(L2[0].sg.src, L2.map(h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len + lagOf(h2.sg.src)));
+    const cm = cohModes(L2[0].sg.src, L2.map(h2 => (h2.sg.b.gpl || 0) + (h2.sg.b.ng || h2.sg.b.n) * h2.sg.b.len + lagOf(h2.sg.src)));
     if (!cm) { vLaunches.set(key, L2); continue; }
     cm.forEach((c, k) => { const a = L2.slice(); a.cs = c; vLaunches.set(key + '~' + k, a); });
   }
@@ -12777,7 +12788,7 @@ function detectorField(el, R) {
   const N = 96, du = (u1 - u0) / N, dv = 2 * v1 / N, pts = [];
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv; if (u * u + v * v <= a * a) pts.push([u, v]); }
   const E = hits.map(h2 => { const fn = segFieldAt(h2, sYx, sYy); return pts.map(([u, v]) => fn(u, v) || [0, 0, 0, 0]); });
-  const L = h2 => (h2.sg.b.opl || 0) + h2.sg.b.n * h2.sg.b.len + lagOf(h2.sg.src), root = h2 => splitRoot(h2.sg.src);
+  const L = h2 => (h2.sg.b.gpl || 0) + (h2.sg.b.ng || h2.sg.b.n) * h2.sg.b.len + lagOf(h2.sg.src), root = h2 => splitRoot(h2.sg.src);
   const base = h2 => h2.sg.coh.replace(/@[^#]*/, ''), fo = h2 => h2.sg.b.fo || 0;
   // each pair's overlap over the diode, in the beam's own cross-section
   const ov = (i, j) => {

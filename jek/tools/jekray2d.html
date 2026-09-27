@@ -9742,6 +9742,54 @@ function popAxis(F) {
   return [er * er + ei * ei];
 }
 
+/* A round field between its samples, exactly as the grid holds it: its Hankel spectrum summed
+   back at any radius. Returns r -> intensity. (Linear interpolation of the intensity samples
+   misplaces a sharp core's half-height by as much as a tenth of its width.) */
+function popIntensityAt(F) {
+  const Q = qdht(F.re.length), [sr, si] = hankel(Q, F.R, F.re, F.im), V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * F.R * F.R);
+  const nu = new Float64Array(Q.N), wr = new Float64Array(Q.N), wi = new Float64Array(Q.N);
+  for (let m = 0; m < Q.N; m++) { nu[m] = Q.j[m] * V / Q.S; wr[m] = sr[m] * Q.inv[m] * k; wi[m] = si[m] * Q.inv[m] * k; }
+  return r => { let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; } return a * a + b * b; };
+}
+/* A 2D field between its samples along a row (axis 'x', row j) or a column ('y', column i),
+   by the trigonometric interpolation its periodic grid implies; both polarisations. Returns
+   offset (in grid steps from the grid's centre) -> intensity. */
+function field2LineAt(F, axis, idx) {
+  const N = F.N, comps = fieldComps(F).map(([kr, ki]) => [F[kr], F[ki]]);
+  const at = n => axis === 'x' ? idx * N + n : n * N + idx;
+  return u => {                                   // u in samples, the grid's index space
+    let I = 0;
+    for (const [R, Im] of comps) {
+      let a = 0, b = 0;
+      for (let n = 0; n < N; n++) {
+        const t = u - n; let w;
+        if (Math.abs(t) < 1e-9) w = 1;
+        else { const s1 = Math.sin(Math.PI * t); w = Math.abs(s1) < 1e-12 ? 0 : s1 / (N * Math.tan(Math.PI * t / N)); }
+        a += w * R[at(n)]; b += w * Im[at(n)];
+      }
+      I += a * a + b * b;
+    }
+    return I;
+  };
+}
+/* The half width at half maximum of a peaked curve f about its peak near x0, found by
+   bisection on each side within [x0 - span, x0 + span]; the peak refined first. */
+function halfWidthOf(f, x0, step, span) {
+  // the peak: a golden-section search within a step either side
+  let a = x0 - step, b = x0 + step;
+  for (let it = 0; it < 40; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (f(m1) > f(m2)) b = m2; else a = m1; }
+  const xp = 0.5 * (a + b), h = 0.5 * f(xp);
+  const side = dir => {
+    let lo = xp, hi = xp;
+    for (let x = xp + dir * step / 4; Math.abs(x - xp) <= span; x += dir * step / 4) { if (f(x) <= h) { hi = x; break; } lo = x; }
+    if (hi === xp) return null;
+    for (let it = 0; it < 40; it++) { const m = 0.5 * (lo + hi); if (f(m) > h) lo = m; else hi = m; }
+    return Math.abs(0.5 * (lo + hi) - xp);
+  };
+  const l = side(-1), r = side(1);
+  return { xp, peak: 2 * h, hw: l === null || r === null ? (l ?? r) : 0.5 * (l + r) };
+}
+
 /* A Gaussian beam as a field: q is the complex beam parameter at this plane */
 function popGaussian(N, q, n, lam0, power) {
   const k = 2 * Math.PI * n / lam0, lam = lam0 / n;
@@ -12714,7 +12762,21 @@ function popDiffraction(el, R) {
       while (ci < Q.N && r[ci] <= x) { acc += I[ci] * Q.inv[ci] * ar; ci++; }
       ee[i] = acc / tot;
     }
-    fwhmX = fwhmY = 2 * (half(Array.from(rho).map((v, i) => v), Array.from(psf)) || 0);
+    // near the axis, the profile and its half width from the field between its samples
+    {
+      const Ir = popIntensityAt(G), rIn = Math.min(rMax, r[Math.min(Q.N - 1, 12)]);
+      for (let i = 0; i < nR && rho[i] <= rIn; i++) psf[i] = Ir(rho[i]);
+      const k0 = psf.indexOf(Math.max(...psf));
+      if (k0 === 0) {
+        // a peak on the axis: bisection on the exact profile (a ring's half width stays as sampled)
+        const h = 0.5 * Ir(0);
+        let lo = 0, hi = null;
+        for (let i = 1; i < nR; i++) if (psf[i] <= h) { hi = rho[i]; lo = rho[i - 1]; break; }
+        if (hi !== null) { for (let it = 0; it < 40; it++) { const m = 0.5 * (lo + hi); if (Ir(m) > h) lo = m; else hi = m; } fwhmX = fwhmY = lo + hi; }
+        else fwhmX = fwhmY = 0;
+        peak = Math.max(peak, Ir(0));
+      } else fwhmX = fwhmY = 2 * (half(Array.from(rho), Array.from(psf)) || 0);
+    }
     const fmax = cutoff || 1.2 / st.w, nF = 128;
     freq = new Float64Array(nF); mtf = new Float64Array(nF);
     let m0 = 0;
@@ -12773,10 +12835,26 @@ function popDiffraction(el, R) {
       acc += pw[b]; ee[b] = acc / (tot || 1);
     }
     // cuts through the peak, in the bench plane and out of it
+    // taken from the field between its samples (four points a sample near the peak), not by
+    // joining the intensity samples with straight lines, which misplaces a sharp peak's half height
     cutX = { x: [], I: [] }; cutY = { x: [], I: [] };
-    for (let i = 0; i < N; i++) { const x = (i - ix) * dx; if (Math.abs(x) <= rMax) { cutX.x.push(x); cutX.I.push(I[iy * N + i]); } }
-    for (let j = 0; j < N; j++) { const y = (j - iy) * dy; if (Math.abs(y) <= rMax) { cutY.x.push(y); cutY.I.push(I[j * N + ix]); } }
-    fwhmX = 2 * (half(cutX.x, cutX.I) || 0); fwhmY = 2 * (half(cutY.x, cutY.I) || 0);
+    const exact = !sibs.length;                    // a sum of modes has no single field to interpolate
+    const lineX = exact ? field2LineAt(G, 'x', iy) : null, lineY = exact ? field2LineAt(G, 'y', ix) : null;
+    const cut = (C, line, i0, d, raw) => {
+      for (let i = 0; i < N; i++) {
+        const x = (i - i0) * d;
+        if (Math.abs(x) > rMax) continue;
+        const sub = line && Math.abs(i - i0) <= 8 ? 4 : 1;
+        for (let q = 0; q < sub; q++) { const u = i + q / sub; if (u - i0 > rMax / d) break; C.x.push((u - i0) * d); C.I.push(q ? line(u) : raw(i)); }
+      }
+    };
+    cut(cutX, lineX, ix, dx, i => I[iy * N + i]);
+    cut(cutY, lineY, iy, dy, j => I[j * N + ix]);
+    if (exact) {
+      const hx = halfWidthOf(lineX, ix, 1, rMax / dx), hy = halfWidthOf(lineY, iy, 1, rMax / dy);
+      fwhmX = hx.hw !== null ? 2 * hx.hw * dx : 0; fwhmY = hy.hw !== null ? 2 * hy.hw * dy : 0;
+      peak = Math.max(peak, hx.peak, hy.peak);
+    } else { fwhmX = 2 * (half(cutX.x, cutX.I) || 0); fwhmY = 2 * (half(cutY.x, cutY.I) || 0); }
     // MTF in each direction from its line spread
     const lx = new Float64Array(N), lyy = new Float64Array(N);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { lx[i] += I[j * N + i]; lyy[j] += I[j * N + i]; }

@@ -2466,6 +2466,17 @@ const TESTS = [
     },
   },
   {
+    name: 'An axicon\u2019s Bessel core is as wide as J\u2080\u00b2 says, in both field models',
+    why: 'the example\u2019s 1\u00b0 fused-silica axicon on a 1 mm beam, 60 mm on: half-height width 2 \u00d7 1.1256 / (k sin \u03b8) = 28.41 \u00b5m for the traced 7.98 mrad (an exact Fresnel\u2013Hankel integral gives the same); the round and the 2D model (worst relative error). The core spans barely two of the grid\u2019s samples, so this needs the field between them',
+    want: 0, tol: 0.003, unit: '',
+    run: J => {
+      const d = getDemo('bessel-beam'), w = m => { const q = JSON.parse(d); q.elements.find(e => e.type === 'source').popModel = m; J.load(q); return J.diffraction('In the Bessel zone'); };
+      const th = 0.00798, want = 2 * 1.12556 / (2 * Math.PI / 632.8e-6 * th);
+      const a = w('auto'), b = w('2d');
+      return a.engine === 'round' && b.engine === '2d' ? Math.max(...[a.fwhmX, b.fwhmX, b.fwhmY].map(v => Math.abs(v / want - 1))) : NaN;
+    },
+  },
+  {
     name: 'A cylindrical lens focuses one way only',
     why: 'power in the bench plane: the diffracted field stays 2 mm across out of the plane at the focus',
     want: 2, tol: 0.02, unit: ' mm',

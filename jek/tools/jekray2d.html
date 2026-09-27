@@ -803,8 +803,8 @@
   <details class="rt-about">
     <summary>What this models, and what it does not</summary>
     <div>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, and saturated absorption for beams crossing them both ways; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
-      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas, magnetic field or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly); a multimode fibre's speckle is averaged away. No nonlinear optics (no self-phase modulation, harmonic generation or Kerr lensing), so a pulse's spectrum only changes by filtering. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam, and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
+      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas, magnetic field or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. No nonlinear optics (no self-phase modulation, harmonic generation or Kerr lensing), so a pulse's spectrum only changes by filtering. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
@@ -1140,35 +1140,123 @@ function faddeeva(x, y) {
   const eu = Math.exp(u[0]);
   return add([eu * Math.cos(u[1]), eu * Math.sin(u[1])], sc(div(num, den), -1));
 }
-/* What a cell does to light at frequency nu (Hz): the field's amplitude factor and phase (rad).
-   pumps: beams crossing it the other way, { nu, I (W/m^2) }, which burn holes in the velocity
-   classes they are resonant with (saturated absorption: Lamb dips at each transition and
-   crossovers halfway between two that share a lower level). The holes come from rate
-   equations for each transition on its own, with no optical pumping between levels: where the
+/* What a cell does to light, slice by slice along its length. A plan fixes what does not
+   change across the beam (each line's Voigt absorption and dispersion at the light's frequency,
+   and the holes each other beam burns); evalPlan then walks one line through the cell at
+   (u, v) across it (u in the bench plane, v out of it, mm, on the cell's centre plane), each
+   slice absorbing by the intensity there:
+   - the light's own beam saturates the lines it is on (a Doppler-broadened line: alpha falls
+     as 1 / sqrt(1 + s)), less as it is absorbed on the way through;
+   - every other beam crossing the cell burns a hole in the velocity class it talks to. With
+     an angle theta between the two, the hole is at nu - nu_a = cos(theta) (nu_p - nu_b),
+     power broadened (a Lorentzian), and smeared by the atoms moving across the pump by
+     u sin(theta) (a Gaussian; together a Voigt). Head on, that is the Lamb dip and the
+     crossovers; side by side, a broad dip with no sub-Doppler feature. Its depth follows the
+     other beam's intensity where this light is in that slice: its Gaussian profile, where it
+     sits and which way it goes (so beams crossing at an angle meet over part of the cell
+     only), and how much of it the cell has absorbed by then.
+   Rate equations for each transition alone, no optical pumping between levels: where the
    dips are and how wide is right; how deep, crossovers above all, only roughly. */
-function cellResponse(el, nu, pumps) {
-  const lines = atomLines(el.atom, el.line), T = el.temp + 273.15, n = cellDensity(el), L = el.cellLen * 1e-3;
-  let alpha = 0, disp = 0;
-  for (const a of lines) {
-    const u = a.nu / C_SI * Math.sqrt(2 * KB * T / a.m), gam = a.A / (4 * Math.PI);
-    const w = faddeeva((nu - a.nu) / u, gam / u);
+const CELL_SLICES = 12;
+function cellPlan(el, nu, dir, self, others) {
+  const lines = atomLines(el.atom, el.line), T = el.temp + 273.15, n = cellDensity(el), L = el.cellLen;
+  const tr = lines.map(a => {
+    const u = a.nu / C_SI * Math.sqrt(2 * KB * T / a.m), gam = a.A / (4 * Math.PI), w = faddeeva((nu - a.nu) / u, gam / u);
     const pref = n * a.share * a.S * a.sInt / (u * Math.sqrt(Math.PI));
-    let keep = 1;
-    if (pumps && pumps.length) {
-      let hole = 0;
-      for (const P of pumps) for (const b of lines) {
-        if (b.iso !== a.iso || b.Fg !== a.Fg) continue;
-        const s = P.I * b.S / b.Isat;
-        if (!(s > 1e-6)) continue;
-        const r = Math.sqrt(1 + s), D = nu + P.nu - a.nu - b.nu, G = gam * (1 + r);
-        hole += 0.5 * (1 - 1 / r) * (b === a ? 1 : b.S / (a.S + b.S) * 2) / (1 + (D / G) ** 2);
-      }
-      keep = Math.max(0, 1 - hole);
-    }
-    alpha += pref * w[0] * keep;
-    disp += pref * w[1];
+    return { a, u, gam, al: pref * w[0], dp: pref * w[1], k: a.S / a.Isat, holes: [] };
+  });
+  const tanOf = d => d[1] / (Math.abs(d[0]) > 1e-12 ? d[0] : 1e-12);
+  const plan = { tr, L, dirSign: dir[0] < 0 ? -1 : 1, tan: tanOf(dir), self: null, pumps: [], varies: false };
+  if (self && self.I > 0 && self.w > 0 && isFinite(self.w)) {
+    plan.self = self;
+    if (tr.some(q => self.I * q.k > 1e-4)) plan.varies = true;
   }
-  return { amp: Math.exp(-alpha * L / 2), ph: -disp * L / 2, od: alpha * L };
+  (others || []).forEach((P, pi) => {
+    if (!(P.I > 0)) return;
+    const cos = clamp(dir[0] * P.dir[0] + dir[1] * P.dir[1], -1, 1), sin = Math.sqrt(Math.max(0, 1 - cos * cos));
+    const pp = { I: P.I, w: P.w > 0 ? P.w : Infinity, ly: P.ly || 0, tan: tanOf(P.dir), prof: P.prof || null, holes: 0 };
+    for (const q of tr) for (const qb of tr) {
+      const a = q.a, b = qb.a;
+      if (b.iso !== a.iso || b.Fg !== a.Fg) continue;
+      const sPk = P.I * b.S / b.Isat;
+      if (!(sPk > 1e-6)) continue;
+      const D = nu - a.nu - cos * (P.nu - b.nu), G = q.gam * (1 + Math.abs(cos) * Math.sqrt(1 + sPk)), sg = q.u * sin;
+      // the hole's shape at this light's frequency, 1 at its centre for a Lorentzian of the same area
+      const H = sg < 1e-3 * G ? 1 / (1 + (D / G) ** 2) : Math.sqrt(Math.PI) * (G / sg) * faddeeva(D / sg, G / sg)[0];
+      const wgt = (b === a ? 1 : 2 * b.S / (a.S + b.S)) * H;
+      if (wgt > 1e-7) { q.holes.push({ p: pi, wgt, k: b.S / b.Isat }); pp.holes++; }
+    }
+    plan.pumps[pi] = pp;
+    if (pp.holes) plan.varies = true;
+  });
+  return plan;
+}
+/* the light's field factor through the cell at (u, v) on its centre plane: { amp, ph, od } */
+function evalPlan(plan, u, v) {
+  const N = CELL_SLICES, dx = plan.L / N, dm = dx * 1e-3, S = plan.self;
+  let od = 0, dsp = 0, Trun = 1;
+  const IP = new Float64Array(plan.pumps.length);
+  for (let k = 0; k < N; k++) {
+    const x = plan.dirSign * (-plan.L / 2 + (k + 0.5) * dx);            // mm along the cell, from its centre
+    const Is = S ? S.I * Trun * Math.exp(-2 * ((u - S.ly) ** 2 + v * v) / (S.w * S.w)) : 0;
+    plan.pumps.forEach((P, i) => {
+      if (!P) return;
+      const d = isFinite(P.w) ? (u + x * plan.tan) - (P.ly + x * P.tan) : 0;
+      IP[i] = P.I * (P.prof ? P.prof(x) : 1) * (isFinite(P.w) ? Math.exp(-2 * (d * d + v * v) / (P.w * P.w)) : 1);
+    });
+    // absorption at a given own intensity: a midpoint step, as the beam saturates less as it fades
+    const at = I0 => {
+      let al = 0, dp = 0;
+      for (const q of plan.tr) {
+        const sat = I0 > 0 ? 1 / Math.sqrt(1 + I0 * q.k) : 1;
+        let keep = 1;
+        for (const hl of q.holes) { const s = IP[hl.p] * hl.k; if (s > 1e-9) keep -= hl.wgt * 0.5 * (1 - 1 / Math.sqrt(1 + s)); }
+        al += q.al * sat * Math.max(0, keep); dp += q.dp * sat;
+      }
+      return [al, dp];
+    };
+    let [al, dp] = at(Is);
+    if (Is > 0) [al, dp] = at(Is * Math.exp(-al * dm / 2));
+    od += al * dm; dsp += dp * dm; Trun *= Math.exp(-al * dm);
+  }
+  return { amp: Math.exp(-od / 2), ph: -dsp / 2, od };
+}
+/* a beam's own intensity along the cell's axis, relative to where it enters: its absorption,
+   saturating itself, slice by slice; as a function of x (mm from the centre) */
+function cellProfile(el, rec) {
+  const plan = cellPlan(el, rec.nu, rec.dir, { I: rec.I, w: rec.w, ly: rec.ly }, []);
+  const N = CELL_SLICES, dx = plan.L / N, xs = [], Is = [];
+  let Trun = 1;
+  for (let k = 0; k < N; k++) {
+    const x = plan.dirSign * (-plan.L / 2 + (k + 0.5) * dx);
+    xs.push(x); Is.push(Trun);
+    const at = I0 => plan.tr.reduce((s, q) => s + q.al / Math.sqrt(1 + I0 * q.k), 0);
+    let al = at(rec.I * Trun);
+    al = at(rec.I * Trun * Math.exp(-al * dx * 1e-3 / 2));
+    Trun *= Math.exp(-al * dx * 1e-3);
+  }
+  return x => { let best = 0; for (let k = 1; k < N; k++) if (Math.abs(xs[k] - x) < Math.abs(xs[best] - x)) best = k; return Is[best]; };
+}
+/* The plan for light of one beam (a record of the last trace, or none) through a cell, with
+   the others there as they were: memoised for the trace */
+let cellPlanMemo = new Map();
+function cellPlanFor(el, nu, dir, srcId) {
+  const recs = cellPumps.get(el.id) || [];
+  const sameDir = r => r.dir[0] * dir[0] + r.dir[1] * dir[1] > 0.9999;
+  const self = srcId === undefined ? null : recs.filter(r => r.src === srcId && sameDir(r) && Math.abs(r.nu - nu) < 1).sort((a, b) => b.I - a.I)[0] || null;
+  const key = el.id + '|' + nu + '|' + dir[0].toFixed(9) + ',' + dir[1].toFixed(9) + '|' + (self ? recs.indexOf(self) : -1);
+  if (cellPlanMemo.has(key)) return cellPlanMemo.get(key);
+  const others = recs.filter(r => r !== self).map(r => Object.assign({}, r, { prof: isFinite(r.w) ? cellProfileMemo(el, r) : null }));
+  const plan = cellPlan(el, nu, dir, self, others);
+  cellPlanMemo.set(key, plan);
+  return plan;
+}
+const cellProfileMemo = (el, r) => { const k = 'prof|' + el.id + '|' + r.nu + '|' + r.I + '|' + r.w + '|' + r.dir; if (!cellPlanMemo.has(k)) cellPlanMemo.set(k, cellProfile(el, r)); return cellPlanMemo.get(k); };
+/* At its simplest: light at nu on the cell's axis, with beams { nu, I (W/m^2) } crossing it
+   head on and wide (the readouts, the tests) */
+function cellResponse(el, nu, pumps) {
+  const plan = cellPlan(el, nu, [1, 0], null, (pumps || []).map(P => ({ nu: P.nu, I: P.I, w: P.w || Infinity, ly: P.ly || 0, dir: P.dir || [-1, 0] })));
+  return evalPlan(plan, 0, 0);
 }
 
 /* The orders a grating sends out for one ray: direction cosine along the grating (local y),
@@ -2948,6 +3036,7 @@ function traceScene() {
   const blocked = {};
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [];
+  cellPlanMemo = new Map();
 
   for (const src of project.elements) if (src.type === 'source') syncSplit(src);
   const runSources = list => {
@@ -3091,7 +3180,7 @@ function traceScene() {
         const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
         const cosd = ldx * nx + ldy * ny;
         if (s.kind === 'absorb') { if (!chief) blocked[s.el.id] = (blocked[s.el.id] || 0) + w; break; }
-        const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false });
+        const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false, configurable: true });
         const passEv = () => withSurf({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A: 1, C: 0, D: 1,
           n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
         if (s.kind === 'eom') {
@@ -3200,19 +3289,44 @@ function traceScene() {
           continue;
         }
         if (s.kind === 'cell') {
-          // an atomic vapour cell: the absorption and index of its lines at this light's
-          // frequency, less the holes burnt by beams crossing it the other way. A beam's
-          // reference ray notes its frequency and peak intensity there, for the other beams.
-          const nu = C_SI * 1e9 / nm + (fo || 0), dir = ldx < 0 ? -1 : 1;
+          // an atomic vapour cell: its lines' absorption and index at this light's frequency,
+          // slice by slice, saturated by its own beam and by the others crossing it (see
+          // cellPlan). A beam's reference ray notes where it crosses, how wide, which way and
+          // how intense, for the next pass; it takes the beam's mean transmission and the
+          // phase on its axis, and hands the field the rest, point by point, as a mask would.
+          const nu = C_SI * 1e9 / nm + (fo || 0), ldir = [ldx, ldy];
+          let bw = 0, Iw = 0;
           if (isQ && w > 0) {
-            const bw = beamAt(qr, qi, nCur, nm, m2Of(src)).w, Pw = w * Math.max(0, splitRoot(src).power) * 1e-3;
-            if (bw > 0 && Pw > 0) cellHits.push({ id: s.el.id, dir, nu, I: 2 * Pw / (Math.PI * (bw * 1e-3) ** 2), P: Pw, src: src.id });
+            bw = beamAt(qr, qi, nCur, nm, m2Of(src)).w;
+            const Pw = w * Math.max(0, splitRoot(src).power) * 1e-3;
+            if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, nu, I: Iw, P: Pw, w: bw, ly, src: src.id }); }
           }
-          const R = cellResponse(s.el, nu, (cellPumps.get(s.el.id) || []).filter(P => P.dir !== dir));
-          const cr = R.amp * Math.cos(R.ph), ci = R.amp * Math.sin(R.ph);
+          const plan = cellPlanFor(s.el, nu, ldir, src.id);
+          let cr, ci;
+          if (isQ) {
+            const c0 = evalPlan(plan, ly, 0);
+            let Tm = c0.amp * c0.amp, sw = plan.self ? plan.self.w : bw;
+            if (plan.varies && sw > 0) {
+              // the power-weighted mean over the beam's Gaussian profile
+              let num = 0, den = 0;
+              for (let a = -3; a <= 3; a++) for (let b2 = -3; b2 <= 3; b2++) {
+                const du = a * 0.55 * sw, dv = b2 * 0.55 * sw, g = Math.exp(-2 * (du * du + dv * dv) / (sw * sw));
+                const r = evalPlan(plan, ly + du, dv); num += g * r.amp * r.amp; den += g;
+              }
+              Tm = num / den;
+              const sq = Math.sqrt(Tm), ph0 = c0.ph;
+              evt = passEv();
+              const sp = Object.create(s);
+              sp.maskFn = (u, v) => { const r = evalPlan(plan, u, v); return [r.amp / sq, (r.ph - ph0) / (2 * Math.PI)]; };
+              Object.defineProperty(evt, 'surf', { value: sp, enumerable: false, configurable: true });
+            } else evt = passEv();
+            cr = Math.sqrt(Tm) * Math.cos(c0.ph); ci = Math.sqrt(Tm) * Math.sin(c0.ph);
+          } else {
+            const r = evalPlan(plan, ly, 0);
+            cr = r.amp * Math.cos(r.ph); ci = r.amp * Math.sin(r.ph);
+          }
           [sr, si] = [sr * cr - si * ci, sr * ci + si * cr]; [pr, pi] = [pr * cr - pi * ci, pr * ci + pi * cr];
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          if (isQ) evt = passEv();
           if (w < minW && !chief) { dropped++; break; }
           pts.length -= 2;
           last = s;
@@ -3491,9 +3605,9 @@ function traceScene() {
     if (hasGain) for (const c of findCavities()) { const L = laserState(c); if (L && L.clamp) for (const [id, s] of L.clamp) next.set(id, s); }
     if (!(next.size === gainSat.size && [...next].every(([k, v]) => gainSat.has(k) && Math.abs(gainSat.get(k) - v) < 1e-6 * Math.abs(v)))) { gainSat = next; again = true; }
     const pumps = new Map();
-    for (const hh of cellHits) { if (!pumps.has(hh.id)) pumps.set(hh.id, []); pumps.get(hh.id).push({ dir: hh.dir, nu: hh.nu, I: hh.I }); }
-    const sig = m => [...m].map(([k, v]) => k + ':' + v.map(P => P.dir + '/' + P.nu.toPrecision(12) + '/' + P.I.toPrecision(4)).join(',')).join(';');
-    if (sig(pumps) !== sig(cellPumps)) { cellPumps = pumps; again = true; }
+    for (const hh of cellHits) { if (!pumps.has(hh.id)) pumps.set(hh.id, []); pumps.get(hh.id).push({ dir: hh.dir, nu: hh.nu, I: hh.I, w: hh.w, ly: hh.ly, src: hh.src }); }
+    const sig = m => [...m].map(([k, v]) => k + ':' + v.map(P => P.dir.map(q => q.toFixed(6)) + '/' + P.nu.toPrecision(12) + '/' + P.I.toPrecision(4) + '/' + P.w.toPrecision(4) + '/' + P.ly.toFixed(4) + '/' + P.src).join(',')).join(';');
+    if (sig(pumps) !== sig(cellPumps)) { cellPumps = pumps; cellPlanMemo = new Map(); again = true; }
     if (again) { gainSatBusy = true; try { traceScene(); } finally { gainSatBusy = false; } return; }
   }
   if (hasGain) {
@@ -7861,7 +7975,7 @@ function cellPanel(el) {
   panel.append(tabs, cv, plotSaveRow(cv));
   bindSync(cv, draw);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Alkali vapour at the temperature set: its density from the vapour pressure, each hyperfine line of the D line with the Doppler width of the vapour and the natural width of the excited state (a Voigt profile), weighted by how many atoms sit in its lower level and how strong it is. The light is absorbed and delayed by the same lines, so a laser tuned through them sees the familiar Doppler-broadened dips, and a beam off to one side of a line picks up its phase. Tune the laser with its wavelength (a sweep scans it), or shift it with an AOM.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Saturated absorption: a strong beam crossing the cell one way burns holes in the atoms’ velocities, and a weak beam crossing the other way sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level. The plot shows the weakest beam with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no magnetic field, no windows.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Saturation, worked out slice by slice along the cell and point by point across each beam: a beam bleaches the lines it is on where it is strong (its centre more than its edges, less as it fades), and a beam crossing the cell burns holes in the atoms\u2019 velocities for the others. Head on, a weak probe sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level; a pump a few milliradians off head-on broadens them (the atoms moving across it), one going the same way makes no narrow feature at all, and a probe only partly inside the pump, or crossing it at an angle, sees them only where the two overlap. The diffracted field and the photodiodes take all of this across the beam. The plot shows the weakest beam on its axis with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no magnetic field, no windows.'));
 }
 /* the cell's lines and the beams through it, relative to the strongest isotope's line centre */
 function cellInfo(el) {
@@ -7878,7 +7992,13 @@ function drawCellSpectrum(cv, el, span) {
   const C = cellInfo(el);
   // the probe: the weakest beam through it; the rest scan with it, the ones going the other way as pumps
   const probe = C.beams.length ? C.beams.reduce((a, b) => b.I < a.I ? b : a) : null;
-  const pumps = probe ? C.beams.filter(b => b.dir !== probe.dir) : [];
+  const pumps = probe ? C.beams.filter(b => b !== probe) : [];
+  // the probe, on its axis, with every beam scanning with it by the same shift
+  const scanned = d => {
+    const sh = r => Object.assign({}, r, { nu: r.nu + d });
+    const plan = cellPlan(el, probe.nu + d, probe.dir, sh(probe), pumps.map(r => Object.assign(sh(r), { prof: cellProfile(el, sh(r)) })));
+    return evalPlan(plan, probe.ly, 0).amp ** 2;
+  };
   const nus = C.lines.map(a => a.nu - C.nu0);
   let lo = Math.min(...nus) - 2 * C.doppler, hi = Math.max(...nus) + 2 * C.doppler;
   const at = probe ? probe.nu - C.nu0 : null;
@@ -7888,7 +8008,7 @@ function drawCellSpectrum(cv, el, span) {
     const d = lo + (hi - lo) * i / (N - 1), shift = probe ? d - at : 0;
     xs.push(d / 1e9);
     lin.push(cellResponse(el, C.nu0 + d, null).amp ** 2);
-    if (pumps.length) sat.push(cellResponse(el, C.nu0 + d, pumps.map(P => ({ nu: P.nu + shift, I: P.I }))).amp ** 2);
+    if (pumps.length) sat.push(scanned(shift));
   }
   plotCsv(cv, el.name + ' transmission', pumps.length ? ['detuning_GHz', 'transmission', 'with_pumps'] : ['detuning_GHz', 'transmission'],
     () => xs.map((x, i) => pumps.length ? [x, lin[i], sat[i]] : [x, lin[i]]));
@@ -12866,10 +12986,9 @@ function updateReadoutsIn(container, el) {
   } else if (el.type === 'cell') {
     const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' per cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler) + '; natural ' + fmtHz(C.natural)],
       ['Saturation intensity', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2 (cycling transition)']];
-    const pumpsOf = b => C.beams.filter(q => q.dir !== b.dir);
     C.beams.slice(0, 4).forEach(b => {
-      const R = cellResponse(el, b.nu, pumpsOf(b));
-      rows.push([getEl(b.src) ? getEl(b.src).name : 'Beam', (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ' + (100 * R.amp ** 2).toPrecision(3) + '% through (OD ' + R.od.toPrecision(3) + '), ' + (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2']);
+      const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src), b.ly, 0);
+      rows.push([getEl(b.src) ? getEl(b.src).name : 'Beam', (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ' + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w)]);
     });
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);
     parts = [rows, ''];
@@ -15098,6 +15217,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // vapour cells: a line's transitions, and what a cell does at a frequency (Hz), with pumps { nu, I W/m^2 }
     atomLines: (atom, line) => atomLines(atom, line).map(a => ({ iso: a.iso, Fg: a.Fg, Fe: a.Fe, nu: a.nu, S: a.S, share: a.share, Isat: a.Isat, A: a.A })),
     cellAt(name, nu, pumps) { return cellResponse(this.byName(name), nu, pumps || null); },
+    // the full model: light at nu going dir through the cell at (u, v), its own beam self { I, w, ly }, others { nu, I, w, ly, dir }
+    cellField(name, nu, o) { const el = this.byName(name); o = o || {}; const others = (o.others || []).map(r => Object.assign({ w: Infinity, ly: 0, dir: [-1, 0] }, r));
+      others.forEach(r => { if (isFinite(r.w) && o.profiles !== false) r.prof = cellProfile(el, r); });
+      return evalPlan(cellPlan(el, nu, o.dir || [1, 0], o.self || null, others), o.u || 0, o.v || 0); },
     cellDensity(name) { return cellDensity(this.byName(name)); },
     cellBeams(name) { traceScene(); const el = this.byName(name); return (lastTrace.cells || []).filter(c => c.id === el.id); },
     faddeeva,

@@ -2,7 +2,7 @@
   "format": "jekray",
   "version": 1,
   "name": "Saturated absorption spectroscopy",
-  "saved": "2026-09-27T09:23:06.009Z",
+  "saved": "2026-09-27T10:02:10.898Z",
   "view": {
     "cx": 10,
     "cy": 35,
@@ -227,5 +227,5 @@
   ],
   "fibres": [],
   "measures": [],
-  "notes": "Saturated absorption spectroscopy on the rubidium D2 line. A weak probe and a strong pump, split from one 780 nm laser, cross a 75 mm natural rubidium cell in opposite directions; the probe goes on to a photodiode. Alone, the probe sees the Doppler-broadened absorption, about 500 MHz wide. The pump empties the atoms of one velocity class, so where both beams talk to the same atoms (a hyperfine transition, or halfway between two that share a lower level, a crossover) the probe is absorbed less: narrow Lamb dips, a few MHz wide, inside the Doppler dip. Select the cell and look at its spectrum, Round the laser, with and without the pump (drag the pump source away to switch it off). Press Play on the laser’s wavelength sweep to scan it over the ⁸⁵Rb F = 3 lines and watch the photodiode. The depths come from simple rate equations; the positions and widths are right."
+  "notes": "Saturated absorption spectroscopy on the rubidium D2 line. A weak probe and a strong pump, split from one 780 nm laser, cross a 75 mm natural rubidium cell in opposite directions; the probe goes on to a photodiode. Alone, the probe sees the Doppler-broadened absorption, about 500 MHz wide. The pump empties the atoms of one velocity class, so where both beams talk to the same atoms (a hyperfine transition, or halfway between two that share a lower level, a crossover) the probe is absorbed less: narrow Lamb dips, a few MHz wide, inside the Doppler dip. Select the cell and look at its spectrum, Round the laser, with and without the pump (drag the pump source away to switch it off). Turn the pump source a degree or two and the dips broaden, as when a real setup is out of alignment; move it sideways and they fade as the beams stop overlapping. Press Play on the laser’s wavelength sweep to scan it over the ⁸⁵Rb F = 3 lines and watch the photodiode. The depths come from simple rate equations; the positions and widths are right."
 }

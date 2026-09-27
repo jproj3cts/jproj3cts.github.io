@@ -3093,6 +3093,53 @@ const TESTS = [
     run: J => { J.importText(getDemo('saturated-absorption')); J.trace(); const on = J.detector('Photodiode').mw;
       J.setParam('Pump (from the same laser)', 'power', 0); J.trace(); const off = J.detector('Photodiode').mw; return Math.min(on / off, 1.2); },
   },
+  {
+    name: 'A pump tilted off the probe broadens the Lamb dip as the atoms moving across it say',
+    why: '⁸⁷Rb F = 2 → 3, weak pump 20 mrad off head-on: the dip’s width against a Voigt of the natural width and the Doppler width × sin(angle) (Olivero’s formula), halved as both beams scan',
+    wantFrom: () => { const J = rigJ(); J.load(cellBench({ atom: 'Rb87' })); const L = J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3);
+      const gam = L.A / (4 * Math.PI), u = L.nu / 299792458 * Math.sqrt(2 * 1.380649e-23 * 298.15 / (86.909180527 * 1.66053906660e-27)), al = 0.02, c = Math.cos(al);
+      const fL = 2 * gam * (1 + c * Math.sqrt(1.01)), fG = 2 * Math.sqrt(Math.LN2) * u * Math.sin(al); return (0.5346 * fL + Math.sqrt(0.2166 * fL * fL + fG * fG)) / (1 + c) / 1e6; },
+    tol: 0.15, unit: ' MHz',
+    run: J => { J.load(cellBench({ atom: 'Rb87' })); const L = J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3), pd = [-Math.cos(0.02), Math.sin(0.02)], pts = [];
+      for (let d = -25e6; d <= 25e6; d += 0.05e6) { const nu = L.nu + d; pts.push([d, J.cellField('Cell', nu, { others: [{ nu, I: 0.01 * L.Isat / L.S, dir: pd }] }).od - J.cellField('Cell', nu).od]); }
+      const h = Math.min(...pts.map(q => q[1])) / 2; let a = null, z = null;
+      for (const q of pts) { if (q[1] <= h) { if (a === null) a = q[0]; z = q[0]; } }
+      return (z - a) / 1e6; },
+  },
+  {
+    name: 'Beams going the same way make no sub-Doppler feature',
+    why: 'a strong beam alongside the probe saturates the same atoms wherever the laser is: across ±300 MHz the probe’s absorption falls smoothly, by no more than a few per cent from place to place',
+    want: 0, tol: 0.06, unit: '',
+    run: J => { J.load(cellBench({ atom: 'Rb87' })); const nuA = J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu, r = [];
+      for (let d = -300e6; d <= 300e6; d += 10e6) { const nu = nuA + d; r.push(J.cellField('Cell', nu, { others: [{ nu, I: 30, dir: [1, 0] }] }).od / J.cellField('Cell', nu).od); }
+      return Math.max(...r) - Math.min(...r); },
+  },
+  {
+    name: 'A strong beam bleaches a thick cell as the saturated Beer–Lambert law says',
+    why: 'Cs D1 F = 4 → 3 at 40 °C (optical depth 11), a beam at 100 × saturation: dI/dz = −α₀ I / √(1 + I/I_s), integrated finely',
+    wantFrom: () => { const J = rigJ(); J.load(cellBench({ atom: 'Cs', line: 'D1', temp: 40 })); const L = J.atomLines('Cs', 'D1').find(a => a.Fg === 4 && a.Fe === 3), al0 = J.cellField('Cell', L.nu).od / 0.075;
+      let x = 1; const n = 20000, dz = 0.075 / n; for (let k = 0; k < n; k++) x *= Math.exp(-al0 / Math.sqrt(1 + 100 * x) * dz); return x; },
+    tol: 0.01, rel: true, unit: '',
+    run: J => { J.load(cellBench({ atom: 'Cs', line: 'D1', temp: 40 })); const L = J.atomLines('Cs', 'D1').find(a => a.Fg === 4 && a.Fe === 3);
+      return J.cellField('Cell', L.nu, { self: { I: 100 * L.Isat / L.S, w: 1, ly: 0 } }).amp ** 2; },
+  },
+  {
+    name: 'Light off to the side of a pump sees no hole',
+    why: 'a probe ray two pump radii off a 0.5 mm pump’s axis: its absorption as with no pump at all (ratio)',
+    want: 1, tol: 1e-3, unit: '',
+    run: J => { J.load(cellBench({ atom: 'Rb87' })); const nuA = J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu;
+      return J.cellField('Cell', nuA, { others: [{ nu: nuA, I: 50, w: 0.5, ly: 0, dir: [-1, 0] }], u: 1, profiles: false }).od / J.cellField('Cell', nuA).od; },
+  },
+  {
+    name: 'The diffracted field and a photodiode see a saturated cell across the beam',
+    why: '0.3 mW at 1 mm through ⁸⁷Rb at 30 °C on its F = 2 → 3 line: the power reaching the screen’s field and a photodiode, against the Gaussian-weighted mean of the local transmission (both, averaged)',
+    wantFrom: () => { const J = rigJ(); J.load(satCellBench(true)); J.trace(); const rec = J.cellBeams('Cell')[0], nuA = rec.nu; let num = 0, den = 0;
+      for (let i = -30; i <= 30; i++) for (let j = -30; j <= 30; j++) { const u = i * 0.04, v = j * 0.04, g = Math.exp(-2 * (u * u + v * v) / (rec.w * rec.w));
+        num += g * J.cellField('Cell', nuA, { self: { I: rec.I, w: rec.w, ly: 0 }, u, v }).amp ** 2; den += g; } return num / den; },
+    tol: 0.005, rel: true, unit: '',
+    run: J => { J.load(satCellBench(true)); J.trace(); const f = J.diffraction('S').power, d = J.detector('D').mw;
+      J.load(satCellBench(false)); J.trace(); return 0.5 * (f / J.diffraction('S').power + d / J.detector('D').mw); },
+  },
   { group: 'Fibre extras' },
   {
     name: 'PM fibre launched off its axis turns the polarisation by its beat',
@@ -3145,6 +3192,12 @@ function laserBench(g0) {
     { type: 'gain', name: 'Gain', x: 30, y: 0, angle: 0, length: 6, g0, centre: 1064, fwhm: 0.6, isat: 2.9 },
     { type: 'mirror', name: 'OC', x: 100, y: 0, angle: 180, length: 12.7, reflect: 95, R: 250 },
     { type: 'detector', name: 'Out', x: 130, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
+}
+function satCellBench(cell) {
+  const lam = 299792458e9 / rigJ().atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu;
+  return bench('satcell', [src({ name: 'L', x: -60, wavelength: lam, gauss: true, w0: 0.5, width: 1, rays: 3, pol: 's', power: 0.3, popN: 256 }),
+    ...(cell ? [{ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb87', temp: 30 }] : []),
+    screen({ name: 'S', x: 50, length: 4, absorb: false }), { type: 'detector', name: 'D', x: 70, y: 0, angle: 180, length: 5, material: 'custom', resp: 1 }]);
 }
 const cellBench = o => bench('cell', [Object.assign({ type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 25, cellLen: 75 }, o)]);
 function pmBench(key, len) {

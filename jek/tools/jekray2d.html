@@ -481,6 +481,8 @@
   .rt-notes:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
   .rt-welcome { text-align: left; }
+  .rt-sigspan { display: flex; align-items: center; gap: 0.5rem; margin: 0.45rem 0 0; font-size: 0.8rem; color: var(--jek-ink-soft); }
+  .rt-sigspan select { flex: 1; min-width: 0; }
   .rt-sharedbar { position: absolute; left: 50%; top: 4.6rem; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
     max-width: calc(100% - 1.6rem); padding: 0.45rem 0.55rem 0.45rem 0.85rem; font-size: 0.85rem; color: var(--jek-ink-soft); background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
   .rt-sharedbar b { color: var(--jek-ink); }
@@ -7138,20 +7140,65 @@ function drawSignal(cv, el, mode) {
     drawAxes(g, A, [0, fmax], [bot, top], sx, sy);
     return;
   }
-  // the trace: a few periods of the slowest tone
-  const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, span = fmin > 0 ? 3 / fmin : 1e-6, n = 600;
-  const Vt = t => Math.min(S.vmax, S.Vdc + T.reduce((a, q) => a + q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0));
-  const ys = []; for (let i = 0; i <= n; i++) ys.push(Vt(span * i / n));
-  plotCsv(cv, el.name + ' oscilloscope', ['time_s', 'output_V'], () => ys.map((v, i) => [span * i / n, v]));
-  let lo = Math.min(0, ...ys), hi = Math.max(...ys); if (hi - lo < 1e-9) hi = lo + 1e-3;
+  // the trace over the time axis chosen: by itself, a few periods of the slowest tone. A tone
+  // too fast to follow at this span (under four samples a period) fills a band, as on a real
+  // oscilloscope; on spans long enough for the sweeps to move things, the output recorded as
+  // they played (on the sweep clock) is drawn, the newest at the right
+  const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, n = 600;
+  const want = vs(el).sigSpan, span = want > 0 ? want : fmin > 0 ? 3 / fmin : 1e-6, dt = span / n;
+  const slow = T.filter(q => q.f * dt < 0.25), fast = T.filter(q => q.f * dt >= 0.25);
+  const band = fast.reduce((a, q) => a + q.V, 0);
+  const H = (sigHist.get(el.id) || []).filter(r => r[0] >= clockT - span - 1e-12);
+  const rolled = want >= SIG_ROLL && H.length > 1;
+  const t0 = clockT - span;
+  const at = t => { if (!rolled) return S.Vdc; let k = 0; while (k + 1 < H.length && H[k + 1][0] <= t) k++; return t < H[0][0] ? NaN : H[k][1]; };
+  const Vt = t => at(t0 + t) + slow.reduce((a, q) => a + q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0);
+  const ys = [], lo_ = [], hi_ = [];
+  for (let i = 0; i <= n; i++) { const v = Vt(span * i / n); ys.push(Number.isFinite(v) ? Math.min(S.vmax, v) : NaN); lo_.push(Math.min(S.vmax, v - band)); hi_.push(Math.min(S.vmax, v + band)); }
+  plotCsv(cv, el.name + ' oscilloscope', band > 0 ? ['time_s', 'output_V', 'band_low_V', 'band_high_V'] : ['time_s', 'output_V'],
+    () => ys.map((v, i) => band > 0 ? [span * i / n, v, lo_[i], hi_[i]] : [span * i / n, v]));
+  const fin = [...ys, ...lo_, ...hi_].filter(Number.isFinite);
+  let lo = Math.min(0, ...fin), hi = Math.max(...fin); if (!(hi - lo > 1e-9)) hi = lo + 1e-3;
   const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
-  const sx = { kind: 's', title: 'time' }, sy = { kind: 'plain', title: 'output, V' };
+  const sx = { kind: 's', title: rolled ? 'time, recorded' : 'time' }, sy = { kind: 'plain', title: 'output, V' };
   const A = plotArea(g, w, hgt, [lo, hi], sy);
+  const X = i => A.l + i / n * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
+  if (band > 0) {
+    g.fillStyle = 'rgba(0,146,178,0.28)'; g.beginPath();
+    let open = false;
+    const close = k => { for (let m = k; m >= 0 && Number.isFinite(lo_[m]); m--) g.lineTo(X(m), Y(lo_[m])); g.closePath(); };
+    for (let i = 0; i <= n; i++) {
+      if (!Number.isFinite(hi_[i])) { if (open) { close(i - 1); open = false; } continue; }
+      open ? g.lineTo(X(i), Y(hi_[i])) : (g.moveTo(X(i), Y(hi_[i])), open = true);
+    }
+    if (open) close(n);
+    g.fill();
+  }
   g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.4; g.beginPath();
-  ys.forEach((v, i) => { const X = A.l + i / n * A.w, Y = A.t + A.h - (v - lo) / (hi - lo) * A.h; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  let pen = false;
+  ys.forEach((v, i) => { if (!Number.isFinite(v)) { pen = false; return; } pen ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); pen = true; });
   g.stroke();
   drawAxes(g, A, [0, span], [lo, hi], sx, sy);
+  if (want >= SIG_ROLL && !rolled) {
+    g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont(); g.textAlign = 'left';
+    g.fillText(allSweeps().length ? 'press Play on a sweep to record the output over time' : 'give something a sweep and play it to see the output change', A.l + 6, A.t + 12);
+  }
 }
+/* the time axis a photodiode's oscilloscope can show: by itself, or a fixed span */
+const SIG_SPANS = [['auto', 'By itself (the beat notes)'], [1e-8, '10 ns'], [1e-7, '100 ns'], [1e-6, '1 µs'], [1e-5, '10 µs'], [1e-4, '100 µs'],
+  [1e-3, '1 ms'], [1e-2, '10 ms'], [0.1, '100 ms'], [1, '1 s'], [10, '10 s'], [60, '1 min']];
+const SIG_ROLL = 1e-3;                 // at or above this span the recorded output is drawn
+// what each photodiode put out as the sweeps played: [clock s, output V], kept an hour back
+const sigHist = new Map();
+function recordSignal(el, V) {
+  let H = sigHist.get(el.id);
+  if (!H) sigHist.set(el.id, H = []);
+  if (H.length && clockT < H[H.length - 1][0]) H.length = 0;          // the clock went back: a new record
+  if (H.length && clockT === H[H.length - 1][0]) { H[H.length - 1][1] = V; return; }
+  H.push([clockT, V]);
+  while (H.length > 20000 || (H.length && H[0][0] < clockT - 3600)) H.shift();
+}
+const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
 /* the signal section of a photodiode's panel */
 function signalSection(el) {
   const fibre = el.type === 'fcomp';
@@ -7162,16 +7209,23 @@ function signalSection(el) {
   const tabs = h('div', { class: 'rt-tabs', style: 'margin-top:0.4rem' });
   const cv = h('canvas', { height: '150', style: 'width:100%;display:block' });
   const draw = () => drawSignal(cv, el, vsEl.sigView);
+  const spanSel = h('select', { 'aria-label': 'Time axis' }, ...SIG_SPANS.map(([v, t]) => h('option', { value: String(v) }, t)));
+  spanSel.value = String(vsEl.sigSpan > 0 ? vsEl.sigSpan : 'auto');
+  spanSel.addEventListener('change', () => { vsEl.sigSpan = spanSel.value === 'auto' ? 0 : +spanSel.value; draw(); });
+  const spanRow = h('label', { class: 'rt-sigspan' }, 'Time axis ', spanSel);
+  const showSpan = () => { spanRow.hidden = vsEl.sigView !== 'time'; };
   for (const [k, label] of [['rf', 'RF spectrum'], ['time', 'Oscilloscope']]) {
-    const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); draw(); } }, label);
+    const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); showSpan(); draw(); } }, label);
     tabs.append(b);
   }
-  panel.append(tabs, h('div', { style: 'margin-top:0.3rem' }, cv), plotSaveRow(cv));
+  showSpan();
+  panel.append(tabs, spanRow, h('div', { style: 'margin-top:0.3rem' }, cv), plotSaveRow(cv));
   const rows = h('div', { class: 'rt-readout' });
   panel.append(rows);
   let sig = '';
   bindSync(cv, () => {
     const S = pdSignal(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3);
+    if (playing.size) recordSignal(el, Math.min(S.vmax, S.Vdc));
     const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + ' V']];
     for (const t of S.tones.slice(0, 8)) r.push(['Beat at ' + fmtHz(t.f), fmtMw(t.amp) + ' swing, ' + f(t.V) + ' V' + (t.incoh ? ' (two lasers: phase wanders, line of both)' : ', phase ' + (t.phV / deg).toFixed(1) + '\u00b0')]);
     if (S.tones.length > 8) r.push(['', (S.tones.length - 8) + ' more']);
@@ -7186,7 +7240,7 @@ function signalSection(el) {
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The oscilloscope\u2019s time axis shows a few beat periods by itself, or any span you set: beats too fast to follow at that span fill a band, as on a real oscilloscope, and from 1 ms up it shows the output recorded as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen.'));
 }
 
 /* ---------- One-parameter search over a swept range ---------- */
@@ -17861,6 +17915,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     paraxial(name, nm) { return paraxial(this.byName(name), nm); },
     index: refIndex,
     version: () => APP_VERSION,
+    // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
+    scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); vs(el).sigSpan = span; drawSignal(cv, el, 'time'); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,
     setParam(name, path, v) { setParam(this.byName(name), path, v); },
     getParam(name, path) { return getPath(this.byName(name), path); },

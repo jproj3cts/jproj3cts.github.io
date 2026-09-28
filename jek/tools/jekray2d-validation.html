@@ -481,6 +481,47 @@ const ALL_CASES = [
       return { checks, benches };
     },
   },
+  {
+    id: 'boyd-kleinman', area: 'Nonlinear optics', title: 'Second-harmonic generation with a focused beam',
+    kind: 'Paper: closed forms', ref: 'boyd-kleinman.json', script: 'boyd_kleinman.py',
+    cite: 'G. D. Boyd and D. A. Kleinman, “Parametric interaction of focused Gaussian light beams”, Journal of Applied Physics 39, 3597–3639 (1968).',
+    what: 'Boyd and Kleinman’s focusing function h(σ, ξ, μ), which sets how much harmonic a focused Gaussian beam makes in a crystal of length L (ξ = L/b, the length over the confocal parameter; μ where the focus sits; σ the phase mismatch), against the same integral done independently by adaptive quadrature: best over σ at eight focusings with the focus centred and offset by half the half-length, and at two fixed mismatches. Their optimum, h = 1.068 at ξ = 2.84 and σ = 0.57, as quoted in the paper. And a bench: 10 mW at 1064 nm focused to ξ = 2.84 at the centre of 50 mm of MgO:PPLN (d_eff 14 pm/V; Gayer et al.’s index), where JEKray2D takes the beam’s confocal parameter and focus from the traced beam as its faces refract it, and gives η = 16π²d²Lh / (ε₀cλ³n₁n₂) and the harmonic power.',
+    tolerance: 'h within 0.1% and the best σ within 0.01; the optimum within the paper’s last figure (h ± 0.001, ξ ± 0.01, σ ± 0.01); on the bench, ξ within 0.5%, the focus within 0.01 half-lengths of the centre, and the efficiency and harmonic power within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const r of R.rows) {
+        const tag = 'ξ = ' + r.xi + (r.mu ? ', μ = ' + r.mu : '');
+        const B = J.bkBest(r.xi, r.mu);
+        checks.push(check(tag + ': best h', r.h_best, B.h, { rel: 1e-3 }));
+        checks.push(check(tag + ': its σ', r.sigma_best, B.sigma, { abs: 0.01 }));
+        checks.push(check(tag + ': h at σ = 0', r.h_sigma0, J.bkH(0, r.xi, r.mu), { rel: 1e-3 }));
+        checks.push(check(tag + ': h at σ = 1', r.h_sigma1, J.bkH(1, r.xi, r.mu), { rel: 1e-3 }));
+      }
+      // the optimum over the focusing too, by golden section
+      let lo = 2, hi = 4; const f = x => J.bkBest(x, 0).h;
+      for (let i = 0; i < 50; i++) { const m1 = lo + 0.382 * (hi - lo), m2 = lo + 0.618 * (hi - lo); if (f(m1) > f(m2)) hi = m2; else lo = m1; }
+      const xo = (lo + hi) / 2, O = J.bkBest(xo, 0), P = R.optimum.paper;
+      checks.push(check('Optimum: h (Boyd and Kleinman: 1.068)', P.h, O.h, { abs: 0.001 }));
+      checks.push(check('Optimum: ξ (2.84)', P.xi, xo, { abs: 0.01 }));
+      checks.push(check('Optimum: σ (0.57)', P.sigma, O.sigma, { abs: 0.01 }));
+      const Bn = R.bench;
+      const data = bench('SHG: 10 mW at 1064 nm focused to ξ = 2.84 in 50 mm of MgO:PPLN (Boyd and Kleinman)', [
+        { type: 'source', name: 'Nd:YAG', x: -100, y: 0, angle: 0, wavelength: Bn.nm, width: 0.1, rays: 1, gauss: true, w0: Bn.w0_mm, z0: 100 - Bn.L_mm / 2 + Bn.waist_in_air_from_face_mm, pol: 's', power: 1000 * Bn.P1_W },
+        { type: 'nlc', name: 'PPLN', x: 0, y: 0, angle: 0, length: 3, nlLen: Bn.L_mm, material: 'ppln', period: 0, temp: Bn.T, axis: 's', faces: 'ar' },
+        { type: 'screen', name: 'Out', x: 60, y: 0, angle: 180, length: 10 }]);
+      J.load(data); J.trace();
+      const H = J.nlc('PPLN')[0], r = H ? H.r : {};
+      checks.push(check('Bench: ξ from the traced beam', Bn.xi, r.xi, { rel: 5e-3 }));
+      checks.push(check('Bench: focus offset μ', 0, r.mu, { abs: 0.01 }));
+      checks.push(check('Bench: efficiency η', Bn.eta_per_W, r.eta, { rel: 0.01 }, ' /W'));
+      checks.push(check('Bench: harmonic power', Bn.P2_W * 1e6, r.P2 * 1e6, { rel: 0.01 }, ' µW'));
+      benches.push(['10 mW into 50 mm of PPLN', data]);
+      const xs = R.rows.filter(q => !q.mu).map(q => q.xi);
+      const plots = [plot({ title: 'The focusing function, best over σ (focus centred)', xlabel: 'ξ = L / b', ylabel: 'h',
+        series: [{ name: 'Quadrature', x: xs, y: R.rows.filter(q => !q.mu).map(q => q.h_best), colour: REF_C }, { name: 'JEKray2D', x: xs, y: xs.map(x => J.bkBest(x, 0).h), colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'The harmonic power on the bench is 0.2% under the reference because JEKray2D’s anti-reflection coated entrance face sends back 0.1% of the fundamental (9.99 mW goes in, and the harmonic goes as its square); the reference takes all 10 mW.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

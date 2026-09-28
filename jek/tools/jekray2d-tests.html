@@ -3832,6 +3832,32 @@ const TESTS = [
   },
   { group: 'Dipole traps' },
   {
+    name: 'A trap at a 3 \u00b5m focus sees the beam its screen shows',
+    why: '1 W at 1064 nm, w\u2080 = 3 \u00b5m (NA 0.11), \u2078\u2077Rb: the light at the trap is 2P/\u03c0w\u2080\u00b2 (it was 2.3% low when the trap summed the beam\u2019s paraxial far field as an exact pupil) and the radial frequency \u221a(4U/mw\u2080\u00b2)/2\u03c0; the axial one is the exact beam\u2019s, 1.3% above the paraxial \u221a(2U/mz\u1d3f\u00b2)/2\u03c0 (it was eight times it when the field was sampled 20 wavelengths apart along the beam); worst relative error',
+    want: 0, tol: 0.005, unit: '',
+    run: J => {
+      const w0 = 0.003, zR = Math.PI * w0 * w0 / 1064e-6, m = 86.909180527 * 1.66053906660e-27;
+      J.load(bench('t3', [src({ name: 'L', x: -50, wavelength: 1064, gauss: true, w0, z0: 50, width: 0.1, rays: 1, pol: 's', power: 1000, popN: 256 }),
+        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'Rb87' })], { minPower: 1e-6 }));
+      const T = J.trap('S'), U = T.depthK * 1.380649e-23, fr = Math.sqrt(4 * U / (m * (w0 * 1e-3) ** 2)) / (2 * Math.PI), fz = Math.sqrt(2 * U / (m * (zR * 1e-3) ** 2)) / (2 * Math.PI);
+      return Math.max(Math.abs(T.I / (2 / (Math.PI * (w0 * 1e-3) ** 2)) - 1), Math.abs(T.fx / fr - 1), Math.abs(T.fy / fr - 1), Math.abs(T.fz / fz / 1.0126 - 1));
+    },
+  },
+  {
+    name: 'The close-up puts a tight standing wave\u2019s nodes where the exact field has them',
+    why: 'two counter-propagating 1 \u00b5m beams of one laser at 1550 nm, waists together: the nodes along the axis at \u00b10.4448 and \u00b11.3072 \u00b5m (the exact angular spectrum; paraxially \u00b10.4403, \u00b11.3035). With three cuts across the view the close-up had them at \u00b10.412, \u00b11.249; worst difference, nm',
+    want: 0, tol: 5, unit: ' nm',
+    run: J => {
+      J.load(bench('sw', [src({ id: 'A', name: 'A', x: -20, wavelength: 1550, width: 0.004, gauss: true, w0: 0.001, z0: 20, pol: 's', rays: 1, power: 1, popN: 256 }),
+        src({ id: 'B', name: 'B', x: 20, angle: 180, wavelength: 1550, width: 0.004, gauss: true, w0: 0.001, z0: 20, pol: 's', rays: 1, power: 1, popN: 256, splitFrom: 'A', splitPhase: 0, splitPath: 0 })], { minPower: 1e-6 }));
+      J.trace();
+      const n = 4000, I = J.fieldAlong(-0.002, 0, 0.002, 0, n), zs = I.map((_, i) => -0.002 + 0.004 * i / n), mins = [];
+      for (let i = 1; i < n; i++) if (I[i] < I[i - 1] && I[i] <= I[i + 1]) { const a = I[i - 1], b = I[i], c = I[i + 1]; mins.push(zs[i] + 0.5 * (zs[1] - zs[0]) * (a - c) / ((a - 2 * b + c) || 1)); }
+      const want = [-1.3072, -0.4448, 0.4448, 1.3072];
+      return want.length === mins.length ? Math.max(...want.map((w, i) => Math.abs(mins[i] * 1e3 - w) * 1e3)) : NaN;
+    },
+  },
+  {
     name: 'Rubidium\u2019s polarisability at 1064 nm is the published one',
     why: 'from the D lines with their counter-rotating terms and the ion core: against 687.3 atomic units (Safronova, Williams and Clark 2006)',
     want: 687.3, tol: 0.01, rel: true, unit: ' a.u.',

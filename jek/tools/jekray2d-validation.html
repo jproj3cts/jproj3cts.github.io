@@ -681,6 +681,56 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'tweezers', area: 'Optical traps', title: 'A small sphere in a focused beam',
+    kind: 'Paper: forces, exact beam', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
+    cite: 'Y. Harada and T. Asakura, “Radiation forces on a dielectric sphere in the Rayleigh scattering regime”, Optics Communications 124, 529–541 (1996).',
+    what: 'A 30 nm fused-silica sphere in vacuum, in 100 mW of 1064 nm light focused to a 3 µm waist. Harada and Asakura’s gradient force (the sphere’s polarisability from Clausius–Mossotti) pulls it toward the focus, their scattering force pushes it along the beam, so it sits a little past the focus, where the two balance on the axis, and about there it is held with stiffnesses they give across and along the beam. Their forces are applied to the beam worked out exactly (a Gaussian at its waist carried by its exact angular spectrum): at this focus the paraxial Gaussian their closed forms assume is itself off by about 1% along the beam, which is more than the tolerance allows for. JEKray2D’s sphere trap (a screen at the focus) finds where the force of the field it propagates vanishes and the curvature of the potential there.',
+    tolerance: 'The equilibrium’s distance past the focus within 3%, and the trap frequencies across and along the beam within 2%.',
+    async run(J, R) {
+      const H = R.harada, checks = [];
+      const data = bench('Rayleigh sphere: 30 nm silica, 100 mW at 1064 nm, w₀ = 3 µm (Harada and Asakura 1996)', [
+        { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: H.lambda_nm, width: 0.1, gauss: true, w0: H.w0_um / 1000, z0: 50, popN: 256, pol: 's', rays: 1, power: H.P_mW },
+        { type: 'screen', name: 'Trap', x: 0, y: 0, angle: 180, length: 0.2, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: H.radius_nm, trapRho: H.density, trapMed: 'vacuum' }], { minPower: 1e-6 });
+      J.load(data); const T = J.trap('Trap');
+      checks.push(check('Equilibrium past the focus', H.z_eq_um, T ? T.dz * 1e3 : NaN, { rel: 0.03 }, ' µm'));
+      checks.push(check('Trap frequency across the beam, in the bench plane', H.f_radial_Hz, T ? T.fx : NaN, { rel: 0.02 }, ' Hz'));
+      checks.push(check('Trap frequency across the beam, out of the plane', H.f_radial_Hz, T ? T.fy : NaN, { rel: 0.02 }, ' Hz'));
+      checks.push(check('Trap frequency along the beam', H.f_axial_Hz, T ? T.fz : NaN, { rel: 0.02 }, ' Hz'));
+      const Pp = H.paraxial;
+      return { checks, benches: [['30 nm sphere', data]], notes: 'With the paraxial beam, Harada and Asakura’s forces give ' + fmt(Pp.z_eq_um, 4) + ' µm, ' + fmt(Pp.f_radial_Hz, 4) + ' Hz and ' + fmt(Pp.f_axial_Hz, 4) + ' Hz. The first runs of this case found two faults in JEKray2D’s traps, both fixed. At a gentle focus the trap summed the beam from its far field as a pupil, taking the paraxial Gaussian there as exact, and lost 2% of its intensity at the focus to obliquity (the screen showed the right one); it now uses the beam’s own propagated field below NA 0.3, as a screen does. And that field was sampled along the beam at least 20 wavelengths apart, most of a Rayleigh range at a tight focus, which made the axial stiffness eight times too large; the spacing is now a fiftieth of the Rayleigh range. The reference was then changed from the paraxial closed forms to the exact beam, when a trap of atoms at the same focus showed JEKray2D agreeing with the exact beam and the paraxial forms off by 1.3% along it; the tolerances are the ones first set. A 50 nm sphere would not be held along the beam here: its scattering force, which grows as the sixth power of its size, outweighs the gradient’s pull back everywhere on the axis.' };
+    },
+  },
+  {
+    id: 'hu-toam', area: 'Optical traps', title: 'Phase singularities of an offset standing wave',
+    kind: 'Paper: field, exact beams', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
+    cite: 'Y. Hu et al., “Structured transverse orbital angular momentum probed by a levitated optomechanical sensor”, Nature Communications 14, 2638 (2023); arXiv:2209.09759, equations (1)–(3) and Figure 2.',
+    what: 'The trap of Hu et al.: two counter-propagating Gaussian beams of one laser at 1550 nm, 1 µm waists at the same plane, their axes offset by 2δ. Offset, the standing wave’s nodal planes break up into lines of phase singularity, which carry the transverse orbital angular momentum the paper measures with a levitated nanorod: on the midplane the field vanishes only where k(x² + δ²)z/2(z² + z₀²) − atan(z/z₀) + kz = nπ/2 for odd n (their eq. 3, which prints the first term without its ½; their own eqs. 1–2 give it with). Their beams are paraxial Gaussians; at 1 µm waists (they diverge at half a radian) that model is off by several nanometres, so the reference is the same two beams worked out exactly (each a Gaussian at its waist, carried by its exact angular spectrum), their zeros found numerically. JEKray2D’s close-up field (the two beams added as fields, their polarisation out of the bench plane so the field is the paper’s scalar) is sampled along the axis between the beams, and its zeros found: for δ = 0 (an ordinary standing wave, the control), 0.5 µm (the paper’s Figure 2) and 1.0 µm.',
+    tolerance: 'Each zero within 5 nm of the exact beams’, and dark to within 10⁻³ of the brightest point.',
+    async run(J, R) {
+      const Hu = R.hu, checks = [], benches = [], plots = [];
+      for (const C of Hu.cases) {
+        const dl = C.delta_um / 1000;
+        const data = bench('Offset standing wave, 1550 nm, w₀ = 1 µm, δ = ' + C.delta_um + ' µm (Hu et al. 2023)', [
+          { type: 'source', id: 'A', name: 'Beam A', x: -20, y: -dl, angle: 0, wavelength: Hu.lambda_nm, width: 0.004, gauss: true, w0: Hu.w0_um / 1000, z0: 20, popN: 256, pol: 's', rays: 1, power: 1 },
+          { type: 'source', id: 'B', name: 'Beam B', x: 20, y: dl, angle: 180, wavelength: Hu.lambda_nm, width: 0.004, gauss: true, w0: Hu.w0_um / 1000, z0: 20, popN: 256, pol: 's', rays: 1, power: 1, splitFrom: 'A', splitPhase: 0, splitPath: 0 }], { minPower: 1e-6 });
+        J.load(data); J.trace();
+        const n = 4000, z0 = -0.002, z1 = 0.002, I = J.fieldAlong(z0, 0, z1, 0, n), zs = I.map((_, i) => z0 + (z1 - z0) * i / n), mx = Math.max(...I);
+        const mins = []; for (let i = 1; i < n; i++) if (I[i] < I[i - 1] && I[i] <= I[i + 1] && I[i] < 0.05 * mx) { const a = I[i - 1], b = I[i], c = I[i + 1], h = zs[1] - zs[0]; mins.push([zs[i] + 0.5 * h * (a - c) / ((a - 2 * b + c) || 1), b / mx]); }
+        const tag = 'δ = ' + C.delta_um + ' µm';
+        for (const zr of C.zeros_um) {
+          const m = mins.reduce((best, q) => Math.abs(q[0] * 1e3 - zr) < Math.abs(best[0] * 1e3 - zr) ? q : best, [Infinity, 1]);
+          checks.push(check(tag + ': zero near ' + zr.toFixed(3) + ' µm, where', zr * 1e3, m[0] * 1e6, { abs: 5 }, ' nm'));
+          checks.push(check(tag + ': zero near ' + zr.toFixed(3) + ' µm, how dark (share of the peak)', 0, m[1], { abs: 1e-3 }));
+        }
+        plots.push(plot({ title: 'Along the axis between the beams, ' + tag + ': irradiance and the paper’s zeros', xlabel: 'z (µm)', ylabel: 'irradiance / peak', yMin: 0, yMax: 1,
+          series: [{ name: 'JEKray2D', x: zs.map(z => z * 1e3), y: I.map(v => v / mx), colour: GOT_C, width: 1.6 }, { name: 'Exact beams: zeros', x: C.zeros_um, y: C.zeros_um.map(() => 0), colour: REF_C, dots: true }] }));
+        benches.push([tag, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The paraxial model’s zeros (eq. 3 with its ½) lie ' + Hu.cases.map(C => C.paraxial_zeros_um.map((z, i) => Math.abs(z - C.zeros_um[i]) * 1e3).reduce((a, b) => Math.max(a, b), 0).toFixed(1)).join(', ') + ' nm from the exact ones for δ = 0, 0.5 and 1.0 µm. The first runs of this case found a fault in JEKray2D’s close-up, now fixed: it sampled each beam at only three cuts across the view and fitted a quadratic through them, which for a beam whose Rayleigh range is shorter than the view (2 µm here) misplaced its Gouy phase, and with it the standing wave, by up to 55 nm. It now takes cuts an eighth of the Rayleigh range apart and a cubic between the nearest four. The paper measures the torque this field puts on a silicon nanorod, which JEKray2D does not model (its traps hold atoms and spheres); the field’s structure, which makes that torque, is what is compared here.' };
+    },
+  },
+  {
     id: 'polarisability', area: 'Optical traps', title: 'Polarisabilities of the alkali atoms, 700 to 1554 nm',
     kind: 'Paper: tabulated values', ref: 'dipole-traps.json', script: 'dipole_traps.py',
     cite: 'M. S. Safronova, B. Arora and C. W. Clark, “Frequency-dependent polarizabilities of alkali-metal atoms from ultraviolet through infrared spectral regions”, Physical Review A 73, 022505 (2006); arXiv:physics/0508087, Table I.',

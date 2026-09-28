@@ -13445,8 +13445,14 @@ function closeupPrep(segs, cx, cy, hw, tab) {
     if (tc < -hw * 1.5 || tc > b.len + hw * 1.5) continue;
     const c1 = sg.leg.cutC(clamp(tc, 0, b.len));
     if (Math.abs(xc) > hw * 1.5 + c1.half) continue;
-    const ts = [...new Set([clamp(tc - hw, 0, b.len), clamp(tc, 0, b.len), clamp(tc + hw, 0, b.len)])];
-    const cuts = ts.map(t => t === clamp(tc, 0, b.len) ? c1 : sg.leg.cutC(t));
+    // cuts along the beam through the view, close enough that its envelope (its Gouy phase and
+    // its width, the fast phase taken off) is smooth between each and the next: an eighth of
+    // its Rayleigh range (its pilot's, the smaller of the two axes'), at most 65
+    const t0 = clamp(tc - hw, 0, b.len), t1 = clamp(tc + hw, 0, b.len), F0 = sg.F0 || {};
+    const zRh = F0.ax ? Math.min(F0.ax.zR, F0.ay.zR) : F0.zR > 0 ? F0.zR : Math.PI * c1.w * c1.w * c1.k / (2 * Math.PI);
+    const nc = t1 > t0 ? Math.min(65, Math.max(3, Math.ceil((t1 - t0) / (zRh / 8)) + 1)) : 1;
+    const ts = nc === 1 ? [t0] : Array.from({ length: nc }, (_, i) => t0 + (t1 - t0) * i / (nc - 1));
+    const cuts = ts.map(t => sg.leg.cutC(t));
     const J = popJ(b);
     out.push({ b, i: sg.i, parent: b.parent, ts, cuts, k: c1.k, J, par: b.par, ex: [exx, exy], colour: b.colour, coh: sg.coh, bounds: closeupBounds(b), reach: 4 * c1.w,
       src: sg.src, L: (b.gpl || 0) + (b.ng || b.n) * clamp(tc, 0, b.len) + lagOf(sg.src) });
@@ -13497,13 +13503,16 @@ function closeupSeg(P, X, Y) {
   else if (t > b.len + 1e-9) return null;
   if (t < -P.reach || t > b.len + P.reach) return null;    // well past its ends: not this segment's light
   const x = rx * P.ex[0] + ry * P.ex[1];
-  // envelope at each cut, with the fast phase taken off, then Lagrange through them; both
-  // components, s and p, each with its polarisation (from the field, or the Jones vector)
+  // envelope at each cut, with the fast phase taken off, then Lagrange through the four cuts
+  // nearest (a cubic between each pair); both components, s and p, each with its
+  // polarisation (from the field, or the Jones vector)
   const acc = [0, 0, 0, 0];
-  const n = P.ts.length;
-  for (let j = 0; j < n; j++) {
+  const N = P.ts.length;
+  let j0 = 0; while (j0 < N - 2 && P.ts[j0 + 1] < t) j0++;
+  const lo = Math.max(0, Math.min(j0 - 1, N - 4)), hi = Math.min(N, lo + 4);
+  for (let j = lo; j < hi; j++) {
     let l = 1;
-    for (let m = 0; m < n; m++) if (m !== j) l *= (t - P.ts[m]) / (P.ts[j] - P.ts[m]);
+    for (let m = lo; m < hi; m++) if (m !== j) l *= (t - P.ts[m]) / (P.ts[j] - P.ts[m]);
     const v = cutVec(P.cuts[j], x, P.J, P.par), ph = P.k * P.ts[j], c = Math.cos(ph), s = Math.sin(ph);
     acc[0] += l * (v[0] * c - v[1] * s); acc[1] += l * (v[0] * s + v[1] * c);
     acc[2] += l * (v[2] * c - v[3] * s); acc[3] += l * (v[2] * s + v[3] * c);
@@ -14093,7 +14102,9 @@ function trapLegPart(sg, P0) {
   const b = sg.b, rx = P0[0] - b.x0, ry = P0[1] - b.y0, tc = clamp(rx * b.dx + ry * b.dy, 0, b.len);
   const G0 = sg.leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
   const zR = two ? Math.min(G0.ax.zR, G0.ay.zR) : G0.zR;
-  return { sg, H: Math.max(0.05 * zR, 20 * lam), k, two, J: popJ(b), par: b.par, cuts: new Map() };
+  // cuts along the beam a fiftieth of its Rayleigh range apart (half a wavelength at least):
+  // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search
+  return { sg, H: Math.max(0.02 * zR, 0.5 * lam), k, two, J: popJ(b), par: b.par, cuts: new Map() };
 }
 function trapLegCut(L, i) {
   let c = L.cuts.get(i);
@@ -14154,7 +14165,12 @@ function trapSolve(el, R, dom, len) {
   const parts = [];
   for (const sg of beams) {
     const force = self.__trapLeg && self.__trapLeg(sg);            // tests: take this beam by its propagated field
-    const P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
+    // a steep focus by its vector pupil sum; a gentle one (NA up to VF_NA, as a screen judges it)
+    // by the beam's own propagated field, which is the Gaussian beam the source defines there
+    // (the pupil sum would take that beam's paraxial far field as exact and lose a few per cent
+    // to obliquity at NA 0.1)
+    let P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
+    if (P && P.NA <= VF_NA) P = null;
     const src = sg.src, root = splitRoot(src);
     // a beam not converging on a focus ahead (collimated, or past its focus) has no pupil to sum
     // from: its propagated field is taken instead, cut along the beam as the search needs

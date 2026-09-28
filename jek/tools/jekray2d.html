@@ -4461,8 +4461,11 @@ function traceSceneRaw() {
       cavCache = null;
     }
   }
+  afterTrace();
+}
+function afterTrace() {
   // when the set of cavities changes, the panels that show them are rebuilt
-  if (!TEST_MODE && typeof findCavities === 'function') {
+  if (!TEST_MODE && !IN_WORKER && typeof findCavities === 'function') {
     const sig = findCavities().map(c => c.id).join('/');
     if (sig !== cavPanelSig) { cavPanelSig = sig; setTimeout(() => renderPanel(), 0); }
     // a bench with cavities keeps their steady states current
@@ -4820,7 +4823,8 @@ function drawBeams(fieldShown) {
    rays nor the view change: dragging an element redraws the bench, not a few hundred
    thousand ray segments each time the pointer moves */
 const RAY_LAYER_MIN = 2000;
-const rayLayer = { cv: null, key: null, rays: null, frame: null, view: null, settled: false, timer: null };
+const rayLayer = { cv: null, key: null, rays: null, frame: null, view: null, settled: false, timer: null, done: 0 };
+const RAY_CHUNK = 30000;              // segments drawn into the layer per frame: a big bench fills in over a few frames
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
@@ -4843,10 +4847,17 @@ function drawRays(stale) {
     if (cv.width !== canvas.width || cv.height !== canvas.height) { cv.width = canvas.width; cv.height = canvas.height; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawRaysOn(c, rays);
     rayLayer.rays = rays; rayLayer.key = key; rayLayer.frame = frameKey; rayLayer.view = { cx: V().cx, cy: V().cy, scale: V().scale };
-    rayLayer.settled = false;
+    rayLayer.settled = false; rayLayer.done = 0;
+  }
+  if (rayLayer.done < rays.length) {
+    let j = rayLayer.done, n = 0;
+    while (j < rays.length && n < RAY_CHUNK) { if (rays[j].bench === project.tab) n += rays[j].pts.length >> 1; j++; }
+    const c = rayLayer.cv.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawRaysOn(c, j - rayLayer.done === rays.length ? rays : rays.slice(rayLayer.done, j));
+    rayLayer.done = j;
+    if (j < rays.length) requestRender();
   }
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -4867,15 +4878,30 @@ function drawRaysOn(ctx, rays) {
     if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, rays: [] });
     groups.get(key).rays.push(r);
   }
+  // the view's transform written out, and a segment wholly inside the clip margin drawn as it
+  // is, joined to the one before where they meet: only those crossing the margin are clipped
+  const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
+  const lo = -CLIP_M, hiX = W + CLIP_M, hiY = H + CLIP_M;
   for (const g of groups.values()) {
     ctx.globalAlpha = g.alpha;
     ctx.strokeStyle = g.colour;
     ctx.beginPath();
     for (const r of g.rays) {
       const p = r.pts;
+      let x0 = ox + p[0] * k, y0 = oy - p[1] * k, pen = false;
       for (let i = 2; i < p.length; i += 2) {
-        const c = clipSeg(sx(p[i - 2]), sy(p[i - 1]), sx(p[i]), sy(p[i + 1]));
-        if (c) { ctx.moveTo(c[0], c[1]); ctx.lineTo(c[2], c[3]); }
+        const x1 = ox + p[i] * k, y1 = oy - p[i + 1] * k;
+        if (x0 >= lo && x0 <= hiX && y0 >= lo && y0 <= hiY && x1 >= lo && x1 <= hiX && y1 >= lo && y1 <= hiY) {
+          if (!pen) ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1); pen = true;
+        } else {
+          pen = false;
+          if (!((x0 < lo && x1 < lo) || (x0 > hiX && x1 > hiX) || (y0 < lo && y1 < lo) || (y0 > hiY && y1 > hiY))) {
+            const c = clipSeg(x0, y0, x1, y1);
+            if (c) { ctx.moveTo(c[0], c[1]); ctx.lineTo(c[2], c[3]); }
+          }
+        }
+        x0 = x1; y0 = y1;
       }
     }
     ctx.stroke();
@@ -6256,6 +6282,7 @@ function activityNow() {
   const J0 = [...popScreenState.jobs.values()], scr = J0.map(J => J.el.name);
   if (scr.length) jobs.push((J0[0].finishing ? 'the figures at ' : 'the field at ') + scr[0] + (scr.length > 1 ? ' and ' + (scr.length - 1) + ' more screen' + (scr.length > 2 ? 's' : '') : ''));
   if (cavJob && !cavJob.done) jobs.push('the cavity’s steady state');
+  if (TW.full) jobs.push('the rays');
   if (!jobs.length && FW.busy) jobs.push({ detector: 'the light at the photodiodes', closeup: 'the close-up', cavity: 'the cavity’s steady state', screen: 'the field at the screens', bench: 'the diffracted field on the bench' }[FW.busy.kind] || 'the field');
   if (!jobs.length) return null;
   const text = jobs.join(', ');
@@ -17593,7 +17620,8 @@ function fwCavities(list, trace) {
    stops the page traces in full itself, so every panel and field is exact again; while a
    sweep plays it does so every so often, so readouts keep following. */
 const TRACE_ASYNC_MS = 30;
-const TW = { w: null, failed: false, busy: false, want: null, rays: null, n: 0, lastSync: 0, timer: null };
+const TRACE_FULL_MS = 150;          // a bench slower than this is traced in full in the worker too, once let go of
+const TW = { w: null, failed: false, busy: false, want: null, rays: null, n: 0, lastSync: 0, timer: null, full: null };
 function traceWorker() {
   if (TW.w) return TW.w;
   if (TW.failed || TEST_MODE || !APP_SRC || typeof Worker === 'undefined') return null;
@@ -17603,7 +17631,8 @@ function traceWorker() {
     URL.revokeObjectURL(url);
     TW.w.onmessage = e => {
       TW.busy = false;
-      if (e.data.ok) { TW.rays = e.data.out.rays; TW.n++; }
+      if (e.data.ok && e.data.out.T) adoptTrace(e.data.out);
+      else if (e.data.ok) { if (!TW.full) TW.rays = e.data.out.rays; TW.n++; }   // a full trace on its way supersedes it
       else { console.warn('JEKray2D trace worker:', e.data.err); TW.failed = true; TW.w.terminate(); TW.w = null; }
       requestRender();
       twPump();
@@ -17615,9 +17644,26 @@ function traceWorker() {
 function twPump() {
   if (TW.busy || !TW.want || !traceWorker()) return;
   TW.busy = true;
-  TW.w.postMessage({ id: ++TW.n, kind: 'trace', proj: TW.want.proj, args: { key: TW.want.key } });
+  TW.w.postMessage({ id: ++TW.n, kind: TW.want.full ? 'full' : 'trace', proj: TW.want.proj, args: { key: TW.want.key } });
   TW.want = null;
 }
+/* A full trace from the worker, taken as this page's own if the bench is still as it was
+   when it was asked for; otherwise its rays are drawn and the next one asked for */
+function adoptTrace(out) {
+  TW.n++;
+  if (out.key !== traceKeyNow()) { TW.rays = out.T.rays; return; }
+  statsCache.clear(); diffCache.clear(); binCache.clear();
+  lastTrace = out.T;
+  lastTraceKey = out.key; lastTraceMs = out.ms; traceCount++;
+  TW.rays = null; TW.full = null;
+  afterTrace();
+  syncPanel();
+}
+/* A bench whose trace can be done wholly in the worker: one with nothing that carries state
+   from trace to trace on this page (fibre networks, lasers, vapour cells, crystals) */
+const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', 'prism', 'cube', 'crystal', 'waveplate', 'polariser', 'grating',
+  'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link']);
+const fullOffload = () => lastTraceMs > TRACE_FULL_MS && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
 /* Brings the trace up to date, or has it brought up to date in the background; true while
    what is drawn comes from the background (the full trace is behind the bench) */
 function traceLater() {
@@ -17625,9 +17671,14 @@ function traceLater() {
   if (key === lastTraceKey && lastTrace.beams) { TW.rays = null; return false; }
   const dragging = midDrag(), anim = typeof playing !== 'undefined' && playing.size > 0, now = performance.now();
   const bg = (dragging || anim) && lastTraceMs > TRACE_ASYNC_MS && traceWorker();
+  // a slow bench let go of: the full trace too is done in the worker, and the page carries on
+  if (!dragging && !anim && fullOffload() && traceWorker()) {
+    if (TW.full !== key) { TW.full = key; TW.want = { key, proj: fwProject(), full: true }; twPump(); showActivityNow(); }
+    return true;
+  }
   // a sweep's readouts still follow it, from a full trace every so often
   if (!bg || (!dragging && now - TW.lastSync > Math.max(500, 6 * lastTraceMs))) { traceScene(); TW.lastSync = now; TW.rays = null; return false; }
-  TW.want = { key, proj: fwProject() };
+  TW.want = { key, proj: fwProject() }; TW.full = null;
   twPump();
   // once the dragging or playing stops, trace in full (nothing else may ask for a redraw)
   clearTimeout(TW.timer);
@@ -17660,6 +17711,8 @@ function workerMain() {
         popRun(lastTrace.beams, allSources(), {});
       } else if (kind === 'trace') {
         out = { key: args.key, rays: lastTrace.rays };
+      } else if (kind === 'full') {
+        out = { key: args.key, T: lastTrace, ms: lastTraceMs };
       } else if (kind === 'closeup') {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };

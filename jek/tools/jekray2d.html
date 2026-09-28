@@ -864,7 +864,7 @@
     <div>
       <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam (by its real profile, so a vortex pump leaves its dark core unsaturated), and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart (by their group paths, so glass counts by its group index) and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED; or they can launch a higher-order mode, Hermite–Gauss HG<sub>mn</sub> or Laguerre–Gauss LG<sub>pl</sub> (a vortex of any charge), carried as a coherent sum of Hermite–Gauss modes each with its own Gouy phase, so a cylindrical-lens mode converter works as in the lab. Mask presets cover spatial light modulator patterns: spiral phase plates, fork holograms, blazed gratings and a π step, and a mask whose detail is finer than the field's grid is flagged rather than quietly smoothed. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
       <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
-      <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
+      <p><strong>How far to trust it.</strong> The <a href="jekray2d-validation.html">validation page</a> sets JEKray2D against published results and independent codes, live in your browser; the list grows as each part of the model is checked. For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
 
@@ -935,7 +935,6 @@ const GLASS = {
   'N-BK7':        [1.03961212, 0.231792344, 1.01046945, 0.00600069867, 0.0200179144, 103.560653],
   'Fused silica': [0.6961663, 0.4079426, 0.8974794, 0.00467914826, 0.0135120631, 97.9340025],
   'CaF2':         [0.5675888, 0.4710914, 3.8484723, 0.00252643, 0.0100783, 1200.556],
-  'N-F2':         [1.34533359, 0.209073176, 0.937357162, 0.00997743871, 0.0470450767, 111.886764],
   'N-LAK22':      [1.14229781, 0.535138441, 1.04088385, 0.00585778594, 0.0198546147, 100.834017],
   'N-SF6':        [1.77931763, 0.338149866, 2.08734474, 0.0133714182, 0.0617533621, 174.01759],
   'N-SF10':       [1.62153902, 0.256287842, 1.64447552, 0.0122241457, 0.0595736775, 147.468793],
@@ -1127,11 +1126,14 @@ const ATOM_ISO = {
   Cs133: { I: 3.5, m: 132.905451931, Ag: 2298.1579425, D2: { nu: 351.72571850e12, Ae: 50.28827, Be: -0.4934, tau: 30.473 }, D1: { nu: 335.116048807e12, Ae: 291.9201, Be: 0, tau: 34.894 } },
   K39: { I: 1.5, m: 38.9637064864, Ag: 230.8598601, D2: { nu: 391.01617003e12, Ae: 6.093, Be: 2.786, tau: 26.37 }, D1: { nu: 389.286058716e12, Ae: 27.775, Be: 0, tau: 26.72 } },
 };
-/* log10 of the vapour pressure in torr at T kelvin: solid below the melting point, liquid above */
+// log10 of the vapour pressure in torr, from C. B. Alcock, V. P. Itkin and M. K. Horrigan,
+// Can. Metall. Q. 23, 309 (1984): the solid below the melting point, the liquid above
+// (as ElecSus and Siddons et al. 2008 use; log10 760 turns atmospheres into torr)
+const LOG_ATM = Math.log10(760);
 const VAPOUR = {
-  Rb: T => T < 312.46 ? 2.881 + 4.857 - 4215 / T : 2.881 + 4.312 - 4040 / T,
-  Cs: T => T < 301.59 ? 2.881 + 4.711 - 3999 / T : 2.881 + 4.165 - 3830 / T,
-  K: T => T < 336.53 ? 2.881 + 4.961 - 4646 / T : 2.881 + 4.402 - 4453 / T,
+  Rb: T => LOG_ATM + (T < 312.46 ? 4.857 - 4215 / T : 8.316 - 4275 / T - 1.3102 * Math.log10(T)),
+  Cs: T => LOG_ATM + (T < 301.65 ? 4.711 - 3999 / T : 8.232 - 4062 / T - 1.3359 * Math.log10(T)),
+  K: T => LOG_ATM + (T < 336.8 ? 4.961 - 4646 / T : 8.233 - 4693 / T - 1.2403 * Math.log10(T)),
 };
 const ATOMS = {
   Rb: { name: 'Rubidium, natural', el: 'Rb', iso: [['Rb85', 0.7217], ['Rb87', 0.2783]] },
@@ -16851,7 +16853,8 @@ const NEWS = [
     '<b>Earlier versions</b> (Open ▾): this browser keeps copies of your project as you work, and before you open something else.',
     '<b>Embed</b> a live bench in a web page or course notes, from the Share link dialog.',
     'A shared link opens with a bar to keep the bench, or go straight back to your own work.',
-    'A <b>Cite</b> button, and a licence page.']],
+    'A <b>Cite</b> button, and a licence page.',
+    'A <b>validation page</b> that runs JEKray2D against published results and independent codes in your browser. Vapour cells now use Alcock et al.\u2019s vapour pressures, which put about 2.5% fewer atoms in a rubidium cell at 50 \u00b0C than before.']],
   ['Before 1.0', '23–27 September 2026', [
     'Beams split where they cross an element’s edge: the part that misses carries on.',
     'Aberration analysis across the field: Seidel and Zernike terms, spot diagrams, field curvature and distortion, with the chief ray aimed through the stop.',
@@ -17809,6 +17812,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     metric(name, key) { return metricRaw(this.byName(name), key); },
     paraxial(name, nm) { return paraxial(this.byName(name), nm); },
     index: refIndex,
+    version: () => APP_VERSION,
     beamAt,
     setParam(name, path, v) { setParam(this.byName(name), path, v); },
     getParam(name, path) { return getPath(this.byName(name), path); },

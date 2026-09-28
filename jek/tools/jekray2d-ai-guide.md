@@ -660,7 +660,7 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 
 ## Catalogues
 
-**Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-F2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.
+**Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-F2, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.
 
 **Crystals** ("crystal"): "calcite" (Calcite), "yvo4" (YVO₄), "abbo" (α-BBO).
 

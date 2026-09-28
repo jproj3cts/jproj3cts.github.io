@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEKray2D Validation | JEK Systems</title>
+<meta name="description" content="JEKray2D's results set against published papers and independent codes, run live in your browser.">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+  .vd { width: 100%; max-width: 1040px; text-align: left; }
+  .vd > p, .vd li { font-size: 0.9375rem; line-height: 1.6; }
+  .vd ul.rules { margin: 0 0 1.25rem; padding-left: 1.3rem; }
+  .vd a { color: var(--jek-cyan-dark); }
+  .vd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 1.25rem 0 1.5rem; padding: 0.75rem 0.95rem;
+    background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
+  .vd-btn { padding: 0.45rem 0.8rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: #fff; background: var(--jek-cyan); border: 0; border-radius: 6px; cursor: pointer; }
+  .vd-btn:hover { background: var(--jek-cyan-dark); }
+  .vd-btn:disabled { opacity: 0.5; cursor: default; }
+  .vd-sum { font-weight: 700; }
+  .vd-sum.pass { color: #2e7d32; }
+  .vd-sum.fail { color: var(--jek-red); }
+  .vd-meta { margin-left: auto; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .vd h2.area { margin: 2.2rem 0 0.8rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .vd-case { margin: 0 0 1.4rem; padding: 1rem 1.15rem 1.1rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
+  .vd-case h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .vd-badge { padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; }
+  .vd-badge.kind { color: var(--jek-ink-soft); background: var(--jek-well); }
+  .vd-badge.pass { color: #fff; background: #2e7d32; }
+  .vd-badge.fail { color: #fff; background: var(--jek-red); }
+  .vd-badge.run { color: var(--jek-ink-soft); background: var(--jek-well); }
+  .vd-cite { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .vd-case p { margin: 0 0 0.55rem; font-size: 0.9rem; line-height: 1.55; }
+  .vd-case .note { padding: 0.45rem 0.65rem; font-size: 0.85rem; background: var(--jek-well); border-radius: 6px; }
+  .vd-table { width: 100%; margin: 0.7rem 0 0.4rem; border-collapse: collapse; font-size: 0.84rem; }
+  .vd-table th, .vd-table td { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  .vd-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jek-ink-soft); }
+  .vd-table td.n { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vd-table tr.bad td { background: rgba(214, 69, 65, 0.08); }
+  .vd-table td.ok { color: #2e7d32; font-weight: 700; }
+  .vd-table td.no { color: var(--jek-red); font-weight: 700; }
+  .vd-scroll { overflow-x: auto; }
+  .vd-plots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 0.8rem; margin: 0.8rem 0 0.4rem; }
+  .vd-plot { margin: 0; }
+  .vd-plot svg { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--jek-line); border-radius: 6px; }
+  .vd-plot figcaption { margin-top: 0.25rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
+  .vd-details { margin: 0.7rem 0 0.2rem; }
+  .vd-details > summary { cursor: pointer; font-size: 0.86rem; font-weight: 600; color: var(--jek-ink); }
+  .vd-closest { margin: 0.2rem 0 0; font-size: 0.82rem !important; color: var(--jek-ink-soft); }
+  .vd-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.6rem; font-size: 0.84rem; }
+  .vd-rig { position: absolute; left: -9999px; width: 1200px; height: 800px; border: 0; }
+  @media (max-width: 600px) { .vd-meta { margin-left: 0; width: 100%; } }
+</style>
+</head>
+<body>
+
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <div class="text-overlay">JEK Systems</div>
+  </div>
+
+  <main class="main-content">
+    <h1 class="page-title">JEKray2D Validation</h1>
+
+    <div class="vd">
+      <p>Each case below takes a published result or an independent code, rebuilds the same setup on a JEKray2D bench, and compares the numbers. Nothing here is a stored screenshot: the cases run live in your browser, against the version of JEKray2D the site is serving now, when you open this page.</p>
+      <ul class="rules">
+        <li><b>Tolerances were set before the first run</b>, from what the reference itself can claim, and are not adjusted to pass.</li>
+        <li><b>Where a reference leaves something out</b>, the assumption is written in the case.</li>
+        <li><b>A failure stays on this page</b> until the model is fixed, or it is recorded as a limit of the model.</li>
+        <li><b>JEKray2D works in the plane of the bench.</b> Cases are chosen to be planar or rotationally symmetric.</li>
+      </ul>
+      <p>The reference data and the scripts that made them are published beside this page, in <a href="validation/README.md">validation/</a>. Each case links to its bench, which opens in JEKray2D.</p>
+
+      <div class="vd-bar">
+        <button class="vd-btn" id="run" type="button" disabled>Run again</button>
+        <span class="vd-sum" id="sum">Loading JEKray2D…</span>
+        <span class="vd-meta" id="meta"></span>
+      </div>
+
+      <div id="cases"></div>
+    </div>
+
+    <iframe class="vd-rig" id="rig" src="/jek/tools/jekray2d.html#test" title="JEKray2D, running the cases" aria-hidden="true" tabindex="-1"></iframe>
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems &middot; <a href="/jek/tools/jekray2d-licence.html">Licence</a></span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script src="/jek/assets/js/cart.js"></script>
+<script>
+'use strict';
+
+/* ---------- Helpers ---------- */
+
+const h = (tag, attrs, ...kids) => {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) { if (v === null || v === undefined || v === false) continue; if (k === 'html') e.innerHTML = v; else e.setAttribute(k, v === true ? '' : v); }
+  for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+};
+const fmt = (v, d = 6) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return 'n/a';
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e6)) ? v.toExponential(3) : String(+v.toPrecision(d));
+};
+const idle = () => new Promise(r => setTimeout(r, 0));
+const bench = (name, elements, extra) => Object.assign({ format: 'jekray', version: 1, name, maxBounces: 40, minPower: 0.001, ghosts: false, elements }, extra || {});
+// a link that opens the bench in JEKray2D: the bench travels in the link itself
+const b64u = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const benchLink = data => '/jek/tools/jekray2d.html#p=j' + b64u(JSON.stringify(Object.assign({ view: undefined }, data)));
+const loadRef = name => fetch('validation/ref/' + name).then(r => { if (!r.ok) throw new Error(name + ' could not be fetched'); return r.json(); });
+
+/* A check: the reference, JEKray2D's value, and whether they agree within the tolerance
+   declared with the case (abs: an absolute difference; rel: a fraction of the reference) */
+function check(label, ref, got, tol, unit) {
+  const diff = got - ref;
+  const lim = tol.rel !== undefined ? Math.abs(ref) * tol.rel : tol.abs;
+  const ok = Number.isFinite(got) && Math.abs(diff) <= lim;
+  return { label, ref, got, diff, lim, ok, unit: unit || '', tolText: tol.rel !== undefined ? '±' + fmt(100 * tol.rel, 3) + '%' : '±' + fmt(tol.abs, 3) + (unit || '') };
+}
+
+/* A line plot as SVG: series of { x, y, name, dash, colour } */
+function plot(o) {
+  const W = 480, H = 280, L = 58, R = 12, T = 12, B = 42;
+  const xs = o.series.flatMap(s => s.x), ysAll = o.series.flatMap(s => s.y).filter(Number.isFinite);
+  const tf = o.logY ? v => Math.log10(Math.max(v, 1e-12)) : v => v;
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ysAll.map(tf)), y1 = Math.max(...ysAll.map(tf));
+  if (o.yMin !== undefined) y0 = tf(o.yMin); if (o.yMax !== undefined) y1 = tf(o.yMax);
+  if (y1 - y0 < 1e-12) { y0 -= 1; y1 += 1; }
+  const pad = (y1 - y0) * 0.05; y0 -= o.logY ? 0 : pad; y1 += pad;
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (tf(v) - y0) / (y1 - y0)) * (H - T - B);
+  const ticks = (a, b, n) => { const st = Math.pow(10, Math.floor(Math.log10((b - a) / n))), m = [1, 2, 5, 10].find(k => (b - a) / (k * st) <= n) * st, out = []; for (let v = Math.ceil(a / m) * m; v <= b + 1e-9 * m; v += m) out.push(+v.toPrecision(12)); return out; };
+  const parts = [];
+  for (const t of ticks(x0, x1, 6)) parts.push(`<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H - B}" stroke="#eee"/><text x="${X(t)}" y="${H - B + 16}" font-size="11" text-anchor="middle" fill="#555">${fmt(t, 4)}</text>`);
+  const yt = o.logY ? (() => { const out = []; for (let e = Math.floor(y0); e <= Math.ceil(y1); e++) for (const m of [1, 2, 5]) { const v = e + Math.log10(m); if (v >= y0 && v <= y1) out.push(v); } return out; })() : ticks(y0, y1, 5);
+  for (const t of yt) { const yy = T + (1 - (t - y0) / (y1 - y0)) * (H - T - B); parts.push(`<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#eee"/><text x="${L - 6}" y="${yy + 4}" font-size="11" text-anchor="end" fill="#555">${o.logY ? fmt(Math.pow(10, t), 2) : fmt(t, 4)}</text>`); }
+  parts.push(`<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#bbb"/>`);
+  parts.push(`<text x="${(L + W - R) / 2}" y="${H - 6}" font-size="12" text-anchor="middle" fill="#333">${o.xlabel}</text>`);
+  parts.push(`<text x="14" y="${(T + H - B) / 2}" font-size="12" text-anchor="middle" fill="#333" transform="rotate(-90 14 ${(T + H - B) / 2})">${o.ylabel}</text>`);
+  o.series.forEach((s, i) => {
+    const pts = s.x.map((x, k) => [X(x), Y(s.y[k])]).filter(p => Number.isFinite(p[1]));
+    if (s.dots) for (const p of pts) parts.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${s.colour}"/>`);
+    else parts.push(`<polyline fill="none" stroke="${s.colour}" stroke-width="${s.width || 1.8}" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''} points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}"/>`);
+    parts.push(`<line x1="${L + 10}" x2="${L + 30}" y1="${T + 14 + 16 * i}" y2="${T + 14 + 16 * i}" stroke="${s.colour}" stroke-width="2.4" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''}/><text x="${L + 36}" y="${T + 18 + 16 * i}" font-size="11" fill="#333">${s.name}</text>`);
+  });
+  const fig = h('figure', { class: 'vd-plot' });
+  fig.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${o.title}">${parts.join('')}</svg><figcaption>${o.title}</figcaption>`;
+  return fig;
+}
+const REF_C = '#1f6fb2', GOT_C = '#e4572e';
+
+/* Rays through a bench: each ray as its points [x0, y0, x1, y1, ...], in source order. The
+   tracer hands back one piece per stretch between surfaces; a piece that starts where the
+   last one ended carries the same ray on. */
+function paths(J, data) {
+  J.load(data); J.trace();
+  const out = [];
+  for (const q of J.rayPaths()) {
+    const cur = out[out.length - 1];
+    if (cur && Math.abs(cur[cur.length - 2] - q[0]) < 1e-9 && Math.abs(cur[cur.length - 1] - q[1]) < 1e-9) cur.push(...q.slice(2));
+    else out.push(q.slice());
+  }
+  return out;
+}
+// where a path's last segment (leaving the last surface) crosses y = 0, and where it meets x = X
+function lastSeg(p) { const n = p.length; return [p[n - 4], p[n - 3], p[n - 2], p[n - 1]]; }
+const axisCross = p => { const [x0, y0, x1, y1] = lastSeg(p); return x0 + (0 - y0) * (x1 - x0) / (y1 - y0); };
+const yAt = (p, X) => { for (let i = 2; i < p.length; i += 2) { const xa = p[i - 2], xb = p[i]; if ((xa - X) * (xb - X) <= 0 && xa !== xb) return p[i - 1] + (X - xa) * (p[i + 1] - p[i - 1]) / (xb - xa); } return NaN; };
+
+/* ---------- The cases ---------- */
+
+const CASES = [
+  {
+    id: 'kogelnik-li', area: 'Gaussian beams and resonators', title: 'The Gaussian mode of a two-mirror resonator',
+    kind: 'Paper: closed forms', ref: 'kogelnik-li.json', script: 'kogelnik_li.py',
+    cite: 'H. Kogelnik and T. Li, “Laser beams and resonators”, Applied Optics 5, 1550–1567 (1966).',
+    what: 'Six resonators across the stability diagram, from plane-concave to near-concentric and one with a convex mirror, at 632.8 nm. For each: the beam radius on each mirror, the waist and where it sits, and the transverse mode spacing as a fraction of the free spectral range, from the paper’s closed forms in the mirrors’ g-parameters. JEKray2D finds the cavity from the light’s own path and its mode from the round-trip matrices of the real mirrors.',
+    tolerance: 'Beam radii within 0.1%; the waist’s position within 0.05 mm; the mode spacing within 0.0001 of the free spectral range.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const c of R.cases) {
+        const data = bench('Kogelnik & Li: ' + c.name, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: R.lambda_nm, width: 0.5, rays: 1, gauss: true, w0: 0.2, z0: 50, pol: 's' },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: 99, R: c.R1 },
+          { type: 'mirror', name: 'M2', x: c.L, y: 0, angle: 180, length: 25, reflect: 99, R: c.R2 }]);
+        J.load(data); const cav = J.cavities()[0];
+        benches.push([c.name, data]);
+        if (!cav) { checks.push(check(c.name + ': a cavity is found', 1, 0, { abs: 0 })); continue; }
+        const along = n => (cav.along.find(a => a.name === n) || {}).wx;
+        checks.push(check(c.name + ': beam radius on mirror 1', c.w1, along('M1'), { rel: 1e-3 }, ' mm'));
+        checks.push(check(c.name + ': beam radius on mirror 2', c.w2, along('M2'), { rel: 1e-3 }, ' mm'));
+        if (c.z1 >= 0 && c.z1 <= c.L) {
+          const w = cav.waists.find(q => q.plane === 'x');
+          checks.push(check(c.name + ': waist radius', c.w0, w ? w.w0 : NaN, { rel: 1e-3 }, ' mm'));
+          checks.push(check(c.name + ': waist, distance from mirror 1', c.z1, w ? (w.after === 'M1' ? w.at : c.L - w.at) : NaN, { abs: 0.05 }, ' mm'));
+        }
+        checks.push(check(c.name + ': transverse mode spacing / FSR', c.tmsFrac, cav.tms.x / cav.fsr, { abs: 1e-4 }));
+      }
+      return { checks, benches, notes: 'The convex–concave resonator’s waist lies outside it, so only its mirror spots and mode spacing are compared.' };
+    },
+  },
+  {
+    id: 'fox-li', area: 'Diffraction', title: 'Loss of a flat-mirror resonator against its Fresnel number',
+    kind: 'Independent solution of the paper’s equation', ref: 'fox-li.json', script: 'fox_li.py',
+    cite: 'A. G. Fox and T. Li, “Resonant modes in a maser interferometer”, Bell System Technical Journal 40, 453–488 (1961).',
+    what: 'Two identical flat circular mirrors, 1 mm across, at Fresnel numbers N = a²/λL from 0.5 to 5. The fundamental mode’s power loss per transit, from the eigenvalues of JEKray2D’s round trip (its diffracted field propagated mirror to mirror), against Fox and Li’s integral equation for the same geometry solved independently at high resolution.',
+    tolerance: 'Within 5% of the reference loss, from the sampling of JEKray2D’s field grid (256 points across).',
+    pending: 'The reference is Fox and Li’s own equation solved independently; the points read off the paper’s loss figure will be added beside it.',
+    async run(J, R) {
+      const checks = [], benches = [], lam = 632.8e-6, a = 0.5, ns = [], gots = [];
+      for (const r of R.rows) {
+        const L = a * a / (lam * r.N);
+        const data = bench('Fox & Li, N = ' + r.N, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 632.8, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 2 * a, reflect: 99.99 },
+          { type: 'mirror', name: 'M2', x: L, y: 0, angle: 180, length: 2 * a, reflect: 100 },
+          { type: 'screen', name: 'Leak', x: -20, y: 0, angle: 0, length: 20 }], { minPower: 1e-6 });
+        J.load(data); J.diffraction('Leak');
+        const loss = 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999);
+        checks.push(check('N = ' + r.N + ': loss per transit', r.loss, loss, { rel: 0.05 }));
+        benches.push(['N = ' + r.N, data]); ns.push(r.N); gots.push(loss);
+        await idle();
+      }
+      const plots = [plot({ title: 'Power lost per transit by the fundamental mode', xlabel: 'Fresnel number N', ylabel: 'loss per transit', logY: true,
+        series: [{ name: 'Fox–Li equation, solved independently', x: ns, y: R.rows.map(r => r.loss), colour: REF_C }, { name: 'JEKray2D', x: ns, y: gots, colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'lenses', area: 'Rays and lenses', title: 'Real rays through a singlet and a Cooke triplet',
+    kind: 'Independent code', ref: 'lenses-optiland.json', script: 'lenses_optiland.py',
+    cite: 'Optiland 0.6, open-source lens design (github.com/HarrisonKramer/optiland): its real-ray trace, and its Cooke triplet sample.',
+    what: 'A plano-convex singlet (R 51.5 mm, 3.6 mm of N-BK7, the prescription of Thorlabs LA1509) both ways round at 587.6 nm, and the Cooke triplet from Optiland’s samples at 550 nm. For each: the effective and back focal lengths; where rays at several heights cross the axis (the longitudinal spherical aberration); and where a fan of rays at a field angle meets a plane behind the lens. The singlet uses each code’s own N-BK7 data; the triplet’s SK16 and F2 are given to JEKray2D as the indices Optiland uses, so it tests the ray tracing alone.',
+    tolerance: 'Every length and ray intercept within 2 µm; N-BK7’s index within 2 × 10⁻⁶.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const S of R.systems) {
+        const wl = S.wavelength_nm, cooke = !!S.prescription;
+        const lens = cooke
+          ? { type: 'lens', name: 'Triplet', x: S.thickness / 2, y: 0, angle: 0, diameter: 16, surfaces: S.prescription.R.map(r => ({ R: r })), gaps: S.prescription.gaps,
+              materials: S.prescription.materials.map(m => m === 'AIR' ? { glass: 'custom', n: 1 } : { glass: 'custom', n: S.glasses[m] }) }
+          : { type: 'lens', name: 'Singlet', x: S.thickness / 2, y: 0, angle: 0, diameter: 25.4,
+              surfaces: S.name.includes('flat') ? [{ R: null }, { R: -51.5 }] : [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] };
+        const last = S.thickness;                   // the last vertex: the lens runs from x = 0 to x = its thickness
+        if (!cooke) checks.push(check(S.name + ': N-BK7 index at ' + fmt(wl, 5) + ' nm', S.glasses['N-BK7'], J.index({ glass: 'N-BK7' }, wl), { abs: 2e-6 }));
+        // focal lengths from a ray 1 µm off the axis; crossings from rays at each height
+        const one = (y) => ({ type: 'source', name: 'h' + y, x: -10, y, angle: 0, wavelength: wl, width: 0, rays: 1, pol: 's' });
+        const P0 = paths(J, bench(S.name, [one(1e-3), lens], { minPower: 0.5 }))[0];
+        const [x0, y0, x1, y1] = lastSeg(P0), slope = (y1 - y0) / (x1 - x0);
+        checks.push(check(S.name + ': effective focal length', S.efl, -1e-3 / slope, { abs: 0.002 }, ' mm'));
+        checks.push(check(S.name + ': back focal length', S.bfl, axisCross(P0) - last, { abs: 0.002 }, ' mm'));
+        const data = bench(S.name, [...S.heights.map(one), lens], { minPower: 0.5 });
+        const P = paths(J, data), got = S.heights.map((hh, i) => { const p = P.find(q => Math.abs(q[1] - hh) < 1e-9); return p ? axisCross(p) - last : NaN; });
+        S.heights.forEach((hh, i) => checks.push(check(S.name + ': ray at ' + hh + ' mm crosses the axis at', S.crossings[i], got[i], { abs: 0.002 }, ' mm')));
+        plots.push(plot({ title: S.name + ': longitudinal spherical aberration', xlabel: 'ray height (mm)', ylabel: 'axis crossing after the last vertex (mm)',
+          series: [{ name: 'Optiland', x: S.heights, y: S.crossings, colour: REF_C }, { name: 'JEKray2D', x: S.heights, y: got, colour: GOT_C, dots: true }] }));
+        benches.push([S.name, data]);
+        for (const F of S.fans) {
+          const fd = bench(S.name + ', fan at ' + F.source.angle + '°', [Object.assign({ type: 'source', name: 'Fan', wavelength: wl, pol: 's' }, F.source), lens], { minPower: 0.5 });
+          const FP = paths(J, fd), ys = FP.map(p => yAt(p, last + F.plane));
+          const k = FP.length === F.y.length;
+          F.y.forEach((yr, i) => checks.push(check(S.name + ': ' + F.source.angle + '° fan, ray ' + (i + 1) + ' at ' + F.plane + ' mm past the last vertex', yr, k ? ys[i] : NaN, { abs: 0.002 }, ' mm')));
+          benches.push([S.name + ', ' + F.source.angle + '° fan', fd]);
+        }
+        await idle();
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'rb-absorption', area: 'Atoms', title: 'Absorption spectra of natural rubidium',
+    kind: 'Independent code', ref: 'rb-elecsus.json', script: 'rb_elecsus.py',
+    cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), whose model was tested against measured absolute absorption in P. Siddons et al., J. Phys. B 41, 155004 (2008).',
+    what: 'The weak-probe transmission of a 75 mm cell of natural rubidium, as in Siddons et al., across 16 GHz of the D2 line at 20 °C and 50 °C and the D1 line at 50 °C: the hyperfine lines of both isotopes, Doppler-broadened at the cell’s temperature, with the density from the vapour pressure. Frequencies are compared on an absolute scale, so neither code’s choice of zero matters.',
+    tolerance: 'The transmission within 0.01 everywhere, and within 0.003 RMS across the scan.',
+    pending: 'Siddons et al.’s measured spectra will be added beside ElecSus once they are read off the paper.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const data = bench('Rb ' + c.line + ', ' + c.T + ' °C, 75 mm', [
+          { type: 'source', name: 'Probe', x: -60, y: 0, angle: 0, wavelength: c.line === 'D2' ? 780.241 : 794.979, width: 1, rays: 3, pol: 's' },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: c.line, temp: c.T, cellLen: c.L_mm },
+          { type: 'detector', name: 'PD', x: 70, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const T = c.nu_Hz.map(nu => { const r = J.cellAt('Cell', nu); return r.amp * r.amp; });
+        const d = T.map((v, i) => v - c.T_trans[i]);
+        const worst = d.reduce((a, v) => Math.max(a, Math.abs(v)), 0), rms = Math.sqrt(d.reduce((a, v) => a + v * v, 0) / d.length);
+        checks.push(check(c.line + ', ' + c.T + ' °C: largest difference in transmission', 0, worst, { abs: 0.01 }));
+        checks.push(check(c.line + ', ' + c.T + ' °C: RMS difference in transmission', 0, rms, { abs: 0.003 }));
+        const x = c.nu_Hz.map(nu => (nu - c.v0_Hz) / 1e9);
+        plots.push(plot({ title: 'Natural Rb, ' + c.line + ' line, ' + c.T + ' °C, 75 mm (zero: ElecSus’s weighted line centre)', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'ElecSus', x, y: c.T_trans, colour: REF_C, width: 3 }, { name: 'JEKray2D', x, y: T, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.line + ', ' + c.T + ' °C', data]);
+        await idle();
+      }
+      return { checks, benches, plots };
+    },
+  },
+];
+
+/* ---------- Running and reporting ---------- */
+
+const casesBox = document.getElementById('cases'), sum = document.getElementById('sum'), meta = document.getElementById('meta'), runBtn = document.getElementById('run');
+function cardFor(C) {
+  const card = h('section', { class: 'vd-case', id: C.id },
+    h('h3', null, C.title, h('span', { class: 'vd-badge kind' }, C.kind), h('span', { class: 'vd-badge run', 'data-state': '' }, 'waiting')),
+    h('p', { class: 'vd-cite' }, C.cite),
+    h('p', null, h('b', null, 'What is compared. '), C.what),
+    h('p', null, h('b', null, 'Tolerance, set before the first run. '), C.tolerance),
+    C.pending ? h('p', { class: 'note' }, C.pending) : null,
+    h('div', { class: 'vd-body' }));
+  return card;
+}
+function render(C, card, out, err) {
+  const badge = card.querySelector('[data-state]'), body = card.querySelector('.vd-body');
+  body.replaceChildren();
+  if (err) { badge.className = 'vd-badge fail'; badge.textContent = 'did not run'; body.append(h('p', { class: 'note' }, 'The case stopped: ' + err.message)); return false; }
+  const fails = out.checks.filter(c => !c.ok).length;
+  badge.className = 'vd-badge ' + (fails ? 'fail' : 'pass');
+  badge.textContent = fails ? fails + ' of ' + out.checks.length + ' outside tolerance' : 'all ' + out.checks.length + ' within tolerance';
+  const rows = out.checks.map(c => h('tr', { class: c.ok ? null : 'bad' }, h('td', null, c.label), h('td', { class: 'n' }, fmt(c.ref) + c.unit), h('td', { class: 'n' }, fmt(c.got) + c.unit),
+    h('td', { class: 'n' }, (c.diff >= 0 ? '+' : '') + fmt(c.diff, 3) + c.unit), h('td', { class: 'n' }, c.tolText), h('td', { class: c.ok ? 'ok' : 'no' }, c.ok ? '✓' : '✗')));
+  if (out.plots && out.plots.length) body.append(h('div', { class: 'vd-plots' }, out.plots));
+  const table = h('div', { class: 'vd-scroll' }, h('table', { class: 'vd-table' },
+    h('thead', null, h('tr', null, ['Quantity', 'Reference', 'JEKray2D', 'Difference', 'Tolerance', ''].map(t => h('th', null, t)))), h('tbody', null, rows)));
+  // the closest any check came to its tolerance, as a share of it
+  const worst = out.checks.reduce((a, c) => { const r = c.lim > 0 ? Math.abs(c.diff) / c.lim : (c.diff === 0 ? 0 : Infinity); return r > a.r ? { r, c } : a; }, { r: -1, c: null });
+  const closest = worst.c ? 'Closest to its tolerance: ' + worst.c.label + ', ' + (Number.isFinite(worst.r) ? fmt(100 * worst.r, 2) + '% of it' : 'no value') + '.' : '';
+  if (out.checks.length > 8) body.append(h('details', { class: 'vd-details', open: fails > 0 }, h('summary', null, 'All ' + out.checks.length + ' checks. ' + closest), table));
+  else body.append(table, h('p', { class: 'vd-closest' }, closest));
+  if (out.notes) body.append(h('p', { class: 'note' }, out.notes));
+  body.append(h('div', { class: 'vd-links' },
+    h('span', null, 'Open a bench in JEKray2D: '), ...(out.benches || []).map(([name, data]) => h('a', { href: benchLink(data), target: '_blank', rel: 'noopener' }, name)),
+    h('a', { href: 'validation/ref/' + C.ref }, 'Reference data'), h('a', { href: 'validation/scripts/' + C.script }, 'Script that made it')));
+  return fails === 0;
+}
+async function runAll() {
+  const J = document.getElementById('rig').contentWindow.JEKray2D;
+  if (!J) { sum.textContent = 'JEKray2D did not load.'; sum.className = 'vd-sum fail'; return; }
+  runBtn.disabled = true;
+  casesBox.replaceChildren();
+  let area = null;
+  const cards = CASES.map(C => { if (C.area !== area) { area = C.area; casesBox.append(h('h2', { class: 'area' }, area)); } const c = cardFor(C); casesBox.append(c); return c; });
+  const t0 = performance.now();
+  let pass = 0, nChecks = 0, nBad = 0;
+  for (let i = 0; i < CASES.length; i++) {
+    const C = CASES[i], card = cards[i];
+    sum.textContent = 'Running ' + (i + 1) + ' of ' + CASES.length + ': ' + C.title + '…'; sum.className = 'vd-sum';
+    card.querySelector('[data-state]').textContent = 'running…';
+    await idle();
+    let out = null, err = null;
+    try { out = await C.run(J, await loadRef(C.ref)); } catch (e) { err = e; }
+    if (render(C, card, out, err)) pass++;
+    if (out) { nChecks += out.checks.length; nBad += out.checks.filter(c => !c.ok).length; }
+  }
+  const all = pass === CASES.length;
+  sum.textContent = pass + ' of ' + CASES.length + ' cases within tolerance (' + (nChecks - nBad) + ' of ' + nChecks + ' checks)';
+  sum.className = 'vd-sum ' + (all ? 'pass' : 'fail');
+  meta.textContent = 'JEKray2D ' + (J.version ? J.version() : '') + ' · run ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+  runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runAll);
+document.getElementById('rig').addEventListener('load', () => setTimeout(runAll, 300));
+</script>
+</body>
+</html>

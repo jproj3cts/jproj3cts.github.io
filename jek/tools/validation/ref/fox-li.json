@@ -1,0 +1,42 @@
+{
+ "source": "Fox and Li, Bell Syst. Tech. J. 40, 453 (1961): flat circular mirrors, fundamental mode",
+ "method": "the paper's Fresnel integral equation, solved independently (Gauss-Legendre, 600 points, dense eigensolver)",
+ "paperPoints": null,
+ "rows": [
+  {
+   "N": 0.5,
+   "loss": 0.3679087416178719,
+   "converged": 2.5979218776228663e-14
+  },
+  {
+   "N": 0.75,
+   "loss": 0.22911617710446652,
+   "converged": 3.375077994860476e-14
+  },
+  {
+   "N": 1.0,
+   "loss": 0.17517858047471524,
+   "converged": 5.4067861299245124e-14
+  },
+  {
+   "N": 1.5,
+   "loss": 0.1041757330029679,
+   "converged": 3.9745984281580604e-14
+  },
+  {
+   "N": 2.0,
+   "loss": 0.07581116530301224,
+   "converged": 4.39648317751562e-14
+  },
+  {
+   "N": 3.0,
+   "loss": 0.04441230271781482,
+   "converged": 5.295763827461997e-14
+  },
+  {
+   "N": 5.0,
+   "loss": 0.021844397956084394,
+   "converged": 5.750955267558311e-14
+  }
+ ]
+}

@@ -10,6 +10,8 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/fox-li.json` | `scripts/fox_li.py` | Fox & Li, Bell Syst. Tech. J. 40, 453 (1961): their integral equation, solved independently |
 | `ref/coatings.json` | `scripts/coatings.py` | Thin-film reflectance by the characteristic matrix (Abeles 1950), checked against Macleod's quarter-wave closed forms |
 | `ref/tight-focus.json` | `scripts/tight_focus.py` | The vector focus of an ideal flat lens (Richards & Wolf 1959), by its exact vector angular spectrum, integrated independently |
+| `ref/bessel-axicon.json` | `scripts/bessel_axicon.py` | The Bessel beam behind an axicon (Durnin et al. 1987), by the Fresnel integral of an ideal conical wave |
+| `ref/mode-converter.json` | `scripts/mode_converter.py` | Beijersbergen et al.'s (1993) pi/2 cylindrical-lens mode converter: the HG1,0 it makes from LG0,1 |
 | `ref/diffraction-classics.json` | `scripts/diffraction_classics.py` | Poisson's spot (Fresnel 1818), the Airy pattern (Airy 1835) and Young's slits (Young 1804), from the Fresnel-Kirchhoff integral |
 | `ref/lenses-optiland.json` | `scripts/lenses_optiland.py` | Optiland 0.6 real-ray traces (github.com/HarrisonKramer/optiland) |
 | `ref/rb-elecsus.json` | `scripts/rb_elecsus.py` | ElecSus (Zentile et al., Comput. Phys. Commun. 189, 162 (2015)) |
@@ -44,6 +46,8 @@ numpy instead.
     python scripts/fresnel_fp_self.py
     python scripts/coatings.py
     python scripts/tight_focus.py                    # about two minutes
+    python scripts/bessel_axicon.py
+    python scripts/mode_converter.py
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
 
 ## Rules

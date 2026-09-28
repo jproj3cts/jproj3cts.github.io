@@ -221,12 +221,23 @@
   .rt-more { position: relative; }
   .rt-menu-right { left: auto; right: 0; }
   /* the examples: grouped, in two columns where there is room */
-  .rt-menu.rt-examples { display: block; columns: 2 15rem; column-gap: 0.3rem; width: min(33rem, calc(100vw - 2rem)); max-height: calc(100vh - 9rem); overflow-y: auto; }
-  .rt-examples .rt-mgroup { break-inside: avoid; display: flex; flex-direction: column; margin-bottom: 0.3rem; }
-  .rt-examples .rt-mhead { padding: 0.35rem 0.65rem 0.15rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
   .rt-beta { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 4px; background: var(--jek-orange); color: #ffffff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
-  .rt-examples .sep { column-span: all; }
-  .rt-examples .rt-menulink { display: block; column-span: all; }
+  dialog.rt-dialog.rt-gallery { width: min(64rem, calc(100vw - 2rem)); height: min(46rem, calc(100vh - 3rem)); padding: 0; text-align: left; overflow: hidden; }
+  dialog.rt-gallery[open] { display: flex; flex-direction: column; }
+  .rt-ghead { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1.1rem 0.7rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-ghead h2 { margin: 0 !important; }
+  .rt-ghead input { flex: 1; min-width: 6rem; max-width: 20rem; margin-left: auto; padding: 0.4rem 0.6rem; font: inherit; font-size: 0.875rem; border: 1px solid var(--jek-line); border-radius: 6px; background: var(--jek-panel); color: var(--jek-ink); }
+  .rt-ghead input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-gbody { flex: 1; overflow-y: auto; padding: 0.4rem 1.1rem 1rem; }
+  .rt-gbody h3 { display: flex; align-items: center; margin: 0.9rem 0 0.5rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-gcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: 0.7rem; }
+  .rt-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 8px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
+  .rt-card:hover, .rt-card:focus-visible { border-color: var(--jek-cyan); box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-1px); outline: none; }
+  .rt-card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
+  .rt-card b { display: block; padding: 0.5rem 0.65rem 0.15rem; font-size: 0.875rem; line-height: 1.3; }
+  .rt-card span { display: block; padding: 0 0.65rem 0.6rem; font-size: 0.78rem; line-height: 1.4; color: var(--jek-ink-soft); }
+  .rt-gempty { margin: 1.5rem 0; color: var(--jek-ink-soft); font-size: 0.9rem; }
+  .rt-gfoot { margin: 0 !important; padding: 0.6rem 1.1rem 0.8rem; border-top: 1px solid var(--jek-line); font-size: 0.8rem !important; }
   /* the optimiser's goals: one box each */
   .rt-opt-h { margin: 0.9rem 0 0.35rem; font-size: 0.9rem; }
   .rt-opt-term { border: 1px solid var(--jek-line); border-radius: 6px; padding: 0.6rem 0.7rem; margin-top: 0.5rem; }
@@ -470,6 +481,20 @@
   .rt-notes:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
   .rt-welcome { text-align: left; }
+  .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
+  .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
+  .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+  .rt-coachhead span { font-size: 0.75rem; color: var(--jek-ink-soft); white-space: nowrap; }
+  .rt-coach.rt-flash { animation: rt-flash 0.7s ease-out; }
+  @keyframes rt-flash { 0% { box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.9); } 100% { box-shadow: var(--jek-shadow, 0 4px 14px rgba(0,0,0,0.2)); } }
+  .rt-btn.rt-pulse { position: relative; z-index: 2; animation: rt-pulse 1.4s ease-in-out infinite; border-color: var(--jek-orange) !important; }
+  @keyframes rt-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(244, 121, 62, 0.75); } 50% { box-shadow: 0 0 0 7px rgba(244, 121, 62, 0); } }
+  .rt-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; max-width: min(26rem, calc(100% - 2rem)); padding: 1rem 1.1rem;
+    text-align: center; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+  .rt-empty p { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
+  .rt-empty b { color: var(--jek-ink); }
+  .rt-empty .rt-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin: 0; }
+  @media (prefers-reduced-motion: reduce) { .rt-btn.rt-pulse, .rt-coach.rt-flash { animation: none; } .rt-btn.rt-pulse { box-shadow: 0 0 0 3px rgba(244, 121, 62, 0.6); } }
   .rt-keycols { columns: 2 22rem; column-gap: 1.6rem; }
   .rt-keycols h3 { break-after: avoid; margin: 0.2rem 0 0.35rem; font-size: 0.9rem; }
   .rt-shortcuts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; margin: 0 0 0.9rem; font-size: 0.85rem; break-inside: avoid; }
@@ -570,66 +595,7 @@
       <div class="rt-row">
         <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         <div class="rt-group rt-right">
-          <div class="rt-more">
-            <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="examplesMenu">Examples ▾</button>
-            <div class="rt-menu rt-menu-right rt-examples" id="examplesMenu" role="menu" hidden>
-              <div class="rt-mgroup" role="group" aria-label="Interference and cavities"><div class="rt-mhead">Interference and cavities</div>
-                <button type="button" role="menuitem" data-demo="michelson">Michelson interferometer</button>
-                <button type="button" role="menuitem" data-demo="mach-zehnder">Mach–Zehnder interferometer</button>
-                <button type="button" role="menuitem" data-demo="fabry-perot">Fabry–Perot cavity</button>
-                <button type="button" role="menuitem" data-demo="fox-li">Fox–Li: a cavity finds its mode</button>
-                <button type="button" role="menuitem" data-demo="pdh-lock">Pound–Drever–Hall lock</button>
-                <button type="button" role="menuitem" data-demo="laser-threshold">Laser cavity with gain</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Diffraction and imaging"><div class="rt-mhead">Diffraction and imaging</div>
-                <button type="button" role="menuitem" data-demo="youngs-double-slit">Young’s double slit</button>
-                <button type="button" role="menuitem" data-demo="poissons-spot">Poisson’s spot</button>
-                <button type="button" role="menuitem" data-demo="plano-convex">Plano-convex lens, both ways round</button>
-                <button type="button" role="menuitem" data-demo="lens-aberrations">Aberrations of a singlet across the field</button>
-                <button type="button" role="menuitem" data-demo="tight-focus">A tight focus, vector</button>
-                <button type="button" role="menuitem" data-demo="maltese-cross">Maltese cross</button>
-                <button type="button" role="menuitem" data-demo="off-axis-parabola">Off-axis parabola</button>
-                <button type="button" role="menuitem" data-demo="bessel-beam">Axicon: a Bessel beam</button>
-                <button type="button" role="menuitem" data-demo="vortex-beams">Vortex beams: mode converter and SLM</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Polarisation and spectra"><div class="rt-mhead">Polarisation and spectra</div>
-                <button type="button" role="menuitem" data-demo="wollaston-polarimeter">Wollaston polarimeter</button>
-                <button type="button" role="menuitem" data-demo="optical-isolator">Optical isolator</button>
-                <button type="button" role="menuitem" data-demo="grating-spectrometer">Grating spectrometer</button>
-                <button type="button" role="menuitem" data-demo="dispersing-prism">Dispersing prism</button>
-                <button type="button" role="menuitem" data-demo="dichroic-combiner">Dichroic combiner, two tables</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Fibre"><div class="rt-mhead">Fibre</div>
-                <button type="button" role="menuitem" data-demo="fibre-heterodyne">Fibre heterodyne (AOM beat note)</button>
-                <button type="button" role="menuitem" data-demo="split-laser">Two fibre launches from one laser</button>
-                <button type="button" role="menuitem" data-demo="fibre-michelson">Fibre Michelson, Faraday mirrors</button>
-                <button type="button" role="menuitem" data-demo="fibre-amplifier">Fibre amplifier and its noise</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Atoms and traps (beta)"><div class="rt-mhead">Atoms and traps<span class="rt-beta">Beta</span></div>
-                <button type="button" role="menuitem" data-demo="saturated-absorption">Saturated absorption, rubidium</button>
-                <button type="button" role="menuitem" data-demo="polarisation-spectroscopy">Polarisation spectroscopy</button>
-                <button type="button" role="menuitem" data-demo="davll-lock">DAVLL: a lock from a magnetic field</button>
-                <button type="button" role="menuitem" data-demo="faraday-filter">Faraday filter</button>
-                <button type="button" role="menuitem" data-demo="dipole-trap">Optical dipole trap, rubidium</button>
-                <button type="button" role="menuitem" data-demo="optical-lattice">Two-dimensional optical lattice</button>
-                <button type="button" role="menuitem" data-demo="optical-tweezers">Optical tweezers in water</button>
-                <button type="button" role="menuitem" data-demo="levitated-nanoparticle">Levitated nanoparticle in air</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Pulses (beta)"><div class="rt-mhead">Pulses<span class="rt-beta">Beta</span></div>
-                <button type="button" role="menuitem" data-demo="pulse-compressor">Grating pulse compressor</button>
-                <button type="button" role="menuitem" data-demo="fibre-solitons">Self-phase modulation and a soliton</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="Nonlinear optics (beta)"><div class="rt-mhead">Nonlinear optics<span class="rt-beta">Beta</span></div>
-                <button type="button" role="menuitem" data-demo="frequency-doubling">Frequency doubling: PPLN and PPKTP</button>
-                <button type="button" role="menuitem" data-demo="fibre-solitons">Self-phase modulation and a soliton</button>
-              </div>
-              <div class="rt-mgroup" role="group" aria-label="From a paper"><div class="rt-mhead">From a paper</div>
-                <button type="button" role="menuitem" data-demo="levitated-trap">Levitated nanorod trap (Hu et al. 2023)</button>
-              </div>
-              <div class="sep"></div>
-              <a role="menuitem" class="rt-menulink" href="jekray2d-ai-guide.md" download>Build with an AI assistant: get the guide</a>
-            </div>
-          </div>
+          <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
           <div class="rt-more">
             <button class="rt-btn" id="btnOpenMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="openMenu">Open ▾</button>
             <div class="rt-menu rt-menu-right" id="openMenu" role="menu" hidden>
@@ -782,6 +748,16 @@
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
 
+  <dialog class="rt-dialog rt-gallery" id="galleryDialog" aria-labelledby="galleryTitle">
+    <div class="rt-ghead">
+      <h2 id="galleryTitle">Examples</h2>
+      <input type="search" id="gallerySearch" placeholder="Search the examples" aria-label="Search the examples" spellcheck="false">
+      <button class="rt-btn" id="galleryClose" aria-label="Close">Close</button>
+    </div>
+    <div class="rt-gbody" id="galleryGrid"></div>
+    <p class="rt-gfoot">Each example opens in place of your bench; Undo brings your bench back. Want one built for you? Give an AI assistant <a href="jekray2d-ai-guide.md" download>the JEKray2D guide</a> and paste its answer with Ctrl+V.</p>
+  </dialog>
+
   <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
     <h2 id="shareTitle">Share this bench</h2>
     <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
@@ -883,6 +859,8 @@ const STORE_KEY = 'jek-raytracer-session-v1';
 const IN_WORKER = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
 const APP_SRC = !IN_WORKER && document.currentScript ? document.currentScript.textContent : null;
 const TEST_MODE = IN_WORKER || /(^|[#?&])test\b/.test(location.hash + location.search);
+// ?embed: the bench alone, for a web page to show in a frame; it keeps nothing in this browser
+const EMBED = !IN_WORKER && !TEST_MODE && /(^|[?&])embed\b/.test(location.search);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -4981,6 +4959,7 @@ function render() {
   for (const el of els) if (el.type === 'source') draw(el);
   drawLabels();
   drawMeasures();
+  updateEmpty();
   if (!exporting && drag && drag.mode === 'box' && drag.cur) {
     const x0 = Math.min(drag.px0, drag.cur[0]), y0 = Math.min(drag.py0, drag.cur[1]);
     ctx.save(); ctx.fillStyle = 'rgba(127,220,255,0.08)'; ctx.strokeStyle = 'rgba(127,220,255,0.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
@@ -16713,7 +16692,7 @@ document.getElementById('paletteMenu').addEventListener('click', e => {
 });
 new ResizeObserver(() => layoutPalette()).observe(document.getElementById('addRow').parentElement);
 /* the palette and More menus */
-for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu'], ['btnExamples', 'examplesMenu'], ['btnOpenMenu', 'openMenu']]) {
+for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu'], ['btnOpenMenu', 'openMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
@@ -16722,7 +16701,81 @@ for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu']
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
 }
 document.getElementById('btnSave').addEventListener('click', saveFile);
-document.getElementById('examplesMenu').addEventListener('click', e => { const b = e.target.closest('[data-demo]'); if (b) { hideWelcome(); openDemo(b.dataset.demo, true); } });
+/* The examples, by group: file name in demos/, title, and one line on what it shows. The
+   gallery shows each with a picture from demos/thumbs/. */
+const EXAMPLES = [
+  ['Interference and cavities', false, [
+    ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
+    ['mach-zehnder', 'Mach–Zehnder interferometer', 'Two arms, two outputs: the power swaps between them with the path difference.'],
+    ['fabry-perot', 'Fabry–Perot cavity', 'Free spectral range, finesse, linewidth and the cavity’s Gaussian mode.'],
+    ['fox-li', 'Fox–Li: a cavity finds its mode', 'Light bounced round a cavity settles into its lowest-loss mode.'],
+    ['pdh-lock', 'Pound–Drever–Hall lock', 'Sidebands, a cavity and a photodiode give the classic PDH error signal.'],
+    ['laser-threshold', 'Laser cavity with gain', 'A Nd:YAG gain sheet in a cavity: threshold, output power and the mode.']]],
+  ['Diffraction and imaging', false, [
+    ['youngs-double-slit', 'Young’s double slit', 'Two slits, one screen, and the fringe spacing you expect.'],
+    ['poissons-spot', 'Poisson’s spot', 'The bright spot in the shadow of an opaque disc.'],
+    ['plano-convex', 'Plano-convex lens, both ways round', 'Why the curved side should face the collimated beam.'],
+    ['lens-aberrations', 'Aberrations of a singlet across the field', 'Seidel and Zernike terms, spot diagrams, field curvature and distortion.'],
+    ['tight-focus', 'A tight focus, vector', 'A high-NA focus where polarisation shapes the spot.'],
+    ['maltese-cross', 'Maltese cross', 'A steep focus seen through a polariser.'],
+    ['off-axis-parabola', 'Off-axis parabola', 'A 90° off-axis mirror focuses with no spherical aberration.'],
+    ['bessel-beam', 'Axicon: a Bessel beam', 'A cone lens makes a long, narrow line focus.'],
+    ['vortex-beams', 'Vortex beams: mode converter and SLM', 'Light with orbital angular momentum, made two ways.']]],
+  ['Polarisation and spectra', false, [
+    ['wollaston-polarimeter', 'Wollaston polarimeter', 'A half-wave plate and a calcite Wollaston split s from p.'],
+    ['optical-isolator', 'Optical isolator', 'A Faraday rotator stops light getting back into the laser.'],
+    ['grating-spectrometer', 'Grating spectrometer', 'Mercury lines spread out by a transmission grating.'],
+    ['dispersing-prism', 'Dispersing prism', 'White light split into colours by an N-SF11 prism.'],
+    ['dichroic-combiner', 'Dichroic combiner, two tables', 'Two lasers combined, carried between tabs by link planes.']]],
+  ['Fibre', false, [
+    ['fibre-heterodyne', 'Fibre heterodyne (AOM beat note)', 'An AOM shifts one arm; the photodiode sees the beat.'],
+    ['split-laser', 'Two fibre launches from one laser', 'One laser, split and launched into two fibres, recombined in free space.'],
+    ['fibre-michelson', 'Fibre Michelson, Faraday mirrors', 'An all-fibre interferometer that cancels polarisation drift.'],
+    ['fibre-amplifier', 'Fibre amplifier and its noise', '20 km of fibre, an erbium amplifier, and the noise it adds.']]],
+  ['Atoms and traps', true, [
+    ['saturated-absorption', 'Saturated absorption, rubidium', 'Doppler-free hyperfine lines from a pump and probe.'],
+    ['polarisation-spectroscopy', 'Polarisation spectroscopy', 'A circular pump makes the vapour birefringent: a dispersive lock signal.'],
+    ['davll-lock', 'DAVLL: a lock from a magnetic field', 'Zeeman-split absorption gives a wide error signal.'],
+    ['faraday-filter', 'Faraday filter', 'A hot cell in a field between crossed polarisers passes a narrow band.'],
+    ['dipole-trap', 'Optical dipole trap, rubidium', 'A focused 1064 nm beam: trap depth, frequencies and scattering.'],
+    ['optical-lattice', 'Two-dimensional optical lattice', 'Four beams make a grid of traps.'],
+    ['optical-tweezers', 'Optical tweezers in water', 'A bead held by an NA 1.2 objective: stiffness and forces.'],
+    ['levitated-nanoparticle', 'Levitated nanoparticle in air', 'A 150 nm silica sphere held in vacuum by a tight focus.']]],
+  ['Pulses', true, [
+    ['pulse-compressor', 'Grating pulse compressor', 'A grating pair takes a chirped pulse back to its transform limit.'],
+    ['fibre-solitons', 'Self-phase modulation and a soliton', 'The same pulse broadens in one fibre and holds its shape in another.']]],
+  ['Nonlinear optics', true, [
+    ['frequency-doubling', 'Frequency doubling: PPLN and PPKTP', '1560 nm to 780 nm and 1064 nm to 532 nm in poled crystals.'],
+    ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
+  ['From a paper', false, [
+    ['levitated-trap', 'Levitated nanorod trap (Hu et al. 2023)', 'The standing-wave trap from a Nature Communications paper.']]],
+];
+const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
+{
+  const dlg = document.getElementById('galleryDialog'), grid = document.getElementById('galleryGrid');
+  const search = document.getElementById('gallerySearch');
+  const fill = () => {
+    const q = search.value.trim().toLowerCase();
+    grid.replaceChildren();
+    for (const [group, beta, list] of EXAMPLES) {
+      const hits = list.filter(([id, t, d]) => !q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q));
+      if (!hits.length) continue;
+      grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
+        h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
+          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t), h('span', null, d)))));
+    }
+    if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
+  };
+  window.openGallery = () => { hideWelcome(); search.value = ''; fill(); dlg.showModal(); grid.scrollTop = 0; search.focus(); };
+  search.addEventListener('input', fill);
+  document.getElementById('btnExamples').addEventListener('click', () => openGallery());
+  document.getElementById('galleryClose').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', e => {
+    if (e.target === dlg) { dlg.close(); return; }                      // a click on the backdrop
+    const b = e.target.closest('[data-demo]');
+    if (b) { dlg.close(); openDemo(b.dataset.demo, true); }
+  });
+}
 {
   const dlg = document.getElementById('helpDialog');
   document.getElementById('btnHelp').addEventListener('click', () => { hideWelcome(); dlg.showModal(); });
@@ -16740,9 +16793,7 @@ function hideWelcome() {
 }
 function showWelcome() {
   try { if (localStorage.getItem('jek-raytracer-welcomed')) return; } catch (err) { return; }
-  const pick = h('select', { 'aria-label': 'Open an example' }, h('option', { value: '' }, 'Open an example\u2026'),
-    ...[...document.querySelectorAll('#examplesMenu [data-demo]')].map(b => h('option', { value: b.dataset.demo }, b.textContent)));
-  pick.addEventListener('change', () => { if (pick.value) { const d = pick.value; hideWelcome(); openDemo(d, true); } });
+  const pick = h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples');
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray2D'),
     h('ul', null,
@@ -16750,7 +16801,120 @@ function showWelcome() {
       h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),
       h('li', null, 'Press ? for every shortcut.')),
-    h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
+    h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
+}
+/* ---------- Guided tours ----------
+   A tour builds a small bench step by step on a tab of its own, so the user's own work is
+   untouched. Each step says what to do, points at the button it needs, and moves on by
+   itself once the bench shows it done (read from the last trace). */
+const tourEls = type => project.elements.filter(e => onTab(e) && e.type === type);
+const tourLit = el => !!(lastTrace && ((lastTrace.screens && (lastTrace.screens[el.id] || []).length) || (lastTrace.beams || []).some(b => b.endEl === el.id)));
+// light that meets el and goes straight back the way it came
+const tourRetro = el => !!(lastTrace && (lastTrace.beams || []).some(b => {
+  const p = b.parent >= 0 ? lastTrace.beams[b.parent] : null;
+  return p && p.endEl === el.id && p.dx * b.dx + p.dy * b.dy < -0.95;
+}));
+const TOURS = {
+  focus: { title: 'Focus a laser beam', tab: 'Tour: focus', steps: [
+    { text: 'Add a light source: click <b>Source</b> in the Add row. It sends a collimated beam to the right.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
+    { text: 'Add a lens with <b>Lens</b>.', target: 'lens', done: () => tourEls('lens').length, after: () => tourPlace('lens', -20, -35) },
+    { text: 'Drag the lens up into the beam. The rays bend towards a focus about 50 mm past it.', done: () => tourEls('lens').some(tourLit) },
+    { text: 'Add a <b>Screen</b> and drag it past the lens into the rays. (If the Screen button isn’t showing, it’s under <b>More ▾</b>.)', target: 'screen', done: () => tourEls('screen').some(tourLit) },
+    { text: 'Click the screen. The panel on the right shows what arrives: the spot, its size, and the beam’s profile.', done: () => { const e = selected(); return e && e.type === 'screen'; } },
+    { text: 'Drag the screen along the beam until the spot is smallest. The <b>RMS spot</b> in the panel falls as you reach the focus.', done: () => tourEls('screen').some(e => { const st = screenStats(e); return st && st.rms < 0.05; }) },
+    { text: 'That’s the focus. Click the lens to change its curvatures or glass and watch the focus move, or turn it round with a right-click. Try the Michelson tour next, or open an example.', final: true }] },
+  michelson: { title: 'Build a Michelson interferometer', tab: 'Tour: Michelson', steps: [
+    { text: 'Add a light source: click <b>Source</b> in the Add row.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
+    { text: 'Add a <b>Beam splitter</b> and drag it into the beam. Half the light goes on, half is turned through 90°.', target: 'cube', done: () => tourEls('cube').some(tourLit), before: () => tourPlace('cube', -20, -35) },
+    { text: 'Add a <b>Mirror</b> and drag it into the straight-through beam. Then turn it to face the splitter: click it and set its <b>Angle</b> to 180 in the panel (the way it faces), or drag its round handle.', target: 'mirror', done: () => tourEls('mirror').some(tourRetro) },
+    { text: 'Add a second <b>Mirror</b> in the beam the splitter turned, and turn it to face the splitter too (Angle 90 or −90, whichever points back at it).', target: 'mirror', done: () => tourEls('mirror').filter(tourRetro).length >= 2 },
+    { text: 'Light from both arms now meets again at the splitter. Add a <b>Screen</b> (under <b>More ▾</b> if it isn’t showing) on the splitter’s fourth side, the output port, and turn it to face the splitter (its Angle is the way it faces).', target: 'screen',
+      done: () => { const n = Math.max(1, ...tourEls('source').map(e => e.rays || 1)); return tourEls('screen').some(e => { const st = screenStats(e); return st && st.count >= 1.5 * n; }); } },
+    { text: 'Click the screen: its plot shows the two beams interfering. Now nudge one mirror with the arrow keys, or give its position a sweep and press Play, and watch the output rise and fall.', final: true }] },
+};
+let tour = null;
+/* put the newest element of a type where the tour wants it, relative to the middle of the view
+   (y up the bench); done once per step */
+function tourPlace(type, dx, dy) {
+  const list = tourEls(type), el = list[list.length - 1];
+  if (!el) return;
+  el.x = snapVal(V().cx + dx); el.y = snapVal(V().cy + dy);
+  changed(true);
+}
+function startTour(name) {
+  const T = TOURS[name];
+  if (!T) return;
+  endTour();
+  hideWelcome();
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  if (palette !== 'free') { palette = 'free'; layoutPalette(); }
+  addBench();
+  const b = curBench();
+  b.name = T.tab; b.view.cx = 60; b.view.cy = 0; b.view.scale = Math.max(2, Math.min(6, (W || 800) / 230));
+  project.view = b.view;
+  renderBenchTabs(); changed(true);
+  tour = { name, T, i: 0, bench: b.id, timer: setInterval(tourTick, 300) };
+  tourShow();
+}
+function endTour() {
+  if (!tour) return;
+  clearInterval(tour.timer);
+  tour = null;
+  const c = document.getElementById('coach');
+  if (c) c.remove();
+  for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
+}
+function tourTarget(kind) {
+  const all = [...document.querySelectorAll('.rt-toolbar [data-add="' + kind + '"]')];
+  return all.find(e => e.offsetParent !== null) || (all.length ? document.getElementById('btnMore') : null);
+}
+function tourShow() {
+  if (!tour) return;
+  const { T, i } = tour, st = T.steps[i];
+  let c = document.getElementById('coach');
+  if (!c) { c = h('div', { class: 'rt-welcome rt-coach', id: 'coach', role: 'status', 'aria-live': 'polite' }); document.getElementById('stage').append(c); }
+  const p = h('p'); p.innerHTML = st.text;
+  const acts = st.final
+    ? [tour.name === 'focus' ? h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('michelson') }, 'Michelson tour') : null,
+       h('button', { class: 'rt-btn', type: 'button', onclick: () => { endTour(); openGallery(); } }, 'Examples'),
+       h('button', { class: 'rt-btn primary', type: 'button', onclick: endTour }, 'Done')]
+    : [h('button', { class: 'rt-btn', type: 'button', onclick: endTour }, 'End tour'),
+       i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
+       h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
+  c.replaceChildren(h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
+    p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
+  for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
+  const tg = st.target && tourTarget(st.target);
+  if (tg) tg.classList.add('rt-pulse');
+}
+function tourTick() {
+  if (!tour) return;
+  // the tour's tab gone (closed, or a file opened over it): the tour ends with it
+  if (!project.benches.some(b => b.id === tour.bench)) { endTour(); return; }
+  if (project.tab !== tour.bench) return;
+  const st = tour.T.steps[tour.i];
+  if (st.final) { for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse'); return; }
+  const tg = st.target && tourTarget(st.target);           // the palette may have moved it into More
+  if (tg && !tg.classList.contains('rt-pulse')) { for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse'); tg.classList.add('rt-pulse'); }
+  // a part the step asks for, just added: put where the step can use it
+  if (st.before && !tour.placed && tourEls(st.target).length) { tour.placed = true; st.before(); }
+  let ok = false;
+  try { ok = !!st.done(); } catch (err) { ok = false; }
+  if (ok && st.after) st.after();
+  if (ok) { tour.placed = false; tour.i++; tourShow(); const c = document.getElementById('coach'); if (c) { c.classList.remove('rt-flash'); void c.offsetWidth; c.classList.add('rt-flash'); } }
+}
+/* An empty tab: what to do first */
+function updateEmpty() {
+  const empty = !TEST_MODE && !EMBED && !tour && !project.elements.some(onTab) && !document.getElementById('welcome');
+  let c = document.getElementById('emptyHint');
+  if (!empty) { if (c) c.remove(); return; }
+  if (c) return;
+  document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint' },
+    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part from the Add row above, or:'),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));
 }
 document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileJekray').click());
 document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
@@ -17483,6 +17647,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     fieldAt(x, y) { return fieldAtPoint(x, y); },
     beamTree() { return lastTrace.beams.map((b, i) => ({ i, parent: b.parent, x0: +b.x0.toFixed(3), y0: +b.y0.toFixed(3), dx: +b.dx.toFixed(4), dy: +b.dy.toFixed(4), len: +b.len.toFixed(3), w: +b.w.toFixed(4), end: b.endEl && getEl(b.endEl) ? getEl(b.endEl).name : null, ev: b.ev ? (b.ev.bypass ? 'bypass' : b.ev.mode + ':' + (getEl(b.ev.el) || {}).name + ' ly ' + (+b.ev.ly).toFixed(2)) : null })); },
     closeupInfo(x, y, span) { return closeupInfoAt(x, y, span); },
+    examples() { return [...new Set(EXAMPLES.flatMap(g => g[2].map(e => e[0])))]; },
+    tourStart(name) { startTour(name); clearInterval(tour.timer); },
+    tourTick() { tourTick(); return tour ? { i: tour.i, final: !!tour.T.steps[tour.i].final } : null; },
+    tourEnd() { endTour(); },
+    add(kind) { addElement(kind); traceScene(); return selected().name; },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },
     metricOf(name, key) { return metricRaw(this.byName(name), key); },

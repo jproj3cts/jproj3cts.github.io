@@ -3061,12 +3061,12 @@ const TESTS = [
   {
     name: 'Every example in the menu opens cleanly',
     why: 'each bench under Examples, fetched and opened: nothing in the import report, and every screen and photodiode on it receives light',
-    wantFrom: () => document.getElementById('rig').contentDocument.querySelectorAll('#examplesMenu [data-demo]').length, tol: 0, unit: ' examples',
+    wantFrom: () => rigJ().examples().length, tol: 0, unit: ' examples',
     run: J => {
       const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x.status === 200 ? x.responseText : null; };
       let ok = 0; const bad = [];
-      for (const b of document.getElementById('rig').contentDocument.querySelectorAll('#examplesMenu [data-demo]')) {
-        const k = b.dataset.demo, text = get('demos/' + k + '.jekray');
+      for (const k of J.examples()) {
+        const text = get('demos/' + k + '.jekray');
         if (!text) { bad.push(k + ': missing'); continue; }
         const notes = J.importText(text); J.trace();
         const dark = J.project().elements.filter(e => (e.type === 'screen' && !J.stats(e.name)) || (e.type === 'detector' && !(J.detector(e.name).mw > 0))).map(e => e.name);
@@ -3074,6 +3074,57 @@ const TESTS = [
       }
       if (bad.length) console.warn(bad.join('\n'));
       return ok;
+    },
+  },
+  {
+    name: 'The examples gallery lists every example file',
+    why: 'each .jekray in demos/ has a card in the gallery, and each card has its picture',
+    want: 0, tol: 0, unit: ' missing',
+    run: J => {
+      const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x; };
+      const listed = new Set(J.examples()), bad = [];
+      for (const m of get('demos/').responseText.matchAll(/href="([a-z0-9-]+)\.jekray"/g)) if (!listed.has(m[1])) bad.push(m[1] + ': not in the gallery');
+      for (const k of listed) if (get('demos/thumbs/' + k + '.webp').status !== 200) bad.push(k + ': no picture');
+      if (bad.length) console.warn(bad.join('\n'));
+      return bad.length;
+    },
+  },
+  {
+    name: 'The focus tour can be followed to the end',
+    why: 'a source, a lens in the beam, a screen in the light, selected, then moved to the focus: each step moves the tour on by itself (steps reached, as a number)',
+    want: 123456, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, name: 'T', elements: [] });
+      J.tourStart('focus');
+      const seen = [], step = () => { J.trace(); seen.push(J.tourTick().i); };
+      const s0 = J.add('source'); J.setParam(s0, 'y', 0); step();
+      const l = J.add('lens'); step();
+      J.setParam(l, 'x', 100); J.setParam(l, 'y', 0); step();
+      const sc = J.add('screen'); J.setParam(sc, 'x', 130); J.setParam(sc, 'y', 0); step();
+      J.select(sc); step();
+      let best = [0, Infinity];
+      for (let x = 140; x < 165; x += 0.25) { J.setParam(sc, 'x', x); J.trace(); const st = J.stats(sc); if (st && st.rms < best[1]) best = [x, st.rms]; }
+      J.setParam(sc, 'x', best[0]); step();
+      J.tourEnd();
+      return +seen.join('');
+    },
+  },
+  {
+    name: 'The Michelson tour can be followed to the end',
+    why: 'a source, a splitter in the beam, a mirror facing back in each arm, and a screen at the output port that both arms reach (steps reached, as a number)',
+    want: 12345, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, name: 'T', elements: [] });
+      J.tourStart('michelson');
+      const seen = [], step = () => { J.trace(); seen.push(J.tourTick().i); };
+      const s0 = J.add('source'); J.setParam(s0, 'y', 0); step();
+      const c = J.add('cube'); J.tourTick(); J.setParam(c, 'x', 100); J.setParam(c, 'y', 0); step();
+      const m1 = J.add('mirror'); J.setParam(m1, 'x', 150); J.setParam(m1, 'y', 0); J.setParam(m1, 'angle', 180); step();
+      const sg = J.beamTree().find(q => Math.abs(q.dy) > 0.9).dy > 0 ? 1 : -1;
+      const m2 = J.add('mirror'); J.setParam(m2, 'x', 100); J.setParam(m2, 'y', 50 * sg); J.setParam(m2, 'angle', -90 * sg); step();
+      const sc = J.add('screen'); J.setParam(sc, 'x', 100); J.setParam(sc, 'y', -50 * sg); J.setParam(sc, 'angle', 90 * sg); step();
+      J.tourEnd();
+      return +seen.join('');
     },
   },
   {

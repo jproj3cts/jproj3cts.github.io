@@ -373,10 +373,10 @@ body {
   max-width: 760px;
 }
 
-/* A lone product (For Makers) keeps the width of one column of three
+/* A short row (For Makers) keeps the width of one column of three, centred,
    rather than stretching across the whole grid */
-.image-grid:has(> .image-item:only-child) {
-  grid-template-columns: minmax(0, 234px);
+.image-grid:not(:has(> .image-item:nth-child(3))) {
+  grid-template-columns: repeat(auto-fit, minmax(0, 234px));
   justify-content: center;
 }
 

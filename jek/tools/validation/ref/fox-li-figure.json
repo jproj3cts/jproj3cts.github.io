@@ -1,0 +1,45 @@
+{
+ "source": "Fox and Li (1961), Fig. 8, circular plane mirrors, dominant (TEM00) mode, read from the archive.org scan",
+ "points": [
+  {
+   "N": 0.6,
+   "loss": 0.30947
+  },
+  {
+   "N": 0.8,
+   "loss": 0.2217
+  },
+  {
+   "N": 1.0,
+   "loss": 0.171
+  },
+  {
+   "N": 1.5,
+   "loss": 0.10418
+  },
+  {
+   "N": 2.0,
+   "loss": 0.07269
+  },
+  {
+   "N": 3.0,
+   "loss": 0.04292
+  },
+  {
+   "N": 5.0,
+   "loss": 0.02195
+  },
+  {
+   "N": 8.0,
+   "loss": 0.01155
+  },
+  {
+   "N": 12.0,
+   "loss": 0.00649
+  },
+  {
+   "N": 18.0,
+   "loss": 0.00359
+  }
+ ]
+}

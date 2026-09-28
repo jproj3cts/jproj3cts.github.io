@@ -337,10 +337,23 @@ const ALL_CASES = [
     kind: 'Independent solution of the paper’s equation', ref: 'fox-li.json', script: 'fox_li.py',
     cite: 'A. G. Fox and T. Li, “Resonant modes in a maser interferometer”, Bell System Technical Journal 40, 453–488 (1961).',
     what: 'Two identical flat circular mirrors, 1 mm across, at Fresnel numbers N = a²/λL from 0.5 to 5. The fundamental mode’s power loss per transit, from the eigenvalues of JEKray2D’s round trip (its diffracted field propagated mirror to mirror), against Fox and Li’s integral equation for the same geometry solved independently at high resolution.',
-    tolerance: 'Within 5% of the reference loss, from the sampling of JEKray2D’s field grid (256 points across).',
-    pending: 'The reference is Fox and Li’s own equation solved independently; the points read off the paper’s loss figure will be added beside it.',
+    tolerance: 'Within 5% of the reference loss, from the sampling of JEKray2D’s field grid (256 points across). Against the points read off the paper’s own figure, within 10% (a curve is drawn about 8 px thick on the scan, some 4% in loss, beside the 5%).',
     async run(J, R) {
       const checks = [], benches = [], lam = 632.8e-6, a = 0.5, ns = [], gots = [];
+      const Fg = await loadRef('fox-li-figure.json');
+      const lossAt = N => { const L = a * a / (lam * N);
+        J.load(bench('Fox & Li, N = ' + N, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 632.8, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 2 * a, reflect: 99.99 },
+          { type: 'mirror', name: 'M2', x: L, y: 0, angle: 180, length: 2 * a, reflect: 100 },
+          { type: 'screen', name: 'Leak', x: -20, y: 0, angle: 0, length: 20 }], { minPower: 1e-6 }));
+        J.diffraction('Leak'); return 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999); };
+      const figN = [], figGot = [];
+      for (const p of Fg.points) {
+        const g = lossAt(p.N); figN.push(p.N); figGot.push(g);
+        checks.push(check('N = ' + p.N + ': loss per transit, against the paper’s Figure 8', p.loss, g, { rel: 0.10 }));
+        await idle();
+      }
       for (const r of R.rows) {
         const L = a * a / (lam * r.N);
         const data = bench('Fox & Li, N = ' + r.N, [
@@ -355,8 +368,9 @@ const ALL_CASES = [
         await idle();
       }
       const plots = [plot({ title: 'Power lost per transit by the fundamental mode', xlabel: 'Fresnel number N', ylabel: 'loss per transit', logY: true,
-        series: [{ name: 'Fox–Li equation, solved independently', x: ns, y: R.rows.map(r => r.loss), colour: REF_C }, { name: 'JEKray2D', x: ns, y: gots, colour: GOT_C, dots: true }] })];
-      return { checks, benches, plots };
+        series: [{ name: 'Fox–Li equation, solved independently', x: ns, y: R.rows.map(r => r.loss), colour: REF_C }, { name: 'Fox and Li’s Figure 8 (read from the scan)', x: Fg.points.map(p => p.N), y: Fg.points.map(p => p.loss), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray2D', x: [...ns, ...figN], y: [...gots, ...figGot], colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'Figure 8 is read from the scan of the 1961 journal at archive.org: its axes placed by the grid lines found in the image, the circular-mirror TEM₀₀ curve (third from the top: a strip’s even mode loses least, then a round mirror’s fundamental, the strip’s odd mode, the round TEM₁₀) followed column by column from where the four curves stand well apart. Script and points: fox_li_figure.py, fox-li-figure.json.' };
     },
   },
   {

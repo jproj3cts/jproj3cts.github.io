@@ -8,6 +8,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/fresnel-fp-self.json` | `scripts/fresnel_fp_self.py` | Fresnel's equations and Brewster's angle (N-BK7, Schott's Sellmeier), the Fabry-Perot Airy function, Self's thin-lens transform of a Gaussian beam (Appl. Opt. 22, 658 (1983)) |
 | `ref/kogelnik-li.json` | `scripts/kogelnik_li.py` | Kogelnik & Li, Appl. Opt. 5, 1550 (1966): closed forms for two-mirror resonators |
 | `ref/fox-li.json` | `scripts/fox_li.py` | Fox & Li, Bell Syst. Tech. J. 40, 453 (1961): their integral equation, solved independently |
+| `ref/fox-li-figure.json` | `scripts/fox_li_figure.py` | Fox & Li's Figure 8 (circular mirrors, TEM00), read from the 1961 journal's scan at archive.org |
 | `ref/coatings.json` | `scripts/coatings.py` | Thin-film reflectance by the characteristic matrix (Abeles 1950), checked against Macleod's quarter-wave closed forms |
 | `ref/tight-focus.json` | `scripts/tight_focus.py` | The vector focus of an ideal flat lens (Richards & Wolf 1959), by its exact vector angular spectrum, integrated independently |
 | `ref/bessel-axicon.json` | `scripts/bessel_axicon.py` | The Bessel beam behind an axicon (Durnin et al. 1987), by the Fresnel integral of an ideal conical wave |
@@ -35,6 +36,7 @@ numpy instead.
     pip install numpy scipy optiland sympy lmfit psutil matplotlib
     python scripts/kogelnik_li.py
     python scripts/fox_li.py
+    python scripts/fox_li_figure.py fl13.png          # page 466 of the archive.org scan, needs Pillow
     python scripts/lenses_optiland.py
     ELECSUS=/path/to/ElecSus python scripts/rb_elecsus.py
     python scripts/siddons_fig8.py siddons.pdf          # arXiv:0805.1139, needs pymupdf

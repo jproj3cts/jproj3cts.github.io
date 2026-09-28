@@ -10935,6 +10935,18 @@ function popFromWaist(Fw, z) {
 /* Propagates one field to many distances, keeping the intermediate transforms */
 function popLeg(F0) {
   const L = popLegCore(F0);
+  if (F0.bab) {
+    // behind a disc: the free beam's and the opening's legs, worked out when first asked for
+    const Lf = popLegCore(F0.bab.free), Lh = popLegCore(F0.bab.hole), at0 = L.at;
+    L.at = t => {
+      const G = at0(t);
+      if (t !== 0 && !Object.prototype.hasOwnProperty.call(G, 'bab')) {
+        let v = null;
+        Object.defineProperty(G, 'bab', { get: () => v || (v = { free: Lf.at(t), hole: Lh.at(t) }), enumerable: false });
+      }
+      return G;
+    };
+  }
   L.stats = t => popStats(L.at(t));
   L.cut = t => {
     const G = L.at(t), Q = qdht(G.re.length), I = new Float64Array(Q.N);
@@ -11037,6 +11049,19 @@ function popIntensityAt(F) {
 /* the same, the residual field itself, [re, im] */
 function popFieldSeries(F) {
   if (F._series) return F._series;
+  if (F.bab) {
+    // the free beam less the opening's field, each by its own series, each put against this
+    // field's reference: a residual times exp(i b r^2) is the full field, b = -k / 2z on a sphere
+    const ref = G => G.sphere ? -popK(G) / (2 * G.z) : 0, b0 = ref(F);
+    const parts = [[F.bab.free, 1], [F.bab.hole, -1]].map(([G, sg]) => [popFieldSeries(G), ref(G) - b0, sg]);
+    const f = r => {
+      let a = 0, b = 0;
+      for (const [g, db, sg] of parts) { const [x, y] = g(r), ph = db * r * r, c = Math.cos(ph), sn = Math.sin(ph); a += sg * (x * c - y * sn); b += sg * (x * sn + y * c); }
+      return [a, b];
+    };
+    Object.defineProperty(F, '_series', { value: f, enumerable: false });
+    return f;
+  }
   const Q = qdht(F.re.length), [sr, si] = hankel(Q, F.R, F.re, F.im), V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * F.R * F.R);
   const nu = new Float64Array(Q.N), wr = new Float64Array(Q.N), wi = new Float64Array(Q.N);
   for (let m = 0; m < Q.N; m++) { nu[m] = Q.j[m] * V / Q.S; wr[m] = sr[m] * Q.inv[m] * k; wi[m] = si[m] * Q.inv[m] * k; }
@@ -11155,7 +11180,31 @@ function popMask(r, a) {
    for now: tangential magnification A and the quadratic phase exp(-i k2 (C/A) r^2 / 2);
    the ray-traced phase takes its place later. Only residuals are ever interpolated,
    and every reference phase is put back analytically. */
+let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
 function popSurface(F, q, ev) {
+  // Behind an obscuring disc the light is the free beam less what a round opening of the
+  // disc's size would pass (Babinet). Its grid, sized to hold the whole beam, cannot also hold
+  // the light the disc's edge bends through a/z, which meets on the axis in Poisson's spot;
+  // the opening's field, on a grid sized to the disc, can. Both go on as legs of their own
+  // beside this field, which still serves for everything taken from its samples; the field
+  // between samples (the profile near the axis, the close-up) is taken from the two.
+  let bab = null;
+  if (ev.disc && !ev.noBab) {
+    const sub = Object.assign({}, ev, { disc: null, fixed: undefined, noBab: true });
+    // the opening's grid, spacing d over N samples: wide enough that the light its edge bends
+    // to the grid's limit, lambda / 2d, is still on it t along (N d >= a + t lambda / 2d), so
+    // none folds back onto the axis; that leaves room for the angles a / t that make the spot
+    // many times over. Never coarser than a twentieth of the disc.
+    // on more samples than the beam's own: the incoming field is smooth, so it resamples well
+    const nS = BAB_N, ad = ev.disc * Math.abs(ev.A || 1), lamB = F.lam0 / (ev.n2 || F.n);
+    const rF = popRadii(qdht(F.re.length), F.R), [hr, hi] = popResample(rF, F.re, F.im, popRadii(qdht(nS), F.R));
+    const Fh = Object.assign({}, F, { re: hr, im: hi });
+    const tB = ev.tNext > 0 && isFinite(ev.tNext) ? ev.tNext : 1e12;
+    const dB = Math.min((ad + Math.sqrt(ad * ad + 2 * nS * lamB * tB)) / (2 * nS), ad / 20);
+    const holeRn = Math.max(1.5 * ad, nS * dB);
+    const free = popSurface(F, q, sub), hole = popSurface(Fh, q, Object.assign({}, sub, { a: Math.min(isFinite(ev.a) ? ev.a : Infinity, ev.disc), holeRn }));
+    bab = { free: free.field, hole: hole.field };
+  }
   const N = F.re.length, Q = qdht(N), G = popGuard(N), lam0 = F.lam0;
   const kIn = 2 * Math.PI * F.n / lam0, lamIn = lam0 / F.n;
   const r = popRadii(Q, F.R);
@@ -11259,6 +11308,7 @@ function popSurface(F, q, ev) {
     const d = Math.max(Math.sqrt(lam2 * t) / 8, dHold);
     Rn = Math.min(Rn, Math.max(N * d, 1.2 * aA * (isFinite(aIn) ? aIn : 0)));
   }
+  if (ev.holeRn) Rn = ev.holeRn;
   if (ev.fixed) Rn = ev.fixed.Rn;
   const rn = popRadii(Q, Rn);
   const x = new Float64Array(N);
@@ -11318,8 +11368,10 @@ function popSurface(F, q, ev) {
   // Behind an obscuring disc of radius a the light its edge bends meets on the axis in Poisson's
   // spot, 0.38 lambda t / a in radius at the next surface t along: narrower than three samples
   // (the grid, sized to hold the whole beam, spaced about Rn / N) and its height comes out low
-  const discSpot = ev.disc && ev.tNext > 0 && isFinite(ev.tNext) ? 0.38 * lam2 * ev.tNext / (aA * ev.disc) : Infinity;
+  // (without the two fields beside it, as when a sweep replays a decision, it would come out low)
+  const discSpot = !bab && ev.disc && ev.tNext > 0 && isFinite(ev.tNext) ? 0.38 * lam2 * ev.tNext / (aA * ev.disc) : Infinity;
   const coarse = !ev.fixed && (pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM || discSpot < 3 * Rn / N) ? 1 : 0;
+  if (bab) field.bab = bab;
   return { field, q: [qr, qi], clipped, steep, coarse,
     decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
 }
@@ -12758,6 +12810,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       ay.d = Math.min(ay.d, Math.max(feat * aAy / 4, spanY / N));
     }
     if (feat * ev.cth * aAx < 3 * ax.d || (!M.slits || M.h > 0) && feat * aAy < 3 * ay.d) coarse = 1;
+    // behind a disc, Poisson's spot at the next surface, 0.38 lambda t / a in radius: narrower
+    // than three samples and its height is wrong (the round field carries the disc's light on
+    // a grid of its own and gets it right; this one does not)
+    if (M.shape === 'disc' && tNext > 0 && isFinite(tNext) && 0.38 * (F.lam0 / ev.n2) * tNext / (M.a * Math.min(aAx, aAy)) < 3 * Math.max(ax.d, ay.d)) coarse = 1;
   }
   const sphXi = !popInside(qx[0], qx[1]), sphYi = !popInside(qy[0], qy[1]);
   const sphXo = !popInside(qxo[0], qxo[1]), sphYo = !popInside(qyo[0], qyo[1]);
@@ -18068,7 +18124,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
     lastTrace() { return lastTrace; },
-    popCore: { besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
+    popCore: { popFieldSeries, setBabN: n => { BAB_N = n; }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },
     // every Gaussian source's beam tree as fields, whatever it is set to show
     popNotes() {

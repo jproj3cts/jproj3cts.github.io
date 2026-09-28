@@ -3814,11 +3814,21 @@ const TESTS = [
     },
   },
   {
-    name: 'A Poisson spot too narrow for the grid is flagged',
-    why: 'the example\u2019s 3 mm disc in a 6 mm beam: 500 mm behind it the spot is 80 \u00b5m across, under three samples of the 512-point grid, and comes out 14% low, so the screen says its diffraction is only roughly right; 5 m behind, the spot is resolved and nothing is said (1 when both hold)',
+    name: 'Poisson\u2019s spot comes out at its height',
+    why: 'the example\u2019s 3 mm disc in a 6 mm beam, 250 mm, 500 mm and 2 m behind it: on the axis exactly exp(\u22122a\u00b2/w\u2080\u00b2) = 0.8825 of the free beam at every distance (Fresnel). The spot, 0.38\u03bbz/a across, is too narrow for the beam\u2019s own grid, so the disc\u2019s light goes on as a field of its own on a grid sized to the disc (Babinet); it once came out 4\u201317% low, and at 100 mm not at all. Nothing is flagged; worst relative error',
+    want: 0, tol: 0.03, unit: '',
+    run: J => { const d = JSON.parse(getDemo('poissons-spot')), zR = Math.PI * 36 / 633e-6;
+      let worst = 0;
+      for (const z of [250, 500, 2000]) { const e = JSON.parse(JSON.stringify(d)); e.elements.find(x => x.type === 'screen').x = z; J.load(e);
+        const D = J.diffraction('Screen, 500 mm'); if (D.coarse.length) return NaN;
+        worst = Math.max(worst, Math.abs(D.psf[0] / (0.8825 * 2 / (Math.PI * 36 * (1 + (z / zR) ** 2))) - 1)); }
+      return worst; },
+  },
+  {
+    name: 'On the 2D field a Poisson spot too narrow for the grid is flagged',
+    why: 'the same disc forced onto the 2D field, 500 mm behind: its grid cannot resolve the 80 \u00b5m spot (it comes out 8% high), so the screen says its diffraction is only roughly right (1 when flagged)',
     want: 1, tol: 0, unit: '',
-    run: J => { const d = JSON.parse(getDemo('poissons-spot')), at = z => { const e = JSON.parse(JSON.stringify(d)); e.elements.find(x => x.type === 'screen').x = z; J.load(e); return J.diffraction('Screen, 500 mm').coarse.length; };
-      return at(500) > 0 && at(5000) === 0 ? 1 : 0; },
+    run: J => { const e = JSON.parse(getDemo('poissons-spot')); e.elements[0].popModel = '2d'; J.load(e); return J.diffraction('Screen, 500 mm').coarse.length > 0 ? 1 : 0; },
   },
   { group: 'Dipole traps' },
   {

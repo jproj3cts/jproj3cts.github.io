@@ -338,7 +338,7 @@ const ALL_CASES = [
       // a turning point near i, by a parabola through three samples
       const turn = (xs, ys, i) => { const [a, b, c] = [ys[i - 1], ys[i], ys[i + 1]], h = (xs[i + 1] - xs[i - 1]) / 2, den = a - 2 * b + c; return xs[i] + (den ? 0.5 * h * (a - c) / den : 0); };
       // Poisson's spot
-      const Pz = R.poisson, flagged = [];
+      const Pz = R.poisson;
       for (const r of Pz.rows) {
         const data = bench('Poisson’s spot: 3 mm disc, screen ' + r.z_mm + ' mm behind', [
           { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 12, gauss: true, w0: Pz.w0_mm, z0: 100, popN: 512, pol: 's', rays: 21, power: Pz.P_mW },
@@ -346,7 +346,6 @@ const ALL_CASES = [
           { type: 'screen', name: 'Screen', x: r.z_mm, y: 0, angle: 180, length: 30 }]);
         J.load(data); const D = J.diffraction('Screen');
         checks.push(check('Poisson’s spot, ' + r.z_mm + ' mm behind the disc: its height', r.I_axis, D ? D.psf[0] : NaN, { rel: 0.03 }, ' mW/mm²'));
-        if (D && D.coarse.length) flagged.push(r.z_mm);
         benches.push(['Poisson, ' + r.z_mm + ' mm', data]);
         await idle();
       }
@@ -395,7 +394,7 @@ const ALL_CASES = [
       benches.push(['Young’s slits', yd]);
       plots.unshift(plot({ title: 'Poisson’s spot: its height behind the disc', xlabel: 'distance behind the disc (mm)', ylabel: 'on-axis irradiance (mW/mm²)',
         series: [{ name: 'Exact: exp(−2a²/w₀²) of the free beam', x: Pz.rows.map(r => r.z_mm), y: Pz.rows.map(r => r.I_axis), colour: REF_C }, { name: 'JEKray2D', x: Pz.rows.map(r => r.z_mm), y: checks.slice(0, Pz.rows.length).map(c => c.got), colour: GOT_C, dots: true }] }));
-      return { checks, benches, plots, notes: 'Poisson’s spot is a limit of JEKray2D’s round field, and it says so. The spot is only 0.38 λz/a across (80 µm at 500 mm), made by light the disc’s edge bends through a/z, and the field’s grid is sized to hold the whole 6 mm beam: with 512 samples it cannot also resolve the spot until it has grown, so the spot comes out low nearer the disc (and at 100 mm is missed altogether). Since this case was first run, JEKray2D flags the screen’s diffraction as only roughly right wherever the spot spans fewer than three samples' + (flagged.length ? ' (here at ' + flagged.join(', ') + ' mm)' : '') + '; the fix it needs is to carry the light the disc removes as a field of its own, sampled to the disc (Babinet’s principle).' };
+      return { checks, benches, plots, notes: 'The first run of this case failed on Poisson’s spot: 4–17% low from 250 mm to 2 m, and missed at 100 mm. The spot is only 0.38 λz/a across (80 µm at 500 mm), made by light the disc’s edge bends through a/z, and the round field’s grid, sized to hold the whole 6 mm beam, could not hold that light too. JEKray2D now follows Babinet: behind a disc the field is the free beam less what a round opening of the disc’s size would pass, and that opening’s light goes on as a field of its own, on a grid sized to the disc and to the distance, so the spot comes out at its height at every distance here. The tolerance is the one set before the first run. The 2D field (used when a tilt or an offset breaks the symmetry) does not do this yet: there the spot is flagged as only roughly right when its grid cannot resolve it.' };
     },
   },
   {

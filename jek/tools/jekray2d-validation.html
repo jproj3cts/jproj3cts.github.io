@@ -802,6 +802,35 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'gieseler', area: 'Optical traps', title: 'Measured gas damping of a levitated nanosphere',
+    kind: 'Measured: points read from a figure', ref: 'gieseler-2012.json', script: 'gieseler_damping.py',
+    cite: 'J. Gieseler, B. Deutsch, R. Quidant and L. Novotny, “Subkelvin parametric feedback cooling of a laser-trapped nanoparticle”, Physical Review Letters 109, 103603 (2012); arXiv:1202.6435, Figure 4 and equation (3).',
+    what: 'A 69 nm fused-silica sphere held in air at 1064 nm by an objective of NA 0.8. Gieseler et al. measured the damping rate Γ₀ of its motion in x, y and z from 6 × 10⁻⁶ to 200 mbar (their Figure 4, 204 points, read exactly from the vector graphics of the arXiv version). JEKray2D’s sphere trap, in air at a pressure, damps the sphere by the paper’s own eq. (3), the kinetic-theory interpolation from the viscous to the free-molecular regime through the Knudsen number, with air’s viscosity and mean free path and the sphere’s mass from silica’s density (2200 kg/m³). The trap here is built as the paper’s; the damping is read from its Trap tab at 6.3 mbar, and the same function gives it at every measured pressure. Γ₀/P is compared in three bands: ultrahigh vacuum (below 2 × 10⁻⁴ mbar), free-molecular (10⁻³ to 12 mbar, where Γ₀ ∝ P) and toward the viscous regime (40 to 215 mbar, where the mean free path nears the radius). Beside the measurement, the free-molecular limit is compared with Epstein’s drag on a sphere (Phys. Rev. 23, 710, 1924) for diffusely reflected molecules, Γ₀ = (4π/3)(1 + π/8) R² P √(8m_air/πk_BT) / m, for the same sphere at 295 K.',
+    tolerance: 'In each band, the geometric mean of Γ₀/P over all three directions within 25% of the measured: the sphere’s radius is given as 69 nm and its density is not given (silica nanospheres run from about 1850 to 2200 kg/m³), Γ₀ goes as 1/(ρR), and the pressure gauges are good to 10 to 20%. Epstein’s limit within 3% (eq. 3’s 0.619 is given to three figures, and its viscosity and mean free path are related only approximately).',
+    async run(J, R) {
+      const checks = [], f = 1.5, NA = 0.8;
+      const data = bench('Levitated 69 nm silica sphere in air, NA 0.8 at 1064 nm (Gieseler et al. 2012)', [
+        { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1064, width: 2.5, gauss: true, w0: 1.0, z0: 20, popN: 256, pol: 'p', rays: 1, power: 100 },
+        { type: 'mask', name: 'Objective, f 1.5 mm, NA 0.8', x: 0, y: 0, angle: 0, length: 2 * f * Math.tan(Math.asin(NA)), delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda' },
+        { type: 'screen', name: 'Trap', x: f, y: 0, angle: 180, length: 0.01, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: R.radius_nm, trapMed: 'air', trapP: 6.3 }], { minPower: 1e-6 });
+      J.load(data);
+      const T = J.trap('Trap');
+      const G = P => J.gasDamping(R.radius_nm, T.mass, P, 295).G / (2 * Math.PI);
+      if (Math.abs(T.G / (2 * Math.PI) - G(6.3)) > 1e-9 * G(6.3)) throw new Error('the Trap tab’s damping is not the function’s');
+      const all = ['x', 'y', 'z'].flatMap(a => R.points[a]), gm = v => Math.exp(v.reduce((s, x) => s + Math.log(x), 0) / v.length);
+      for (const b of R.bands) {
+        const pts = all.filter(p => p[0] >= b.lo && p[0] <= b.hi);
+        checks.push(check('Γ₀/2π per mbar, measured, ' + b.name + ' (' + pts.length + ' points, ' + fmt(Math.min(...pts.map(p => p[0])), 2) + ' to ' + fmt(Math.max(...pts.map(p => p[0])), 3) + ' mbar)', gm(pts.map(p => p[1] / p[0])), gm(pts.map(p => G(p[0]) / p[0])), { rel: 0.25 }, ' Hz/mbar'));
+      }
+      checks.push(check('Γ₀/2π per mbar at 10⁻² mbar, Epstein’s free-molecular drag', R.epstein.Hz_per_mbar, G(1e-2) / 1e-2, { rel: 0.03 }, ' Hz/mbar'));
+      const lp = Array.from({ length: 161 }, (_, i) => -5.5 + i * 8.5 / 160), cols = { x: '#1f6fb2', y: '#2e8b57', z: '#e4572e' };
+      const plots = [plot({ title: 'Damping rate Γ₀/2π against pressure: measured (dots) and JEKray2D (line)', xlabel: 'log₁₀ pressure (mbar)', ylabel: 'Γ₀/2π (Hz)', logY: true,
+        series: [...['x', 'y', 'z'].map(a => ({ name: 'Gieseler et al., ' + a, x: R.points[a].map(p => Math.log10(p[0])), y: R.points[a].map(p => p[1]), colour: cols[a], dots: true })),
+          { name: 'JEKray2D', x: lp, y: lp.map(l => G(10 ** l)), colour: GOT_C, width: 1.6 }] })];
+      return { checks, benches: [['69 nm sphere at 6.3 mbar', data]], plots, notes: 'The measured damping fails all three bands, and the way it fails says why: Γ₀/P in the data is not constant where eq. (3) makes it so (and Epstein’s drag, independently, agrees with JEKray2D to ' + fmt(Math.abs(G(1e-2) / 1e-2 / R.epstein.Hz_per_mbar - 1) * 100, 2) + '%). It runs from about 1260 Hz/mbar below 2 × 10⁻⁴ mbar to about 590 from 10⁻³ to 12 mbar, where the particle’s nominal size and silica’s density give 805: there, the data would need ρR about 36% larger than 2200 kg/m³ × 69 nm (a larger sphere, or the pressure read high), and in ultrahigh vacuum 36% smaller (the pressure read low, where a different gauge and residual gas other than air take over). The paper’s own dashed fit is some 20% below eq. (3) with these numbers at 1 mbar. JEKray2D’s damping is eq. (3) with standard air, which is what the paper says describes its data; this comparison is kept, failing, as the measure of how far a nominal sphere’s damping can be from the one in a trap. At 6.3 mbar the trap gives Γ₀/2π = ' + fmt(G(6.3), 4) + ' Hz (mean free path ' + fmt(T.mfp * 1e9, 3) + ' nm, Kn = ' + fmt(T.Kn, 3) + '), and trap frequencies of ' + [T.fx, T.fy, T.fz].map(v => fmt(v / 1e3, 3)).join(', ') + ' kHz at 100 mW (the paper gives 120, 134 and 37 kHz at a power it does not state; these are not compared). At 10⁻⁵ mbar it gives ' + fmt(1e3 * G(1e-5), 3) + ' mHz; the paper quotes “Γ₀ = 10 mHz, … Q = 10⁷”, rounded. The measured points in the three directions differ from one another by up to 20% at one pressure, and at 7.5 mbar two runs differ by 30%, although Γ₀ should not depend on direction. The paper’s dashed “fit according to Eq. (3)” is not used as a reference: on its log-log axes it is a straight line of slope 0.966, which eq. (3) is not.' };
+    },
+  },
+  {
     id: 'spm-solitons', area: 'Ultrashort pulses', title: 'Self-phase modulation and solitons',
     kind: 'Paper: exact solutions', ref: 'spm-solitons.json', script: 'spm_solitons.py',
     cite: 'R. H. Stolen and C. Lin, “Self-phase-modulation in silica optical fibers”, Physical Review A 17, 1448 (1978); M. J. Potasek, G. P. Agrawal and S. C. Pinault, JOSA B 3, 205 (1986); A. Hasegawa and F. Tappert, Applied Physics Letters 23, 142 (1973); J. Satsuma and N. Yajima, Progress of Theoretical Physics Supplement 55, 284 (1974); L. F. Mollenauer, R. H. Stolen and J. P. Gordon, Physical Review Letters 45, 1095 (1980).',

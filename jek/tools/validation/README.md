@@ -20,6 +20,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/rb-siddons-2008.json` | `scripts/siddons_fig8.py` | Siddons et al., J. Phys. B 41, 155004 (2008), Figure 8: measured transmission, read from the arXiv PDF's vector figure |
 | `ref/dipole-traps.json` | `scripts/dipole_traps.py` | Safronova, Arora & Clark, PRA 73, 022505 (2006), Table I; tune-out wavelengths of Leonard et al. (2015) and Ratkata et al. (2021); Grimm et al. (2000) trap formulas |
 | `ref/tweezers-hu.json` | `scripts/tweezers_hu.py` | Harada & Asakura's (1996) forces on a Rayleigh sphere, and the phase singularities of Hu et al.'s (2023) offset standing wave, on the exact (non-paraxial) Gaussian beams |
+| `ref/gieseler-2012.json` | `scripts/gieseler_damping.py` | Gieseler et al., PRL 109, 103603 (2012), Figure 4: measured gas damping of a levitated 69 nm sphere, read from the arXiv PDF's vector figure; Epstein's (1924) free-molecular drag |
 | `ref/spm-solitons.json` | `scripts/spm_solitons.py` | Exact solutions of the nonlinear Schroedinger equation: dispersionless self-phase modulation (Stolen & Lin 1978; Potasek, Agrawal & Pinault 1986), the fundamental soliton and Satsuma & Yajima's (1974) second-order soliton |
 | `ref/treacy.json` | `scripts/treacy.py` | Treacy, IEEE J. Quantum Electron. 5, 454 (1969): the grating pair's phase, differentiated (needs mpmath) |
 | `ref/boyd-kleinman.json` | `scripts/boyd_kleinman.py` | Boyd & Kleinman, J. Appl. Phys. 39, 3597 (1968): the focusing function by adaptive quadrature, and a PPLN bench |
@@ -41,6 +42,7 @@ numpy instead.
     ELECSUS=/path/to/ElecSus python scripts/rb_elecsus.py
     python scripts/siddons_fig8.py siddons.pdf          # arXiv:0805.1139, needs pymupdf
     python scripts/dipole_traps.py safronova.pdf        # arXiv:physics/0508087, needs pymupdf
+    python scripts/gieseler_damping.py gieseler.pdf   # arXiv:1202.6435, needs pymupdf
     python scripts/spm_solitons.py
     python scripts/treacy.py
     python scripts/boyd_kleinman.py

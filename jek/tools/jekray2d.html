@@ -473,7 +473,7 @@
   .rt-report li + li { margin-top: 0.25rem; }
   .rt-report b { font-weight: 600; }
   .rt-error { color: #c0392b; font-size: 0.85rem; }
-  dialog.rt-dialog #shareUrl { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; }
+  dialog.rt-dialog #shareUrl, dialog.rt-dialog #shareEmbed { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; }
   #shareNote { text-align: left; margin: 0.5rem 0 0.8rem; }
   dialog.rt-dialog #pasteText { width: 100%; font-family: var(--jek-mono); font-size: 0.8rem; }
   .rt-notes { width: 100%; box-sizing: border-box; min-height: 4.5rem; resize: vertical; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.55rem;
@@ -481,6 +481,36 @@
   .rt-notes:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
   .rt-welcome { text-align: left; }
+  .rt-sharedbar { position: absolute; left: 50%; top: 4.6rem; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
+    max-width: calc(100% - 1.6rem); padding: 0.45rem 0.55rem 0.45rem 0.85rem; font-size: 0.85rem; color: var(--jek-ink-soft); background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+  .rt-sharedbar b { color: var(--jek-ink); }
+  body.rt-embed { min-height: 0; background: #1f2529; overflow: hidden; }
+  body.rt-embed .top-container, body.rt-embed footer, body.rt-embed .page-title, body.rt-embed .rt-toolbar, body.rt-embed .rt-about, body.rt-embed .rt-panel { display: none !important; }
+  body.rt-embed .main-content { padding: 0; }
+  body.rt-embed .rt-stage { position: fixed; inset: 0; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
+  .rt-embedbar { position: absolute; right: 0.6rem; bottom: 0.6rem; z-index: 6; display: flex; gap: 0.4rem; align-items: center; }
+  .rt-embedbar a, .rt-embedbar button { padding: 0.3rem 0.6rem; font: inherit; font-size: 0.78rem; font-weight: 600; text-decoration: none; color: #fff; background: rgba(20, 25, 28, 0.78); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; cursor: pointer; }
+  .rt-embedbar a:hover, .rt-embedbar button:hover { background: rgba(0, 146, 178, 0.9); }
+  .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
+  .rt-link:hover { text-decoration: underline; }
+  .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 3px; }
+  .rt-dot { display: inline-block; width: 7px; height: 7px; margin-left: 4px; border-radius: 50%; background: var(--jek-orange); vertical-align: 0.15em; }
+  .rt-news { max-height: 60vh; overflow-y: auto; font-size: 0.875rem; line-height: 1.5; }
+  .rt-news h3 { margin: 0.9rem 0 0.3rem; font-size: 0.95rem; }
+  .rt-news h3:first-child { margin-top: 0; }
+  .rt-news h3 span { margin-left: 0.4rem; font-weight: 400; font-size: 0.8rem; color: var(--jek-ink-soft); }
+  .rt-news ul { margin: 0 0 0.4rem; padding-left: 1.2rem; }
+  .rt-news li { margin-bottom: 0.2rem; }
+  .rt-subhead { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }
+  dialog.rt-dialog #citeText, dialog.rt-dialog #citeBib { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.78rem; }
+  .rt-snaps { max-height: 50vh; overflow-y: auto; margin-bottom: 0.8rem; border: 1px solid var(--jek-line); border-radius: 6px; }
+  .rt-snaps > div { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+  .rt-snaps > div + div { border-top: 1px solid var(--jek-line); }
+  .rt-snaps .when { min-width: 8.5rem; font-variant-numeric: tabular-nums; color: var(--jek-ink-soft); }
+  .rt-snaps .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-snaps .what small { color: var(--jek-ink-soft); }
+  .rt-snaps p { margin: 0.8rem !important; }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
   .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
@@ -600,6 +630,7 @@
             <button class="rt-btn" id="btnOpenMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="openMenu">Open ▾</button>
             <div class="rt-menu rt-menu-right" id="openMenu" role="menu" hidden>
               <button type="button" role="menuitem" id="btnOpen">A .jekray file…</button>
+              <button type="button" role="menuitem" id="btnSnaps" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
               <button type="button" role="menuitem" id="btnPasteProj" title="Such as one an AI assistant wrote; Ctrl+V on the bench does the same">Pasted text…</button>
             </div>
           </div>
@@ -659,6 +690,7 @@
         </div>
       </div>
       <div class="rt-row" style="border-top:none;padding-top:0">
+        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button></span>
         <span class="rt-status rt-right" id="status" aria-live="polite"></span>
       </div>
     </div>
@@ -762,9 +794,13 @@
     <h2 id="shareTitle">Share this bench</h2>
     <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
     <p class="note" id="shareNote"></p>
+    <h3 class="rt-subhead">Embed in a web page</h3>
+    <textarea id="shareEmbed" rows="3" readonly spellcheck="false" aria-label="Code to embed this bench in a web page"></textarea>
+    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps, and open the bench in JEKray2D. Nothing they do changes your copy.</p>
     <div class="rt-actions">
+      <button class="rt-btn" id="shareEmbedCopy">Copy embed code</button>
       <button class="rt-btn" id="shareClose">Close</button>
-      <button class="rt-btn primary" id="shareCopy">Copy</button>
+      <button class="rt-btn primary" id="shareCopy">Copy link</button>
     </div>
   </dialog>
 
@@ -790,6 +826,30 @@
     </div>
   </dialog>
 
+  <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
+    <h2 id="newsTitle">What’s new in JEKray2D</h2>
+    <div class="rt-news" id="newsBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="newsClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="citeDialog" aria-labelledby="citeTitle">
+    <h2 id="citeTitle">Cite JEKray2D</h2>
+    <p>If JEKray2D helped with your work, a citation helps others find it. Your benches and results are yours to publish.</p>
+    <h3 class="rt-subhead">Text</h3>
+    <textarea id="citeText" rows="3" readonly spellcheck="false"></textarea>
+    <div class="rt-actions" style="justify-content:flex-start"><button class="rt-btn" data-copy="citeText">Copy text</button></div>
+    <h3 class="rt-subhead">BibTeX</h3>
+    <textarea id="citeBib" rows="8" readonly spellcheck="false"></textarea>
+    <div class="rt-actions"><button class="rt-btn" data-copy="citeBib">Copy BibTeX</button><button class="rt-btn primary" id="citeClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="snapsDialog" aria-labelledby="snapsTitle">
+    <h2 id="snapsTitle">Earlier versions</h2>
+    <p>This browser keeps a copy of your project every few minutes as you work, and just before you open another project or clear the bench. Opening one replaces what is on the bench; Undo brings it back.</p>
+    <div class="rt-snaps" id="snapsList"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
+  </dialog>
+
   <dialog class="rt-dialog" id="newDialog">
     <h2>Start a new project?</h2>
     <p>The current bench will be cleared. Save it as a .jekray file first if you want to keep it. You can still undo this.</p>
@@ -803,7 +863,7 @@
     <summary>What this models, and what it does not</summary>
     <div>
       <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam (by its real profile, so a vortex pump leaves its dark core unsaturated), and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart (by their group paths, so glass counts by its group index) and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED; or they can launch a higher-order mode, Hermite–Gauss HG<sub>mn</sub> or Laguerre–Gauss LG<sub>pl</sub> (a vortex of any charge), carried as a coherent sum of Hermite–Gauss modes each with its own Gouy phase, so a cylindrical-lens mode converter works as in the lab. Mask presets cover spatial light modulator patterns: spiral phase plates, fork holograms, blazed gratings and a π step, and a mask whose detail is finer than the field's grid is flagged rather than quietly smoothed. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
-      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas, magnetic field or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. No nonlinear optics (no self-phase modulation, harmonic generation or Kerr lensing), so a pulse's spectrum only changes by filtering. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
@@ -2862,15 +2922,33 @@ function redo() {
   changed(true);
 }
 
+/* Earlier versions: a copy of the project every few minutes while it changes, and one just
+   before something replaces it, the newest first, kept in this browser */
+const SNAP_KEY = 'jek-raytracer-snapshots', SNAP_MAX = 12, SNAP_EVERY = 5 * 60e3;
+function readSnaps() {
+  try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
+}
+function keepSnapshot(why, now) {
+  if (TEST_MODE || EMBED || !project || !project.elements.length) return;
+  const list = readSnaps(), json = JSON.stringify(serialize());
+  if (list.length && list[0].json === json) return;
+  if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;
+  list.unshift({ t: Date.now(), why, name: project.name, n: project.elements.length, json });
+  list.length = Math.min(list.length, SNAP_MAX);
+  // a full store: give up the oldest until it fits
+  for (;;) { try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); return; } catch (err) { if (list.length <= 1) return; list.pop(); } }
+}
+
 /* Autosave in this browser */
 let saveTimer = null;
 function scheduleSave() {
-  if (TEST_MODE) return;
+  if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
       setStatus('Autosaved in this browser');
+      keepSnapshot('Autosave');
     } catch (err) {
       setStatus('This browser is blocking autosave. Use Save .jekray to keep your work.');
     }
@@ -4968,7 +5046,17 @@ function render() {
   }
   if (!exporting) { drawMinimap(); drawSelection(); }
   drawScaleBar();
+  if (exporting) drawCredit();
   updateReadouts();
+}
+/* on an exported picture: where it was made */
+function drawCredit() {
+  ctx.save();
+  ctx.font = '11px ' + getCss('--jek-sans');
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText('Made with JEKray2D \u00b7 jeksys.net', W - 10, H - 8);
+  ctx.restore();
 }
 function drawBlock(el, sel) {
   const f = frame(el);
@@ -16166,9 +16254,12 @@ async function readShareHash(h) {
 }
 const shareBase = () => location.origin + location.pathname;
 async function shareLink() {
-  const url = shareBase() + '#p=' + await shareHash();
+  const hash = '#p=' + await shareHash(), url = shareBase() + hash;
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
   box.value = url;
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + '?embed' + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray2D: ' + (project.name || 'bench')) + '"></iframe>';
+  document.getElementById('shareEmbedCopy').textContent = 'Copy embed code';
   note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
@@ -16180,8 +16271,8 @@ async function shareLink() {
   const dlg = document.getElementById('shareDialog');
   document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
   document.getElementById('shareClose').addEventListener('click', () => dlg.close());
-  document.getElementById('shareCopy').addEventListener('click', e => {
-    const box = document.getElementById('shareUrl'); box.select();
+  for (const [b, t] of [['shareCopy', 'shareUrl'], ['shareEmbedCopy', 'shareEmbed']]) document.getElementById(b).addEventListener('click', e => {
+    const box = document.getElementById(t); box.select();
     navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; });
   });
 }
@@ -16189,9 +16280,31 @@ async function shareLink() {
 async function openShareHash(h) {
   try {
     const data = await readShareHash(h);
+    const had = project && project.elements.length && !EMBED;
     openProjectData(data, 'the shared bench');
-    toast('Opened the shared bench — Ctrl+Z to go back');
+    if (had) sharedBar();
   } catch (err) { toast('Could not open that link: ' + err.message + '.', true); }
+}
+/* ?embed: the bench alone, filling the frame, with a way to open it in the full tool and to
+   play its sweeps. Nothing is kept in this browser. */
+function embedMode() {
+  document.body.classList.add('rt-embed');
+  const full = location.pathname + location.hash;
+  const play = h('button', { type: 'button', hidden: true, onclick: () => { if (playing.size) pauseAll(); else playAll(); } }, '\u25b6 Play');
+  document.getElementById('stage').append(h('div', { class: 'rt-embedbar' }, play,
+    h('a', { href: full, target: '_blank', rel: 'noopener' }, 'Open in JEKray2D \u2197')));
+  setInterval(() => { play.hidden = !allSweeps().length; play.textContent = playing.size ? '\u275a\u275a Pause' : '\u25b6 Play'; }, 400);
+}
+/* A shared bench opened over the user's own: keep it (and change it as they like), or go
+   straight back to their work. Their work is kept under Open \u25be Earlier versions either way. */
+function sharedBar() {
+  const old = document.getElementById('sharedBar');
+  if (old) old.remove();
+  const mark = history.length, bar = h('div', { class: 'rt-sharedbar', id: 'sharedBar', role: 'status' },
+    h('span', null, h('b', null, 'A shared bench.'), ' Change it as you like; your own work is kept.'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => { bar.remove(); if (history.length >= mark) { while (history.length > mark) undo(); undo(); toast('Back to your work'); } } }, 'Back to my work'),
+    h('button', { class: 'rt-btn primary', type: 'button', onclick: () => bar.remove() }, 'Keep this bench'));
+  document.getElementById('stage').append(bar);
 }
 
 /* ---------- Opening a project someone (or something) else wrote ----------
@@ -16352,6 +16465,7 @@ function openProjectData(data, label) {
   prepImport(data, notes);
   const raw = JSON.parse(JSON.stringify(data)), prev = project, hist = history.length;
   pauseAll();
+  keepSnapshot('Before opening ' + label, true);
   if (prev && prev.elements.length) checkpoint();
   try { loadProject(data); } catch (err) { project = prev; history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
@@ -16701,6 +16815,89 @@ for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu']
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
 }
 document.getElementById('btnSave').addEventListener('click', saveFile);
+/* ---------- Version, what's new, citing ---------- */
+const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
+const NEWS = [
+  ['1.0', APP_DATE, [
+    'The free edition. An <b>examples gallery</b> with a picture of each bench, and a search.',
+    '<b>Guided tours</b>: focus a laser beam, and build a Michelson interferometer, step by step on a tab of their own.',
+    '<b>Earlier versions</b> (Open ▾): this browser keeps copies of your project as you work, and before you open something else.',
+    '<b>Embed</b> a live bench in a web page or course notes, from the Share link dialog.',
+    'A shared link opens with a bar to keep the bench, or go straight back to your own work.',
+    'A <b>Cite</b> button, and a licence page.']],
+  ['Before 1.0', '23–27 September 2026', [
+    'Beams split where they cross an element’s edge: the part that misses carries on.',
+    'Aberration analysis across the field: Seidel and Zernike terms, spot diagrams, field curvature and distortion, with the chief ray aimed through the stop.',
+    'Nonlinear optics (beta): frequency doubling in PPLN and PPKTP, self-phase modulation and solitons in fibre.',
+    'Atoms and traps (beta): rubidium, caesium and potassium vapour cells, saturated absorption, Zeeman shifts (DAVLL, Faraday filters, polarisation spectroscopy), dipole traps, lattices, tweezers and levitated particles.',
+    'Short pulses (beta): spectral phase through glass, prisms, gratings, chirped mirrors and fibre; compressors and stretchers.',
+    'Lasers that settle at their output power; fibre subsystems with PM and multimode fibre and amplifiers.',
+    'Higher-order modes (Hermite–Gauss, Laguerre–Gauss, vortices) and SLM masks.',
+    'An optimiser over several parameters and goals, and tolerancing.',
+    'Tabs of benches joined by link planes; share links; an AI assistant guide; background tracing for big benches.']],
+];
+const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
+{
+  document.getElementById('appVersion').textContent = APP_VERSION;
+  const dlg = document.getElementById('newsDialog'), dot = document.getElementById('newsDot');
+  const NEWS_KEY = 'jek-raytracer-news';
+  try {
+    const seen = localStorage.getItem(NEWS_KEY);
+    // someone new has nothing to catch up on; someone back since an older version does
+    if (!seen && !localStorage.getItem('jek-raytracer-welcomed')) localStorage.setItem(NEWS_KEY, APP_VERSION);
+    else if (seen !== APP_VERSION && !EMBED) dot.hidden = false;
+  } catch (err) { /* no store: no dot */ }
+  document.getElementById('btnNews').addEventListener('click', () => {
+    const body = document.getElementById('newsBody');
+    body.replaceChildren(...NEWS.flatMap(([v, date, items]) => {
+      const ul = h('ul');
+      for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); }
+      return [h('h3', null, v === 'Before 1.0' ? v : 'Version ' + v, h('span', null, date)), ul];
+    }));
+    dot.hidden = true;
+    try { localStorage.setItem(NEWS_KEY, APP_VERSION); } catch (err) { /* shown again: fine */ }
+    dlg.showModal();
+  });
+  document.getElementById('newsClose').addEventListener('click', () => dlg.close());
+}
+{
+  const dlg = document.getElementById('citeDialog');
+  document.getElementById('btnCite').addEventListener('click', () => {
+    const d = new Date(), iso = d.toISOString().slice(0, 10), year = APP_DATE.slice(-4);
+    document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray2D optical bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
+    document.getElementById('citeBib').value = '@software{jekray2d,\n  author  = {{JEK Systems}},\n  title   = {{JEKray2D}: optical bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
+    dlg.showModal();
+  });
+  dlg.addEventListener('click', e => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    const ta = document.getElementById(b.dataset.copy);
+    ta.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { document.execCommand('copy'); toast('Copied'); });
+  });
+  document.getElementById('citeClose').addEventListener('click', () => dlg.close());
+}
+{
+  const dlg = document.getElementById('snapsDialog'), box = document.getElementById('snapsList');
+  const when = t => {
+    const d = new Date(t), today = new Date().toDateString() === d.toDateString();
+    const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return today ? 'Today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
+  };
+  const fill = () => {
+    const list = readSnaps();
+    box.replaceChildren(...(list.length ? list.map((S, i) => h('div', null,
+      h('span', { class: 'when' }, when(S.t)),
+      h('span', { class: 'what', title: S.name }, S.name || 'Untitled bench', ' ', h('small', null, S.n + ' part' + (S.n === 1 ? '' : 's') + ' · ' + S.why)),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => {
+        try { dlg.close(); openProjectData(JSON.parse(S.json), 'the version from ' + when(S.t).replace('Today ', '')); }
+        catch (err) { toast('Could not open that version (' + err.message + ').', true); }
+      } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
+  };
+  document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+  document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
+}
+
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
    gallery shows each with a picture from demos/thumbs/. */
 const EXAMPLES = [
@@ -17225,7 +17422,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   if (project.elements.length) newDlg.showModal(); else newProject();
 });
 document.getElementById('newCancel').addEventListener('click', () => newDlg.close());
-document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); newProject(); });
+document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); newProject(); });
 const nameInput = document.getElementById('projName');
 nameInput.addEventListener('input', () => { project.name = nameInput.value; scheduleSave(); });
 nameInput.addEventListener('change', () => { if (!nameInput.value.trim()) { project.name = 'Untitled bench'; nameInput.value = project.name; scheduleSave(); } });
@@ -17483,16 +17680,17 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
 (function init() {
   let restored = false;
   try {
-    const raw = TEST_MODE ? null : localStorage.getItem(STORE_KEY);
+    const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
   } catch (err) { project = null; }
   if (!project) demoProject();
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
+  if (EMBED) embedMode();
   const shared = !TEST_MODE && location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/);
-  if (shared) { window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
-  else if (!restored && !TEST_MODE && !/[#?&]demo=/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  if (shared) { if (!EMBED) window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
+  else if (!restored && !TEST_MODE && !EMBED && !/[#?&]demo=/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();
@@ -17687,9 +17885,16 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // address so a reload keeps the bench as edited rather than opening the example again
   const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
   if (demo) {
-    window.history.replaceState(null, '', location.pathname);
+    if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
+  // a link pasted into the address bar of a page already open changes only the hash
+  if (!TEST_MODE) window.addEventListener('hashchange', () => {
+    const sh = location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
+    if (!sh && !dm) return;
+    if (!EMBED) window.history.replaceState(null, '', location.pathname);
+    if (sh) openShareHash(sh[1]); else openDemo(dm[1], true);
+  });
 })();
 
 })();

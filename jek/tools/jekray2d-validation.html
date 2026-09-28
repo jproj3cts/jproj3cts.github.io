@@ -940,6 +940,40 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'rigrod', area: 'Cavities and locking', title: 'A laser’s output against its output coupling',
+    kind: 'Paper: closed form, checked by integration', ref: 'rigrod.json', script: 'rigrod.py',
+    cite: 'W. W. Rigrod, “Saturation effects in high-gain lasers”, Journal of Applied Physics 36, 2487–2490 (1965).',
+    what: 'A laser built of parts: a gain sheet of single-pass small-signal gain ×2 (Nd:YAG’s saturation intensity, 2.9 kW/cm²) 10 mm from a flat 99.5% mirror, and a concave output coupler (R = 500 mm) 250 mm away, at 1064 nm, with a weak seed to find the cavity. Rigrod’s homogeneously saturated gain, both waves saturating it together, gives the output through the coupler exactly for any gain, not only a small one, and with it the threshold and the optimum coupling. JEKray2D’s cavity panel gives the output through the coupler, and the coupler’s best reflectance. The beam’s area at the gain is πw²/2 for the cavity mode’s radius w there, in both.',
+    tolerance: 'The output within 1% at each coupling from 2% to 65%, none beyond threshold, the optimum coupling within 1% of Rigrod’s, and the photodiode behind the coupler reading the output within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      const mk = T => bench('Laser, output coupler T = ' + fmt(100 * T, 3) + '% (Rigrod 1965)', [
+        { type: 'source', name: 'Seed', x: -30, y: 0, angle: 0, wavelength: R.nm, width: 0.5, gauss: true, w0: 0.25, z0: 30, rays: 1, pol: 's', power: 0.001 },
+        { type: 'mirror', name: 'Flat mirror, ' + 100 * R.R1 + '%', x: 0, y: 0, angle: 180, length: 12.7, reflect: 100 * R.R1 },
+        { type: 'gain', name: 'Gain', x: R.gain_at_mm, y: 0, angle: 0, length: 6, g0: R.G0, centre: R.nm, fwhm: 0.6, isat: R.isat_kW_cm2 },
+        { type: 'mirror', name: 'Output coupler', x: R.L_mm, y: 0, angle: 180, length: 12.7, reflect: 100 * (1 - T), R: R.Roc_mm },
+        { type: 'detector', name: 'Out', x: R.L_mm + 30, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
+      const outOf = L => L && L.outs && L.outs.find(o => o.name === 'Output coupler');
+      const xs = [], ys = [];
+      let last = null;
+      for (const r of R.rows) {
+        const data = mk(r.T); J.load(data); const L = J.laser(), o = outOf(L);
+        checks.push(check('Output at T = ' + fmt(100 * r.T, 3) + '%', r.P_W * 1e3, o ? o.P * 1e3 : NaN, { rel: 0.01 }, ' mW'));
+        xs.push(100 * r.T); ys.push(o ? o.P : NaN); last = L;
+        if (r.T === 0.2) { benches.push(['T = 20%', data]); J.trace(); checks.push(check('Photodiode behind the coupler at T = 20%', r.P_W * 1e3, J.detector('Out').mw, { rel: 0.01 }, ' mW')); }
+        await idle();
+      }
+      J.load(mk(Math.min(0.99, R.T_threshold + 0.02))); const Lb = J.laser(), ob = outOf(Lb);
+      checks.push(check('Output past threshold (T = ' + fmt(100 * (R.T_threshold + 0.02), 3) + '%)', 0, ob ? ob.P * 1e3 : 0, { abs: 0.01 }, ' mW'));
+      checks.push(check('Optimum output coupling', 100 * R.T_opt, last && last.best ? 100 * (1 - last.best.R) : NaN, { rel: 0.01 }, '%'));
+      const Tc = Array.from({ length: 151 }, (_, i) => 0.5 + i * (100 * R.T_threshold - 0.5) / 150);
+      const rig = T => { const R2 = 1 - T, r1 = Math.sqrt(R.R1), r2 = Math.sqrt(R2); return Math.max(0, R.Psat_W * T * r1 / ((r1 + r2) * (1 - r1 * r2)) * (Math.log(R.G0) + Math.log(r1 * r2))); };
+      const plots = [plot({ title: 'Output power against output coupling', xlabel: 'output coupler transmission (%)', ylabel: 'output (W)', yMin: 0,
+        series: [{ name: 'Rigrod', x: Tc, y: Tc.map(t => rig(t / 100)), colour: REF_C, width: 2.4 }, { name: 'JEKray2D', x: xs, y: ys, colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'The first run of this case failed everywhere but at the weakest coupling: 1% low at T = 2%, 10% at 20%, 38% at 65%, and the best coupler put at 5.9% instead of 7.5%. JEKray2D saturated its gain as if each pass carried the circulating power, a model good only while the gain and the loss are small. It now does what Rigrod’s analysis does: every beam through a gain sheet saturates it together, the product of the two waves is unchanged through it, so both passes see one gain G with ln G = ln G₀ − (G − 1) S / P_sat, S the power entering it on both passes; the loop is walked from the coupler to find S. That is exact for the sheet, and reproduces Rigrod’s closed form to rounding. The tolerance is the one first set. The photodiode reads 0.2% less than the output, its share lost at the coupler’s back surface and on the way.' };
+    },
+  },
+  {
     id: 'pdh', area: 'Cavities and locking', title: 'The Pound–Drever–Hall error signal',
     kind: 'Paper: closed forms', ref: 'pdh-black.json', script: 'pdh_black.py',
     cite: 'E. D. Black, “An introduction to Pound–Drever–Hall laser frequency stabilization”, American Journal of Physics 69, 79–87 (2001); R. W. P. Drever et al., Applied Physics B 31, 97–105 (1983).',

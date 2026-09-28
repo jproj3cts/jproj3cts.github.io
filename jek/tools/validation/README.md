@@ -24,6 +24,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/spm-solitons.json` | `scripts/spm_solitons.py` | Exact solutions of the nonlinear Schroedinger equation: dispersionless self-phase modulation (Stolen & Lin 1978; Potasek, Agrawal & Pinault 1986), the fundamental soliton and Satsuma & Yajima's (1974) second-order soliton |
 | `ref/treacy.json` | `scripts/treacy.py` | Treacy, IEEE J. Quantum Electron. 5, 454 (1969): the grating pair's phase, differentiated (needs mpmath) |
 | `ref/boyd-kleinman.json` | `scripts/boyd_kleinman.py` | Boyd & Kleinman, J. Appl. Phys. 39, 3597 (1968): the focusing function by adaptive quadrature, and a PPLN bench |
+| `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
 
 ## Making them again
@@ -47,6 +48,7 @@ numpy instead.
     python scripts/treacy.py
     python scripts/boyd_kleinman.py
     python scripts/pdh_black.py
+    python scripts/rigrod.py
     python scripts/diffraction_classics.py
     python scripts/fresnel_fp_self.py
     python scripts/coatings.py

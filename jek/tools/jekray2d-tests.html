@@ -3374,31 +3374,37 @@ const TESTS = [
     run: J => { J.load(laserBench(1.02)); return J.laser().need; },
   },
   {
-    name: 'Above threshold it settles where saturation holds the round trip at one',
-    why: 'g0 = 1.06 a pass, Isat 2.9 kW/cm² over the mode: P = (Psat / 2)(ln g0 / ln g_th − 1), Psat = Isat π w² / 2 at the gain',
-    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); const L = J.laser(); return L.Psat[0] / 2 * (Math.log(1.06) / Math.log(1 / Math.sqrt(0.99 * 0.95)) - 1); },
-    tol: 1e-3, rel: true, unit: ' W',
-    run: J => { J.load(laserBench(1.06)); return J.laser().P; },
+    name: 'Above threshold it settles at Rigrod’s output',
+    why: 'g0 = 1.06 a pass, Isat 2.9 kW/cm² over the mode (Psat = Isat π w² / 2 at the gain): P_out = Psat T₂ √R₁ (ln g0 + ln √(R₁R₂)) / ((√R₁ + √R₂)(1 − √(R₁R₂))) (Rigrod 1965)',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); return rigrodOut(J.laser().Psat[0], 0.99, 0.95, 1.06); },
+    tol: 1e-6, rel: true, unit: ' W',
+    run: J => { J.load(laserBench(1.06)); return J.laser().outs[0].P; },
+  },
+  {
+    name: 'and at a strong gain and a strong coupling too',
+    why: 'g0 = ×2 a pass through an output coupler of 50%: each pass sees the gain both waves leave it (it was once taken as if each carried the circulating power, 28% low here)',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(2, 50)); return rigrodOut(J.laser().Psat[0], 0.99, 0.5, 2); },
+    tol: 1e-6, rel: true, unit: ' W',
+    run: J => { J.load(laserBench(2, 50)); return J.laser().outs[0].P; },
   },
   {
     name: 'and its output leaves the output coupler as a beam',
-    why: 'the photodiode behind the 95% mirror reads the circulating power times its 5% transmission',
-    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); return J.laser().P * 0.05 * 1000; },
+    why: 'the photodiode behind the 95% mirror reads the output through it',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); return J.laser().outs[0].P * 1000; },
     tol: 0.01, rel: true, unit: ' mW',
     run: J => { J.load(laserBench(1.06)); J.trace(); return J.detector('Out').mw; },
   },
   {
     name: 'Below threshold nothing comes out but the seed',
-    why: 'g0 = 1.02, below the ×1.031 needed: the photodiode sees only what of the 1 \u00b5W seed the cavity lets through',
+    why: 'g0 = 1.02, below the ×1.031 needed: the photodiode sees only what of the 1 µW seed the cavity lets through',
     want: 0, tol: 0.01, unit: ' mW',
     run: J => { J.load(laserBench(1.02)); J.trace(); return J.detector('Out').mw; },
   },
   {
     name: 'The best output coupler maximises the output',
-    why: 'P_out(T) = T (Psat / 2)(2 ln g0 / −ln(0.99 (1 − T)) − 1), maximised over T numerically',
-    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); const Ps = J.laser().Psat[0
-]; let best = [0, 0];
-      for (let T = 1e-4; T < 0.2; T += 1e-5) { const P = T * Ps / 2 * (2 * Math.log(1.06) / -Math.log(0.99 * (1 - T)) - 1); if (P > best[0]) best = [P, T]; } return 1 - best[1]; },
+    why: 'Rigrod’s output against T₂ = 1 − R₂, maximised numerically',
+    wantFrom: () => { const J = rigJ(); J.load(laserBench(1.06)); const Ps = J.laser().Psat[0]; let best = [0, 0];
+      for (let T = 1e-4; T < 0.2; T += 1e-5) { const P = rigrodOut(Ps, 0.99, 1 - T, 1.06); if (P > best[0]) best = [P, T]; } return 1 - best[1]; },
     tol: 2e-4, unit: ' (reflectance)',
     run: J => { J.load(laserBench(1.06)); return J.laser().best.R; },
   },
@@ -4095,12 +4101,13 @@ const TESTS = [
 /* ---------- Lasers, cells and fibre benches ---------- */
 const rigJ = () => document.getElementById('rig').contentWindow.JEKray2D;
 const getDemo = k => { const x = new XMLHttpRequest(); x.open('GET', 'demos/' + k + '.jekray', false); x.send(); return x.responseText; };
-function laserBench(g0) {
+const rigrodOut = (Psat, R1, R2, G0) => Math.max(0, Psat * (1 - R2) * Math.sqrt(R1) / ((Math.sqrt(R1) + Math.sqrt(R2)) * (1 - Math.sqrt(R1 * R2))) * (Math.log(G0) + Math.log(Math.sqrt(R1 * R2))));
+function laserBench(g0, oc) {
   return bench('laser', [
     src({ name: 'Seed', x: -30, wavelength: 1064, gauss: true, w0: 0.25, z0: 30, width: 0.5, rays: 1, pol: 's', power: 0.001 }),
     { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 180, length: 12.7, reflect: 99 },
     { type: 'gain', name: 'Gain', x: 30, y: 0, angle: 0, length: 6, g0, centre: 1064, fwhm: 0.6, isat: 2.9 },
-    { type: 'mirror', name: 'OC', x: 100, y: 0, angle: 180, length: 12.7, reflect: 95, R: 250 },
+    { type: 'mirror', name: 'OC', x: 100, y: 0, angle: 180, length: 12.7, reflect: oc || 95, R: 250 },
     { type: 'detector', name: 'Out', x: 130, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
 }
 function satCellBench(cell, o) {

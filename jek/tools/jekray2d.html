@@ -1120,8 +1120,8 @@ function filterT(el, nm) {
 }
 /* A gain sheet's single-pass power gain: g0 at its centre, falling to 1 with a Lorentzian line.
    That is its small-signal gain; in a cavity that lases, saturation holds the round trip at
-   one, and the gain the light sees is the small-signal gain's logarithm scaled down by
-   1 / (1 + P/Psat), across the whole line (a homogeneous line) */
+   one, and the gain the light sees is the small-signal gain's logarithm scaled down to the
+   saturated gain's (laserState), across the whole line (a homogeneous line) */
 let gainSat = new Map();             // gain element id -> that scale, while its cavity lases
 function gainSmall(el, nm) {
   const u = 2 * (nm - el.centre) / el.fwhm;
@@ -9494,7 +9494,7 @@ function gainPanel(el) {
     param('Line centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm'),
     param('Saturation intensity (kW/cm\u00b2)', el, 'isat', { wide: true })));
   panel.append(readoutBox('gain'));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, every beam through the gain saturating it together (Rigrod\u2019s analysis, exact at any gain and coupling), with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
 }
 /* A vapour cell's panel: what it holds and how hot, and its spectrum against the laser */
 function nlcPanel(el) {
@@ -10335,10 +10335,13 @@ function cavityLater() {
 }
 /* A cavity with gain in its loop, as a laser. The round trip's passive loss is what the
    pilot lost less what the gain gave it; the small-signal gain against that loss says whether
-   it lases. If it does, each gain element saturates with the power crossing it (k passes a
-   round trip, each carrying the circulating power P), ln G = ln G0 / (1 + k P / Psat), with
-   Psat = Isat pi w^2 / 2 over the cavity mode there, and P is where the round trip is one.
-   What leaves through each partly transmitting mirror is P times its transmission. */
+   it lases. If it does, each gain element saturates as a homogeneous medium does with every
+   beam through it at once (Rigrod 1965): I+ I- is constant through it, so every pass sees the
+   same gain G, ln G = ln G0 - (G - 1) S / Psat, S the power entering it summed over its passes,
+   Psat = Isat pi w^2 / 2 over the cavity mode there. Walking the loop with the mirrors'
+   reflectances (and the rest of the passive loss spread evenly) gives S for a power X on the
+   output coupler, and X is where the round trip is one. What leaves through each partly
+   transmitting mirror is the power arriving there times its transmission. */
 function laserState(c) {
   if (c.rho === null || !(c.rho > 0)) return null;
   const count = new Map();
@@ -10355,25 +10358,72 @@ function laserState(c) {
   const need = Math.exp(-lnPassive / G.reduce((a, g) => a + g.k, 0) - 0) ;   // one gain element's pass gain at threshold
   const out = { nm, G, lnPassive, lnNet0, above: lnNet0 > 0, need, sat: G.every(g => g.Psat > 0) };
   if (!out.above || !out.sat) return out;
-  // P (W) where the round trip's log gain is target (0: it lases; slightly below for the tracer)
-  const solve = (target, lnP) => {
-    const F = P => lnP + G.reduce((a, g) => a + g.k * Math.log(g.g0) / (1 + g.k * P / g.Psat), 0) - target;
-    if (F(0) <= 0) return 0;
-    let hi = 1e-3; while (F(hi) > 0 && hi < 1e12) hi *= 4;
-    let lo = 0; for (let i = 0; i < 100; i++) { const m = 0.5 * (lo + hi); F(m) > 0 ? lo = m : hi = m; }
+  // the partly transmitting mirrors round the loop; the walk starts at the most transmitting
+  const n = c.surfaces.length, els = c.surfaces.map(getEl);
+  out.outs = [];
+  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: 1 - e.reflect / 100 }); });
+  const oc = out.outs.length ? out.outs.reduce((a, b) => b.T > a.T ? b : a) : null, j0 = oc ? oc.j : 0;
+  const Rof = (j, Roc) => { const e = els[j]; return e && e.type === 'mirror' ? (oc && j === oc.j && Roc !== undefined ? Roc : Math.min(1, e.reflect / 100)) : 1; };
+  const rest = (lnPassive - els.reduce((a, e, j) => a + Math.log(Rof(j)), 0)) / n;
+  const byId = new Map(G.map(g => [g.e.id, g]));
+  // the loop walked from the output coupler with power X on it and gains Gv: the power arriving
+  // at each surface, the power entering each gain element (summed over its passes), the return
+  const walk = (X, Gv, Roc) => {
+    const inc = new Array(n).fill(0), S = new Map(G.map(g => [g.e.id, 0]));
+    let p = X;
+    for (let i = 0; i < n; i++) {
+      const j = (j0 + i) % n, e = els[j];
+      inc[j] = p;
+      if (e && byId.has(e.id)) { S.set(e.id, S.get(e.id) + p); p *= Gv.get(e.id); }
+      else p *= Rof(j, Roc);
+      p *= Math.exp(rest);
+    }
+    return { inc, S, ret: p / X };
+  };
+  // one element's gain for the power S entering it: ln G = ln G0 - (G - 1) S / Psat
+  const satG = (g, S) => {
+    if (!(g.g0 > 1)) return g.g0;
+    let lo = 1, hi = g.g0;
+    for (let i = 0; i < 60; i++) { const m = 0.5 * (lo + hi); Math.log(g.g0) - Math.log(m) - (m - 1) * S / g.Psat > 0 ? lo = m : hi = m; }
     return 0.5 * (lo + hi);
   };
-  out.P = solve(0, lnPassive);
+  const lnMirD = Roc => oc && Roc !== undefined ? Math.log(Math.max(1e-12, Roc)) - Math.log(Math.max(1e-12, 1 - oc.T)) : 0;
+  // the steady state whose round trip's log gain is target (0: it lases; slightly below for the tracer)
+  const solve = (target, Roc) => {
+    const lnP = lnPassive + lnMirD(Roc);
+    if (lnP + G.reduce((a, g) => a + g.k * Math.log(g.g0), 0) <= target) return null;
+    if (G.length === 1) {
+      // one gain element: the round trip fixes its gain, and the power follows from it
+      const g = G[0], Gs = Math.exp((target - lnP) / g.k), Gv = new Map([[g.e.id, Gs]]);
+      const s1 = walk(1, Gv, Roc).S.get(g.e.id);
+      const X = Gs - 1 > 1e-12 ? Math.min(1e12, g.Psat * (Math.log(g.g0) - Math.log(Gs)) / ((Gs - 1) * s1)) : 1e12;
+      return Object.assign(walk(X, Gv, Roc), { X, Gv });
+    }
+    // several: for a power X, their gains by iteration; X where the round trip is target
+    const at = X => {
+      let Gv = new Map(G.map(g => [g.e.id, g.g0])), W;
+      for (let it = 0; it < 200; it++) {
+        W = walk(X, Gv, Roc);
+        let d = 0; const nx = new Map();
+        for (const g of G) { const v = Math.sqrt(Gv.get(g.e.id) * satG(g, W.S.get(g.e.id))); d = Math.max(d, Math.abs(v / Gv.get(g.e.id) - 1)); nx.set(g.e.id, v); }
+        Gv = nx; if (d < 1e-12) break;
+      }
+      W = walk(X, Gv, Roc);
+      return Object.assign(W, { X, Gv });
+    };
+    let hi = 1e-3; while (Math.log(at(hi).ret) > target && hi < 1e12) hi *= 4;
+    let lo = 0; for (let i = 0; i < 100; i++) { const m = 0.5 * (lo + hi); Math.log(at(m).ret) > target ? lo = m : hi = m; }
+    return at(0.5 * (lo + hi));
+  };
+  const W = solve(0);
+  out.P = W ? Math.max(...W.inc) : 0;                 // the most power anywhere in the loop
+  out.Gsat = G.map(g => W ? W.Gv.get(g.e.id) : g.g0);
   // the gain the tracer uses: a hair below threshold, so the seed's round trips stay finite
-  const Pt = solve(Math.log(0.995), lnPassive);
-  out.clamp = new Map(G.map(g => [g.e.id, 1 / (1 + g.k * Pt / g.Psat)]));
-  out.Gsat = G.map(g => Math.exp(Math.log(g.g0) / (1 + g.k * out.P / g.Psat)));
-  // the partly transmitting mirrors round the loop, and the best reflectance for the most transmitting
-  out.outs = [];
-  c.surfaces.forEach((id, j) => { const e = getEl(id); if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: 1 - e.reflect / 100, P: out.P * (1 - e.reflect / 100) }); });
-  if (out.outs.length) {
-    const oc = out.outs.reduce((a, b) => b.T > a.T ? b : a), R0 = 1 - oc.T;
-    const Pof = R => { const lnP = lnPassive + Math.log(R) - Math.log(Math.max(1e-9, R0)); return solve(0, lnP) * (1 - R); };
+  const Wt = solve(Math.log(0.995));
+  out.clamp = new Map(G.map(g => [g.e.id, Wt && g.g0 > 1 ? Math.log(Wt.Gv.get(g.e.id)) / Math.log(g.g0) : 1]));
+  for (const o of out.outs) o.P = W ? W.inc[o.j] * o.T : 0;
+  if (oc) {
+    const Pof = R => { const S = solve(0, R); return S ? S.inc[oc.j] * (1 - R) : 0; };
     // most of the range is below threshold (no output at all): find the peak on a grid of
     // transmissions first, then close in on it
     let kb = 0, Tg = [];

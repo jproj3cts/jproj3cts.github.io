@@ -3690,7 +3690,16 @@ function traceScene() {
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
 }
+/* light round loops through free space and the fibres: what the tips send out, carried from
+   one pass of the trace to the next, and how many passes it has had */
+let tipCarry = null, tipPass = 0, traceDepth = 0;
+const TIP_PASSES = 8;
 function traceSceneRaw() {
+  if (traceDepth === 0) { tipCarry = null; tipPass = 0; }
+  traceDepth++;
+  try { traceSceneOnce(); } finally { traceDepth--; }
+}
+function traceSceneOnce() {
   ensureBenches(project);
   // each bench's surfaces on their own: a ray meets only those of the bench it is on
   const surfsBy = new Map(), segsBy = new Map(), NONE = [];
@@ -4417,12 +4426,29 @@ function traceSceneRaw() {
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
   lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
-  const net = fibreNetCached();
-  const vs = tipSources(net);
+  let net = fibreNetCached();
+  // on a second pass, what the tips sent out last pass, which already includes the light
+  // that came back into them
+  const vs = tipCarry || tipSources(net);
   VSRC = new Map(vs.map(v => [v.id, v]));
   if (vs.length) runSources(vs);
   lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
+  // Light the tips sent out may come back into a fibre (off a mirror into the same tip, or
+  // across to another): the network again with it, so it reaches the photodiodes. If that
+  // changes what the tips send out (light round a loop through free space), the bench is
+  // traced again with the new launches, until they settle
+  if (vs.length) {
+    const net2 = fibreNetCached(), vs2 = tipSources(net2);
+    const sig = L => L.map(v => v.id + ':' + v.power.toPrecision(6) + ':' + v.vJ.map(x => x.toFixed(6)).join(',')).join(';');
+    if (sig(vs2) !== sig(vs) && tipPass < TIP_PASSES) {
+      tipPass++; tipCarry = vs2;
+      traceSceneRaw();
+      return;
+    }
+    net = net2;
+    lastTrace.net = net2;
+  }
   // Lasers: a cavity with gain above threshold saturates it until the round trip is one. The
   // gain that holds is found from this trace; if it differs from what the trace used, the
   // bench is traced once more with it. Then each lasing cavity's output leaves as a beam.

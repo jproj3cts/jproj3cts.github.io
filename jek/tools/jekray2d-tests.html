@@ -2368,6 +2368,22 @@ const TESTS = [
     },
   },
   {
+    name: 'Light a fibre tip sends out and gets back reaches the network',
+    why: '1 mW through a lossless circulator out of a tip, off a flat mirror half a Rayleigh range away and back in: the photodiode on the circulator’s third port reads the Gaussian overlap after a round trip of one Rayleigh range, 80%',
+    want: 0.8, tol: 0.001, unit: ' mW',
+    run: J => {
+      const V = 2 * Math.PI * 2.2 * 0.12 / (NM / 1000), w = 2.2e-3 * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6));
+      const zR = Math.PI * w * w / LAM;
+      const B = fnet([fc('laser', 'L', { power: 1, wavelength: NM, x: -60, y: 40 }), fc('circ', 'C', { loss: 0, iso: 60, x: -30, y: 40 }), fc('pd', 'D', { x: -30, y: 70 }),
+        { type: 'fibre', name: 'Tip', id: 'Tip', x: 0, y: 0, angle: 0, core: 4.4, na: 0.12, emitRays: 0 },
+        { type: 'mirror', name: 'M', x: zR / 2, y: 0, angle: 180, length: 5, reflect: 100 }],
+        [['L', 0, 'C', 0, 1, 0], ['C', 1, 'Tip', 0, 1, 0], ['C', 2, 'D', 0, 1, 0]]);
+      B.minPower = 1e-6;
+      J.load(B); J.trace();
+      return J.fibrePd('D');
+    },
+  },
+  {
     name: 'A 1 µm offset costs what the mode overlap says',
     why: 'exp(−d²/w²) with the 2.289 µm mode radius Marcuse gives this fibre: 82.63%',
     want: 82.63, tol: 0.1, unit: '%',

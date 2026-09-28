@@ -299,9 +299,8 @@ const CASES = [
     id: 'rb-absorption', area: 'Atoms', title: 'Absorption spectra of natural rubidium',
     kind: 'Independent code', ref: 'rb-elecsus.json', script: 'rb_elecsus.py',
     cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), whose model was tested against measured absolute absorption in P. Siddons et al., J. Phys. B 41, 155004 (2008).',
-    what: 'The weak-probe transmission of a 75 mm cell of natural rubidium, as in Siddons et al., across 16 GHz of the D2 line at 20 °C and 50 °C and the D1 line at 50 °C: the hyperfine lines of both isotopes, Doppler-broadened at the cell’s temperature, with the density from the vapour pressure. Frequencies are compared on an absolute scale, so neither code’s choice of zero matters.',
+    what: 'The weak-probe transmission of a 75 mm cell of natural rubidium, as in Siddons et al., across 16 GHz of the D2 line at 20 °C and 50 °C and the D1 line at 50 °C: the hyperfine lines of both isotopes, Doppler-broadened at the cell’s temperature, with the density from the vapour pressure. Frequencies are compared on an absolute scale, so neither code’s choice of zero matters. Both codes take the atom density from Alcock et al.’s vapour pressure.',
     tolerance: 'The transmission within 0.01 everywhere, and within 0.003 RMS across the scan.',
-    pending: 'Siddons et al.’s measured spectra will be added beside ElecSus once they are read off the paper.',
     async run(J, R) {
       const checks = [], benches = [], plots = [];
       for (const c of R.cases) {
@@ -322,6 +321,39 @@ const CASES = [
         await idle();
       }
       return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'rb-siddons', area: 'Atoms', title: 'Measured absorption of natural rubidium',
+    kind: 'Paper: measured data', ref: 'rb-siddons-2008.json', script: 'siddons_fig8.py',
+    cite: 'P. Siddons, C. S. Adams, C. Ge and I. G. Hughes, “Absolute absorption on rubidium D lines: comparison between theory and experiment”, J. Phys. B 41, 155004 (2008); arXiv:0805.1139, Figure 8.',
+    what: 'The transmission Siddons et al. measured through a 75 mm cell of natural rubidium across the D2 line, at 16.5, 25.0 and 36.6 °C, with a probe weak enough (I/Isat = 0.002) that neither saturation nor optical pumping changes it; read from the paper’s own vector figure (the red measured curves, placed on the axes by the figure’s tick marks) and averaged in 20 MHz bins. JEKray2D predicts it from the hyperfine lines of both isotopes, their strengths and their Doppler shapes, with nothing fitted. The atom density is the paper’s own: Siddons et al. take it from a vapour-pressure fit (their eq. A.1) that gives 25–30% fewer atoms than Alcock et al.’s, which JEKray2D uses, and they adjusted the cell temperature in 0.1 °C steps to fit, so their spectra cannot settle which vapour pressure is right. Each bench is therefore set 2.6–3.3 °C below the stated temperature, where Alcock’s gives the paper’s density (the Doppler width then comes out about 0.5% narrower).',
+    tolerance: 'The transmission within 0.01 RMS and 0.03 everywhere, set from how well the atom density of a cell at a stated temperature is known: vapour-pressure compilations differ by tens of per cent, which moves the deep lines at 36.6 °C by a few hundredths.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      // the paper's density (its eq. A.1) at the stated temperature, and the temperature where
+      // Alcock's vapour pressure (JEKray2D's) gives the same number of atoms
+      const nA1 = Tk => Math.pow(10, -94.04826 - 1961.258 / Tk - 0.03771687 * Tk + 42.57526 * Math.log10(Tk)) / Tk;
+      const nAlc = Tk => Math.pow(10, Math.log10(760) + 4.857 - 4215 / Tk) / Tk;
+      const eqT = Tc => { let lo = Tc + 273.15 - 20, hi = Tc + 273.15; for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (nAlc(m) > nA1(Tc + 273.15)) hi = m; else lo = m; } return (lo + hi) / 2 - 273.15; };
+      for (const c of R.cases) {
+        const Tb = +eqT(c.T).toFixed(3);
+        const data = bench('Rb D2, ' + c.T + ' °C (as ' + Tb.toFixed(2) + ' °C at Alcock’s density), 75 mm (Siddons et al. 2008)', [
+          { type: 'source', name: 'Probe', x: -60, y: 0, angle: 0, wavelength: 780.241, width: 1, rays: 3, pol: 's' },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: Tb, cellLen: c.L_mm },
+          { type: 'detector', name: 'PD', x: 70, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const T = c.det_GHz.map(d => { const r = J.cellAt('Cell', R.v0_Hz + d * 1e9); return r.amp * r.amp; });
+        const d = T.map((v, i) => v - c.T_trans[i]);
+        const worst = d.reduce((a, v) => Math.max(a, Math.abs(v)), 0), rms = Math.sqrt(d.reduce((a, v) => a + v * v, 0) / d.length);
+        checks.push(check(c.T + ' °C: largest difference from the measured transmission', 0, worst, { abs: 0.03 }));
+        checks.push(check(c.T + ' °C: RMS difference from the measured transmission', 0, rms, { abs: 0.01 }));
+        plots.push(plot({ title: 'Natural Rb D2, ' + c.T + ' °C, 75 mm: measured (Siddons et al.) and JEKray2D', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'Measured (Siddons et al. 2008)', x: c.det_GHz, y: c.T_trans, colour: REF_C, width: 3 }, { name: 'JEKray2D', x: c.det_GHz, y: T, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.T + ' °C', data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'At 36.6 °C the largest difference, on the steep side of the ⁸⁵Rb F = 2 line near +2.05 GHz, comes within a whisker of the limit. Siddons et al.’s own theory (run in ElecSus at the same density) is off by 0.028 at the same point: the measurement there absorbs less than either model, as the paper remarks of its data (it suggests the broad pedestal of the laser’s emission). The atom density of a real cell is the open question behind any absolute prediction: vapour-pressure compilations for solid rubidium differ by 25–35% at room temperature.' };
     },
   },
 ];

@@ -1148,7 +1148,8 @@ const ATOM_ISO = {
 };
 // log10 of the vapour pressure in torr, from C. B. Alcock, V. P. Itkin and M. K. Horrigan,
 // Can. Metall. Q. 23, 309 (1984): the solid below the melting point, the liquid above
-// (as ElecSus and Siddons et al. 2008 use; log10 760 turns atmospheres into torr)
+// (as ElecSus uses, and as Steck's tabulated room-temperature values agree with; log10 760
+// turns atmospheres into torr)
 const LOG_ATM = Math.log10(760);
 const VAPOUR = {
   Rb: T => LOG_ATM + (T < 312.46 ? 4.857 - 4215 / T : 8.316 - 4275 / T - 1.3102 * Math.log10(T)),

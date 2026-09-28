@@ -79,7 +79,7 @@ Signs:
 - **Mirror "R"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.
 - **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{"R": 51.5}, {"R": −51.5}]; a plano-convex lens with its curved side first is [{"R": 51.5}, {"R": null}].
 - A source's **"z0"** is how far ahead of the source its waist is.
-- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes "pol": "s" or "p"; a fibre laser's "polAngle" counts from s, so 90 gives p. When a paper's polarisation lies along the direction you have drawn in the plane, that is p.
+- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes "pol": "s" or "p" (or "linear" with "polAngle" counted from p); a fibre laser takes "pol": "s", "p", "linear" (with "polAngle" counted from s), "rcp" or "lcp". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.
 
 ## Building blocks
 
@@ -507,10 +507,11 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | wavelength | `1550` | Wavelength (nm) |
 | power | `1` | Power (mW) |
 | coh | `0` | Coherence length (mm) |
-| polAngle | `0` | Polarisation (° from s) |
+| polAngle | `0` | Polarisation angle from s (°), for pol "linear" |
 | tau | `0` | Pulse duration (fs; 0: continuous) |
 | rep | `80` | Repetition rate (MHz) |
 | gdd0 | `0` | Chirp at the laser (fs²) |
+| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed) |
 | lineshape | `"lorentz"` | "lorentz" or "gauss" |
 | pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |
 

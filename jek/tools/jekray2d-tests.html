@@ -2368,6 +2368,22 @@ const TESTS = [
     },
   },
   {
+    name: 'A fibre laser’s polarisation reaches free space as set',
+    why: 'out of a tip onto a screen, the normalised Stokes parameters: s (S1 −1), p (S1 +1), linear 45° from s (S2 +1), right and left circular (S3 ±1), and a file with only an angle of 30° (S1 −cos 60°), worst error',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const mk = (pol, polAngle) => bench('fpol', [fc('laser', 'L', { x: -60, y: 40, wavelength: 1550, power: 1, pol, polAngle }),
+        { type: 'fibre', id: 'T', name: 'T', x: 0, y: 0, angle: 0, core: 8.2, na: 0.14, emitRays: 3 }, screen({ name: 'S', x: 30, length: 20 })],
+        { minPower: 1e-6, fibres: [{ a: ['L', 0], b: ['T', 0], len: 1, loss: 0 }] });
+      let worst = 0;
+      for (const [pol, a, k, want] of [['s', 0, 'S1', -1], ['p', 0, 'S1', 1], ['linear', 45, 'S2', 1], ['rcp', 0, 'S3', 1], ['lcp', 0, 'S3', -1], [undefined, 30, 'S1', -0.5]]) {
+        J.load(mk(pol, a)); J.trace(); const st = J.stats('S').stokes;
+        worst = Math.max(worst, Math.abs(st[k] / st.S0 - want));
+      }
+      return worst;
+    },
+  },
+  {
     name: 'Light a fibre tip sends out and gets back reaches the network',
     why: '1 mW through a lossless circulator out of a tip, off a flat mirror half a Rayleigh range away and back in: the photodiode on the circulator’s third port reads the Gaussian overlap after a round trip of one Rayleigh range, 80%',
     want: 0.8, tol: 0.001, unit: ' mW',

@@ -8,6 +8,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/fresnel-fp-self.json` | `scripts/fresnel_fp_self.py` | Fresnel's equations and Brewster's angle (N-BK7, Schott's Sellmeier), the Fabry-Perot Airy function, Self's thin-lens transform of a Gaussian beam (Appl. Opt. 22, 658 (1983)) |
 | `ref/kogelnik-li.json` | `scripts/kogelnik_li.py` | Kogelnik & Li, Appl. Opt. 5, 1550 (1966): closed forms for two-mirror resonators |
 | `ref/fox-li.json` | `scripts/fox_li.py` | Fox & Li, Bell Syst. Tech. J. 40, 453 (1961): their integral equation, solved independently |
+| `ref/coatings.json` | `scripts/coatings.py` | Thin-film reflectance by the characteristic matrix (Abeles 1950), checked against Macleod's quarter-wave closed forms |
 | `ref/diffraction-classics.json` | `scripts/diffraction_classics.py` | Poisson's spot (Fresnel 1818), the Airy pattern (Airy 1835) and Young's slits (Young 1804), from the Fresnel-Kirchhoff integral |
 | `ref/lenses-optiland.json` | `scripts/lenses_optiland.py` | Optiland 0.6 real-ray traces (github.com/HarrisonKramer/optiland) |
 | `ref/rb-elecsus.json` | `scripts/rb_elecsus.py` | ElecSus (Zentile et al., Comput. Phys. Commun. 189, 162 (2015)) |
@@ -40,6 +41,7 @@ numpy instead.
     python scripts/pdh_black.py
     python scripts/diffraction_classics.py
     python scripts/fresnel_fp_self.py
+    python scripts/coatings.py
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
 
 ## Rules

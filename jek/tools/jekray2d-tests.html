@@ -3784,6 +3784,17 @@ const TESTS = [
     run: J => J.trapAlpha('Rb87', 1064)[0] * 8.8541878128e-12 / 1.64877727436e-41,
   },
   {
+    name: 'The tune-out wavelength moves with the ground hyperfine level',
+    why: 'where the polarisability crosses zero between the D lines, found by bisection: \u00b9\u00b3\u00b3Cs in F = 3 against the measured 880.2179 nm (Ratkata et al. 2021) and \u2078\u2077Rb in F = 2 against 790.03239 nm (Leonard et al. 2015); a saved screen keeps its level (worst difference, nm)',
+    want: 0, tol: 0.01, unit: ' nm',
+    run: J => {
+      const zero = (a, F, lo, hi) => { const f = nm => J.trapAlpha(a, nm, F)[0], s0 = Math.sign(f(lo)); for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (Math.sign(f(m)) === s0) lo = m; else hi = m; } return lo; };
+      J.load(bench('F', [screen({ name: 'S', trap: 'Cs133', trapF: 'lo' })]));
+      J.load(JSON.parse(JSON.stringify(J.serialize()))); const kept = J.byName('S').trapF === 'lo';
+      return kept ? Math.max(Math.abs(zero('Cs133', 'lo', 852.36, 894.58) - 880.2179), Math.abs(zero('Rb87', 'hi', 780.25, 794.97) - 790.032388)) : NaN;
+    },
+  },
+  {
     name: 'A Gaussian focus traps as its formulas say, wherever the screen is',
     why: '1 W at 1064 nm focused to w\u2080 = 50 \u00b5m, the screen 0.3 Rayleigh ranges short of the waist: the brightest point found there, radial frequency \u221a(4U/mw\u2080\u00b2)/2\u03c0 and axial \u221a(2U/mz\u1d3f\u00b2)/2\u03c0 for \u2078\u2077Rb, at the depth U it reports; round and 2D field (worst relative error, the focus position in Rayleigh ranges)',
     want: 0, tol: 0.003, unit: '',

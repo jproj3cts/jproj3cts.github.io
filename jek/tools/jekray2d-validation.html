@@ -197,7 +197,7 @@ const yAt = (p, X) => { for (let i = 2; i < p.length; i += 2) { const xa = p[i -
 
 /* ---------- The cases ---------- */
 
-const CASES = [
+const ALL_CASES = [
   {
     id: 'kogelnik-li', area: 'Gaussian beams and resonators', title: 'The Gaussian mode of a two-mirror resonator',
     kind: 'Paper: closed forms', ref: 'kogelnik-li.json', script: 'kogelnik_li.py',
@@ -356,6 +356,63 @@ const CASES = [
       return { checks, benches, plots, notes: 'At 36.6 °C the largest difference, on the steep side of the ⁸⁵Rb F = 2 line near +2.05 GHz, comes within a whisker of the limit. Siddons et al.’s own theory (run in ElecSus at the same density) is off by 0.028 at the same point: the measurement there absorbs less than either model, as the paper remarks of its data (it suggests the broad pedestal of the laser’s emission). The atom density of a real cell is the open question behind any absolute prediction: vapour-pressure compilations for solid rubidium differ by 25–35% at room temperature.' };
     },
   },
+  {
+    id: 'polarisability', area: 'Optical traps', title: 'Polarisabilities of the alkali atoms, 700 to 1554 nm',
+    kind: 'Paper: tabulated values', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'M. S. Safronova, B. Arora and C. W. Clark, “Frequency-dependent polarizabilities of alkali-metal atoms from ultraviolet through infrared spectral regions”, Physical Review A 73, 022505 (2006); arXiv:physics/0508087, Table I.',
+    what: 'The ground-state scalar polarisability of sodium, potassium, rubidium and caesium at the twenty wavelengths from 700 to 1554 nm in Safronova et al.’s table, which covers the lasers used for traps (1064, 1550, 980 nm and others) and two wavelengths close to the D lines. Their values sum over the atom’s transitions with measured and all-order matrix elements, and add the ion core. JEKray2D’s trap readout takes the D1 and D2 lines alone (each with its decay rate, counter-rotating terms included) plus the core’s static polarisability. The table gives wavelengths in air; each is taken to vacuum with the index of standard air (Edlén), which gives back the table’s own frequencies.',
+    tolerance: 'Within 1% of the tabulated value: the transitions beyond the D lines, which JEKray2D leaves out, give a few tenths of a per cent at these wavelengths.',
+    async run(J, R) {
+      const checks = [], AU = 8.8541878128e-12 / 1.64877727436e-41, map = { Na: 'Na23', K: 'K39', Rb: 'Rb87', Cs: 'Cs133' }, cols = { Na: '#b8860b', K: '#6a3d9a', Rb: '#e4572e', Cs: '#1f6fb2' };
+      const series = [];
+      for (const a of Object.keys(map)) {
+        const xs = [], ys = [];
+        for (const r of R.rows) {
+          const got = J.trapAlpha(map[a], r.lam_vac_nm)[0] * AU;
+          checks.push(check(a + ' at ' + r.lam_air_nm + ' nm (air)', r[a], got, { rel: 0.01 }, ' a.u.'));
+          xs.push(r.lam_air_nm); ys.push(100 * (got / r[a] - 1));
+        }
+        series.push({ name: a, x: xs, y: ys, colour: cols[a], dots: true });
+      }
+      const plots = [plot({ title: 'JEKray2D against Safronova et al.’s polarisabilities', xlabel: 'wavelength in air (nm)', ylabel: 'difference (%)', yMin: -1, yMax: 1, series })];
+      return { checks, benches: [], plots, notes: 'The two rows near the lines (799.3 and 700 nm) test the D lines’ strengths and their ratio; the rows beyond 900 nm mostly test the core and the counter-rotating terms. Hyperfine structure, which shifts the polarisability near the lines by parts in a thousand, is left out on both sides.' };
+    },
+  },
+  {
+    id: 'tune-out', area: 'Optical traps', title: 'Measured tune-out wavelengths of rubidium and caesium',
+    kind: 'Paper: measured data', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'R. H. Leonard, A. J. Fallon, C. A. Sackett and M. S. Safronova, “High-precision measurement of the ⁸⁷Rb D-line tune-out wavelength”, Physical Review A 92, 052501 (2015), arXiv:1507.07898; A. Ratkata et al., “Measurement of the tune-out wavelength for ¹³³Cs at 880 nm”, Physical Review A 104, 052813 (2021), arXiv:2110.00043.',
+    what: 'Between the D2 and D1 lines the two lines’ light shifts cancel, and an atom feels no force from the light: the tune-out wavelength, measured by atom interferometry (⁸⁷Rb) and Kapitza–Dirac scattering of a condensate (¹³³Cs) to a few tens of femtometres. It sits where it does because of the ratio of the D lines’ strengths and their frequencies from the atoms’ hyperfine level, so it is a sharp test of the line data JEKray2D’s traps use. The wavelength where JEKray2D’s polarisability crosses zero is found by bisection.',
+    tolerance: 'Within 0.01 nm (10 pm): JEKray2D’s line strengths come from the excited states’ lifetimes, whose ratio is known to about 0.1%, which moves the rubidium zero by a few picometres.',
+    async run(J, R) {
+      const checks = [], lines = { Rb87: [780.25, 794.97], Cs133: [852.36, 894.58] };
+      for (const t of R.tuneout) {
+        let [lo, hi] = lines[t.atom]; const f = nm => J.trapAlpha(t.atom, nm, t.F)[0], s0 = Math.sign(f(lo));
+        for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (Math.sign(f(m)) === s0) lo = m; else hi = m; }
+        checks.push(check(t.atom + ', ' + t.state + ': tune-out wavelength', t.nm, (lo + hi) / 2, { abs: 0.01 }, ' nm'));
+      }
+      return { checks, benches: [], notes: 'The first run of this case failed: with the ground state’s hyperfine structure left out, JEKray2D put caesium’s zero at 880.228 nm, 10.1 pm long of the measurement. Ratkata et al.’s atoms were in F = 3, which lies 5.2 GHz below the ground state’s centroid, so every line they see is 5.2 GHz higher, and the zero with them (13 pm shorter). JEKray2D’s traps now take the ground hyperfine level (the screen’s Trap tab, Ground state), and each case is run in the paper’s: F = 2 for rubidium, F = 3 for caesium. The tolerance is the one set before that first run.' };
+    },
+  },
+  {
+    id: 'grimm', area: 'Optical traps', title: 'A focused-beam dipole trap for rubidium',
+    kind: 'Paper: closed forms', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'R. Grimm, M. Weidemüller and Yu. B. Ovchinnikov, “Optical dipole traps for neutral atoms”, Advances in Atomic, Molecular and Optical Physics 42, 95–170 (2000); arXiv:physics/9902072, section 4.1.1; with Safronova et al.’s polarisability (above).',
+    what: 'One watt at 1064 nm focused to a 50 µm waist, a screen at the focus set to trap ⁸⁷Rb. Grimm et al.’s red-detuned focused-beam trap: depth α I₀ / 2ε₀c with I₀ = 2P / πw₀², and harmonic frequencies √(4U₀/mw₀²) across and √(2U₀/mz_R²) along, with Safronova et al.’s polarisability at this wavelength. JEKray2D finds the brightest point of the diffracted field it propagates to the screen and the curvature of the potential there.',
+    tolerance: 'Depth and both trap frequencies within 1%.',
+    async run(J, R) {
+      const G = R.grimm, checks = [];
+      const data = bench('Dipole trap: 1 W at 1064 nm, w₀ = 50 µm, ⁸⁷Rb (Grimm et al. 2000)', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: G.lam_vac_nm, width: 0.1, rays: 1, gauss: true, w0: G.w0_um / 1000, z0: 100, pol: 's', power: 1000 * G.P_W, popN: 256 },
+        { type: 'screen', name: 'Trap', x: 0, y: 0, angle: 180, length: 4, absorb: false, trap: G.atom }]);
+      J.load(data);
+      const T = J.trap('Trap');
+      checks.push(check('Trap depth', G.depth_uK, T ? T.depthK * 1e6 : NaN, { rel: 0.01 }, ' µK'));
+      checks.push(check('Radial trap frequency', G.f_radial_Hz, T ? T.fx : NaN, { rel: 0.01 }, ' Hz'));
+      checks.push(check('Axial trap frequency', G.f_axial_Hz, T ? T.fz : NaN, { rel: 0.01 }, ' Hz'));
+      return { checks, benches: [['1 W at 1064 nm, 50 µm', data]] };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */
@@ -399,6 +456,9 @@ async function runAll() {
   if (!J) { sum.textContent = 'JEKray2D did not load.'; sum.className = 'vd-sum fail'; return; }
   runBtn.disabled = true;
   casesBox.replaceChildren();
+  // ?case=id,id runs only those cases
+  const only = (new URLSearchParams(location.search).get('case') || '').split(',').filter(Boolean);
+  const CASES = only.length ? ALL_CASES.filter(C => only.includes(C.id)) : ALL_CASES;
   let area = null;
   const cards = CASES.map(C => { if (C.area !== area) { area = C.area; casesBox.append(h('h2', { class: 'area' }, area)); } const c = cardFor(C); casesBox.append(c); return c; });
   const t0 = performance.now();

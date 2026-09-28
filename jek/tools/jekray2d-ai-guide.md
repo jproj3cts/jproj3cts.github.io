@@ -208,6 +208,7 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | mapScale | `"lin"` | "lin" or "log" irradiance map. |
 | vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams. |
 | trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "Na23") or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. |
+| trapF | `"avg"` | for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres). |
 | trapMat | `"Fused silica"` | the sphere’s glass ("Fused silica", "Polystyrene" and so on). |
 | trapR | `100` | the sphere’s radius, nm. |
 | trapRho | `2200` | its density, kg/m³. |

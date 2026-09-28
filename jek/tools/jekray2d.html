@@ -1172,22 +1172,32 @@ const KB = 1.380649e-23, AMU = 1.66053906660e-27, HPL = 6.62607015e-34, C_SI = 2
      alpha / eps0 = sum 6 pi c^3 f (Gamma / w_i^2) / (w_i^2 - w^2 - i (w^3 / w_i^2) Gamma),
    so the potential is U = -Re(alpha) I / (2 eps0 c) and the photon scattering rate
    Im(alpha) I / (hbar eps0 c), plus the ion core's own static polarisability (Safronova's,
-   atomic units). Hyperfine structure, the vector light shift of circular light and the
-   higher transitions (a few tenths of a percent at 1064 nm) are left out. */
+   atomic units). The ground state's hyperfine level can be chosen: from the lower F the lines
+   sit higher in frequency by that level's offset from the centroid (hf: the splitting in Hz
+   and the nuclear spin I), which moves the tune-out wavelength between the D lines by
+   picometres; the excited states' hyperfine structure, the vector light shift of circular
+   light and the higher transitions (a few tenths of a percent at 1064 nm) are left out. */
 const TRAP_ATOMS = {
-  Rb87: { name: 'Rubidium 87', m: 86.909180527, core: 9.1, D2: [384.2304844685e12, 26.2348], D1: [377.107463380e12, 27.679] },
-  Rb85: { name: 'Rubidium 85', m: 84.911789738, core: 9.1, D2: [384.2304063727e12, 26.2348], D1: [377.107385690e12, 27.679] },
-  Cs133: { name: 'Caesium 133', m: 132.905451931, core: 15.8, D2: [351.72571850e12, 30.473], D1: [335.116048807e12, 34.894] },
-  K39: { name: 'Potassium 39', m: 38.9637064864, core: 5.46, D2: [391.01617003e12, 26.37], D1: [389.286058716e12, 26.72] },
-  Na23: { name: 'Sodium 23', m: 22.9897692807, core: 0.95, D2: [508.8487162e12, 16.2492], D1: [508.3324657e12, 16.2992] },
+  Rb87: { name: 'Rubidium 87', m: 86.909180527, core: 9.1, D2: [384.2304844685e12, 26.2348], D1: [377.107463380e12, 27.679], hf: [6.834682610904e9, 1.5] },
+  Rb85: { name: 'Rubidium 85', m: 84.911789738, core: 9.1, D2: [384.2304063727e12, 26.2348], D1: [377.107385690e12, 27.679], hf: [3.035732439e9, 2.5] },
+  Cs133: { name: 'Caesium 133', m: 132.905451931, core: 15.8, D2: [351.72571850e12, 30.473], D1: [335.116048807e12, 34.894], hf: [9.192631770e9, 3.5] },
+  K39: { name: 'Potassium 39', m: 38.9637064864, core: 5.46, D2: [391.01617003e12, 26.37], D1: [389.286058716e12, 26.72], hf: [461.7197202e6, 1.5] },
+  Na23: { name: 'Sodium 23', m: 22.9897692807, core: 0.95, D2: [508.8487162e12, 16.2492], D1: [508.3324657e12, 16.2992], hf: [1.7716261288e9, 1.5] },
 };
 const HBAR = HPL / (2 * Math.PI);
-/* alpha / eps0 (m^3) at vacuum wavelength nm, as [re, im] */
-function trapAlpha(atom, nm) {
-  const A = TRAP_ATOMS[atom], w = 2 * Math.PI * C_SI / (nm * 1e-9);
+/* the ground state's hyperfine level, 'lo' or 'hi' (F = I -/+ 1/2), as its offset from the
+   centroid in Hz; 'avg' the centroid */
+function trapGroundShift(atom, F) {
+  const [dE, I] = TRAP_ATOMS[atom].hf;
+  return F === 'hi' ? dE * I / (2 * I + 1) : F === 'lo' ? -dE * (I + 1) / (2 * I + 1) : 0;
+}
+const trapFLabel = (atom, F) => { const I = TRAP_ATOMS[atom].hf[1]; return 'F = ' + (F === 'hi' ? I + 0.5 : I - 0.5); };
+/* alpha / eps0 (m^3) at vacuum wavelength nm, as [re, im], from ground level F ('avg', 'lo', 'hi') */
+function trapAlpha(atom, nm, F) {
+  const A = TRAP_ATOMS[atom], w = 2 * Math.PI * C_SI / (nm * 1e-9), g = trapGroundShift(atom, F);
   let re = 0, im = 0;
   for (const [key, f] of [['D2', 2 / 3], ['D1', 1 / 3]]) {
-    const wi = 2 * Math.PI * A[key][0], G = 1e9 / A[key][1], num = 6 * Math.PI * C_SI ** 3 * f * G / (wi * wi);
+    const wi = 2 * Math.PI * (A[key][0] - g), G = 1e9 / A[key][1], num = 6 * Math.PI * C_SI ** 3 * f * G / (wi * wi);
     const dr = wi * wi - w * w, di = -(w ** 3 / (wi * wi)) * G, den = dr * dr + di * di;
     re += num * dr / den; im += -num * di / den;
   }
@@ -1225,8 +1235,8 @@ const waterViscosity = T => 2.414e-5 * Math.pow(10, 247.8 / (T - 140));
 const waterDamping = (radiusNm, mass, T) => 6 * Math.PI * waterViscosity(T) * radiusNm * 1e-9 / mass;
 /* A trap at peak intensity I (W/m^2) whose intensity falls off as I (1 - c x^2 / 2) across it
    and along it (c in 1/mm^2): depth, scattering, heating and trap frequencies */
-function trapPhysics(atom, nm, I, cx, cy, cz) {
-  const A = TRAP_ATOMS[atom], m = A.m * AMU, [ar, ai] = trapAlpha(atom, nm);
+function trapPhysics(atom, nm, I, cx, cy, cz, F) {
+  const A = TRAP_ATOMS[atom], m = A.m * AMU, [ar, ai] = trapAlpha(atom, nm, F);
   const U = -ar * I / (2 * C_SI), sc = ai * I / (HBAR * C_SI);
   const k = 2 * Math.PI / (nm * 1e-9), Erec = HBAR * HBAR * k * k / (2 * m);
   // U(x) = U I(x) / I: a trap (U < 0) has springs -U c; a barrier none
@@ -2421,6 +2431,7 @@ function normElementBase(e) {
         mapScale: e.mapScale === 'log' ? 'log' : 'lin',
         vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
         trap: e.trap in TRAP_ATOMS || e.trap === 'sphere' ? e.trap : 'none',   // an atom or a sphere to read an optical trap at this focus for
+        trapF: ['lo', 'hi'].includes(e.trapF) ? e.trapF : 'avg',     // atoms: the ground hyperfine level (avg: the centroid)
         trapMat: glassKey(e.trapMat) || 'Fused silica',              // the sphere's material
         trapR: Math.max(1, num(e.trapR, 100)),                       // its radius, nm
         trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[glassKey(e.trapMat) || 'Fused silica'] || 2200)),   // kg/m^3
@@ -8568,6 +8579,8 @@ function trapSection(el) {
   panel.append(h('h3', null, 'Optical trap'));
   const rows0 = h('div', { class: 'rt-rows' }, selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
     () => el.trap, v => { el.trap = v; }, { wide: true }));
+  if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
+    () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
     const mats = Object.keys(GLASS).filter(g => g !== 'Water');
     rows0.append(
@@ -13956,7 +13969,7 @@ function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
+  const key = el.id + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
   return { keep, srcs, key };
 }
 
@@ -14087,7 +14100,7 @@ function trapSolve(el, R, dom, len) {
   const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT) : nBench;
   // the particle: its polarisability (SI, complex) and mass
   let alpha, mass, sph = null;
-  if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
+  if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm, el.trapF); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
   else { sph = sphereAlpha(el.trapMat, el.trapR, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (el.trapR * 1e-9) ** 3; }
   // the field in SI (V/m) at a point of the trap frame, per launch, as the physicists write it (conjugated)
   const byL = new Map();
@@ -16186,7 +16199,7 @@ const AI_FIELDS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
   screen: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
-    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
+    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
   stop: { shape: 'one of the stop shapes below.', aperture: 'mm: the opening (an iris’s diameter, a slit’s width).', outer: 'mm: the outer size (a beam block’s diameter).',
     sep: 'mm: a double slit’s centre-to-centre separation.', pitch: 'mm: a slit comb’s pitch.', count: 'a comb’s number of slits, 2 to 400.',
     offset: 'mm: the opening’s centre along the stop.', height: 'mm: a slit’s height out of the plane (0 unlimited).', side: '1 or −1: which side a knife edge covers.' },

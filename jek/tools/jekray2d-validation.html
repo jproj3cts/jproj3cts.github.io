@@ -360,6 +360,43 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'tight-focus', area: 'Diffraction', title: 'The vector field at a tight focus',
+    kind: 'Paper: exact solution', ref: 'tight-focus.json', script: 'tight_focus.py',
+    cite: 'B. Richards and E. Wolf, “Electromagnetic diffraction in optical systems II. Structure of the image field in an aplanatic system”, Proceedings of the Royal Society A 253, 358–379 (1959); the exact vector angular spectrum of the same field (e.g. Novotny and Hecht, Principles of Nano-Optics, ch. 3).',
+    what: 'A Gaussian beam at 633 nm, 1.0, 2.5 or 4.0 mm across its 1/e² radius, through an ideal flat lens of 3 mm focal length (a phase plate, JEKray2D’s tight-focus example), polarised in the bench plane. At these numerical apertures (0.32 to 0.8 at the 1/e² radius) the focus is not round: as Richards and Wolf showed, the field gains a component along the axis, which widens the spot along the polarisation. The plate leaves the light polarised across its plane, so the exact field is its vector angular spectrum: each Cartesian component travels as a scalar, and the axial one follows from div E = 0; integrated independently with no Debye or paraxial approximation. JEKray2D sums the Rayleigh–Sommerfeld integral from the plate to the focal plane with each sample’s field square to its own ray (its vector focus). Compared: the irradiance |E|² through the focus along and across the polarisation, its peak, and its widths.',
+    tolerance: 'Each width at half maximum within 1%, the peak within 2%, and both profiles within 1% of the peak out to 1.5 µm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const interp = (xs, ys, x) => { x = Math.abs(x); if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const t = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - t) + ys[hi] * t; };
+      for (const C of R.cases) {
+        const data = bench('Tight focus: w = ' + C.w0_mm + ' mm, ideal lens f = 3 mm, 633 nm (Richards and Wolf)', [
+          { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 633, width: 2 * C.w0_mm, gauss: true, w0: C.w0_mm, z0: 20, popN: 256, popModel: '2d', pol: 'p', rays: 9, power: R.P_mW },
+          { type: 'mask', name: 'Perfect lens, f 3 mm', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda', preset: 'custom' },
+          { type: 'screen', name: 'Focus', x: R.f_mm, y: 0, angle: 180, length: 10, vectorFocus: 'on' }], { minPower: 1e-6 });
+        J.load(data); const D = J.diffraction('Focus');
+        const tag = 'w = ' + C.w0_mm + ' mm';
+        if (!D || !D.cutX) { checks.push(check(tag + ': a vector focus', 1, NaN, { abs: 0 })); continue; }
+        checks.push(check(tag + ': peak irradiance', C.peak, D.peak, { rel: 0.02 }, ' mW/mm²'));
+        checks.push(check(tag + ': width along the polarisation', C.fwhm_along_mm * 1e3, D.fwhmX * 1e3, { rel: 0.01 }, ' µm'));
+        checks.push(check(tag + ': width across it', C.fwhm_across_mm * 1e3, D.fwhmY * 1e3, { rel: 0.01 }, ' µm'));
+        for (const [what, cut, ref] of [['along', D.cutX, C.I_along], ['across', D.cutY, C.I_across]]) {
+          let worst = 0; cut.x.forEach((x, i) => { if (Math.abs(x) <= 0.0015) worst = Math.max(worst, Math.abs(cut.I[i] - interp(C.r_mm, ref, x)) / C.peak); });
+          checks.push(check(tag + ': profile ' + what + ' the polarisation, largest difference / peak', 0, worst, { abs: 0.01 }));
+        }
+        const sel = D.cutX.x.map((x, i) => i).filter(i => Math.abs(D.cutX.x[i]) <= 0.0015);
+        const rr = C.r_mm.map(r => r * 1e3), mir = a => [...a.slice(1).reverse(), ...a];
+        plots.push(plot({ title: 'Focus of a ' + C.w0_mm + ' mm beam, f = 3 mm: along and across the polarisation', xlabel: 'position (µm)', ylabel: 'irradiance |E|² (mW/mm²)',
+          series: [{ name: 'Exact, along', x: [...rr.slice(1).map(v => -v).reverse(), ...rr], y: mir(C.I_along), colour: REF_C, width: 3 },
+            { name: 'Exact, across', x: [...rr.slice(1).map(v => -v).reverse(), ...rr], y: mir(C.I_across), colour: '#6a3d9a', width: 3, dash: '4 3' },
+            { name: 'JEKray2D, along', x: sel.map(i => D.cutX.x[i] * 1e3), y: sel.map(i => D.cutX.I[i]), colour: GOT_C, dots: true },
+            { name: 'JEKray2D, across', x: sel.map(i => D.cutY.x[i] * 1e3), y: sel.map(i => D.cutY.I[i]), colour: '#b8860b', dots: true }] }));
+        benches.push([tag, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'Both codes report the irradiance as |E|², the axial part included (the energy flow through the plane is a little less where the light crosses it steeply). JEKray2D’s tight-focus example (w = 2.5 mm) had been looked at before this reference was made; the tolerances come from the grid and the sampling, not from that.' };
+    },
+  },
+  {
     id: 'diffraction-classics', area: 'Diffraction', title: 'Poisson’s spot, the Airy pattern and Young’s slits',
     kind: 'Paper: closed forms', ref: 'diffraction-classics.json', script: 'diffraction_classics.py',
     cite: 'A. Fresnel, “Mémoire sur la diffraction de la lumière” (1818), with Poisson’s objection and Arago’s observation; G. B. Airy, Transactions of the Cambridge Philosophical Society 5, 283 (1835); T. Young, Philosophical Transactions of the Royal Society 94, 1 (1804). The patterns from the Fresnel–Kirchhoff integral, done independently.',

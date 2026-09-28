@@ -21,6 +21,16 @@
   .product-info li { margin-bottom: 0.35rem; }
   .product-info li::marker { color: var(--jek-orange); }
   .product-actions a { text-decoration: none; }
+  .rt-feature p a, .rt-examples > p a, .product-info li a { color: var(--jek-cyan-dark); }
+  .rt-notify { margin: 0.9rem 0 0; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-notify a { color: var(--jek-cyan-dark); font-weight: 600; }
+  .rt-video { width: 100%; max-width: 1040px; margin: 0 0 2.75rem; text-align: left; }
+  .rt-video h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--jek-ink); }
+  .rt-video > p { margin: 0 0 1rem; font-size: 0.9375rem; color: var(--jek-ink-soft); }
+  .rt-video figure { margin: 0; overflow: hidden; background: #1f2529; border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
+  .rt-video video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #e2c9b6; }
+  .rt-video .rt-links { margin: 0.9rem 0 0; font-size: 0.9375rem; }
+  .rt-video .rt-links a { color: var(--jek-cyan-dark); font-weight: 600; }
 
   .product-description--full {
     width: 100%;
@@ -179,13 +189,14 @@
           <a class="buy-button" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
           <a class="quote-button" href="#examples">Try an example</a>
         </div>
+        <p class="rt-notify">A Pro edition for labs and companies is on the way. <a href="mailto:sales@jeksys.net?subject=JEKray2D%20Pro%3A%20let%20me%20know&amp;body=Please%20let%20me%20know%20when%20JEKray2D%20Pro%20is%20available.%0A%0AName%3A%0AOrganisation%3A%0AWhat%20I%20would%20use%20it%20for%3A">Tell me when it’s ready</a></p>
         <ul>
-          <li>Nothing to install and no account; your bench saves as you work</li>
+          <li>Nothing to install and no account; a two-minute guided tour and 36 examples to start from</li>
           <li>Exact rays through real glass, and diffracted Gaussian beams with interference and polarisation</li>
           <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters and fibre subsystems</li>
           <li>Cavities, lasers, photodiode signals and lock error signals</li>
           <li>Aberrations, pulses, nonlinear optics, vapour cells and optical traps</li>
-          <li>Share benches as links, import Thorlabs .zmx files, export pictures and data</li>
+          <li>Share benches as links or live embeds, import Thorlabs .zmx files, export pictures and data</li>
           <li>Design with an AI assistant using the <a href="/jek/tools/jekray2d-ai-guide.md" download>JEKray2D guide</a></li>
         </ul>
       </div>
@@ -203,6 +214,17 @@
       </p>
     </div>
 
+    <!-- A short screen recording of the editor -->
+    <section class="rt-video">
+      <h2>See it work</h2>
+      <p>Open an example from the gallery, turn a prism by its handle, drag a lens: the light is traced again as you move.</p>
+      <figure>
+        <video id="demoVideo" src="img/jekray2d-demo.webm" poster="img/jekray2d-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
+          aria-label="Screen recording: the examples gallery, a dispersing prism turned by its handle, and a plano-convex lens dragged along its beam"></video>
+      </figure>
+      <p class="rt-links"><a href="/jek/tools/jekray2d.html#tour=focus">Take the two-minute tour →</a> &nbsp; <a href="/jek/tools/jekray2d.html#examples">Browse all the examples →</a></p>
+    </section>
+
     <!-- What it does, each point shown with an export from the editor -->
     <section class="rt-feature">
       <figure class="rt-shot">
@@ -213,7 +235,8 @@
         <h2>Build a bench in minutes</h2>
         <p>Add parts from the toolbar and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
         <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed an optimiser, which varies several values at once against several weighted goals, and a Monte Carlo tolerance study.</p>
-        <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play.</p>
+        <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play. Or embed it, live, in a web page or course notes, where readers can drag, zoom and play it.</p>
+        <p>New to it? The <a href="/jek/tools/jekray2d.html#tour=focus">guided tour</a> builds a focusing lens and then a Michelson interferometer with you, a step at a time.</p>
       </div>
     </section>
 
@@ -306,7 +329,7 @@
     <!-- Examples: moved here from the editor -->
     <div class="rt-examples" id="examples">
       <h2>Examples</h2>
-      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. A few to start with, then every example by topic.</p>
+      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. A few to start with, then every example by topic, or <a href="/jek/tools/jekray2d.html#examples">browse them all in the editor’s gallery</a>.</p>
       <h3 class="rt-exgroup">Key examples</h3>
       <div class="rt-example-grid rt-featured">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=michelson">
@@ -784,5 +807,12 @@
 
 <script src="/jek/assets/js/cart.js"></script>
 
+<script>
+  // someone who has asked for less motion gets the poster and the play button, not a loop
+  (function () {
+    var v = document.getElementById('demoVideo');
+    if (v && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+  })();
+</script>
 </body>
 </html>

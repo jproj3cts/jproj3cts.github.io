@@ -413,6 +413,48 @@ const ALL_CASES = [
       return { checks, benches: [['1 W at 1064 nm, 50 µm', data]] };
     },
   },
+  {
+    id: 'spm-solitons', area: 'Pulses in fibre', title: 'Self-phase modulation and solitons',
+    kind: 'Paper: exact solutions', ref: 'spm-solitons.json', script: 'spm_solitons.py',
+    cite: 'R. H. Stolen and C. Lin, “Self-phase-modulation in silica optical fibers”, Physical Review A 17, 1448 (1978); M. J. Potasek, G. P. Agrawal and S. C. Pinault, JOSA B 3, 205 (1986); A. Hasegawa and F. Tappert, Applied Physics Letters 23, 142 (1973); J. Satsuma and N. Yajima, Progress of Theoretical Physics Supplement 55, 284 (1974); L. F. Mollenauer, R. H. Stolen and J. P. Gordon, Physical Review Letters 45, 1095 (1980).',
+    what: 'A 1 ps pulse at 1550 nm through fibre of γ = 1.3 /(W km), by JEKray2D’s split-step solution of the nonlinear Schrödinger equation, against the equation’s exact solutions. Without dispersion (1 km), Gaussian and sech² pulses at peak nonlinear phases of 0.5π to 4.5π: the pulse keeps its shape and takes a phase in proportion to its intensity, so its spectrum is the transform of a field known exactly, with the M = φ/π + ½ peaks Stolen and Lin saw, and a Gaussian’s rms width grows as √(1 + 4φ²/3√3) (Potasek et al.). In anomalous dispersion (17 ps/(nm km)): the fundamental soliton, whose spectrum should not change over five dispersion lengths (74 m), and the second-order soliton at half its period (11.7 m), whose spectrum splits furthest there, from Satsuma and Yajima’s closed form.',
+    tolerance: 'The rms spectral width within 1% (2% for the second-order soliton); the number of spectral peaks (above 5% of the highest) exactly; the spectrum, its peak 1, within 0.02 of the reference at every point JEKray2D works it out (0.03 for the second-order soliton).',
+    async run(J, R) {
+      const checks = [], plots = [];
+      const cmp = (row, label, maxTol, rmsTol) => {
+        const r = J.fibreSPM({ disp: row.disp, gamma: R.gamma_W_km }, R.nm, row.len_m, { tau: row.tau_fs, pshape: row.shape || 'sech2', rep: R.rep_MHz }, row.Pavg_W, 0);
+        if (!r) { checks.push(check(label + ': a spectrum', 1, NaN, { abs: 0 })); return null; }
+        const S = r.re.map((v, i) => v * v + r.im[i] * r.im[i]), W = S.map((_, i) => r.d0 + i * r.dd);
+        const refAt = w => { const x = row.w; if (w < x[0] || w > x[x.length - 1]) return 0; let lo = 0, hi = x.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (x[m] > w) hi = m; else lo = m; } const f = (w - x[lo]) / (x[hi] - x[lo]); return row.S[lo] * (1 - f) + row.S[hi] * f; };
+        const worst = S.reduce((a, v, i) => Math.max(a, Math.abs(v - refAt(W[i]))), 0);
+        const peaks = S.filter((v, i) => i > 0 && i < S.length - 1 && v > S[i - 1] && v >= S[i + 1] && v > 0.05).length;
+        checks.push(check(label + ': rms spectral width / the input’s', row.broad_rms, r.broad, { rel: rmsTol }));
+        checks.push(check(label + ': spectral peaks', row.peaks, peaks, { abs: 0 }));
+        checks.push(check(label + ': largest difference in the spectrum', 0, worst, { abs: maxTol }));
+        return { W, S };
+      };
+      const thz = w => w.map(v => v / (2 * Math.PI) * 1000);
+      const bro = { gauss: [], sech2: [] };
+      for (const row of R.spm) {
+        const got = cmp(row, (row.shape === 'gauss' ? 'Gaussian' : 'sech²') + ', φ = ' + row.phi_over_pi + 'π', 0.02, 0.01);
+        bro[row.shape].push(checks[checks.length - 3].got);
+        if (got && row.phi_over_pi === 4.5 && row.shape === 'gauss') plots.push(plot({ title: 'Gaussian pulse, peak nonlinear phase 4.5π, no dispersion', xlabel: 'frequency offset (THz)', ylabel: 'spectrum', yMin: 0, yMax: 1,
+          series: [{ name: 'Exact', x: thz(row.w), y: row.S, colour: REF_C, width: 3 }, { name: 'JEKray2D', x: thz(got.W), y: got.S, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        await idle();
+      }
+      const ph = R.spm.filter(r => r.shape === 'gauss').map(r => r.phi_over_pi);
+      plots.push(plot({ title: 'Spectral broadening by self-phase modulation', xlabel: 'peak nonlinear phase (π)', ylabel: 'rms width / the input’s',
+        series: [{ name: 'Exact, Gaussian', x: ph, y: R.spm.filter(r => r.shape === 'gauss').map(r => r.broad_rms), colour: REF_C }, { name: 'Exact, sech²', x: ph, y: R.spm.filter(r => r.shape === 'sech2').map(r => r.broad_rms), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray2D, Gaussian', x: ph, y: bro.gauss, colour: GOT_C, dots: true }, { name: 'JEKray2D, sech²', x: ph, y: bro.sech2, colour: '#b8860b', dots: true }] }));
+      for (const row of R.solitons) {
+        const n2 = row.order === 2, got = cmp(row, n2 ? 'Second-order soliton at half its period' : 'Fundamental soliton after five dispersion lengths', n2 ? 0.03 : 0.02, n2 ? 0.02 : 0.01);
+        if (got && n2) plots.push(plot({ title: 'Second-order soliton, half a soliton period (11.7 m)', xlabel: 'frequency offset (THz)', ylabel: 'spectrum', yMin: 0, yMax: 1,
+          series: [{ name: 'Satsuma–Yajima, exact', x: thz(row.w), y: row.S, colour: REF_C, width: 3 }, { name: 'JEKray2D', x: thz(got.W), y: got.S, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        await idle();
+      }
+      return { checks, benches: [], plots, notes: 'JEKray2D’s fibre takes its dispersion as constant in wavelength, which gives it a small third-order dispersion as well (its dispersion length for that is 5 km, against 15 m for the second order); the exact solutions have none. The fibre-solitons example in the gallery shows the same physics on a bench.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

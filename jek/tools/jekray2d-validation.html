@@ -200,6 +200,77 @@ const yAt = (p, X) => { for (let i = 2; i < p.length; i += 2) { const xa = p[i -
 
 const ALL_CASES = [
   {
+    id: 'fresnel-fp-self', area: 'Gaussian beams and resonators', title: 'Fresnel’s equations, the Fabry–Perot and a lens on a Gaussian beam',
+    kind: 'Paper: closed forms', ref: 'fresnel-fp-self.json', script: 'fresnel_fp_self.py',
+    cite: 'A. Fresnel (1823), as in M. Born and E. Wolf, Principles of Optics, §1.5; C. Fabry and A. Perot, Annales de Chimie et de Physique 16, 115 (1899); S. A. Self, “Focusing of spherical Gaussian beams”, Applied Optics 22, 658–661 (1983).',
+    what: 'Three closed forms. Fresnel’s equations: the power a bare N-BK7 surface reflects at 587.6 nm, s and p, from 5° to 85° (the block absorbing, so only its front face is seen), and Brewster’s angle, where p reflects nothing (N-BK7’s index from Schott’s Sellmeier coefficients). The Fabry–Perot: a 100 mm cavity of 90% and 95% mirrors (the far one curved to 500 mm, the laser mode-matched to it), its transmission against the round-trip phase from resonance, which Fabry and Perot’s Airy function gives (finesse 40); the cavity is solved by JEKray2D’s field engine, the phase read from it as in the Pound–Drever–Hall case. Self’s thin-lens transform: a Gaussian beam at 1064 nm, waist 0.5 mm or 0.2 mm at 0 to 2 m before an ideal 100 mm lens, and where its new waist is and how big.',
+    tolerance: 'Reflectances within 1 × 10⁻⁴ and Brewster’s angle within 0.05°; the cavity’s transmission within 0.005 of the Airy function; the new waist’s position within 0.05 mm and its radius within 0.1%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], rad = Math.PI / 180;
+      // Fresnel
+      const Fr = R.fresnel, got = { s: [], p: [] };
+      const fresnelBench = (deg, pol) => {
+        const t = deg * rad, rx = -Math.cos(2 * t), ry = -Math.sin(2 * t);
+        return bench('Fresnel: N-BK7 at ' + deg + '°, ' + pol, [
+          { type: 'source', name: 'Beam', x: -50, y: 0, angle: 0, wavelength: Fr.nm, width: 0.2, rays: 1, gauss: true, w0: 0.1, z0: 50, pol, power: 1 },
+          { type: 'lens', name: 'N-BK7 block', x: 10 * Math.cos(t), y: 10 * Math.sin(t), angle: deg, diameter: 25.4, surfaces: [{ R: null, coat: { mode: 'bare' } }, { R: null, coat: { mode: 'bare' } }], gaps: [20], materials: [{ glass: 'N-BK7', abs: 5 }] },
+          { type: 'detector', name: 'PD', x: 60 * rx, y: 60 * ry, angle: 2 * deg, length: 4, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e6 }], { ghosts: true, minPower: 1e-6 });
+      };
+      for (const r of Fr.rows) {
+        if (r.deg === 0) continue;
+        for (const pol of ['s', 'p']) {
+          const d = fresnelBench(r.deg, pol); J.load(d); const mw = J.detector('PD').mw;
+          got[pol].push(mw);
+          checks.push(check('Fresnel: R' + pol + ' at ' + r.deg + '°', pol === 's' ? r.Rs : r.Rp, mw, { abs: 1e-4 }));
+          if (r.deg === 45 && pol === 's') benches.push(['Fresnel, 45°', d]);
+        }
+      }
+      // Brewster: where Rp is least, by golden section on the angle
+      let lo = 50, hi = 62; const Rp = deg => { J.load(fresnelBench(deg, 'p')); return J.detector('PD').mw; };
+      for (let i = 0; i < 40; i++) { const m1 = lo + 0.382 * (hi - lo), m2 = lo + 0.618 * (hi - lo); if (Rp(m1) < Rp(m2)) hi = m2; else lo = m1; }
+      checks.push(check('Brewster’s angle', Fr.brewster_deg, (lo + hi) / 2, { abs: 0.05 }, '°'));
+      const degs = Fr.rows.filter(r => r.deg).map(r => r.deg);
+      plots.push(plot({ title: 'Reflectance of bare N-BK7 at 587.6 nm', xlabel: 'angle of incidence (°)', ylabel: 'reflectance', yMin: 0, yMax: 1,
+        series: [{ name: 'Fresnel, s', x: degs, y: Fr.rows.filter(r => r.deg).map(r => r.Rs), colour: REF_C }, { name: 'Fresnel, p', x: degs, y: Fr.rows.filter(r => r.deg).map(r => r.Rp), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray2D, s', x: degs, y: got.s, colour: GOT_C, dots: true }, { name: 'JEKray2D, p', x: degs, y: got.p, colour: '#b8860b', dots: true }] }));
+      await idle();
+      // Fabry-Perot
+      const FP = R.fabry_perot, wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const fpBench = dx => bench('Fabry–Perot: 90% and 95% mirrors, 100 mm (Airy function)', [
+        { type: 'source', name: 'Laser', x: -80, y: 0, angle: 0, wavelength: 1064, width: 0.5, rays: 1, gauss: true, w0: 0.260266, z0: 80, pol: 's', power: 1, popN: 256 },
+        { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: 100 * FP.R1 },
+        { type: 'mirror', name: 'M2', x: +(100 + dx).toFixed(9), y: 0, angle: 180, length: 25, reflect: 100 * FP.R2, R: 500 },
+        { type: 'detector', name: 'PD', x: 150, y: 0, angle: 180, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9 }], { minPower: 1e-6, cavityLock: {} });
+      const fp = dx => { const d = fpBench(dx); J.load(d); J.setCavityLock('built'); const S = J.pdSignal('PD'), C = J.shownCavity(); return { d, psi: -wrap(C.delta - C.dLock), T: S.dc }; };
+      const a0 = fp(0), kk = 4 * Math.PI / 1064e-6, xs = [], ys = [];
+      for (const r of FP.rows) {
+        const g = fp((r.psi - a0.psi) / kk), ref = (1 - FP.R1) * (1 - FP.R2) / (1 - 2 * Math.sqrt(FP.R1 * FP.R2) * Math.cos(g.psi) + FP.R1 * FP.R2);
+        checks.push(check('Fabry–Perot: transmission ' + g.psi.toFixed(3) + ' rad from resonance', ref, g.T, { abs: 0.005 }));
+        xs.push(g.psi); ys.push(g.T);
+        if (r.psi === 0) benches.push(['Fabry–Perot, on resonance', g.d]);
+        await idle();
+      }
+      const pp = []; for (let i = -300; i <= 300; i++) pp.push(i / 1000);
+      plots.push(plot({ title: 'Fabry–Perot transmission near resonance (90% and 95% mirrors)', xlabel: 'round-trip phase from resonance (rad)', ylabel: 'transmission', yMin: 0, yMax: 1,
+        series: [{ name: 'Airy function', x: pp, y: pp.map(p => (1 - FP.R1) * (1 - FP.R2) / (1 - 2 * Math.sqrt(FP.R1 * FP.R2) * Math.cos(p) + FP.R1 * FP.R2)), colour: REF_C, width: 3 },
+          { name: 'JEKray2D', x: xs.filter(x => Math.abs(x) <= 0.3), y: ys.filter((_, i) => Math.abs(xs[i]) <= 0.3), colour: GOT_C, dots: true }] }));
+      // Self
+      const SF = R.self, f = SF.f_mm;
+      for (const r of SF.rows) {
+        const d = bench('Self: waist ' + r.w0_mm + ' mm, ' + r.s_mm + ' mm before an ideal 100 mm lens, 1064 nm', [
+          { type: 'source', name: 'Laser', x: -r.s_mm - 50, y: 0, angle: 0, wavelength: SF.nm, width: 1, rays: 1, gauss: true, w0: r.w0_mm, z0: 50, pol: 's', popN: 256 },
+          { type: 'mask', name: 'Ideal thin lens, f 100 mm', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(r^2)/(' + 2 * f + '*lambda)', preset: 'custom' },
+          { type: 'screen', name: 'Screen', x: 300, y: 0, angle: 180, length: 20 }]);
+        J.load(d); const A = J.arrivals('Screen')[0];
+        const tag = 'Self: w₀ ' + r.w0_mm + ' mm at ' + r.s_mm + ' mm';
+        checks.push(check(tag + ': new waist, after the lens', r.s_out_mm, A ? 300 - A.qx[0] : NaN, { abs: 0.05 }, ' mm'));
+        checks.push(check(tag + ': new waist radius', r.w0_out_mm * 1e3, A ? Math.sqrt(SF.nm * 1e-6 * A.qx[1] / Math.PI) * 1e3 : NaN, { rel: 1e-3 }, ' µm'));
+        if (r.s_mm === 500 && r.w0_mm === 0.2) benches.push(['Self, 0.2 mm at 500 mm', d]);
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
     id: 'kogelnik-li', area: 'Gaussian beams and resonators', title: 'The Gaussian mode of a two-mirror resonator',
     kind: 'Paper: closed forms', ref: 'kogelnik-li.json', script: 'kogelnik_li.py',
     cite: 'H. Kogelnik and T. Li, “Laser beams and resonators”, Applied Optics 5, 1550–1567 (1966).',

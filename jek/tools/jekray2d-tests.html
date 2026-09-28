@@ -2951,6 +2951,17 @@ const TESTS = [
       return Math.max(0, ...J.pdSignal('P').tones.map(t => t.amp)); },
   },
   {
+    name: 'A free-space EOM alone makes no beat above the power floor',
+    why: '\u03b2 = 0.5 onto a diode at the default floor (0.1%): the sidebands are kept by amplitude, not power, so the pairs that cancel are all there (before, the \u00b12 sidebands, 0.09% each, were dropped and left a 2\u03a9 beat of 12% of the power); largest beat, mW',
+    want: 0, tol: 1e-3, unit: ' mW',
+    run: J => {
+      J.load(bench('eom', [src({ name: 'S', x: -50, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 0, pol: 's', power: 1, popN: 128 }),
+        { type: 'eom', name: 'E', x: -30, y: 0, angle: 0, fm: 20, beta: 0.5 },
+        { type: 'detector', name: 'D', x: 0, y: 0, angle: 180, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9 }]));
+      return Math.max(0, ...J.pdSignal('D').tones.map(t => t.amp));
+    },
+  },
+  {
     name: 'An amplitude modulator at quadrature beats at P\u2080 J\u2081(\u03b2)',
     why: 'P cos\u00b2(\u03c0/4 + (\u03b2/2) sin \u03a9t) = (P/2)(1 \u2212 sin(\u03b2 sin \u03a9t)): its fundamental is P J\u2081(\u03b2)',
     want: 0.4400505857449335, tol: 1e-7, unit: ' mW',
@@ -2966,6 +2977,32 @@ const TESTS = [
         { type: 'aom', name: 'A', x: 0, y: 0, angle: 0, rf: 0.1, eff: 50, v: 4200 },
         { type: 'detector', name: 'D', x: 20, y: 0, angle: 180, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9 }], { minPower: 1e-6 }));
       return J.pdSignal('D').tones[0].amp;
+    },
+  },
+  {
+    name: 'A longer fibre after a modulator delays its beat',
+    why: 'an amplitude EOM at 20 MHz, 1 m and then 3 m of fibre to the diode: the beat, cos(\u03a9t + \u03c6), lags by \u03a9 n\u2082 L / c = 1.231 rad (it once advanced: the beat phases had the wrong sign); radians',
+    want: -2 * Math.PI * 2e7 * 2 * 1.468 / 299792458, tol: 1e-6, unit: ' rad',
+    run: J => { const ph = L => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('eom', 'E', { fm: 20, beta: 1, loss: 0, emode: 'amplitude', bias: 90 }), fc('pd', 'P')], [['L', 0, 'E', 0], ['E', 1, 'P', 0, L]]));
+      return J.pdSignal('P').tones.find(t => Math.abs(t.f - 2e7) < 1).ph; };
+      const d = ph(3) - ph(1); return d - 2 * Math.PI * Math.round(d / (2 * Math.PI)); },
+  },
+  {
+    name: 'Pound\u2013Drever\u2013Hall: the error signal just above resonance is Black\u2019s',
+    why: 'the cavity as built, the laser 0.004 rad of round trip above resonance (0.38 MHz): the 20 MHz beat in reflection, in phase and quadrature, against Black\u2019s reflected power to every sideband order (0.0375 \u2212 0.7845i mW); a sideband once met the cavity as if on the other side of the laser; largest difference, mW',
+    want: 0, tol: 0.01, unit: ' mW',
+    run: J => {
+      const mk = dx => bench('pdh', [src({ name: 'Laser', x: -80, wavelength: 1064, width: 0.5, rays: 1, gauss: true, w0: 0.290988, z0: 80, pol: 's', power: 1, popN: 256 }),
+        { type: 'eom', name: 'E', x: -60, y: 0, angle: 0, fm: 20, beta: 0.5 },
+        { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: 99 },
+        { type: 'mirror', name: 'M2', x: 250 + dx, y: 0, angle: 180, length: 25, reflect: 99.9, R: 500 },
+        { type: 'detector', name: 'D', x: -40, y: 0, angle: 0, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9, demodF: 20 }], { maxBounces: 40, minPower: 1e-6 });
+      const wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const psi = dx => { J.load(mk(dx)); J.setCavityLock('built'); J.pdSignal('D'); const C = J.shownCavity(); return -wrap(C.delta - C.dLock); };
+      const dx = (0.004 - psi(0)) / (4 * Math.PI / 1064e-6);
+      if (Math.abs(psi(dx) - 0.004) > 1e-5) return NaN;
+      const t = J.pdSignal('D').tones.find(q => Math.abs(q.f - 2e7) < 1);
+      return Math.max(Math.abs(t.amp * Math.cos(t.ph) - 0.0375), Math.abs(t.amp * Math.sin(t.ph) + 0.7845));
     },
   },
   {

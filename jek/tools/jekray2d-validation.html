@@ -176,6 +176,7 @@ function plot(o) {
   return fig;
 }
 const REF_C = '#1f6fb2', GOT_C = '#e4572e';
+const C_NM = nu => 299792458e9 / nu;              // vacuum wavelength (nm) of a frequency (Hz)
 
 /* Rays through a bench: each ray as its points [x0, y0, x1, y1, ...], in source order. The
    tracer hands back one piece per stretch between surfaces; a piece that starts where the
@@ -321,6 +322,48 @@ const ALL_CASES = [
         await idle();
       }
       return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'faraday', area: 'Atoms', title: 'Faraday filters and vapour in a strong field',
+    kind: 'Independent code', ref: 'faraday-elecsus.json', script: 'faraday_elecsus.py',
+    cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), tested against measured Faraday filters in M. A. Zentile et al., J. Phys. B 48, 185001 (2015) and Optics Letters 40, 2000 (2015), and against measured spectra in the hyperfine Paschen–Back regime in L. Weller et al., J. Phys. B 45, 215005 (2012).',
+    what: 'Linearly polarised light through a vapour cell in a magnetic field along the light: the cell’s own transmission, and what a polariser crossed with the input passes (a Faraday filter). Natural rubidium’s D2 line, 50 mm at 80 °C in 100 G (the Faraday filter in JEKray2D’s examples); 2 mm at 120 °C in 6000 G, where the field breaks the hyperfine coupling (the hyperfine Paschen–Back regime); and caesium’s D2 line, 50 mm at 60 °C in 200 G. Both codes find the atom’s states in the field by diagonalising its hyperfine and Zeeman Hamiltonian and give each circular hand its own absorption and dispersion; JEKray2D’s crossed-polariser transmission is |t₊ − t₋|²/4 from its two hands.',
+    tolerance: 'Both transmissions within 0.02 everywhere and 0.005 RMS across the scan; each filter’s equivalent-noise bandwidth (its transmission’s integral over its peak) within 3%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const nm = C_NM(c.v0_Hz);
+        const data = bench(c.name + ': ' + c.atom + ' ' + c.line + ', ' + c.L_mm + ' mm, ' + c.T + ' °C, ' + c.B_G + ' G (ElecSus)', [
+          { type: 'source', name: 'Probe', x: -80, y: 0, angle: 0, wavelength: nm, width: 1, rays: 1, pol: 'p' },
+          { type: 'polariser', name: 'Polariser (p)', x: -50, y: 0, angle: 0, length: 12.7, axis: 0 },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: c.atom, line: c.line, temp: c.T, cellLen: c.L_mm, bField: c.B_G },
+          { type: 'polariser', name: 'Crossed polariser (s)', x: 50, y: 0, angle: 0, length: 12.7, axis: 90 },
+          { type: 'detector', name: 'PD', x: 75, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const S0 = [], Iy = [];
+        for (const nu of c.nu_Hz) {
+          const a = J.cellAt('Cell', nu, null, 1), b = J.cellAt('Cell', nu, null, -1);
+          const dr = a.amp * Math.cos(a.ph) - b.amp * Math.cos(b.ph), di = a.amp * Math.sin(a.ph) - b.amp * Math.sin(b.ph);
+          S0.push((a.amp * a.amp + b.amp * b.amp) / 2); Iy.push((dr * dr + di * di) / 4);
+        }
+        for (const [what, got, ref] of [['the cell’s transmission', S0, c.S0], ['through crossed polarisers', Iy, c.Iy]]) {
+          const d = got.map((v, i) => v - ref[i]);
+          checks.push(check(c.name + ', ' + what + ': largest difference', 0, d.reduce((m, v) => Math.max(m, Math.abs(v)), 0), { abs: 0.02 }));
+          checks.push(check(c.name + ', ' + what + ': RMS difference', 0, Math.sqrt(d.reduce((m, v) => m + v * v, 0) / d.length), { abs: 0.005 }));
+        }
+        if (c.B_G < 1000) {
+          const step = (c.nu_Hz[1] - c.nu_Hz[0]) / 1e6, enbw = Iy.reduce((m, v) => m + v, 0) * step / Math.max(...Iy);
+          checks.push(check(c.name + ': equivalent-noise bandwidth', c.enbw_MHz, enbw, { rel: 0.03 }, ' MHz'));
+        }
+        const x = c.nu_Hz.map(nu => (nu - c.v0_Hz) / 1e9);
+        plots.push(plot({ title: c.name + ': ' + c.atom + ' ' + c.line + ', ' + c.L_mm + ' mm, ' + c.T + ' °C, ' + c.B_G + ' G', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'ElecSus, crossed polarisers', x, y: c.Iy, colour: REF_C, width: 3 }, { name: 'JEKray2D', x, y: Iy, colour: GOT_C, dash: '5 3', width: 1.6 },
+            { name: 'ElecSus, the cell alone', x, y: c.S0, colour: '#9bbbd6', width: 3 }, { name: 'JEKray2D', x, y: S0, colour: '#b8860b', dash: '5 3', width: 1.4 }] }));
+        benches.push([c.name, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The first run of this case failed badly, and the fault was the reference’s: the script gave ElecSus the cell’s length under a key it does not read (“LCELL” for “lcell”), so ElecSus used its default, 75 mm, whatever the case said. Each circular hand’s susceptibility, which ElecSus reports on its own, agreed with JEKray2D’s at the stated length, which found it. The rubidium absorption case above had the same mistake without harm, being 75 mm; its reference is unchanged when made again with the right key.' };
     },
   },
   {
@@ -520,6 +563,48 @@ const ALL_CASES = [
       const plots = [plot({ title: 'The focusing function, best over σ (focus centred)', xlabel: 'ξ = L / b', ylabel: 'h',
         series: [{ name: 'Quadrature', x: xs, y: R.rows.filter(q => !q.mu).map(q => q.h_best), colour: REF_C }, { name: 'JEKray2D', x: xs, y: xs.map(x => J.bkBest(x, 0).h), colour: GOT_C, dots: true }] })];
       return { checks, benches, plots, notes: 'The harmonic power on the bench is 0.2% under the reference because JEKray2D’s anti-reflection coated entrance face sends back 0.1% of the fundamental (9.99 mW goes in, and the harmonic goes as its square); the reference takes all 10 mW.' };
+    },
+  },
+  {
+    id: 'pdh', area: 'Cavities and locking', title: 'The Pound–Drever–Hall error signal',
+    kind: 'Paper: closed forms', ref: 'pdh-black.json', script: 'pdh_black.py',
+    cite: 'E. D. Black, “An introduction to Pound–Drever–Hall laser frequency stabilization”, American Journal of Physics 69, 79–87 (2001); R. W. P. Drever et al., Applied Physics B 31, 97–105 (1983).',
+    what: 'A 1064 nm laser phase-modulated at 20 MHz (β = 0.5, and 1.08 where the second sidebands matter), reflected from a 250 mm cavity (input mirror 99%, end mirror 99.9% curved to 500 mm, the laser mode-matched to it) onto a photodiode. Black’s reflected power, carried to every sideband order: each sideband reflects with the cavity’s own coefficient at its own detuning, and they beat at 20 and 40 MHz. The 20 MHz beat, as a complex amplitude, is the error signal before the mixer. JEKray2D solves the cavity’s field for the carrier and each sideband and beats the reflected fields on the diode. The detuning is the round-trip phase past resonance, read from JEKray2D’s own cavity solve as the end mirror is stepped by fractions of a nanometre (the cavity set to “as built”), and shown as the laser frequency’s offset from the cavity’s resonance.',
+    tolerance: 'At 17 detunings across the carrier’s and first sidebands’ resonances: the reflected power within 0.005 mW of 1 mW, and the complex 20 and 40 MHz beats each within 0.01 mW (about 1% of the largest error signal).',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], th = R.theta, fsr = 299792458e3 / (2 * R.L_mm) / 1e6;
+      const E = R.eps, at = (arr, e) => { let lo = 0, hi = E.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (E[m] > e) hi = m; else lo = m; } const f = (e - E[lo]) / (E[hi] - E[lo]); return arr[lo] * (1 - f) + arr[hi] * f; };
+      const wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const mk = (dx, beta) => bench('PDH: 20 MHz, β = ' + beta + ', 250 mm cavity (Black 2001)', [
+        { type: 'source', name: 'Laser', x: -80, y: 0, angle: 0, wavelength: 1064, width: 0.5, rays: 1, gauss: true, w0: 0.290988, z0: 80, pol: 's', power: R.P0_mW, popN: 256 },
+        { type: 'eom', name: 'EOM', x: -60, y: 0, angle: 0, fm: R.fm_Hz / 1e6, beta },
+        { type: 'mirror', name: 'Input mirror', x: 0, y: 0, angle: 0, length: 25, reflect: 100 * R.R1 },
+        { type: 'mirror', name: 'End mirror', x: +(250 + dx).toFixed(9), y: 0, angle: 180, length: 25, reflect: 100 * R.R2, R: 500 },
+        { type: 'detector', name: 'PD', x: -40, y: 0, angle: 0, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9, demodF: R.fm_Hz / 1e6 }], { minPower: 1e-6, cavityLock: {} });
+      const one = (dx, beta) => { const d = mk(dx, beta); J.load(d); J.setCavityLock('built'); const S = J.pdSignal('PD'), C = J.shownCavity();
+        const t = f => { const q = S.tones.find(x => Math.abs(x.f - f) < 1); return q ? [q.amp * Math.cos(q.ph), q.amp * Math.sin(q.ph)] : [0, 0]; };
+        return { d, eps: -wrap(C.delta - C.dLock), dc: S.dc, t1: t(R.fm_Hz), t2: t(2 * R.fm_Hz) }; };
+      const targets = [-0.3, -th - 0.005, -th, -th + 0.005, -0.1, -0.02, -0.008, -0.004, -0.0015, 0, 0.0015, 0.004, 0.008, 0.02, 0.1, th, 0.3];
+      for (const C of R.cases) {
+        // where the resonance is: the round-trip phase past it grows by 4 pi dx / lambda
+        const a = one(0, C.beta), k = 4 * Math.PI / 1064e-6;
+        const xs = [], y1 = [], y2 = [];
+        for (const e of targets) {
+          const g = one((e - a.eps) / k, C.beta), tag = 'β = ' + C.beta + ', ' + (g.eps * fsr / (2 * Math.PI)).toFixed(3) + ' MHz';
+          const r1 = [at(C.T1re, g.eps), at(C.T1im, g.eps)], r2 = [at(C.T2re, g.eps), at(C.T2im, g.eps)];
+          checks.push(check(tag + ': reflected power', at(C.dc, g.eps), g.dc, { abs: 0.005 }, ' mW'));
+          checks.push(check(tag + ': 20 MHz beat, off by', 0, Math.hypot(g.t1[0] - r1[0], g.t1[1] - r1[1]), { abs: 0.01 }, ' mW'));
+          checks.push(check(tag + ': 40 MHz beat, off by', 0, Math.hypot(g.t2[0] - r2[0], g.t2[1] - r2[1]), { abs: 0.01 }, ' mW'));
+          xs.push(g.eps * fsr / (2 * Math.PI)); y1.push(g.t1[0]); y2.push(g.t1[1]);
+          if (e === 0) benches.push(['β = ' + C.beta + ', on resonance', g.d]);
+          await idle();
+        }
+        const X = E.map(e => e * fsr / (2 * Math.PI));
+        plots.push(plot({ title: 'The 20 MHz beat in reflection, β = ' + C.beta + ': its two quadratures', xlabel: 'laser detuning from resonance (MHz)', ylabel: 'beat (mW)',
+          series: [{ name: 'Black, all orders: in phase', x: X, y: C.T1re, colour: REF_C, width: 2 }, { name: 'quadrature', x: X, y: C.T1im, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray2D: in phase', x: xs, y: y1, colour: GOT_C, dots: true }, { name: 'quadrature', x: xs, y: y2, colour: '#b8860b', dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The first two runs of this case failed, and found two faults in JEKray2D, both fixed. A sideband was taken round the cavity as if it were on the other side of the laser (a +20 MHz sideband met the cavity as the laser lowered by 20 MHz would; the reflected power, symmetric in the two, did not show it). And every beat note’s phase had the wrong sign (lengthening a fibre after a modulator advanced the beat instead of delaying it). Both are now regression tests. In phase and quadrature are against the modulation, the power holding |A| cos(Ωt + arg A): the mixer at 90° reads the quadrature, the steep error signal through resonance. Black’s formula, like this reference, leaves out the radio-frequency delay of the path from the modulator to the diode (100 mm here, 2.4° at 20 MHz), and so does JEKray2D in free space.' };
     },
   },
 ];

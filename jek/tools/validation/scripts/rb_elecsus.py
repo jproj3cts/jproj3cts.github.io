@@ -21,7 +21,7 @@ import AtomConstants as AC
 det = np.arange(-8000.0, 8000.0 + 1e-9, 20.0)          # MHz
 cases = []
 for line, T in (('D2', 20.0), ('D2', 50.0), ('D1', 50.0)):
-    p = {'Elem': 'Rb', 'Dline': line, 'T': T, 'LCELL': 75e-3, 'Bfield': 0.0, 'rb85frac': 72.17}
+    p = {'Elem': 'Rb', 'Dline': line, 'T': T, 'lcell': 75e-3, 'Bfield': 0.0, 'rb85frac': 72.17}
     S0 = np.real(EM.calculate(det, [1, 0, 0], p, outputs=['S0'])[0])
     v0 = (AC.RbD2Transition if line == 'D2' else AC.RbD1Transition).v0
     cases.append({'line': line, 'T': T, 'L_mm': 75.0, 'rb85pct': 72.17, 'v0_Hz': v0,

@@ -883,7 +883,7 @@
     <summary>What this models, and what it does not</summary>
     <div>
       <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam (by its real profile, so a vortex pump leaves its dark core unsaturated), and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart (by their group paths, so glass counts by its group index) and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED; or they can launch a higher-order mode, Hermite–Gauss HG<sub>mn</sub> or Laguerre–Gauss LG<sub>pl</sub> (a vortex of any charge), carried as a coherent sum of Hermite–Gauss modes each with its own Gouy phase, so a cylindrical-lens mode converter works as in the lab. Mask presets cover spatial light modulator patterns: spiral phase plates, fork holograms, blazed gratings and a π step, and a mask whose detail is finer than the field's grid is flagged rather than quietly smoothed. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
-      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>Not modelled.</strong> Anything outside the plane: no skew rays, no out-of-plane tilts, no field analysis in two dimensions, no anamorphic systems. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Beat notes on a free-space photodiode leave out the radio-frequency delay of the free-space path after a modulator (a phase of 2&pi;f L/c, 2.4&deg; per 100 mm at 20 MHz): the cavity’s round trips and fibre carry it. Power figures ignore absorption unless you set it on a material.</p>
       <p><strong>How far to trust it.</strong> The <a href="jekray2d-validation.html">validation page</a> sets JEKray2D against published results and independent codes, live in your browser; the list grows as each part of the model is checked. For anything that gets built, funded or published, reproduce the number in an established package first.</p>
     </div>
   </details>
@@ -3771,6 +3771,11 @@ function traceSceneOnce() {
   let probeLast = null;
   const maxB = project.maxBounces;
   const minW = project.minPower / 100;
+  // Light shifted in frequency (a modulator's sideband, an AOM's order) beats with the rest of
+  // its laser's light by its amplitude, not its power: a sideband of power p dropped leaves a
+  // beat of about 2 sqrt(p) uncancelled. It is held to the floor by amplitude, so nothing it
+  // would have beaten is left above the floor either.
+  const floorOf = f => f ? minW * minW : minW;
   const ghosts = project.ghosts;
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
@@ -3993,8 +3998,8 @@ function traceSceneOnce() {
           const sb = probe || pls ? [[0, [1, 0]]] : eomSidebands(s.el);
           for (const [n, c] of sb) {
             const nsr = sr * c[0] - si * c[1], nsi = sr * c[1] + si * c[0], npr = pr * c[0] - pi * c[1], npi = pr * c[1] + pi * c[0];
-            if (!probe && nsr * nsr + nsi * nsi + npr * npr + npi * npi < minW) { dropped++; continue; }
             const f2 = fo + n * s.el.fm * 1e6;
+            if (!probe && nsr * nsr + nsi * nsi + npr * npr + npi * npi < floorOf(f2)) { dropped++; continue; }
             stack.push({ qShare, px, py, dx, dy, sr: nsr, si: nsi, pr: npr, pi: npi, bn, fo: f2, bounce: bounce + 1, last: s, opl, nCur, aCur, gpl, gCur, id, chief, fan, pol, par,
               qr, qi, bid, evt: isQ ? passEv() : null, fam: famAt(fam, f2), k, path: path + 'e' + n + '.' + bounce, probe, probeH, tag, wk: 0 });
           }
@@ -4054,7 +4059,7 @@ function traceSceneOnce() {
           if (!isQ) { sr *= A; si *= A; pr *= A; pi *= A; }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
           opl += f0[1] * lam;
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           if (slope !== 0) {
             const ty = ldy + slope / nCur;
             if (Math.abs(ty) >= 1) break;                  // bent past grazing: it does not propagate
@@ -4071,7 +4076,7 @@ function traceSceneOnce() {
           const np = [cmul(M[0][0], [pr, pi]), cmul(M[0][1], [sr, si])], ns = [cmul(M[1][0], [pr, pi]), cmul(M[1][1], [sr, si])];
           pr = np[0][0] + np[1][0]; pi = np[0][1] + np[1][1]; sr = ns[0][0] + ns[1][0]; si = ns[0][1] + ns[1][1];
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           pts.length -= 2;
           last = s;
           continue;
@@ -4099,7 +4104,7 @@ function traceSceneOnce() {
             pr = npr; pi = npi; sr = nsr; si = nsi;
           }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           pts.length -= 2;             // no kink in the drawn ray
           last = s;
           continue;
@@ -4117,7 +4122,7 @@ function traceSceneOnce() {
           if (ax) { pr *= f; pi *= f; } else { sr *= f; si *= f; }
           if (isQ) { evt = passEv(); if (c > 0) evt.jm = ax ? [[[f, 0], [0, 0]], [[0, 0], [1, 0]]] : [[[1, 0], [0, 0]], [[0, 0], [f, 0]]]; }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           pts.length -= 2;
           last = s;
           continue;
@@ -4168,7 +4173,7 @@ function traceSceneOnce() {
             const np = [cmul(M[0][0], [pr, pi]), cmul(M[0][1], [sr, si])], ns = [cmul(M[1][0], [pr, pi]), cmul(M[1][1], [sr, si])];
             pr = np[0][0] + np[1][0]; pi = np[0][1] + np[1][1]; sr = ns[0][0] + ns[1][0]; si = ns[0][1] + ns[1][1];
             ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-            if (w < minW && !chief) { dropped++; break; }
+            if (w < floorOf(fo) && !chief) { dropped++; break; }
             pts.length -= 2;
             last = s;
             continue;
@@ -4202,7 +4207,7 @@ function traceSceneOnce() {
           }
           [sr, si] = [sr * cr - si * ci, sr * ci + si * cr]; [pr, pi] = [pr * cr - pi * ci, pr * ci + pi * cr];
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           pts.length -= 2;
           last = s;
           continue;
@@ -4214,7 +4219,7 @@ function traceSceneOnce() {
           sr *= g; si *= g; pr *= g; pi *= g;
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
           if (isQ) evt = passEv();
-          if (w < minW && !chief) { dropped++; break; }
+          if (w < floorOf(fo) && !chief) { dropped++; break; }
           pts.length -= 2;
           last = s;
           continue;
@@ -4228,7 +4233,7 @@ function traceSceneOnce() {
           for (const o of use) {
             // an order too weak to matter is dropped, the beam's reference ray included, as a
             // weak reflection is: orders bouncing between a grating and a mirror multiply fast
-            if (!probe && w * o.eff < minW) { dropped++; continue; }
+            if (!probe && w * o.eff < floorOf(fo + (o.df || 0))) { dropped++; continue; }
             // each order leaves along the grating equation, n sin(out) = n sin(in) + m lambda G,
             // reflected back across the normal or carried on through it
             const tx = (refl ? -sx0 : sx0) * Math.sqrt(1 - o.ty * o.ty);
@@ -4274,7 +4279,7 @@ function traceSceneOnce() {
           const Rs = rsr * rsr + rsi * rsi, Rp = rpr * rpr + rpi * rpi;
           if (chief) { /* the beam follows the reflected branch too */ }
           if (wr > 0 && !probe) {
-            if (wr >= minW && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
+            if (wr >= floorOf(fo) && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
               stack.push({ qShare, px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn, fo,
                 bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: par ^ 1,
@@ -4446,7 +4451,7 @@ function traceSceneOnce() {
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
         if (wentR) par ^= 1;
-        if (w < minW && !chief) { dropped++; break; }
+        if (w < floorOf(fo) && !chief) { dropped++; break; }
         const l = Math.hypot(ldx, ldy);
         [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l);
         if (isQ && evt && evt.mode !== 'P') evt.dOut = [dx, dy];
@@ -7044,8 +7049,10 @@ function beatTones(parts) {
     if (a.key === b.key) {
       if (a.fo === b.fo) continue;
       if (a.fo > b.fo) [a, b] = [b, a];
+      // the fields go as e^{i w t}: the power holds 2 Re[conj(E_a) E_b e^{i (w_b - w_a) t}], so
+      // the beat's phase is that of conj(E_a) E_b (cdotc gives E_a conj(E_b))
       const g = cohGamma(a.root), c = cdotc(a.E, b.E), w = 2 * (g ? g(a.dl - b.dl) : 1) * (a.root.power || 0);
-      add(b.fo - a.fo, w * c[0], w * c[1], false);
+      add(b.fo - a.fo, w * c[0], -w * c[1], false);
     } else if (a.root !== b.root) {
       // two lasers: their difference in frequency, with the offsets
       let df = C_MM / (b.nm * 1e-6) + b.fo - (C_MM / (a.nm * 1e-6) + a.fo);
@@ -7097,8 +7104,9 @@ function freePdTones(el) {
     re *= dA; im *= dA;
     if (same) {
       if (A.fo > B.fo) { [A, B] = [B, A]; im = -im; }
+      // re + i im is now <E_A conj(E_B)>, A the lower: the beat's phase is its conjugate's
       const g = cohGamma(root(A)), w = 2 * (g ? g(A.gpl + A.lag - B.gpl - B.lag) : 1) * (root(A).power || 0);
-      add(B.fo - A.fo, w * re, w * im, false);
+      add(B.fo - A.fo, w * re, -w * im, false);
     } else {
       let df = C_MM / (B.nm * 1e-6) + B.fo - (C_MM / (A.nm * 1e-6) + A.fo);
       if (Math.abs(df) > 1e12) continue;
@@ -13151,10 +13159,11 @@ function* popRunGen(beams, srcs, opts = {}) {
         // one laser, one frequency: the higher modes of a beam of M^2 above 1 keep its lock
         const lk = L.canon + '|' + eng + '|' + (opts.paraxial ? 'p' : '');
         // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lopt / c further
-        // round in each round trip than the laser itself, locked or not
+        // round in each round trip than the laser itself, locked or not: as the laser would be
+        // raised by f, which (the field going as e^{-ikz}) lowers delta
         const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
         const base = mode === 'lock' && res ? ((job.mode || b.fo) && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
-        const delta = base + (b.fo ? 2 * Math.PI * b.fo * LoptF / C_MM : 0);
+        const delta = base - (b.fo ? 2 * Math.PI * b.fo * LoptF / C_MM : 0);
         if (!job.mode && !b.fo) lockOf.set(lk, delta);
         let X = F0, Xinc = null;
         if (res) {
@@ -14691,8 +14700,9 @@ function detectorField(el, R) {
       const c = ov(i, j), g = cohGamma(rA), gam = i === j || !g ? 1 : g(L(A) - L(B));
       out.mw += (i === j ? 1 : 2) * gam * c[0] * (rA.power || 0);
     } else if (base(A) === base(B) && fo(A) !== fo(B)) {
+      // ov(i, j) is <E_i conj(E_j)>; the beat's phase is that of conj(E_X) E_Y, X the lower
       let c = ov(i, j), X = A, Y = B;
-      if (fo(A) > fo(B)) { X = B; Y = A; c = [c[0], -c[1]]; }
+      if (fo(A) > fo(B)) { X = B; Y = A; } else c = [c[0], -c[1]];
       const g = cohGamma(rA), w = 2 * (g ? g(L(X) - L(Y)) : 1) * (rA.power || 0);
       add(fo(Y) - fo(X), w * c[0], w * c[1], false);
     } else if (rA !== rB) {
@@ -16324,7 +16334,7 @@ function aiCompact(data) {
 const AI_EXAMPLE_NOTES = {
   michelson: 'A laser, a 50/50 cube, two arms and two screens. Note the cube at angle 0 sends the reflected arm up (+y), the mirrors face back along their arms, and the screens face the light.',
   'fabry-perot': 'A linear cavity. The end mirror’s R = 500 mm is concave towards the cavity (it faces −x at angle 180), so with the flat input coupler 250 mm away the cavity is stable. The tool finds the cavity itself and solves its steady state.',
-  'pdh-lock': 'Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz. Its mixer output is the error signal.',
+  'pdh-lock': 'Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz, its mixer at 90°: the quadrature that crosses zero steeply at resonance. Its mixer output is the error signal.',
   'split-laser': 'A fibre network on the bench: a fibre laser, a coupler and two fibre tips, each launching through a collimating lens (each tip 50.6 mm behind a biconvex N-BK7 lens of f \u2248 50 mm at 1550 nm). Fibres join [id, port] to [id, port]; "len" is in metres. The two launches are one laser, so they interfere on the cube.',
 };
 function aiGuideText(examples) {
@@ -17971,7 +17981,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the field worker's state, and a screen's figures as the panels last got them
     worker() { return { on: !!FW.w, failed: FW.failed, busy: FW.busy ? FW.busy.kind : null, queued: FW.queue.map(j => j.kind), sent: FW.seq }; },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
-    shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
+    shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, delta: v.delta, dLock: v.res.dLock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
     byName(name) { return project.elements.find(e => e.name === name); },
     stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     // select an element by name, and optionally which tab of a screen's panel to show

@@ -727,7 +727,7 @@ A linear cavity. The end mirror’s R = 500 mm is concave towards the cavity (it
 
 ### Pound-Drever-Hall lock
 
-Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz. Its mixer output is the error signal.
+Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz, its mixer at 90°: the quadrature that crosses zero steeply at resonance. Its mixer output is the error signal.
 
 ```json
 {
@@ -743,7 +743,7 @@ Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the 
     {"type":"mirror","id":"input-coupler","name":"Input coupler","x":0,"y":0,"angle":0,"reflect":99},
     {"type":"mirror","id":"end-mirror","name":"End mirror","x":250,"y":0,"angle":180,"reflect":99.9,"R":500},
     {"type":"screen","id":"beam-dump","name":"Beam dump","x":-50,"y":35,"angle":-90,"length":10},
-    {"type":"detector","id":"pdh-photodiode","name":"PDH photodiode","x":-50,"y":-40,"angle":90,"length":10,"material":"custom","resp":1,"gain":1000,"bandwidth":1000000000,"demodF":20},
+    {"type":"detector","id":"pdh-photodiode","name":"PDH photodiode","x":-50,"y":-40,"angle":90,"length":10,"material":"custom","resp":1,"gain":1000,"bandwidth":1000000000,"demodF":20,"demodPhase":90},
     {"type":"screen","id":"transmitted","name":"Transmitted","x":300,"y":0,"angle":180,"length":20}
   ]
 }

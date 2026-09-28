@@ -93,7 +93,8 @@
    "resp": 1,
    "gain": 1000,
    "bandwidth": 1000000000,
-   "demodF": 20
+   "demodF": 20,
+   "demodPhase": 90
   },
   {
    "type": "screen",

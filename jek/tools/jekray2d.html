@@ -505,6 +505,8 @@
   .rt-news ul { margin: 0 0 0.4rem; padding-left: 1.2rem; }
   .rt-news li { margin-bottom: 0.2rem; }
   .rt-subhead { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }
+  dialog.rt-dialog #bugWhat, dialog.rt-dialog #bugExpect { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.875rem; }
+  #bugNote:empty { display: none; }
   dialog.rt-dialog #citeText, dialog.rt-dialog #citeBib { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.78rem; }
   .rt-snaps { max-height: 50vh; overflow-y: auto; margin-bottom: 0.8rem; border: 1px solid var(--jek-line); border-radius: 6px; }
   .rt-snaps > div { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
@@ -692,7 +694,7 @@
         </div>
       </div>
       <div class="rt-row" style="border-top:none;padding-top:0">
-        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button></span>
+        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button> · <button type="button" class="rt-link" id="btnBug">Report a bug</button></span>
         <span class="rt-status rt-right" id="status" aria-live="polite"></span>
       </div>
     </div>
@@ -843,6 +845,22 @@
     <h3 class="rt-subhead">BibTeX</h3>
     <textarea id="citeBib" rows="8" readonly spellcheck="false"></textarea>
     <div class="rt-actions"><button class="rt-btn" data-copy="citeBib">Copy BibTeX</button><button class="rt-btn primary" id="citeClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="bugDialog" aria-labelledby="bugTitle">
+    <h2 id="bugTitle">Report a bug</h2>
+    <p>This opens an email to <a href="mailto:support@jeksys.net">support@jeksys.net</a> with your report, the version and your browser filled in. Nothing is sent until you send the email.</p>
+    <h3 class="rt-subhead">What happened?</h3>
+    <textarea id="bugWhat" rows="4" spellcheck="true" placeholder="For example: the photodiode reads 0 V when light reaches it"></textarea>
+    <h3 class="rt-subhead">What did you expect?</h3>
+    <textarea id="bugExpect" rows="2" spellcheck="true"></textarea>
+    <label class="rt-check" style="margin:0.6rem 0 0.2rem"><input type="checkbox" id="bugBench" checked> Include a link that opens this bench as it is now</label>
+    <p class="note" id="bugNote"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="bugCopy">Copy the report</button>
+      <button class="rt-btn" id="bugClose">Cancel</button>
+      <button class="rt-btn primary" id="bugSend">Open the email</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="snapsDialog" aria-labelledby="snapsTitle">
@@ -17031,6 +17049,42 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
     (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { document.execCommand('copy'); toast('Copied'); });
   });
   document.getElementById('citeClose').addEventListener('click', () => dlg.close());
+}
+/* A bug report by email: what happened, what was expected, the version and browser, and
+   (if wanted) a link that opens the bench as it is. An email link carries a few thousand
+   characters at most; a bench too big for that is asked for as a file instead. */
+const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
+{
+  const dlg = document.getElementById('bugDialog'), note = document.getElementById('bugNote');
+  const what = document.getElementById('bugWhat'), expect = document.getElementById('bugExpect'), withBench = document.getElementById('bugBench');
+  const report = async () => {
+    const lines = ['What happened:', what.value.trim() || '(not given)', '', 'What I expected:', expect.value.trim() || '(not given)', '', '---',
+      'JEKray2D ' + APP_VERSION + ' (' + APP_DATE + ')', 'Browser: ' + navigator.userAgent,
+      'Bench: ' + (project.name || 'Untitled') + ', ' + project.elements.length + ' parts on ' + project.benches.length + ' tab' + (project.benches.length === 1 ? '' : 's')];
+    let link = null;
+    if (withBench.checked) { try { link = shareBase() + '#p=' + await shareHash(); } catch (err) { link = null; } }
+    return { lines, link };
+  };
+  const mailto = (subject, body) => 'mailto:' + BUG_TO + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  document.getElementById('btnBug').addEventListener('click', () => { note.textContent = ''; dlg.showModal(); what.focus(); });
+  document.getElementById('bugClose').addEventListener('click', () => dlg.close());
+  document.getElementById('bugSend').addEventListener('click', async () => {
+    const { lines, link } = await report(), subject = 'JEKray2D bug: ' + (what.value.trim().split('\n')[0].slice(0, 60) || project.name || 'report');
+    let url = mailto(subject, lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n'));
+    if (link && url.length > BUG_MAILTO_MAX) {
+      // too big to travel in the email link: without it, and ask for the file
+      url = mailto(subject, lines.concat(['', 'The bench is attached as a .jekray file.']).join('\n'));
+      note.replaceChildren('This bench is too big to travel in an email link. Please attach it to the email: ',
+        h('button', { class: 'rt-link', type: 'button', onclick: () => saveFile() }, 'save it as a .jekray file'), ', then add that file to the email.');
+    }
+    window.location.href = url;
+    if (!note.textContent) note.textContent = 'Your email app should open with the report. If nothing happens, use Copy the report and send it to ' + BUG_TO + '.';
+  });
+  document.getElementById('bugCopy').addEventListener('click', async () => {
+    const { lines, link } = await report(), text = 'To: ' + BUG_TO + '\n\n' + lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n');
+    try { await navigator.clipboard.writeText(text); toast('Copied: paste it into an email to ' + BUG_TO); }
+    catch (err) { toast('Could not copy here; please email ' + BUG_TO, true); }
+  });
 }
 {
   const dlg = document.getElementById('snapsDialog'), box = document.getElementById('snapsList');

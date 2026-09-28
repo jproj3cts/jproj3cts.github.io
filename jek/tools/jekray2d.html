@@ -7083,7 +7083,9 @@ function pdSignal(el) {
   const dc = fibre ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : detectorReading(el).mw;
   const Ff = !fibre && viaCavity(el) ? detectorFieldResult(el) : null;
   const tones = fibre ? beatTones(fibrePdParts(el)) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + '#tones' }), () => freePdTones(el));
-  const R = fibre ? el.resp : responsivity(el, benchNms()[0]), G = el.gain, B = el.bandwidth;
+  // a free-space diode's responsivity is that of the light arriving (each wavelength at its own)
+  const rd = fibre ? null : detectorReading(el);
+  const R = fibre ? el.resp : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), G = el.gain, B = el.bandwidth;
   const V = mw => mw * 1e-3 * R * G;
   for (const t of tones) { const Hm = 1 / Math.sqrt(1 + (t.f / B) ** 2); t.V = V(t.amp) * Hm; t.phV = t.ph - Math.atan(t.f / B); }
   const out = { dc, Vdc: V(dc), tones, vmax: el.vmax, B };
@@ -7127,7 +7129,7 @@ function drawSignal(cv, el, mode) {
   if (mode === 'rf') {
     plotCsv(cv, el.name + ' RF spectrum', ['frequency_Hz', 'amplitude_V', 'level_dBV', 'phase_deg', 'swing_mW', 'two_lasers'],
       () => [[0, S.Vdc, 20 * Math.log10(Math.max(S.Vdc, 1e-12)), NaN, S.dc, 0], ...T.map(t => [t.f, t.V, 20 * Math.log10(Math.max(t.V, 1e-12)), t.incoh ? NaN : t.phV / deg, t.amp, t.incoh ? 1 : 0])]);
-    if (!T.length) { g.fillText('no beat notes: one frequency of each laser reaches it', 4, 14); return; }
+    if (!T.length) { g.fillText('DC ' + (+S.Vdc.toPrecision(4)) + ' V; no beat notes: one frequency of each laser reaches it', 4, 14); return; }
     const fmax = 1.15 * Math.max(...T.map(t => t.f)), dB = v => 20 * Math.log10(Math.max(v, 1e-12));
     const top = Math.ceil(dB(Math.max(...T.map(t => t.V))) / 10) * 10 + 5, bot = top - 90;
     const sx = { kind: 'hz', title: 'frequency' }, sy = { kind: 'plain', title: 'dBV' };
@@ -7145,7 +7147,9 @@ function drawSignal(cv, el, mode) {
   // oscilloscope; on spans long enough for the sweeps to move things, the output recorded as
   // they played (on the sweep clock) is drawn, the newest at the right
   const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, n = 600;
-  const want = vs(el).sigSpan, span = want > 0 ? want : fmin > 0 ? 3 / fmin : 1e-6, dt = span / n;
+  // by itself, with no beat notes: the output over the last 10 s of the sweeps, as it changes
+  const want0 = vs(el).sigSpan, autoRoll = !(want0 > 0) && !T.length, want = autoRoll ? 10 : want0;
+  const span = want > 0 ? want : fmin > 0 ? 3 / fmin : 1e-6, dt = span / n;
   const slow = T.filter(q => q.f * dt < 0.25), fast = T.filter(q => q.f * dt >= 0.25);
   const band = fast.reduce((a, q) => a + q.V, 0);
   const H = (sigHist.get(el.id) || []).filter(r => r[0] >= clockT - span - 1e-12);
@@ -7179,7 +7183,7 @@ function drawSignal(cv, el, mode) {
   ys.forEach((v, i) => { if (!Number.isFinite(v)) { pen = false; return; } pen ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); pen = true; });
   g.stroke();
   drawAxes(g, A, [0, span], [lo, hi], sx, sy);
-  if (want >= SIG_ROLL && !rolled) {
+  if (want >= SIG_ROLL && !rolled && !(autoRoll && !allSweeps().length)) {
     g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont(); g.textAlign = 'left';
     g.fillText(allSweeps().length ? 'press Play on a sweep to record the output over time' : 'give something a sweep and play it to see the output change', A.l + 6, A.t + 12);
   }
@@ -9936,6 +9940,16 @@ function magma(v) {
   const [a, ...c0] = MAGMA[i - 1], [b, ...c1] = MAGMA[i], t = (v - a) / (b - a);
   return c0.map((c, k) => Math.round(c + (c1[k] - c) * t));
 }
+/* While sweeps play, a screen's irradiance keeps the brightest scale it has shown, so light
+   that dims across the whole spot (a Michelson's port going dark) dims on the plot rather
+   than being scaled back up to fill it; once they stop, each plot scales to itself again */
+function holdScale(el, which, v) {
+  const st = vs(el);
+  if (!playing.size) { st.hold = null; return v; }
+  st.hold = st.hold || {};
+  st.hold[which] = Math.max(st.hold[which] || 0, v);
+  return st.hold[which];
+}
 function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
   const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem' });
@@ -9952,7 +9966,7 @@ function diffractionSection(el) {
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
     });
     scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
-    cv.style.opacity = busy ? '0.5' : '1';
+    cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives
     if (!D) {
       drawDiff(cv, null, el);
       box.replaceChildren(h('p', { class: 'note' }, busy ? 'Computing the field\u2026' :
@@ -10041,7 +10055,7 @@ function drawDiff(cv, D, el) {
     // scaled to its own peak, but never above what the beams would give without interfering,
     // so a dark port shows dark rather than its rounding error blown up
     let pk = 0, pi = 0; for (let i = 0; i < D.map.v.length; i++) { pk = Math.max(pk, D.map.v[i]); pi = Math.max(pi, D.map.inc[i]); }
-    pk = Math.max(pk, 0.02 * pi);
+    pk = holdScale(el, 'map', Math.max(pk, 0.02 * pi));
     const log = el.mapScale === 'log';
     for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
       let v = D.map.v[j * M + i] / (pk || 1);
@@ -10090,6 +10104,7 @@ function drawDiff(cv, D, el) {
     series.push({ x: D.cutX.x, y: D.cutX.I, name: 'in the plane' }, { x: D.cutY.x, y: D.cutY.I, dash: true, name: 'out of the plane' });
     xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; top = Math.max(...D.cutX.I, ...D.cutY.I);
   }
+  if (view !== 'mtf' && view !== 'ee') top = holdScale(el, 'psf', top);
   plotCsv(cv, el.name + ' ' + ({ mtf: 'MTF', ee: 'enclosed energy' }[view] || 'profile'),
     ['series', view === 'mtf' ? 'lp_per_mm' : 'position_mm', view === 'mtf' ? 'MTF' : view === 'ee' ? 'share_of_the_light' : 'irradiance'],
     () => series.flatMap(S => Array.from(S.x, (x, i) => [S.name, x, S.y[i]])));
@@ -14667,13 +14682,18 @@ function detectorFieldResult(el) {
   if (c && c.key === key) return c.r;
   const now = () => { const r = detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })); detFieldCache.set(el.id, { key, r }); return r; };
   if (TEST_MODE || !fieldWorker()) return now();
-  if (!c || c.asked !== key) {
+  // one at a time, as for the screens: while the bench keeps changing, the reading being
+  // worked out is finished and shown (the last one meanwhile), then the next is asked for
+  if (!c || !c.asked) {
     detFieldCache.set(el.id, { key: c ? c.key : null, r: c ? c.r : null, asked: key });
     fwRequest('detector', 'detector:' + el.id, { id: el.id }).then(o => {
-      if (o && o.key === key) { detFieldCache.set(el.id, { key, r: o.r }); deviceCache.delete(lastTrace); syncPanel(); requestRender(); }
+      const cur = detFieldCache.get(el.id);
+      if (!cur || cur.asked !== key) return;
+      detFieldCache.set(el.id, o && o.key === key ? { key, r: o.r } : { key: cur.key, r: cur.r });
+      deviceCache.delete(lastTrace); syncPanel(); requestRender();
     }).catch(() => { detFieldCache.delete(el.id); syncPanel(); });
   }
-  return null;
+  return c && c.r ? c.r : null;
 }
 
 /* The screen's answer, now: for the optimiser, the tests and the export */
@@ -14702,14 +14722,17 @@ function diffractionLater(el) {
   if (sweepJob) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
   const S = popScreenState, J0 = S.jobs.get(el.id);
   if (fieldWorker()) {
-    if (!J0 || J0.key !== job.key) {
+    // One field at a time per screen: while the bench keeps changing (a sweep playing, a
+    // value being typed), the one being worked out is finished and shown, and the next is
+    // asked for the bench as it is then. Starting afresh at every change would never finish.
+    if (!J0) {
       const J = { key: job.key, el, worker: true };
       S.jobs.set(el.id, J);
       fwRequest('screen', 'screen:' + el.id, { id: el.id }).then(o => {
         if (S.jobs.get(el.id) !== J) return;
         S.jobs.delete(el.id);
-        if (o) fwMismatch(o.key === job.key);
-        if (o && o.key === job.key) popScreenCache.set(el.id, { key: job.key, D: diffFns(o.D) });
+        if (o) fwMismatch(o.key === J.key);
+        if (o && o.key === J.key) popScreenCache.set(el.id, { key: J.key, D: diffFns(o.D) });
         syncPanel(); requestRender();
       }).catch(() => { if (S.jobs.get(el.id) === J) S.jobs.delete(el.id); syncPanel(); });
     }
@@ -15166,7 +15189,7 @@ function updateReadoutsIn(container, el) {
     const r = detectorReading(el), nm = benchNms()[0];
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
     parts = [[...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
-      ['Optical power', f(r.mw) + ' mW'], ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+      ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the bandwidth given.'];

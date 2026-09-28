@@ -2368,6 +2368,19 @@ const TESTS = [
     },
   },
   {
+    name: 'A photodiode’s signal uses the responsivity of the light that reaches it',
+    why: '780 nm light on a silicon diode reads the same volts whether or not the bench’s first source is a 1560 nm laser pointing elsewhere (relative difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const red = src({ name: 'Red', x: -60, wavelength: 780, width: 1, rays: 3, power: 1 });
+      const ir = src({ name: 'IR', x: -60, y: 50, angle: 90, wavelength: 1560, width: 1, rays: 3, power: 1 });
+      const det = { type: 'detector', name: 'D', x: 20, y: 0, angle: 180, length: 5, material: 'si', gain: 1000 };
+      J.load(bench('r1', [red, det])); J.trace(); const a = J.pdSignal('D').Vdc;
+      J.load(bench('r2', [ir, red, det])); J.trace(); const b = J.pdSignal('D').Vdc;
+      return a > 0.01 ? Math.abs(b / a - 1) : NaN;
+    },
+  },
+  {
     name: 'A photodiode’s oscilloscope follows the time axis set',
     why: 'a 1 MHz beat (an AOM shifting one arm of a fibre Mach–Zehnder): by itself three periods (3 µs); at 10 ns a plain trace; at 1 ms the beat too fast to draw, a band as wide as its swing about the DC (worst relative error of span and band)',
     want: 0, tol: 1e-6, unit: '',

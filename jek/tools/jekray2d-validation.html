@@ -414,7 +414,7 @@ const ALL_CASES = [
     },
   },
   {
-    id: 'spm-solitons', area: 'Pulses in fibre', title: 'Self-phase modulation and solitons',
+    id: 'spm-solitons', area: 'Ultrashort pulses', title: 'Self-phase modulation and solitons',
     kind: 'Paper: exact solutions', ref: 'spm-solitons.json', script: 'spm_solitons.py',
     cite: 'R. H. Stolen and C. Lin, “Self-phase-modulation in silica optical fibers”, Physical Review A 17, 1448 (1978); M. J. Potasek, G. P. Agrawal and S. C. Pinault, JOSA B 3, 205 (1986); A. Hasegawa and F. Tappert, Applied Physics Letters 23, 142 (1973); J. Satsuma and N. Yajima, Progress of Theoretical Physics Supplement 55, 284 (1974); L. F. Mollenauer, R. H. Stolen and J. P. Gordon, Physical Review Letters 45, 1095 (1980).',
     what: 'A 1 ps pulse at 1550 nm through fibre of γ = 1.3 /(W km), by JEKray2D’s split-step solution of the nonlinear Schrödinger equation, against the equation’s exact solutions. Without dispersion (1 km), Gaussian and sech² pulses at peak nonlinear phases of 0.5π to 4.5π: the pulse keeps its shape and takes a phase in proportion to its intensity, so its spectrum is the transform of a field known exactly, with the M = φ/π + ½ peaks Stolen and Lin saw, and a Gaussian’s rms width grows as √(1 + 4φ²/3√3) (Potasek et al.). In anomalous dispersion (17 ps/(nm km)): the fundamental soliton, whose spectrum should not change over five dispersion lengths (74 m), and the second-order soliton at half its period (11.7 m), whose spectrum splits furthest there, from Satsuma and Yajima’s closed form.',
@@ -453,6 +453,32 @@ const ALL_CASES = [
         await idle();
       }
       return { checks, benches: [], plots, notes: 'JEKray2D’s fibre takes its dispersion as constant in wavelength, which gives it a small third-order dispersion as well (its dispersion length for that is 5 km, against 15 m for the second order); the exact solutions have none. The fibre-solitons example in the gallery shows the same physics on a bench.' };
+    },
+  },
+  {
+    id: 'treacy', area: 'Ultrashort pulses', title: 'Dispersion of a grating-pair compressor',
+    kind: 'Paper: closed forms', ref: 'treacy.json', script: 'treacy.py',
+    cite: 'E. B. Treacy, “Optical pulse compression with diffraction gratings”, IEEE Journal of Quantum Electronics 5, 454–458 (1969).',
+    what: 'A 100 fs pulse through a pair of parallel reflection gratings in the −1 order, one pass, for four compressors: 600 and 1200 lines/mm at 800 nm, 1200 lines/mm at 1030 nm and 940 lines/mm at 1550 nm, at incidence 30° to 60°, 20 to 50 mm apart. Treacy’s phase for the pair, ω b (1 + cos(γ − θ))/c less the grating’s 2πG tan θ/d, differentiated twice gives his closed form for the group-delay dispersion, −λ³G / (2πc²d² cos³θ), and three times the third-order dispersion. JEKray2D knows no formula for this: it traces reference rays at 33 wavelengths across the pulse’s spectrum and fits their optical paths.',
+    tolerance: 'The GDD within 0.5% and the TOD within 2%: the fit is over the pulse’s bandwidth, where the higher orders of the phase pull a little on both.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const c of R.cases) {
+        const rad = Math.PI / 180, al = (180 - c.gamma_deg + c.theta_deg) * rad, x2 = 60 + c.b_mm * Math.cos(al), y2 = c.b_mm * Math.sin(al);
+        const name = c.lpmm + ' lines/mm at ' + c.nm + ' nm';
+        const data = bench('Treacy grating pair: ' + name + ', incidence ' + c.gamma_deg + '°, G = ' + c.G_mm + ' mm', [
+          { type: 'source', name: 'Pulse', x: 0, y: 0, angle: 0, wavelength: c.nm, width: 2, rays: 3, pol: 's', power: 1000, tau: 100, pshape: 'sech2', rep: 80, gdd0: 0 },
+          { type: 'grating', name: 'Grating 1', x: 60, y: 0, angle: 180 - c.gamma_deg, length: 12, lpmm: c.lpmm, mode: 'reflect', blaze: c.nm, eff: 90 },
+          { type: 'grating', name: 'Grating 2', x: +x2.toFixed(6), y: +y2.toFixed(6), angle: -c.gamma_deg, length: 12, lpmm: c.lpmm, mode: 'reflect', blaze: c.nm, eff: 90 },
+          { type: 'screen', name: 'After', x: +(x2 + 40).toFixed(6), y: +y2.toFixed(6), angle: 180, length: 40 }]);
+        J.load(data);
+        const P = J.pulse('After'), br = P && P.branches.length ? P.branches.reduce((a, b) => b.share > a.share ? b : a) : null;
+        checks.push(check(name + ': GDD', c.GDD_fs2, br ? br.GDD : NaN, { rel: 0.005 }, ' fs²'));
+        checks.push(check(name + ': TOD', c.TOD_fs3, br ? br.TOD : NaN, { rel: 0.02 }, ' fs³'));
+        benches.push([name, data]);
+        await idle();
+      }
+      return { checks, benches };
     },
   },
 ];

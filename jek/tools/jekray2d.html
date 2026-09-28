@@ -11315,7 +11315,11 @@ function popSurface(F, q, ev) {
   if (resScale !== 1) for (let i = 0; i < N; i++) { ure[i] *= resScale; uim[i] *= resScale; }
   // a mask formula that changes inside a sample is averaged over it; when that averaging throws
   // away a noticeable share of the light, the formula has detail the grid cannot hold
-  const coarse = !ev.fixed && pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM ? 1 : 0;
+  // Behind an obscuring disc of radius a the light its edge bends meets on the axis in Poisson's
+  // spot, 0.38 lambda t / a in radius at the next surface t along: narrower than three samples
+  // (the grid, sized to hold the whole beam, spaced about Rn / N) and its height comes out low
+  const discSpot = ev.disc && ev.tNext > 0 && isFinite(ev.tNext) ? 0.38 * lam2 * ev.tNext / (aA * ev.disc) : Infinity;
+  const coarse = !ev.fixed && (pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM || discSpot < 3 * Rn / N) ? 1 : 0;
   return { field, q: [qr, qi], clipped, steep, coarse,
     decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
 }

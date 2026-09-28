@@ -7,6 +7,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 |---|---|---|
 | `ref/kogelnik-li.json` | `scripts/kogelnik_li.py` | Kogelnik & Li, Appl. Opt. 5, 1550 (1966): closed forms for two-mirror resonators |
 | `ref/fox-li.json` | `scripts/fox_li.py` | Fox & Li, Bell Syst. Tech. J. 40, 453 (1961): their integral equation, solved independently |
+| `ref/diffraction-classics.json` | `scripts/diffraction_classics.py` | Poisson's spot (Fresnel 1818), the Airy pattern (Airy 1835) and Young's slits (Young 1804), from the Fresnel-Kirchhoff integral |
 | `ref/lenses-optiland.json` | `scripts/lenses_optiland.py` | Optiland 0.6 real-ray traces (github.com/HarrisonKramer/optiland) |
 | `ref/rb-elecsus.json` | `scripts/rb_elecsus.py` | ElecSus (Zentile et al., Comput. Phys. Commun. 189, 162 (2015)) |
 | `ref/faraday-elecsus.json` | `scripts/faraday_elecsus.py` | ElecSus: Faraday filters (Rb and Cs D2) and Rb in the hyperfine Paschen-Back regime, cell transmission and crossed-polariser transmission |
@@ -36,6 +37,7 @@ numpy instead.
     python scripts/treacy.py
     python scripts/boyd_kleinman.py
     python scripts/pdh_black.py
+    python scripts/diffraction_classics.py
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
 
 ## Rules

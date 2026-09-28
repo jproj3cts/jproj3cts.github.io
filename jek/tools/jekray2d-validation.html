@@ -256,6 +256,78 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'diffraction-classics', area: 'Diffraction', title: 'Poisson’s spot, the Airy pattern and Young’s slits',
+    kind: 'Paper: closed forms', ref: 'diffraction-classics.json', script: 'diffraction_classics.py',
+    cite: 'A. Fresnel, “Mémoire sur la diffraction de la lumière” (1818), with Poisson’s objection and Arago’s observation; G. B. Airy, Transactions of the Cambridge Philosophical Society 5, 283 (1835); T. Young, Philosophical Transactions of the Royal Society 94, 1 (1804). The patterns from the Fresnel–Kirchhoff integral, done independently.',
+    what: 'Three patterns, each against the diffraction integral done independently for the same light. Poisson’s spot: a 6 mm Gaussian beam at 633 nm with its waist on a 3 mm opaque disc (JEKray2D’s example), the bright spot on the axis 250 mm to 5 m behind it, exactly exp(−2a²/w₀²) of the free beam’s intensity at every distance. The Airy pattern: a 4 mm round opening in a 20 mm beam, an ideal lens of 100 mm focal length (a phase mask), the pattern in the focal plane in absolute irradiance. Young’s slits: two slits 0.1 mm wide and 0.5 mm apart in a 1.5 mm beam, the fringes 1 m away.',
+    tolerance: 'Poisson’s spot within 3% of its height. The Airy pattern’s peak within 1%, its first dark ring within 1%, and the pattern within 1% of its peak everywhere to the third ring. Young’s fringes within 2% of the peak everywhere across ±6 mm, and their spacing within 0.5%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const interp = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const f = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - f) + ys[hi] * f; };
+      // a turning point near i, by a parabola through three samples
+      const turn = (xs, ys, i) => { const [a, b, c] = [ys[i - 1], ys[i], ys[i + 1]], h = (xs[i + 1] - xs[i - 1]) / 2, den = a - 2 * b + c; return xs[i] + (den ? 0.5 * h * (a - c) / den : 0); };
+      // Poisson's spot
+      const Pz = R.poisson, flagged = [];
+      for (const r of Pz.rows) {
+        const data = bench('Poisson’s spot: 3 mm disc, screen ' + r.z_mm + ' mm behind', [
+          { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 12, gauss: true, w0: Pz.w0_mm, z0: 100, popN: 512, pol: 's', rays: 21, power: Pz.P_mW },
+          { type: 'stop', name: 'Beam block', x: 0, y: 0, angle: 0, aperture: 2 * Pz.a_mm, outer: 25.4, shape: 'disc' },
+          { type: 'screen', name: 'Screen', x: r.z_mm, y: 0, angle: 180, length: 30 }]);
+        J.load(data); const D = J.diffraction('Screen');
+        checks.push(check('Poisson’s spot, ' + r.z_mm + ' mm behind the disc: its height', r.I_axis, D ? D.psf[0] : NaN, { rel: 0.03 }, ' mW/mm²'));
+        if (D && D.coarse.length) flagged.push(r.z_mm);
+        benches.push(['Poisson, ' + r.z_mm + ' mm', data]);
+        await idle();
+      }
+      // the Airy pattern
+      const A = R.airy, f = A.f_mm;
+      const ad = bench('Airy pattern: 4 mm opening, ideal lens f = 100 mm, 633 nm', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 10, gauss: true, w0: A.w0_mm, z0: 100, popN: 512, pol: 's', rays: 9, power: A.P_mW },
+        { type: 'stop', name: 'Iris', x: 0, y: 0, angle: 0, aperture: 2 * A.a_mm, outer: 200, shape: 'round' },
+        { type: 'mask', name: 'Ideal lens, f 100 mm', x: 1, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda', preset: 'custom' },
+        { type: 'screen', name: 'Focus', x: 1 + f, y: 0, angle: 180, length: 2, vectorFocus: 'off' }]);
+      J.load(ad); const D = J.diffraction('Focus');
+      if (D) {
+        const rho = Array.from(D.rho), psf = Array.from(D.psf);
+        checks.push(check('Airy: peak irradiance', A.I0, psf[0], { rel: 0.01 }, ' mW/mm²'));
+        let iz = 1; while (iz < rho.length - 2 && !(psf[iz] <= psf[iz - 1] && psf[iz] < psf[iz + 1])) iz++;
+        checks.push(check('Airy: first dark ring', A.first_zero_mm * 1e3, turn(rho, psf, iz) * 1e3, { rel: 0.01 }, ' µm'));
+        const upto = 0.0515; let worst = 0;
+        rho.forEach((r, i) => { if (r <= upto) worst = Math.max(worst, Math.abs(psf[i] - interp(A.r_mm, A.I, r)) / A.I0); });
+        checks.push(check('Airy: largest difference to the third ring, share of the peak', 0, worst, { abs: 0.01 }));
+        const sel = rho.map((r, i) => i).filter(i => rho[i] <= 0.06);
+        plots.push(plot({ title: 'Airy pattern, 4 mm opening, f = 100 mm (log scale)', xlabel: 'radius (µm)', ylabel: 'irradiance (mW/mm²)', logY: true, yMin: 1e-3,
+          series: [{ name: 'Fresnel–Kirchhoff integral', x: A.r_mm.filter(r => r <= 0.06).map(r => r * 1e3), y: A.I.slice(0, A.r_mm.filter(r => r <= 0.06).length), colour: REF_C, width: 3 },
+            { name: 'JEKray2D', x: sel.map(i => rho[i] * 1e3), y: sel.map(i => psf[i]), colour: GOT_C, dots: true }] }));
+      } else checks.push(check('Airy: a pattern at the focus', 1, NaN, { abs: 0 }));
+      benches.push(['Airy pattern', ad]);
+      await idle();
+      // Young's slits
+      const Y = R.young;
+      const yd = bench('Young’s slits: 0.1 mm wide, 0.5 mm apart, 1 m away, 633 nm', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 3, gauss: true, w0: Y.w0_mm, z0: 100, popN: 256, pol: 's', rays: 41, power: 1 },
+        { type: 'stop', name: 'Double slit', x: 0, y: 0, angle: 0, aperture: Y.slit_mm, outer: 25.4, shape: 'double', sep: Y.sep_mm, height: 0 },
+        { type: 'screen', name: 'Screen', x: Y.z_mm, y: 0, angle: 180, length: 40 }]);
+      J.load(yd); const DY = J.diffraction('Screen');
+      if (DY && DY.cutX) {
+        const xs = Array.from(DY.cutX.x), Iraw = Array.from(DY.cutX.I), mx = Math.max(...Iraw), I = Iraw.map(v => v / mx);
+        let worst = 0; xs.forEach((x, i) => { if (Math.abs(x) <= 6) worst = Math.max(worst, Math.abs(I[i] - interp(Y.x_mm, Y.I, x))); });
+        checks.push(check('Young: largest difference across ±6 mm, share of the peak', 0, worst, { abs: 0.02 }));
+        // the fringe spacing: the bright fringes either side of the centre, each side's and the reference's alike
+        const peaks = (x, y) => { const out = []; for (let i = 1; i < y.length - 1; i++) if (y[i] > y[i - 1] && y[i] >= y[i + 1] && y[i] > 0.3) out.push(turn(x, y, i)); return out; };
+        const sp = pk => { const c = pk.reduce((a, v) => Math.abs(v) < Math.abs(a) ? v : a, Infinity), l = Math.max(...pk.filter(v => v < c - 0.3)), r = Math.min(...pk.filter(v => v > c + 0.3)); return (r - l) / 2; };
+        checks.push(check('Young: fringe spacing', sp(peaks(Y.x_mm, Y.I)), sp(peaks(xs, I)), { rel: 0.005 }, ' mm'));
+        const sel = xs.map((x, i) => i).filter(i => Math.abs(xs[i]) <= 6);
+        plots.push(plot({ title: 'Young’s slits, 1 m away (peak 1)', xlabel: 'position on the screen (mm)', ylabel: 'irradiance', yMin: 0, yMax: 1,
+          series: [{ name: 'Fresnel integral', x: Y.x_mm, y: Y.I, colour: REF_C, width: 3 }, { name: 'JEKray2D', x: sel.map(i => xs[i]), y: sel.map(i => I[i]), colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+      } else checks.push(check('Young: a pattern on the screen', 1, NaN, { abs: 0 }));
+      benches.push(['Young’s slits', yd]);
+      plots.unshift(plot({ title: 'Poisson’s spot: its height behind the disc', xlabel: 'distance behind the disc (mm)', ylabel: 'on-axis irradiance (mW/mm²)',
+        series: [{ name: 'Exact: exp(−2a²/w₀²) of the free beam', x: Pz.rows.map(r => r.z_mm), y: Pz.rows.map(r => r.I_axis), colour: REF_C }, { name: 'JEKray2D', x: Pz.rows.map(r => r.z_mm), y: checks.slice(0, Pz.rows.length).map(c => c.got), colour: GOT_C, dots: true }] }));
+      return { checks, benches, plots, notes: 'Poisson’s spot is a limit of JEKray2D’s round field, and it says so. The spot is only 0.38 λz/a across (80 µm at 500 mm), made by light the disc’s edge bends through a/z, and the field’s grid is sized to hold the whole 6 mm beam: with 512 samples it cannot also resolve the spot until it has grown, so the spot comes out low nearer the disc (and at 100 mm is missed altogether). Since this case was first run, JEKray2D flags the screen’s diffraction as only roughly right wherever the spot spans fewer than three samples' + (flagged.length ? ' (here at ' + flagged.join(', ') + ' mm)' : '') + '; the fix it needs is to carry the light the disc removes as a field of its own, sampled to the disc (Babinet’s principle).' };
+    },
+  },
+  {
     id: 'lenses', area: 'Rays and lenses', title: 'Real rays through a singlet and a Cooke triplet',
     kind: 'Independent code', ref: 'lenses-optiland.json', script: 'lenses_optiland.py',
     cite: 'Optiland 0.6, open-source lens design (github.com/HarrisonKramer/optiland): its real-ray trace, and its Cooke triplet sample.',

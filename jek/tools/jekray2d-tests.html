@@ -3813,6 +3813,13 @@ const TESTS = [
       return A.seidel.distPct > 0.2 && Math.max(...n) - Math.min(...n) <= 1 ? 1 : 0;
     },
   },
+  {
+    name: 'A Poisson spot too narrow for the grid is flagged',
+    why: 'the example\u2019s 3 mm disc in a 6 mm beam: 500 mm behind it the spot is 80 \u00b5m across, under three samples of the 512-point grid, and comes out 14% low, so the screen says its diffraction is only roughly right; 5 m behind, the spot is resolved and nothing is said (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => { const d = JSON.parse(getDemo('poissons-spot')), at = z => { const e = JSON.parse(JSON.stringify(d)); e.elements.find(x => x.type === 'screen').x = z; J.load(e); return J.diffraction('Screen, 500 mm').coarse.length; };
+      return at(500) > 0 && at(5000) === 0 ? 1 : 0; },
+  },
   { group: 'Dipole traps' },
   {
     name: 'Rubidium\u2019s polarisability at 1064 nm is the published one',

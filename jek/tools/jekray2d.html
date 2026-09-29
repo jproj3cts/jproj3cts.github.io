@@ -236,6 +236,8 @@
   .rt-card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
   .rt-card b { display: block; padding: 0.5rem 0.65rem 0.15rem; font-size: 0.875rem; line-height: 1.3; }
   .rt-card span { display: block; padding: 0 0.65rem 0.6rem; font-size: 0.78rem; line-height: 1.4; color: var(--jek-ink-soft); }
+  .rt-card b .rt-beta, .rt-card b .rt-exp { display: inline-block; padding: 0.05rem 0.4rem; font-size: 0.66rem; line-height: normal; }
+  .rt-card b .rt-beta { color: #ffffff; }
   .rt-gempty { margin: 1.5rem 0; color: var(--jek-ink-soft); font-size: 0.9rem; }
   .rt-gfoot { margin: 0 !important; padding: 0.6rem 1.1rem 0.8rem; border-top: 1px solid var(--jek-line); font-size: 0.8rem !important; }
   /* the optimiser's goals: one box each */
@@ -8647,6 +8649,8 @@ function trapSection(el) {
         const q = v => v === null ? '\u2013' : v >= 1e4 ? v.toExponential(2).replace('e+', ' \u00d7 10^') : (+v.toPrecision(3)).toString();
         if (T.G > 0) rows.push(['Damping', '\u0393/2\u03c0 = ' + fmtHz(T.G / (2 * Math.PI)) + ' by ' + (T.dampBy === 'air' ? 'the air (mean free path ' + fmtLen(T.mfp * 1e3) + ', Knudsen number ' + (+T.Kn.toPrecision(3)) + ')' : 'the water\u2019s viscosity') +
           '; Q ' + q(T.Q[0]) + ', ' + q(T.Q[1]) + ', ' + q(T.Q[2]) + ' (x, y, z)' + (T.Q.some(v => v !== null && v < 0.5) ? ': overdamped where Q is under \u00bd' : '')]);
+        // gas damping is still beta: Gieseler et al.'s own measurements differ from the formula it uses
+        if (T.G > 0 && T.dampBy === 'air') rows.push(['Gas damping (beta)', 'Gieseler et al.\u2019s formula for a sphere of the nominal size and density. Their own measurements differ from it by 25 to 55% (see the validation page), so read the damping and Q as estimates.']);
         else rows.push(['Damping', T.dampBy === 'vacuum' ? 'none from a gas (vacuum): only photon recoil and the laser\u2019s noise, not modelled' : 'none from a gas here: set the medium to Air for a pressure']);
       }
       if (sph) rows.push(['Scattering', pw(T.Psc) + ' scattered; radiation pressure ' + (+(T.Fscat * 1e15).toPrecision(3)) + ' fN from one beam of this intensity']);
@@ -17189,6 +17193,7 @@ const NEWS = [
     '<b>Embed</b> a live bench in a web page or course notes, from the Share link dialog.',
     'A shared link opens with a bar to keep the bench, or go straight back to your own work.',
     'A <b>Cite</b> button, and a licence page.',
+    'Short pulses, nonlinear optics, vapour cells and optical traps are no longer beta: each is now checked on the validation page. Polarisation spectroscopy, optical lattices and the gas damping of levitated particles stay in beta until they are checked too.',
     'An <b>Experimental features</b> switch (under the toolbar): new features arrive there, off until you turn them on, before they reach beta.',
     'A <b>validation page</b> that runs JEKray2D against published results and independent codes in your browser. Vapour cells now use Alcock et al.\u2019s vapour pressures, which put about 2.5% fewer atoms in a rubidium cell at 50 \u00b0C than before.']],
   ['Before 1.0', '23–27 September 2026', [
@@ -17348,7 +17353,7 @@ const EXAMPLES = [
     ['split-laser', 'Two fibre launches from one laser', 'One laser, split and launched into two fibres, recombined in free space.'],
     ['fibre-michelson', 'Fibre Michelson, Faraday mirrors', 'An all-fibre interferometer that cancels polarisation drift.'],
     ['fibre-amplifier', 'Fibre amplifier and its noise', '20 km of fibre, an erbium amplifier, and the noise it adds.']]],
-  ['Atoms and traps', true, [
+  ['Atoms and traps', false, [
     ['saturated-absorption', 'Saturated absorption, rubidium', 'Doppler-free hyperfine lines from a pump and probe.'],
     ['polarisation-spectroscopy', 'Polarisation spectroscopy', 'A circular pump makes the vapour birefringent: a dispersive lock signal.'],
     ['davll-lock', 'DAVLL: a lock from a magnetic field', 'Zeeman-split absorption gives a wide error signal.'],
@@ -17357,15 +17362,19 @@ const EXAMPLES = [
     ['optical-lattice', 'Two-dimensional optical lattice', 'Four beams make a grid of traps.'],
     ['optical-tweezers', 'Optical tweezers in water', 'A bead held by an NA 1.2 objective: stiffness and forces.'],
     ['levitated-nanoparticle', 'Levitated nanoparticle in air', 'A 150 nm silica sphere held in vacuum by a tight focus.']]],
-  ['Pulses', true, [
+  ['Pulses', false, [
     ['pulse-compressor', 'Grating pulse compressor', 'A grating pair takes a chirped pulse back to its transform limit.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'The same pulse broadens in one fibre and holds its shape in another.']]],
-  ['Nonlinear optics', true, [
+  ['Nonlinear optics', false, [
     ['frequency-doubling', 'Frequency doubling: PPLN and PPKTP', '1560 nm to 780 nm and 1064 nm to 532 nm in poled crystals.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
   ['From a paper', false, [
     ['levitated-trap', 'Levitated nanorod trap (Hu et al. 2023)', 'The standing-wave trap from a Nature Communications paper.']]],
 ];
+/* Examples whose model is still in beta, where their whole group is not: they have no check of
+   their own on the validation page yet (polarisation spectroscopy, a lattice), or fail one
+   (a levitated sphere's gas damping, against Gieseler et al.'s measurements) */
+const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', 'levitated-nanoparticle']);
 const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
 {
   const dlg = document.getElementById('galleryDialog'), grid = document.getElementById('galleryGrid');
@@ -17378,7 +17387,7 @@ const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t
       if (!hits.length) continue;
       grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
         h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
-          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : null), h('span', null, d)))));
+          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
     }
     if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
   };

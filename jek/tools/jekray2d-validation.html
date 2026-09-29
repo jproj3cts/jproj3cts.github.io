@@ -698,6 +698,46 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'davll', area: 'Atoms', title: 'The DAVLL signal against the magnetic field',
+    kind: 'Independent code', ref: 'davll-elecsus.json', script: 'davll_elecsus.py',
+    cite: 'K. L. Corwin, Z.-T. Lu, C. F. Hand, R. J. Epstein and C. E. Wieman, “Frequency-stabilized diode laser with the Zeeman shift in an atomic vapor”, Applied Optics 37, 3295 (1998), the scheme; ElecSus (M. A. Zentile et al., Computer Physics Communications 189, 162 (2015)), the reference signal.',
+    what: 'Corwin et al.’s dichroic atomic vapour laser lock as a bench: linearly polarised light through a 75 mm cell of natural rubidium at 25 °C in a field along it, then a quarter-wave plate at 45°, a polarising cube and a photodiode on each port; the difference of the two photodiodes over the light put in, scanned across the D2 lines at 50, 100 and 200 G. Each circular hand is absorbed by lines the field has moved one way, so the difference swings through zero near each group of lines: the lock points. ElecSus gives the same difference as the Stokes parameter S₃ of the light leaving the cell. Where the signal peaks and dips, and where it crosses zero between each neighbouring peak and dip, are compared, not its depth. (This case was to follow Corwin et al.’s measured signals; the article is not on arXiv and its publisher could not be reached, so ElecSus, itself tested against measured spectra, stands in.) Which port gets which hand depends only on how the cube is turned, so the signal’s overall sign is matched to ElecSus’s once.',
+    tolerance: 'Each zero crossing within 5 MHz of ElecSus’s, each peak and dip within 15 MHz.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const data = bench('DAVLL: natural Rb, 75 mm, 25 °C, ' + c.B_G + ' G', [
+          { type: 'source', name: 'Laser', x: -90, y: 0, angle: 0, wavelength: C_NM(c.v0_Hz), width: 2, gauss: true, w0: 1, pol: 'p', power: 1e-3, rays: 1 },
+          { type: 'cell', name: 'Cell', x: -35, y: 0, angle: 0, length: 25, cellLen: R.lcell_mm, atom: 'Rb', temp: R.T, bField: c.B_G },
+          { type: 'waveplate', name: 'Quarter-wave plate at 45°', x: 20, y: 0, angle: 0, length: 12.7, retard: 0.25, axis: 45 },
+          { type: 'cube', name: 'Polarising cube', x: 50, y: 0, angle: 0, size: 12.7, mode: 'pbs', reflectS: 100, reflectP: 0, coat: { mode: 'ar', R: 0 } },
+          { type: 'detector', name: 'A', x: 85, y: 0, angle: 180, length: 5, material: 'custom', resp: 1 },
+          { type: 'detector', name: 'B', x: 50, y: 35, angle: 270, length: 5, material: 'custom', resp: 1 }]);
+        J.load(data);
+        const ds = [], y = [];
+        for (let d = -4500; d <= 5500; d += 10) {
+          J.setParam('Laser', 'wavelength', C_NM(c.v0_Hz + d * 1e6)); J.trace();
+          ds.push(d); y.push((J.detector('A').mw - J.detector('B').mw) / 1e-3);
+          if (ds.length % 200 === 0) await idle();
+        }
+        // the overall sign: the one that matches ElecSus's signal
+        const ref = ds.map(d => c.S3[Math.round((d - c.det_MHz[0]) / (c.det_MHz[1] - c.det_MHz[0]))]);
+        const sg = ref.reduce((a, v, i) => a + v * y[i], 0) >= 0 ? 1 : -1, g = y.map(v => sg * v), amp = Math.max(...g.map(Math.abs));
+        const ex = []; for (let i = 1; i < g.length - 1; i++) if (((g[i] > g[i - 1] && g[i] >= g[i + 1]) || (g[i] < g[i - 1] && g[i] <= g[i + 1])) && Math.abs(g[i]) > 0.2 * amp) {
+          const a = g[i - 1], b = g[i], cc = g[i + 1]; ex.push([ds[i] + 5 * (a - cc) / (a - 2 * b + cc), b]); }
+        const zc = []; for (let k = 0; k + 1 < ex.length; k++) if (ex[k][1] * ex[k + 1][1] < 0) {
+          for (let i = 0; i + 1 < ds.length; i++) if (ds[i] >= ex[k][0] && ds[i] < ex[k + 1][0] && g[i] * g[i + 1] <= 0 && g[i] !== g[i + 1]) { zc.push(ds[i] - g[i] * 10 / (g[i + 1] - g[i])); break; } }
+        const near = (list, v) => list.reduce((b, q) => Math.abs(q - v) < Math.abs(b - v) ? q : b, Infinity);
+        for (const z of c.zero_crossings_MHz) checks.push(check(c.B_G + ' G: lock point near ' + fmt(z / 1000, 3) + ' GHz', z, near(zc, z), { abs: 5 }, ' MHz'));
+        for (const [e, v] of c.extrema_MHz) checks.push(check(c.B_G + ' G: ' + (v > 0 ? 'peak' : 'dip') + ' near ' + fmt(e / 1000, 3) + ' GHz', e, near(ex.filter(q => q[1] * v > 0).map(q => q[0]), e), { abs: 15 }, ' MHz'));
+        plots.push(plot({ title: 'DAVLL signal, ' + c.B_G + ' G: (A − B) / input', xlabel: 'detuning from the D2 line’s centre (GHz)', ylabel: 'signal',
+          series: [{ name: 'ElecSus (S₃)', x: c.det_MHz.map(d => d / 1000), y: c.S3, colour: REF_C, width: 3 }, { name: 'JEKray2D', x: ds.map(d => d / 1000), y: g, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.B_G + ' G', data]);
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
     id: 'rb-siddons', area: 'Atoms', title: 'Measured absorption of natural rubidium',
     kind: 'Paper: measured data', ref: 'rb-siddons-2008.json', script: 'siddons_fig8.py',
     cite: 'P. Siddons, C. S. Adams, C. Ge and I. G. Hughes, “Absolute absorption on rubidium D lines: comparison between theory and experiment”, J. Phys. B 41, 155004 (2008); arXiv:0805.1139, Figure 8.',

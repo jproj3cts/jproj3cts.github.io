@@ -7131,29 +7131,38 @@ const PIC = (() => {
      and leaves by; obs: ports whose incoming light is wanted (photodiodes). With in the light
      entering each part's ports and out what leaves them, out = S in, and in_q = t out_p over
      each link, plus what is put in at ext: (I - C S) in = E. Returns, for light put in at
-     each ext port, what leaves every ext port (S) and what arrives at every obs port (into). */
-  function solveNet(parts, links, ext, obs) {
-    const off = [], Sp = []; let N = 0;
-    for (const P of parts) { off.push(N); N += P.S.length; }
+     each ext port, what leaves every ext port (S) and what arrives at every obs port (into).
+     It comes in two halves: compileNet, the structure (which ports are whose, what joins
+     what), fixed across a wavelength sweep and so worked out once; and solvePlan, the numbers
+     at one wavelength: each part's S and each link's t. */
+  function compileNet(sizes, links, ext, obs) {
+    const off = []; let N = 0;
+    for (const n of sizes) { off.push(N); N += n; }
     const owner = new Int32Array(N), local = new Int32Array(N);
-    parts.forEach((P, k) => { for (let i = 0; i < P.S.length; i++) { owner[off[k] + i] = k; local[off[k] + i] = i; } });
-    const partner = new Int32Array(N).fill(-1), tl = new Array(N).fill(Z);
-    for (const [p, q, t] of links) { partner[q] = p; tl[q] = t; partner[p] = q; tl[p] = t; }
-    const Sg = (r, c) => owner[r] === owner[c] ? parts[owner[r]].S[local[r]][local[c]] : Z;
+    sizes.forEach((n, k) => { for (let i = 0; i < n; i++) { owner[off[k] + i] = k; local[off[k] + i] = i; } });
+    // each port's partner across a link, and which link (its t)
+    const partner = new Int32Array(N).fill(-1), link = new Int32Array(N).fill(-1);
+    links.forEach(([p, q], i) => { partner[q] = p; link[q] = i; partner[p] = q; link[p] = i; });
+    return { N, sizes, off, owner, local, partner, link, ext: ext.slice(), obs: obs.slice() };
+  }
+  /* Ss: each part's S at this wavelength; ts: each link's t */
+  function solvePlan(pl, Ss, ts) {
+    const { N, sizes, off, owner, local, partner, link, ext, obs } = pl;
     // M = I - C S, row q: -t_q S[partner(q)][.]
-    const M = Array.from({ length: N }, (_, q) => {
-      const row = new Array(N).fill(Z);
-      const p = partner[q];
-      if (p >= 0) { const k = owner[p]; for (let i = 0; i < parts[k].S.length; i++) row[off[k] + i] = csc(cm(tl[q], parts[k].S[local[p]][i]), -1); }
+    const M = new Array(N);
+    for (let q = 0; q < N; q++) {
+      const row = new Array(N).fill(Z), p = partner[q];
+      if (p >= 0) { const k = owner[p], Sr = Ss[k][local[p]], t = ts[link[q]]; for (let i = 0; i < sizes[k]; i++) row[off[k] + i] = csc(cm(t, Sr[i]), -1); }
       row[q] = cadd(row[q], [1, 0]);
-      return row;
-    });
+      M[q] = row;
+    }
     // right-hand sides: a unit of light in at each ext port
     const B = ext.map(e => { const b = new Array(N).fill(Z); b[e] = [1, 0]; return b; });
     const X = csolve(M, B);
-    const out = X.map(x => ext.map(e => { let s = Z; const k = owner[e]; for (let i = 0; i < parts[k].S.length; i++) s = cadd(s, cm(parts[k].S[local[e]][i], x[off[k] + i])); return s; }));
+    const out = X.map(x => ext.map(e => { let s = Z; const k = owner[e], Sr = Ss[k][local[e]]; for (let i = 0; i < sizes[k]; i++) s = cadd(s, cm(Sr[i], x[off[k] + i])); return s; }));
     return { S: ext.map((_, i) => ext.map((__, j) => out[j][i])), into: obs.map(o => ext.map((_, j) => X[j][o])) };
   }
+  const solveNet = (parts, links, ext, obs) => solvePlan(compileNet(parts.map(P => P.S.length), links, ext, obs), parts.map(P => P.S), links.map(l => l[2]));
   /* A x = b for several b, complex, by Gaussian elimination with partial pivoting */
   function csolve(A0, Bs) {
     const n = A0.length, A = A0.map(r => r.slice()), X = Bs.map(b => b.slice());
@@ -7183,20 +7192,16 @@ const PIC = (() => {
      label, default], and S(el, lam) over its ports. A ring is a small network of its own. */
   const wgOf = el => ({ neff: el.neff, ng: el.ng, loss: el.loss });
   const WG_PARAMS = [['neff', 'n_eff at 1550 nm', 2.44], ['ng', 'Group index', 4.2], ['loss', 'Loss (dB/cm)', 2]];
+  // bus in at 0, through at 2; the ring leaves at 3 and comes back into 1
+  const RING1 = compileNet([4], [[3, 1]], [0, 2], []);
+  // a second coupler on the far side: add in at its 0, drop out at its 2; the ring runs
+  // from the first coupler's 3 to the second's 1, and from the second's 3 to the first's 1
+  const RING2 = compileNet([4, 4], [[3, 5], [7, 1]], [0, 2, 4, 6], []);
   function ringS(el, lam, drop) {
     const w = wgOf(el), L = 2 * Math.PI * el.radius;
-    const parts = [{ S: couplerS(el.kappa1 / 100) }];
-    if (!drop) {
-      // bus in at 0, through at 2; the ring leaves at 3 and comes back into 1
-      const r = solveNet(parts, [[3, 1, wgT(w, L, lam)]], [0, 2], []);
-      return r.S;
-    }
-    // a second coupler on the far side: add in at its 0, drop out at its 2; the ring runs
-    // from the first coupler's 3 to the second's 1, and from the second's 3 to the first's 1
-    parts.push({ S: couplerS(el.kappa2 / 100) });
+    if (!drop) return solvePlan(RING1, [couplerS(el.kappa1 / 100)], [wgT(w, L, lam)]).S;
     const half = wgT(w, L / 2, lam);
-    const r = solveNet(parts, [[3, 5, half], [7, 1, half]], [0, 2, 4, 6], []);
-    return r.S;                                      // ports: in, through, add, drop
+    return solvePlan(RING2, [couplerS(el.kappa1 / 100), couplerS(el.kappa2 / 100)], [half, half]).S;   // ports: in, through, add, drop
   }
   const KINDS = {
     gc: { label: 'Grating coupler', tag: 'GC', ports: [[-1, 0], [1, 0, 'f']], names: ['chip', 'fibre'],
@@ -7271,19 +7276,30 @@ const PIC = (() => {
       // open; the photodiodes' ports are where it is read
       const ext = ports.filter(P => !linked.has(P.g) && !KINDS[P.el.kind].sink).map(P => P.g);
       const obs = ports.filter(P => KINDS[P.el.kind].sink).map(P => P.g);
-      return { els: g, ids, off, links, ports, ext, obs, key: JSON.stringify([g, links]), memo: new Map() };
+      const c = { els: g, ids, off, links, ports, ext, obs, key: JSON.stringify([g, links]), memo: new Map() };
+      return compileChip(c);
     });
     chipMemo = { key, chips: list };
     return list;
   }
   const chipOf = el => chips().find(c => c.ids.has(el.id)) || null;
+  /* a chip's structure, compiled once: its network, each part's model and each waveguide */
+  function compileChip(c) {
+    c.plan = compileNet(c.els.map(e => portList(e).length), c.links.map(l => [l.p, l.q]), c.ext, c.obs);
+    c.models = c.els.map(e => KINDS[e.kind].S);
+    c.wgs = c.links.map(l => l.w);
+    return c;
+  }
+  /* the chip at one wavelength: only the numbers change */
+  function solveAtWavelength(c, lam) {
+    return solvePlan(c.plan, c.els.map((e, i) => c.models[i](e, lam)), c.wgs.map(w => wgT(w, w.len, lam)));
+  }
   /* the chip solved at lam (nm): { S over ext, into over obs } */
   function solveChip(c, lam) {
     const k = lam.toFixed(9);
     let r = c.memo.get(k);
     if (r) return r;
-    const parts = c.els.map(e => ({ S: KINDS[e.kind].S(e, lam) }));
-    r = solveNet(parts, c.links.map(l => [l.p, l.q, wgT(l.w, l.w.len, lam)]), c.ext, c.obs);
+    r = solveAtWavelength(c, lam);
     if (c.memo.size > 20000) c.memo.clear();
     c.memo.set(k, r);
     return r;

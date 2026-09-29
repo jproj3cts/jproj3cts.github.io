@@ -7460,9 +7460,17 @@ const PIC = (() => {
      Each is measured against its own surroundings, the lower of the highest points either side
      of a dip before anything deeper (the higher of the lowest, for a peak), so a slope under it
      (a grating coupler's band) does not count; then refined: where, how deep, how wide at half
-     its depth, its Q; and the mean spacing between neighbours. */
+     its depth, its Q; and the mean spacing between neighbours. The refining needs the spectrum
+     at wavelengths of its own: linesGen yields each one and takes back its value, so the panel
+     can spread the work over time; lines answers them at once. */
   function lines(c, from, to, lams, T) {
-    const f = lam => spectrum(c, from, to, [lam])[0], n = T.length, step = lams[1] - lams[0];
+    const g = linesGen(lams, T);
+    let r = g.next();
+    while (!r.done) r = g.next(spectrum(c, from, to, [r.value])[0]);
+    return r.value;
+  }
+  function* linesGen(lams, T) {
+    const n = T.length, step = lams[1] - lams[0];
     const find = sg => {
       const out = [];
       for (let i = 1; i < n - 1; i++) {
@@ -7478,16 +7486,16 @@ const PIC = (() => {
     const dips = sum(D) >= sum(P), sg = dips ? -1 : 1, list = [];
     for (const q of dips ? D : P) {
       let a = lams[q.i] - step, b = lams[q.i] + step;
-      for (let it = 0; it < 50; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (sg * f(m1) > sg * f(m2)) b = m2; else a = m1; }
-      const at = 0.5 * (a + b), ext = f(at), half = 0.5 * (ext + q.base);
-      const side = dir => {
+      for (let it = 0; it < 50; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (sg * (yield m1) > sg * (yield m2)) b = m2; else a = m1; }
+      const at = 0.5 * (a + b), ext = yield at, half = 0.5 * (ext + q.base);
+      const side = function* (dir) {
         let lo = at, hi = null;
-        for (let k = 1; k <= 8 * n; k++) { const x = at + dir * k * step / 8; if (sg * (f(x) - half) <= 0) { hi = x; break; } lo = x; if (Math.abs(x - at) > lams[n - 1] - lams[0]) break; }
+        for (let k = 1; k <= 8 * n; k++) { const x = at + dir * k * step / 8; if (sg * ((yield x) - half) <= 0) { hi = x; break; } lo = x; if (Math.abs(x - at) > lams[n - 1] - lams[0]) break; }
         if (hi === null) return null;
-        for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (sg * (f(m) - half) > 0) lo = m; else hi = m; }
+        for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (sg * ((yield m) - half) > 0) lo = m; else hi = m; }
         return Math.abs(0.5 * (lo + hi) - at);
       };
-      const l = side(-1), r = side(1), fw = l !== null && r !== null ? l + r : null;
+      const l = yield* side(-1), r = yield* side(1), fw = l !== null && r !== null ? l + r : null;
       list.push({ at, T: ext, er: 10 * Math.log10(Math.max(ext, 1e-30) / Math.max(q.base, 1e-30)), fwhm: fw, Q: fw ? at / fw : null });
     }
     const fsr = list.length > 1 ? (list[list.length - 1].at - list[0].at) / (list.length - 1) : null;
@@ -7577,25 +7585,65 @@ const PIC = (() => {
     const cv = h('canvas', { height: '160', style: 'width:100%;display:block;margin-top:0.4rem' });
     const box = h('div', { class: 'rt-readout' });
     panel.append(rows, cv, plotSaveRow(cv), box);
-    let last = '';
+    // Worked out a little at a time, so the page stays live and a large chip shows something at
+    // once: about a hundred points across the span first, drawn as soon as they are in; then the
+    // points between them, the step halving each pass, redrawn as they come; then the lines. A
+    // change (or the panel closing) drops whatever is still to do.
+    let last = '', job = 0;
+    const dl = (a, b) => h('dl', null, ...[[a, b]].flatMap(([x, y]) => [h('dt', null, x), h('dd', null, y)]));
     bindSync(cv, () => {
       const cc = chipOf(el);
       if (!cc) return;
       const key = cc.key + '|' + V2.picFrom + '|' + V2.picTo + '|' + V2.picC + '|' + V2.picSpan + '|' + (cv.clientWidth || 0) + '|' + laserNms(cc).join();
       if (key === last) return;
       last = key;
-      const n = samplesFor(cc, V2.picSpan), lams = Array.from({ length: n }, (_, i) => V2.picC + (i / (n - 1) - 0.5) * V2.picSpan);
-      const T = spectrum(cc, V2.picFrom, V2.picTo, lams);
-      drawSpectrum(cv, lams, T, laserNms(cc), portLabel(cc, V2.picFrom) + ' → ' + portLabel(cc, V2.picTo));
-      const L = lines(cc, V2.picFrom, V2.picTo, lams, T), r = [];
-      const nmT = v => (+v.toFixed(3)) + ' nm';
-      L.list.slice(0, 8).forEach(q => r.push([nmT(q.at), (q.er >= 0 ? '+' : '') + q.er.toFixed(2) + ' dB' + (q.fwhm ? ', FWHM ' + (q.fwhm < 0.1 ? (+(q.fwhm * 1e3).toPrecision(3)) + ' pm' : (+q.fwhm.toPrecision(3)) + ' nm') + ', Q ' + (+q.Q.toPrecision(3)).toLocaleString() : '')]));
-      if (L.list.length > 8) r.push(['', (L.list.length - 8) + ' more']);
-      if (L.fsr) r.push(['Spacing (FSR)', (+L.fsr.toPrecision(4)) + ' nm (' + fmtHz(C_NM * L.fsr / (V2.picC * V2.picC)) + ')']);
-      if (!L.list.length) r.push(['Lines', 'none deeper than 0.3 dB in this span']);
-      else r.unshift([L.dips ? 'Dips' : 'Peaks', 'each against the level either side of it']);
-      box.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+      const my = ++job, from = V2.picFrom, to = V2.picTo, C0 = V2.picC, marks = laserNms(cc), title = portLabel(cc, from) + ' → ' + portLabel(cc, to);
+      const n = samplesFor(cc, V2.picSpan), lams = Array.from({ length: n }, (_, i) => C0 + (i / (n - 1) - 0.5) * V2.picSpan);
+      const T = new Float64Array(n).fill(NaN), order = coarseToFine(n, 100), first = order.first;
+      const live = () => my === job && cv.isConnected, f = lam => spectrum(cc, from, to, [lam])[0];
+      const show = () => { const I = []; for (let i = 0; i < n; i++) if (T[i] === T[i]) I.push(i); drawSpectrum(cv, I.map(i => lams[i]), I.map(i => T[i]), marks, title); };
+      let k = 0, drawn = 0;
+      const sweep = () => {
+        if (!live()) return;
+        const t0 = performance.now();
+        while (k < order.length && performance.now() - t0 < 12) { const i = order[k++]; T[i] = f(lams[i]); }
+        const now = performance.now();
+        if (k === order.length || (k >= first && (!drawn || now - drawn > 150))) { show(); drawn = now; }
+        if (k < order.length) { if (k >= first) box.replaceChildren(dl('Refining', Math.round(100 * k / order.length) + '% of ' + n.toLocaleString() + ' points')); setTimeout(sweep, 0); return; }
+        box.replaceChildren(dl('Lines', 'finding…'));
+        const g = linesGen(lams, T);
+        let r = g.next();
+        const refine = () => {
+          if (!live()) return;
+          const t1 = performance.now();
+          while (!r.done && performance.now() - t1 < 12) r = g.next(f(r.value));
+          if (!r.done) { setTimeout(refine, 0); return; }
+          const L = r.value, rows = [], nmT = v => (+v.toFixed(3)) + ' nm';
+          L.list.slice(0, 8).forEach(q => rows.push([nmT(q.at), (q.er >= 0 ? '+' : '') + q.er.toFixed(2) + ' dB' + (q.fwhm ? ', FWHM ' + (q.fwhm < 0.1 ? (+(q.fwhm * 1e3).toPrecision(3)) + ' pm' : (+q.fwhm.toPrecision(3)) + ' nm') + ', Q ' + (+q.Q.toPrecision(3)).toLocaleString() : '')]));
+          if (L.list.length > 8) rows.push(['', (L.list.length - 8) + ' more']);
+          if (L.fsr) rows.push(['Spacing (FSR)', (+L.fsr.toPrecision(4)) + ' nm (' + fmtHz(C_NM * L.fsr / (C0 * C0)) + ')']);
+          if (!L.list.length) rows.push(['Lines', 'none deeper than 0.3 dB in this span']);
+          else rows.unshift([L.dips ? 'Dips' : 'Peaks', 'each against the level either side of it']);
+          box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+        };
+        refine();
+      };
+      box.replaceChildren(dl('Spectrum', 'working…'));
+      sweep();
     });
+  }
+  /* the order to fill n evenly spaced samples in: every s-th (s a power of two, giving at least
+     n0 of them) and the last, then those halfway between, and so on; .first counts the opening pass */
+  function coarseToFine(n, n0) {
+    let s = 1;
+    while ((n - 1) / (s * 2) >= n0) s *= 2;
+    const seen = new Uint8Array(n), out = [];
+    const add = i => { if (!seen[i]) { seen[i] = 1; out.push(i); } };
+    for (let i = 0; i < n; i += s) add(i);
+    add(n - 1);
+    out.first = out.length;
+    for (s /= 2; s >= 1; s /= 2) for (let i = 0; i < n; i += s) add(i);
+    return out;
   }
   /* the wavelengths of the lasers reaching the chip now, from the fibre network */
   function laserNms(c) {

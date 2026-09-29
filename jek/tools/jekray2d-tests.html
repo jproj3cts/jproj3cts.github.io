@@ -4179,6 +4179,22 @@ const TESTS = [
       return k(['G1', 0], ['G2', 0]) === 'wg' && k(['L', 0], ['G1', 1]) === 'fibre' && k(['L', 0], ['G1', 0]) === null ? 1 : 0; },
   },
   {
+    name: 'A chip’s sparse solve agrees with the dense one',
+    why: 'an 8 × 8 grid of directional couplers, each row looping back into the next, 1549–1551 nm: the largest difference in the complex field between the sparse LU and dense elimination, over three port pairs',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      J.load(picLattice(8, 8));
+      const lams = Array.from({ length: 61 }, (_, i) => 1549 + i / 30), pairs = [['DC 0 0', 0, 'DC 7 7', 2], ['DC 0 0', 0, 'DC 0 0', 1], ['DC 0 0', 1, 'DC 7 7', 3]];
+      const sp = pairs.map(q => J.pic.response(...q, lams));
+      J.pic.dense(true);
+      const de = pairs.map(q => J.pic.response(...q, lams));
+      J.pic.dense(false);
+      let m = 0;
+      sp.forEach((a, k) => a.forEach((z, i) => { m = Math.max(m, Math.hypot(z[0] - de[k][i][0], z[1] - de[k][i][1])); }));
+      return m;
+    },
+  },
+  {
     name: 'Experimental features stay off until switched on, and only listed ones switch on',
     why: 'off by default (and in test mode); switched on, a key that is not listed is still off; switched off again, all are off',
     want: 1, tol: 0, unit: '',
@@ -4238,6 +4254,17 @@ const picDropBench = nm => ({ format: 'jekray', version: 1, name: 'drop', elemen
   { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, wavelength: nm, power: 1 }, { type: 'pic', kind: 'gc', id: 'G1', name: 'GC in', x: -30, y: 0, angle: 180, centre: nm },
   { type: 'pic', kind: 'ringad', id: 'R', name: 'Ring', x: 0, y: 0, radius: 10, kappa1: 3, kappa2: 3 }, { type: 'pic', kind: 'pd', id: 'P', name: 'Drop PD', x: -30, y: 20 }],
   fibres: [{ a: ['L', 0], b: ['G1', 1], len: 1, loss: 0 }, { a: ['G1', 0], b: ['R', 0], wg: { len: 0, loss: 0 } }, { a: ['R', 3], b: ['P', 0], wg: { len: 0, loss: 0 } }] });
+/* a grid of directional couplers joined right and down, each row's end looping into the next row's start */
+function picLattice(R, C) {
+  const els = [], fibres = [], wg = len => ({ preset: 'si', len });
+  for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) els.push({ type: 'pic', kind: 'dc', id: `D${i}_${j}`, name: `DC ${i} ${j}`, x: j * 20, y: i * 20, kappa: 20 + 7 * ((i * C + j) % 9) });
+  for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
+    if (j + 1 < C) fibres.push({ a: [`D${i}_${j}`, 2], b: [`D${i}_${j + 1}`, 0], wg: wg(30 + i + j) });
+    if (i + 1 < R) fibres.push({ a: [`D${i}_${j}`, 3], b: [`D${i + 1}_${j}`, 1], wg: wg(40 + 3 * i) });
+  }
+  for (let i = 0; i + 1 < R; i++) fibres.push({ a: [`D${i}_${C - 1}`, 2], b: [`D${i + 1}_0`, 0], wg: wg(77) });
+  return { format: 'jekray', version: 1, name: 'lattice', elements: els, fibres };
+}
 function ampBench(P, signal) {
   const els = [fc('amp', 'A', { g0: 20, psat: 17, nf: 5, centre: 1545, bw: 35, iso: 60 }), fc('pd', 'D'), fc('pd', 'Back')];
   const fib = [['A', 1, 'D', 0, 0.01, 0], ['A', 0, 'Back', 0, 0.01, 0]];

@@ -7149,26 +7149,104 @@ const PIC = (() => {
     // each port's partner across a link, and which link (its t)
     const partner = new Int32Array(N).fill(-1), link = new Int32Array(N).fill(-1);
     links.forEach(([p, q], i) => { partner[q] = p; link[q] = i; partner[p] = q; link[p] = i; });
-    return { N, sizes, off, owner, local, partner, link, ext: ext.slice(), obs: obs.slice() };
+    // M's pattern: row q holds its diagonal and, if joined, the row of its partner's part
+    const cols = Array.from({ length: N }, (_, q) => { const p = partner[q], c = [q]; if (p >= 0) for (let i = 0; i < sizes[owner[p]]; i++) c.push(off[owner[p]] + i); return c; });
+    return { N, sizes, off, owner, local, partner, link, ext: ext.slice(), obs: obs.slice(), sp: compileSparse(N, cols) };
+  }
+  /* The sparse LU of M, worked out from its pattern alone: an order to eliminate the ports in
+     (minimum degree, so little fills in), and for each step where its numbers sit. M = I - C S
+     has each row a port and its partner's part, a handful of entries however large the chip,
+     where the dense solve works through all N^2. Pivots are on the diagonal in this order; a
+     wavelength where one comes out too small against its column goes to the dense solve. */
+  function compileSparse(N, cols) {
+    const adj = Array.from({ length: N }, () => new Set());
+    cols.forEach((c, q) => { for (const j of c) if (j !== q) { adj[q].add(j); adj[j].add(q); } });
+    const slot = new Map(), at = (r, c) => { const k = r * N + c; let s = slot.get(k); if (s === undefined) { s = slot.size; slot.set(k, s); } return s; };
+    const done = new Uint8Array(N), order = new Int32Array(N), start = [0], nodes = [], colSlot = [], rowSlot = [], pairStart = [0], pairSlot = [];
+    for (let k = 0; k < N; k++) {
+      let v = -1;
+      for (let i = 0; i < N; i++) if (!done[i] && (v < 0 || adj[i].size < adj[v].size)) v = i;
+      done[v] = 1; order[k] = v;
+      const nb = [...adj[v]].sort((a, b) => a - b);
+      for (const a of nb) { adj[a].delete(v); for (const b of nb) if (b !== a) adj[a].add(b); }
+      at(v, v);
+      for (const a of nb) { nodes.push(a); colSlot.push(at(a, v)); rowSlot.push(at(v, a)); }
+      for (const a of nb) for (const b of nb) pairSlot.push(at(a, b));
+      start.push(nodes.length); pairStart.push(pairSlot.length);
+    }
+    const diag = new Int32Array(N);
+    for (let q = 0; q < N; q++) diag[q] = at(q, q);
+    const fillStart = [0], fill = [];
+    cols.forEach((c, q) => { for (const j of c.slice(1)) fill.push(at(q, j)); fillStart.push(fill.length); });
+    const I = a => Int32Array.from(a);
+    return { nnz: slot.size, order, start: I(start), nodes: I(nodes), colSlot: I(colSlot), rowSlot: I(rowSlot), pairStart: I(pairStart), pairSlot: I(pairSlot), diag, fillStart: I(fillStart), fill: I(fill) };
+  }
+  let forceDense = false;                          // for the tests: the dense solve, to compare
+  /* M x = b for the ne unit b's already in X, by the sparse LU; false (X untouched) if a pivot
+     is too small, 1e-3 of the largest entry under it */
+  function sparseSolve(pl, Ss, ts, X, ne) {
+    const { N, sizes, off, owner, local, partner, link } = pl, { nnz, order, start, nodes, colSlot, rowSlot, pairStart, pairSlot, diag, fillStart, fill } = pl.sp;
+    const V = new Float64Array(2 * nnz);
+    for (let q = 0; q < N; q++) {
+      const p = partner[q];
+      if (p >= 0) {
+        const k = owner[p], S = Ss[k], sr = 2 * local[p] * sizes[k], tl = 2 * link[q], t0 = ts[tl], t1 = ts[tl + 1];
+        for (let i = 0, f = fillStart[q]; f < fillStart[q + 1]; i += 2, f++) { const a = S[sr + i], b = S[sr + i + 1], s2 = 2 * fill[f]; V[s2] = -(t0 * a - t1 * b); V[s2 + 1] = -(t0 * b + t1 * a); }
+      }
+      V[2 * diag[q]] += 1;
+    }
+    // factor: L below the diagonal (in the order), U on and above it, in place
+    for (let k = 0; k < N; k++) {
+      const v = order[k], dv = 2 * diag[v], d0 = V[dv], d1 = V[dv + 1], dd = d0 * d0 + d1 * d1, a0 = start[k], m = start[k + 1] - a0;
+      let big = 0;
+      for (let a = 0; a < m; a++) { const s2 = 2 * colSlot[a0 + a]; big = Math.max(big, V[s2] * V[s2] + V[s2 + 1] * V[s2 + 1]); }
+      if (!(dd > 1e-300) || dd < 1e-6 * big) return false;
+      for (let a = 0; a < m; a++) {
+        const s2 = 2 * colSlot[a0 + a], x0 = V[s2], x1 = V[s2 + 1];
+        if (!(x0 * x0 + x1 * x1)) continue;
+        const f0 = (x0 * d0 + x1 * d1) / dd, f1 = (x1 * d0 - x0 * d1) / dd, ps = pairStart[k] + a * m;
+        V[s2] = f0; V[s2 + 1] = f1;
+        for (let b = 0; b < m; b++) { const u = 2 * rowSlot[a0 + b], u0 = V[u], u1 = V[u + 1], t = 2 * pairSlot[ps + b]; V[t] -= f0 * u0 - f1 * u1; V[t + 1] -= f0 * u1 + f1 * u0; }
+      }
+    }
+    const N2 = 2 * N;
+    for (let j = 0; j < ne; j++) {
+      const x = j * N2;
+      for (let k = 0; k < N; k++) {                  // L y = b
+        const v = order[k], y0 = X[x + 2 * v], y1 = X[x + 2 * v + 1];
+        if (!(y0 || y1)) continue;
+        for (let a = start[k]; a < start[k + 1]; a++) { const l = 2 * colSlot[a], r = x + 2 * nodes[a]; X[r] -= V[l] * y0 - V[l + 1] * y1; X[r + 1] -= V[l] * y1 + V[l + 1] * y0; }
+      }
+      for (let k = N - 1; k >= 0; k--) {             // U x = y
+        const v = order[k];
+        let s0 = X[x + 2 * v], s1 = X[x + 2 * v + 1];
+        for (let a = start[k]; a < start[k + 1]; a++) { const u = 2 * rowSlot[a], c = x + 2 * nodes[a]; s0 -= V[u] * X[c] - V[u + 1] * X[c + 1]; s1 -= V[u] * X[c + 1] + V[u + 1] * X[c]; }
+        const dv = 2 * diag[v], b0 = V[dv], b1 = V[dv + 1], bb = b0 * b0 + b1 * b1;
+        X[x + 2 * v] = (s0 * b0 + s1 * b1) / bb; X[x + 2 * v + 1] = (s1 * b0 - s0 * b1) / bb;
+      }
+    }
+    return true;
   }
   /* Ss: each part's S at this wavelength (cmat); ts: each link's t, re and im side by side.
      Returns { ne, no, S: ne x ne over ext, into: no x ne, obs by ext }, both cmat layout. */
   function solvePlan(pl, Ss, ts) {
     const { N, sizes, off, owner, local, partner, link, ext, obs } = pl, ne = ext.length, no = obs.length, N2 = 2 * N;
-    // M = I - C S, row q: -t_q S[partner(q)][.]
-    const M = new Float64Array(N2 * N);
-    for (let q = 0; q < N; q++) {
-      const p = partner[q], row = q * N2;
-      if (p >= 0) {
-        const k = owner[p], n = sizes[k], S = Ss[k], sr = 2 * local[p] * n, tl = 2 * link[q], t0 = ts[tl], t1 = ts[tl + 1], o = row + 2 * off[k];
-        for (let i = 0; i < 2 * n; i += 2) { const a = S[sr + i], b = S[sr + i + 1]; M[o + i] = -(t0 * a - t1 * b); M[o + i + 1] = -(t0 * b + t1 * a); }
-      }
-      M[row + 2 * q] += 1;
-    }
     // right-hand sides, one after another: a unit of light in at each ext port
     const X = new Float64Array(N2 * ne);
     for (let j = 0; j < ne; j++) X[j * N2 + 2 * ext[j]] = 1;
-    csolve(M, N, X, ne);
+    if (forceDense || !sparseSolve(pl, Ss, ts, X, ne)) {
+      // M = I - C S, row q: -t_q S[partner(q)][.], dense
+      const M = new Float64Array(N2 * N);
+      for (let q = 0; q < N; q++) {
+        const p = partner[q], row = q * N2;
+        if (p >= 0) {
+          const k = owner[p], n = sizes[k], S = Ss[k], sr = 2 * local[p] * n, tl = 2 * link[q], t0 = ts[tl], t1 = ts[tl + 1], o = row + 2 * off[k];
+          for (let i = 0; i < 2 * n; i += 2) { const a = S[sr + i], b = S[sr + i + 1]; M[o + i] = -(t0 * a - t1 * b); M[o + i + 1] = -(t0 * b + t1 * a); }
+        }
+        M[row + 2 * q] += 1;
+      }
+      csolve(M, N, X, ne);
+    }
     // what leaves each ext port: its part's S over the light into that part
     const S = new Float64Array(2 * ne * ne), into = new Float64Array(2 * no * ne);
     for (let j = 0; j < ne; j++) {
@@ -7633,6 +7711,8 @@ const PIC = (() => {
         return { dips: L.dips, fsr: L.fsr, list: L.list.map(q => ({ at: q.at, T: q.T, er: q.er, fwhm: q.fwhm, Q: q.Q })) };
       },
       chips: () => chips().map(c => ({ parts: c.els.map(e => e.name), ext: c.ext.length, obs: c.obs.length })),
+      // the dense solve instead of the sparse one, to compare them (forgetting what was solved)
+      dense(on) { forceDense = !!on; for (const c of chips()) c.memo.clear(); },
       // a ring's panel readout: its free spectral range and line width at 1550 nm, from the closed form
       ring(name) { const e = project.elements.find(q => q.name === name); if (!e || !(e.kind === 'ring' || e.kind === 'ringad')) return null; const r = ringLine(e); return { fsr: r.fsr, fw: r.fw, F: r.F }; },
       linkKind,

@@ -7108,7 +7108,12 @@ const PIC = (() => {
   const csc = (a, s) => [a[0] * s, a[1] * s];
   const cdiv = (a, b) => { const d = cabs2(b) || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
   const Z = [0, 0];
-  const zeros = n => Array.from({ length: n }, () => Array.from({ length: n }, () => Z));
+  /* matrices: n x n complex as one Float64Array, row by row, re and im side by side; entry
+     (r, c) at 2 (r n + c) */
+  const cmat = n => new Float64Array(2 * n * n);
+  const cput = (S, n, r, c, re, im) => { S[2 * (r * n + c)] = re; S[2 * (r * n + c) + 1] = im; };
+  const cget = (S, n, r, c) => [S[2 * (r * n + c)], S[2 * (r * n + c) + 1]];
+  const cabs2At = (S, n, r, c) => { const i = 2 * (r * n + c); return S[i] * S[i] + S[i + 1] * S[i + 1]; };
 
   /* a waveguide's index at lam (nm), from its index and group index at 1550 nm (first order) */
   const nAt = (w, lam) => w.neff - (w.ng - w.neff) * (lam - LAM0) / LAM0;
@@ -7120,8 +7125,9 @@ const PIC = (() => {
   /* a 2x2 coupler, 4 ports: 0 and 1 on one side, 2 and 3 on the other; k2 the power across */
   function couplerS(k2, lossDb) {
     const a = Math.pow(10, -Math.max(0, lossDb || 0) / 20), k = clamp(k2, 0, 1);
-    const t = [a * Math.sqrt(1 - k), 0], x = [0, a * Math.sqrt(k)], S = zeros(4);
-    S[0][2] = S[2][0] = t; S[1][3] = S[3][1] = t; S[0][3] = S[3][0] = x; S[1][2] = S[2][1] = x;
+    const t = a * Math.sqrt(1 - k), x = a * Math.sqrt(k), S = cmat(4);
+    for (const [r, c] of [[0, 2], [2, 0], [1, 3], [3, 1]]) cput(S, 4, r, c, t, 0);
+    for (const [r, c] of [[0, 3], [3, 0], [1, 2], [2, 1]]) cput(S, 4, r, c, 0, x);
     return S;
   }
 
@@ -7145,45 +7151,72 @@ const PIC = (() => {
     links.forEach(([p, q], i) => { partner[q] = p; link[q] = i; partner[p] = q; link[p] = i; });
     return { N, sizes, off, owner, local, partner, link, ext: ext.slice(), obs: obs.slice() };
   }
-  /* Ss: each part's S at this wavelength; ts: each link's t */
+  /* Ss: each part's S at this wavelength (cmat); ts: each link's t, re and im side by side.
+     Returns { ne, no, S: ne x ne over ext, into: no x ne, obs by ext }, both cmat layout. */
   function solvePlan(pl, Ss, ts) {
-    const { N, sizes, off, owner, local, partner, link, ext, obs } = pl;
+    const { N, sizes, off, owner, local, partner, link, ext, obs } = pl, ne = ext.length, no = obs.length, N2 = 2 * N;
     // M = I - C S, row q: -t_q S[partner(q)][.]
-    const M = new Array(N);
+    const M = new Float64Array(N2 * N);
     for (let q = 0; q < N; q++) {
-      const row = new Array(N).fill(Z), p = partner[q];
-      if (p >= 0) { const k = owner[p], Sr = Ss[k][local[p]], t = ts[link[q]]; for (let i = 0; i < sizes[k]; i++) row[off[k] + i] = csc(cm(t, Sr[i]), -1); }
-      row[q] = cadd(row[q], [1, 0]);
-      M[q] = row;
+      const p = partner[q], row = q * N2;
+      if (p >= 0) {
+        const k = owner[p], n = sizes[k], S = Ss[k], sr = 2 * local[p] * n, tl = 2 * link[q], t0 = ts[tl], t1 = ts[tl + 1], o = row + 2 * off[k];
+        for (let i = 0; i < 2 * n; i += 2) { const a = S[sr + i], b = S[sr + i + 1]; M[o + i] = -(t0 * a - t1 * b); M[o + i + 1] = -(t0 * b + t1 * a); }
+      }
+      M[row + 2 * q] += 1;
     }
-    // right-hand sides: a unit of light in at each ext port
-    const B = ext.map(e => { const b = new Array(N).fill(Z); b[e] = [1, 0]; return b; });
-    const X = csolve(M, B);
-    const out = X.map(x => ext.map(e => { let s = Z; const k = owner[e], Sr = Ss[k][local[e]]; for (let i = 0; i < sizes[k]; i++) s = cadd(s, cm(Sr[i], x[off[k] + i])); return s; }));
-    return { S: ext.map((_, i) => ext.map((__, j) => out[j][i])), into: obs.map(o => ext.map((_, j) => X[j][o])) };
+    // right-hand sides, one after another: a unit of light in at each ext port
+    const X = new Float64Array(N2 * ne);
+    for (let j = 0; j < ne; j++) X[j * N2 + 2 * ext[j]] = 1;
+    csolve(M, N, X, ne);
+    // what leaves each ext port: its part's S over the light into that part
+    const S = new Float64Array(2 * ne * ne), into = new Float64Array(2 * no * ne);
+    for (let j = 0; j < ne; j++) {
+      const x = j * N2;
+      for (let i = 0; i < ne; i++) {
+        const e = ext[i], k = owner[e], n = sizes[k], Sp = Ss[k], sr = 2 * local[e] * n, o = x + 2 * off[k];
+        let re = 0, im = 0;
+        for (let m = 0; m < 2 * n; m += 2) { const a = Sp[sr + m], b = Sp[sr + m + 1], c = X[o + m], d = X[o + m + 1]; re += a * c - b * d; im += a * d + b * c; }
+        S[2 * (i * ne + j)] = re; S[2 * (i * ne + j) + 1] = im;
+      }
+      for (let i = 0; i < no; i++) { into[2 * (i * ne + j)] = X[x + 2 * obs[i]]; into[2 * (i * ne + j) + 1] = X[x + 2 * obs[i] + 1]; }
+    }
+    return { ne, no, S, into };
   }
-  const solveNet = (parts, links, ext, obs) => solvePlan(compileNet(parts.map(P => P.S.length), links, ext, obs), parts.map(P => P.S), links.map(l => l[2]));
-  /* A x = b for several b, complex, by Gaussian elimination with partial pivoting */
-  function csolve(A0, Bs) {
-    const n = A0.length, A = A0.map(r => r.slice()), X = Bs.map(b => b.slice());
+  /* A x = b for m b's at once, complex, by Gaussian elimination with partial pivoting, in place:
+     A n x n (cmat), X the b's one after another (2n each), left holding the x's */
+  function csolve(A, n, X, m) {
+    const n2 = 2 * n;
     for (let c = 0; c < n; c++) {
-      let p = c; for (let r = c + 1; r < n; r++) if (cabs2(A[r][c]) > cabs2(A[p][c])) p = r;
-      if (p !== c) { [A[c], A[p]] = [A[p], A[c]]; for (const x of X) [x[c], x[p]] = [x[p], x[c]]; }
-      const d = A[c][c];
-      if (!(cabs2(d) > 1e-300)) continue;
+      const c2 = 2 * c, rc = c * n2;
+      let p = c, best = A[rc + c2] * A[rc + c2] + A[rc + c2 + 1] * A[rc + c2 + 1];
+      for (let r = c + 1; r < n; r++) { const i = r * n2 + c2, v = A[i] * A[i] + A[i + 1] * A[i + 1]; if (v > best) { p = r; best = v; } }
+      if (p !== c) {
+        const rp = p * n2;
+        for (let k = c2; k < n2; k++) { const t = A[rc + k]; A[rc + k] = A[rp + k]; A[rp + k] = t; }
+        for (let j = 0; j < m; j++) { const x = j * n2; for (const d of [0, 1]) { const t = X[x + c2 + d]; X[x + c2 + d] = X[x + 2 * p + d]; X[x + 2 * p + d] = t; } }
+      }
+      const d0 = A[rc + c2], d1 = A[rc + c2 + 1], dd = d0 * d0 + d1 * d1;
+      if (!(dd > 1e-300)) continue;
       for (let r = c + 1; r < n; r++) {
-        if (A[r][c] === Z || !cabs2(A[r][c])) continue;
-        const f = cdiv(A[r][c], d);
-        for (let k = c; k < n; k++) A[r][k] = cadd(A[r][k], csc(cm(f, A[c][k]), -1));
-        for (const x of X) x[r] = cadd(x[r], csc(cm(f, x[c]), -1));
+        const rr = r * n2, a0 = A[rr + c2], a1 = A[rr + c2 + 1];
+        if (!(a0 * a0 + a1 * a1)) continue;
+        const f0 = (a0 * d0 + a1 * d1) / dd, f1 = (a1 * d0 - a0 * d1) / dd;
+        for (let k = c2; k < n2; k += 2) { const x0 = A[rc + k], x1 = A[rc + k + 1]; A[rr + k] -= f0 * x0 - f1 * x1; A[rr + k + 1] -= f0 * x1 + f1 * x0; }
+        for (let j = 0; j < m; j++) { const x = j * n2, x0 = X[x + c2], x1 = X[x + c2 + 1]; X[x + 2 * r] -= f0 * x0 - f1 * x1; X[x + 2 * r + 1] -= f0 * x1 + f1 * x0; }
       }
     }
-    for (const x of X) for (let r = n - 1; r >= 0; r--) {
-      let s = x[r];
-      for (let k = r + 1; k < n; k++) s = cadd(s, csc(cm(A[r][k], x[k]), -1));
-      x[r] = cabs2(A[r][r]) > 1e-300 ? cdiv(s, A[r][r]) : Z;
+    for (let j = 0; j < m; j++) {
+      const x = j * n2;
+      for (let r = n - 1; r >= 0; r--) {
+        const rr = r * n2;
+        let s0 = X[x + 2 * r], s1 = X[x + 2 * r + 1];
+        for (let k = r + 1; k < n; k++) { const a0 = A[rr + 2 * k], a1 = A[rr + 2 * k + 1], x0 = X[x + 2 * k], x1 = X[x + 2 * k + 1]; s0 -= a0 * x0 - a1 * x1; s1 -= a0 * x1 + a1 * x0; }
+        const b0 = A[rr + 2 * r], b1 = A[rr + 2 * r + 1], bb = b0 * b0 + b1 * b1;
+        if (bb > 1e-300) { X[x + 2 * r] = (s0 * b0 + s1 * b1) / bb; X[x + 2 * r + 1] = (s1 * b0 - s0 * b1) / bb; }
+        else { X[x + 2 * r] = 0; X[x + 2 * r + 1] = 0; }
+      }
     }
-    return X;
   }
 
   /* ---------- the parts ----------
@@ -7199,20 +7232,20 @@ const PIC = (() => {
   const RING2 = compileNet([4, 4], [[3, 5], [7, 1]], [0, 2, 4, 6], []);
   function ringS(el, lam, drop) {
     const w = wgOf(el), L = 2 * Math.PI * el.radius;
-    if (!drop) return solvePlan(RING1, [couplerS(el.kappa1 / 100)], [wgT(w, L, lam)]).S;
+    if (!drop) return solvePlan(RING1, [couplerS(el.kappa1 / 100)], Float64Array.from(wgT(w, L, lam))).S;
     const half = wgT(w, L / 2, lam);
-    return solvePlan(RING2, [couplerS(el.kappa1 / 100), couplerS(el.kappa2 / 100)], [half, half]).S;   // ports: in, through, add, drop
+    return solvePlan(RING2, [couplerS(el.kappa1 / 100), couplerS(el.kappa2 / 100)], Float64Array.of(half[0], half[1], half[0], half[1])).S;   // ports: in, through, add, drop
   }
   const KINDS = {
     gc: { label: 'Grating coupler', tag: 'GC', ports: [[-1, 0], [1, 0, 'f']], names: ['chip', 'fibre'],
       params: [['centre', 'Centre (nm)', 1550], ['peak', 'Peak (dB)', -3], ['bw', '1 dB band (nm)', 30], ['polAngle', 'Fibre pol. (° from s)', 0]],
-      S: (el, lam) => { const T = Math.pow(10, (el.peak - ((lam - el.centre) / (el.bw / 2)) ** 2) / 10), t = [Math.sqrt(T), 0], S = zeros(2); S[0][1] = S[1][0] = t; return S; } },
+      S: (el, lam) => { const t = Math.sqrt(Math.pow(10, (el.peak - ((lam - el.centre) / (el.bw / 2)) ** 2) / 10)), S = cmat(2); cput(S, 2, 0, 1, t, 0); cput(S, 2, 1, 0, t, 0); return S; } },
     dc: { label: 'Directional coupler', tag: 'DC', ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
       params: [['kappa', 'Coupling (%)', 50], ['dkappa', 'Change (%/nm)', 0], ['loss', 'Excess loss (dB)', 0]],
       S: (el, lam) => couplerS((el.kappa + el.dkappa * (lam - LAM0)) / 100, el.loss) },
     mmi12: { label: '1×2 MMI', tag: 'MMI 1×2', ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['in', 'out 1', 'out 2'],
       params: [['loss', 'Excess loss (dB)', 0.2]],
-      S: el => { const a = Math.pow(10, -el.loss / 20) / Math.SQRT2, S = zeros(3); S[0][1] = S[1][0] = S[0][2] = S[2][0] = [a, 0]; return S; } },
+      S: el => { const a = Math.pow(10, -el.loss / 20) / Math.SQRT2, S = cmat(3); for (const [r, c] of [[0, 1], [1, 0], [0, 2], [2, 0]]) cput(S, 3, r, c, a, 0); return S; } },
     mmi22: { label: '2×2 MMI', tag: 'MMI 2×2', ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
       params: [['loss', 'Excess loss (dB)', 0.2]],
       S: el => couplerS(0.5, el.loss) },
@@ -7224,11 +7257,11 @@ const PIC = (() => {
       S: (el, lam) => ringS(el, lam, true) },
     ps: { label: 'Phase shifter', tag: 'φ', wg: true, ports: [[-1, 0], [1, 0]], names: ['1', '2'],
       params: [['phase', 'Phase (°)', 0], ['len', 'Length (µm)', 100], ...WG_PARAMS],
-      S: (el, lam) => { const t = cm(wgT(wgOf(el), el.len, lam), cexp(-el.phase * Math.PI / 180)), S = zeros(2); S[0][1] = S[1][0] = t; return S; } },
+      S: (el, lam) => { const t = cm(wgT(wgOf(el), el.len, lam), cexp(-el.phase * Math.PI / 180)), S = cmat(2); cput(S, 2, 0, 1, t[0], t[1]); cput(S, 2, 1, 0, t[0], t[1]); return S; } },
     pd: { label: 'On-chip photodiode', tag: 'PD', sink: true, ports: [[-1, 0]], names: ['in'],
       params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
         ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (°)', 0]],
-      S: () => zeros(1) },
+      S: () => cmat(1) },
   };
   const W_BOX = 14, H_BOX = 9;
   const portList = el => KINDS[el.kind].ports.map(([x, y, f]) => ({ x: x * W_BOX / 2, y: y * H_BOX / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y), chip: f !== 'f' }));
@@ -7292,7 +7325,9 @@ const PIC = (() => {
   }
   /* the chip at one wavelength: only the numbers change */
   function solveAtWavelength(c, lam) {
-    return solvePlan(c.plan, c.els.map((e, i) => c.models[i](e, lam)), c.wgs.map(w => wgT(w, w.len, lam)));
+    const ts = new Float64Array(2 * c.wgs.length);
+    c.wgs.forEach((w, i) => { const t = wgT(w, w.len, lam); ts[2 * i] = t[0]; ts[2 * i + 1] = t[1]; });
+    return solvePlan(c.plan, c.els.map((e, i) => c.models[i](e, lam)), ts);
   }
   /* the chip solved at lam (nm): { S over ext, into over obs } */
   function solveChip(c, lam) {
@@ -7325,15 +7360,15 @@ const PIC = (() => {
     c.ext.forEach((e, i) => {
       const P = c.ports.find(q => q.g === e);
       if (P.el.kind !== 'gc' || P.i !== 1) return;          // only a fibre side leads anywhere
-      const s = r.S[i][j];
+      const s = cget(r.S, r.ne, i, j);
       if (cabs2(s) < 1e-30) return;
       const to = th(P.el), co = Math.cos(to), so = Math.sin(to);
-      out.push({ to: [P.el.id, 1], M: [[csc(s, co * ci), csc(s, co * si)], [csc(s, so * ci), csc(s, so * si)]], ddl: path(rm.S[i][j], rp.S[i][j]) });
+      out.push({ to: [P.el.id, 1], M: [[csc(s, co * ci), csc(s, co * si)], [csc(s, so * ci), csc(s, so * si)]], ddl: path(cget(rm.S, r.ne, i, j), cget(rp.S, r.ne, i, j)) });
     });
     c.obs.forEach((o, i) => {
-      const P = c.ports.find(q => q.g === o), s = r.into[i][j];
+      const P = c.ports.find(q => q.g === o), s = cget(r.into, r.ne, i, j);
       if (cabs2(s) < 1e-30) return;
-      out.push({ to: [P.el.id, 0], sink: true, M: [[csc(s, ci), csc(s, si)], [Z, Z]], ddl: path(rm.into[i][j], rp.into[i][j]) });
+      out.push({ to: [P.el.id, 0], sink: true, M: [[csc(s, ci), csc(s, si)], [Z, Z]], ddl: path(cget(rm.into, r.ne, i, j), cget(rp.into, r.ne, i, j)) });
     });
     return out;
   }
@@ -7341,7 +7376,7 @@ const PIC = (() => {
   /* ---------- the spectrum between two ports, and its lines ---------- */
   function spectrum(c, from, to, lams) {
     const j = c.ext.indexOf(from), io = c.obs.indexOf(to), ie = c.ext.indexOf(to);
-    return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cabs2(r.into[io][j]) : cabs2(r.S[ie][j]); });
+    return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cabs2At(r.into, r.ne, io, j) : cabs2At(r.S, r.ne, ie, j); });
   }
   /* The lines in a spectrum: dips (a notch) or peaks (a pass band), whichever stand out more.
      Each is measured against its own surroundings, the lower of the highest points either side
@@ -7588,7 +7623,7 @@ const PIC = (() => {
         if (!c) return null;
         const g1 = c.off.get(A.id) + fromPort, g2 = c.off.get(B.id) + toPort, j = c.ext.indexOf(g1), io = c.obs.indexOf(g2), ie = c.ext.indexOf(g2);
         if (j < 0 || (io < 0 && ie < 0)) return null;                // a port joined inside the chip has no light put in or taken out
-        return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? r.into[io][j] : r.S[ie][j]; });
+        return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cget(r.into, r.ne, io, j) : cget(r.S, r.ne, ie, j); });
       },
       lines(fromName, fromPort, toName, toPort, lo, hi, n) {
         const A = project.elements.find(e => e.name === fromName), B = project.elements.find(e => e.name === toName), c = A && chipOf(A);

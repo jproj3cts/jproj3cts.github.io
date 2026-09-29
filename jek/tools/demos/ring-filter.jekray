@@ -1,0 +1,23 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Ring filter on a chip",
+  "notes": "Experimental: photonic circuits (turn on Experimental features to add parts like these). A fibre laser near 1549.2 nm goes onto a silicon chip by a grating coupler, past an add-drop ring (radius 10 um, 3% coupling each side), and off it by a second coupler to a fibre photodiode. The ring's drop port feeds a photodiode on the chip. Press Play all: the laser tunes across one line of the ring, and the light moves from the through photodiode to the drop one. Select the ring for its spectrum.",
+  "view": { "cx": 0, "cy": 3, "scale": 6.5 },
+  "elements": [
+    { "type": "fcomp", "kind": "laser", "id": "laser", "name": "Tunable laser", "x": -80, "y": 0, "angle": 0, "wavelength": 1549.18, "power": 1,
+      "sweeps": { "wavelength": { "min": 1548.9, "max": 1549.45, "freq": 0.2, "phase": 0, "wave": "triangle" } } },
+    { "type": "pic", "kind": "gc", "id": "gcin", "name": "Coupler in", "x": -45, "y": 0, "angle": 180 },
+    { "type": "pic", "kind": "ringad", "id": "ring", "name": "Ring", "x": 0, "y": 0, "angle": 0, "radius": 10, "kappa1": 3, "kappa2": 3 },
+    { "type": "pic", "kind": "gc", "id": "gcout", "name": "Coupler out", "x": 45, "y": -2.7, "angle": 0 },
+    { "type": "fcomp", "kind": "pd", "id": "pdthru", "name": "Through photodiode", "x": 80, "y": -2.7, "angle": 0 },
+    { "type": "pic", "kind": "pd", "id": "pddrop", "name": "Drop photodiode", "x": -28, "y": 18, "angle": 180 }
+  ],
+  "fibres": [
+    { "a": ["laser", 0], "b": ["gcin", 1], "len": 1, "loss": 0.2 },
+    { "a": ["gcin", 0], "b": ["ring", 0], "wg": { "preset": "si", "len": 200 } },
+    { "a": ["ring", 1], "b": ["gcout", 0], "wg": { "preset": "si", "len": 200 } },
+    { "a": ["ring", 3], "b": ["pddrop", 0], "wg": { "preset": "si", "len": 150 } },
+    { "a": ["gcout", 1], "b": ["pdthru", 0], "len": 1, "loss": 0.2 }
+  ]
+}

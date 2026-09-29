@@ -29,6 +29,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/boyd-kleinman.json` | `scripts/boyd_kleinman.py` | Boyd & Kleinman, J. Appl. Phys. 39, 3597 (1968): the focusing function by adaptive quadrature, and a PPLN bench |
 | `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
+| `ref/photonic-circuits.json` | `scripts/photonic_circuits.py` | Closed forms for rings (Bogaerts et al. 2012; Yariv 2000), a Mach-Zehnder and a directional coupler; two small circuits solved by SAX 0.18.2 (github.com/flaport/sax) |
 
 ## Making them again
 
@@ -52,6 +53,7 @@ numpy instead.
     python scripts/treacy.py
     python scripts/boyd_kleinman.py
     python scripts/pdh_black.py
+    python scripts/photonic_circuits.py              # needs sax (pip install sax)
     python scripts/rigrod.py
     python scripts/diffraction_classics.py
     python scripts/fresnel_fp_self.py

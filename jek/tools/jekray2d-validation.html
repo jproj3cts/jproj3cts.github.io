@@ -1139,6 +1139,109 @@ const ALL_CASES = [
       return { checks, benches, plots, notes: 'The first two runs of this case failed, and found two faults in JEKray2D, both fixed. A sideband was taken round the cavity as if it were on the other side of the laser (a +20 MHz sideband met the cavity as the laser lowered by 20 MHz would; the reflected power, symmetric in the two, did not show it). And every beat note’s phase had the wrong sign (lengthening a fibre after a modulator advanced the beat instead of delaying it). Both are now regression tests. In phase and quadrature are against the modulation, the power holding |A| cos(Ωt + arg A): the mixer at 90° reads the quadrature, the steep error signal through resonance. Black’s formula, like this reference, leaves out the radio-frequency delay of the path from the modulator to the diode (100 mm here, 2.4° at 20 MHz), and so does JEKray2D in free space.' };
     },
   },
+  {
+    id: 'photonic', area: 'Photonic circuits (experimental)', title: 'Rings, a Mach–Zehnder and a directional coupler on a chip, and two circuits in SAX',
+    kind: 'Closed forms and SAX', ref: 'photonic-circuits.json', script: 'photonic_circuits.py',
+    cite: 'W. Bogaerts et al., “Silicon microring resonators”, Laser & Photonics Reviews 6, 47–73 (2012); A. Yariv, “Universal relations for coupling of optical power between microresonators and dielectric waveguides”, Electronics Letters 36, 321–322 (2000); F. Laporte et al., SAX, github.com/flaport/sax (0.18.2).',
+    what: 'JEKray2D’s photonic circuits, an experimental feature, solve a chip at each wavelength as one linear system over all its ports. Against closed forms: an all-pass ring (radius 10 µm, silicon strip: n_eff 2.44, n_g 4.2, 2 dB/cm) coupled 10% and just over critical coupling, its through power from 1545 to 1555 nm, and from 1535 to 1565 nm each line’s centre, depth and full width at half depth, the free spectral range, and the ring panel’s own closed-form readout of the range and the width; an add-drop ring (10% and 10%, 15% and 5%), its through and drop powers; a Mach–Zehnder of two 50% couplers with arms of 300 and 100 µm, against wavelength, and with equal arms and a phase shifter from 0° to 360°; and a directional coupler, 30% at 1550 nm changing by 2%/nm with 0.5 dB excess loss, from 1540 to 1560 nm. Against SAX, whose own waveguide model and circuit solver (closing the rings’ loops itself) make an independent calculation: a 1×2 MMI into two arms, one past an all-pass ring, the other through a phase shifter at 60°, meeting in a dispersive coupler, both outputs; and an add-drop ring of radius 20 µm built from two couplers and two half-rings.',
+    tolerance: 'Each power, at every wavelength or phase, within 1 × 10⁻⁹ of its closed form and within 1 × 10⁻⁶ of SAX; each line’s centre within 1 × 10⁻⁴ nm, its depth within 0.02 dB and its width within 0.5% (as the spectrum view measures them), the free spectral range within 1 × 10⁻⁴ nm, and the panel’s approximate range and width at 1550 nm within 1% of those measured on the closed form nearest 1550 nm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], lams = R.lams;
+      const pow = z => z[0] * z[0] + z[1] * z[1];
+      const P = (a, pa, b, pb, ls) => J.pic.response(a, pa, b, pb, ls || lams).map(pow);
+      const worst = (ref, got) => ref.reduce((m, r, i) => Math.max(m, Math.abs(got[i] - r)), 0);
+      const chip = (name, elements, fibres) => bench(name, elements.map(e => Object.assign({ type: 'pic', y: 0, angle: 0 }, e)), { fibres: fibres || [] });
+      const wg = (a, pa, b, pb, len) => ({ a: [a, pa], b: [b, pb], wg: { preset: 'si', len } });
+      const sub = (arr, k) => arr.filter((_, i) => i % k === 0);
+      // all-pass rings
+      for (const C of R.allpass) {
+        const tag = 'All-pass ring, ' + fmt(100 * C.kappa, 3) + '%';
+        const d = chip(tag, [{ kind: 'ring', id: 'R', name: 'Ring', x: 0, radius: C.R_um, kappa1: 100 * C.kappa }]);
+        J.load(d); benches.push([tag, d]);
+        const T = P('Ring', 0, 'Ring', 1);
+        checks.push(check(tag + ': through power, largest difference', 0, worst(C.T, T), { abs: 1e-9 }, ''));
+        const L = J.pic.lines('Ring', 0, 'Ring', 1, C.span[0], C.span[1], 20001);
+        C.lines.forEach((q, i) => {
+          const g = L.list.reduce((a, x) => Math.abs(x.at - q.at) < Math.abs(a.at - q.at) ? x : a, L.list[0] || { at: NaN });
+          const at = ' at ' + fmt(q.at, 7) + ' nm';
+          checks.push(check(tag + ': line' + at + ', centre', q.at, g.at, { abs: 1e-4 }, ' nm'));
+          checks.push(check(tag + ': line' + at + ', depth', q.er_dB, g.er, { abs: 0.02 }, ' dB'));
+          checks.push(check(tag + ': line' + at + ', width', q.fwhm * 1e3, (g.fwhm || NaN) * 1e3, { rel: 0.005 }, ' pm'));
+        });
+        checks.push(check(tag + ': lines found', C.lines.length, L.list.length, { abs: 0 }, ''));
+        checks.push(check(tag + ': free spectral range', C.fsr, L.fsr, { abs: 1e-4 }, ' nm'));
+        const mid = C.lines.reduce((a, q) => Math.abs(q.at - 1550) < Math.abs(a.at - 1550) ? q : a), rd = J.pic.ring('Ring');
+        const near = C.lines.filter(q => q !== mid).reduce((a, q) => Math.abs(q.at - mid.at) < Math.abs(a.at - mid.at) ? q : a);
+        checks.push(check(tag + ': panel’s free spectral range', Math.abs(near.at - mid.at), rd.fsr, { rel: 0.01 }, ' nm'));
+        checks.push(check(tag + ': panel’s line width', mid.fwhm * 1e3, rd.fw * 1e3, { rel: 0.01 }, ' pm'));
+        if (C.kappa === 0.1) plots.push(plot({ title: 'All-pass ring, 10%: through power', xlabel: 'wavelength (nm)', ylabel: 'through', yMin: 0.86, yMax: 1.07,
+          series: [{ name: 'closed form', x: lams, y: C.T, colour: REF_C, width: 2.4 }, { name: 'JEKray2D', x: sub(lams, 25), y: sub(T, 25), colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      // add-drop rings
+      for (const C of R.adddrop) {
+        const tag = 'Add-drop ring, ' + fmt(100 * C.kappa1, 3) + '% and ' + fmt(100 * C.kappa2, 3) + '%';
+        const d = chip(tag, [{ kind: 'ringad', id: 'R', name: 'Ring', x: 0, radius: C.R_um, kappa1: 100 * C.kappa1, kappa2: 100 * C.kappa2 }]);
+        J.load(d); if (!benches.some(b => b[0].startsWith('Add-drop'))) benches.push([tag, d]);
+        checks.push(check(tag + ': through power, largest difference', 0, worst(C.through, P('Ring', 0, 'Ring', 1)), { abs: 1e-9 }, ''));
+        checks.push(check(tag + ': drop power, largest difference', 0, worst(C.drop, P('Ring', 0, 'Ring', 3)), { abs: 1e-9 }, ''));
+        await idle();
+      }
+      // Mach-Zehnder against wavelength
+      {
+        const M = R.mzi, d = chip('Mach–Zehnder, arms ' + M.L1_um + ' and ' + M.L2_um + ' µm', [{ kind: 'dc', id: 'D1', name: 'DC 1', x: -30 }, { kind: 'dc', id: 'D2', name: 'DC 2', x: 30 }],
+          [wg('D1', 2, 'D2', 0, M.L1_um), wg('D1', 3, 'D2', 1, M.L2_um)]);
+        J.load(d); benches.push(['Mach–Zehnder', d]);
+        const bar = P('DC 1', 0, 'DC 2', 2), cross = P('DC 1', 0, 'DC 2', 3);
+        checks.push(check('Mach–Zehnder: bar power, largest difference', 0, worst(M.bar, bar), { abs: 1e-9 }, ''));
+        checks.push(check('Mach–Zehnder: cross power, largest difference', 0, worst(M.cross, cross), { abs: 1e-9 }, ''));
+        const Q = R.mzi_phase, bp = [], cp = [];
+        for (const ph of Q.phases) {
+          J.load(chip('Mach–Zehnder, phase ' + ph + '°', [{ kind: 'dc', id: 'D1', name: 'DC 1', x: -30 }, { kind: 'ps', id: 'H', name: 'Heater', x: 0, y: 5, phase: ph, len: Q.L_um }, { kind: 'dc', id: 'D2', name: 'DC 2', x: 30 }],
+            [wg('D1', 2, 'H', 0, 0), wg('H', 1, 'D2', 0, 0), wg('D1', 3, 'D2', 1, Q.L_um)]));
+          bp.push(P('DC 1', 0, 'DC 2', 2, [1550])[0]); cp.push(P('DC 1', 0, 'DC 2', 3, [1550])[0]);
+        }
+        checks.push(check('Mach–Zehnder with a phase shifter, 0° to 360°: bar power, largest difference', 0, worst(Q.bar, bp), { abs: 1e-9 }, ''));
+        checks.push(check('and cross power', 0, worst(Q.cross, cp), { abs: 1e-9 }, ''));
+        plots.push(plot({ title: 'Mach–Zehnder at 1550 nm against its phase shifter', xlabel: 'phase added (°)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'closed form: bar', x: Q.phases, y: Q.bar, colour: REF_C, width: 2.4 }, { name: 'cross', x: Q.phases, y: Q.cross, colour: '#6a3d9a', width: 2.4, dash: '4 3' },
+            { name: 'JEKray2D: bar', x: Q.phases, y: bp, colour: GOT_C, dots: true }, { name: 'cross', x: Q.phases, y: cp, colour: '#b8860b', dots: true }] }));
+      }
+      // directional coupler
+      {
+        const D = R.dc, d = chip('Directional coupler', [{ kind: 'dc', id: 'D', name: 'DC', x: 0, kappa: D.kappa, dkappa: D.dkappa, loss: D.loss_dB }]);
+        J.load(d); benches.push(['Directional coupler', d]);
+        checks.push(check('Directional coupler, 1540 to 1560 nm: through power, largest difference', 0, worst(D.through, P('DC', 0, 'DC', 2, D.lams)), { abs: 1e-9 }, ''));
+        checks.push(check('and cross power', 0, worst(D.cross, P('DC', 0, 'DC', 3, D.lams)), { abs: 1e-9 }, ''));
+      }
+      await idle();
+      // SAX circuit A: MMI, ring, phase shifter, dispersive coupler
+      {
+        const A = R.saxA, d = chip('MMI, ring and phase shifter into a coupler (as in SAX)', [
+          { kind: 'mmi12', id: 'S', name: 'Split', x: -40, loss: 0.2 }, { kind: 'ring', id: 'R', name: 'Ring', x: 0, y: 8, radius: 10, kappa1: 10 },
+          { kind: 'ps', id: 'H', name: 'Heater', x: 0, y: -8, phase: 60, len: 100 }, { kind: 'dc', id: 'J', name: 'Join', x: 40, kappa: 50, dkappa: 1, loss: 0 }],
+          [wg('S', 1, 'R', 0, 400), wg('R', 1, 'J', 0, 0), wg('S', 2, 'H', 0, 100), wg('H', 1, 'J', 1, 0)]);
+        J.load(d); benches.push(['Circuit A (SAX)', d]);
+        const o1 = P('Split', 0, 'Join', 2), o2 = P('Split', 0, 'Join', 3);
+        checks.push(check('SAX circuit A: output 1, largest difference', 0, worst(A.o1, o1), { abs: 1e-6 }, ''));
+        checks.push(check('SAX circuit A: output 2, largest difference', 0, worst(A.o2, o2), { abs: 1e-6 }, ''));
+        plots.push(plot({ title: 'Circuit A: an MMI, a ring and a phase shifter into a coupler', xlabel: 'wavelength (nm)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'SAX: output 1', x: lams, y: A.o1, colour: REF_C, width: 2 }, { name: 'output 2', x: lams, y: A.o2, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray2D: output 1', x: sub(lams, 25), y: sub(o1, 25), colour: GOT_C, dots: true }, { name: 'output 2', x: sub(lams, 25), y: sub(o2, 25), colour: '#b8860b', dots: true }] }));
+      }
+      {
+        const B = R.saxB, d = chip('Add-drop ring, R 20 µm (as in SAX)', [{ kind: 'ringad', id: 'R', name: 'Ring', x: 0, radius: B.R_um, kappa1: 100 * B.kappa1, kappa2: 100 * B.kappa2 }]);
+        J.load(d); benches.push(['Circuit B (SAX)', d]);
+        const T = P('Ring', 0, 'Ring', 1), Dr = P('Ring', 0, 'Ring', 3);
+        checks.push(check('SAX circuit B, add-drop ring: through, largest difference', 0, worst(B.through, T), { abs: 1e-6 }, ''));
+        checks.push(check('and drop, largest difference', 0, worst(B.drop, Dr), { abs: 1e-6 }, ''));
+        plots.push(plot({ title: 'Circuit B: an add-drop ring, R = 20 µm, 15% and 5%', xlabel: 'wavelength (nm)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'SAX: through', x: lams, y: B.through, colour: REF_C, width: 2 }, { name: 'drop', x: lams, y: B.drop, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray2D: through', x: sub(lams, 25), y: sub(T, 25), colour: GOT_C, dots: true }, { name: 'drop', x: sub(lams, 25), y: sub(Dr, 25), colour: '#b8860b', dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The field in JEKray2D goes as exp(−ikz) and a coupler crosses with +i; SAX’s goes as exp(+ikz) and its couplers cross with −i, the complex conjugate, so every power is the same while each field is the other’s conjugate. In SAX the waveguides are its own model; the couplers, the MMI and the phase shifter are written in the script to JEKray2D’s compact models (a coupler’s power coupling changes linearly with wavelength, the MMI is flat), so what SAX checks is the circuit: the ports joined, the loops closed and solved. The widths and depths are measured on the spectrum as JEKray2D’s spectrum view does: a line’s depth against the highest point between it and its neighbours, its width at half that depth. The panel’s range and width come from λ²/(n_g L) and the finesse π√x/(1 − x), x the round trip’s field, which leave out how the range grows with the wavelength: the lines either side of the one near 1550 nm are 9.041 and 9.148 nm from it, and the panel’s 9.104 nm falls between; it is checked against the nearer of the two. The differences of about 5 × 10⁻¹³ in the powers are the reference file’s rounding to 12 digits. Photonic circuits are experimental: switch them on under Experimental features to add parts; the benches above open with or without it.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

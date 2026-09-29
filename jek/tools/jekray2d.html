@@ -265,6 +265,10 @@
   .rt-btn.palette.fibre:hover { background: #b92a43; border-color: #b92a43; }
   #paletteMenu button::before { content: ''; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.5rem; border-radius: 2px; vertical-align: -0.02em; background: var(--jek-orange); }
   #paletteMenu button[data-palette="fibre"]::before { background: var(--jek-red); }
+  /* photonic circuits (experimental): green, the tool's own colour for the chip */
+  .rt-btn.palette.pic { background: #3a9d5d; border-color: #3a9d5d; }
+  .rt-btn.palette.pic:hover { background: #2f844d; border-color: #2f844d; }
+  #paletteMenu button[data-palette="pic"]::before { background: #3a9d5d; }
   .rt-menu {
     position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 15rem;
     display: flex; flex-direction: column; padding: 0.3rem;
@@ -670,6 +674,7 @@
             <div class="rt-menu" id="paletteMenu" role="menu" hidden>
               <button type="button" role="menuitem" data-palette="free">Free-space optics</button>
               <button type="button" role="menuitem" data-palette="fibre">Fibre components</button>
+              <button type="button" role="menuitem" data-palette="pic" hidden>Photonic circuits (experimental)</button>
             </div>
           </div>
           <div class="rt-palette" id="paletteBox"></div>
@@ -2223,7 +2228,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'pic' ? PIC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2599,6 +2604,7 @@ function normElementBase(e) {
       if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       return base;
     }
+    case 'pic': return PIC.norm(e, base);                                                    // PIC hook
     case 'nlc':
       return Object.assign(base, {
         length: Math.max(0.1, num(e.length, 3)),              // aperture across, mm
@@ -2630,6 +2636,7 @@ function normElementBase(e) {
 }
 
 function makeElement(kind, x, y) {
+  if (kind.startsWith('pic:')) return PIC.make(kind.slice(4), x, y);                         // PIC hook
   switch (kind) {
     case 'source':
       return normElement({ type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 });
@@ -2781,7 +2788,7 @@ function normMeasures(list, benches) {
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
 function normFibres(list, els) {
   const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
-  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : 0;
+  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0;
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
   for (const F of Array.isArray(list) ? list : []) {
     const a = F && end(F.a), b = F && end(F.b);
@@ -2798,7 +2805,8 @@ function normFibres(list, els) {
       // (multimode: scrambled)
       ftype: ['smf', 'random', 'pm', 'mm'].includes(F.ftype) ? F.ftype : 'smf',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
-      path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null });
+      path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
+      wg: F.wg ? PIC.normWg(F.wg) : undefined });                                            // PIC hook: a waveguide on a chip
   }
   return out;
 }
@@ -4997,6 +5005,7 @@ function drawRaysOn(ctx, rays) {
 
 function halfSize(el) {
   if (el.type === 'fcomp') return FC_H / 2 + 1;
+  if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return Math.max(el.width / 2, 5);
   if (el.type === 'stop') return el.outer / 2;
@@ -5136,7 +5145,7 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, aom: 2, eom: 2, source: 3 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   drawFibres();
   for (const el of els) if (el.type !== 'source') draw(el);
@@ -5374,7 +5383,7 @@ function drawFibres() {
     const segs = fibreSegs(F);
     if (!segs) return;
     const sel = F.id === selFibreId;
-    tracePath(segs); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = sel ? 4 : 3; ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : '#f2c14e'; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : 0); ctx.stroke();   // PIC hook: waveguides in green
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
       tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
@@ -5412,7 +5421,7 @@ function drawFibreNodes(F, segs) {
 function portAt(px, py) {
   const r = 8;
   for (const el of project.elements) {
-    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre')) continue;
+    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic')) continue;
     const n = portsOf(el).length;
     for (let i = 0; i < n; i++) { const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
   }
@@ -5570,6 +5579,7 @@ function draw(el) {
   if (el.type === 'nlc') { drawNlc(el, sel); return; }
   if (el.type === 'link') { drawLink(el, sel); return; }
   if (el.type === 'fcomp') { drawFcomp(el, sel); return; }
+  if (el.type === 'pic') { PIC.draw(el, sel); return; }                                      // PIC hook
   if (el.type === 'faraday' || el.type === 'isolator') {
     const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
     drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
@@ -5593,7 +5603,7 @@ function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, aom: 1, eom: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
+    filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, pic: 1, aom: 1, eom: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
@@ -5621,6 +5631,7 @@ function hitTest(px, py) {
       if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= FC_H / 2 + tol) return el;
       continue;
     }
+    if (el.type === 'pic') { if (PIC.hit(el, lx, ly, tol)) return el; continue; }               // PIC hook
     if (el.type === 'cell') {
       if (Math.abs(lx) <= el.cellLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
@@ -5851,10 +5862,15 @@ function endPointer(e) {
       requestRender(); return;
     }
     const busy = to && (project.fibres || []).some(G => G !== F && (pkey(...G.a) === pkey(...to) || pkey(...G.b) === pkey(...to)));
+    const lk = to ? PIC.linkKind(d.from, to) : null;             // PIC hook: a waveguide between chip ports, a fibre off the chip
+    if (to && !busy && pkey(...to) !== pkey(...d.from) && (!lk || (F && !!F.wg !== (lk === 'wg')))) {
+      toast(lk ? (F && F.wg ? 'A waveguide joins two ports on a chip' : 'A fibre cannot end on a chip port: join it to a grating coupler\u2019s fibre side') : 'A fibre cannot end on a chip port: join it to a grating coupler\u2019s fibre side', true);
+      requestRender(); return;
+    }
     if (to && !busy && pkey(...to) !== pkey(...d.from)) {
       checkpoint();
       if (F) { if (pkey(...F.a) === pkey(...d.from)) F.b = to; else F.a = to; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; project.fibres.push(G); selFibreId = G.id; selectOne(null); }
+      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; if (lk === 'wg') G.wg = PIC.normWg({}); project.fibres.push(G); selFibreId = G.id; selectOne(null); }
       changed(true);
     } else if (F && !to) removeFibre(F);        // pulled off its port: the fibre goes
     else requestRender();
@@ -6035,6 +6051,11 @@ function setParam(el, path, v) {
     case 'size': case 'thickness': v = Math.max(0.1, v); break;
     case 'tau': v = Math.max(0, v); break;
     case 'rep': v = Math.max(0.001, v); break;
+    // PIC hook: the photonic parts' settings
+    case 'kappa': case 'kappa1': case 'kappa2': v = clamp(v, 0, 100); break;
+    case 'radius': case 'len': v = Math.max(0.01, v); break;
+    case 'neff': case 'ng': v = Math.max(1, v); break;
+    case 'peak': v = Math.min(0, v); break;
   }
   if (keys[0] === 'gaps') v = Math.max(0, v);
   o[last] = v;
@@ -6801,11 +6822,12 @@ const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
   if (el.type === 'fcomp') return FC[el.kind].portList;
+  if (el.type === 'pic') return PIC.ports(el);                                                // PIC hook
   if (el.type === 'fibre') { const L = fibreTail(el); return [{ x: -L, y: 0, dx: -1, dy: 0 }]; }
   return [];
 }
 const fibreTail = el => Math.max(8, 30 / V().scale) + Math.max(10, 40 / V().scale);
-const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : 'fibre';
+const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : 'fibre';
 function portWorld(el, p) {
   const P = portsOf(el)[p], f = frame(el);
   const [x, y] = toWorld(f, P.x, P.y), [dx, dy] = toWorldDir(f, P.dx, P.dy);
@@ -6851,7 +6873,7 @@ function tipInputs(el) {
 /* the network again only when something it depends on has changed */
 let fibreNetMemo = { key: null, net: null };
 function fibreNetCached() {
-  const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre');
+  const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre' || e.type === 'pic');   // PIC hook
   if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }
   const conn = new Set((project.fibres || []).flatMap(F => [F.a[0], F.b[0]]));
   const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id, A.comps || 0]));
@@ -6888,6 +6910,7 @@ function fibreNet() {
   // where each port's fibre goes, with its transfer
   const to = new Map();
   for (const F of fibres) {
+    if (F.wg) continue;                                          // PIC hook: a waveguide is inside its chip
     const Lmm = Math.max(0, F.len) * 1000, a = dBa(F.loss * F.len / 1000);
     to.set(pkey(...F.a), { port: F.b, Lmm, a, F, end: 'a' });
     to.set(pkey(...F.b), { port: F.a, Lmm, a, F, end: 'b' });
@@ -6960,6 +6983,10 @@ function fibreNet() {
         rec(res.inn, pkey(...q), gk, { dl, E, fo, gdd, sp });
         if (!el) continue;
         if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E, fo, gdd, sp }); continue; }        // out into free space
+        if (el.type === 'pic') {                                     // PIC hook: through the chip, solved whole
+          for (const o of PIC.scatter(el, q[1], G.nm, fo)) { const E2 = J2.app(o.M, E), dl2 = dl + o.ddl; if (o.sink) rec(res.pd, o.to[0], gk, { dl: dl2, E: E2, fo, gdd, sp }); else emit(next, o.to, dl2, E2, fo, gdd, sp); }
+          continue;
+        }
         if (el.kind === 'pd') { rec(res.pd, el.id, gk, { dl, E, fo, gdd, sp }); continue; }
         if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); continue; }
         for (const [a, b, M, df] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl, J2.app(M, E), fo + (df || 0), gdd, sp);
@@ -7046,6 +7073,521 @@ function tipSources(net) {
   }
   return out;
 }
+
+/* ==========================================================================
+   Photonic circuits (experimental: exp('pic'))
+   Parts of a photonic chip drawn as a schematic, as the fibre components are: grating
+   couplers, directional couplers, MMIs, rings, phase shifters and photodiodes, joined port
+   to port by waveguides. TE only, one mode, about 1550 nm. Each part is a compact model: a
+   small scattering matrix that depends on the wavelength. A chip (the parts its waveguides
+   join) is solved directly at each wavelength, as one linear system over all its ports, so a
+   ring of high Q costs no more than a straight waveguide; to the fibre network it is one part,
+   whose matrix between its grating couplers' fibre sides (and the light its photodiodes take
+   in) is that solution. The field convention is the fibre network's, e^{-ikz}; the light
+   crossing a coupler picks up +i, as in the fibre coupler.
+   Everything for it lives here, behind PIC. The rest of the tool reaches it only where a line
+   is marked "PIC hook"; the choices made for a later layout view (lengths as settings, each
+   waveguide a connection with an optional path, parts described in physical units) are noted
+   where they are made.
+   ========================================================================== */
+const PIC = (() => {
+  const LAM0 = 1550;                               // nm: where the indices are given
+  const C_NM = 299792458e9;                        // light, nm/s
+  const GREEN = '#3a9d5d', DARK = '#1e3327';
+  // waveguide presets, TE at 1550 nm: effective index, group index, loss (dB/cm)
+  const WG = {
+    si: { name: 'Silicon strip, 220 × 500 nm', neff: 2.44, ng: 4.2, loss: 2 },
+    sin: { name: 'Silicon nitride, low loss', neff: 1.8, ng: 2.0, loss: 0.1 },
+    custom: { name: 'Custom' },
+  };
+  /* ---------- complex numbers, [re, im] ---------- */
+  const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+  const cadd = (a, b) => [a[0] + b[0], a[1] + b[1]];
+  const cabs2 = a => a[0] * a[0] + a[1] * a[1];
+  const cexp = ph => [Math.cos(ph), Math.sin(ph)];
+  const csc = (a, s) => [a[0] * s, a[1] * s];
+  const cdiv = (a, b) => { const d = cabs2(b) || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+  const Z = [0, 0];
+  const zeros = n => Array.from({ length: n }, () => Array.from({ length: n }, () => Z));
+
+  /* a waveguide's index at lam (nm), from its index and group index at 1550 nm (first order) */
+  const nAt = (w, lam) => w.neff - (w.ng - w.neff) * (lam - LAM0) / LAM0;
+  /* its field transmission over len um: loss and the phase e^{-i 2 pi n L / lam} */
+  function wgT(w, lenUm, lam) {
+    const a = Math.pow(10, -Math.max(0, w.loss) * lenUm * 1e-4 / 20);
+    return csc(cexp(-2 * Math.PI * nAt(w, lam) * lenUm * 1e3 / lam), a);
+  }
+  /* a 2x2 coupler, 4 ports: 0 and 1 on one side, 2 and 3 on the other; k2 the power across */
+  function couplerS(k2, lossDb) {
+    const a = Math.pow(10, -Math.max(0, lossDb || 0) / 20), k = clamp(k2, 0, 1);
+    const t = [a * Math.sqrt(1 - k), 0], x = [0, a * Math.sqrt(k)], S = zeros(4);
+    S[0][2] = S[2][0] = t; S[1][3] = S[3][1] = t; S[0][3] = S[3][0] = x; S[1][2] = S[2][1] = x;
+    return S;
+  }
+
+  /* ---------- a network of parts, solved directly ----------
+     parts: [{ S: n x n }], their ports numbered in order across all of them; links: [[p, q, t]]
+     joining port p to port q with field transmission t both ways; ext: the ports light enters
+     and leaves by; obs: ports whose incoming light is wanted (photodiodes). With in the light
+     entering each part's ports and out what leaves them, out = S in, and in_q = t out_p over
+     each link, plus what is put in at ext: (I - C S) in = E. Returns, for light put in at
+     each ext port, what leaves every ext port (S) and what arrives at every obs port (into). */
+  function solveNet(parts, links, ext, obs) {
+    const off = [], Sp = []; let N = 0;
+    for (const P of parts) { off.push(N); N += P.S.length; }
+    const owner = new Int32Array(N), local = new Int32Array(N);
+    parts.forEach((P, k) => { for (let i = 0; i < P.S.length; i++) { owner[off[k] + i] = k; local[off[k] + i] = i; } });
+    const partner = new Int32Array(N).fill(-1), tl = new Array(N).fill(Z);
+    for (const [p, q, t] of links) { partner[q] = p; tl[q] = t; partner[p] = q; tl[p] = t; }
+    const Sg = (r, c) => owner[r] === owner[c] ? parts[owner[r]].S[local[r]][local[c]] : Z;
+    // M = I - C S, row q: -t_q S[partner(q)][.]
+    const M = Array.from({ length: N }, (_, q) => {
+      const row = new Array(N).fill(Z);
+      const p = partner[q];
+      if (p >= 0) { const k = owner[p]; for (let i = 0; i < parts[k].S.length; i++) row[off[k] + i] = csc(cm(tl[q], parts[k].S[local[p]][i]), -1); }
+      row[q] = cadd(row[q], [1, 0]);
+      return row;
+    });
+    // right-hand sides: a unit of light in at each ext port
+    const B = ext.map(e => { const b = new Array(N).fill(Z); b[e] = [1, 0]; return b; });
+    const X = csolve(M, B);
+    const out = X.map(x => ext.map(e => { let s = Z; const k = owner[e]; for (let i = 0; i < parts[k].S.length; i++) s = cadd(s, cm(parts[k].S[local[e]][i], x[off[k] + i])); return s; }));
+    return { S: ext.map((_, i) => ext.map((__, j) => out[j][i])), into: obs.map(o => ext.map((_, j) => X[j][o])) };
+  }
+  /* A x = b for several b, complex, by Gaussian elimination with partial pivoting */
+  function csolve(A0, Bs) {
+    const n = A0.length, A = A0.map(r => r.slice()), X = Bs.map(b => b.slice());
+    for (let c = 0; c < n; c++) {
+      let p = c; for (let r = c + 1; r < n; r++) if (cabs2(A[r][c]) > cabs2(A[p][c])) p = r;
+      if (p !== c) { [A[c], A[p]] = [A[p], A[c]]; for (const x of X) [x[c], x[p]] = [x[p], x[c]]; }
+      const d = A[c][c];
+      if (!(cabs2(d) > 1e-300)) continue;
+      for (let r = c + 1; r < n; r++) {
+        if (A[r][c] === Z || !cabs2(A[r][c])) continue;
+        const f = cdiv(A[r][c], d);
+        for (let k = c; k < n; k++) A[r][k] = cadd(A[r][k], csc(cm(f, A[c][k]), -1));
+        for (const x of X) x[r] = cadd(x[r], csc(cm(f, x[c]), -1));
+      }
+    }
+    for (const x of X) for (let r = n - 1; r >= 0; r--) {
+      let s = x[r];
+      for (let k = r + 1; k < n; k++) s = cadd(s, csc(cm(A[r][k], x[k]), -1));
+      x[r] = cabs2(A[r][r]) > 1e-300 ? cdiv(s, A[r][r]) : Z;
+    }
+    return X;
+  }
+
+  /* ---------- the parts ----------
+     Each: its ports ([x, y] on its box, in half-widths; 'f' marks the one side of a grating
+     coupler that takes a fibre, the rest are on the chip), their names, its settings [key,
+     label, default], and S(el, lam) over its ports. A ring is a small network of its own. */
+  const wgOf = el => ({ neff: el.neff, ng: el.ng, loss: el.loss });
+  const WG_PARAMS = [['neff', 'n_eff at 1550 nm', 2.44], ['ng', 'Group index', 4.2], ['loss', 'Loss (dB/cm)', 2]];
+  function ringS(el, lam, drop) {
+    const w = wgOf(el), L = 2 * Math.PI * el.radius;
+    const parts = [{ S: couplerS(el.kappa1 / 100) }];
+    if (!drop) {
+      // bus in at 0, through at 2; the ring leaves at 3 and comes back into 1
+      const r = solveNet(parts, [[3, 1, wgT(w, L, lam)]], [0, 2], []);
+      return r.S;
+    }
+    // a second coupler on the far side: add in at its 0, drop out at its 2; the ring runs
+    // from the first coupler's 3 to the second's 1, and from the second's 3 to the first's 1
+    parts.push({ S: couplerS(el.kappa2 / 100) });
+    const half = wgT(w, L / 2, lam);
+    const r = solveNet(parts, [[3, 5, half], [7, 1, half]], [0, 2, 4, 6], []);
+    return r.S;                                      // ports: in, through, add, drop
+  }
+  const KINDS = {
+    gc: { label: 'Grating coupler', tag: 'GC', ports: [[-1, 0], [1, 0, 'f']], names: ['chip', 'fibre'],
+      params: [['centre', 'Centre (nm)', 1550], ['peak', 'Peak (dB)', -3], ['bw', '1 dB band (nm)', 30], ['polAngle', 'Fibre pol. (° from s)', 0]],
+      S: (el, lam) => { const T = Math.pow(10, (el.peak - ((lam - el.centre) / (el.bw / 2)) ** 2) / 10), t = [Math.sqrt(T), 0], S = zeros(2); S[0][1] = S[1][0] = t; return S; } },
+    dc: { label: 'Directional coupler', tag: 'DC', ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
+      params: [['kappa', 'Coupling (%)', 50], ['dkappa', 'Change (%/nm)', 0], ['loss', 'Excess loss (dB)', 0]],
+      S: (el, lam) => couplerS((el.kappa + el.dkappa * (lam - LAM0)) / 100, el.loss) },
+    mmi12: { label: '1×2 MMI', tag: 'MMI 1×2', ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['in', 'out 1', 'out 2'],
+      params: [['loss', 'Excess loss (dB)', 0.2]],
+      S: el => { const a = Math.pow(10, -el.loss / 20) / Math.SQRT2, S = zeros(3); S[0][1] = S[1][0] = S[0][2] = S[2][0] = [a, 0]; return S; } },
+    mmi22: { label: '2×2 MMI', tag: 'MMI 2×2', ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
+      params: [['loss', 'Excess loss (dB)', 0.2]],
+      S: el => couplerS(0.5, el.loss) },
+    ring: { label: 'Ring, all-pass', tag: 'RING', wg: true, ports: [[-1, -0.6], [1, -0.6]], names: ['in', 'through'],
+      params: [['radius', 'Radius (µm)', 10], ['kappa1', 'Coupling (%)', 10], ...WG_PARAMS],
+      S: (el, lam) => ringS(el, lam, false) },
+    ringad: { label: 'Ring, add-drop', tag: 'RING', wg: true, ports: [[-1, -0.6], [1, -0.6], [1, 0.6], [-1, 0.6]], names: ['in', 'through', 'add', 'drop'],
+      params: [['radius', 'Radius (µm)', 10], ['kappa1', 'Coupling, in (%)', 10], ['kappa2', 'Coupling, drop (%)', 10], ...WG_PARAMS],
+      S: (el, lam) => ringS(el, lam, true) },
+    ps: { label: 'Phase shifter', tag: 'φ', wg: true, ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+      params: [['phase', 'Phase (°)', 0], ['len', 'Length (µm)', 100], ...WG_PARAMS],
+      S: (el, lam) => { const t = cm(wgT(wgOf(el), el.len, lam), cexp(-el.phase * Math.PI / 180)), S = zeros(2); S[0][1] = S[1][0] = t; return S; } },
+    pd: { label: 'On-chip photodiode', tag: 'PD', sink: true, ports: [[-1, 0]], names: ['in'],
+      params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
+        ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (°)', 0]],
+      S: () => zeros(1) },
+  };
+  const W_BOX = 14, H_BOX = 9;
+  const portList = el => KINDS[el.kind].ports.map(([x, y, f]) => ({ x: x * W_BOX / 2, y: y * H_BOX / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y), chip: f !== 'f' }));
+  const isChipPort = (id, p) => { const e = getEl(id); return !!(e && e.type === 'pic' && portList(e)[p] && portList(e)[p].chip); };
+
+  /* ---------- the element and its waveguides, as saved ---------- */
+  function norm(e, base) {
+    const K = KINDS[e.kind];
+    if (!K) return null;
+    base.kind = e.kind;
+    for (const [k, , d] of K.params) base[k] = num(e[k], d);
+    if (K.wg) {
+      base.wg = WG[e.wg] ? e.wg : 'si';
+      // a preset's own numbers where the file gives none
+      if (base.wg !== 'custom') for (const k of ['neff', 'ng', 'loss']) if (e[k] === undefined) base[k] = WG[base.wg][k];
+    }
+    return base;
+  }
+  /* a waveguide: its length is a setting (a layout would measure it from the drawn path) */
+  const normWg = w => {
+    w = w && typeof w === 'object' ? w : {};
+    const pre = WG[w.preset] ? w.preset : 'si', P = WG[pre === 'custom' ? 'si' : pre];
+    return { preset: pre, len: Math.max(0, num(w.len, 100)), neff: Math.max(1, num(w.neff, P.neff)), ng: Math.max(1, num(w.ng, P.ng)), loss: Math.max(0, num(w.loss, P.loss)) };
+  };
+  const make = (kind, x, y) => normElement({ type: 'pic', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
+
+  /* ---------- chips: the parts the waveguides join ---------- */
+  let chipMemo = { key: null, chips: [] };
+  function chips() {
+    const els = project.elements.filter(e => e.type === 'pic'), wgs = (project.fibres || []).filter(F => F.wg);
+    const key = JSON.stringify([els, wgs]);
+    if (chipMemo.key === key) return chipMemo.chips;
+    const idx = new Map(els.map((e, i) => [e.id, i])), par = els.map((_, i) => i);
+    const find = i => par[i] === i ? i : (par[i] = find(par[i]));
+    for (const F of wgs) if (idx.has(F.a[0]) && idx.has(F.b[0])) par[find(idx.get(F.a[0]))] = find(idx.get(F.b[0]));
+    const groups = new Map();
+    els.forEach((e, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(e); });
+    const list = [...groups.values()].map(g => {
+      const ids = new Set(g.map(e => e.id)), off = new Map(); let n = 0;
+      for (const e of g) { off.set(e.id, n); n += portList(e).length; }
+      const links = wgs.filter(F => ids.has(F.a[0]) && ids.has(F.b[0])).map(F => ({ p: off.get(F.a[0]) + F.a[1], q: off.get(F.b[0]) + F.b[1], w: F.wg }));
+      const linked = new Set(links.flatMap(l => [l.p, l.q])), ports = [];
+      for (const e of g) portList(e).forEach((P, i) => ports.push({ el: e, i, g: off.get(e.id) + i }));
+      // light goes in and out by the fibre sides of the grating couplers and any chip port left
+      // open; the photodiodes' ports are where it is read
+      const ext = ports.filter(P => !linked.has(P.g) && !KINDS[P.el.kind].sink).map(P => P.g);
+      const obs = ports.filter(P => KINDS[P.el.kind].sink).map(P => P.g);
+      return { els: g, ids, off, links, ports, ext, obs, key: JSON.stringify([g, links]), memo: new Map() };
+    });
+    chipMemo = { key, chips: list };
+    return list;
+  }
+  const chipOf = el => chips().find(c => c.ids.has(el.id)) || null;
+  /* the chip solved at lam (nm): { S over ext, into over obs } */
+  function solveChip(c, lam) {
+    const k = lam.toFixed(9);
+    let r = c.memo.get(k);
+    if (r) return r;
+    const parts = c.els.map(e => ({ S: KINDS[e.kind].S(e, lam) }));
+    r = solveNet(parts, c.links.map(l => [l.p, l.q, wgT(l.w, l.w.len, lam)]), c.ext, c.obs);
+    if (c.memo.size > 20000) c.memo.clear();
+    c.memo.set(k, r);
+    return r;
+  }
+  const portLabel = (c, g) => { const P = c.ports.find(q => q.g === g); return P.el.name + (portList(P.el).length > 1 ? ' ' + KINDS[P.el.kind].names[P.i] : ''); };
+
+  /* ---------- to the fibre network: light arriving at a grating coupler's fibre side ----------
+     Returns what leaves the chip's other fibre sides and what its photodiodes take in, each as
+     a 2x2 on the fibre's (s, p), and the extra path it has been delayed by (its group delay:
+     long near a ring's resonance, where the light goes round many times) */
+  function scatter(el, port, nm, fo) {
+    const c = chipOf(el);
+    if (!c) return [];
+    const g = c.off.get(el.id) + port, j = c.ext.indexOf(g);
+    if (j < 0) return [];
+    const lam = C_NM / (C_NM / nm + (fo || 0)), d = 1e-5;
+    const r = solveChip(c, lam), rp = solveChip(c, lam + d), rm = solveChip(c, lam - d);
+    const th = e => (e.polAngle || 0) * Math.PI / 180;
+    const ti = th(el), ci = Math.cos(ti), si = Math.sin(ti);
+    // the delay as a path: dphi/dlambda lambda^2 / 2 pi (e^{-ikz}: phase falls as the path grows)
+    const path = (a, b) => { const dph = Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0]), w = dph - 2 * Math.PI * Math.round(dph / (2 * Math.PI)); return -w / (2 * d) * lam * lam / (2 * Math.PI) * 1e-6; };
+    const out = [];
+    c.ext.forEach((e, i) => {
+      const P = c.ports.find(q => q.g === e);
+      if (P.el.kind !== 'gc' || P.i !== 1) return;          // only a fibre side leads anywhere
+      const s = r.S[i][j];
+      if (cabs2(s) < 1e-30) return;
+      const to = th(P.el), co = Math.cos(to), so = Math.sin(to);
+      out.push({ to: [P.el.id, 1], M: [[csc(s, co * ci), csc(s, co * si)], [csc(s, so * ci), csc(s, so * si)]], ddl: path(rm.S[i][j], rp.S[i][j]) });
+    });
+    c.obs.forEach((o, i) => {
+      const P = c.ports.find(q => q.g === o), s = r.into[i][j];
+      if (cabs2(s) < 1e-30) return;
+      out.push({ to: [P.el.id, 0], sink: true, M: [[csc(s, ci), csc(s, si)], [Z, Z]], ddl: path(rm.into[i][j], rp.into[i][j]) });
+    });
+    return out;
+  }
+
+  /* ---------- the spectrum between two ports, and its lines ---------- */
+  function spectrum(c, from, to, lams) {
+    const j = c.ext.indexOf(from), io = c.obs.indexOf(to), ie = c.ext.indexOf(to);
+    return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cabs2(r.into[io][j]) : cabs2(r.S[ie][j]); });
+  }
+  /* The lines in a spectrum: dips (a notch) or peaks (a pass band), whichever stand out more.
+     Each is measured against its own surroundings, the lower of the highest points either side
+     of a dip before anything deeper (the higher of the lowest, for a peak), so a slope under it
+     (a grating coupler's band) does not count; then refined: where, how deep, how wide at half
+     its depth, its Q; and the mean spacing between neighbours. */
+  function lines(c, from, to, lams, T) {
+    const f = lam => spectrum(c, from, to, [lam])[0], n = T.length, step = lams[1] - lams[0];
+    const find = sg => {
+      const out = [];
+      for (let i = 1; i < n - 1; i++) {
+        if (!(sg * T[i] > sg * T[i - 1] && sg * T[i] >= sg * T[i + 1])) continue;
+        const reach = dir => { let m = T[i]; for (let k = i + dir; k >= 0 && k < n; k += dir) { if (sg * T[k] > sg * T[i]) break; m = sg > 0 ? Math.min(m, T[k]) : Math.max(m, T[k]); } return m; };
+        const base = sg > 0 ? Math.max(reach(-1), reach(1)) : Math.min(reach(-1), reach(1));
+        const er = 10 * Math.log10(Math.max(T[i], 1e-30) / Math.max(base, 1e-30));
+        if (Math.abs(er) >= 0.3) out.push({ i, base, er });
+      }
+      return out;
+    };
+    const P = find(1), D = find(-1), sum = L => L.reduce((a, q) => a + Math.abs(q.er), 0);
+    const dips = sum(D) >= sum(P), sg = dips ? -1 : 1, list = [];
+    for (const q of dips ? D : P) {
+      let a = lams[q.i] - step, b = lams[q.i] + step;
+      for (let it = 0; it < 50; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (sg * f(m1) > sg * f(m2)) b = m2; else a = m1; }
+      const at = 0.5 * (a + b), ext = f(at), half = 0.5 * (ext + q.base);
+      const side = dir => {
+        let lo = at, hi = null;
+        for (let k = 1; k <= 8 * n; k++) { const x = at + dir * k * step / 8; if (sg * (f(x) - half) <= 0) { hi = x; break; } lo = x; if (Math.abs(x - at) > lams[n - 1] - lams[0]) break; }
+        if (hi === null) return null;
+        for (let it = 0; it < 50; it++) { const m = 0.5 * (lo + hi); if (sg * (f(m) - half) > 0) lo = m; else hi = m; }
+        return Math.abs(0.5 * (lo + hi) - at);
+      };
+      const l = side(-1), r = side(1), fw = l !== null && r !== null ? l + r : null;
+      list.push({ at, T: ext, er: 10 * Math.log10(Math.max(ext, 1e-30) / Math.max(q.base, 1e-30)), fwhm: fw, Q: fw ? at / fw : null });
+    }
+    const fsr = list.length > 1 ? (list[list.length - 1].at - list[0].at) / (list.length - 1) : null;
+    return { dips, list, fsr };
+  }
+
+  /* ---------- drawing ---------- */
+  function draw(el, sel) {
+    const f = frame(el), w = W_BOX / 2, hh = H_BOX / 2, s = V().scale;
+    pathLocal(f, roundRect(w, hh, 1.6), true);
+    ctx.fillStyle = DARK; ctx.fill();
+    ctx.strokeStyle = sel ? '#ffffff' : GREEN; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+    // a ring's glyph: the ring beside its bus
+    if (el.kind === 'ring' || el.kind === 'ringad') {
+      const r = 2.2, pts = []; for (let i = 0; i <= 32; i++) { const a = 2 * Math.PI * i / 32; pts.push([r * Math.cos(a), r * Math.sin(a)]); }
+      pathLocal(f, pts); ctx.strokeStyle = GREEN; ctx.lineWidth = 1.2; ctx.stroke();
+      pathLocal(f, [[-w, -0.6 * hh], [w, -0.6 * hh]]); ctx.stroke();
+      if (el.kind === 'ringad') { pathLocal(f, [[-w, 0.6 * hh], [w, 0.6 * hh]]); ctx.stroke(); }
+    } else {
+      const tag = KINDS[el.kind].tag, fs = clamp(2.6 * s, 7, 14);
+      if (fs * tag.length * 0.62 < W_BOX * s) {
+        ctx.save(); ctx.fillStyle = '#bfe6cc'; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tag, sx(el.x), sy(el.y)); ctx.restore();
+      }
+    }
+    const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
+    portList(el).forEach((P, i) => {
+      const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? GREEN : '#f2c14e';
+      ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = on ? col : '#1b2327'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+    });
+  }
+  const hit = (el, lx, ly, tol) => Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= H_BOX / 2 + tol;
+  /* what a drag from one port to another makes: a waveguide on the chip, a fibre off it, or
+     nothing (a fibre cannot end on the chip) */
+  function linkKind(a, b) {
+    const ca = isChipPort(a[0], a[1]), cb = isChipPort(b[0], b[1]);
+    return ca && cb ? 'wg' : !ca && !cb ? 'fibre' : null;
+  }
+
+  /* ---------- panels ---------- */
+  const wgSelect = (get, set) => selectField('Waveguide', Object.entries(WG).map(([k, v]) => [k, v.name]), get, set, { wide: true });
+  function panelFor(el) {
+    const K = KINDS[el.kind];
+    panel.append(h('h3', null, K.label, h('span', { class: 'rt-exp' }, 'Experimental')));
+    const rows = h('div', { class: 'rt-rows' });
+    if (K.wg) rows.append(wgSelect(() => el.wg, v => { el.wg = v; if (v !== 'custom') Object.assign(el, { neff: WG[v].neff, ng: WG[v].ng, loss: WG[v].loss }); }));
+    for (const [k, label] of K.params) rows.append(param(label, el, k));
+    panel.append(rows);
+    panel.append(readoutBox('pic'));
+    if (el.kind === 'pd') signalSection(el);
+    spectrumSection(el);
+    const notes = {
+      gc: 'Couples the chip’s TE mode to a fibre above it: join a fibre to its yellow port. It takes the fibre’s light polarised at its angle (from s) and loses the rest, as a real one does, with a Gaussian band about its centre wavelength. No back-reflection.',
+      dc: 'Two waveguides close enough to couple: 1 goes to 3 and, across, to 4; 2 to 4 and, across, to 3. The light crossing over leads by a quarter wave, so two equal arms recombine into one port.',
+      mmi12: 'Splits the light equally into its two outputs, in phase; run backwards, it adds the two, sending what is out of phase off the chip. It stands for a Y-branch too.',
+      mmi22: 'A 50:50 coupler made as a multimode section: as a directional coupler at 50%, with its own excess loss.',
+      ring: 'A ring beside one bus waveguide: dips in its through port at every resonance, as deep as the coupling matches the ring’s loss (critical coupling).',
+      ringad: 'A ring between two bus waveguides: at resonance the light goes to the drop port; off it, straight through. Light put in at the add port goes to the drop port off resonance and to the through port on it.',
+      ps: 'A section of waveguide with a phase you set (a heater or an electro-optic section): give the phase a sweep to tune a Mach–Zehnder or a ring.',
+      pd: 'Absorbs what reaches it and reads it as the fibre photodiodes do: DC, beat notes, the mixer.',
+    };
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'));
+  }
+  /* the chip's spectrum between two of its ports, and the lines in it */
+  function spectrumSection(el) {
+    const c = chipOf(el);
+    panel.append(h('h3', null, 'Spectrum'));
+    if (!c || !c.ext.length) { panel.append(h('p', null, 'Nothing to put light in by: leave a port open or add a grating coupler.')); return; }
+    // the grating couplers' fibre sides and the photodiodes first, then the chip ports left open
+    const V2 = vs(el), P = g => c.ports.find(q => q.g === g), isGc = g => P(g).el.kind === 'gc';
+    const froms = [...c.ext.filter(isGc), ...c.ext.filter(g => !isGc(g))], outs = [...c.obs, ...froms];
+    const pick = (k, list, dflt) => { if (!list.includes(V2[k])) V2[k] = dflt; };
+    pick('picFrom', froms, froms[0]);
+    // to this photodiode, or the first photodiode, or another coupler, or whatever else there is
+    const mine = c.obs.find(g => P(g).el.id === el.id);
+    pick('picTo', outs, mine ?? c.obs[0] ?? froms.find(g => g !== V2.picFrom && isGc(g)) ?? outs.find(g => g !== V2.picFrom) ?? outs[0]);
+    if (!(V2.picC > 0)) V2.picC = 1550;
+    if (!(V2.picSpan > 0)) V2.picSpan = 20;
+    const opts = list => list.map(g => [String(g), portLabel(c, g)]);
+    const rows = h('div', { class: 'rt-rows' },
+      selectField('From', opts(froms), () => String(V2.picFrom), v => { V2.picFrom = +v; }),
+      selectField('To', opts(outs), () => String(V2.picTo), v => { V2.picTo = +v; }));
+    const numF = (label, key, lo) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => V2[key], v => { if (v > lo) V2[key] = v; })); };
+    rows.append(numF('Centre (nm)', 'picC', 0), numF('Span (nm)', 'picSpan', 0));
+    const cv = h('canvas', { height: '160', style: 'width:100%;display:block;margin-top:0.4rem' });
+    const box = h('div', { class: 'rt-readout' });
+    panel.append(rows, cv, plotSaveRow(cv), box);
+    let last = '';
+    bindSync(cv, () => {
+      const cc = chipOf(el);
+      if (!cc) return;
+      const key = cc.key + '|' + V2.picFrom + '|' + V2.picTo + '|' + V2.picC + '|' + V2.picSpan + '|' + (cv.clientWidth || 0) + '|' + laserNms(cc).join();
+      if (key === last) return;
+      last = key;
+      const n = samplesFor(cc, V2.picSpan), lams = Array.from({ length: n }, (_, i) => V2.picC + (i / (n - 1) - 0.5) * V2.picSpan);
+      const T = spectrum(cc, V2.picFrom, V2.picTo, lams);
+      drawSpectrum(cv, lams, T, laserNms(cc), portLabel(cc, V2.picFrom) + ' → ' + portLabel(cc, V2.picTo));
+      const L = lines(cc, V2.picFrom, V2.picTo, lams, T), r = [];
+      const nmT = v => (+v.toFixed(3)) + ' nm';
+      L.list.slice(0, 8).forEach(q => r.push([nmT(q.at), (q.er >= 0 ? '+' : '') + q.er.toFixed(2) + ' dB' + (q.fwhm ? ', FWHM ' + (q.fwhm < 0.1 ? (+(q.fwhm * 1e3).toPrecision(3)) + ' pm' : (+q.fwhm.toPrecision(3)) + ' nm') + ', Q ' + (+q.Q.toPrecision(3)).toLocaleString() : '')]));
+      if (L.list.length > 8) r.push(['', (L.list.length - 8) + ' more']);
+      if (L.fsr) r.push(['Spacing (FSR)', (+L.fsr.toPrecision(4)) + ' nm (' + fmtHz(C_NM * L.fsr / (V2.picC * V2.picC)) + ')']);
+      if (!L.list.length) r.push(['Lines', 'none deeper than 0.3 dB in this span']);
+      else r.unshift([L.dips ? 'Dips' : 'Peaks', 'each against the level either side of it']);
+      box.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+    });
+  }
+  /* the wavelengths of the lasers reaching the chip now, from the fibre network */
+  function laserNms(c) {
+    const net = lastTrace.net;
+    if (!net) return [];
+    const out = new Set();
+    for (const g of c.ext) {
+      const P = c.ports.find(q => q.g === g), m = net.inn.get(pkey(P.el.id, P.i));
+      if (m) for (const K of net.keys) if (m.has(K.gk) && !K.root.ase) out.add(+K.nm.toFixed(4));
+    }
+    return [...out];
+  }
+  function drawSpectrum(cv, lams, T, marks, title) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 160;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
+    const dB = T.map(v => 10 * Math.log10(Math.max(v, 1e-12)));
+    plotCsv(cv, 'chip spectrum ' + title, ['wavelength_nm', 'transmission', 'transmission_dB'], () => lams.map((l, i) => [l, T[i], dB[i]]));
+    let lo = Math.max(-60, Math.min(...dB)), hi = Math.max(...dB);
+    if (!(hi - lo > 0.5)) { lo -= 0.5; hi += 0.5; }
+    const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
+    const sx2 = { kind: 'plain', title: 'wavelength, nm' }, sy2 = { kind: 'plain', title: 'dB' };
+    const A = plotArea(g, w, hgt, [lo, hi], sy2);
+    const X = l => A.l + (l - lams[0]) / (lams[lams.length - 1] - lams[0]) * A.w, Y = v => A.t + A.h - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * A.h;
+    g.strokeStyle = GREEN; g.lineWidth = 1.4; g.beginPath();
+    // each pixel column from its lowest to its highest sample, so a line narrower than a pixel still shows
+    let col = -1, mn = 0, mx = 0, first = true;
+    const flush = () => { if (col < 0) return; const x = A.l + col + 0.5; if (first) { g.moveTo(x, Y(mx)); first = false; } else g.lineTo(x, Y(mx)); g.lineTo(x, Y(mn)); };
+    dB.forEach((v, i) => { const c2 = Math.floor(X(lams[i]) - A.l); if (c2 !== col) { flush(); col = c2; mn = mx = v; } else { mn = Math.min(mn, v); mx = Math.max(mx, v); } });
+    flush();
+    g.stroke();
+    // where the lasers reaching it are
+    g.strokeStyle = 'rgba(219,53,80,0.7)'; g.setLineDash([3, 3]);
+    for (const m of marks) if (m >= lams[0] && m <= lams[lams.length - 1]) { g.beginPath(); g.moveTo(X(m), A.t); g.lineTo(X(m), A.t + A.h); g.stroke(); }
+    g.setLineDash([]);
+    drawAxes(g, A, [lams[0], lams[lams.length - 1]], [lo, hi], sx2, sy2);
+  }
+  /* a ring's line width (nm) and free spectral range at 1550 nm, from its closed form */
+  function ringLine(el) {
+    const L = 2 * Math.PI * el.radius, fsr = LAM0 * LAM0 / (el.ng * L * 1e3), a = Math.pow(10, -el.loss * L * 1e-4 / 20);
+    const t1 = Math.sqrt(1 - el.kappa1 / 100), t2 = el.kind === 'ringad' ? Math.sqrt(1 - el.kappa2 / 100) : 1, x = t1 * t2 * a;
+    const F = Math.PI * Math.sqrt(x) / Math.max(1e-12, 1 - x);
+    return { L, fsr, a, t1, t2, F, fw: fsr / F };
+  }
+  /* samples across a span fine enough for the narrowest ring on the chip: four to a line width */
+  const samplesFor = (c, span) => clamp(Math.ceil(span / (Math.min(...c.els.filter(e => e.kind === 'ring' || e.kind === 'ringad').map(e => ringLine(e).fw), Infinity) / 4)), 1201, 20001) | 1;
+  /* the readout rows under the settings */
+  function readout(el) {
+    const rows = portRows(el), K = KINDS[el.kind];
+    if (el.kind === 'pd') {
+      const net = lastTrace.net, mw = net ? netPower(net.pd.get(el.id), net.keys) : 0, mA = mw * el.resp, Vo = mA * 1e-3 * el.gain;
+      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ['Output', (+Math.min(Vo, el.vmax).toPrecision(4)) + ' V' + (Vo > el.vmax ? ', at its limit' : '')]);
+    }
+    if (el.kind === 'ring' || el.kind === 'ringad') {
+      const { L, fsr, a, t1, F, fw } = ringLine(el);
+      rows.unshift(['Free spectral range', (+fsr.toPrecision(4)) + ' nm at 1550 nm (' + fmtHz(C_NM * fsr / (LAM0 * LAM0)) + ')'],
+        ['Round trip', fmtLen(L * 1e-3) + ', loss ' + (+(-20 * Math.log10(a)).toPrecision(3)) + ' dB'],
+        ['Finesse, loaded', (+F.toPrecision(3)) + ': lines ' + (fw < 0.1 ? (+(fw * 1e3).toPrecision(3)) + ' pm' : (+fw.toPrecision(3)) + ' nm') + ' wide, Q ' + (+(LAM0 / fw).toPrecision(3)).toLocaleString()]);
+      if (el.kind === 'ring') rows.push(['Coupling', Math.abs(t1 - a) < 0.002 * a ? 'critical: the dips go to zero' : t1 > a ? 'under-coupled' : 'over-coupled']);
+    }
+    if (el.kind === 'gc') {
+      const nms = (() => { const c = chipOf(el); return c ? laserNms(c) : []; })();
+      for (const nm of nms.slice(0, 3)) rows.push(['Coupling at ' + nm + ' nm', (+(el.peak - ((nm - el.centre) / (el.bw / 2)) ** 2).toFixed(2)) + ' dB']);
+    }
+    return [rows, K.sink ? 'Power from the fibre network, through the chip, at each laser’s wavelength.' : 'Ports and what they join; powers where the fibre network reaches them.'];
+  }
+  /* a waveguide, selected: its settings and what it does */
+  function wgPanel(F) {
+    const A = getEl(F.a[0]), B = getEl(F.b[0]), w = F.wg;
+    panel.append(h('h2', null, h('span', null, 'Waveguide'), h('span', { class: 'kind' }, (A ? A.name : '?') + ' → ' + (B ? B.name : '?'))));
+    const fnum = (label, key, set) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => w[key], v => set(v))); };
+    panel.append(h('div', { class: 'rt-rows' },
+      wgSelect(() => w.preset, v => { w.preset = v; if (v !== 'custom') Object.assign(w, { neff: WG[v].neff, ng: WG[v].ng, loss: WG[v].loss }); }),
+      fnum('Length (µm)', 'len', v => { w.len = Math.max(0, v); }),
+      fnum('Loss (dB/cm)', 'loss', v => { w.loss = Math.max(0, v); w.preset = 'custom'; }),
+      fnum('Effective index', 'neff', v => { w.neff = Math.max(1, v); w.preset = 'custom'; }),
+      fnum('Group index', 'ng', v => { w.ng = Math.max(1, v); w.preset = 'custom'; })));
+    const out = h('div', { class: 'rt-readout' });
+    panel.append(out);
+    bindSync(out, () => {
+      const ph = 2 * Math.PI * w.neff * w.len * 1e3 / LAM0;
+      const rows = [['Phase at 1550 nm', (+(ph / (2 * Math.PI)).toPrecision(6)) + ' waves'], ['Delay', (+(w.ng * w.len * 1e-6 / 0.299792458 * 1e3).toPrecision(4)) + ' ps'],
+        ['Loss', (+(w.loss * w.len * 1e-4).toPrecision(3)) + ' dB']];
+      out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+    });
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Its length is this number, not the length drawn (a layout view, later, could measure it from the path). The index changes with wavelength through the group index: n(λ) = nₑ − (n_g − nₑ)(λ − 1550 nm)/1550 nm. Drag either end off its port to take it away.'));
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete waveguide')));
+  }
+
+  /* the Add row's parts, each under the experimental key */
+  const PALETTE = [['pic:gc', 'Grating coupler'], ['pic:dc', 'Directional coupler'], ['pic:mmi12', 'MMI 1×2'], ['pic:mmi22', 'MMI 2×2'],
+    ['pic:ring', 'Ring', 'Ring resonator, all-pass'], ['pic:ringad', 'Add-drop ring', 'Ring resonator, add-drop'], ['pic:ps', 'Phase shifter'], ['pic:pd', 'Photodiode', 'On-chip photodiode']]
+    .map(([k, l, t]) => [k, l, t || l, 'pic']);
+
+  return {
+    KINDS, WG, GREEN, PALETTE, norm, normWg, make, draw, hit, linkKind, panelFor, wgPanel, readout, scatter,
+    ports: portList, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Photonic part', names: el => KINDS[el.kind].names,
+    halfSize: () => H_BOX / 2 + 1,
+    // for the tests: a chip's response by element name and port number, and the pieces
+    api: {
+      response(fromName, fromPort, toName, toPort, lams) {
+        const A = project.elements.find(e => e.name === fromName), B = project.elements.find(e => e.name === toName), c = A && chipOf(A);
+        if (!c) return null;
+        const g1 = c.off.get(A.id) + fromPort, g2 = c.off.get(B.id) + toPort, j = c.ext.indexOf(g1), io = c.obs.indexOf(g2), ie = c.ext.indexOf(g2);
+        if (j < 0 || (io < 0 && ie < 0)) return null;                // a port joined inside the chip has no light put in or taken out
+        return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? r.into[io][j] : r.S[ie][j]; });
+      },
+      lines(fromName, fromPort, toName, toPort, lo, hi, n) {
+        const A = project.elements.find(e => e.name === fromName), B = project.elements.find(e => e.name === toName), c = A && chipOf(A);
+        if (!c) return null;
+        const g1 = c.off.get(A.id) + fromPort, g2 = c.off.get(B.id) + toPort, lams = Array.from({ length: n }, (_, i) => lo + (hi - lo) * i / (n - 1));
+        const L = lines(c, g1, g2, lams, spectrum(c, g1, g2, lams));
+        return { dips: L.dips, fsr: L.fsr, list: L.list.map(q => ({ at: q.at, T: q.T, er: q.er, fwhm: q.fwhm, Q: q.Q })) };
+      },
+      chips: () => chips().map(c => ({ parts: c.els.map(e => e.name), ext: c.ext.length, obs: c.obs.length })),
+      // a ring's panel readout: its free spectral range and line width at 1550 nm, from the closed form
+      ring(name) { const e = project.elements.find(q => q.name === name); if (!e || !(e.kind === 'ring' || e.kind === 'ringad')) return null; const r = ringLine(e); return { fsr: r.fsr, fw: r.fw, F: r.F }; },
+      linkKind,
+    },
+  };
+})();
 
 /* ---------- A photodiode's signal: its DC and the beat notes in it ----------
    Light of one laser at two offsets f_a and f_b beats at f_b - f_a: the power carries
@@ -7134,7 +7676,7 @@ function freePdTones(el) {
 }
 /* the signal: DC (mW), tones (mW of optical power swing, and V out), the mixer */
 function pdSignal(el) {
-  const fibre = el.type === 'fcomp';
+  const fibre = el.type === 'fcomp' || el.type === 'pic';                                     // PIC hook: an on-chip photodiode reads as a fibre one
   const dc = fibre ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : detectorReading(el).mw;
   const Ff = !fibre && viaCavity(el) ? detectorFieldResult(el) : null;
   const tones = fibre ? beatTones(fibrePdParts(el)) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + '#tones' }), () => freePdTones(el));
@@ -7260,7 +7802,7 @@ function recordSignal(el, V) {
 const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
 /* the signal section of a photodiode's panel */
 function signalSection(el) {
-  const fibre = el.type === 'fcomp';
+  const fibre = el.type === 'fcomp' || el.type === 'pic';                                     // PIC hook
   panel.append(h('h3', null, 'Signal'));
   if (!fibre) panel.append(h('div', { class: 'rt-rows' }, param('Demod. at (MHz)', el, 'demodF'), param('Demod. phase (\u00b0)', el, 'demodPhase')));
   const vsEl = vs(el);
@@ -8011,7 +8553,7 @@ function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
   if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) fibreLinkPanel(F); else renderOverview(); return; }
+  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : fibreLinkPanel)(F); else renderOverview(); return; }   // PIC hook
 
   const pinned = pins.includes(el.id);
   const pinBtn = h('button', { class: 'rt-pin' + (pinned ? ' on' : ''), type: 'button', 'aria-pressed': pinned ? 'true' : 'false',
@@ -8029,7 +8571,7 @@ function renderPanelBody(el) {
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
       faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)', cell: 'Orientation (\u00b0)', nlc: 'Orientation (\u00b0)',
-      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', pic: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
   );
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
@@ -8056,6 +8598,7 @@ function renderPanelBody(el) {
   if (el.type === 'nlc') nlcPanel(el);
   if (el.type === 'link') linkPanel(el);
   if (el.type === 'fcomp') fcompPanel(el);
+  if (el.type === 'pic') PIC.panelFor(el);                                                    // PIC hook
   if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
@@ -15349,6 +15892,8 @@ function updateReadoutsIn(container, el) {
     }
     parts = [rows, 'Spot statistics are measured along the screen from its centre and weighted by ray power. Wavefront error is the spread in optical path to the centroid.' +
       (st && st.mixed ? ' Path figures use the most common wavelength on this screen.' : '')];
+  } else if (el.type === 'pic') {
+    parts = PIC.readout(el);                                                                   // PIC hook
   } else if (el.type === 'fcomp') {
     const rows = portRows(el);
     if (el.kind === 'pd') {
@@ -16741,8 +17286,8 @@ function checkImport(raw, p, notes) {
   });
   // fibres: the ones that could not be joined, and why
   const kept = new Set(p.fibres.map(F => pkey(...F.a) + '|' + pkey(...F.b)));
-  const nPorts = e => e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : 0;
-  const portName = e => e.type === 'fcomp' ? FC[e.kind].names.map((q, i) => i + ' (' + q + ')').join(', ') : '0';
+  const nPorts = e => e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0;
+  const portName = e => e.type === 'fcomp' ? FC[e.kind].names.map((q, i) => i + ' (' + q + ')').join(', ') : e.type === 'pic' ? PIC.names(e).map((q, i) => i + ' (' + q + ')').join(', ') : '0';
   const used = new Map();
   (Array.isArray(raw.fibres) ? raw.fibres : []).forEach((F, i) => {
     const tag = 'Fibre ' + (i + 1);
@@ -17120,6 +17665,7 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a third set of parts on the Add row, in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Not yet validated.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
 let expOn = false;
@@ -17140,19 +17686,23 @@ const PALETTES = {
     ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
     ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['cell', 'Vapour cell', 'Atomic vapour cell (Rb, Cs, K)'], ['nlc', 'Nonlinear crystal', 'Nonlinear crystal (second harmonic: PPLN, PPKTP)'], ['fibre', 'Fibre tip'],
     ['detector', 'Photodetector'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
+  pic: PIC.PALETTE,                                                                          // PIC hook
   fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodiode', 'Fibre photodiode'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
 };
 let palette = 'free';
-try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = 'fibre'; } catch (err) { /* private window: free space */ }
+try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic') palette = pv; } catch (err) { /* private window: free space */ }
 function layoutPalette() {
   const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
+  if (palette === 'pic' && !exp('pic')) palette = 'free';                                    // PIC hook
+  document.querySelector('#paletteMenu [data-palette="pic"]').hidden = !exp('pic');
   const row = document.getElementById('addRow'), items = PALETTES[palette].filter(it => !it[3] || exp(it[3]));
   const pb = document.getElementById('btnPalette');
-  pb.textContent = (palette === 'fibre' ? 'Fibre' : 'Free-space') + ' \u25be';
+  pb.textContent = ({ fibre: 'Fibre', pic: 'Photonic' }[palette] || 'Free-space') + ' \u25be';
   pb.classList.toggle('fibre', palette === 'fibre');
+  pb.classList.toggle('pic', palette === 'pic');
   box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
   menu.replaceChildren();
   moreWrap.hidden = false;
@@ -17195,6 +17745,7 @@ const NEWS = [
     'A <b>Cite</b> button, and a licence page.',
     'Short pulses, nonlinear optics, vapour cells and optical traps are no longer beta: each is now checked on the validation page. Polarisation spectroscopy, optical lattices and the gas damping of levitated particles stay in beta until they are checked too.',
     'An <b>Experimental features</b> switch (under the toolbar): new features arrive there, off until you turn them on, before they reach beta.',
+    '<b>Photonic circuits</b> (experimental): grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides on a green palette, with a spectrum view; TE near 1550 nm, checked on the validation page against closed forms and SAX.',
     'A <b>validation page</b> that runs JEKray2D against published results and independent codes in your browser. Vapour cells now use Alcock et al.\u2019s vapour pressures, which put about 2.5% fewer atoms in a rubidium cell at 50 \u00b0C than before.']],
   ['Before 1.0', '23–27 September 2026', [
     'Beams split where they cross an element’s edge: the part that misses carries on.',
@@ -17368,6 +17919,8 @@ const EXAMPLES = [
   ['Nonlinear optics', false, [
     ['frequency-doubling', 'Frequency doubling: PPLN and PPKTP', '1560 nm to 780 nm and 1064 nm to 532 nm in poled crystals.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
+  ['Photonic circuits', false, [
+    ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [
     ['levitated-trap', 'Levitated nanorod trap (Hu et al. 2023)', 'The standing-wave trap from a Nature Communications paper.']]],
 ];
@@ -18214,6 +18767,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // experimental features: switch them on or off, and whether one is on
     experimental(on) { if (on !== undefined) setExperimental(on); return { on: expOn, list: EXPERIMENTAL.map(f => f.key) }; },
     exp: key => exp(key),
+    pic: PIC.api,                                                                              // PIC hook
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
     scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); vs(el).sigSpan = span; drawSignal(cv, el, 'time'); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,

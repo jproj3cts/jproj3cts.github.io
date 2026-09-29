@@ -4111,6 +4111,73 @@ const TESTS = [
     want: 1, tol: 0.01, unit: '',
     run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
   },
+  /* ---------- Photonic circuits (experimental) ---------- */
+  {
+    name: 'Photonic circuits: an all-pass ring matches its closed form',
+    why: 'through = (t − a e^{−iφ}) / (1 − t a e^{−iφ}), R 10 µm, 5% coupling, 3 dB/cm, φ = 2π n(λ) L / λ, across 10 nm: the largest difference in the complex field',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(picRing('ring', 5, 0, 3));
+      const L = 2 * Math.PI * 10, a = Math.pow(10, -3 * L * 1e-4 / 20), t = Math.sqrt(0.95), lams = picLams(), T = J.pic.response('Ring', 0, 'Ring', 1, lams);
+      let e = 0;
+      lams.forEach((lam, i) => { const ph = 2 * Math.PI * picN(lam) * L * 1e3 / lam, w = [a * Math.cos(ph), -a * Math.sin(ph)], num = [t - w[0], -w[1]], den = [1 - t * w[0], -t * w[1]], d = den[0] ** 2 + den[1] ** 2;
+        e = Math.max(e, Math.hypot((num[0] * den[0] + num[1] * den[1]) / d - T[i][0], (num[1] * den[0] - num[0] * den[1]) / d - T[i][1])); });
+      return e;
+    },
+  },
+  {
+    name: 'and an add-drop ring its drop and through powers',
+    why: 'drop = κ₁²κ₂² a / (1 − 2 a t₁t₂ cos φ + (a t₁t₂)²), 5% and 8% coupling: the largest difference in either power',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(picRing('ringad', 5, 8, 3));
+      const L = 2 * Math.PI * 10, a = Math.pow(10, -3 * L * 1e-4 / 20), t1 = Math.sqrt(0.95), t2 = Math.sqrt(0.92), lams = picLams();
+      const D = J.pic.response('Ring', 0, 'Ring', 3, lams), T = J.pic.response('Ring', 0, 'Ring', 1, lams);
+      let e = 0;
+      lams.forEach((lam, i) => { const ph = 2 * Math.PI * picN(lam) * L * 1e3 / lam, den = 1 - 2 * a * t1 * t2 * Math.cos(ph) + (a * t1 * t2) ** 2;
+        e = Math.max(e, Math.abs(0.05 * 0.08 * a / den - (D[i][0] ** 2 + D[i][1] ** 2)), Math.abs((t2 * t2 * a * a - 2 * a * t1 * t2 * Math.cos(ph) + t1 * t1) / den - (T[i][0] ** 2 + T[i][1] ** 2))); });
+      return e;
+    },
+  },
+  {
+    name: 'A Mach–Zehnder of two 50% couplers follows its phase',
+    why: 'arms of equal length, one with a phase shifter at 0, 60, 90, 180 and 270°: the bar port carries sin²(Δφ/2), the cross port cos²; the largest difference',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      let e = 0;
+      for (const ph of [0, 60, 90, 180, 270]) {
+        J.load(picMzi(ph));
+        const bar = J.pic.response('DC 1', 0, 'DC 2', 2, [1550])[0], cross = J.pic.response('DC 1', 0, 'DC 2', 3, [1550])[0], d = ph * Math.PI / 180;
+        e = Math.max(e, Math.abs(bar[0] ** 2 + bar[1] ** 2 - Math.sin(d / 2) ** 2), Math.abs(cross[0] ** 2 + cross[1] ** 2 - Math.cos(d / 2) ** 2));
+      }
+      return e;
+    },
+  },
+  {
+    name: 'Light in and out of a chip by its grating couplers reaches a fibre photodiode',
+    why: 'a 1 mW fibre laser at 1560 nm through two couplers centred on 1550 nm, −3 dB peak, 30 nm 1 dB band: −3 − (10/15)² dB each',
+    wantFrom: () => Math.pow(10, 2 * (-3 - (10 / 15) ** 2) / 10), tol: 1e-6, rel: true, unit: ' mW',
+    run: J => { J.load(picFibreBench(1560)); J.trace(); return J.fibrePd('PD'); },
+  },
+  {
+    name: 'An on-chip photodiode reads the drop port of a ring the laser sits on',
+    why: 'laser on a resonance of an add-drop ring (found from its spectrum), a −3 dB coupler before it: its reading against the closed-form drop power times the coupler',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(picDropBench(1550)); J.trace();
+      const L = J.pic.lines('GC in', 1, 'Drop PD', 0, 1545, 1555, 20001), at = L.list.reduce((a, q) => Math.abs(q.at - 1550) < Math.abs(a.at - 1550) ? q : a).at;
+      J.load(picDropBench(at)); J.trace();
+      const ring = 2 * Math.PI * 10, a = Math.pow(10, -2 * ring * 1e-4 / 20), t = Math.sqrt(0.97), x = t * t * a, ph = 2 * Math.PI * picN(at) * ring * 1e3 / at;
+      return J.fibrePd('Drop PD') / (Math.pow(10, -0.3) * 0.03 * 0.03 * a / (1 - 2 * x * Math.cos(ph) + x * x));
+    },
+  },
+  {
+    name: 'A waveguide only joins chip ports, a fibre only the rest',
+    why: 'chip port to chip port makes a waveguide; a fibre laser to a grating coupler’s fibre side a fibre; a fibre laser to a chip port nothing',
+    want: 1, tol: 0, unit: '',
+    run: J => { J.load(picFibreBench(1550)); const k = J.pic.linkKind;
+      return k(['G1', 0], ['G2', 0]) === 'wg' && k(['L', 0], ['G1', 1]) === 'fibre' && k(['L', 0], ['G1', 0]) === null ? 1 : 0; },
+  },
   {
     name: 'Experimental features stay off until switched on, and only listed ones switch on',
     why: 'off by default (and in test mode); switched on, a key that is not listed is still off; switched off again, all are off',
@@ -4155,6 +4222,22 @@ function pmBench(key, len) {
   b.fibres.push({ a: ['L', 0], b: ['P', 0], len, loss: 0, ftype: 'pm', key, beat: 4, per: 60 });
   return b;
 }
+/* photonic circuits: benches, and the waveguide's index as the tool takes it */
+const picN = lam => 2.44 - (4.2 - 2.44) * (lam - 1550) / 1550;
+const picLams = () => { const out = []; for (let l = 1545; l <= 1555; l += 0.0137) out.push(l); return out; };
+const picRing = (kind, k1, k2, loss) => ({ format: 'jekray', version: 1, name: 'ring', elements: [{ type: 'pic', kind, id: 'R', name: 'Ring', x: 0, y: 0, radius: 10, kappa1: k1, kappa2: k2, loss }] });
+const picMzi = ph => ({ format: 'jekray', version: 1, name: 'mzi', elements: [
+  { type: 'pic', kind: 'dc', id: 'D1', name: 'DC 1', x: -30, y: 0 }, { type: 'pic', kind: 'ps', id: 'P', name: 'Heater', x: 0, y: 5, phase: ph, len: 100, loss: 0 },
+  { type: 'pic', kind: 'ps', id: 'Q', name: 'Plain', x: 0, y: -5, phase: 0, len: 100, loss: 0 }, { type: 'pic', kind: 'dc', id: 'D2', name: 'DC 2', x: 30, y: 0 }],
+  fibres: [{ a: ['D1', 2], b: ['P', 0], wg: { len: 20, loss: 0 } }, { a: ['D1', 3], b: ['Q', 0], wg: { len: 20, loss: 0 } }, { a: ['P', 1], b: ['D2', 0], wg: { len: 20, loss: 0 } }, { a: ['Q', 1], b: ['D2', 1], wg: { len: 20, loss: 0 } }] });
+const picFibreBench = nm => ({ format: 'jekray', version: 1, name: 'chip', elements: [
+  { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, wavelength: nm, power: 1 }, { type: 'pic', kind: 'gc', id: 'G1', name: 'GC in', x: -30, y: 0, angle: 180 },
+  { type: 'pic', kind: 'gc', id: 'G2', name: 'GC out', x: 30, y: 0 }, { type: 'fcomp', kind: 'pd', id: 'D', name: 'PD', x: 60, y: 0 }],
+  fibres: [{ a: ['L', 0], b: ['G1', 1], len: 1, loss: 0 }, { a: ['G1', 0], b: ['G2', 0], wg: { len: 100, loss: 0 } }, { a: ['G2', 1], b: ['D', 0], len: 1, loss: 0 }] });
+const picDropBench = nm => ({ format: 'jekray', version: 1, name: 'drop', elements: [
+  { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, wavelength: nm, power: 1 }, { type: 'pic', kind: 'gc', id: 'G1', name: 'GC in', x: -30, y: 0, angle: 180, centre: nm },
+  { type: 'pic', kind: 'ringad', id: 'R', name: 'Ring', x: 0, y: 0, radius: 10, kappa1: 3, kappa2: 3 }, { type: 'pic', kind: 'pd', id: 'P', name: 'Drop PD', x: -30, y: 20 }],
+  fibres: [{ a: ['L', 0], b: ['G1', 1], len: 1, loss: 0 }, { a: ['G1', 0], b: ['R', 0], wg: { len: 0, loss: 0 } }, { a: ['R', 3], b: ['P', 0], wg: { len: 0, loss: 0 } }] });
 function ampBench(P, signal) {
   const els = [fc('amp', 'A', { g0: 20, psat: 17, nf: 5, centre: 1545, bw: 35, iso: 60 }), fc('pd', 'D'), fc('pd', 'Back')];
   const fib = [['A', 1, 'D', 0, 0.01, 0], ['A', 0, 'Back', 0, 0.01, 0]];

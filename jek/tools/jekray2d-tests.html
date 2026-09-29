@@ -3793,6 +3793,21 @@ const TESTS = [
     },
   },
   {
+    name: 'Coma and distortion have Welford’s signs whichever way the bench runs',
+    why: 'LA1509 (curved side first) with its stop 10 mm ahead, a 10 mm pupil, ±4° at 587.6 nm, the screen at the paraxial focus: Welford’s sums give W131 = +0.380 and W311 = +0.564 waves (the pupil and the image height measured the same way); the same bench turned round (the light running −x) gives the same. Both once came out with the opposite sign; worst difference, waves',
+    want: 0, tol: 0.015, unit: ' waves',
+    run: J => {
+      const one = flip => { const k = flip ? -1 : 1, a = flip ? 180 : 0;
+        J.load(bench('ab', [src({ name: 'S', x: -25 * k, width: 10, rays: 11, pol: 's', wavelength: 587.5618, angle: a }),
+          { type: 'stop', name: 'Stop', x: -10 * k, y: 0, angle: a, aperture: 30, outer: 40 },
+          { type: 'lens', name: 'L', x: 1.8 * k, y: 0, angle: a, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] },
+          screen({ name: 'Sc', x: (3.6 + 97.278) * k, angle: flip ? 0 : 180, length: 40 })], { minPower: 0.5 }));
+        const S = J.aberrations('Sc', { abAng: 4, abN: 7, abRays: 61 }).seidel; return [S.W131, S.W311]; };
+      const r = [...one(false), ...one(true)];
+      return Math.max(...[0.380, 0.564, 0.380, 0.564].map((w, i) => Math.abs(r[i] - w)));
+    },
+  },
+  {
     name: 'A stop before a positive lens makes barrel distortion',
     why: 'a singlet with a 6 mm stop 30 mm in front of it, the field turned about the stop’s centre: the chief ray lands short of its paraxial height at the edge of a 5° field, more so the further ahead the stop (30, 5 and 1 mm)',
     want: 1, tol: 0, unit: '',

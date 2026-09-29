@@ -15,6 +15,7 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/mode-converter.json` | `scripts/mode_converter.py` | Beijersbergen et al.'s (1993) pi/2 cylindrical-lens mode converter: the HG1,0 it makes from LG0,1 |
 | `ref/diffraction-classics.json` | `scripts/diffraction_classics.py` | Poisson's spot (Fresnel 1818), the Airy pattern (Airy 1835) and Young's slits (Young 1804), from the Fresnel-Kirchhoff integral |
 | `ref/lenses-optiland.json` | `scripts/lenses_optiland.py` | Optiland 0.6 real-ray traces (github.com/HarrisonKramer/optiland) |
+| `ref/seidel.json` | `scripts/seidel.py` | Welford, Aberrations of Optical Systems (1986): Seidel sums for a singlet and a Cooke triplet, the higher orders from exact meridional rays fitted as JEKray2D fits, and Maréchal's Strehl ratio |
 | `ref/rb-elecsus.json` | `scripts/rb_elecsus.py` | ElecSus (Zentile et al., Comput. Phys. Commun. 189, 162 (2015)) |
 | `ref/faraday-elecsus.json` | `scripts/faraday_elecsus.py` | ElecSus: Faraday filters (Rb and Cs D2) and Rb in the hyperfine Paschen-Back regime, cell transmission and crossed-polariser transmission |
 | `ref/rb-siddons-2008.json` | `scripts/siddons_fig8.py` | Siddons et al., J. Phys. B 41, 155004 (2008), Figure 8: measured transmission, read from the arXiv PDF's vector figure |
@@ -40,6 +41,7 @@ numpy instead.
     python scripts/fox_li.py
     python scripts/fox_li_figure.py fl13.png          # page 466 of the archive.org scan, needs Pillow
     python scripts/lenses_optiland.py
+    python scripts/seidel.py                         # needs optiland (for its glass data and the triplet)
     ELECSUS=/path/to/ElecSus python scripts/rb_elecsus.py
     python scripts/siddons_fig8.py siddons.pdf          # arXiv:0805.1139, needs pymupdf
     python scripts/dipole_traps.py safronova.pdf        # arXiv:physics/0508087, needs pymupdf

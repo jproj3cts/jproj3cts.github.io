@@ -592,6 +592,42 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'seidel', area: 'Rays and lenses', title: 'Seidel’s aberrations of a singlet and a Cooke triplet, and the Strehl ratio',
+    kind: 'Textbook sums, checked by exact rays', ref: 'seidel.json', script: 'seidel.py',
+    cite: 'W. T. Welford, Aberrations of Optical Systems (Adam Hilger, 1986), chapter 8 (the Seidel sums) and chapter 11 (the Strehl ratio and Maréchal’s relation); the triplet is Optiland’s Cooke triplet sample.',
+    what: 'Welford’s surface-by-surface Seidel sums from a paraxial marginal and chief ray, as the wavefront coefficients at the edge of the pupil and the field: spherical W040 = S_I/8, coma W131 = S_II/2, the tangential focus with field W22T = (3S_III + S_IV)/4 and distortion W311 = S_V/2. Two systems, each with its stop a plane of its own: LA1509’s prescription (plano-convex, curved side first) with the stop 10 mm ahead, a 10 mm pupil and fields to ±4° at 587.6 nm; and Optiland’s Cooke triplet with its stop 1 mm ahead of the flint, a 6 mm pupil and fields to ±8° at 550 nm. JEKray2D’s Aberrations tab, on a screen at the paraxial focus, sweeps a fan across seven fields and fits the real rays’ wavefront. Seidel’s sums are the third order only; the real rays carry the higher orders too, so the reference script also traces real rays exactly and fits them the same way, which gives the higher-order part at these apertures (at a tenth of the aperture and field this fit returns the sums to 0.5%, a check on both). Then Maréchal’s relation, the Strehl ratio exp(−(2πσ)²) from the rms wavefront error about the best focus, σ = W040/(6√5) for spherical aberration, for the singlet at f/7.7 on axis.',
+    tolerance: 'Each coefficient within the higher-order part the real rays show (|real − Seidel|, from the script) plus 2% of Seidel’s value and 0.002 waves. The Strehl ratio within 2% of Maréchal’s.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const lensOf = (S, x) => S.lens.R.length === 2
+        ? { type: 'lens', name: 'Singlet (LA1509)', x, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'custom', n: S.glasses['N-BK7'] }] }
+        : { type: 'lens', name: 'Cooke triplet', x, y: 0, angle: 0, diameter: 16, surfaces: S.lens.R.map(r => ({ R: r })), gaps: S.lens.gaps,
+            materials: S.lens.mat.map(m => m === 'AIR' ? { glass: 'custom', n: 1 } : { glass: 'custom', n: S.glasses[m] }) };
+      const mk = (S, epd) => bench(S.name, [
+        { type: 'source', name: 'Fan', x: -25, y: 0, angle: 0, wavelength: S.wl * 1000, width: epd, rays: 11, pol: 's' },
+        { type: 'stop', name: 'Stop', x: S.stop, y: 0, angle: 0, aperture: 3 * epd, outer: 40 },
+        lensOf(S, S.last_vertex / 2),
+        { type: 'screen', name: 'Image', x: S.last_vertex + S.bfl, y: 0, angle: 180, length: 40 }], { minPower: 0.5 });
+      const lab = { W040: 'spherical W040', W131: 'coma W131', W22T: 'field focus W22T', W311: 'distortion W311' };
+      for (const S of R.systems) {
+        const data = mk(S, S.epd); J.load(data);
+        const A = J.aberrations('Image', { abAng: S.field, abN: 7, abRays: 61 }), got = A && A.seidel;
+        for (const k of ['W040', 'W131', 'W22T', 'W311']) {
+          const ref = S.W[k], tol = Math.abs(S.real_fit[k] - ref) + 0.02 * Math.abs(ref) + 0.002;
+          checks.push(check(S.name.split(',')[0] + ': ' + lab[k], ref, got ? got[k] : NaN, { abs: +tol.toPrecision(3) }, ' waves'));
+        }
+        benches.push([S.name.split(',')[0], data]);
+        await idle();
+      }
+      // Maréchal: the singlet at f/7.7, on axis
+      const M = R.marechal, S0 = R.systems[0], md = mk(S0, M.epd); J.load(md);
+      const A = J.aberrations('Image', { abAng: 0.5, abN: 3, abRays: 201 }), f0 = A && A.fields.find(f => f.H === 0);
+      checks.push(check('Singlet at f/7.7, on axis: Strehl ratio', M.strehl_marechal, f0 ? f0.strehl : NaN, { rel: 0.02 }));
+      benches.push(['Singlet at f/7.7', md]);
+      return { checks, benches, plots, notes: 'The first run of this case found a fault in JEKray2D, now fixed: coma and distortion came out with the right size and the wrong sign. The Aberrations tab measured the pupil coordinate along the screen’s own length, and the field the way the image moves, and on these benches the two ran opposite ways; the pupil coordinate now runs the way the image moves, as Welford’s and lens design codes’ does, whichever way the screen faces. The tolerances are the ones first set. The real rays’ fit (the reference script’s) gives ' + R.systems.map(S => S.name.split(',')[0] + ': ' + ['W040', 'W131', 'W22T', 'W311'].map(k => fmt(S.real_fit[k], 4)).join(', ')).join('; ') + ' waves, against Seidel’s ' + R.systems.map(S => ['W040', 'W131', 'W22T', 'W311'].map(k => fmt(S.W[k], 4)).join(', ')).join(' and ') + '. The triplet is corrected: its sums are small differences of surface terms of several waves each, so its coma (0.010 waves in the third order) is outweighed by the fifth (the real rays give −0.016). For the Strehl ratio: the exact value, the pupil integral of the real wavefront at its best focus, is ' + fmt(M.strehl_exact_real, 4) + ', Maréchal’s ' + fmt(M.strehl_marechal, 4) + '; JEKray2D takes σ along the meridian, where the same balance leaves 2.3% more (' + fmt(M.strehl_marechal_meridian, 4) + ').' };
+    },
+  },
+  {
     id: 'rb-absorption', area: 'Atoms', title: 'Absorption spectra of natural rubidium',
     kind: 'Independent code', ref: 'rb-elecsus.json', script: 'rb_elecsus.py',
     cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), whose model was tested against measured absolute absorption in P. Siddons et al., J. Phys. B 41, 155004 (2008).',

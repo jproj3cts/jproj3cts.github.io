@@ -258,6 +258,11 @@
   .rt-palette { display: flex; flex-wrap: nowrap; gap: 0.35rem; min-width: 0; overflow: hidden; }
   .rt-btn.palette { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
   .rt-btn.palette:hover { background: #d9602f; border-color: #d9602f; }
+  /* the fibre palette in the site's red, so which set of parts is showing is plain at a glance */
+  .rt-btn.palette.fibre { background: var(--jek-red); border-color: var(--jek-red); }
+  .rt-btn.palette.fibre:hover { background: #b92a43; border-color: #b92a43; }
+  #paletteMenu button::before { content: ''; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.5rem; border-radius: 2px; vertical-align: -0.02em; background: var(--jek-orange); }
+  #paletteMenu button[data-palette="fibre"]::before { background: var(--jek-red); }
   .rt-menu {
     position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 15rem;
     display: flex; flex-direction: column; padding: 0.3rem;
@@ -10700,7 +10705,7 @@ function renderOverview() {
   panel.append(h('ul', { class: 'rt-keys' },
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
     h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
-    h('li', null, 'Fibre components (switch the orange button at the start of Add to Fibre) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
+    h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
     h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
     h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
     h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
@@ -17092,7 +17097,7 @@ function importZmx(file) {
    ========================================================================== */
 
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
-   as fit on the row; the rest in More. The palette switch is the orange button before them. */
+   as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
 const PALETTES = {
   free: [['source', 'Source'], ['mirror', 'Mirror'], ['lens', 'Lens'], ['asphere', 'Asphere'], ['cube', 'Beam splitter'], ['prism', 'Prism'],
     ['waveplate', 'Waveplate'], ['polariser', 'Polariser'], ['stop', 'Stop'], ['mask', 'Mask'], ['screen', 'Screen'],
@@ -17109,7 +17114,9 @@ try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = '
 function layoutPalette() {
   const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
   const row = document.getElementById('addRow'), items = PALETTES[palette];
-  document.getElementById('btnPalette').textContent = (palette === 'fibre' ? 'Fibre' : 'Free-space') + ' \u25be';
+  const pb = document.getElementById('btnPalette');
+  pb.textContent = (palette === 'fibre' ? 'Fibre' : 'Free-space') + ' \u25be';
+  pb.classList.toggle('fibre', palette === 'fibre');
   box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
   menu.replaceChildren();
   moreWrap.hidden = false;
@@ -17356,7 +17363,7 @@ function showWelcome() {
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray2D'),
     h('ul', null,
-      h('li', null, 'Add parts from the Add row above; the orange button switches to fibre parts.'),
+      h('li', null, 'Add parts from the Add row above; the orange Free-space button switches to fibre parts (red).'),
       h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),
       h('li', null, 'Press ? for every shortcut.')),

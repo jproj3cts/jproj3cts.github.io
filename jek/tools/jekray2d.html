@@ -499,6 +499,16 @@
   .rt-embedbar a, .rt-embedbar button { padding: 0.3rem 0.6rem; font: inherit; font-size: 0.78rem; font-weight: 600; text-decoration: none; color: #fff; background: rgba(20, 25, 28, 0.78); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; cursor: pointer; }
   .rt-embedbar a:hover, .rt-embedbar button:hover { background: rgba(0, 146, 178, 0.9); }
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  /* experimental features: a menu under the version line, and a badge for what they add */
+  .rt-expwrap { position: relative; display: inline-block; }
+  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
+  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expmenu ul { margin: 0; padding-left: 1.1rem; }
+  .rt-expmenu li { margin-bottom: 0.25rem; }
+  .rt-expmenu li b { color: var(--jek-ink); }
+  .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 4px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
+  .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
   .rt-link:hover { text-decoration: underline; }
   .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 3px; }
@@ -699,7 +709,7 @@
         </div>
       </div>
       <div class="rt-row" style="border-top:none;padding-top:0">
-        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button> · <button type="button" class="rt-link" id="btnBug">Report a bug</button></span>
+        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button> · <button type="button" class="rt-link" id="btnBug">Report a bug</button> · <span class="rt-expwrap"><button type="button" class="rt-link" id="btnExp" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features<span class="rt-dot exp" id="expDot" hidden></span> ▾</button><div class="rt-menu rt-expmenu" id="expMenu" hidden></div></span></span>
         <span class="rt-status rt-right" id="status" aria-live="polite"></span>
       </div>
     </div>
@@ -17096,6 +17106,28 @@ function importZmx(file) {
    Wiring
    ========================================================================== */
 
+/* ---------- Experimental features ----------
+   New features start here, off until someone switches them on, then move to beta (a Beta
+   badge on their examples), then into the tool proper. The switch is kept in this browser.
+   To add one: list it in EXPERIMENTAL, and have its code ask exp('its key'): a part for the
+   Add row takes the key as a fourth entry in PALETTES, an example as a fourth entry in its
+   EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
+   would appear. A bench that uses one still opens and traces with the switch off: only what
+   offers it (the Add row, the gallery, the panels) keeps it out of sight. */
+const EXPERIMENTAL = [
+  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+];
+const EXP_KEY = 'jek-raytracer-experimental';
+let expOn = false;
+try { expOn = !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { /* private window: off */ }
+const exp = key => expOn && EXPERIMENTAL.some(f => f.key === key);
+function setExperimental(on) {
+  expOn = !!on;
+  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); } catch (err) { /* not kept: fine */ }
+  const dot = document.getElementById('expDot');
+  if (dot) dot.hidden = !expOn;
+  layoutPalette(); renderPanel(); requestRender();
+}
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
 const PALETTES = {
@@ -17113,7 +17145,7 @@ let palette = 'free';
 try { if (localStorage.getItem('jek-raytracer-palette') === 'fibre') palette = 'fibre'; } catch (err) { /* private window: free space */ }
 function layoutPalette() {
   const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
-  const row = document.getElementById('addRow'), items = PALETTES[palette];
+  const row = document.getElementById('addRow'), items = PALETTES[palette].filter(it => !it[3] || exp(it[3]));
   const pb = document.getElementById('btnPalette');
   pb.textContent = (palette === 'fibre' ? 'Fibre' : 'Free-space') + ' \u25be';
   pb.classList.toggle('fibre', palette === 'fibre');
@@ -17157,6 +17189,7 @@ const NEWS = [
     '<b>Embed</b> a live bench in a web page or course notes, from the Share link dialog.',
     'A shared link opens with a bar to keep the bench, or go straight back to your own work.',
     'A <b>Cite</b> button, and a licence page.',
+    'An <b>Experimental features</b> switch (under the toolbar): new features arrive there, off until you turn them on, before they reach beta.',
     'A <b>validation page</b> that runs JEKray2D against published results and independent codes in your browser. Vapour cells now use Alcock et al.\u2019s vapour pressures, which put about 2.5% fewer atoms in a rubidium cell at 50 \u00b0C than before.']],
   ['Before 1.0', '23–27 September 2026', [
     'Beams split where they cross an element’s edge: the part that misses carries on.',
@@ -17213,6 +17246,23 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
 /* A bug report by email: what happened, what was expected, the version and browser, and
    (if wanted) a link that opens the bench as it is. An email link carries a few thousand
    characters at most; a bench too big for that is asked for as a file instead. */
+{
+  const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
+  const fill = () => {
+    const cb = h('input', { type: 'checkbox' });
+    cb.checked = expOn;
+    cb.addEventListener('change', () => { setExperimental(cb.checked); toast(expOn ? 'Experimental features on' : 'Experimental features off'); });
+    menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
+      h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. The setting is kept in this browser.'),
+      EXPERIMENTAL.length ? h('ul', null, ...EXPERIMENTAL.map(f => h('li', null, h('b', null, f.name), ': ', f.what)))
+        : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
+  };
+  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
+  btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+  document.getElementById('expDot').hidden = !expOn;
+}
 const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 {
   const dlg = document.getElementById('bugDialog'), note = document.getElementById('bugNote');
@@ -17324,11 +17374,11 @@ const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t
     const q = search.value.trim().toLowerCase();
     grid.replaceChildren();
     for (const [group, beta, list] of EXAMPLES) {
-      const hits = list.filter(([id, t, d]) => !q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q));
+      const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
       if (!hits.length) continue;
       grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
-        h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
-          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t), h('span', null, d)))));
+        h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
+          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : null), h('span', null, d)))));
     }
     if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
   };
@@ -18152,6 +18202,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     paraxial(name, nm) { return paraxial(this.byName(name), nm); },
     index: refIndex,
     version: () => APP_VERSION,
+    // experimental features: switch them on or off, and whether one is on
+    experimental(on) { if (on !== undefined) setExperimental(on); return { on: expOn, list: EXPERIMENTAL.map(f => f.key) }; },
+    exp: key => exp(key),
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
     scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); vs(el).sigSpan = span; drawSignal(cv, el, 'time'); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,

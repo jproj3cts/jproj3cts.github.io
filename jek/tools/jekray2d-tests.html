@@ -4111,6 +4111,17 @@ const TESTS = [
     want: 1, tol: 0.01, unit: '',
     run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
   },
+  {
+    name: 'Experimental features stay off until switched on, and only listed ones switch on',
+    why: 'off by default (and in test mode); switched on, a key that is not listed is still off; switched off again, all are off',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const a = J.experimental();
+      const b = J.experimental(true), unlisted = J.exp('no-such-feature'), listedOn = b.list.every(k => J.exp(k));
+      const c = J.experimental(false), listedOff = c.list.every(k => !J.exp(k));
+      return !a.on && b.on && !unlisted && listedOn && !c.on && listedOff ? 1 : 0;
+    },
+  },
 ];
 
 /* ---------- Lasers, cells and fibre benches ---------- */

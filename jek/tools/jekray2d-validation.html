@@ -731,6 +731,54 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'sat-abs', area: 'Atoms', title: 'Lamb dips and crossovers of rubidium 87: where and how wide',
+    kind: 'Data tables and textbook width', ref: 'sat-abs.json', script: 'sat_abs.py',
+    cite: 'D. A. Steck, “Rubidium 87 D Line Data” (revision 2.3.3, 2024), the 5P₃/₂ hyperfine levels and saturation intensity; W. Demtröder, Laser Spectroscopy (Springer, 4th edition 2008), vol. 2, section 2.2, the Lamb dip’s width.',
+    what: 'A saturated-absorption bench as built on a table: a weak probe (20 nW, 0.3 mm) through a 2 mm cell of ⁸⁷Rb at 25 °C (optically thin, as the textbook width assumes: the pump is barely absorbed along it) to a photodiode, and a pump from the same laser (2 mm) sent back along it by a 50:50 cube, the laser scanned across the D2 lines from F = 2. The photodiode’s reading with the pump on over that with it off (blocked) shows the sub-Doppler features. Where: Lamb dips at F′ = 3, 2 and 1 and crossovers halfway between each pair, from Steck’s hyperfine levels, placed relative to the F′ = 3 dip, and that dip’s own absolute frequency. How wide: a pump of saturation parameter s burns a hole Γ√(1 + s) wide, which the probe (Γ wide) meets at twice the laser’s detuning, so the dip’s full width at half maximum is (Γ + Γ√(1 + s))/2 in the laser’s frequency; for the closed F = 2 → F′ = 3 line with s from Steck’s saturation intensity for π-polarised light (2.503 mW/cm²), at s = 0.2, 1 and 5. JEKray2D’s depths are only rough (it has no optical pumping between levels), so depths are not compared. (This case was to follow Smith and Hughes’s measured spectra, Am. J. Phys. 72, 631 (2004); the article is not on arXiv and its publisher could not be reached, so it uses the data tables and the textbook result instead.)',
+    tolerance: 'Every feature within 0.3 MHz of Steck’s place; each width within 3%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const nu3 = R.F2_F3_MHz * 1e6;   // Steck's F = 2 -> F' = 3
+      const lam = nu => 299792458e9 / nu;
+      const mk = Pp => bench('Saturated absorption, ⁸⁷Rb D2 (pump ' + fmt(Pp, 3) + ' mW)', [
+        { type: 'source', id: 'probe', name: 'Probe', x: -85, y: 40, angle: 0, wavelength: lam(nu3), width: 0.6, gauss: true, w0: R.probe_w_mm, z0: 0, power: 2e-5, rays: 1, pol: 's' },
+        { type: 'source', id: 'pump', name: 'Pump', x: 52, y: -20, angle: 90, wavelength: lam(nu3), width: 4, gauss: true, w0: R.pump_w_mm, z0: 0, power: Pp, rays: 1, pol: 's', splitFrom: 'probe' },
+        { type: 'cell', name: 'Cell', x: 0, y: 40, angle: 0, length: 25, cellLen: 2, atom: 'Rb87', temp: 25 },
+        { type: 'cube', name: 'Beam splitter, 50:50', x: 52, y: 40, angle: 90, reflect: 50 },
+        { type: 'detector', name: 'Photodiode', x: 92, y: 40, angle: 180, length: 5, material: 'custom', resp: 1 },
+        { type: 'screen', name: 'Pump dump', x: -48, y: 40, angle: 0, length: 6 }, { type: 'screen', name: 'Dump', x: 52, y: 75, angle: 270, length: 6 }, { type: 'screen', name: 'Dump 2', x: 52, y: 10, angle: 90, length: 6 }], { minPower: 1e-6 });
+      // the photodiode with the pump on over off, at laser frequencies nu3 + d (MHz)
+      const sig = async (Pp, ds) => { const on = [], off = [];
+        J.load(mk(Pp));
+        for (let i = 0; i < ds.length; i++) { J.setParam('Probe', 'wavelength', lam(nu3 + ds[i] * 1e6)); J.setParam('Pump', 'power', Pp); J.trace(); on.push(J.detector('Photodiode').mw);
+          J.setParam('Pump', 'power', 0); J.trace(); off.push(J.detector('Photodiode').mw); if (i % 100 === 99) await idle(); }
+        return on.map((v, i) => v / off[i] - 1); };
+      const peakNear = (ds, y, d0, span) => { let k = -1; for (let i = 1; i < ds.length - 1; i++) if (Math.abs(ds[i] - d0) <= span && y[i] >= y[i - 1] && y[i] >= y[i + 1] && (k < 0 || y[i] > y[k])) k = i;
+        if (k < 0) return NaN; const a = y[k - 1], b = y[k], c = y[k + 1], h = ds[1] - ds[0]; return ds[k] + 0.5 * h * (a - c) / (a - 2 * b + c); };
+      // where: a scan at s = 1 across all six
+      const W1 = R.widths.find(w => w.s === 1), dsA = []; for (let d = -445; d <= 20; d += 0.25) dsA.push(d);
+      const yA = await sig(W1.pump_mW, dsA);
+      const f3 = peakNear(dsA, yA, 0, 3);
+      checks.push(check('F′ = 3 dip: its frequency, from Steck’s F = 2 → F′ = 3', 0, f3, { abs: 0.3 }, ' MHz'));
+      for (const F of R.features.slice(1)) checks.push(check(F.name + ', from the F′ = 3 dip', F.MHz, peakNear(dsA, yA, F.MHz, 3) - f3, { abs: 0.3 }, ' MHz'));
+      plots.push(plot({ title: 'Pump on over pump off at the photodiode (s = 1), and Steck’s places', xlabel: 'laser frequency from F′ = 3 (MHz)', ylabel: 'on / off − 1',
+        series: [{ name: 'JEKray2D', x: dsA, y: yA, colour: GOT_C, width: 1.4 }, { name: 'Steck', x: R.features.map(F => F.MHz), y: R.features.map(() => 0), colour: REF_C, dots: true }] }));
+      benches.push(['Pump at s = 1', mk(W1.pump_mW)]);
+      // how wide: the F' = 3 dip at s = 0.2, 1 and 5
+      const wser = [];
+      for (const Wd of R.widths) {
+        const ds = []; for (let d = -25; d <= 25; d += 0.1) ds.push(d);
+        const y = await sig(Wd.pump_mW, ds), pk = Math.max(...y), half = pk / 2, k = y.indexOf(pk);
+        let a = k; while (a > 0 && y[a] > half) a--; let b = k; while (b < y.length - 1 && y[b] > half) b++;
+        const xa = ds[a] + (half - y[a]) / (y[a + 1] - y[a]) * (ds[a + 1] - ds[a]), xb = ds[b - 1] + (half - y[b - 1]) / (y[b] - y[b - 1]) * (ds[b] - ds[b - 1]);
+        checks.push(check('F′ = 3 dip, full width at half maximum, s = ' + Wd.s, Wd.fwhm_MHz, xb - xa, { rel: 0.03 }, ' MHz'));
+        wser.push({ name: 's = ' + Wd.s, x: ds, y: y.map(v => v / pk), colour: ['#1f6fb2', GOT_C, '#b8860b'][wser.length], width: 1.4 });
+      }
+      plots.push(plot({ title: 'The F′ = 3 dip at three pump powers, each over its peak', xlabel: 'laser frequency from F′ = 3 (MHz)', ylabel: 'on / off − 1, normalised', yMin: 0, yMax: 1, series: wser }));
+      return { checks, benches, plots, notes: 'The first run used a 75 mm cell, whose optical depth on this line is about 2: the pump is absorbed along it, so the saturation the probe meets falls along the cell and the dips came out narrower than the textbook’s uniform s gives (4% at s = 1, 11% at s = 5; the positions all agreed). The textbook width holds only for a thin cell, so the bench now has one, 2 mm long; the tolerance is the one first set. JEKray2D saturates the F = 2 → F′ = 3 line with s = I × 0.7 / 1.669 mW/cm² (the line’s share of the D2 strength over the saturation intensity of the cycling σ transition), 2.385 mW/cm² in all, 5% below Steck’s 2.503 for π light; at s = 5 that is 1.3% of the width.' };
+    },
+  },
+  {
     id: 'tweezers', area: 'Optical traps', title: 'A small sphere in a focused beam',
     kind: 'Paper: forces, exact beam', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
     cite: 'Y. Harada and T. Asakura, “Radiation forces on a dielectric sphere in the Rayleigh scattering regime”, Optics Communications 124, 529–541 (1996).',

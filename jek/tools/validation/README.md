@@ -20,6 +20,8 @@ scripts that made them. The page itself runs JEKray2D live against these files.
 | `ref/faraday-elecsus.json` | `scripts/faraday_elecsus.py` | ElecSus: Faraday filters (Rb and Cs D2) and Rb in the hyperfine Paschen-Back regime, cell transmission and crossed-polariser transmission |
 | `ref/rb-siddons-2008.json` | `scripts/siddons_fig8.py` | Siddons et al., J. Phys. B 41, 155004 (2008), Figure 8: measured transmission, read from the arXiv PDF's vector figure |
 | `ref/dipole-traps.json` | `scripts/dipole_traps.py` | Safronova, Arora & Clark, PRA 73, 022505 (2006), Table I; tune-out wavelengths of Leonard et al. (2015) and Ratkata et al. (2021); Grimm et al. (2000) trap formulas |
+| `ref/sat-abs.json` | `scripts/sat_abs.py` | Steck's Rb 87 D-line data (hyperfine levels, saturation intensity) and the textbook Lamb-dip width (Demtröder) |
+| `ref/davll-elecsus.json` | `scripts/davll_elecsus.py` | ElecSus: the DAVLL signal (S3) of natural Rb D2 at 50, 100 and 200 G (Corwin et al. 1998's scheme) |
 | `ref/tweezers-hu.json` | `scripts/tweezers_hu.py` | Harada & Asakura's (1996) forces on a Rayleigh sphere, and the phase singularities of Hu et al.'s (2023) offset standing wave, on the exact (non-paraxial) Gaussian beams |
 | `ref/gieseler-2012.json` | `scripts/gieseler_damping.py` | Gieseler et al., PRL 109, 103603 (2012), Figure 4: measured gas damping of a levitated 69 nm sphere, read from the arXiv PDF's vector figure; Epstein's (1924) free-molecular drag |
 | `ref/spm-solitons.json` | `scripts/spm_solitons.py` | Exact solutions of the nonlinear Schroedinger equation: dispersionless self-phase modulation (Stolen & Lin 1978; Potasek, Agrawal & Pinault 1986), the fundamental soliton and Satsuma & Yajima's (1974) second-order soliton |
@@ -59,6 +61,8 @@ numpy instead.
     python scripts/mode_converter.py
     python scripts/tweezers_hu.py
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
+    ELECSUS=/path/to/ElecSus python scripts/davll_elecsus.py
+    python scripts/sat_abs.py
 
 ## Rules
 

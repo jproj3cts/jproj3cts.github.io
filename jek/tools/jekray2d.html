@@ -7228,13 +7228,18 @@ const PIC = (() => {
     return true;
   }
   /* Ss: each part's S at this wavelength (cmat); ts: each link's t, re and im side by side.
-     Returns { ne, no, S: ne x ne over ext, into: no x ne, obs by ext }, both cmat layout. */
-  function solvePlan(pl, Ss, ts) {
+     Returns { ne, no, S: ne x ne over ext, into: no x ne, obs by ext }, both cmat layout.
+     cols: which ext ports to put light in at (their indices in ext), all if left out; the
+     columns for the others are left zero. A spectrum needs one, and a chip with many ports
+     left open would otherwise solve for every one of them at every wavelength. */
+  function solvePlan(pl, Ss, ts, cols) {
     const { N, sizes, off, owner, local, partner, link, ext, obs } = pl, ne = ext.length, no = obs.length, N2 = 2 * N;
-    // right-hand sides, one after another: a unit of light in at each ext port
-    const X = new Float64Array(N2 * ne);
-    for (let j = 0; j < ne; j++) X[j * N2 + 2 * ext[j]] = 1;
-    if (forceDense || !sparseSolve(pl, Ss, ts, X, ne)) {
+    cols = cols || ext.map((_, j) => j);
+    const nc = cols.length;
+    // right-hand sides, one after another: a unit of light in at each ext port asked for
+    const X = new Float64Array(N2 * nc);
+    for (let k = 0; k < nc; k++) X[k * N2 + 2 * ext[cols[k]]] = 1;
+    if (forceDense || !sparseSolve(pl, Ss, ts, X, nc)) {
       // M = I - C S, row q: -t_q S[partner(q)][.], dense
       const M = new Float64Array(N2 * N);
       for (let q = 0; q < N; q++) {
@@ -7245,12 +7250,12 @@ const PIC = (() => {
         }
         M[row + 2 * q] += 1;
       }
-      csolve(M, N, X, ne);
+      csolve(M, N, X, nc);
     }
     // what leaves each ext port: its part's S over the light into that part
     const S = new Float64Array(2 * ne * ne), into = new Float64Array(2 * no * ne);
-    for (let j = 0; j < ne; j++) {
-      const x = j * N2;
+    for (let kc = 0; kc < nc; kc++) {
+      const j = cols[kc], x = kc * N2;
       for (let i = 0; i < ne; i++) {
         const e = ext[i], k = owner[e], n = sizes[k], Sp = Ss[k], sr = 2 * local[e] * n, o = x + 2 * off[k];
         let re = 0, im = 0;
@@ -7402,17 +7407,18 @@ const PIC = (() => {
     return c;
   }
   /* the chip at one wavelength: only the numbers change */
-  function solveAtWavelength(c, lam) {
+  function solveAtWavelength(c, lam, cols) {
     const ts = new Float64Array(2 * c.wgs.length);
     c.wgs.forEach((w, i) => { const t = wgT(w, w.len, lam); ts[2 * i] = t[0]; ts[2 * i + 1] = t[1]; });
-    return solvePlan(c.plan, c.els.map((e, i) => c.models[i](e, lam)), ts);
+    return solvePlan(c.plan, c.els.map((e, i) => c.models[i](e, lam)), ts, cols);
   }
-  /* the chip solved at lam (nm): { S over ext, into over obs } */
-  function solveChip(c, lam) {
-    const k = lam.toFixed(9);
+  /* the chip solved at lam (nm) for light put in at ext port j (its index in ext): { S over
+     ext, into over obs }, only column j filled in */
+  function solveChip(c, lam, j) {
+    const k = lam.toFixed(9) + '|' + j;
     let r = c.memo.get(k);
     if (r) return r;
-    r = solveAtWavelength(c, lam);
+    r = solveAtWavelength(c, lam, [j]);
     if (c.memo.size > 20000) c.memo.clear();
     c.memo.set(k, r);
     return r;
@@ -7429,7 +7435,7 @@ const PIC = (() => {
     const g = c.off.get(el.id) + port, j = c.ext.indexOf(g);
     if (j < 0) return [];
     const lam = C_NM / (C_NM / nm + (fo || 0)), d = 1e-5;
-    const r = solveChip(c, lam), rp = solveChip(c, lam + d), rm = solveChip(c, lam - d);
+    const r = solveChip(c, lam, j), rp = solveChip(c, lam + d, j), rm = solveChip(c, lam - d, j);
     const th = e => (e.polAngle || 0) * Math.PI / 180;
     const ti = th(el), ci = Math.cos(ti), si = Math.sin(ti);
     // the delay as a path: dphi/dlambda lambda^2 / 2 pi (e^{-ikz}: phase falls as the path grows)
@@ -7454,7 +7460,7 @@ const PIC = (() => {
   /* ---------- the spectrum between two ports, and its lines ---------- */
   function spectrum(c, from, to, lams) {
     const j = c.ext.indexOf(from), io = c.obs.indexOf(to), ie = c.ext.indexOf(to);
-    return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cabs2At(r.into, r.ne, io, j) : cabs2At(r.S, r.ne, ie, j); });
+    return lams.map(lam => { const r = solveChip(c, lam, j); return io >= 0 ? cabs2At(r.into, r.ne, io, j) : cabs2At(r.S, r.ne, ie, j); });
   }
   /* The lines in a spectrum: dips (a notch) or peaks (a pass band), whichever stand out more.
      Each is measured against its own surroundings, the lower of the highest points either side
@@ -7749,7 +7755,7 @@ const PIC = (() => {
         if (!c) return null;
         const g1 = c.off.get(A.id) + fromPort, g2 = c.off.get(B.id) + toPort, j = c.ext.indexOf(g1), io = c.obs.indexOf(g2), ie = c.ext.indexOf(g2);
         if (j < 0 || (io < 0 && ie < 0)) return null;                // a port joined inside the chip has no light put in or taken out
-        return lams.map(lam => { const r = solveChip(c, lam); return io >= 0 ? cget(r.into, r.ne, io, j) : cget(r.S, r.ne, ie, j); });
+        return lams.map(lam => { const r = solveChip(c, lam, j); return io >= 0 ? cget(r.into, r.ne, io, j) : cget(r.S, r.ne, ie, j); });
       },
       lines(fromName, fromPort, toName, toPort, lo, hi, n) {
         const A = project.elements.find(e => e.name === fromName), B = project.elements.find(e => e.name === toName), c = A && chipOf(A);

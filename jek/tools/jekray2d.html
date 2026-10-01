@@ -12734,28 +12734,45 @@ function jonesOf(el) {
    result read off in the beam's frame on the far side. At the beam's centre this is the
    tracer's own diagonal, so the two agree there. Returns [ss, sp, ps, pp], each [re, im]. */
 function polMatrix(coef, d, nrm, d2, eIn, eOut, cIn) {
-  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  let sl = cross(d, nrm), L = Math.hypot(...sl);
-  sl = L > 1e-9 ? sl.map(v => v / L) : [0, 0, 1];
-  if (sl[2] < 0) sl = sl.map(v => -v);
-  const pin = cross(sl, d).map(v => v * eIn.sg), pout = cross(sl, d2).map(v => v * eOut.sg);
-  const c = coef(Math.abs(dot(d, nrm)));
-  const cs = [c[0], -c[1]], cp = [c[2], -c[3]];          // conjugated into the field's convention
-  const z = [0, 0, 1];
+  const M = new Float64Array(8);
+  polMatrixTo(M, coef, d[0], d[1], d[2], nrm[0], nrm[1], nrm[2], d2[0], d2[1], d2[2], eIn, eOut, cIn[0], cIn[1], cIn[2]);
+  return [[M[0], M[1]], [M[2], M[3]], [M[4], M[5]], [M[6], M[7]]];
+}
+const dot3 = (a0, a1, a2, b0, b1, b2) => a0 * b0 + a1 * b1 + a2 * b2;
+/* The same, into M as [ss, sp, ps, pp], each re then im, from the vectors' components: no
+   arrays, as the 2D surface step works it out for every sample */
+function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2) {
+  // the s direction, across the plane of incidence
+  let s0 = d1 * n2 - d2 * n1, s1 = d2 * n0 - d0 * n2, s2 = d0 * n1 - d1 * n0;
+  const L = Math.hypot(s0, s1, s2);
+  if (L > 1e-9) { s0 = s0 / L; s1 = s1 / L; s2 = s2 / L; } else { s0 = 0; s1 = 0; s2 = 1; }
+  if (s2 < 0) { s0 = -s0; s1 = -s1; s2 = -s2; }
+  const gi = eIn.sg, go = eOut.sg;
+  const pi0 = (s1 * d2 - s2 * d1) * gi, pi1 = (s2 * d0 - s0 * d2) * gi, pi2 = (s0 * d1 - s1 * d0) * gi;
+  const po0 = (s1 * e2 - s2 * e1) * go, po1 = (s2 * e0 - s0 * e2) * go, po2 = (s0 * e1 - s1 * e0) * go;
+  const c = coef(Math.abs(dot3(d0, d1, d2, n0, n1, n2)));
+  const cs0 = c[0], cs1 = -c[1], cp0 = c[2], cp1 = -c[3];          // conjugated into the field's convention
   // The field is stored as its two components across the beam's axis; a ray tilted to that
   // axis carries a small part along it too, fixed by the field being square to the ray. Put
   // it back before the surface (bS, bP: what a unit s or p stored becomes in full), so the
   // tilt is not lost twice; after it, only the two components across are kept again.
-  const cd = dot(cIn, d) || 1;
-  const bS = z.map((v, i) => v - dot(z, d) / cd * cIn[i]), bP = eIn.v.map((v, i) => v - dot(eIn.v, d) / cd * cIn[i]);
-  const term = (aS, aP) => [cs[0] * aS + cp[0] * aP, cs[1] * aS + cp[1] * aP];
-  return [
-    term(dot(sl, z) * dot(sl, bS), dot(pout, z) * dot(pin, bS)),
-    term(dot(sl, z) * dot(sl, bP), dot(pout, z) * dot(pin, bP)),
-    term(dot(sl, eOut.v) * dot(sl, bS), dot(pout, eOut.v) * dot(pin, bS)),
-    term(dot(sl, eOut.v) * dot(sl, bP), dot(pout, eOut.v) * dot(pin, bP)),
-  ];
+  const cd = dot3(c0, c1, c2, d0, d1, d2) || 1;
+  const zd = dot3(0, 0, 1, d0, d1, d2) / cd, v = eIn.v, vd = dot3(v[0], v[1], v[2], d0, d1, d2) / cd;
+  const bS0 = 0 - zd * c0, bS1 = 0 - zd * c1, bS2 = 1 - zd * c2;
+  const bP0 = v[0] - vd * c0, bP1 = v[1] - vd * c1, bP2 = v[2] - vd * c2;
+  const w = eOut.v;
+  const slz = dot3(s0, s1, s2, 0, 0, 1), poz = dot3(po0, po1, po2, 0, 0, 1);
+  const slw = dot3(s0, s1, s2, w[0], w[1], w[2]), pow = dot3(po0, po1, po2, w[0], w[1], w[2]);
+  const slS = dot3(s0, s1, s2, bS0, bS1, bS2), piS = dot3(pi0, pi1, pi2, bS0, bS1, bS2);
+  const slP = dot3(s0, s1, s2, bP0, bP1, bP2), piP = dot3(pi0, pi1, pi2, bP0, bP1, bP2);
+  let aS = slz * slS, aP = poz * piS;
+  M[0] = cs0 * aS + cp0 * aP; M[1] = cs1 * aS + cp1 * aP;
+  aS = slz * slP; aP = poz * piP;
+  M[2] = cs0 * aS + cp0 * aP; M[3] = cs1 * aS + cp1 * aP;
+  aS = slw * slS; aP = pow * piS;
+  M[4] = cs0 * aS + cp0 * aP; M[5] = cs1 * aS + cp1 * aP;
+  aS = slw * slP; aP = pow * piP;
+  M[6] = cs0 * aS + cp0 * aP; M[7] = cs1 * aS + cp1 * aP;
 }
 
 /* ---------- Vector focusing at a steep focus ----------
@@ -13109,13 +13126,15 @@ function popScreen(ev, invRx, invRy, lam0) {
   // a cylinder is curved one way only: across the beam in the bench plane ('plane'), or out
   // of it ('out', flat to the bench's own rays; its profile is kept aside in cylS)
   const cyl = s.cyl, cs = s.cylS;
+  // the sag and its slopes at (u, lz), into sS, sY, sZ (called at every Newton step of every sample)
+  let sS = 0, sY = 0, sZ = 0;
   const sagAt = (u, lz) => {
-    if (cyl === 'out') return [rawSag(cs, lz), 0, rawDsag(cs, lz)];
-    if (cyl === 'plane') return flat ? [0, 0, 0] : [rawSag(s, u) - sag0, rawDsag(s, u), 0];
+    if (cyl === 'out') { sS = rawSag(cs, lz); sY = 0; sZ = rawDsag(cs, lz); return; }
+    if (cyl === 'plane') { if (flat) { sS = 0; sY = 0; sZ = 0; } else { sS = rawSag(s, u) - sag0; sY = rawDsag(s, u); sZ = 0; } return; }
     const rho = Math.sqrt(u * u + lz * lz);
-    if (flat) return [0, 0, 0];
+    if (flat) { sS = 0; sY = 0; sZ = 0; return; }
     const Sp = rawDsag(s, rho);
-    return [rawSag(s, rho) - sag0, rho > 0 ? Sp * u / rho : 0, rho > 0 ? Sp * lz / rho : 0];
+    sS = rawSag(s, rho) - sag0; sY = rho > 0 ? Sp * u / rho : 0; sZ = rho > 0 ? Sp * lz / rho : 0;
   };
   return function trace(x, y) {
     // start point and direction in the world, then into the surface's frame
@@ -13129,7 +13148,8 @@ function popScreen(ev, invRx, invRy, lam0) {
     let t = 0, ly = py, lz = pz, ok = true;
     for (let it = 0; it < 40; it++) {
       ly = py + t * ldy; lz = pz + t * ldz;
-      const [S, Sy, Sz] = sagAt(ly + y0, lz);
+      sagAt(ly + y0, lz);
+      const S = sS, Sy = sY, Sz = sZ;
       const g = px + t * ldx - S;
       const gp = ldx - (Sy * ldy + Sz * ldz);
       if (!(Math.abs(gp) > 1e-12)) { ok = false; break; }
@@ -13140,7 +13160,8 @@ function popScreen(ev, invRx, invRy, lam0) {
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
     ly = py + t * ldy; lz = pz + t * ldz;
-    const [, Sy, Sz] = sagAt(ly + y0, lz);
+    sagAt(ly + y0, lz);
+    const Sy = sY, Sz = sZ;
     // bend in the local frame
     let ex = ldx, ey = ldy, ez = ldz;
     let nx = 1, ny = -Sy, nz = -Sz;
@@ -13462,21 +13483,32 @@ function popLeg2(F0) {
 
 /* Catmull-Rom in both directions; zero off the grid */
 function interp2(F, x, y, RE, IM) {
+  interp2s(F, x, y, RE, IM);
+  return [I2R, I2I];
+}
+/* The same, leaving its result in I2R, I2I rather than a new array: the 2D surface step calls
+   it for every sample (several times over where it follows the light's direction), and the
+   small arrays were a good part of its time */
+let I2R = 0, I2I = 0;
+function interp2s(F, x, y, RE, IM) {
   RE = RE || F.re; IM = IM || F.im;
   const N = F.N, fx = x / F.ax.d + N / 2, fy = y / F.ay.d + N / 2;
   const ix = Math.floor(fx), iy = Math.floor(fy);
-  if (ix < 1 || iy < 1 || ix > N - 3 || iy > N - 3) return [0, 0];
+  if (ix < 1 || iy < 1 || ix > N - 3 || iy > N - 3) { I2R = 0; I2I = 0; return; }
   const tx = fx - ix, ty = fy - iy;
-  const w = t => [((-t + 2) * t - 1) * t / 2, (((3 * t - 5) * t) * t + 2) / 2, ((-3 * t + 4) * t + 1) * t / 2, ((t - 1) * t * t) / 2];
-  const wx = w(tx), wy = w(ty);
-  let r = 0, i = 0;
-  for (let b = 0; b < 4; b++) {
-    const row = (iy - 1 + b) * N + ix - 1;
+  const x0 = ((-tx + 2) * tx - 1) * tx / 2, x1 = (((3 * tx - 5) * tx) * tx + 2) / 2, x2 = ((-3 * tx + 4) * tx + 1) * tx / 2, x3 = ((tx - 1) * tx * tx) / 2;
+  const y0 = ((-ty + 2) * ty - 1) * ty / 2, y1 = (((3 * ty - 5) * ty) * ty + 2) / 2, y2 = ((-3 * ty + 4) * ty + 1) * ty / 2, y3 = ((ty - 1) * ty * ty) / 2;
+  let r = 0, i = 0, o = (iy - 1) * N + ix - 1;
+  for (let b = 0; b < 4; b++, o += N) {
     let rr = 0, ri = 0;
-    for (let a = 0; a < 4; a++) { rr += wx[a] * RE[row + a]; ri += wx[a] * IM[row + a]; }
-    r += wy[b] * rr; i += wy[b] * ri;
+    rr += x0 * RE[o]; ri += x0 * IM[o];
+    rr += x1 * RE[o + 1]; ri += x1 * IM[o + 1];
+    rr += x2 * RE[o + 2]; ri += x2 * IM[o + 2];
+    rr += x3 * RE[o + 3]; ri += x3 * IM[o + 3];
+    const wb = b === 0 ? y0 : b === 1 ? y1 : b === 2 ? y2 : y3;
+    r += wb * rr; i += wb * ri;
   }
-  return [r, i];
+  I2R = r; I2I = i;
 }
 
 /* Through one surface. The pilot in each plane goes through the ABCD the traced
@@ -13485,6 +13517,9 @@ function interp2(F, x, y, RE, IM) {
    sampled on the new grid. */
 function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const N = F.N, lam0 = F.lam0, G = Math.sqrt(Math.PI * N);
+  // the incoming field's statistics, wanted several times over: it is only read here
+  let statsF = null;
+  const statsIn = () => statsF || (statsF = popStats2(F));
   const n1 = F.n, n2 = ev.n2, k0 = 2 * Math.PI / lam0, k1 = k0 * n1, k2 = k0 * n2;
   const lam1 = lam0 / n1, lam2 = lam0 / n2;
   const qx = [F.ax.z, F.ax.zR], qy = [F.ay.z, F.ay.zR];
@@ -13528,7 +13563,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     wxo = Math.max(wxo, 2.4 * (Math.abs(ev.ly - ev.mask.o) + (ev.mask.ext || ev.mask.a)) * ev.cth * aAx / Math.sqrt(Math.PI * N));
   let wyo2 = wyo;
   {
-    const Sin = pol && pol.fixed ? { power: 0 } : popStats2(F), G2 = Math.sqrt(Math.PI * N);   // a replayed grid needs none of this
+    const Sin = pol && pol.fixed ? { power: 0 } : statsIn(), G2 = Math.sqrt(Math.PI * N);   // a replayed grid needs none of this
     if (Sin.power > 0) {
       wxo = Math.max(wxo, 2.4 * (Math.abs(Sin.cx) * aAx + 1.5 * Sin.wx * aAx) / G2);
       wyo2 = Math.max(wyo, 2.4 * (Math.abs(Sin.cy) * aAy + 1.5 * Sin.wy * aAy) / G2);
@@ -13573,7 +13608,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // sampling is chosen for that distance instead: eight across the first fringe, as far as a
   // grid that still holds the beam and the light the edge sends out over t allows.
   if (!replay && tNext > 0 && isFinite(tNext)) {
-    const Sin = popStats2(F), lam2 = lam0 / n2;
+    const Sin = statsIn(), lam2 = lam0 / n2;
     let ex = false, ey = false;
     if (ev.mask) {
       const M = ev.mask, off = Math.abs(ev.ly - M.o);
@@ -13601,7 +13636,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   if (!replay && ev.mask && ev.mask.shape !== 'knife') {
     const M = ev.mask, feat = 2 * M.a;
     if (M.shape === 'disc') {
-      const Sin = popStats2(F);
+      const Sin = statsIn();
       const spanX = 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
       ax.d = Math.min(ax.d, Math.max(feat * ev.cth * aAx / 4, spanX / N));
       ay.d = Math.min(ay.d, Math.max(feat * aAy / 4, spanY / N));
@@ -13627,13 +13662,14 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // Polarisation, sample by sample: the beam's frame either side (p along its in-plane
   // normal, with the parity sign), the surface's coefficients, or an element's Jones matrix
   let coef = null, jonesM = null, eIn = null, eOut = null;
+  const pmS = new Float64Array(8);
   if (vec) {
     const dI = ev.dIn, dO = ev.dOut || ev.dIn, si = pol && pol.parIn ? -1 : 1, so = pol && pol.parOut ? -1 : 1;
     eIn = { sg: si, v: [-dI[1] * si, dI[0] * si, 0] }; eOut = { sg: so, v: [-dO[1] * so, dO[0] * so, 0] };
     const el = ev.surf && ev.surf.el;
     if (ev.mode === 'P' && el && (JONES_TYPES.has(el.type) || ev.jm)) {
       const Jm = ev.jm || jonesOf(el), cj = v => [v[0], -v[1]];
-      jonesM = [cj(Jm[1][1]), cj(Jm[1][0]), cj(Jm[0][1]), cj(Jm[0][0])];   // [ss, sp, ps, pp]
+      jonesM = Float64Array.from([cj(Jm[1][1]), cj(Jm[1][0]), cj(Jm[0][1]), cj(Jm[0][0])].flat());   // [ss, sp, ps, pp], each re, im
     } else coef = polCoeff(ev, lam0 * 1e6);
   }
   // phase that turns too fast only matters where there is light
@@ -13652,10 +13688,12 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       for (let i = 0; i < N; i++) {
         const o = j * N + i; if (!cache.ok[o]) continue;
         const x = (i - N / 2) * ax.d / Ax;
-        const [ur, ui] = interp2(F, x, y), c = cache.c[2 * o], s = cache.c[2 * o + 1];
+        interp2s(F, x, y);
+        const ur = I2R, ui = I2I, c = cache.c[2 * o], s = cache.c[2 * o + 1];
         const sR = ur * c - ui * s, sI = ur * s + ui * c;
         if (!vec) { re[o] = sR; im[o] = sI; continue; }
-        const [vr, vi] = interp2(F, x, y, F.re2, F.im2), pR = vr * c - vi * s, pI = vr * s + vi * c;
+        interp2s(F, x, y, F.re2, F.im2);
+        const vr = I2R, vi = I2I, pR = vr * c - vi * s, pI = vr * s + vi * c;
         if (!cache.has[o]) { re[o] = sR; im[o] = sI; re2[o] = pR; im2[o] = pI; continue; }
         const q = cache.pm, b = 8 * o;
         re[o] = q[b] * sR - q[b + 1] * sI + q[b + 2] * pR - q[b + 3] * pI; im[o] = q[b] * sI + q[b + 1] * sR + q[b + 2] * pI + q[b + 3] * pR;
@@ -13669,8 +13707,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     for (let i = 0; i < N; i++) {
       const x = (i - N / 2) * ax.d / Ax;
       let edgeHere = false, curUV = null;
-      const [ur, ui] = interp2(F, x, y);
-      const [vr, vi] = vec ? interp2(F, x, y, F.re2, F.im2) : [0, 0];
+      interp2s(F, x, y);
+      const ur = I2R, ui = I2I;
+      let vr = 0, vi = 0;
+      if (vec) { interp2s(F, x, y, F.re2, F.im2); vr = I2R; vi = I2I; }
       if (!record && ur === 0 && ui === 0 && vr === 0 && vi === 0) { prev = null; continue; }
       pU += ur * ur + ui * ui + vr * vr + vi * vi;
       let m = 1, ab = 0, fr = 1, fi = 0, PM = jonesM;
@@ -13680,46 +13720,47 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
           // The light's own direction here, from the slope of its phase (the reference and what
           // the field adds to it), rather than the pilot's normal along which the trace was
           // launched: they part where the beam is aberrated, and polarisation turns with the ray.
-          let d = [r[8], r[9], r[10]], d2 = [r[14], r[15], r[16]];
-          const hx = 0.5 * ax.d / aAx, hy = 0.5 * ay.d / aAy;
-          const g = (dx0, dy0) => {
-            const a = interp2(F, x + dx0, y + dy0), b = interp2(F, x + dx0, y + dy0, F.re2, F.im2);
-            return [a[0], a[1], b[0], b[1]];
-          };
-          const xp = g(hx, 0), xm = g(-hx, 0), yp = g(0, hy), ym = g(0, -hy);
+          let d0 = r[8], d1 = r[9], d2 = r[10], e0 = r[14], e1 = r[15], e2 = r[16];
           const U0 = ur * ur + ui * ui + vr * vr + vi * vi;
-          const slope = (P, M, hh) => {                      // Im(conj(u) du) / |u|^2, over both components
-            const dR = [P[0] - M[0], P[1] - M[1], P[2] - M[2], P[3] - M[3]].map(v => v / (2 * hh));
-            return (ur * dR[1] - ui * dR[0] + vr * dR[3] - vi * dR[2]) / U0;
-          };
           if (U0 > 1e-12 * peakIn) {
-            const gx = slope(xp, xm, hx) + (sphXi ? -k1 * x / qx[0] : 0), gy = slope(yp, ym, hy) + (sphYi ? -k1 * y / qy[0] : 0);
-            const tx = -gx / k1, ty = -gy / k1, c0 = [ev.dIn[0], ev.dIn[1], 0], ex0 = [-ev.dIn[1], ev.dIn[0], 0];
-            d = [c0[0] + tx * ex0[0], c0[1] + tx * ex0[1], ty];
-            const L = Math.hypot(...d); d = d.map(v => v / L);
-            const nv = [r[11], r[12], r[13]];
-            let c = -(d[0] * nv[0] + d[1] * nv[1] + d[2] * nv[2]), N3 = nv;
-            if (c < 0) { N3 = nv.map(v => -v); c = -c; }
+            // Im(conj(u) du) / |u|^2 over both components, du from the samples either side
+            const hx = 0.5 * ax.d / aAx, hy = 0.5 * ay.d / aAy;
+            const slope = (dx0, dy0, hh) => {
+              interp2s(F, x + dx0, y + dy0); const a0 = I2R, a1 = I2I;
+              interp2s(F, x + dx0, y + dy0, F.re2, F.im2); const a2 = I2R, a3 = I2I;
+              interp2s(F, x - dx0, y - dy0); const b0 = I2R, b1 = I2I;
+              interp2s(F, x - dx0, y - dy0, F.re2, F.im2); const b2 = I2R, b3 = I2I;
+              const t2 = 2 * hh, q0 = (a0 - b0) / t2, q1 = (a1 - b1) / t2, q2 = (a2 - b2) / t2, q3 = (a3 - b3) / t2;
+              return (ur * q1 - ui * q0 + vr * q3 - vi * q2) / U0;
+            };
+            const gx = slope(hx, 0, hx) + (sphXi ? -k1 * x / qx[0] : 0), gy = slope(0, hy, hy) + (sphYi ? -k1 * y / qy[0] : 0);
+            const tx = -gx / k1, ty = -gy / k1, c00 = ev.dIn[0], c01 = ev.dIn[1], ex00 = -ev.dIn[1], ex01 = ev.dIn[0];
+            d0 = c00 + tx * ex00; d1 = c01 + tx * ex01; d2 = ty;
+            const L = Math.hypot(d0, d1, d2); d0 = d0 / L; d1 = d1 / L; d2 = d2 / L;
+            let N0 = r[11], N1 = r[12], N2 = r[13];
+            let c = -(d0 * N0 + d1 * N1 + d2 * N2);
+            if (c < 0) { N0 = -N0; N1 = -N1; N2 = -N2; c = -c; }
             if (ev.surf && ev.surf.kind === 'grating') {
               // the grating equation along the surface in the bench plane, as the tracer does
-              const f = ev.surf.f, tY0 = [-f.s, f.c], nn = [f.c, f.s];
-              const dn = d[0] * nn[0] + d[1] * nn[1];
-              const tY = d[0] * tY0[0] + d[1] * tY0[1] + (ev.order || 0) * lam0 * linesPerMm(ev.surf.el) / n1, tZ = d[2];
+              const f = ev.surf.f, tY00 = -f.s, tY01 = f.c, nn0 = f.c, nn1 = f.s;
+              const dn = d0 * nn0 + d1 * nn1;
+              const tY = d0 * tY00 + d1 * tY01 + (ev.order || 0) * lam0 * linesPerMm(ev.surf.el) / n1, tZ = d2;
               const dN = (ev.mode === 'R' ? -1 : 1) * (dn < 0 ? -1 : 1) * Math.sqrt(Math.max(0, 1 - tY * tY - tZ * tZ));
-              d2 = [dN * nn[0] + tY * tY0[0], dN * nn[1] + tY * tY0[1], tZ];
-            } else if (ev.mode === 'R') d2 = d.map((v, i2) => v + 2 * c * N3[i2]);
+              e0 = dN * nn0 + tY * tY00; e1 = dN * nn1 + tY * tY01; e2 = tZ;
+            } else if (ev.mode === 'R') { e0 = d0 + 2 * c * N0; e1 = d1 + 2 * c * N1; e2 = d2 + 2 * c * N2; }
             else if (ev.mode === 'T' && ev.surf && ev.surf.kind === 'refract' && n1 !== n2) {
-              const eta = n1 / n2, kk = 1 - eta * eta * (1 - c * c), m = eta * c - Math.sqrt(Math.max(0, kk));
-              d2 = d.map((v, i2) => eta * v + m * N3[i2]);
-            } else d2 = d.slice();
+              const eta = n1 / n2, kk = 1 - eta * eta * (1 - c * c), m2 = eta * c - Math.sqrt(Math.max(0, kk));
+              e0 = eta * d0 + m2 * N0; e1 = eta * d1 + m2 * N1; e2 = eta * d2 + m2 * N2;
+            } else { e0 = d0; e1 = d1; e2 = d2; }
           }
           if (ev.surf && ev.surf.kind === 'grating') {
             // the grooves run out of the plane and this grating treats s and p alike, so each
             // keeps its own axis; a ray's plane of incidence is no guide once the grating has
             // turned it in the bench plane
             const cc = coef(1);
-            PM = [[cc[0], -cc[1]], [0, 0], [0, 0], [cc[2], -cc[3]]];
-          } else PM = polMatrix(coef, d, [r[11], r[12], r[13]], d2, eIn, eOut, [ev.dIn[0], ev.dIn[1], 0]);
+            pmS[0] = cc[0]; pmS[1] = -cc[1]; pmS[2] = 0; pmS[3] = 0; pmS[4] = 0; pmS[5] = 0; pmS[6] = cc[2]; pmS[7] = -cc[3];
+          } else polMatrixTo(pmS, coef, d0, d1, d2, r[11], r[12], r[13], e0, e1, e2, eIn, eOut, ev.dIn[0], ev.dIn[1], 0);
+          PM = pmS;
         }
         if (!r[4]) { prev = null; continue; }
         // A sample the edge crosses passes the share of it on the open side. For a straight
@@ -13765,15 +13806,15 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       const c = c0 * fr - s0 * fi, s = c0 * fi + s0 * fr;
       if (record) {
         record.ok[o] = 1; record.c[2 * o] = c; record.c[2 * o + 1] = s;
-        if (vec && PM) { record.has[o] = 1; const b = 8 * o; [PM[0], PM[1], PM[2], PM[3]].forEach((v, k) => { record.pm[b + 2 * k] = v[0]; record.pm[b + 2 * k + 1] = v[1]; }); }
+        if (vec && PM) { record.has[o] = 1; record.pm.set(PM, 8 * o); }
       }
       const sR = ur * c - ui * s, sI = ur * s + ui * c;
       if (!vec) { re[o] = sR; im[o] = sI; continue; }
       const pR = vr * c - vi * s, pI = vr * s + vi * c;
       if (!PM) { re[o] = sR; im[o] = sI; re2[o] = pR; im2[o] = pI; continue; }
-      const [ss, sp, ps, pp] = PM;
-      re[o] = ss[0] * sR - ss[1] * sI + sp[0] * pR - sp[1] * pI; im[o] = ss[0] * sI + ss[1] * sR + sp[0] * pI + sp[1] * pR;
-      re2[o] = ps[0] * sR - ps[1] * sI + pp[0] * pR - pp[1] * pI; im2[o] = ps[0] * sI + ps[1] * sR + pp[0] * pI + pp[1] * pR;
+      const q = PM;                                    // [ss, sp, ps, pp], each re, im
+      re[o] = q[0] * sR - q[1] * sI + q[2] * pR - q[3] * pI; im[o] = q[0] * sI + q[1] * sR + q[2] * pI + q[3] * pR;
+      re2[o] = q[4] * sR - q[5] * sI + q[6] * pR - q[7] * pI; im2[o] = q[4] * sI + q[5] * sR + q[6] * pI + q[7] * pR;
     }
   }
   const out = { N, re, im, ax, ay, n: n2, lam0 };
@@ -13783,7 +13824,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   if (areaScale !== 1) scaleAll(areaScale);
   // cut or not by what the edges and masks let through, not by how much a partial reflector
   // sends this way: the area-weighted power of the light that got past, against what came in
-  const pIn = popStats2(F).power, S = popStats2(out);
+  const pIn = statsIn().power, S = popStats2(out);
   const clipped = fixed ? fixed.clipped : pArea * g * g * ax.d * ay.d < pIn * (1 - 1e-4);
   let nxD = null, nyD = null;
   // A surface that cuts nothing loses nothing to its grid: what resampling the input onto

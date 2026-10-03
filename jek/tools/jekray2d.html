@@ -13222,10 +13222,11 @@ function fft(re, im, sign) {
   for (let i = 1; i < n; i++) { const j = rev[i]; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
   for (let len = 2; len <= n; len <<= 1) {
     const half = len >> 1, step = n / len;
-    for (let i = 0; i < n; i += len) {
-      for (let k = 0; k < half; k++) {
-        const wr = c[k * step], wi = sign * s[k * step];
-        const a = i + k, b = a + half;
+    // each twiddle once a stage, then every butterfly that uses it
+    for (let k = 0; k < half; k++) {
+      const wr = c[k * step], wi = sign * s[k * step];
+      for (let a = k; a < n; a += len) {
+        const b = a + half;
         const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
         re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
       }
@@ -13246,14 +13247,38 @@ const cmulPhase = (re, im, i, ph, a) => {
 /* sqrt(i / (lam d)), the one-axis share of the Fresnel prefactor */
 const fresnelPre = (lam, d) => [d > 0 ? Math.PI / 4 : -Math.PI / 4, 1 / Math.sqrt(lam * Math.abs(d))];
 
-/* One axis of one line: st = { d: spacing, z: past the waist, zR }. Returns the new state. */
-function axisAS(re, im, st, dist, lam) {
-  const n = re.length;
-  cdft(re, im, -1);
+/* One axis of a line, as a plan: what is done to every line alike (transforms, reversals, and
+   phase factors, each sample's cos and sin times its amplitude, worked out once), and the new
+   state. A field's step moves all N of its lines the same way, so the factors are worked out
+   once a step rather than once a line. st = { d: spacing, z: past the waist, zR }. */
+function planMul(n, phAt, ampAt) {
+  const c = new Float64Array(n), s = new Float64Array(n);
+  for (let m = 0; m < n; m++) { const ph = phAt(m), a = ampAt; c[m] = Math.cos(ph) * a; s[m] = Math.sin(ph) * a; }
+  return { op: 'mul', c, s };
+}
+function axisASPlan(ops, n, st, dist, lam) {
+  ops.push({ op: 'dft', sign: -1 });
   const df = 1 / (n * st.d);
-  for (let m = 0; m < n; m++) { const fm = (m - n / 2) * df; cmulPhase(re, im, m, Math.PI * lam * dist * fm * fm, 1 / n); }
-  cdft(re, im, 1);
+  ops.push(planMul(n, m => { const fm = (m - n / 2) * df; return Math.PI * lam * dist * fm * fm; }, 1 / n));
+  ops.push({ op: 'dft', sign: 1 });
   return { d: st.d, z: st.z + dist, zR: st.zR };
+}
+function axisToWaistPlan(ops, n, st, lam, k) {          // sphere at z, to the waist plane
+  const d = -st.z;
+  ops.push({ op: 'dft', sign: 1 });
+  if (d < 0) ops.push({ op: 'rev' });
+  const dW = lam * Math.abs(d) / (n * st.d);
+  const [p0, a0] = fresnelPre(lam, d);
+  ops.push(planMul(n, m => { const r = (m - n / 2) * dW; return p0 - k * r * r / (2 * d); }, a0 * st.d));
+  return { d: dW, z: 0, zR: st.zR };
+}
+function axisFromWaistPlan(ops, n, st, z2, lam, k) {    // waist plane, to a sphere at z2
+  ops.push(planMul(n, i => { const x = (i - n / 2) * st.d; return -k * x * x / (2 * z2); }, 1));
+  ops.push({ op: 'dft', sign: 1 });
+  if (z2 < 0) ops.push({ op: 'rev' });
+  const [p0, a0] = fresnelPre(lam, z2);
+  ops.push(planMul(n, () => p0, a0 * st.d));
+  return { d: lam * Math.abs(z2) / (n * st.d), z: z2, zR: st.zR };
 }
 function reverseLine(re, im) {
   const n = re.length;
@@ -13262,32 +13287,36 @@ function reverseLine(re, im) {
     let t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t;
   }
 }
-function axisToWaist(re, im, st, lam, k) {          // sphere at z, to the waist plane
-  const n = re.length, d = -st.z;
-  cdft(re, im, 1);
-  if (d < 0) reverseLine(re, im);
-  const dW = lam * Math.abs(d) / (n * st.d);
-  const [p0, a0] = fresnelPre(lam, d);
-  for (let m = 0; m < n; m++) { const r = (m - n / 2) * dW; cmulPhase(re, im, m, p0 - k * r * r / (2 * d), a0 * st.d); }
-  return { d: dW, z: 0, zR: st.zR };
-}
-function axisFromWaist(re, im, st, z2, lam, k) {    // waist plane, to a sphere at z2
-  const n = re.length;
-  for (let i = 0; i < n; i++) { const x = (i - n / 2) * st.d; cmulPhase(re, im, i, -k * x * x / (2 * z2), 1); }
-  cdft(re, im, 1);
-  if (z2 < 0) reverseLine(re, im);
-  const [p0, a0] = fresnelPre(lam, z2);
-  for (let m = 0; m < n; m++) cmulPhase(re, im, m, p0, a0 * st.d);
-  return { d: lam * Math.abs(z2) / (n * st.d), z: z2, zR: st.zR };
-}
-/* Move one line a distance t along the beam, choosing steps from its own pilot */
-function axisRoute(re, im, st, t, lam, k) {
-  const z2 = st.z + t;
+/* Moving a line a distance t along the beam, steps chosen from its own pilot: { ops, st } */
+function axisPlan(n, st, t, lam, k) {
+  const ops = [], z2 = st.z + t;
   const in1 = popInside(st.z, st.zR), in2 = popInside(z2, st.zR);
-  if (in1 && in2) return axisAS(re, im, st, t, lam);
-  let W = in1 ? axisAS(re, im, st, -st.z, lam) : axisToWaist(re, im, st, lam, k);
-  if (in2) return axisAS(re, im, W, z2, lam);
-  return axisFromWaist(re, im, W, z2, lam, k);
+  if (in1 && in2) return { ops, st: axisASPlan(ops, n, st, t, lam) };
+  const W = in1 ? axisASPlan(ops, n, st, -st.z, lam) : axisToWaistPlan(ops, n, st, lam, k);
+  return { ops, st: in2 ? axisASPlan(ops, n, W, z2, lam) : axisFromWaistPlan(ops, n, W, z2, lam, k) };
+}
+function axisApply(ops, re, im) {
+  const n = re.length;
+  for (const P of ops) {
+    if (P.op === 'dft') cdft(re, im, P.sign);
+    else if (P.op === 'rev') reverseLine(re, im);
+    else { const c = P.c, s = P.s; for (let i = 0; i < n; i++) { const x = re[i] * c[i] - im[i] * s[i]; im[i] = re[i] * s[i] + im[i] * c[i]; re[i] = x; } }
+  }
+}
+/* Move one line a distance t along the beam. Returns the new state. */
+function axisRoute(re, im, st, t, lam, k) {
+  const P = axisPlan(re.length, st, t, lam, k);
+  axisApply(P.ops, re, im);
+  return P.st;
+}
+/* An N x N array turned about its diagonal, into a new one, in 32 x 32 blocks */
+function transposeSq(A, N) {
+  const B = new Float64Array(N * N), T = 32;
+  for (let j0 = 0; j0 < N; j0 += T) for (let i0 = 0; i0 < N; i0 += T) {
+    const j1 = Math.min(N, j0 + T), i1 = Math.min(N, i0 + T);
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) B[i * N + j] = A[j * N + i];
+  }
+  return B;
 }
 /* The same along every row (x) or every column (y) of a field */
 /* A 2D field is a vector: re, im hold its s component (out of the bench plane), re2, im2 its
@@ -13297,16 +13326,14 @@ const fieldComps = F => F.re2 ? [['re', 'im'], ['re2', 'im2']] : [['re', 'im']];
 function field2Axis(F, axis, t) {
   const N = F.N, lam = F.lam0 / F.n, k = 2 * Math.PI * F.n / F.lam0;
   const out = Object.assign({}, F);
-  const lr = new Float64Array(N), li = new Float64Array(N);
-  let st = null;
+  // the same steps for every line: planned once
+  const P = axisPlan(N, axis === 'x' ? F.ax : F.ay, t, lam, k), st = P.st;
   for (const [kr, ki] of fieldComps(F)) {
-    const re = new Float64Array(F[kr]), im = new Float64Array(F[ki]);
-    for (let j = 0; j < N; j++) {
-      for (let i = 0; i < N; i++) { const o = axis === 'x' ? j * N + i : i * N + j; lr[i] = re[o]; li[i] = im[o]; }
-      st = axisRoute(lr, li, axis === 'x' ? F.ax : F.ay, t, lam, k);
-      for (let i = 0; i < N; i++) { const o = axis === 'x' ? j * N + i : i * N + j; re[o] = lr[i]; im[o] = li[i]; }
-    }
-    out[kr] = re; out[ki] = im;
+    // rows lie in one piece and are moved where they are; columns are first turned into rows
+    // (and back after), a block at a time, rather than gathered one by one across the field
+    const re = axis === 'x' ? new Float64Array(F[kr]) : transposeSq(F[kr], N), im = axis === 'x' ? new Float64Array(F[ki]) : transposeSq(F[ki], N);
+    for (let j = 0; j < N; j++) axisApply(P.ops, re.subarray(j * N, j * N + N), im.subarray(j * N, j * N + N));
+    out[kr] = axis === 'x' ? re : transposeSq(re, N); out[ki] = axis === 'x' ? im : transposeSq(im, N);
   }
   out.ax = axis === 'x' ? st : F.ax; out.ay = axis === 'y' ? st : F.ay;
   return out;

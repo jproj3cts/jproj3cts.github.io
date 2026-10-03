@@ -14009,6 +14009,42 @@ function popRoundEv(ev) {
 const POP_MAX_SEGS_2D = 60;
 
 /* The field run, as a generator so the page can do it a slice at a time between frames */
+/* ---------- Steps kept between runs ----------
+   A field run is a tree of pure steps: a segment's field carried to its end, then through
+   the next surface. Each is kept, keyed by everything on the path to it (the source and its
+   launch, then each segment and surface as the tracer describes them), so after an edit the
+   steps before the change are taken from here and only those after it are worked out again.
+   Least recently used go first past a memory budget. A cavity's steady state has its own
+   store, per trace; what comes after one is worked out each time. */
+const POP_STEP_BUDGET = 128 * 2 ** 20;                       // bytes of field arrays
+const popStepCache = { map: new Map(), bytes: 0, hits: 0, misses: 0 };
+const fieldBytes = F => F ? ['re', 'im', 're2', 'im2'].reduce((a, k) => a + (F[k] ? F[k].byteLength : 0), 0) : 0;
+function stepGet(k) {
+  const m = popStepCache.map, e = m.get(k);
+  if (!e) { popStepCache.misses++; return undefined; }
+  m.delete(k); m.set(k, e); popStepCache.hits++;
+  return e.v;
+}
+function stepSet(k, v, F) {
+  const b = fieldBytes(F), C = popStepCache;
+  if (b > POP_STEP_BUDGET / 4) return;
+  const old = C.map.get(k);
+  if (old) { C.bytes -= old.b; C.map.delete(k); }
+  C.map.set(k, { v, b }); C.bytes += b;
+  for (const [k2, e] of C.map) { if (C.bytes <= POP_STEP_BUDGET) break; C.map.delete(k2); C.bytes -= e.b; }
+}
+/* a short key for a long description: two 32-bit hashes of it */
+function stepHash(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(36) + '.' + (h1 >>> 0).toString(36) + '.' + str.length.toString(36);
+}
+/* a beam as far as its field's steps depend on it */
+const stepDesc = b => [b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.ev, b.J, b.coh, b.par, b.fo, !!b.fan];
+const stepJSON = v => { try { return JSON.stringify(v); } catch (err) { return null; } };
+
 function popRun(beams, srcs, opts = {}) {
   const g = popRunGen(beams, srcs, opts);
   let r = g.next();
@@ -14066,6 +14102,11 @@ function* popRunGen(beams, srcs, opts = {}) {
     } else if (!F0) F0 = eng === '2d' ? popGaussian2(src.popN, q, q, b.n, lam0, job.mn ? job.mn.w : 1, job.mn ? job.mn.c : null) : popGaussian(src.popN, q, b.n, lam0, 1);
     // on the 2D engine the field carries its polarisation at every point from the start
     if (!job.F && eng === '2d') F0 = field2Vector(F0, b.J);
+    // this field's key for the steps kept between runs: from its launch, or handed down
+    if (!job.F) {
+      const d = stepJSON([eng, src, stepDesc(b), job.mode || 0, job.mn || null]);
+      job.fk = d === null ? null : stepHash('root|' + d);
+    }
     if (job.F && loopAt.has(job.i) && job.decision) {
       const L = loopAt.get(job.i), key = L.canon + '|' + L.path[0] + '|' + (opts.paraxial ? 'p' : '') + '|' + eng + (job.mode ? '|m' + job.mode : '') + (b.fo ? '|f' + b.fo : '');
       let store = cavRunCache.get(lastTrace); if (!store) { store = new Map(); cavRunCache.set(lastTrace, store); }
@@ -14129,6 +14170,7 @@ function* popRunGen(beams, srcs, opts = {}) {
       // gains delta each round trip, the leak back through the input coupler included, so
       // the prompt reflection and the leak meet with the right phase
       job.cavPhase = got.delta;
+      job.fk = null;                                         // a cavity's solve is not kept here
       // the part of a broad laser line's build-up that coheres with nothing: on its own
       if (got.Xinc && !opts.paraxial) todo.push(Object.assign({}, job, { F: got.Xinc, decision: null, tag: (job.tag || '') + '#i' }));
       notes.cavities.push(L.canon);
@@ -14148,21 +14190,28 @@ function* popRunGen(beams, srcs, opts = {}) {
     const ch = (kids.get(job.i) || []).filter(c => entries.has(job.i) || beams[c].w * (job.boost || 1) >= (eng === '2d' ? 1e-3 : 1e-4) * job.root || (eng === '2d' && polEl(c)))
       .sort((a, c) => beams[a].w - beams[c].w);
     if (!ch.length) continue;
-    let Fend = leg.at(b.len);
+    const endKey = job.fk ? stepHash(job.fk + '|end|' + b.len) : null;
+    let Fend = endKey ? stepGet(endKey) : undefined;
+    if (!Fend) { Fend = leg.at(b.len); if (endKey) stepSet(endKey, Fend, Fend); }
     if (job.cavPhase) Fend = cavLin(Fend, [[[Math.cos(job.cavPhase), Math.sin(job.cavPhase)], Fend]]);
     for (const c of ch) {
       const cb = beams[c], ev = cb.ev || { A: 1, C: 0, D: 1, n2: b.n };
       const gain = 1;          // the field keeps unit power; each segment's Jones vector carries its amplitude
-      let out;
-      if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial, cb.len, { Jin: b.J, Jout: cb.J, parIn: b.par, parOut: cb.par }) : { field: Fend, clipped: false };
-      else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial, tNext: cb.len,
-        disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : null });
+      const sd = endKey ? stepJSON([stepDesc(cb), opts.paraxial ? 1 : 0, b.J, b.par, eng]) : null;
+      const outKey = sd === null ? null : stepHash(endKey + '|surf|' + sd);
+      let out = outKey ? stepGet(outKey) : undefined;
+      if (!out) {
+        if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial, cb.len, { Jin: b.J, Jout: cb.J, parIn: b.par, parOut: cb.par }) : { field: Fend, clipped: false };
+        else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial, tNext: cb.len,
+          disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : null });
+        if (outKey) stepSet(outKey, out, out.field);
+      }
       if (out.clipped && ev.el) notes.clipped.add(ev.el);
       if (out.steep && ev.el) notes.steep.add(ev.el);
       if (out.coarse && ev.el) notes.coarse.add(ev.el);
       if (out.polErr) notes.polErr = Math.max(notes.polErr || 0, out.polErr);
       if (eng === '2d' && polEl(c) && beams[c].w < 1e-3 * job.root && popStats2(out.field).power < 1e-12 * job.root) continue;
-      todo.push({ i: c, F: out.field, root: job.root, clipped: out.clipped, repr: sg.repr, decision: out.decision, boost: job.boost, mode: job.mode, mn: job.mn, tag: job.tag });
+      todo.push({ i: c, F: out.field, fk: outKey, root: job.root, clipped: out.clipped, repr: sg.repr, decision: out.decision, boost: job.boost, mode: job.mode, mn: job.mn, tag: job.tag });
     }
   }
   if (opts.draw) {
@@ -19021,6 +19070,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     experimental(on) { if (on !== undefined) setExperimental(on); return { on: expOn, list: EXPERIMENTAL.map(f => f.key) }; },
     exp: key => exp(key),
     pic: PIC.api,                                                                              // PIC hook
+    // the field steps kept between runs: how many, hits and misses since the last look; clear empties it
+    popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
     scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); vs(el).sigSpan = span; drawSignal(cv, el, 'time'); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,

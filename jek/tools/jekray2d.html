@@ -7940,24 +7940,90 @@ const ELEC = (() => {
   const make = (kind, x, y) => makeOptic(kind, x, y) || normElement({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
 
   /* ---------- drawing ---------- */
+  /* ---------- the parts as schematic symbols ----------
+     Drawn in the part's own frame, in mm, y down (u across, v down the page at angle 0).
+     Each symbol says how far it reaches at a height v on its left and right, so the leads
+     from the ports run in to meet it. */
+  const SYM = {
+    dc: { L: () => 2.6, R: () => 2.6, draw(c) {
+      for (const [u, h, w] of [[-2.4, 2.6, 1], [-0.8, 1.4, 2.2], [0.8, 2.6, 1], [2.4, 1.4, 2.2]]) { c.lineWidth *= w; line(c, u, -h, u, h); c.lineWidth /= w; }
+      line(c, -3.4, -3.3, -2.2, -3.3); line(c, -2.8, -3.9, -2.8, -2.7);
+    } },
+    sig: { L: v => circ(3.6, v), R: v => circ(3.6, v), draw(c, el) {
+      c.beginPath(); c.arc(0, 0, 3.6, 0, 2 * Math.PI); c.stroke();
+      const w = el.wave, f = t => w === 'square' ? (t < 0.5 ? -1 : 1) : w === 'triangle' ? (t < 0.25 ? -4 * t : t < 0.75 ? 4 * t - 2 : 4 - 4 * t) : w === 'pulse' ? (t > 0.15 && t < 0.4 ? -1 : 1) : -Math.sin(2 * Math.PI * t);
+      c.beginPath(); for (let i = 0; i <= 40; i++) { const t = i / 40; i ? c.lineTo(-2.4 + 4.8 * t, 1.4 * f(t)) : c.moveTo(-2.4, 1.4 * f(0)); } c.stroke();
+    } },
+    noise: { L: v => circ(3.6, v), R: v => circ(3.6, v), draw(c) {
+      c.beginPath(); c.arc(0, 0, 3.6, 0, 2 * Math.PI); c.stroke();
+      const z = [0, -1.3, 1.1, -0.9, 1.5, -1.6, 0.8, -0.4, 1.2, 0]; c.beginPath(); z.forEach((y, i) => { const u = -2.5 + 5 * i / (z.length - 1); i ? c.lineTo(u, y) : c.moveTo(u, y); }); c.stroke();
+    } },
+    amp: { L: () => 3.4, R: v => Math.max(0, 3.8 - 7.2 * Math.abs(v) / 4), draw(c) { poly(c, [[-3.4, -4], [3.8, 0], [-3.4, 4]]); } },
+    tia: { L: () => 3, R: v => Math.max(0, 3.4 - 6.4 * Math.abs(v) / 3.2), draw(c) {
+      poly(c, [[-3, -3.2], [3.4, 0], [-3, 3.2]]);
+      // its feedback resistor, from input to output over the top
+      c.beginPath(); c.moveTo(-5, 0); c.lineTo(-5, -5); c.lineTo(-2.2, -5);
+      for (let i = 0; i < 6; i++) c.lineTo(-1.8 + i * 0.8, i % 2 ? -4.3 : -5.7);
+      c.lineTo(2.6, -5); c.lineTo(5, -5); c.lineTo(5, 0); c.stroke();
+      line(c, -5, 0, -3, 0); line(c, 3.4, 0, 5, 0);
+    } },
+    lpf: { L: () => 3.6, R: () => 3.6, draw(c) { filterBox(c, f => f < 0.45 ? 0 : -Math.min(1.8, (f - 0.45) * 5)); } },
+    hpf: { L: () => 3.6, R: () => 3.6, draw(c) { filterBox(c, f => f > 0.55 ? 0 : -Math.min(1.8, (0.55 - f) * 5)); } },
+    bpf: { L: () => 3.6, R: () => 3.6, draw(c) { filterBox(c, f => -Math.min(1.8, Math.abs(f - 0.5) * 6)); } },
+    mixer: { L: v => circ(3.2, v), R: v => circ(3.2, v), draw(c) {
+      c.beginPath(); c.arc(0, 0, 3.2, 0, 2 * Math.PI); c.stroke(); const d = 3.2 * Math.SQRT1_2; line(c, -d, -d, d, d); line(c, -d, d, d, -d);
+    } },
+    sum: { L: v => circ(3.2, v), R: v => circ(3.2, v), draw(c) {
+      c.beginPath(); c.arc(0, 0, 3.2, 0, 2 * Math.PI); c.stroke(); line(c, -1.8, 0, 1.8, 0); line(c, 0, -1.8, 0, 1.8);
+    } },
+    scope: { L: () => 4.6, R: () => 4.6, draw(c) {
+      rect(c, 4.6, 3.6); c.beginPath(); for (let i = 0; i <= 40; i++) { const u = -3.6 + 7.2 * i / 40; i ? c.lineTo(u, -1.5 * Math.sin(3 * Math.PI * i / 40)) : c.moveTo(u, 0); } c.stroke();
+    } },
+    spec: { L: () => 4.6, R: () => 4.6, draw(c) {
+      rect(c, 4.6, 3.6); c.beginPath(); c.moveTo(-3.6, 2.4); for (const [u, h] of [[-2, 4], [-0.2, 2.6], [1.6, 1.4]]) { c.lineTo(u, 2.4); c.lineTo(u, 2.4 - h); c.lineTo(u, 2.4); } c.lineTo(3.6, 2.4); c.stroke();
+    } },
+    lockin: { L: () => 5.2, R: () => 5.2, draw(c) {
+      rect(c, 5.2, 4.2);
+      c.beginPath(); c.arc(-2, 0, 1.8, 0, 2 * Math.PI); c.stroke(); const d = 1.8 * Math.SQRT1_2; line(c, -2 - d, -d, -2 + d, d); line(c, -2 - d, d, -2 + d, -d);
+      c.beginPath(); c.moveTo(0.8, -1); c.lineTo(2.6, -1); c.quadraticCurveTo(3.6, -1, 4, 1.2); c.stroke();
+    } },
+  };
+  const circ = (r, v) => Math.sqrt(Math.max(0, r * r - v * v));
+  const line = (c, a, b, d, e) => { c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); };
+  const poly = (c, P) => { c.beginPath(); P.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); c.closePath(); c.fillStyle = DARK; c.fill(); c.stroke(); };
+  const rect = (c, a, b) => { c.beginPath(); c.rect(-a, -b, 2 * a, 2 * b); c.fillStyle = DARK; c.fill(); c.stroke(); };
+  /* a filter: its box, and a sketch of its response, gain (up) against frequency (across) */
+  function filterBox(c, g) {
+    rect(c, 3.6, 3.6);
+    const w = c.lineWidth; c.lineWidth = w * 0.6; line(c, -2.6, 2.4, 2.6, 2.4); line(c, -2.6, 2.4, -2.6, -2.6); c.lineWidth = w;
+    c.beginPath(); for (let i = 0; i <= 30; i++) { const f = i / 30, u = -2.4 + 4.8 * f, v = -1.2 - g(f); i ? c.lineTo(u, v) : c.moveTo(u, v); } c.stroke();
+  }
   function draw(el, sel) {
     if (el.kind === 'node') return drawNode(el, sel);
-    const K = KINDS[el.kind], f = frame(el), w = W_BOX / 2, hh = boxH(K) / 2, s = V().scale;
-    pathLocal(f, roundRect(w, hh, 1.2), true);
-    ctx.fillStyle = DARK; ctx.fill();
-    ctx.strokeStyle = sel ? '#ffffff' : YELLOW; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
-    const fs = clamp(2.4 * s, 7, 13);
-    if (fs * K.tag.length * 0.62 < W_BOX * s * 0.9) {
-      ctx.save(); ctx.fillStyle = INK; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(K.tag, sx(el.x), sy(el.y)); ctx.restore();
-    }
-    const used = portsInUse(), r = clamp(1.0 * s, 3, 6);
-    portList(el).forEach((P, i) => {
+    const K = KINDS[el.kind], G = SYM[el.kind], s = V().scale, ports = portList(el);
+    const c = ctx;
+    c.save();
+    c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
+    c.strokeStyle = sel ? '#ffffff' : YELLOW; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    // the leads, from each port in to the symbol
+    for (const P of ports) { const v = -P.y; line(c, P.x, v, P.x < 0 ? -G.L(v) : G.R(v), v); }
+    G.draw(c, el);
+    c.restore();
+    const used = portsInUse(), r = clamp(1.0 * s, 3, 6), names = [...K.ins, ...K.outs];
+    // which ports are named on the bench: any on a side with more than one, and any not plainly "in" or "out"
+    const named = (P, i) => (P.elec === 'in' ? K.ins.length : K.outs.length) > 1 || !['in', 'out'].includes(names[i]);
+    const fs = clamp(1.7 * s, 8, 11);
+    ports.forEach((P, i) => {
       const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
-      ctx.beginPath();
-      // an input is a hollow ring until wired, an output a filled triangle-ish dot
-      ctx.arc(X, Y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+      c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
+      c.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; c.fill(); c.strokeStyle = YELLOW; c.lineWidth = 1.4; c.stroke();
+      if (named(P, i) && s > 2.2) {
+        // the name just outside the port, away from the part, upright whatever the part's angle
+        c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
+        const ox = Q.dx, oy = -Q.dy, out = r + 3;
+        c.textAlign = Math.abs(ox) < 0.3 ? 'center' : ox > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
+        c.fillText(names[i], X + ox * out, Y + oy * out - 3); c.restore();
+      }
     });
   }
   const hit = (el, lx, ly, tol) => el.kind === 'node' ? Math.hypot(lx, ly) <= Math.max(NODE_R, 12 / V().scale) + tol : Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= boxH(KINDS[el.kind]) / 2 + tol;

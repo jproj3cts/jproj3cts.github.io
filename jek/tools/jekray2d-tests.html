@@ -2924,6 +2924,7 @@ const TESTS = [
         if (k === 'fibre') return el.type !== 'fibre';
         if (k === 'led') return !(el.kind === 'laser' && el.led);
         if (k === 'bpd') return !(el.kind === 'pd' && el.balanced);
+        if (k === 'soa') return !(el.kind === 'amp' && el.soa);
         if (k === 'splitter' || k === 'combiner') return !(el.kind === 'split' && el.combine === (k === 'combiner'));
         return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
       });
@@ -2980,6 +2981,59 @@ const TESTS = [
       // off centre by 20 nm: the product of two Gaussians, centred at their weighted mean and lower by exp(-4 ln2 dx^2 / (40^2 + 2^2))
       const wing = k * Math.exp(-4 * Math.LN2 * 400 / (1600 + 4));
       return Math.max(Math.abs(a.P / k - 1), Math.abs(a.w / Math.hypot(wa, 0.05) - 1), Math.abs(b.P / wing - 1));
+    },
+  },
+  {
+    name: 'A fibre\u2019s connectors reflect, from either side',
+    why: 'an LED (so the reflections add as powers) through a circulator into 1 m of fibre with flat cleaved ends (4%), its far end on a perfect terminator: back out of the circulator R + T\u00b2R/(1 \u2212 R\u00b2) (the near end, and the far end with the light going back and forth between them); spliced ends, nothing: the largest error in mW',
+    want: 0, tol: 1e-6, unit: ' mW',
+    run: J => {
+      const one = conn => { J.load(fnet([fc('laser', 'L', { led: true, power: 1 }), fc('circ', 'K', { loss: 0, iso: 300 }), fc('term', 'T', { rl: 300 }), fc('pd', 'P')], [['L', 0, 'K', 0], ['K', 1, 'T', 0], ['K', 2, 'P', 0]]));
+        J.fibreSet(1, 'conn', conn); J.trace(); return J.fibrePd('P'); };
+      const R = 0.04, T = 1 - R;
+      return Math.max(Math.abs(one('flat') - (R + T * T * R / (1 - R * R))), Math.abs(one('splice')));
+    },
+  },
+  {
+    name: 'A depolariser leaves broadband light unpolarised, and a laser polarised',
+    why: 's light through a Lyot depolariser (5 ps between its axes) and a polariser along s: an LED (coherence far shorter than 1.5 mm) half through, unpolarised; a single-frequency laser is left in one state (some of it through, but not half): the largest error from a half for the LED, and 1 if the laser comes out a half',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const dp = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1, pol: 's' }, o)), fc('depol', 'D', { loss: 0, dgd: 5 }), fc('pol', 'Q', { axis: 0, extinction: 80, loss: 0 }), fc('pd', 'P')], [['L', 0, 'D', 0], ['D', 1, 'Q', 0], ['Q', 1, 'P', 0]])); return J.fibrePd('P'); };
+      return Math.abs(dp({ led: true, pol: 's' }) - 0.5) + (Math.abs(dp({}) - 0.5) > 0.01 ? 0 : 1);
+    },
+  },
+  {
+    name: 'An M\u00d7N star coupler shares each input among its outputs',
+    why: 'a lossless 4\u00d74 star coupler: 1 mW into its first input, a quarter at each output; two lasers on two inputs of a 2\u00d73 (no loss): each input reaches each output at a third, 2/3 mW at each: the largest error in mW',
+    want: 0, tol: 1e-9, unit: ' mW',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('star', 'S', { ins: 4, outs: 4, loss: 0 }), ...[1, 2, 3, 4].map(i => fc('pd', 'P' + i))], [['L', 0, 'S', 0], ...[0, 1, 2, 3].map(j => ['S', 4 + j, 'P' + (j + 1), 0])]));
+      const a = [1, 2, 3, 4].map(i => J.fibrePd('P' + i));
+      J.load(fnet([fc('laser', 'A', { power: 1 }), fc('laser', 'B', { power: 1, wavelength: 1550.1 }), fc('star', 'S', { ins: 2, outs: 3, loss: 0 }), ...[1, 2, 3].map(i => fc('pd', 'P' + i))],
+        [['A', 0, 'S', 0], ['B', 0, 'S', 1], ...[0, 1, 2].map(j => ['S', 2 + j, 'P' + (j + 1), 0])]));
+      const b = [1, 2, 3].map(i => J.fibrePd('P' + i));
+      return Math.max(...a.map(v => Math.abs(v - 0.25)), ...b.map(v => Math.abs(v - 2 / 3)));
+    },
+  },
+  {
+    name: 'and typing fewer inputs moves its outputs\u2019 fibres with them',
+    why: 'a 3\u00d72 star coupler with a fibre on every port set to 2\u00d72: the fibre on input 3 goes, the two on its outputs follow them to their new ports (3 and 4, not 4 and 5): 0 when so',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      J.load(fnet([fc('laser', 'L1'), fc('laser', 'L2', { wavelength: 1551 }), fc('laser', 'L3', { wavelength: 1552 }), fc('star', 'S', { ins: 3, outs: 2, loss: 0 }), fc('pd', 'P1'), fc('pd', 'P2')],
+        [['L1', 0, 'S', 0], ['L2', 0, 'S', 1], ['L3', 0, 'S', 2], ['S', 3, 'P1', 0], ['S', 4, 'P2', 0]]));
+      J.setParam('S', 'ins', 2); J.trace();
+      return J.fibreCount() === 4 && J.portCount('S') === 4 && J.fibrePd('P1') > 0.9 && J.fibrePd('P2') > 0.9 ? 0 : 1;
+    },
+  },
+  {
+    name: 'A semiconductor optical amplifier gains less for p than for s',
+    why: 'an SOA, 20 dB gain (unsaturated) and 3 dB of polarisation-dependent gain, on a 1 \u00b5W laser: the light through it (its spontaneous emission taken away by comparing the two) s less p is 100 \u00b5W \u00d7 (1 \u2212 10\u207b\u2070\u00b7\u00b3): the error in \u00b5W',
+    want: 100 * (1 - Math.pow(10, -0.3)), tol: 0.05, unit: ' \u00b5W',
+    run: J => {
+      const one = pol => { J.load(fnet([fc('laser', 'L', { power: 0.001, pol }), fc('amp', 'A', { soa: true, g0: 20, psat: 40, nf: 8, centre: 1550, bw: 60, pdg: 3 }), fc('pd', 'P')], [['L', 0, 'A', 0], ['A', 1, 'P', 0]])); return J.fibrePd('P'); };
+      return (one('s') - one('p')) * 1000;
     },
   },
   {

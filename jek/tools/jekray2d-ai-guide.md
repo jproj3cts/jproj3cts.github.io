@@ -45,7 +45,7 @@ A `.jekray` file is one JSON object:
 | name | the project's title |
 | notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |
 | elements | the elements (see the reference) |
-| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "gamma": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "path": [{"x", "y"}, ...]} |
+| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "gamma": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "conn": its ends, "splice" (no reflection, the default), "pc" or "apc" connectors (45 or 65 dB return loss) or "flat" cleaves (4%), "path": [{"x", "y"}, ...]} |
 | benches | optional, for several tabs: [{"id": "b1", "name": "Laser table"}, ...]; then give each element "bench": its tab's id |
 | maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
@@ -555,6 +555,16 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | ways | `2` | Branches |
 | loss | `0.2` | Excess loss (dB) |
 
+### kind "star": Star coupler
+
+**ports:** 0 = in 1, 1 = in 2, 2 = out 1, 3 = out 2
+
+| field | default | meaning |
+|---|---|---|
+| ins | `2` | Inputs |
+| outs | `4` | Outputs |
+| loss | `0.3` | Excess loss (dB) |
+
 ### kind "pbs": Polarisation beam splitter
 
 **ports:** 0 = common, 1 = along, 2 = across
@@ -564,6 +574,15 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | axis | `0` | Axis (° from s) |
 | extinction | `25` | Extinction (dB) |
 | loss | `0.5` | Insertion loss (dB) |
+
+### kind "depol": Depolariser
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| dgd | `5` | Delay between axes (ps) |
+| loss | `0.3` | Insertion loss (dB) |
 
 ### kind "fmir": Fibre mirror
 
@@ -764,6 +783,8 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | centre | `1545` | Band centre (nm) |
 | bw | `35` | Band width (nm) |
 | iso | `40` | Isolation backwards (dB) |
+| soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |
+| pdg | `0.5` | dB, an SOA’s polarisation-dependent gain: p gains less than s by it |
 
 ## Catalogues
 

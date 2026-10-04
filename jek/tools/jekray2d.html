@@ -2297,7 +2297,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2688,6 +2688,9 @@ function normElementBase(e) {
       if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
       if (e.kind === 'pd') { base.balanced = !!e.balanced; base.cmrr = Math.max(0, num(e.cmrr, 30)); }
       if (e.kind === 'switch') base.cross = base.cross >= 0.5 ? 1 : 0;
+      if (e.kind === 'amp') { base.soa = !!e.soa; base.pdg = Math.max(0, num(e.pdg, 0.5)); }
+      if (e.kind === 'star') { base.ins = Math.round(clamp(base.ins, 1, 32)); base.outs = Math.round(clamp(base.outs, 1, 32)); }
+      if (e.kind === 'depol') base.dgd = Math.max(0, base.dgd);
       if (e.kind === 'split') { base.ways = Math.round(clamp(base.ways, 2, 64)); base.loss = Math.max(0, base.loss); base.combine = !!e.combine; }
       if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity
@@ -2791,7 +2794,9 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'fcomp', kind: 'laser', led: true, name: nextName('LED'), x, y, angle: 0, wavelength: 1550, bw: 40, power: 0.1, pol: 'unpolarised' });
     case 'bpd':
       return normElement({ type: 'fcomp', kind: 'pd', balanced: true, material: 'ingaas', name: nextName('Balanced detector'), x, y, angle: 0 });
-    case 'pbs': case 'fmir': case 'switch': case 'delay': case 'stretch': case 'tbf': case 'osa':
+    case 'soa':
+      return normElement({ type: 'fcomp', kind: 'amp', soa: true, name: nextName('SOA'), x, y, angle: 0, g0: 25, psat: 10, nf: 8, centre: 1550, bw: 60, iso: 0, pdg: 0.5 });
+    case 'pbs': case 'fmir': case 'switch': case 'delay': case 'stretch': case 'tbf': case 'osa': case 'depol': case 'star':
     case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
     case 'amp': case 'faom': case 'feom': {
       if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
@@ -2917,6 +2922,8 @@ function normFibres(list, els) {
       // maintaining, key at an angle to s, with its beat length and extinction ratio), or mm
       // (multimode: scrambled)
       ftype: ['smf', 'random', 'pm', 'mm'].includes(F.ftype) ? F.ftype : 'smf',
+      // its ends: spliced (no reflection), or connectors: PC, APC, or a flat cleave
+      conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
       wg: F.wg ? PIC.normWg(F.wg) : undefined });                                            // PIC hook: a waveguide on a chip
@@ -5487,6 +5494,19 @@ const FSYM = (() => {
       c.beginPath(); for (let i = 0; i <= 24; i++) { const u = -2.4 + 4.8 * i / 24, v = 1.4 - 2.6 * Math.exp(-((u / 0.8) ** 2)); i ? c.lineTo(u, v) : c.moveTo(u, v); } c.stroke();
       arrow(c, -1.6, 1.9, 1.6, 1.9, 0.5); arrow(c, 1.6, 1.9, -1.6, 1.9, 0.5);
     }, val: el => [(+el.centre.toPrecision(6)) + ' nm', 4.6] },
+    depol: { draw(c) {
+      // two crystals, their axes crossed at 45 degrees
+      ln(c, -7, 0, -3.4, 0); ln(c, 3.4, 0, 7, 0);
+      c.beginPath(); c.rect(-3.4, -2.4, 2.6, 4.8); c.fillStyle = '#2b3338'; c.fill(); c.stroke(); c.beginPath(); c.rect(-0.4, -2.4, 3.8, 4.8); c.fill(); c.stroke();
+      ln(c, -2.9, 1.9, -1.3, -1.9); ln(c, 0.4, 0, 2.6, 0); ln(c, 1.5, -1.9, 1.5, 1.9);
+    }, val: el => [(+el.dgd.toPrecision(3)) + ' ps', 4.6] },
+    star: { draw(c, el) {
+      // every input fanned into a mixing region and out to every output
+      const M = el.ins, N = el.outs, h = Math.max(M, N) * SPLIT_P / 2;
+      c.beginPath(); c.rect(-1.6, -h * 0.6 - 0.6, 3.2, 1.2 * h + 1.2); c.fillStyle = '#2b3338'; c.fill(); c.stroke();
+      for (let i = 0; i < M; i++) { const v = -((M - 1) / 2 - i) * SPLIT_P; c.beginPath(); c.moveTo(-7, v); c.bezierCurveTo(-4, v, -3.5, v * 0.6, -1.6, v * 0.6); c.stroke(); }
+      for (let j = 0; j < N; j++) { const v = -((N - 1) / 2 - j) * SPLIT_P; c.beginPath(); c.moveTo(7, v); c.bezierCurveTo(4, v, 3.5, v * 0.6, 1.6, v * 0.6); c.stroke(); }
+    }, val: el => [el.ins + '\u00d7' + el.outs, -(fcH(el) / 2 + 1.4)] },
     osa: { draw(c) {
       ln(c, -7, 0, -4.6, 0); box(c, 4.6, 3.4);
       c.beginPath(); c.moveTo(-3.6, 2.4); for (const [u, h] of [[-1.8, 3.8], [0.6, 2.2], [2.2, 1.2]]) { c.lineTo(u - 0.5, 2.4); c.lineTo(u, 2.4 - h); c.lineTo(u + 0.5, 2.4); } c.lineTo(3.6, 2.4); c.stroke();
@@ -5494,7 +5514,12 @@ const FSYM = (() => {
     thru: { draw(c) {
       ln(c, -3, 0, 7, 0); c.beginPath(); c.rect(-0.6, -3.6, 1.2, 7.2); c.fillStyle = '#2b3338'; c.fill(); c.stroke(); hatch(c, -2, -3.6, 3.6, 5);
     }, val: el => [el.pair, 4.6] },
-    amp: { draw(c) { ln(c, -7, 0, -3.4, 0); ln(c, 3.4, 0, 7, 0); shape(c, [[-3.4, -3.6], [3.4, 0], [-3.4, 3.6]]); }, val: el => [(+el.g0.toPrecision(3)) + ' dB', 4.6] },
+    amp: { draw(c, el) {
+      ln(c, -7, 0, -3.4, 0); ln(c, 3.4, 0, 7, 0);
+      // a semiconductor amplifier: its chip, the gain stripe along it, both ways
+      if (el.soa) { box(c, 3.4, 2.2); ln(c, -2.4, 0, 2.4, 0); shape(c, [[-1.2, -1.2], [1.2, 0], [-1.2, 1.2]]); return; }
+      shape(c, [[-3.4, -3.6], [3.4, 0], [-3.4, 3.6]]);
+    }, val: el => [(+el.g0.toPrecision(3)) + ' dB', 4.6] },
     aom: { draw(c) {
       ln(c, -7, 0, -3.2, 0); ln(c, 3.2, 0, 7, 0); box(c, 3.2, 2.2);
       for (const u of [-2, -0.7, 0.6, 1.9]) { c.beginPath(); c.moveTo(u, -1.6); c.quadraticCurveTo(u + 0.7, -0.8, u, 0); c.quadraticCurveTo(u - 0.7, 0.8, u, 1.6); c.stroke(); }
@@ -6319,6 +6344,7 @@ function getPath(el, path) {
 function setParam(el, path, v) {
   const keys = path.split('.');
   const last = keys.pop();
+  let starWas = null;                                      // a star coupler's counts before, to move its fibres
   let o = el;
   for (const k of keys) { o = o[k]; if (!o) return; }
   if (last === 'R') v = (v === null || v === 0 || !isFinite(v)) ? null : v;
@@ -6371,6 +6397,8 @@ function setParam(el, path, v) {
     case 'rate': v = Math.max(1e-3, v); break;
     case 'bits': v = Math.round(clamp(v, 1, 32)); break;
     case 'ways': v = Math.round(clamp(v, 2, 64)); break;
+    case 'ins': case 'outs': if (el.type === 'fcomp') { v = Math.round(clamp(v, 1, 32)); starWas = [el.ins, el.outs]; } break;
+    case 'pdg': case 'dgd': v = Math.max(0, v); break;
     case 'cmrr': v = Math.max(0, v); break;
     case 'vpi': v = Math.max(1e-3, v); break;
     case 'range': v = Math.max(1e-9, v); break;
@@ -6404,6 +6432,12 @@ function setParam(el, path, v) {
   if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
   if (el.type === 'source' && el.gauss && ['m2', 'hm', 'hn', 'lp', 'll'].includes(last)) fanFromGauss(el);
   if ((el.type === 'source' || el.kind === 'laser') && (last === 'tau' || last === 'pshape')) applyPulse(el);
+  // a star coupler's inputs or outputs changed: its outputs' fibres move with them, and those on ports gone go
+  if (starWas && el.type === 'fcomp' && el.kind === 'star') {
+    const [M0, N0] = starWas, M = el.ins, N = el.outs, map = p => p < M0 ? (p < M ? p : -1) : (p - M0 < N ? M + p - M0 : -1);
+    project.fibres = (project.fibres || []).filter(F => { for (const q of [F.a, F.b]) if (q[0] === el.id) { const m = map(q[1]); if (m < 0) return false; q[1] = m; } return true; });
+    setTimeout(() => { if (selected() === el) renderPanel(); });
+  }
   // fewer branches: the fibres on the ones gone go with them
   if (el.type === 'fcomp' && el.kind === 'split' && last === 'ways') {
     project.fibres = (project.fibres || []).filter(F => ![F.a, F.b].some(q => q[0] === el.id && q[1] > el.ways));
@@ -7040,7 +7074,11 @@ const J2 = {
   },
   pol(th, l) { const c = Math.cos(th), sn = Math.sin(th); return [[[c * c + l * sn * sn, 0], [c * sn * (1 - l), 0]], [[c * sn * (1 - l), 0], [sn * sn + l * c * c, 0]]]; },
 };
-const dBa = dB => Math.pow(10, -Math.max(0, dB) / 20);          // a loss in dB, as an amplitude
+const dBa = dB => Math.pow(10, -Math.max(0, dB) / 20);
+/* a fibre's ends: what each reflects back into it (return loss, dB) */
+const CONNS = { splice: { name: 'Spliced (no reflection)', rl: Infinity }, pc: { name: 'PC connectors (45 dB return loss)', rl: 45 },
+  apc: { name: 'APC connectors (65 dB)', rl: 65 }, flat: { name: 'Flat cleaves (4%, 14 dB)', rl: 10 * Math.log10(25) } };
+const connR = F => { const c = CONNS[F.conn || 'splice']; return c && isFinite(c.rl) ? Math.pow(10, -c.rl / 10) : 0; };          // a loss in dB, as an amplitude
 /* What a fibre does to polarisation, a to b (b to a is the transpose: it is reciprocal).
    PM fibre: its slow axis at the key angle from s, the two axes a retardance L/L_b apart at
    1550 nm (scaled for the wavelength), and a coupling between them of amplitude
@@ -7143,6 +7181,33 @@ const FC = {
   tbf: { label: 'Tunable filter', tag: el => (+el.centre.toPrecision(6)) + '', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
     params: [['centre', 'Centre (nm)', 1550], ['fwhm', 'Width (nm)', 1], ['loss', 'Insertion loss (dB)', 1]],
     S: (el, nm) => { const T = Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2), M = J2.I(dBa(el.loss) * Math.sqrt(T)); return [[0, 1, M], [1, 0, M]]; } },
+  // a Lyot depolariser: two birefringent sections, the second's axes at 45 degrees to the first's and
+  // twice as long, so any polarisation in leaves as four parts each a delay apart (0, 1, 2, 3 times
+  // its DGD); for light whose coherence length is shorter, they add as powers: unpolarised. Light
+  // narrower in its line (most lasers) stays polarised, as through a real one
+  depol: { label: 'Depolariser', tag: 'DEPOL', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['dgd', 'Delay between axes (ps)', 5], ['loss', 'Insertion loss (dB)', 0.3]],
+    S: (el, nm) => {
+      const L = Math.max(0, el.dgd) * C_MM_PS, k = 2 * Math.PI / (nm * 1e-6), a = dBa(el.loss), out = [];
+      for (const [i, P1] of [[0, J2.pol(Math.PI / 4, 0)], [1, J2.pol(-Math.PI / 4, 0)]]) for (const [j, P2] of [[0, J2.pol(0, 0)], [1, J2.pol(Math.PI / 2, 0)]]) {
+        const dl = (i + 2 * j) * L, z = [a * Math.cos(-k * dl), a * Math.sin(-k * dl)];
+        out.push([0, 1, J2.sc(J2.mul(P2, P1), z), 0, dl], [1, 0, J2.sc(J2.mul(P1, P2), z), 0, dl]);
+      }
+      return out;
+    } },
+  // an MxN star coupler: each input to each output, an M x N corner of a K-point discrete Fourier
+  // transform (K the larger), so with M = N it is lossless and each output takes 1/N of each input
+  star: { label: 'Star coupler', tag: el => el.ins + '\u00d7' + el.outs, ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['in 1', 'in 2', 'out 1', 'out 2'],
+    params: [['ins', 'Inputs', 2], ['outs', 'Outputs', 4], ['loss', 'Excess loss (dB)', 0.3]],
+    portsOf: el => [...Array.from({ length: el.ins }, (_, i) => ({ x: -FC_W / 2, y: ((el.ins - 1) / 2 - i) * SPLIT_P, dx: -1, dy: 0 })),
+      ...Array.from({ length: el.outs }, (_, j) => ({ x: FC_W / 2, y: ((el.outs - 1) / 2 - j) * SPLIT_P, dx: 1, dy: 0 }))],
+    namesOf: el => [...Array.from({ length: el.ins }, (_, i) => 'in ' + (i + 1)), ...Array.from({ length: el.outs }, (_, j) => 'out ' + (j + 1))],
+    hOf: el => Math.max(FC_H, Math.max(el.ins, el.outs) * SPLIT_P),
+    S: el => {
+      const M = el.ins, N = el.outs, K = Math.max(M, N), a = dBa(el.loss) / Math.sqrt(K), out = [];
+      for (let i = 0; i < M; i++) for (let j = 0; j < N; j++) { const T = J2.sc(J2.I(a), ci.e(2 * Math.PI * i * j / K)); out.push([i, M + j, T], [M + j, i, T]); }
+      return out;
+    } },
   // an optical spectrum analyser: it takes the light in and shows it against wavelength
   osa: { label: 'Optical spectrum analyser', tag: 'OSA', ports: [[-1, 0]], names: ['in'],
     params: [['rbw', 'Resolution (nm)', 0.1], ['wmin', 'From (nm; 0: auto)', 0], ['wmax', 'To (nm; 0: auto)', 0], ['ref', 'Top (dBm)', 10], ['dbdiv', 'dB per division', 10]],
@@ -7198,8 +7263,14 @@ const FC = {
   amp: { label: 'Fibre amplifier', tag: 'AMP ▷', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
     params: [['g0', 'Small-signal gain (dB)', 20], ['psat', 'Saturated output (dBm)', 17], ['nf', 'Noise figure (dB)', 5], ['centre', 'Band centre (nm)', 1545],
       ['bw', 'Band width (nm)', 35], ['iso', 'Isolation backwards (dB)', 40]],
-    // forward: the saturated gain; back: an isolator's worth
-    S: (el, nm) => [[0, 1, J2.I(Math.sqrt(ampGain(el, nm)))], [1, 0, J2.I(dBa(el.iso))]] },
+    // forward: the saturated gain; back: an isolator's worth. A semiconductor amplifier (soa) has no
+    // isolator, so gains both ways, and gains less for p than s by its polarisation-dependent gain
+    S: (el, nm) => {
+      const g = Math.sqrt(ampGain(el, nm));
+      if (!el.soa) return [[0, 1, J2.I(g)], [1, 0, J2.I(dBa(el.iso))]];
+      const G = [[[g, 0], [0, 0]], [[0, 0], [g * dBa(el.pdg), 0]]];
+      return [[0, 1, G], [1, 0, G]];
+    } },
   aom: { label: 'Fibre AOM', tag: 'AOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
     params: [['rf', 'Drive (MHz)', 80], ['order', 'Order (+1 or \u22121)', 1], ['loss', 'Insertion loss (dB)', 2.5]],
     // the shifted order is what the output fibre takes; order 0 is dumped
@@ -7228,7 +7299,7 @@ function fibreLaserField(el) {
     default: return [Math.cos(th), 0, Math.sin(th), 0];
   }
 }
-const FC_ORDER = ['laser', 'coupler', 'split', 'pbs', 'fmir', 'switch', 'delay', 'stretch', 'tbf', 'osa', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
+const FC_ORDER = ['laser', 'coupler', 'split', 'star', 'pbs', 'depol', 'fmir', 'switch', 'delay', 'stretch', 'tbf', 'osa', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
@@ -7398,14 +7469,29 @@ function fibreNet() {
     const Jm = new Map(), Jmemo = f => { const k = f.F.id + f.end; if (!Jm.has(k)) { const M = fibreJones(f.F, G.nm); Jm.set(k, M && f.end === 'b' ? J2.T(M) : M); } return Jm.get(k); };
     // waves leaving components into fibres, keyed by port and delay (added as fields there)
     let wave = new Map();
-    const emit = (map, port, dl, E, fo, gdd, sp) => {
-      const k = pkey(...port) + '|' + Math.round(dl * 1e6) + '|' + fo;
+    // (inside: already past the connector at that end, as light its connector reflected back is)
+    const emit = (map, port, dl, E, fo, gdd, sp, inside) => {
+      const k = pkey(...port) + '|' + Math.round(dl * 1e6) + '|' + fo + (inside ? '|i' : '');
       const w = map.get(k);
-      if (w) { for (let i = 0; i < 4; i++) w.E[i] += E[i]; } else map.set(k, { port, dl, E: E.slice(), fo, gdd: gdd || 0, sp: sp || null });
+      if (w) { for (let i = 0; i < 4; i++) w.E[i] += E[i]; } else map.set(k, { port, dl, E: E.slice(), fo, gdd: gdd || 0, sp: sp || null, inside: !!inside });
     };
     const pulsed = G.root && G.root.tau > 0 && !G.root.ase ? G.root : null;
     for (const I of G.list) emit(wave, I.port, I.dl, I.E, I.fo || 0, I.gdd || 0);
     let gen = 0;
+    // light arriving at a port q from its fibre: into the component, and on (or to a photodiode, a tip, a chip)
+    const arrive = (next, q, E, dl, fo, gdd, sp) => {
+      const el = getEl(q[0]);
+      rec(res.inn, pkey(...q), gk, { dl, E, fo, gdd, sp });
+      if (!el) return;
+      if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E, fo, gdd, sp }); return; }        // out into free space
+      if (el.type === 'pic') {                                     // PIC hook: through the chip, solved whole
+        for (const o of PIC.scatter(el, q[1], G.nm, fo)) { const E2 = J2.app(o.M, E), dl2 = dl + o.ddl; if (o.sink) rec(res.pd, o.to[0], gk, { dl: dl2, E: E2, fo, gdd, sp }); else emit(next, o.to, dl2, E2, fo, gdd, sp); }
+        return;
+      }
+      if (el.kind === 'pd' || el.kind === 'osa') { rec(res.pd, el.balanced && q[1] === 1 ? el.id + '~' : el.id, gk, { dl, E, fo, gdd, sp }); return; }
+      if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); return; }
+      for (const [a, b, M, df, ddl] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), gdd, sp);
+    };
     while (wave.size && gen++ < 20000) {
       const next = new Map();
       for (const w of wave.values()) {
@@ -7414,12 +7500,18 @@ function fibreNet() {
         rec(res.out, pkey(...w.port), gk, { dl: w.dl, E: w.E, fo: w.fo });
         const f = to.get(pkey(...w.port));
         if (!f) continue;                              // an open port: the light leaves the network
+        // a connector at this end (its ends reflect from either side): some straight back into the port, the rest on
+        const Rc = connR(f.F), rc = Math.sqrt(Rc), tc = w.inside ? 1 : Math.sqrt(1 - Rc);
+        if (Rc > 0 && !w.inside) arrive(next, w.port, w.E.map(v => v * rc), w.dl, w.fo, w.gdd, w.sp);
         // the phase at this light's own frequency: the laser's, plus its offset
-        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a);
+        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a * tc);
         let E = [w.E[0] * z[0] - w.E[1] * z[1], w.E[0] * z[1] + w.E[1] * z[0], w.E[2] * z[0] - w.E[3] * z[1], w.E[2] * z[1] + w.E[3] * z[0]];
         const FJ = Jmemo(f);
         if (FJ) E = J2.app(FJ, E);
-        const dl = w.dl + FIBRE_NG * f.Lmm, q = f.port, el = getEl(q[0]), fo = w.fo;
+        const dl = w.dl + FIBRE_NG * f.Lmm, q = f.port, fo = w.fo;
+        // the connector where it arrives sends some straight back down the fibre (from this side of it, the
+        // opposite sign, as a lossless interface reflects), and passes the rest
+        if (Rc > 0) { emit(next, q, dl, E.map(v => -v * rc), fo, w.gdd, w.sp, true); E = E.map(v => v * Math.sqrt(1 - Rc)); }
         // for a pulse: the fibre's dispersion, and where its peak power is high enough, its
         // nonlinearity too (the pulse then carries the spectrum it leaves with)
         let gdd = (w.gdd || 0) + fibreGDD(f.F, G.nm, f.Lmm / 1000), sp = w.sp || null;
@@ -7427,16 +7519,7 @@ function fibreNet() {
           const r = fibreSPM(f.F, G.nm, f.Lmm / 1000, pulsed, pw * (pulsed.power || 0) * 1e-3, w.gdd || 0, w.sp || null);
           if (r) { sp = r; gdd = 0; const o = res.spm.get(f.F.id); if (!o || r.B > o.B) res.spm.set(f.F.id, { B: r.B, broad: r.broad, peak: r.peakIn, nm: G.nm }); }
         }
-        rec(res.inn, pkey(...q), gk, { dl, E, fo, gdd, sp });
-        if (!el) continue;
-        if (el.type === 'fibre') { rec(res.tips, el.id, gk, { dl, E, fo, gdd, sp }); continue; }        // out into free space
-        if (el.type === 'pic') {                                     // PIC hook: through the chip, solved whole
-          for (const o of PIC.scatter(el, q[1], G.nm, fo)) { const E2 = J2.app(o.M, E), dl2 = dl + o.ddl; if (o.sink) rec(res.pd, o.to[0], gk, { dl: dl2, E: E2, fo, gdd, sp }); else emit(next, o.to, dl2, E2, fo, gdd, sp); }
-          continue;
-        }
-        if (el.kind === 'pd' || el.kind === 'osa') { rec(res.pd, el.balanced && q[1] === 1 ? el.id + '~' : el.id, gk, { dl, E, fo, gdd, sp }); continue; }
-        if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); continue; }
-        for (const [a, b, M, df, ddl] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), gdd, sp);
+        arrive(next, q, E, dl, fo, gdd, sp);
       }
       wave = next;
       if (wave.size > 20000) { res.truncated = true; break; }
@@ -12051,6 +12134,8 @@ function fcompPanel(el) {
     else panel.append(h('h3', null, 'Amplifier'), h('div', { class: 'rt-rows' }, param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));
   } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(k === 'ways' ? param(el.combine ? 'Inputs' : 'Outputs', el, k, { noSweep: true, commit: true })
+    : k === 'ins' || k === 'outs' ? param(label, el, k, { noSweep: true, commit: true })
+    : el.kind === 'amp' && el.soa && k === 'iso' ? param('Polarisation-dependent gain (dB)', el, 'pdg', { wide: true })
     : k === 'cross' ? selectField('State', [['0', 'Bar: 1 \u2192 3, 2 \u2192 4'], ['1', 'Cross: 1 \u2192 4, 2 \u2192 3']], () => String(el.cross >= 0.5 ? 1 : 0), v => { el.cross = +v; }, { wide: true })
     : param(label, el, k));
   if (el.kind === 'split') {
@@ -12145,7 +12230,8 @@ function fibreLinkPanel(F) {
     (() => { const id4 = 'rtf' + (++fid); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })()));
   // what it does to polarisation
   const tRows = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, selectField('Polarisation', [['smf', 'Kept (ideal, held still)'], ['random', 'Standard fibre as laid (random)'],
-    ['pm', 'Polarisation maintaining'], ['mm', 'Multimode (scrambled)']], () => F.ftype || 'smf', v => { F.ftype = v; }, { wide: true }));
+    ['pm', 'Polarisation maintaining'], ['mm', 'Multimode (scrambled)']], () => F.ftype || 'smf', v => { F.ftype = v; }, { wide: true }),
+    selectField('Ends', Object.entries(CONNS).map(([k, c]) => [k, c.name]), () => F.conn || 'splice', v => { F.conn = v; }, { wide: true }));
   const fnum = (label, key, set, opts) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' + (opts && opts.wide ? ' wide' : '') }, h('label', { for: id }, label), numInput(id, () => F[key], set)); };
   if (F.ftype === 'pm') tRows.append(fnum('Key angle (\u00b0 from s)', 'key', v => { F.key = v; }), fnum('Beat length (mm)', 'beat', v => { F.beat = Math.max(0.1, v); }),
     fnum('Extinction ratio (dB)', 'per', v => { F.per = clamp(v, 0, 60); }, { wide: true }));
@@ -19394,6 +19480,7 @@ function aiReference() {
         '| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
       if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
       if (k === 'pd') L.push('| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in \u2212, reading the first\u2019s light less the second\u2019s |', '| cmrr | `30` | dB, a balanced detector\u2019s common-mode rejection of excess noise |');
+      if (k === 'amp') L.push('| soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |', '| pdg | `0.5` | dB, an SOA\u2019s polarisation-dependent gain: p gains less than s by it |');
       if (k === 'stretch') L.push('| (electrical) | | its drive input: \u03c0 of phase per Vpi volts on top of "phase" |');
       L.push('');
     }
@@ -19463,7 +19550,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
+const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nWhat it cannot do: anything out of the plane. There are no skew rays, no out-of-plane tilts and no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0, \"beamView\": \"field\"}. Use \"beamView\": \"field\" to see the diffracted beam, and a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position; elements are not inside each other.\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -20126,7 +20213,8 @@ const PALETTES = {
     ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
-    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['term', 'Terminator'],
+    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
+    ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
 };
 let palette = 'free';
@@ -21316,6 +21404,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     add(kind) { addElement(kind); traceScene(); return selected().name; },
     palette(name) { return PALETTES[name].map(it => it[0]); },
     fibreCount() { return (project.fibres || []).length; },
+    fibreSet(i, key, v) { const F = (project.fibres || []).filter(G => !G.wire)[i]; if (F) F[key] = v; },
     osa(name) { const el = this.byName(name), L = osaLines(el), [lo, hi] = osaSpan(el, L), T = osaTrace(el, L, lo, hi, 4001), pk = Math.max(...T.ys);
       // the width at half the peak, the crossings placed by interpolation
       const i0 = T.ys.findIndex(y => y >= pk / 2), i1 = T.ys.length - 1 - [...T.ys].reverse().findIndex(y => y >= pk / 2);

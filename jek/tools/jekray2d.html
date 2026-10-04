@@ -7879,7 +7879,7 @@ const ELEC = (() => {
     scope: { label: 'Oscilloscope', tag: 'SCOPE', ins: ['ch1', 'ch2'], outs: [], params: [['span', 'Time span (s)', 0.005]] },
     spec: { label: 'Spectrum analyser', tag: 'SPEC', ins: ['in'], outs: [], params: [['fmin', 'From (Hz)', 10], ['fmax', 'To (Hz)', 1e6], ['rbw', 'Resolution bandwidth (Hz)', 10]] },
     lockin: { label: 'Lock-in amplifier', tag: 'LOCK-IN', ins: ['signal', 'ref'], outs: ['x', 'y'],
-      params: [['harm', 'Reference harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
+      params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
         ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
   };
   const PALETTE = [['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
@@ -7949,6 +7949,7 @@ const ELEC = (() => {
     const io = [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
     panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
       'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.'));
+    instrumentSection(el);
     panel.append(readoutBox('elec'));
   }
   /* a wire, selected */
@@ -8112,7 +8113,7 @@ const ELEC = (() => {
     const key = JSON.stringify([els, wires.map(F => [F.a, F.b])]);
     if (memo.key === key) return memo.R;
     const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
-    const out = new Map(), warn = new Map(), state = new Map();
+    const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
     const note = (el, msg) => { if (!warn.has(el.id)) warn.set(el.id, []); if (!warn.get(el.id).includes(msg)) warn.get(el.id).push(msg); };
     const byId = new Map(els.map(e => [e.id, e]));
     const input = (el, i) => {
@@ -8150,16 +8151,127 @@ const ELEC = (() => {
         case 'lpf': case 'hpf': case 'bpf': set(0, through(In[0], FILTER[el.kind](el), In[0].unit)); break;
         case 'mixer': set(0, mixer(In[0], In[1], el.k)); break;
         case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
-        default: K.outs.forEach((_, j) => set(j, zero()));      // the instruments: their readings come in a later step
+        case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
+        default: K.outs.forEach((_, j) => set(j, zero()));
       }
       for (let i = 0; i < nIn; i++) if (K.ins.length && !feed.has(pkey(el.id, i)) && el.kind !== 'scope') note(el, 'Input ' + K.ins[i] + ' is not wired: it reads nothing');
       state.set(el.id, 2);
     };
     for (const el of els) visit(el);
-    memo = { key, R: { out, warn } };
+    memo = { key, R: { out, warn, lock } };
     return memo.R;
   }
   const signalOf = (el, j) => solve().out.get(pkey(el.id, KINDS[el.kind].ins.length + j)) || null;
+  /* what a part's input receives */
+  function inputOf(el, i) {
+    const F = (project.fibres || []).find(G => G.wire && pkey(...G.b) === pkey(el.id, i));
+    const E = F && getEl(F.a[0]);
+    return E && E.type === 'elec' ? solve().out.get(pkey(...F.a)) || null : null;
+  }
+
+  /* ---------- the lock-in amplifier ----------
+     Locks to its reference's fundamental (the lowest of its tones within a tenth of its
+     strongest), times the harmonic asked for; zero phase is where that fundamental rises
+     through zero, as a bench lock-in sets it from a TTL reference's rising edge (at harmonic
+     n, a sine n times as fast rising through zero at that same edge). The signal
+     is multiplied by sqrt(2) cos(w t + theta) and by sqrt(2) cos(w t + theta + 90 deg) (the
+     mixer, noise and all), then filtered by n poles of time constant tau: X and Y are what
+     is left at DC, in rms units, so a sine of amplitude A in phase reads X = A / sqrt(2).
+     Their noise is the density beside the reference frequency times the filter's equivalent
+     noise bandwidth (1/4, 1/8, 3/32 and 5/64 of 1/tau for 6 to 24 dB/oct). */
+  const ENBW = [0, 1 / 4, 1 / 8, 3 / 32, 5 / 64];
+  function lockin(el, Sig, Ref) {
+    const res = { outX: zero(Sig.unit), outY: zero(Sig.unit), ok: false };
+    const pk = Math.max(0, ...Ref.tones.map(t => Math.hypot(t.re, t.im)));
+    const fund = Ref.tones.filter(t => Math.hypot(t.re, t.im) >= 0.1 * pk).sort((a, b) => a.f - b.f)[0];
+    if (!fund) { res.note = 'Its reference input carries no tone to lock to'; return res; }
+    const h = Math.max(1, Math.round(el.harm)), fd = h * fund.f, th = h * (Math.atan2(fund.im, fund.re) + Math.PI / 2) - Math.PI / 2 + el.phase * Math.PI / 180;
+    const refAt = sh => { const R = zero('V'); R.tones.push({ f: fd, re: Math.SQRT2 * Math.cos(th + sh), im: Math.SQRT2 * Math.sin(th + sh) }); return R; };
+    const n = Math.round(clamp(el.slope, 1, 4)), tau = Math.max(1e-9, el.tau);
+    const LP = f => { let hh = [1, 0]; for (let k = 0; k < n; k++) hh = cdiv(hh, [1, 2 * Math.PI * f * tau]); return hh; };
+    const mX = mixer(Sig, refAt(0), 1), mY = mixer(Sig, refAt(Math.PI / 2), 1);
+    res.outX = through(mX, LP, Sig.unit); res.outY = through(mY, LP, Sig.unit);
+    const enbw = ENBW[n] / tau;
+    // the noise on X (and Y): the density the mixer leaves at DC, over the equivalent bandwidth
+    const sigma = Math.sqrt(mX.psd[0] * enbw);
+    // what the filter lets through of everything else: the largest ripple left on X
+    const ripple = Math.max(0, ...res.outX.tones.map(t => Math.hypot(t.re, t.im)));
+    // a signal cos(wt + phi) against the reference sqrt2 cos(wt + th) gives X = cos(phi - th)/sqrt2 and, against the
+    // reference turned 90 degrees, Y = sin(phi - th)/sqrt2: theta = atan2(Y, X) is how far the signal leads the reference
+    const X = res.outX.dc, Y = res.outY.dc;
+    Object.assign(res, { ok: true, fref: fund.f, fd, h, X, Y, R: Math.hypot(X, Y), theta: Math.atan2(Y, X) * 180 / Math.PI, sigma, enbw, ripple, tau, n, unit: Sig.unit,
+      settle: tau * [0, 5, 7, 9, 10][n] });
+    if (!Sig.tones.some(t => Math.abs(t.f - fd) <= 1e-9 * fd)) res.note = 'The signal has nothing at ' + fmtHz(fd) + ': X and Y read only its noise';
+    return res;
+  }
+
+  /* ---------- the oscilloscope and the spectrum analyser ----------
+     The scope rebuilds each channel from its tones over its time span, from the moment all
+     the signals share (the start of the generators' cycles), with a band of +-1 sigma for
+     the noise up to its 100 MHz bandwidth. The analyser shows each tone as a peak at its rms
+     level in dBV, over the noise in its resolution bandwidth. */
+  const SCOPE_BW = 1e8, CH = ['#c08a12', '#0092b2'];
+  function drawScope(cv, el) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const span = Math.max(1e-12, el.span), N = 1200, chans = [0, 1].map(i => inputOf(el, i));
+    const tr = chans.map(S => {
+      if (!S) return null;
+      const v = new Float64Array(N);
+      // a long series (a square's harmonics) is smoothed by Lanczos's sigma factors, so its truncation does not ring
+      const T = S.tones.filter(q => q.f <= N / (2 * span) * 4), lz = T.length >= 10 ? Math.min(...T.map(q => q.f)) + Math.max(...T.map(q => q.f)) : 0;
+      const sg = T.map(q => { const u = lz ? Math.PI * q.f / lz : 0; return u ? Math.sin(u) / u : 1; });
+      for (let k = 0; k < N; k++) { const t = span * k / (N - 1); let x = S.dc; T.forEach((q, j) => { const a = 2 * Math.PI * q.f * t; x += sg[j] * (q.re * Math.cos(a) - q.im * Math.sin(a)); }); v[k] = x; }
+      return { v, sd: noiseRms(S, 1 / span, SCOPE_BW), unit: S.unit };
+    });
+    let lo = Infinity, hi = -Infinity;
+    for (const T of tr) if (T) for (const x of T.v) { lo = Math.min(lo, x - T.sd); hi = Math.max(hi, x + T.sd); }
+    if (!(hi > lo)) { lo = (isFinite(lo) ? lo : 0) - 1; hi = (isFinite(hi) ? hi : 0) + 1; }
+    const m = 0.08 * (hi - lo); lo -= m; hi += m;
+    const sy = { kind: 'plain', title: tr.find(Boolean) && tr.find(Boolean).unit === 'A' ? 'A' : 'V' }, sx = { kind: 's', title: 'time' };
+    const A = plotArea(c, w, hgt, [lo, hi], sy);
+    const X = t => A.l + t / span * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
+    plotCsv(cv, el.name + ' traces', ['time_s', 'ch1', 'ch2'], () => Array.from({ length: N }, (_, k) => [span * k / (N - 1), tr[0] ? tr[0].v[k] : '', tr[1] ? tr[1].v[k] : '']));
+    tr.forEach((T, i) => {
+      if (!T) return;
+      if (T.sd > 0) { c.fillStyle = CH[i] + '33'; c.beginPath(); for (let k = 0; k < N; k++) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] + T.sd)); for (let k = N - 1; k >= 0; k--) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] - T.sd)); c.fill(); }
+      c.strokeStyle = CH[i]; c.lineWidth = 1.5; c.beginPath(); for (let k = 0; k < N; k++) { const x = X(span * k / (N - 1)), y = Y(T.v[k]); k ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
+    });
+    drawAxes(c, A, [0, span], [lo, hi], sx, sy);
+    return tr;
+  }
+  function drawSpectrum(cv, el) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const S = inputOf(el, 0), f1 = Math.max(1e-2, Math.min(el.fmin, el.fmax / 10)), f2 = Math.max(el.fmax, f1 * 10), rbw = Math.max(1e-3, el.rbw);
+    const l1 = Math.log10(f1), l2 = Math.log10(f2), N = 400, dB = v => 10 * Math.log10(Math.max(v, 1e-30));
+    const floor = S ? Array.from({ length: N }, (_, k) => dB(psdAt(S, Math.pow(10, l1 + (l2 - l1) * k / (N - 1))) * rbw)) : [];
+    const tones = S ? S.tones.filter(t => t.f >= f1 && t.f <= f2).map(t => ({ f: t.f, db: dB((t.re * t.re + t.im * t.im) / 2) })) : [];
+    let hi = Math.max(-200, ...floor, ...tones.map(t => t.db)) + 6, lo = Math.max(hi - 140, Math.min(...floor, ...tones.map(t => t.db), hi - 20) - 6);
+    if (!isFinite(hi)) { hi = 0; lo = -140; }
+    const sy = { kind: 'plain', title: 'dBV' + (S && S.unit === 'A' ? ' (A)' : '') }, sx = { kind: 'plain', title: 'frequency', fmt: v => Math.abs(v - Math.round(v)) < 1e-9 ? fmtHz(Math.pow(10, Math.round(v))) : '' };
+    const A = plotArea(c, w, hgt, [lo, hi], sy);
+    const X = l => A.l + (l - l1) / (l2 - l1) * A.w, Y = v => A.t + A.h - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * A.h;
+    plotCsv(cv, el.name + ' spectrum', ['frequency_Hz', 'level_dBV', 'kind'], () => [...floor.map((v, k) => [Math.pow(10, l1 + (l2 - l1) * k / (N - 1)), v, 'noise in RBW']), ...tones.map(t => [t.f, t.db, 'tone'])]);
+    c.strokeStyle = CH[0]; c.lineWidth = 1.4; c.beginPath();
+    floor.forEach((v, k) => { const x = A.l + k / (N - 1) * A.w; k ? c.lineTo(x, Y(v)) : c.moveTo(x, Y(v)); }); c.stroke();
+    c.strokeStyle = CH[1]; c.lineWidth = 1.6;
+    for (const t of tones) { const x = X(Math.log10(t.f)), base = S ? dB(psdAt(S, t.f) * rbw) : lo; c.beginPath(); c.moveTo(x, Y(Math.max(base, lo))); c.lineTo(x, Y(t.db)); c.stroke(); }
+    drawAxes(c, A, [l1, l2], [lo, hi], sx, sy);
+    return { S, tones, rbw };
+  }
+  const fmtSec = v => v >= 1 ? (+v.toPrecision(3)) + ' s' : v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' ms' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' µs' : (+(v * 1e9).toPrecision(3)) + ' ns';
+  function instrumentSection(el) {
+    if (el.kind !== 'scope' && el.kind !== 'spec') return;
+    const cv = h('canvas', { height: '170', style: 'width:100%;display:block;margin-top:0.5rem' });
+    panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
+    bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
+      ? 'Channel 1 gold, channel 2 blue, each with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
+      : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt.'));
+  }
 
   /* ---------- readouts ---------- */
   function fmtSig(v, unit) {
@@ -8196,8 +8308,21 @@ const ELEC = (() => {
       rows.push([K.outs.length > 1 ? 'Output ' + name : 'Output', '']);
       rows.push(...describe(S));
     });
+    if (el.kind === 'lockin') {
+      const L = R.lock.get(el.id), u = L && L.unit || 'V';
+      if (L && L.ok) {
+        rows.push(['Reference', fmtHz(L.fref) + (L.h > 1 ? ', detecting its harmonic ' + L.h + ' at ' + fmtHz(L.fd) : '')],
+          ['X', fmtSig(L.X, u) + ' rms'], ['Y', fmtSig(L.Y, u) + ' rms'], ['R', fmtSig(L.R, u) + ' rms'], ['θ', (+L.theta.toFixed(2)) + '°'],
+          ['Noise on X, Y', fmtSig(L.sigma, u) + ' rms (noise bandwidth ' + (+L.enbw.toPrecision(3)) + ' Hz)' + (L.sigma > 0 ? ': R/σ = ' + (+(L.R / L.sigma).toPrecision(3)) : '')],
+          ['Settles', 'in about ' + fmtSec(L.settle) + ' (to 99%)']);
+        if (L.ripple > 1e-3 * Math.max(L.R, 1e-30)) rows.push(['Ripple', fmtSig(L.ripple, u) + ' left on X by the filter (lengthen the time constant or steepen the slope)']);
+      }
+    }
     for (const w of R.warn.get(el.id) || []) rows.push(['Note', w]);
-    return [rows, K.outs.length && !['scope', 'spec', 'lockin'].includes(el.kind) ? 'Steady state: DC, the strongest tones (amplitude and phase of a cosine), and the noise density.' : 'Its readings come in the next step.'];
+    const what = el.kind === 'lockin' ? 'X and Y are rms, as a bench lock-in reads them: a sine of amplitude A in phase gives X = A/√2. Its outputs carry X and Y on.'
+      : el.kind === 'scope' || el.kind === 'spec' ? 'What reaches its inputs, in steady state.'
+      : 'Steady state: DC, the strongest tones (amplitude and phase of a cosine), and the noise density.';
+    return [rows, what];
   }
 
   return {
@@ -8211,6 +8336,8 @@ const ELEC = (() => {
         return S && { dc: S.dc, unit: S.unit, tones: S.tones.map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re) })), psd: f => psdAt(S, f), rms: (f1, f2) => noiseRms(S, f1, f2) };
       },
       notes(name) { const el = project.elements.find(e => e.name === name); return el ? solve().warn.get(el.id) || [] : null; },
+      lockin(name) { const el = project.elements.find(e => e.name === name); const L = el && solve().lock.get(el.id); return L ? Object.assign({}, L, { outX: undefined, outY: undefined }) : null; },
+      scope(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const T = drawScope(cv, el); cv.remove(); return T.map(t => t && { v: Array.from(t.v), sd: t.sd }); },
     },
   };
 })();

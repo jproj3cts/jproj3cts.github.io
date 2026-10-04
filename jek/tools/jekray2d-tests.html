@@ -4242,6 +4242,40 @@ const TESTS = [
       return Math.max(a, b);
     },
   },
+  {
+    name: 'A lock-in reads a signal’s amplitude and phase',
+    why: 'against a generator’s sync: a 1 V sine leading by 30° reads X = cos 30°/√2, Y = sin 30°/√2, θ = 30°; a 1 V square reads (4/π)/√2 at the fundamental and (4/3π)/√2 at the third harmonic (which rises through zero on the same edge): the largest error',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const read = (o, h) => elecRun(J, [elecPart('sig', 'G', Object.assign({ f: 1000, amp: 1 }, o)), elecPart('sig', 'R', { f: 1000 }), elecPart('lockin', 'LI', { harm: h || 1 })],
+        [['G', 0, 'LI', 0], ['R', 1, 'LI', 1]], () => J.elec.lockin('LI'));
+      const a = read({ wave: 'sine', phase: 30 }), b = read({ wave: 'square' }), c = read({ wave: 'square' }, 3), r2 = Math.SQRT2;
+      return Math.max(Math.abs(a.X - Math.cos(Math.PI / 6) / r2), Math.abs(a.Y - 0.5 / r2), Math.abs(a.theta - 30) / 180,
+        Math.abs(b.X - 4 / Math.PI / r2), Math.abs(b.Y), Math.abs(c.fd - 3000), Math.abs(c.X - 4 / (3 * Math.PI) / r2), Math.abs(c.Y));
+    },
+  },
+  {
+    name: 'and its noise is the density over its equivalent bandwidth',
+    why: '1 µV/√Hz of white noise: σ on X = √(S · ENBW), with ENBW = 1/(8τ) at 12 dB/oct and 5/(64τ) at 24 dB/oct, τ 100 ms; its X output carries X (here 1 V/√2 of a sine) as DC: the largest relative error',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const sd = slope => elecRun(J, [elecPart('sig', 'R', { f: 1000 }), elecPart('noise', 'N', { psd: 1000, bw: 1e6 }), elecPart('lockin', 'LI', { tau: 0.1, slope })],
+        [['N', 0, 'LI', 0], ['R', 1, 'LI', 1]], () => J.elec.lockin('LI').sigma);
+      const out = elecRun(J, [elecPart('sig', 'G', { f: 1000, amp: 1 }), elecPart('lockin', 'LI')], [['G', 0, 'LI', 0], ['G', 1, 'LI', 1]], () => J.elec.signal('LI', 0).dc);
+      return Math.max(Math.abs(sd(2) / Math.sqrt(1e-12 / 0.8) - 1), Math.abs(sd(4) / Math.sqrt(1e-12 * 5 / 6.4) - 1), Math.abs(out * Math.SQRT2 - 1));
+    },
+  },
+  {
+    name: 'and an oscilloscope draws what reaches it',
+    why: 'a 1 kHz, 1 V sine over 3 ms against sin 2πft, and its sync against 0–5 V: the largest error in volts',
+    want: 0, tol: 1e-6, unit: 'V',
+    run: J => elecRun(J, [elecPart('sig', 'G', { f: 1000, amp: 1 }), elecPart('scope', 'SC', { span: 0.003 })], [['G', 0, 'SC', 0], ['G', 1, 'SC', 1]], () => {
+      const [a, s] = J.elec.scope('SC'); let e = 0;
+      a.v.forEach((v, k) => { e = Math.max(e, Math.abs(v - Math.sin(2 * Math.PI * 1000 * 0.003 * k / (a.v.length - 1)))); });
+      const lo = Math.min(...s.v), hi = Math.max(...s.v);
+      return Math.max(e, Math.abs(lo) > 0.1 || Math.abs(hi - 5) > 0.1 ? 1 : 0);
+    }),
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',
@@ -4407,7 +4441,7 @@ const elecBench = (els, wires) => ({ format: 'jekray', version: 1, name: 'elec',
 /* run fn with the bench loaded and electronics switched on; an output index counts after the inputs */
 function elecRun(J, els, wires, fn) {
   J.experimental(true);
-  const K = { sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2 };
+  const K = { sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
   const kinds = new Map(els.map(e => [e.name, e.kind]));
   J.load(elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j])));
   try { return fn(); } finally { J.experimental(false); }

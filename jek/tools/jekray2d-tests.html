@@ -2923,6 +2923,7 @@ const TESTS = [
         const el = J.byName(J.add(k));
         if (k === 'fibre') return el.type !== 'fibre';
         if (k === 'led') return !(el.kind === 'laser' && el.led);
+        if (k === 'splitter' || k === 'combiner') return !(el.kind === 'split' && el.combine === (k === 'combiner'));
         return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
       });
       J.experimental(true);
@@ -2930,6 +2931,41 @@ const TESTS = [
       finally { J.experimental(false); }
       if (bad.length) console.log('wrong parts:', bad);
       return bad.length;
+    },
+  },
+  {
+    name: 'A 1\u00d7N splitter shares the light equally, less its excess loss',
+    why: '1 mW into a 1\u00d74 splitter with 0.5 dB excess loss: 0.25 mW \u00d7 10^(\u22120.05) at each branch: the largest error in mW',
+    want: 0, tol: 1e-12, unit: ' mW',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('split', 'S', { ways: 4, loss: 0.5 }), ...[1, 2, 3, 4].map(i => fc('pd', 'P' + i))],
+        [['L', 0, 'S', 0], ...[1, 2, 3, 4].map(i => ['S', i, 'P' + i, 0])]));
+      return Math.max(...[1, 2, 3, 4].map(i => Math.abs(J.fibrePd('P' + i) - 0.25 * Math.pow(10, -0.05))));
+    },
+  },
+  {
+    name: 'An N\u00d71 combiner adds unrelated lasers as powers, and one laser as fields',
+    why: 'two separate 1 mW lasers into two inputs of a 4\u00d71 combiner: each arrives at a quarter, 0.5 mW together; one laser through a 1\u00d72 splitter into a 2\u00d71 combiner, arms equal: all 1 mW comes out (in phase), and with one arm half a wave longer, none: the largest error in mW',
+    want: 0, tol: 1e-9, unit: ' mW',
+    run: J => {
+      J.load(fnet([fc('laser', 'A', { power: 1 }), fc('laser', 'B', { power: 1, wavelength: 1550.1 }), fc('split', 'C', { ways: 4, combine: true, loss: 0 }), fc('pd', 'P')],
+        [['A', 0, 'C', 1], ['B', 0, 'C', 2], ['C', 0, 'P', 0]]));
+      const two = J.fibrePd('P');
+      const mz = dL => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('split', 'S', { ways: 2, loss: 0 }), fc('split', 'C', { ways: 2, combine: true, loss: 0 }), fc('pd', 'P')],
+        [['L', 0, 'S', 0], ['S', 1, 'C', 1, 1], ['S', 2, 'C', 2, 1 + dL], ['C', 0, 'P', 0]])); return J.fibrePd('P'); };
+      return Math.max(Math.abs(two - 0.5), Math.abs(mz(0) - 1), Math.abs(mz(1550e-9 / (2 * 1.468))));
+    },
+  },
+  {
+    name: 'Typing fewer branches takes their fibres off',
+    why: 'a 1\u00d74 splitter with a fibre on every branch set to 1\u00d72: the two fibres on branches 3 and 4 go, the rest stay, and its ports are three: 0 when so',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('split', 'S', { ways: 4, loss: 0 }), ...[1, 2, 3, 4].map(i => fc('pd', 'P' + i))],
+        [['L', 0, 'S', 0], ...[1, 2, 3, 4].map(i => ['S', i, 'P' + i, 0])]));
+      J.setParam('S', 'ways', 2); J.trace();
+      const ok = J.fibreCount() === 3 && Math.abs(J.fibrePd('P1') - 0.5) < 1e-12 && J.fibrePd('P3') === 0 && J.portCount('S') === 3;
+      return ok ? 0 : 1;
     },
   },
   {

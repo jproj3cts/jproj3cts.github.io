@@ -546,6 +546,15 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | ratio | `50` | Coupled across (%) |
 | loss | `0` | Excess loss (dB) |
 
+### kind "split": Splitter
+
+**ports:** 0 = common, then 1 to ways = the branches. "combine": true turns it round, an N×1 combiner with its common port on the right
+
+| field | default | meaning |
+|---|---|---|
+| ways | `2` | Branches |
+| loss | `0.2` | Excess loss (dB) |
+
 ### kind "wdm": WDM
 
 **ports:** 0 = common, 1 = pass, 2 = rest

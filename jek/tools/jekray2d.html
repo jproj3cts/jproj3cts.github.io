@@ -2297,7 +2297,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2686,6 +2686,7 @@ function normElementBase(e) {
         base.bw = Math.max(0.001, num(e.bw, 40));
         if (base.led) base.tau = 0; }
       if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
+      if (e.kind === 'split') { base.ways = Math.round(clamp(base.ways, 2, 64)); base.loss = Math.max(0, base.loss); base.combine = !!e.combine; }
       if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity
       if (e.kind === 'pd') base.material = DETECTOR_MATERIALS[e.material] ? e.material : 'custom';
@@ -2782,6 +2783,8 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'aom', name: nextName('AOM'), x, y, angle: 0 });
     case 'eom':
       return normElement({ type: 'eom', name: nextName('EOM'), x, y, angle: 0 });
+    case 'splitter': case 'combiner':
+      return normElement({ type: 'fcomp', kind: 'split', combine: kind === 'combiner', name: nextName(kind === 'combiner' ? 'Combiner' : 'Splitter'), x, y, angle: 0, ways: 4 });
     case 'led':
       return normElement({ type: 'fcomp', kind: 'laser', led: true, name: nextName('LED'), x, y, angle: 0, wavelength: 1550, bw: 40, power: 0.1, pol: 'unpolarised' });
     case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
@@ -2880,7 +2883,7 @@ function normMeasures(list, benches) {
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
 function normFibres(list, els) {
   const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
-  const nPorts = e => (e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0) + (e.type !== 'elec' ? ELEC.extra(e).length : 0);
+  const nPorts = e => (e.type === 'fcomp' ? (FC[e.kind] ? fcPortsOf(e).length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0) + (e.type !== 'elec' ? ELEC.extra(e).length : 0);
   // ELEC hook: an electrical port's direction, for wires
   const dir = x => { const e = byId.get(x[0]), P = !e ? null : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null) : portsOf(e)[x[1]]; return P && P.elec || null; };
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
@@ -5129,7 +5132,7 @@ function drawRaysOn(ctx, rays) {
 }
 
 function halfSize(el) {
-  if (el.type === 'fcomp') return FC_H / 2 + 1;
+  if (el.type === 'fcomp') return fcH(el) / 2 + 1;
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
@@ -5398,6 +5401,13 @@ const FSYM = (() => {
       ln(c, 4, -3, 4, 3);
       const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength); arrow(c, 4, 0, 6, 0); c.strokeStyle = st;
     }, val: el => [fmtNm(el.wavelength) + (el.led ? ', ' + (+el.bw.toPrecision(3)) + ' nm wide' : ''), 4.4] },
+    split: { draw(c, el) {
+      // the common port's fibre into a fan of branches, one to each port
+      const N = el.ways, k = el.combine ? -1 : 1;
+      ln(c, -7 * k, 0, -2 * k, 0);
+      for (let i = 0; i < N; i++) { const v = -((N - 1) / 2 - i) * SPLIT_P; c.beginPath(); c.moveTo(-2 * k, 0); c.bezierCurveTo(1 * k, 0, 2 * k, v, 4.5 * k, v); c.lineTo(7 * k, v); c.stroke(); }
+      c.beginPath(); c.arc(-2 * k, 0, 0.6, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill();
+    }, val: el => [el.combine ? el.ways + '\u00d71' : '1\u00d7' + el.ways, -(fcH(el) / 2 + 1.4)] },
     coupler: { draw(c) {
       for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-2.5, sg * 2.25, -2, sg * 0.4, 0, sg * 0.4); c.bezierCurveTo(2, sg * 0.4, 2.5, sg * 2.25, 7, sg * 2.25); c.stroke(); }
     }, val: el => [Math.round(100 - el.ratio) + ':' + Math.round(el.ratio), -3.6] },
@@ -5468,7 +5478,7 @@ const FSYM = (() => {
 })();
 function drawFcomp(el, sel) {
   if (FSYM.draw(el, sel)) { drawPorts(el); return; }
-  const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = FC_H / 2, s = V().scale;
+  const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = fcH(el) / 2, s = V().scale;
   const laser = el.kind === 'laser';
   pathLocal(f, roundRect(w, hh, 1.6), true);
   ctx.fillStyle = laser ? 'rgba(0,0,0,0.35)' : '#2b373d'; ctx.fill();
@@ -5871,7 +5881,7 @@ function hitTest(px, py) {
       continue;
     }
     if (el.type === 'fcomp') {
-      if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= FC_H / 2 + tol) return el;
+      if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= fcH(el) / 2 + tol) return el;
       continue;
     }
     if (el.type === 'pic') { if (PIC.hit(el, lx, ly, tol)) return el; continue; }               // PIC hook
@@ -6314,6 +6324,7 @@ function setParam(el, path, v) {
     case 'db': v = Math.max(0, v); break;
     case 'rate': v = Math.max(1e-3, v); break;
     case 'bits': v = Math.round(clamp(v, 1, 32)); break;
+    case 'ways': v = Math.round(clamp(v, 2, 64)); break;
     case 'range': v = Math.max(1e-9, v); break;
     case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
     case 'att': case 'iso': case 'rl': case 'loss': v = Math.max(0, v); break;
@@ -6345,6 +6356,11 @@ function setParam(el, path, v) {
   if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
   if (el.type === 'source' && el.gauss && ['m2', 'hm', 'hn', 'lp', 'll'].includes(last)) fanFromGauss(el);
   if ((el.type === 'source' || el.kind === 'laser') && (last === 'tau' || last === 'pshape')) applyPulse(el);
+  // fewer branches: the fibres on the ones gone go with them
+  if (el.type === 'fcomp' && el.kind === 'split' && last === 'ways') {
+    project.fibres = (project.fibres || []).filter(F => ![F.a, F.b].some(q => q[0] === el.id && q[1] > el.ways));
+    setTimeout(() => { if (selected() === el) renderPanel(); });       // its title says how many
+  }
 }
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
@@ -7024,13 +7040,24 @@ function ampASE(el) {
 }
 /* The kinds of fibre component: their ports (local position and outward direction, mm),
    their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2]. */
-const FC_W = 14, FC_H = 9;
+const FC_W = 14, FC_H = 9, SPLIT_P = 4.5;                // a splitter's branches, mm apart
 const fcPorts = sides => sides.map(([x, y]) => ({ x: x * FC_W / 2, y: y * FC_H / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y) }));
 const FC = {
   laser: { label: 'Fibre laser', tag: 'LASER', ports: [[1, 0]], names: ['out'],
     params: [['wavelength', 'Wavelength (nm)', 1550], ['power', 'Power (mW)', 1], ['coh', 'Coherence length (mm)', 0], ['polAngle', 'Polarisation angle from s (°), for pol "linear"', 0],
       ['tau', 'Pulse duration (fs; 0: continuous)', 0], ['rep', 'Repetition rate (MHz)', 80], ['gdd0', 'Chirp at the laser (fs\u00b2)', 0]],
     S: () => [] },
+  // a 1xN splitter, or the same part the other way round, an Nx1 combiner: port 0 the common
+  // port, 1 to N the branches; each branch takes 1/N of the power (less the excess loss), in
+  // phase, and light into a branch reaches the common port at 1/N too (so N unrelated inputs
+  // each lose 10 log N dB, as in a single-mode combiner)
+  split: { label: 'Splitter', tag: el => el.combine ? el.ways + '\u00d71' : '1\u00d7' + el.ways, ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['common', '1', '2'],
+    params: [['ways', 'Branches', 2], ['loss', 'Excess loss (dB)', 0.2]],
+    portsOf: el => { const N = el.ways, sd = el.combine ? -1 : 1;
+      return [{ x: -sd * FC_W / 2, y: 0, dx: -sd, dy: 0 }, ...Array.from({ length: N }, (_, i) => ({ x: sd * FC_W / 2, y: ((N - 1) / 2 - i) * SPLIT_P, dx: sd, dy: 0 }))]; },
+    namesOf: el => ['common', ...Array.from({ length: el.ways }, (_, i) => String(i + 1))],
+    hOf: el => Math.max(FC_H, el.ways * SPLIT_P),
+    S: el => { const M = J2.I(dBa(el.loss) / Math.sqrt(el.ways)), out = []; for (let i = 1; i <= el.ways; i++) out.push([0, i, M], [i, 0, M]); return out; } },
   coupler: { label: '2×2 coupler', tag: el => Math.round(100 - el.ratio) + ':' + Math.round(el.ratio), ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
     params: [['ratio', 'Coupled across (%)', 50], ['loss', 'Excess loss (dB)', 0]],
     S: el => {
@@ -7097,6 +7124,10 @@ const FC = {
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
 };
 for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
+/* a component's ports, names and height: most are fixed by their kind, a splitter's by its branches */
+const fcPortsOf = el => FC[el.kind].portsOf ? FC[el.kind].portsOf(el) : FC[el.kind].portList;
+const fcNames = el => FC[el.kind].namesOf ? FC[el.kind].namesOf(el) : FC[el.kind].names;
+const fcH = el => FC[el.kind] && FC[el.kind].hOf ? FC[el.kind].hOf(el) : FC_H;
 /* A fibre laser's field in the fibre, [s re, s im, p re, p im]: s, p, linear at polAngle from s,
    or circular with p a quarter wave behind s (rcp) or ahead of it (lcp), right- and
    left-handed as the screens' Stokes S3 counts them */
@@ -7111,7 +7142,7 @@ function fibreLaserField(el) {
     default: return [Math.cos(th), 0, Math.sin(th), 0];
   }
 }
-const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
+const FC_ORDER = ['laser', 'coupler', 'split', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
@@ -7119,14 +7150,14 @@ function portsOf(el) {
   return X.length ? portsOfOptic(el).concat(X) : portsOfOptic(el);
 }
 function portsOfOptic(el) {
-  if (el.type === 'fcomp') return FC[el.kind].portList;
+  if (el.type === 'fcomp') return fcPortsOf(el);
   if (el.type === 'pic') return PIC.ports(el);                                                // PIC hook
   if (el.type === 'elec') return ELEC.ports(el);                                              // ELEC hook
   if (el.type === 'fibre') { const L = fibreTail(el); return [{ x: -L, y: 0, dx: -1, dy: 0 }]; }
   return [];
 }
 const fibreTail = el => Math.max(8, 30 / V().scale) + Math.max(10, 40 / V().scale);
-const portName = (el, p) => (portsOf(el)[p] || {}).name || (el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : el.type === 'elec' ? ELEC.names(el)[p] : 'fibre');   // ELEC hook
+const portName = (el, p) => (portsOf(el)[p] || {}).name || (el.type === 'fcomp' ? fcNames(el)[p] : el.type === 'pic' ? PIC.names(el)[p] : el.type === 'elec' ? ELEC.names(el)[p] : 'fibre');   // ELEC hook
 function portWorld(el, p) {
   const P = portsOf(el)[p], f = frame(el);
   const [x, y] = toWorld(f, P.x, P.y), [dx, dy] = toWorldDir(f, P.dx, P.dy);
@@ -10142,6 +10173,14 @@ function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
 function numInput(id, get, onValue, opts = {}) {
   const inp = h('input', { id, type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: opts.placeholder });
+  const show = opts.fmt || fmtNum;
+  // taken only once typed (Enter, or leaving the field): for a value that rebuilds the part, so
+  // its first digit alone (the 1 of 12 branches) does not take effect on the way
+  if (opts.commit) {
+    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); changed(true); } inp.value = show(get()); });
+    bindSync(inp, () => { inp.value = show(get()); });
+    return inp;
+  }
   inp.addEventListener('input', () => {
     const raw = inp.value.trim();
     let v;
@@ -10149,7 +10188,6 @@ function numInput(id, get, onValue, opts = {}) {
     else { v = Number(raw); if (!isFinite(v)) return; }
     beginEdit(); onValue(v); changed(false);
   });
-  const show = opts.fmt || fmtNum;
   inp.addEventListener('change', () => { endEdit(); inp.value = show(get()); });
   inp.addEventListener('blur', endEdit);
   bindSync(inp, () => { inp.value = show(get()); });
@@ -10173,7 +10211,7 @@ function param(label, el, path, opts = {}) {
     },
   }, sw ? 'Remove sweep' : 'Sweep');
   const wrap = h('div', { class: 'rt-f' + (opts.wide || sw ? ' wide' : '') + (sw ? ' swept' : '') },
-    h('div', { class: 'rt-lab' }, h('label', { for: id }, label), toggle), inp);
+    h('div', { class: 'rt-lab' }, h('label', { for: id }, label), ...(opts.noSweep ? [] : [toggle])), inp);
   if (sw) wrap.append(sweepControls(el, path, sw, label));
   return wrap;
 }
@@ -11762,7 +11800,15 @@ function fcompPanel(el) {
     if (el.diode) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));
     else panel.append(h('h3', null, 'Amplifier'), h('div', { class: 'rt-rows' }, param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));
-  } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(param(label, el, k));
+  } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(k === 'ways' ? param(el.combine ? 'Inputs' : 'Outputs', el, k, { noSweep: true, commit: true }) : param(label, el, k));
+  if (el.kind === 'split') {
+    const sn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+    bindSync(sn, () => { const N = el.ways, dB = 10 * Math.log10(N) + el.loss;
+      sn.textContent = (el.combine ? 'N\u00d71 combiner: ' : '1\u00d7N splitter: ') + 'each branch carries 1/' + N + ' of the power to or from the common port, ' + (+dB.toPrecision(3)) + ' dB down with its excess loss, in phase. ' +
+        (el.combine ? 'Light from unrelated sources on its inputs each reach the output ' + (+dB.toPrecision(3)) + ' dB down (a single-mode combiner keeps one mode); light of one laser adds as fields, so in phase it can all come through. '
+          : 'Run backwards it combines, as any splitter does. ') + 'Fewer ' + (el.combine ? 'inputs' : 'outputs') + ' takes the fibres off the branches that go.'; });
+    panel.append(rows, sn);
+  }
   if (el.kind === 'laser') {
     rows.append(selectField('Polarisation', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle'], ['rcp', 'Circular, right-handed'], ['lcp', 'Circular, left-handed']],
       () => el.pol, v => { el.pol = v; renderPanel(); }, { wide: el.pol !== 'linear' }));
@@ -11790,7 +11836,7 @@ function fcompPanel(el) {
     }
   }
   if (el.kind === 'thru') rows.append(textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }));
-  if (el.kind !== 'laser' && el.kind !== 'pd') panel.append(rows);
+  if (el.kind !== 'laser' && el.kind !== 'pd' && el.kind !== 'split') panel.append(rows);
   if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));
   if (el.kind === 'thru') {
     const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
@@ -19085,7 +19131,7 @@ function aiReference() {
     'Fibre components sit on the bench like any element (x, y, angle, name, id) and are joined by fibres from port to port. Give "kind" and its parameters; each port takes one fibre. At angle 0 the ports on the left are inputs and those on the right outputs, numbered from 0 in the order listed.', '');
   for (const k of FC_ORDER) {
     const K = FC[k];
-    L.push('### kind "' + k + '": ' + K.label, '', '**ports:** ' + K.names.map((n, i) => i + ' = ' + n).join(', ') + (k === 'thru' ? '. Also "pair": a name shared by exactly two feedthroughs on different tabs, which then join as if by one fibre.' : ''), '');
+    L.push('### kind "' + k + '": ' + K.label, '', '**ports:** ' + (k === 'split' ? '0 = common, then 1 to ways = the branches. "combine": true turns it round, an N\u00d71 combiner with its common port on the right' : K.names.map((n, i) => i + ' = ' + n).join(', ')) + (k === 'thru' ? '. Also "pair": a name shared by exactly two feedthroughs on different tabs, which then join as if by one fibre.' : ''), '');
     if (K.params.length) {
       L.push('| field | default | meaning |', '|---|---|---|');
       for (const [p, label, def] of K.params) L.push('| ' + p + ' | `' + JSON.stringify(def) + '` | ' + mdCell(label) + ' |');
@@ -19414,9 +19460,9 @@ function checkImport(raw, p, notes) {
   const kept = new Set(p.fibres.flatMap(F => [pkey(...F.a) + '|' + pkey(...F.b), pkey(...F.b) + '|' + pkey(...F.a)]));
   const isElec = e => e.type === 'elec' && ELEC.KINDS[e.kind];
   // optical parts' electrical ports (a photodiode's out, a laser's mod and fm) count too, after any fibre ones
-  const nPorts = e => isElec(e) ? ELEC.ports(e).length : (e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0) + ELEC.extra(e).length;
+  const nPorts = e => isElec(e) ? ELEC.ports(e).length : (e.type === 'fcomp' ? fcPortsOf(e).length : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0) + ELEC.extra(e).length;
   const portName = e => portsOf(e).map((q, i) => i + ' (' + (isElec(e) ? ELEC.names(e)[i] : portName0(e, i)) + ')').join(', ');
-  const portName0 = (e, i) => (portsOf(e)[i] || {}).name || (e.type === 'fcomp' ? FC[e.kind].names[i] : e.type === 'pic' ? PIC.names(e)[i] : 'fibre');
+  const portName0 = (e, i) => (portsOf(e)[i] || {}).name || (e.type === 'fcomp' ? fcNames(e)[i] : e.type === 'pic' ? PIC.names(e)[i] : 'fibre');
   // an electrical output feeds any number of wires; so does a node, from its one port, though only one comes in
   const outPort = (e, k, first) => { const P = (isElec(e) ? ELEC.ports(e) : portsOf(e))[k], d = P && P.elec; return d === 'out' || (d === 'io' && first); };
   const used = new Map();
@@ -19820,7 +19866,7 @@ const PALETTES = {
     ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
   elec: ELEC.PALETTE,                                                                        // ELEC hook
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
@@ -21011,6 +21057,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     tourEnd() { endTour(); },
     add(kind) { addElement(kind); traceScene(); return selected().name; },
     palette(name) { return PALETTES[name].map(it => it[0]); },
+    fibreCount() { return (project.fibres || []).length; },
+    portCount(name) { return portsOf(this.byName(name)).length; },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },
     metricOf(name, key) { return metricRaw(this.byName(name), key); },

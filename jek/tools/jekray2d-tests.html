@@ -4325,6 +4325,32 @@ const TESTS = [
         return d.diode === true && l.modk === 40 ? P.fibres.filter(F => F.wire).length : -1;
       }, [['D', 0, 'LI', 0], ['C', 0, 'LI', 1], ['G', 0, 'L', 0]]),
   },
+  {
+    name: 'A node hands on what reaches it, to as many inputs as it feeds',
+    why: 'a 1 kHz square through two nodes in a row, then one node feeding a low-pass filter and a scope: the filter’s output as if wired straight, and the node’s own output the generator’s: the largest difference in any tone or the DC',
+    want: 0, tol: 1e-15, unit: '',
+    run: J => {
+      const g = elecPart('sig', 'G', { wave: 'square' }), f = elecPart('lpf', 'F'), cmp = (A, B) => Math.max(Math.abs(A.dc - B.dc), ...A.tones.map((t, i) => Math.abs(t.amp - B.tones[i].amp) + Math.abs(t.ph - B.tones[i].ph)), A.tones.length === B.tones.length ? 0 : 1);
+      const direct = elecRun(J, [g, f], [['G', 0, 'F', 0]], () => J.elec.signal('F', 0));
+      return elecRun(J, [g, f, elecPart('node', 'N1'), elecPart('node', 'N2'), elecPart('scope', 'SC')], [['G', 0, 'N1', 0], ['N1', 0, 'N2', 0], ['N2', 0, 'F', 0], ['N2', 0, 'SC', 0]],
+        () => Math.max(cmp(J.elec.signal('F', 0), direct), cmp(J.elec.signal('N2', 0), J.elec.signal('G', 0))));
+    },
+  },
+  {
+    name: 'and a laser’s frequency follows its FM input',
+    why: 'a fibre laser at 1550.2 nm, 1 GHz/V, a 1 kHz sine of 20 V on its FM input (±0.16 nm), through a fibre Bragg grating (1550 nm, 0.5 nm wide, 90%) onto a bare fibre photodiode: its DC and fundamental against the grating’s transmission 1 − R(λ(t)) over a cycle: the largest relative error',
+    want: 0, tol: 1e-4, unit: '',
+    run: J => {
+      const S = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, power: 1, wavelength: 1550.2, fmk: 1 }, { type: 'fcomp', kind: 'fbg', id: 'B', name: 'FBG', x: 30, y: 0, centre: 1550, fwhm: 0.5, rmax: 90 },
+        { type: 'fcomp', kind: 'pd', id: 'FP', name: 'FP', x: 60, y: 0, diode: true }, elecPart('sig', 'G', { amp: 20, y: 30 }), elecPart('scope', 'SC', { x: 100 })],
+        [], () => J.elec.signal('FP', 0), [['G', 0, 'FL', 2], ['FP', 1, 'SC', 0]], [{ a: ['FL', 0], b: ['B', 0], len: 1, loss: 0 }, { a: ['B', 1], b: ['FP', 0], len: 1, loss: 0 }]);
+      const T = lam => 1 - 0.9 * Math.exp(-4 * Math.LN2 * ((lam - 1550) / 0.5) ** 2), N = 4096;
+      let dc = 0, a1 = 0;
+      for (let m = 0; m < N; m++) { const th = 2 * Math.PI * m / N, df = 20e9 * Math.sin(th), lam = 1550.2 / (1 + 1550.2e-9 * df / 299792458), i = 1e-3 * T(lam); dc += i / N; a1 += 2 * i * Math.sin(th) / N; }
+      const f1 = S.tones.find(t => Math.abs(t.f - 1000) < 1e-3);
+      return Math.max(Math.abs(S.dc / dc - 1), Math.abs(f1.amp / Math.abs(a1) - 1));
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',
@@ -4490,7 +4516,7 @@ const elecBench = (els, wires) => ({ format: 'jekray', version: 1, name: 'elec',
 /* run fn with the bench loaded and electronics switched on; an output index counts after the inputs */
 function elecRun(J, els, wires, fn, raw, fibres) {
   J.experimental(true);
-  const K = { sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
+  const K = { node: 1, sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
   const kinds = new Map(els.map(e => [e.name, e.kind]));
   // raw: wires as [from id, port, to id, port], ports counted as the tool does (for optical parts)
   const B = elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j]).concat(raw || []));

@@ -421,6 +421,8 @@
   .rt-hint { display: block; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-sweep-range label { font-weight: 500; font-size: 0.75rem; }
   .rt-sweep-play { display: flex; align-items: center; gap: 0.6rem; }
+  .rt-sweep-bar { position: relative; height: 4px; border-radius: 2px; overflow: hidden; background: var(--jek-line); }
+  .rt-sweep-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-cyan); transition: width 0.15s linear; }
   .rt-sweep-play input[type=range] { flex: 1; min-width: 0; accent-color: var(--jek-cyan); padding: 0; border: none; background: none; }
   .rt-play {
     flex: none;
@@ -2385,6 +2387,8 @@ function normElement(e) {
       o.sweeps[k] = { min: +v.min, max: +v.max, freq: clamp(freq, 0.001, 50), phase: num(v.phase, 0),
         wave: ['sine', 'triangle', 'ramp'].includes(v.wave) ? v.wave : 'sine' };
       if (v.field === true) o.sweeps[k].field = true;
+      // steps a cycle: the positions it plays through (and renders, with the field); none, smooth
+      if (isFinite(v.steps) && v.steps >= 2) o.sweeps[k].steps = Math.round(clamp(+v.steps, 2, SWEEP_STEPS_MAX));
     }
   }
   return o;
@@ -6222,18 +6226,22 @@ function syncPhases() {
 }
 /* ---------- Sweeps with the diffracted field rendered ahead ----------
    The field takes far longer to work out than a trace, so a sweep that shows it renders it
-   first: the shared clock is sampled FIELD_FRAMES times over one cycle, and at each sample
-   the bench's field and the field on every screen the light reaches are worked out and kept
-   under the same keys the live runs use. The sweep then plays by stepping between those
+   first: the shared clock is sampled at the sweep's steps over one cycle (FIELD_FRAMES unless
+   it sets its own), and at each sample the bench's field and the field on every screen the
+   light reaches are worked out and kept under the same keys the live runs use. The sweep then plays by stepping between those
    samples, so every step finds its field ready, on whichever screen is opened. Whatever was
    not rendered (a change to the bench) is simply worked out live, as it always was. */
-const FIELD_FRAMES = 48;               // samples per cycle
+const FIELD_FRAMES = 48;               // samples per cycle, unless a sweep sets its steps
+const SWEEP_STEPS_MAX = 240;
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
+let framesLast = FIELD_FRAMES;         // samples a cycle in the render last run, for what is kept
+/* the samples a cycle for sweeps rendered together: the most any of them asks for */
+const sweepFrames = list => Math.max(...list.map(([el, path]) => (el.sweeps[path] && el.sweeps[path].steps) || FIELD_FRAMES));
 function keepFrame(map, key, v) {
   map.delete(key); map.set(key, v);
-  // close-up pictures are big: two cycles' worth of them
-  const cap = map === fieldFrames.closeup ? 2 * FIELD_FRAMES : FIELD_KEEP;
+  // close-up pictures are big: two cycles' worth of them; the rest, a cycle at every readout at least
+  const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
   while (map.size > cap) map.delete(map.keys().next().value);
 }
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
@@ -6263,13 +6271,15 @@ function renderSweepFrames(list, onDone) {
     return;
   }
   const saved = list.map(([el, path]) => getPath(el, path));
-  const job = { list, i: 0, n: FIELD_FRAMES };
+  const n = sweepFrames(list);
+  framesLast = n;
+  const job = { list, i: 0, n };
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
     sweepJob = null;
     list.forEach(([el, path], k) => setParam(el, path, saved[k]));
-    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period };
+    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n };
     changed(false);
     if (ok) onDone();
     else toast('Stopped rendering the field');
@@ -6279,9 +6289,9 @@ function renderSweepFrames(list, onDone) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
     (async () => {
-      for (let i = 0; i < FIELD_FRAMES; i++) {
+      for (let i = 0; i < n; i++) {
         job.i = i;
-        const t = i * period / FIELD_FRAMES;
+        const t = i * period / n;
         list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
         job.stage = 'tracing'; job.part = 0;
         traceScene();
@@ -6334,9 +6344,9 @@ function renderSweepFrames(list, onDone) {
   // run a field to the end, a slice at a time, handing control back between slices
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
-    for (let i = 0; i < FIELD_FRAMES; i++) {
+    for (let i = 0; i < n; i++) {
       job.i = i;
-      const t = i * period / FIELD_FRAMES;
+      const t = i * period / n;
       list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
       job.stage = 'tracing'; job.part = 0;
       traceScene();
@@ -8474,16 +8484,19 @@ function tick(t) {
   clockT += dt;
   // with the field rendered ahead for exactly what is playing, step between its samples
   let tq = clockT;
-  if (fieldRendered && [...playing.keys()].every(k => fieldRendered.keys.has(k))) {
+  const rendered = fieldRendered && [...playing.keys()].every(k => fieldRendered.keys.has(k));
+  if (rendered) {
     // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly
-    const P = fieldRendered.period, i = ((Math.round(clockT * FIELD_FRAMES / P) % FIELD_FRAMES) + FIELD_FRAMES) % FIELD_FRAMES;
-    tq = i * P / FIELD_FRAMES;
+    const P = fieldRendered.period, n = fieldRendered.n, i = ((Math.round(clockT * n / P) % n) + n) % n;
+    tq = i * P / n;
   }
   for (const [k, p] of playing) {
     const el = getEl(p.id);
     const sw = el && el.sweeps && el.sweeps[p.path];
     if (!sw || getPath(el, p.path) === undefined) { playing.delete(k); continue; }
-    setParam(el, p.path, clockValueAt(sw, tq));
+    // a sweep with steps of its own, not rendered ahead: from one of its positions to the next
+    const st = !rendered && sw.steps ? sw.steps * sw.freq : 0;
+    setParam(el, p.path, clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
   }
   syncPanel();
   requestRender();
@@ -8623,18 +8636,35 @@ function sweepControls(el, path, sw, label) {
   bindSync(slider, () => { slider.value = String(Math.round(sweepFrac(el, path) * 1000)); });
   box.append(h('div', { class: 'rt-sweep-play' }, btn, slider));
 
-  // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
+  // steps a cycle: blank plays smoothly (or renders the usual number), a number steps through
+  // that many positions, the same ones the whole sweep is rendered at
+  {
+    const id = 'rtf' + (++fid);
+    const inp = numInput(id, () => sw.steps || null, v => {
+      if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
+      fieldRendered = null;
+    }, { blank: null });
+    bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
+    box.append(h('div', { class: 'rt-sweep-range' }, h('div', { class: 'rt-f' }, h('label', { for: id }, 'Steps a cycle'), inp)));
+  }
+  // the whole sweep rendered ahead, the diffracted field with it, so it plays without waiting:
+  // offered where there is a field
   if (fieldWanted() || sw.field) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
     fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; fieldRendered = null; changed(false); });
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
+    const bar = h('i'), track = h('div', { class: 'rt-sweep-bar', role: 'progressbar', 'aria-label': 'Rendering the sweep', 'aria-valuemin': '0', 'aria-valuemax': '100' }, bar);
     bindSync(status, () => {
-      status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + '\u2026'
-        : sw.field ? 'Play renders the field at ' + FIELD_FRAMES + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.' : '';
+      const on = rendering(), j = sweepJob, n = (sw.steps || FIELD_FRAMES);
+      const what = on && j.stage && j.stage !== 'tracing' ? ', ' + j.stage : '';
+      status.textContent = on ? 'Rendering the sweep: step ' + (j.i + 1) + ' of ' + j.n + what + '\u2026'
+        : sw.field ? 'Play first renders the sweep at ' + n + ' steps, the field on the bench and on every screen it reaches, then plays through them. More steps take longer.' : '';
       status.hidden = !status.textContent;
+      track.hidden = !on;
+      if (on) { const pc = Math.round(100 * (j.i + (j.part || 0)) / j.n); bar.style.width = pc + '%'; track.setAttribute('aria-valuenow', String(pc)); }
     });
-    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
+    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the whole sweep before playing (slow)'), track, status);
   }
 
   const key = sweepKey(el, path);

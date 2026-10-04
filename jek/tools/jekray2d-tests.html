@@ -4122,6 +4122,18 @@ const TESTS = [
       return hits.length === 5 && back.length === 0 ? Math.max(...hits.map(h => Math.abs(h.y))) : NaN;
     },
   },
+  {
+    name: 'A sweep keeps its steps a cycle, within range',
+    why: 'saved and opened again: 12 steps kept; 1000 held to the 240 most; 1 and a word dropped (the sweep plays smoothly)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const got = [12, 1000, 1, 'x'].map(steps => {
+        J.load(bench('steps', [{ type: 'mirror', name: 'M', x: 0, y: 0, angle: 135, length: 25.4, sweeps: { angle: { min: 130, max: 140, freq: 1, steps } } }]));
+        return J.serialize().elements[0].sweeps.angle.steps;
+      });
+      return got[0] === 12 && got[1] === 240 && got[2] === undefined && got[3] === undefined ? 1 : 0;
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

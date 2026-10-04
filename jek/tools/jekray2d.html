@@ -8510,10 +8510,13 @@ const ELEC = (() => {
     return S.psd[i] * (1 - t) + S.psd[i + 1] * t;
   };
   /* tones at one frequency merge; ones too weak to matter go */
+  // (found by an index kept on the list, to nine figures, rebuilt when the list has been changed another way)
+  const fkey = f => +f.toPrecision(9);
   function addTone(list, f, re, im) {
     if (!(f > 0)) return;
-    const q = list.find(t => Math.abs(t.f - f) <= 1e-9 * f);
-    if (q) { q.re += re; q.im += im; } else list.push({ f, re, im });
+    if (!list._ix || list._n !== list.length) { list._ix = new Map(list.map(t => [fkey(t.f), t])); list._n = list.length; }
+    const q = list._ix.get(fkey(f));
+    if (q) { q.re += re; q.im += im; } else { const t = { f, re, im }; list.push(t); list._ix.set(fkey(f), t); list._n = list.length; }
   }
   const tidy = S => { const pk = Math.max(Math.abs(S.dc), ...S.tones.map(t => Math.hypot(t.re, t.im)), 0); S.tones = S.tones.filter(t => Math.hypot(t.re, t.im) > 1e-12 * pk).sort((a, b) => a.f - b.f); return S; };
   /* through a linear block H(f) (complex [re, im]), with input noise n2 (density, the input's units) added first */
@@ -8584,14 +8587,14 @@ const ELEC = (() => {
       else if (d > 0) addTone(out.tones, d, 0.5 * k * ac[0], 0.5 * k * ac[1]);
       else addTone(out.tones, -d, 0.5 * k * ac[0], -0.5 * k * ac[1]);
     }
-    // the noise on each input, moved by the other's DC and tones (noise times noise left out)
+    // the noise on each input, moved by the other's DC and tones (noise times noise left out); a
+    // tone a million times weaker in power than the strongest moves too little to count
+    const strong = X => { const m = X.tones.map(t => (t.re * t.re + t.im * t.im) / 4), top = Math.max(0, ...m); return X.tones.map((t, j) => [t.f, m[j]]).filter(q => q[1] > 1e-6 * top); };
+    const sides = [[strong(A), B], [strong(B), A]].filter(([T, Y]) => T.length && Y.psd.some(p => p > 0));
     for (let i = 0; i < NF; i++) {
       const f = FG[i];
       let v = A.dc * A.dc * B.psd[i] + B.dc * B.dc * A.psd[i];
-      for (const [X, Y] of [[A, B], [B, A]]) for (const t of X.tones) {
-        const m = (t.re * t.re + t.im * t.im) / 4;
-        v += m * (psdAt(Y, Math.abs(f - t.f)) + psdAt(Y, f + t.f));
-      }
+      for (const [T, Y] of sides) for (const [tf, m] of T) v += m * (psdAt(Y, Math.abs(f - tf)) + psdAt(Y, f + tf));
       out.psd[i] = k * k * v;
     }
     return tidy(out);
@@ -8936,6 +8939,14 @@ const ELEC = (() => {
   const modk = el => num(el.modk, 100), fmk = el => num(el.fmk, 1), vsat = el => Math.max(1e-6, num(el.vsat, 1)), vpi = el => Math.max(1e-6, num(el.vpi, 5));
   const isLaser = el => el.type === 'source' || (el.type === 'fcomp' && el.kind === 'laser');
   /* a drive v (volts) applied to a part, for one trace (put back after) */
+  /* is the light linear in this drive? a laser's power input (not its frequency), kept above zero
+     over the swing, with nothing on the bench whose response depends on the power: no gain medium,
+     amplifier, doubling crystal, vapour cell (they saturate) and no pulse (fibre nonlinearity) */
+  function linearDrive(d, lo, hi) {
+    if (!isLaser(d.el) || d.port === 'fm') return false;
+    if (Math.min(1 + modk(d.el) / 100 * lo, 1 + modk(d.el) / 100 * hi) < 0) return false;
+    return !project.elements.some(e => e.type === 'gain' || e.type === 'nlc' || e.type === 'cell' || (e.type === 'fcomp' && (e.kind === 'amp' || e.kind === 'soa')) || (isLaser(e) && e.tau > 0));
+  }
   function applyDrive(el, v, port) {
     // a laser's frequency by fmk GHz per volt: its vacuum wavelength moves by -lambda^2 df / c
     if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
@@ -9025,6 +9036,19 @@ const ELEC = (() => {
       const sd = Math.sqrt(S.psd.reduce((a, p, i) => a + p * (i ? FG[i] - FG[i - 1] : 0), 0));
       lo -= 3 * sd; hi += 3 * sd;
       if (!(hi - lo > 1e-12)) { lo -= 1e-3; hi += 1e-3; }
+      // a laser's power, driven where it stays above zero, on a bench where nothing saturates: the
+      // light everywhere is exactly in proportion to it, so its two ends give the whole straight line
+      if (linearDrive(d, lo, hi)) {
+        const [y0, y1] = [lo, hi].map(v => withOptics(() => { atMean(d); applyDrive(d.el, v, d.port); }, read));
+        per.push(dets.map((_, j) => {
+          const k = (y1[j] - y0[j]) / (hi - lo), out = zero('W');
+          out.dc = y0[j] + k * (S.dc - lo);
+          for (const t of S.tones) addTone(out.tones, t.f, k * t.re, k * t.im);
+          for (let i = 0; i < NF; i++) out.psd[i] = k * k * S.psd[i];
+          return tidy(out);
+        }));
+        continue;
+      }
       const LV = LEVELS - 4, lv = Array.from({ length: LV }, (_, m) => lo + (hi - lo) * m / (LV - 1));
       const tab = lv.map(v => withOptics(() => { atMean(d); applyDrive(d.el, v, d.port); }, read));
       per.push(dets.map((_, j) => {

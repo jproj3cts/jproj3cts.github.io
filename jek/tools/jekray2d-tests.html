@@ -4681,6 +4681,18 @@ const TESTS = [
     }),
   },
   {
+    name: 'A laser\u2019s power drive traced at its two ends gives what tracing it at every level does',
+    why: 'a laser driven by a 1 kHz square (0 to 1 V on a 50%/V input) onto a photodiode: on a plain bench the light is in proportion to the drive and two traces suffice; with a vapour cell well off the beam (so the bench might saturate and every level is traced) the same DC and harmonics: the largest relative difference',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const pd = { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180 };
+      const one = extra => elecRun(J, [elecLaser({ modk: 50 }), elecPart('sig', 'G', { wave: 'square', amp: 0.5, offset: 0.5, x: -40 }), pd, ...extra], [], () => J.elec.signal('PD', 0), [['G', 0, 'L', 0]]);
+      const a = one([]), b = one([{ type: 'cell', id: 'V', name: 'Cell', x: 30, y: 80, angle: 0 }]);
+      const T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp;
+      return Math.max(Math.abs(a.dc / b.dc - 1), ...[1000, 3000, 5000].map(f => Math.abs(T(a, f) / T(b, f) - 1)));
+    },
+  },
+  {
     name: 'An amplifier can invert',
     why: 'a 1 kHz, 1 V sine through an amplifier of gain −10 set in its panel (the gain was held at 0 or more): 10 V at the output, turned through 180°: the largest error, in volts and in turns',
     want: 0, tol: 1e-9, unit: '',

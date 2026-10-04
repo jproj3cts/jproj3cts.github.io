@@ -177,6 +177,7 @@
     box-shadow: var(--jek-shadow);
     max-height: max(460px, calc(100vh - 290px));
     overflow-y: auto;
+    overflow-x: hidden;                           /* nothing in a panel should ever need it */
   }
   .rt-panel h2 {
     margin: 0 0 0.75rem;
@@ -378,7 +379,8 @@
   .rt-muted { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-lab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 0.5rem; }
-  .rt-lab label { white-space: nowrap; }
+  /* a label keeps to one line beside its Sweep button when there is room; one too long for its box wraps within it */
+  .rt-lab label { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .rt-sweep-toggle, .rt-link {
     padding: 0;
     font: inherit;
@@ -12764,7 +12766,6 @@ function renderOverview() {
   updateReadouts();
 }
 
-let lastReadout = '';
 /* The ray fan and the Gaussian beam describe the same light, so keep them in step:
    the rays are the wavefront normals, and the fan's width is the beam diameter. */
 function gaussFromFan(el) {
@@ -17390,11 +17391,13 @@ function screenStatsRaw(el) {
   let plo = Infinity, phi = -Infinity, pv2 = 0;
   for (const q of paths) { if (q.L < plo) plo = q.L; if (q.L > phi) phi = q.L; pv2 += q.w * (q.L - pmean) * (q.L - pmean); }
 
+  // a cavity's round trip: the same ray arriving again and again, each time one round trip
+  // further on, so the steps between its arrivals sorted by path (the order they are stored
+  // in is not the order the light took), and the middle one of all of them
   const trips = [], seen = new Map();
-  for (const t of set) {
-    if (seen.has(t.id)) trips.push(t.opl - seen.get(t.id));
-    seen.set(t.id, t.opl);
-  }
+  for (const t of set) { if (!seen.has(t.id)) seen.set(t.id, []); seen.get(t.id).push(t.opl); }
+  for (const L of seen.values()) { L.sort((a, b) => a - b); for (let i = 1; i < L.length; i++) if (L[i] - L[i - 1] > 1e-6) trips.push(L[i] - L[i - 1]); }
+  trips.sort((a, b) => a - b);
 
   // per-wavelength spot, so chromatic focal shift and lateral colour are visible
   const perNm = [...byNm.entries()].map(([k, v]) => {
@@ -17428,7 +17431,7 @@ function screenStatsRaw(el) {
     nm, oplMean: pmean,
     wfPV: front.length > 1 ? phi - plo : null,
     wfRMS: front.length > 1 ? Math.sqrt(pv2 / pw) : null,
-    roundTrip: trips.length ? trips.reduce((a, b) => a + b, 0) / trips.length : null,
+    roundTrip: trips.length ? trips[trips.length >> 1] : null,
     mixed: byNm.size > 1,
   };
 }
@@ -17441,6 +17444,9 @@ function updateReadouts() {
 function updateReadoutsIn(container, el) {
   const box = container.querySelector('[data-readout]');
   if (!box) return;
+  // while a sweep plays, a few times a second: often enough to follow, slow enough to read
+  const now = performance.now(), live = playing.size > 0;
+  if (live && box._roT && now - box._roT < 250) return;
   let parts;
   if (!el) {
     const T = lastTrace;
@@ -17481,7 +17487,7 @@ function updateReadoutsIn(container, el) {
       }
       if (st.visibility !== null && st.visibility > 0.01) rows.push(['Fringe visibility', (+(100 * st.visibility).toPrecision(4)) + '%']);
       if (st.interference !== null && Math.abs(st.interference - 1) > 0.02) {
-        rows.push(['Interference', (+(100 * st.interference).toPrecision(4)) + '% of the incoherent sum']);
+        rows.push(['Interference', (100 * st.interference).toFixed(1) + '% of the incoherent sum']);
       }
     }
     if (st && st.beam) {
@@ -17494,7 +17500,7 @@ function updateReadoutsIn(container, el) {
         const waves = d => (+(d / (st.nm * 1e-6)).toPrecision(4)) + ' λ';
         rows.push(['Wavefront P–V', waves(st.wfPV) + '  (' + fmtLen(st.wfPV) + ')'], ['Wavefront RMS', waves(st.wfRMS)]);
       }
-      if (st.roundTrip) rows.push(['Round-trip path', fmtLen(st.roundTrip)], ['Free spectral range', fmtFreq(299792458 / (st.roundTrip / 1000))]);
+      if (st.roundTrip > 0 && viaCavity(el)) rows.push(['Round-trip path', fmtLen(st.roundTrip)], ['Free spectral range', fmtFreq(299792458 / (st.roundTrip / 1000))]);
       if (st.perNm && st.perNm.length > 1) {
         for (const q of st.perNm.slice(0, 6)) rows.push([q.nm + ' nm', fmtLen(q.rms) + ' RMS at ' + fmtLen(q.centroid)]);
         const cs = st.perNm.map(q => q.centroid);
@@ -17610,9 +17616,18 @@ function updateReadoutsIn(container, el) {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
   } else return;
   if (el && exp('elec') && el.type !== 'elec') parts = ELEC.moreReadout(el, parts);                // ELEC hook
+  // and while it plays, a line that comes and goes (a reading only shown past a threshold) keeps
+  // its place, blank, so the lines below it do not jump; nor does the box shrink and grow
+  if (live && box._rows) {
+    const have = new Set(parts[0].map(r => r[0]));
+    box._rows.forEach((r, i) => { if (!have.has(r[0])) { parts[0].splice(Math.min(i, parts[0].length), 0, [r[0], '\u2014']); have.add(r[0]); } });
+  }
+  box._rows = live ? parts[0] : null;
+  if (!live) box.style.minHeight = '';
   const sig = JSON.stringify(parts);
-  if (sig === lastReadout && box.childNodes.length) return;   // avoid rebuilding the DOM every frame
-  lastReadout = sig;
+  if (sig === box._sig && box.childNodes.length) return;      // each box its own: no rebuilding every frame
+  box._sig = sig; box._roT = now;
+  if (live) box.style.minHeight = Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0) + 'px';
   box.replaceChildren(h('dl', null, ...parts[0].flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, parts[1]));
 }
@@ -17741,18 +17756,27 @@ function pasteClip(clip, at) {
 function duplicateSel() { const list = selection(); if (list.length) pasteClip(clipOf(list)); }
 const typingIn = t => t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
 /* Browsers that do not raise copy/cut/paste with nothing selected (Safari) still get them:
-   the keys set a flag, and if the event has not come by the next tick the copy here is used */
-let clipKey = null;
+   the keys set a flag, and if the event has not come in a moment the copy here is used. One
+   key press pastes once: whichever of the two comes first does it, and the other is ignored
+   (a paste event can come after the fallback has run); a key held down does not repeat it. */
+let clipKey = null, pressV = null;               // pressV: the Ctrl+V press being answered, { t, done }
+const pasteOnce = fn => {
+  const P = pressV;
+  if (P && performance.now() - P.t < 1500) { if (P.done) return; P.done = true; }
+  fn();
+};
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
   const k = e.key.toLowerCase();
   if (k !== 'c' && k !== 'x' && k !== 'v') return;
   if (k !== 'v' && !selection().length) return;
+  if (e.repeat) { if (k === 'v') e.preventDefault(); return; }
+  if (k === 'v') pressV = { t: performance.now(), done: false };
   clipKey = k;
   setTimeout(() => {
     if (clipKey !== k) return;
     clipKey = null;
-    if (k === 'v') { if (clipMem) pasteClip(clipMem); return; }
+    if (k === 'v') { if (clipMem) pasteOnce(() => pasteClip(clipMem)); return; }
     const list = selection(); if (!list.length) return;
     clipMem = clipOf(list);
     try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
@@ -17778,14 +17802,14 @@ document.addEventListener('paste', e => {
   clipKey = null;
   let clip = null;
   try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
-  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteClip(clip); return; }
+  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteOnce(() => pasteClip(clip)); return; }
   // a whole project, as an assistant writes it: fences and all
   const text = e.clipboardData.getData('text/plain');
   if (!clip && /"elements"\s*:/.test(text)) { try { clip = parseProjectText(text); } catch (err) { toast('That looks like a project but ' + err.message.replace(/^The/, 'the'), true); e.preventDefault(); return; } }
   if (clip && Array.isArray(clip.elements) && clip.format !== 'jekray-clip') {
     e.preventDefault();
     try { openProjectData(clip, 'the pasted project'); } catch (err) { toast(err.message, true); }
-  } else if (clipMem && !text) pasteClip(clipMem);
+  } else if (clipMem && !text) pasteOnce(() => pasteClip(clipMem));
 });
 
 /* ---------- The right-click menu ---------- */

@@ -4365,6 +4365,12 @@ const TESTS = [
       } finally { J.experimental(false); }
     },
   },
+  {
+    name: 'A screen reads a cavity’s round trip',
+    why: 'the Fabry–Perot demo, mirrors 250 mm apart: at the reflected port, the light leaking back out once a round trip, 500 mm apart in path (sorted by path, as the hits are not stored in the order the light took)',
+    want: 500, tol: 1e-6, unit: ' mm',
+    run: J => { J.load(JSON.parse(getDemo('fabry-perot'))); J.trace(); return J.stats('Reflected').roundTrip; },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

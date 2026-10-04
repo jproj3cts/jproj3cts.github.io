@@ -296,14 +296,18 @@
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   @media (prefers-reduced-motion: reduce) { .rt-activity.indeterminate .rt-act-bar i { animation: none; width: 100%; opacity: 0.45; } }
+  .rt-plot-tools { position: absolute; top: 0; right: 0; display: flex; gap: 0.25rem; }
   .rt-sync {
-    position: absolute; top: 0; right: 0; display: inline-grid; place-items: center;
+    display: inline-grid; place-items: center;
     width: 1.45rem; height: 1.45rem; padding: 0; border: 1px solid var(--jek-line-2); border-radius: 50%;
     background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer;
   }
   .rt-sync[hidden] { display: none; }
   .rt-sync:hover { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-sync:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-sync.rt-freeze { opacity: 0.55; }
+  .rt-plot:hover .rt-sync.rt-freeze, .rt-sync.rt-freeze:focus-visible { opacity: 1; }
+  .rt-sync.rt-freeze[aria-pressed=true] { opacity: 1; color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-panel h3 {
     margin: 1rem 0 0.5rem;
     padding-top: 0.75rem;
@@ -10628,7 +10632,27 @@ function plotFrame(cv, getKey, getZ, redraw) {
   btn.hidden = true;
   btn.innerHTML = SYNC_SVG;
   cv._syncBtn = btn;
-  const box = h('div', { class: 'rt-plot' }, cv, btn);
+  // Freeze: the axes keep the ranges they have now, so a plot holds still while a sweep plays
+  // instead of fitting itself to every step; zoom and pan still work within them
+  const fz = h('button', { class: 'rt-sync rt-freeze', type: 'button' });
+  fz.innerHTML = LOCK_SVG;
+  const showFz = () => {
+    const Z = getZ(), on = !!(Z && Z.freeze);
+    fz.setAttribute('aria-pressed', on ? 'true' : 'false');
+    fz.title = on ? 'Unfreeze the axes: fit them to the plot again' : 'Freeze the axes: keep this scale while sweeps play';
+  };
+  fz.addEventListener('click', () => {
+    const Z = getZ();
+    if (!Z) return;
+    if (Z.freeze) delete Z.freeze;
+    // with the brightness scale too, where the plot has one (a map's colours, a profile's peak)
+    else if (cv._full) Z.freeze = { x: cv._full.x.slice(), y: cv._full.y.slice(), pk: cv._full.pk, top: cv._full.top };
+    else return;
+    showFz(); redraw();
+  });
+  bindSync(fz, showFz);
+  cv._fzSync = showFz;                  // and after each draw: the plot may now be another view
+  const box = h('div', { class: 'rt-plot' }, cv, h('div', { class: 'rt-plot-tools' }, btn, fz));
   // a plot is drawn to the width it had then; when a panel is pinned, unpinned or resized
   // that width changes, and a canvas left at the old one is stretched to fit
   let drawnW = -1;
@@ -10653,7 +10677,8 @@ function syncFrom(cv) {
       Zo['k' + ax] = clamp((hi - lo) / (b - a), 1 / ZOOM_MAXK, ZOOM_MAXK);
       Zo['c' + ax] = ((a + b) / 2 - lo) / (hi - lo);
     };
-    fit(P.x[0], P.x[1], xa, xb, 'x'); fit(P.y[0], P.y[1], ya, yb, 'y');
+    const Px = Zo.freeze ? Zo.freeze.x : P.x, Py = Zo.freeze ? Zo.freeze.y : P.y;
+    fit(Px[0], Px[1], xa, xb, 'x'); fit(Py[0], Py[1], ya, yb, 'y');
     o._sync.redraw(); n++;
   }
   if (n) toast('Matched ' + n + ' other plot' + (n > 1 ? 's' : '') + ' to this one’s axes');
@@ -10668,6 +10693,7 @@ function updateSyncButtons() {
     const all = plotCanvases(), count = new Map();
     for (const c of all) { const k = c._full && c._sync.getKey(); if (k) count.set(k, (count.get(k) || 0) + 1); }
     for (const c of all) {
+      if (c._fzSync) c._fzSync();
       const k = c._sync.getKey(), on = !!c._full && count.get(k) > 1;
       c._syncBtn.hidden = !on;
       if (on) c._syncBtn.title = 'Match the other open ' + (SYNC_NAMES[k] || 'plots like this') + ' to this one’s axes';
@@ -10676,12 +10702,15 @@ function updateSyncButtons() {
 }
 
 const ZOOM_MAXK = 1000;
+const LOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/></svg>';
 function plotZoom(el, plot) {
   const s = vs(el), z = s.zoom || (s.zoom = {});
   return z[plot] || (z[plot] = { kx: 1, ky: 1, cx: 0.5, cy: 0.5 });
 }
 /* The visible part of [lo, hi] on one axis, keeping the window inside the full range */
 function zoomRange(Z, axis, lo, hi) {
+  // frozen axes keep the range they had when frozen, whatever the data does now
+  if (Z.freeze && Z.freeze[axis]) [lo, hi] = Z.freeze[axis];
   // below 1 the window is wider than the data (a plot matched to a bigger one): it then
   // keeps all of the data in view rather than all of the view on the data
   const k = Z['k' + axis], half = 0.5 / k;
@@ -10894,6 +10923,8 @@ function drawDiff(cv, D, el) {
     // so a dark port shows dark rather than its rounding error blown up
     let pk = 0, pi = 0; for (let i = 0; i < D.map.v.length; i++) { pk = Math.max(pk, D.map.v[i]); pi = Math.max(pi, D.map.inc[i]); }
     pk = holdScale(el, 'map', Math.max(pk, 0.02 * pi));
+    if (Z.freeze && Z.freeze.pk) pk = Z.freeze.pk;
+    cv._full.pk = pk;
     const log = el.mapScale === 'log';
     for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
       let v = D.map.v[j * M + i] / (pk || 1);
@@ -10943,6 +10974,7 @@ function drawDiff(cv, D, el) {
     xs1 = D.rho[D.rho.length - 1]; xs0 = -xs1; top = Math.max(...D.cutX.I, ...D.cutY.I);
   }
   if (view !== 'mtf' && view !== 'ee') top = holdScale(el, 'psf', top);
+  if (Z.freeze && Z.freeze.top) top = Z.freeze.top;
   plotCsv(cv, el.name + ' ' + ({ mtf: 'MTF', ee: 'enclosed energy' }[view] || 'profile'),
     ['series', view === 'mtf' ? 'lp_per_mm' : 'position_mm', view === 'mtf' ? 'MTF' : view === 'ee' ? 'share_of_the_light' : 'irradiance'],
     () => series.flatMap(S => Array.from(S.x, (x, i) => [S.name, x, S.y[i]])));
@@ -10950,7 +10982,7 @@ function drawDiff(cv, D, el) {
   const [xa, xb] = zoomRange(Z, 'x', xs0, xs1), [fa, fb] = zoomRange(Z, 'y', 0, 1);
   const sy = { kind: 'plain', title: yName };
   const A = plotArea(c, w, hgt, [fa, fb], sy);
-  cv._area = A; cv._full = { x: [xs0, xs1], y: [0, 1] };
+  cv._area = A; cv._full = { x: [xs0, xs1], y: [0, 1], top };
   const X = v => A.l + (v - xa) / ((xb - xa) || 1) * A.w;
   const Y = v => A.t + A.h - (v / (top || 1) - fa) / ((fb - fa) || 1) * A.h;
   c.save();

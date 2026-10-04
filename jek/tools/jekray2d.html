@@ -630,7 +630,14 @@
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
   .rt-app .rt-stage:focus-within { box-shadow: inset 0 0 0 2px var(--jek-cyan); }
   .rt-app .rt-panel { max-height: none; min-height: 0; border-radius: 0; box-shadow: none; border-width: 0 0 0 1px; }
-  .rt-app .rt-about { padding: 0 1rem 1.5rem; }
+  .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
+  .rt-panel .rt-about p { max-width: none; }
+  .rt-panel .rt-about summary { width: auto; }
+  /* the page does not scroll: the tool is the whole window below the site's bar (on a wide screen) */
+  @media (min-width: 961px) {
+    html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
+    html.rt-noscroll body > footer { display: none; }
+  }
   .rt-title {
     flex: 1 1 auto; margin: 0; text-align: center; font-size: 1.3rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink);
   }
@@ -4709,7 +4716,8 @@ function resize() {
   requestRender();
 }
 new ResizeObserver(resize).observe(stage);
-/* the tool's height: the window's, less the site's bar above it */
+/* the tool's height: the window's, less the site's bar above it; the page itself does not scroll */
+document.documentElement.classList.add('rt-noscroll');
 {
   const top = document.querySelector('.top-container');
   const fitTop = () => document.documentElement.style.setProperty('--rt-top', (top ? top.getBoundingClientRect().height : 0) + 'px');
@@ -12673,6 +12681,7 @@ function drawCavityScan(cv, c, pseudo) {
 }
 
 let benchTab = 'bench';
+let aboutNode = null;
 function renderOverview() {
   const title = h('h2', null, h('span', { style: 'flex:1' }, 'Bench'));
   pinTitle(title, BENCH_PIN, () => { selectOne(null); renderPanel(); requestRender(); });
@@ -12749,6 +12758,9 @@ function renderOverview() {
     h('li', null, h('kbd', null, '←↑→↓'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.'),
   ));
   panel.append(h('p', { style: 'margin-top:0.75rem' }, 'Your work is kept in this browser automatically. To move a project to another browser or share it, use Save .jekray and open the file there.'));
+  // what it models, and what it does not: the page's own note, moved to the foot of this panel
+  aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
+  if (aboutNode) panel.append(aboutNode);
   updateReadouts();
 }
 

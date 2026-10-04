@@ -17441,12 +17441,12 @@ function updateReadouts() {
   if (mainPanel.style.display !== 'none') updateReadoutsIn(mainPanel, sel);
   for (const [id, box] of pinBoxes) updateReadoutsIn(box, getEl(id));
 }
+/* a readout's numbers at a steady width: each decimal to four significant figures, zeros kept */
+const steadyNums = t => t.replace(/-?\d+\.\d+(?:e[+-]?\d+)?/g, m => { const x = parseFloat(m); return (x < 0 ? '-' : '') + Math.abs(x).toPrecision(4); });
 function updateReadoutsIn(container, el) {
   const box = container.querySelector('[data-readout]');
   if (!box) return;
-  // while a sweep plays, a few times a second: often enough to follow, slow enough to read
-  const now = performance.now(), live = playing.size > 0;
-  if (live && box._roT && now - box._roT < 250) return;
+  const live = playing.size > 0;
   let parts;
   if (!el) {
     const T = lastTrace;
@@ -17624,9 +17624,21 @@ function updateReadoutsIn(container, el) {
   }
   box._rows = live ? parts[0] : null;
   if (!live) box.style.minHeight = '';
+  // and every number in it keeps its width: decimals to four figures, trailing zeros kept, and
+  // each line padded (on the left, the font being monospaced) to the widest it has been, so the
+  // digits change in place rather than the line growing and shrinking under them
+  if (live) {
+    const W = box._w || (box._w = new Map());
+    parts = [parts[0].map(([a, b]) => {
+      if (typeof b !== 'string') return [a, b];
+      const v = steadyNums(b), w = Math.max(W.get(a) || 0, v.length);
+      W.set(a, w);
+      return [a, v.padStart(w, '\u2007')];
+    }), parts[1]];
+  } else box._w = null;
   const sig = JSON.stringify(parts);
   if (sig === box._sig && box.childNodes.length) return;      // each box its own: no rebuilding every frame
-  box._sig = sig; box._roT = now;
+  box._sig = sig;
   if (live) box.style.minHeight = Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0) + 'px';
   box.replaceChildren(h('dl', null, ...parts[0].flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, parts[1]));

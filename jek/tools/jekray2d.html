@@ -8590,8 +8590,7 @@ const ELEC = (() => {
   /* the scope and the analyser: the shared instrument views (INST), fed what reaches their inputs */
   function drawScope(cv, el) {
     const chans = [0, 1].map(i => ({ S: inputOf(el, i), key: el.id + ':' + i, name: 'ch' + (i + 1) }));
-    if (playing.size) for (const q of chans) if (q.S) INST.record(q.key, [q.S.dc, q.S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0), noiseRms(q.S, 0.1, INST_BW)]);
-    return INST.scope(cv, chans, { mode: el.mode, span: el.span, ch: [{ vdiv: el.v1div, off: el.v1off }, { vdiv: el.v2div, off: el.v2off }] }, el.name);
+    return INST.scope(cv, chans, { mode: el.mode, span: el.span, ch: [{ vdiv: el.v1div, off: el.v1off }, { vdiv: el.v2div, off: el.v2off }] }, el.name, () => drawScope(cv, el));
   }
   const INST_BW = 1e8;
   function drawSpectrum(cv, el) {
@@ -9021,15 +9020,36 @@ const INST = (() => {
   const CH = ['#db3550', '#0092b2'];   // Jek red, Jek blue
   const BW = 1e8;                      // the scope's own bandwidth, for its noise band
   const DIV_X = 10, DIV_Y = 8;
-  /* the level recorded as sweeps play, per channel key: [clock s, dc, band, sigma] */
+  /* Roll runs on the real clock: the level each channel had, recorded at every redraw while a
+     Roll view is showing ([seconds, dc]), the tones laid on it at the moment each sample stands
+     for, so a 1 kHz wave rolls past as it would on a bench scope */
+  const wallT = () => performance.now() / 1000;
   const hist = new Map();
-  function record(key, r) {
+  let histGen = -1;
+  function record(key, dc) {
+    if (histGen !== loadGen) { hist.clear(); histGen = loadGen; }   // a bench loaded: its scopes start afresh
     let H = hist.get(key);
     if (!H) hist.set(key, H = []);
-    if (H.length && clockT < H[H.length - 1][0]) H.length = 0;
-    if (H.length && clockT === H[H.length - 1][0]) { H[H.length - 1] = [clockT, ...r]; return; }
-    H.push([clockT, ...r]);
-    while (H.length > 20000 || (H.length && H[0][0] < clockT - 3600)) H.shift();
+    const t = wallT();
+    if (H.length && H[H.length - 1][1] === dc) { H[H.length - 1][2] = t; return; }       // unchanged: the last entry lasts longer
+    H.push([t, dc, t]);
+    while (H.length > 20000 || (H.length && H[0][2] < t - 3600)) H.shift();
+  }
+  // the level a channel had at time t: the last recorded at or before it (the first, before any)
+  function levelAt(H, t, now) {
+    if (!H || !H.length) return now;
+    let lo = 0, hi = H.length - 1;
+    if (t < H[0][0]) return H[0][1];
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (H[m][0] <= t) lo = m; else hi = m - 1; }
+    return H[lo][1];
+  }
+  /* the views in Roll, redrawn every frame while they are on the page */
+  const rolling = new Map();
+  let rollRaf = 0;
+  function rollTick() {
+    rollRaf = -1;                                   // drawing: the views asking again are already in hand
+    for (const [cv, fn] of [...rolling]) { if (!cv.isConnected) { rolling.delete(cv); continue; } fn(); }
+    rollRaf = rolling.size ? requestAnimationFrame(rollTick) : 0;
   }
   const autoSpan = S => { const f = S && S.tones.filter(t => !t.incoh && t.f > 0).map(t => t.f); return f && f.length ? 3 / Math.min(...f) : 1e-3; };
   /* one channel over a span: the trace, the band of tones too fast to draw, the noise */
@@ -9050,27 +9070,42 @@ const INST = (() => {
   }
   /* the scope. chans: [{ S, key, name }] (S null for an open input); st: { mode, span, ch: [{ vdiv, off }] }.
      Returns, per channel, { v, band, sd, unit } as drawn (Normal), or the recorded rows (Roll). */
-  function scope(cv, chans, st, title) {
+  function scope(cv, chans, st, title, redraw) {
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
     cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
     const roll = st.mode === 'roll', N = 1200, first = chans.find(q => q.S);
-    const span = st.span > 0 ? st.span : roll ? 10 : autoSpan(first && first.S);
-    // each channel as drawn: Normal from its tones; Roll from what was recorded, or flat at its level now
+    // auto: three cycles of the slowest tone; in Roll with no tones, the last ten seconds
+    const toned = first && first.S.tones.some(t => !t.incoh && t.f > 0);
+    const span = st.span > 0 ? st.span : roll && !toned ? 10 : autoSpan(first && first.S);
+    // each channel as drawn: Normal from its tones over the span from t = 0; Roll over the last span of
+    // the real clock, its level as recorded and its tones at each sample's own moment
+    if (roll && redraw) { rolling.set(cv, redraw); if (!rollRaf) rollRaf = requestAnimationFrame(rollTick); } else rolling.delete(cv);
+    const t1 = wallT();
     const tr = chans.map(q => {
       if (!q.S) return null;
-      const T = trace(q.S, span, roll ? 2 : N);
+      const T = trace(q.S, span, N);
       if (!roll) return T;
-      const now = [q.S.dc, T.band, T.sd], H = (hist.get(q.key) || []).filter(r => r[0] >= clockT - span - 1e-9);
-      const rows = H.length > 1 ? H.map(r => [r[0] - clockT + span, r[1], r[2], r[3]]) : [[0, ...now], [span, ...now]];
-      return { rows, unit: T.unit, band: Math.max(...rows.map(r => r[2])), sd: Math.max(...rows.map(r => r[3])) };
+      record(q.key, q.S.dc);
+      const H = hist.get(q.key), dt = span / (N - 1), slow = q.S.tones.filter(x => !x.incoh && x.f * dt < 0.25);
+      const lz = slow.length >= 10 ? Math.min(...slow.map(x => x.f)) + Math.max(...slow.map(x => x.f)) : 0;
+      const sg = slow.map(x => { const u = lz ? Math.PI * x.f / lz : 0; return u ? Math.sin(u) / u : 1; });
+      const rows = Array.from({ length: N }, (_, k) => {
+        const t = t1 - (N - 1 - k) * dt;   // the last sample is now
+        let v = levelAt(H, t, q.S.dc);
+        slow.forEach((x, j) => { const a = 2 * Math.PI * x.f * t; v += sg[j] * (x.re * Math.cos(a) - x.im * Math.sin(a)); });
+        return [k * dt, v, T.band, T.sd];
+      });
+      return { rows, unit: T.unit, band: T.band, sd: T.sd };
     });
     // each channel's vertical range: set (offset +- 4 divisions) or fitted to its own trace and bands
     const range = (T, set) => {
       if (set && set.vdiv > 0) return [set.off - DIV_Y / 2 * set.vdiv, set.off + DIV_Y / 2 * set.vdiv];
       const vals = roll ? T.rows.flatMap(r => [r[1] - r[2] - r[3], r[1] + r[2] + r[3]]) : [Math.min(...T.v) - T.band - T.sd, Math.max(...T.v) + T.band + T.sd];
       let lo = Math.min(...vals), hi = Math.max(...vals);
-      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
+      // a trace with no swing at all (a steady level, no noise) sits mid-screen with a tenth of its level either side
+      const flat = !(hi - lo > 1e-12 * Math.max(1e-12, Math.abs(lo), Math.abs(hi)));
+      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, flat ? Math.max(0.1 * Math.abs(mid), 1e-3) : 0, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
       return half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
     };
     const rg = tr.map((T, i) => T ? range(T, st.ch && st.ch[i]) : null), fi = tr.findIndex(Boolean);
@@ -9079,8 +9114,8 @@ const INST = (() => {
     const off = rg.map((r, i) => r && !(st.ch && st.ch[i] && st.ch[i].vdiv > 0) && Math.abs(r[0] + r[1]) / 2 > 500 * (r[1] - r[0]) ? (r[0] + r[1]) / 2 : 0);
     const u0 = fi >= 0 ? tr[fi].unit : 'V', two = tr.filter(Boolean).length > 1, set0 = fi >= 0 && st.ch && st.ch[fi] && st.ch[fi].vdiv > 0;
     const [lo, hi] = fi >= 0 ? rg[fi].map(v => v - off[fi]) : [-1, 1];
-    const sy = { kind: 'plain', title: (two ? 'ch' + (fi + 1) + ' ' : '') + (set0 ? fmtSig(st.ch[fi].vdiv, u0) + '/div' : u0) + (off[fi] ? ' about ' + fmtSig(off[fi], u0) : ''),
-      fmt: v => (off[fi] && v > 0 ? '+' : '') + (Math.abs(v) < 1e-15 * Math.max(1, Math.abs(hi - lo)) ? '0' : fmtSig(v, u0)) };
+    const sy = { kind: 'plain', title: (two ? 'ch' + (fi + 1) + ' ' : '') + (set0 ? fmtSig(st.ch[fi].vdiv, u0) + '/div' : u0) + (off[fi] ? ', swing about the level' : ''),
+      fmt: v => Math.abs(v) < 1e-9 * Math.max(1e-15, Math.abs(hi - lo)) ? fmtSig(off[fi] || 0, u0) : (off[fi] && v > 0 ? '+' : off[fi] ? '\u2212' : v < 0 ? '-' : '') + fmtSig(Math.abs(v), u0) };
     const sx = { kind: 's', title: roll ? 'time, last ' + fmtTime(span) + ' (rolling)' : 'time' };
     const A = plotArea(c, w, hgt, [lo, hi], sy);
     const X = t => A.l + t / span * A.w;
@@ -9133,6 +9168,7 @@ const INST = (() => {
   }
   /* the analyser: one signal; st: { scale: 'log' | 'linear', fmin, fmax (0: auto), rbw, ref, dbdiv (0: auto) } */
   function spectrum(cv, S, st, title) {
+    rolling.delete(cv);
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
     cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
@@ -9372,7 +9408,7 @@ function signalSection(el) {
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
   const draw = () => {
     const S = pdInstSignal(el);
-    if (vsEl.sigView === 'time') INST.scope(cv, [{ S, key: el.id, name: 'output' }], sc, el.name); else INST.spectrum(cv, S, spc, el.name);
+    if (vsEl.sigView === 'time') INST.scope(cv, [{ S, key: el.id, name: 'output' }], sc, el.name, draw); else INST.spectrum(cv, S, spc, el.name);
   };
   const showCtl = () => ctl.replaceChildren(vsEl.sigView === 'time' ? INST.scopeControls(sc, 1, draw) : INST.spectrumControls(spc, draw));
   for (const [k, label] of [['rf', 'Spectrum'], ['time', 'Oscilloscope']]) {
@@ -9386,7 +9422,6 @@ function signalSection(el) {
   let sig = '';
   bindSync(cv, () => {
     const S = pdSignalAll(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3), u = S.unit === 'A' ? ' A' : ' V';
-    if (playing.size) { const Q = pdInstSignal(el); INST.record(el.id, [Q.dc, Q.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0), Q.psd ? ELEC.noiseRms(Q, 0.1, 1e8) : 0]); }
     const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + u]];
     if (S.driven) r.push(['Modulated', 'by what drives the light on the bench (the tones below)']);
     // the strongest, in order of frequency
@@ -11992,9 +12027,11 @@ const axisTitle = (spec, unit) => [spec.title, unit].filter(Boolean).join(', ');
    corner kept clear for the button that matches plots to each other */
 function plotArea(c, w, hgt, yr, sy, opt = {}) {
   c.font = axisFont();
+  // measured over the ticks drawAxes will draw (as many as the height takes)
+  const t = opt.top !== undefined ? opt.top : 26, b = 18;
   let lw = 0;
-  for (const t of axisTicks(yr[0], yr[1], sy, 4).ticks) lw = Math.max(lw, c.measureText(t.text).width);
-  const l = Math.ceil(lw) + 8, t = opt.top !== undefined ? opt.top : 26, b = 18;
+  for (const k of axisTicks(yr[0], yr[1], sy, Math.max(4, Math.floor((hgt - t - b) / 20))).ticks) lw = Math.max(lw, c.measureText(k.text).width);
+  const l = Math.ceil(lw) + 8;
   return { l, t, w: Math.max(10, w - l - (opt.right !== undefined ? opt.right : 6)), h: Math.max(10, hgt - t - b) };
 }
 function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {

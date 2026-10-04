@@ -4419,6 +4419,18 @@ const TESTS = [
       }),
   },
   {
+    name: 'and in Roll a 1 kHz wave rolls past as a wave, at its own level',
+    why: 'a 1 kHz, 1 V sine on a scope in Roll, span auto, and a steady −1 V on one in Roll: the sine drawn as itself (peaks at ±1 V, not a band) over the last few milliseconds, and the −1 V level shown at −1 V with the screen round it, not about 0: the largest error in volts, and 1 if either is wrong',
+    want: 0, tol: 0.02, unit: ' V',
+    run: J => {
+      const w = elecRun(J, [elecPart('sig', 'G', { amp: 1 }), elecPart('scope', 'SC', { mode: 'roll', span: 0 })], [['G', 0, 'SC', 0]], () => J.elec.scope('SC')[0]);
+      const d = elecRun(J, [elecPart('dc', 'D', { v: -1 }), elecPart('scope', 'SD', { mode: 'roll', span: 0 })], [['D', 0, 'SD', 0]], () => J.elec.scope('SD')[0]);
+      const v = w.rows.map(r => r[1]), span = w.rows[w.rows.length - 1][0];
+      return Math.max(Math.abs(Math.max(...v) - 1), Math.abs(Math.min(...v) + 1), w.band, span < 0.01 ? 0 : 1,
+        ...d.rows.map(r => Math.abs(r[1] + 1)), d.range[0] < -1 && d.range[1] > -1 && d.range[1] < -0.5 ? 0 : 1);
+    },
+  },
+  {
     name: 'An amplifier can invert',
     why: 'a 1 kHz, 1 V sine through an amplifier of gain −10 set in its panel (the gain was held at 0 or more): 10 V at the output, turned through 180°: the largest error, in volts and in turns',
     want: 0, tol: 1e-9, unit: '',

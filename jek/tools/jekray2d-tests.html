@@ -2914,6 +2914,25 @@ const TESTS = [
     run: J => { const q = 1550e-9 / (4 * 1.468), a = fmz(J, 1, 3000)[0], c = fmz(J, 1 + q, 3000)[0], t = fmz(J, 1 + 2 * q, 3000)[0], m = (a + t) / 2; return Math.hypot((a - t) / 2, c - m) / m; },
   },
   {
+    name: 'Each part on the Add row makes that part',
+    why: 'every button of every palette pressed in turn on an empty bench (the fibre coupler once made an LED, and the fibre amplifier nothing): the fibre parts that came out wrong and the buttons of any palette that made nothing, listed (none, 0, required)',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      J.load(fnet([], []));
+      const bad = J.palette('fibre').filter(k => {
+        const el = J.byName(J.add(k));
+        if (k === 'fibre') return el.type !== 'fibre';
+        if (k === 'led') return !(el.kind === 'laser' && el.led);
+        return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
+      });
+      J.experimental(true);
+      try { for (const P of ['free', 'pic', 'elec']) for (const k of J.palette(P)) { let ok = false; try { ok = !!J.byName(J.add(k)); } catch (e) { /* counted below */ } if (!ok) bad.push(P + ':' + k); } }
+      finally { J.experimental(false); }
+      if (bad.length) console.log('wrong parts:', bad);
+      return bad.length;
+    },
+  },
+  {
     name: 'A fibre-coupled LED adds as powers through a Mach\u2013Zehnder, but for equal arms',
     why: 'an LED (unpolarised, 40 nm wide at 1550 nm: coherence length 60 µm) into a fibre Mach\u2013Zehnder: arms equal, all its light leaves the cross port (white-light fringe); arms 1 mm apart and a quarter wave more, half at each, whatever the phase: the largest error in mW of 1 mW',
     want: 0, tol: 1e-6, unit: ' mW',

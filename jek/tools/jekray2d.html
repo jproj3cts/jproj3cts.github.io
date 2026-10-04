@@ -2782,10 +2782,10 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'aom', name: nextName('AOM'), x, y, angle: 0 });
     case 'eom':
       return normElement({ type: 'eom', name: nextName('EOM'), x, y, angle: 0 });
-    case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
     case 'led':
       return normElement({ type: 'fcomp', kind: 'laser', led: true, name: nextName('LED'), x, y, angle: 0, wavelength: 1550, bw: 40, power: 0.1, pol: 'unpolarised' });
-    case 'faom': case 'feom': {
+    case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
+    case 'amp': case 'faom': case 'feom': {
       if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
       const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
       let n = 1; while (used.has('Feedthrough ' + n)) n++;
@@ -20882,6 +20882,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     tourTick() { tourTick(); return tour ? { i: tour.i, final: !!tour.T.steps[tour.i].final } : null; },
     tourEnd() { endTour(); },
     add(kind) { addElement(kind); traceScene(); return selected().name; },
+    palette(name) { return PALETTES[name].map(it => it[0]); },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },
     metricOf(name, key) { return metricRaw(this.byName(name), key); },

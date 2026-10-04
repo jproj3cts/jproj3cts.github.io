@@ -7319,6 +7319,26 @@ function fibreNetCached() {
   } else if (fibreNetMemo.sat) ampSat = new Map(fibreNetMemo.sat);
   return fibreNetMemo.net;
 }
+/* A broadband source's band as slices: 21 or more across +-3 sigma of its Gaussian (sigma its FWHM
+   over 2.355), close enough that the narrowest filter in the fibres (a tunable filter, Bragg
+   grating or WDM band) spans twelve (up to 801 slices), each itself a Gaussian line 1.5 slices wide (so a comb of them shows no coherence
+   revivals: they would come where the slices' own lines have faded to exp(-8)), their weights a
+   Gaussian narrower by the slices' own width, so together they are the source's spectrum. Each
+   carries its share of the band for the noise its light makes beating with itself (nb, Hz). */
+const BROAD_N = 21, BROAD_MAX = 801;
+function broadSlices(el, feat) {
+  const sg = Math.max(1e-6, el.bw) / 2.3548;
+  const N = Math.min(BROAD_MAX, Math.max(BROAD_N, 2 * Math.ceil(3 * sg / (feat > 0 ? feat / 12 : Infinity)) + 1));
+  // the weights' Gaussian narrower by a slice's own line (1.5 spacings, as the analyser draws it too, smooth to 1e-3), so together they are the spectrum
+  const d = 6 * sg / (N - 1), ss = 1.5 * d / 2.3548, sw = Math.sqrt(Math.max(1e-12, sg * sg - ss * ss));
+  const out = [];
+  for (let i = 0; i < N; i++) { const x = (i - (N - 1) / 2) * d; out.push({ nm: el.wavelength + x, w: Math.exp(-x * x / (2 * sw * sw)) }); }
+  const W = out.reduce((a, q) => a + q.w, 0), lam = el.wavelength * 1e-9;
+  // the band each slice stands for: chosen so the sum of P_i^2 / nb is the integral of S^2 over the
+  // source's Gaussian spectrum, 1 / (2 sigma_nu sqrt(pi)) of P^2, which sets its beat noise
+  const sgHz = 299792458 * sg * 1e-9 / (lam * lam), nb = out.reduce((a, q) => a + (q.w / W) ** 2, 0) * 2 * sgHz * Math.sqrt(Math.PI);
+  return out.map(q => ({ nm: q.nm, w: q.w / W, coh: q.nm * q.nm * 1e-6 / (1.5 * d), nb, slice: true, d }));
+}
 function fibreNet() {
   const comps = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre');
   const fibres = (project.fibres || []).filter(F => getEl(F.a[0]) && getEl(F.b[0]));
@@ -7333,11 +7353,20 @@ function fibreNet() {
   }
   // the light put in: lasers, and tips taking in free-space light
   const inputs = [];
+  // the narrowest band a filter in the fibres passes or reflects, for how finely broadband light is sliced
+  const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.fwhm));
   for (const el of comps) {
     if (el.type === 'fcomp' && el.kind === 'laser') {
       // unpolarised: s and p halves as launches of their own, so they add as powers
-      if (el.pol === 'unpolarised') for (const [E, k] of [[[Math.SQRT1_2, 0, 0, 0], ''], [[0, 0, Math.SQRT1_2, 0], '~p']]) inputs.push({ port: [el.id, 0], E, key: el.id + k + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
-      else inputs.push({ port: [el.id, 0], E: fibreLaserField(el), key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
+      const halves = el.pol === 'unpolarised' ? [[[Math.SQRT1_2, 0, 0, 0], ''], [[0, 0, Math.SQRT1_2, 0], '~p']] : [[fibreLaserField(el), '']];
+      // broadband light across its band, in slices (each its own launch), so what passes and reflects
+      // it is worked out wavelength by wavelength
+      const sl = el.cmode === 'broad' && !(el.tau > 0) ? broadSlices(el, feat) : null;
+      for (const [E, k] of halves) {
+        if (sl) sl.forEach((S, i) => inputs.push({ port: [el.id, 0], E, key: el.id + k + '~b' + i + ':0:q0', nm: S.nm, dl: 0, fo: 0,
+          root: Object.assign({}, S, { id: el.id + k + '~b' + i, of: el, half: k, name: el.name, power: el.power * S.w, lineshape: 'gauss', cmode: 'broad', wavelength: S.nm }) }));
+        else inputs.push({ port: [el.id, 0], E, key: el.id + k + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
+      }
     }
     if (el.type === 'fibre' && to.has(pkey(el.id, 0))) for (const I of tipInputs(el)) inputs.push(Object.assign(I, { port: [el.id, 0] }));
     // an amplifier's spontaneous emission: broadband light of its own, unpolarised (s and p
@@ -7438,15 +7467,38 @@ function netPower(byGroup, keys) {
    or, for a laser with a line of its own, one per group of delays close enough (a fiftieth
    of the coherence length) to count as one; at most six, the weakest folded into the
    nearest in delay */
+/* What reaches a tip, launch by launch, with a broadband source's slices (each polarisation half on
+   its own) put back together as one: the strongest slice's light carrying all their power, at their
+   power-weighted wavelength, its line as wide as their spread with the slices' own width (free space
+   follows a broadband beam at one wavelength, so it is not traced once for every slice) */
+function tipLaunches(net, byG) {
+  const out = [], grp = new Map(), pw = ws => ws.reduce((a, w) => a + w.E[0] ** 2 + w.E[1] ** 2 + w.E[2] ** 2 + w.E[3] ** 2, 0);
+  for (const K of net.keys) {
+    const ws = byG.get(K.gk);
+    if (!ws || !ws.length) continue;
+    if (!K.root.slice) { out.push([K, ws]); continue; }
+    const g = K.root.of.id + K.root.half;
+    if (!grp.has(g)) grp.set(g, []);
+    grp.get(g).push({ K, ws, p: pw(ws) * (K.root.power || 0) });
+  }
+  for (const L of grp.values()) {
+    const P = L.reduce((a, q) => a + q.p, 0);
+    if (!(P > 0)) continue;
+    const rep = L.reduce((a, q) => q.p > a.p ? q : a), lc = L.reduce((a, q) => a + q.p * q.K.nm, 0) / P;
+    const sw = Math.sqrt(L.reduce((a, q) => a + q.p * (q.K.nm - lc) ** 2, 0) / P + (rep.K.nm * rep.K.nm * 1e-6 / rep.K.root.coh / 2.3548) ** 2), fw = 2.3548 * sw;
+    const k = Math.sqrt(P / rep.p);
+    const root = Object.assign({}, rep.K.root, { slice: false, nb: undefined, wavelength: lc, coh: lc * lc * 1e-6 / fw });
+    out.push([Object.assign({}, rep.K, { nm: lc, root }), rep.ws.map(w => Object.assign({}, w, { E: w.E.map(v => v * k) }))]);
+  }
+  return out;
+}
 function tipSources(net) {
   const out = [];
   if (!net) return out;
   for (const [tipId, byG] of net.tips) {
     const tip = getEl(tipId);
     if (!tip) continue;
-    for (const K of net.keys) {
-      const ws = byG.get(K.gk);
-      if (!ws || !ws.length) continue;
+    for (const [K, ws] of tipLaunches(net, byG)) {
       const Lc = K.root.coh > 0 ? K.root.coh : Infinity;
       const sorted = ws.slice().sort((a, b) => (a.fo || 0) - (b.fo || 0) || a.dl - b.dl);
       let cl = [];
@@ -9613,7 +9665,8 @@ function fibrePdParts(el, minus) {
   if (!net) return out;
   const byG = net.pd.get(el.id + (minus ? '~' : ''));
   if (!byG) return out;
-  for (const K of net.keys) if (!K.root.ase) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, key: K.gk, nm: K.nm });
+  // broadband light (an amplifier's ASE, an LED's slices) makes no beat notes: its noise is counted apart
+  for (const K of net.keys) if (!K.root.ase && !K.root.slice) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, key: K.gk, nm: K.nm });
   return out;
 }
 /* a free-space photodiode's light: each arriving beam's field summed over the diode against
@@ -9752,7 +9805,7 @@ function pdSignal(el) {
       for (const K of lastTrace.net.keys) {
         const m = netPower(byG, [K]);
         tot += m;
-        if (K.root.ase || (K.root.cmode === 'broad' && !(K.root.tau > 0) && K.root.coh > 0)) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
+        if (K.root.ase || (K.root.cmode === 'broad' && !(K.root.tau > 0) && K.root.coh > 0)) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: K.root.nb || C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
         else if (m > sigMw) { sigMw = m; sigNm = K.nm; }
       }
       const Ps = Math.max(0, tot - ase) * 1e-3, Pa = ase * 1e-3;
@@ -10513,7 +10566,7 @@ function coherenceNote(el) {
   const dnu = 299792458e3 / el.coh, dl = el.wavelength * el.wavelength * 1e-6 / el.coh;
   if (el.cmode === 'broad') return 'Broadband: ' + (+dl.toPrecision(3)) + ' nm wide (FWHM, Gaussian), a coherence length of ' + fmtLen(el.coh) + ', ' +
     (+(el.coh / (el.wavelength * 1e-6)).toPrecision(2)) + ' wavelengths. Its own light adds as powers, but for paths equal to within about that (white-light fringes, at a balanced interferometer), ' +
-    'and a cavity passes its average over the band. Lenses, gratings and filters see its centre wavelength. Separate sources never interfere.';
+    'and a cavity passes its average over the band. In fibre its band is followed in slices, so filters, WDMs and Bragg gratings there shape it (a spectrum analyser shows it); in free space, lenses, gratings and filters see its centre wavelength. Separate sources never interfere.';
   return 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
     'Two paths of this source a distance \u0394L apart interfere with fringe contrast ' + (el.lineshape === 'gauss' ? 'exp(\u2212(\u03c0\u0394L/Lc)\u00b2/4 ln 2)' : 'exp(\u2212\u03c0|\u0394L|/Lc)') +
     ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
@@ -21263,7 +21316,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     add(kind) { addElement(kind); traceScene(); return selected().name; },
     palette(name) { return PALETTES[name].map(it => it[0]); },
     fibreCount() { return (project.fibres || []).length; },
-    osa(name) { const el = this.byName(name), L = osaLines(el), [lo, hi] = osaSpan(el, L), T = osaTrace(el, L, lo, hi, 2001); return { lines: L.map(q => ({ nm: q.nm, mw: q.mw, w: q.w })), lo, hi, peak: Math.max(...T.ys) }; },
+    osa(name) { const el = this.byName(name), L = osaLines(el), [lo, hi] = osaSpan(el, L), T = osaTrace(el, L, lo, hi, 4001), pk = Math.max(...T.ys);
+      // the width at half the peak, the crossings placed by interpolation
+      const i0 = T.ys.findIndex(y => y >= pk / 2), i1 = T.ys.length - 1 - [...T.ys].reverse().findIndex(y => y >= pk / 2);
+      const at = (i, j) => T.xs[i] + (pk / 2 - T.ys[i]) / (T.ys[j] - T.ys[i]) * (T.xs[j] - T.xs[i]);
+      return { lines: L.map(q => ({ nm: q.nm, mw: q.mw, w: q.w })), lo, hi, peak: pk, fwhm: (i1 < T.ys.length - 1 ? at(i1, i1 + 1) : T.xs[i1]) - (i0 > 0 ? at(i0 - 1, i0) : T.xs[i0]) }; },
     portCount(name) { return portsOf(this.byName(name)).length; },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },

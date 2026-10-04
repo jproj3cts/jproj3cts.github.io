@@ -2970,6 +2970,19 @@ const TESTS = [
     },
   },
   {
+    name: 'Broadband light is filtered across its band, not at its centre',
+    why: 'a 1 mW LED 40 nm wide at 1550 nm through a 2 nm tunable filter at 1550 nm (no loss) onto a spectrum analyser (0.05 nm resolution): through, the power in the band, \u222bS\u00b7T = 1 mW \u00d7 2/\u221a(40\u00b2 + 2\u00b2); shown 2 nm wide (exactly 1/\u221a(1/2\u00b2 + 1/40\u00b2), with the resolution); and through a filter at 1570 nm, the band\u2019s wing, the power there: the largest relative error',
+    want: 0, tol: 1e-2, unit: '',
+    run: J => {
+      const one = c => { J.load(fnet([fc('laser', 'L', { led: true, power: 1, bw: 40 }), fc('tbf', 'F', { centre: c, fwhm: 2, loss: 0 }), fc('osa', 'O', { rbw: 0.05 })], [['L', 0, 'F', 0], ['F', 1, 'O', 0]]));
+        return { P: J.osa('O').lines.reduce((a, q) => a + q.mw, 0), w: J.osa('O').fwhm }; };
+      const a = one(1550), b = one(1570), k = 2 / Math.hypot(40, 2), wa = 1 / Math.sqrt(1 / 4 + 1 / 1600);
+      // off centre by 20 nm: the product of two Gaussians, centred at their weighted mean and lower by exp(-4 ln2 dx^2 / (40^2 + 2^2))
+      const wing = k * Math.exp(-4 * Math.LN2 * 400 / (1600 + 4));
+      return Math.max(Math.abs(a.P / k - 1), Math.abs(a.w / Math.hypot(wa, 0.05) - 1), Math.abs(b.P / wing - 1));
+    },
+  },
+  {
     name: 'A polarisation beam splitter sends each polarisation its own way',
     why: '1 mW linear at 45\u00b0 into a PBS (axis s, 60 dB extinction, no loss): half along, half across; s alone: all along, 10\u207b\u2076 leaking across: the largest error in mW',
     want: 0, tol: 1e-9, unit: ' mW',
@@ -3066,12 +3079,12 @@ const TESTS = [
   },
   {
     name: 'An optical spectrum analyser shows a laser at its power and an LED by its density',
-    why: 'resolution 0.1 nm: a 1 mW single-frequency laser peaks at 1 mW (0 dBm); a 1 mW LED 40 nm wide at 1 mW \u00d7 0.1/\u221a(40\u00b2 + 0.1\u00b2), about \u221226 dBm, its line 40 nm wide: the largest relative error',
-    want: 0, tol: 1e-6, unit: '',
+    why: 'resolution 0.1 nm: a 1 mW single-frequency laser peaks at 1 mW (0 dBm), 0.1 nm wide; a 1 mW LED 40 nm wide (its band in 21 slices) at 1 mW \u00d7 0.1/\u221a(40\u00b2 + 0.1\u00b2), about \u221226 dBm, and 40 nm wide at half its peak (to the 0.3% of the band\u2019s power beyond 3\u03c3, which its slices leave out): the largest relative error',
+    want: 0, tol: 4e-3, unit: '',
     run: J => {
       const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1 }, o)), fc('osa', 'O', { rbw: 0.1 })], [['L', 0, 'O', 0]])); return J.osa('O'); };
       const a = one({}), b = one({ led: true, bw: 40 });
-      return Math.max(Math.abs(a.peak - 1), Math.abs(b.peak / (0.1 / Math.hypot(40, 0.1)) - 1), Math.abs(b.lines[0].w / 40 - 1));
+      return Math.max(Math.abs(a.peak - 1), Math.abs(a.fwhm / 0.1 - 1), Math.abs(b.peak / (0.1 / Math.hypot(40, 0.1)) - 1), Math.abs(b.fwhm / Math.hypot(40, 0.1) - 1));
     },
   },
   {
@@ -3087,12 +3100,12 @@ const TESTS = [
   },
   {
     name: 'and its light beats with itself on a photodetector',
-    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2P\u00b2B/\u0394\u03bd, over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B/\u0394\u03bd, and 1 if it stays for a single frequency',
+    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2B\u222bS\u00b2d\u03bd = R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0) for its Gaussian spectrum (\u03c3 its width in Hz over 2.355), over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0), and 1 if it stays for a single frequency',
     want: 1, tol: 1e-6, unit: '',
     run: J => {
       const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1, bw: 40 }, o)), fc('pd', 'P', { material: 'custom', resp: 1 })], [['L', 0, 'P', 0]])); return J.pdSignal('P'); };
-      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.B, dnu = 299792458 * 40e-9 / (1550e-9) ** 2;
-      return S.noise.parts.aseAse / ((1e-3) ** 2 * B / dnu) + (C.noise.parts.aseAse > 0 ? 1 : 0);
+      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.B, sg = 299792458 * 40e-9 / (1550e-9) ** 2 / 2.3548;
+      return S.noise.parts.aseAse / ((1e-3) ** 2 * B / (2 * sg * Math.sqrt(Math.PI))) + (C.noise.parts.aseAse > 0 ? 1 : 0);
     },
   },
   {

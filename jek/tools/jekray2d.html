@@ -689,6 +689,24 @@
   /* the menu bar's own items: flat words, lit on hover, as a menu bar's */
   .rt-btn.rt-mbar { background: none; border-color: transparent; font-weight: 600; }
   .rt-btn.rt-mbar:hover, .rt-btn.rt-mbar[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
+  .rt-barlink { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 500; color: var(--jek-ink-soft); }
+  .rt-barlink:hover { color: var(--jek-ink); }
+  .rt-barlink .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  /* on a desktop the bar stays one row, giving way as the window narrows: the bench's name first,
+     then the title, then Cite and Report a bug's words (their icons stay), then they and Examples go
+     to the Help and File menus */
+  @media (min-width: 961px) {
+    .rt-bar { flex-wrap: nowrap; }
+    .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
+    .rt-file { flex: 0 1 auto; min-width: 0; }
+    .rt-file .rt-name { flex: 0 1 15rem; min-width: 8rem; width: auto; }
+  }
+  @media (max-width: 1380px) { .rt-bar .rt-title { display: none; } }
+  @media (max-width: 1240px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
+  @media (max-width: 1100px) {
+    .rt-barlink, #btnExamples { display: none; }
+    .rt-menu button.rt-narrow[data-click="btnExamples"] { display: flex; }
+  }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
@@ -847,6 +865,8 @@
           </div>
         </div>
         <div class="rt-group rt-right">
+          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray2D in a paper or thesis"><span class="lbl">Cite</span></button>
+          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
           <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
           <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
@@ -20554,7 +20574,9 @@ const MENU_ICONS = {
   bug: 'M5 6.5A3 3.5 0 0 1 11 6.5V10A3 3.5 0 0 1 5 10Z M8 6.5V13 M5 8.5H2 M11 8.5H14 M5.5 5L3.5 3 M10.5 5L12.5 3 M5 11.5L3 13.5 M11 11.5L13 13.5',
   flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7',
 };
-for (const n of document.querySelectorAll('.rt-imenu [data-icon]')) {
+// Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
+for (const b of document.querySelectorAll('.rt-barlink')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
+for (const n of document.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');

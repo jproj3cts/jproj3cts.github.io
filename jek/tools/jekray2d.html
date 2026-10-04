@@ -191,7 +191,7 @@
     background: transparent; color: var(--jek-ink-soft); cursor: pointer; transform: rotate(0deg);
   }
   .rt-pin:hover { color: var(--jek-ink); border-color: var(--jek-ink-soft); }
-  .rt-pin.on { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
+  .rt-pin.on { color: #fff; background: var(--jek-bar); border-color: var(--jek-bar); }
   .rt-pin:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned h2 { cursor: pointer; }
   .rt-cavity { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); }
@@ -640,7 +640,7 @@
   }
   /* a pinned panel being dragged to a new place by its title */
   .rt-pinned h2 { touch-action: none; user-select: none; -webkit-user-select: none; }
-  .rt-pinned.moving { opacity: 0.75; outline: 2px dashed var(--jek-cyan); outline-offset: -2px; }
+  .rt-pinned.moving { position: relative; z-index: 6; box-shadow: 0 10px 28px rgba(0,0,0,0.28); cursor: grabbing; }
 
   @media (max-width: 960px) {
     .rt-app .rt-wrap { height: auto; min-height: 0; }
@@ -9848,50 +9848,94 @@ function syncPanel() {
 }
 
 const PIN_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M10.2 1.6 14.4 5.8 12.6 6.4 9.9 9.1 10.3 12.1 9.1 13.3 6.3 10.5 2.6 14.2 1.8 13.4 5.5 9.7 2.7 6.9 3.9 5.7 6.9 6.1 9.6 3.4Z" fill="currentColor"/></svg>';
-function togglePin(el) {
-  if (pins.includes(el.id)) pins = pins.filter(id => id !== el.id);
-  else pins.unshift(el.id);                     // the newest pin sits next to the main panel
+// the Bench panel pins as an element does, under an id no element can have
+const BENCH_PIN = '#bench';
+const pinOk = id => id === BENCH_PIN || !!getEl(id);
+function togglePin(el) { togglePinId(el.id); }
+function togglePinId(id) {
+  if (pins.includes(id)) pins = pins.filter(p => p !== id);
+  else pins.unshift(id);                        // the newest pin sits next to the main panel
   renderPanel();
+}
+/* the pin button and, on a pinned panel, its title's click (to select) and drag (to reorder) */
+function pinTitle(title, id, onSelect) {
+  const pinned = pins.includes(id);
+  const pinBtn = h('button', { class: 'rt-pin' + (pinned ? ' on' : ''), type: 'button', 'aria-pressed': pinned ? 'true' : 'false',
+    title: pinned ? 'Unpin: let this panel close when something else is selected' : 'Pin: keep this panel open while you select other things',
+    onclick: () => togglePinId(id) });
+  pinBtn.innerHTML = PIN_SVG;
+  title.append(pinBtn);
+  if (panel !== mainPanel) {
+    const box = panel;                          // the panel being built now (panel is reassigned after)
+    title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });
+    title.addEventListener('pointerdown', e => dragPinned(e, title, box, id));
+  }
+}
+/* slide boxes from where they were to where they now are (they have moved in the page) */
+function slideFrom(before, skip) {
+  for (const [b, r0] of before) {
+    if (b === skip) continue;
+    const r1 = b.getBoundingClientRect(), dx = r0.left - r1.left, dy = r0.top - r1.top;
+    if (!dx && !dy) continue;
+    b.style.transition = 'none'; b.style.transform = `translate(${dx}px, ${dy}px)`;
+    b.getBoundingClientRect();                  // take that as the start
+    b.style.transition = 'transform 180ms ease'; b.style.transform = '';
+  }
 }
 /* A pinned panel dragged by its title to another place among the pinned panels: it moves as
    the pointer passes the middle of its neighbours, and a drag of a few pixels is not a click */
 function dragPinned(e, title, box, id) {
   if (e.button !== 0 || e.target.closest('.rt-pin')) return;
   e.preventDefault();                           // no text selection as it is dragged
-  const x0 = e.clientX, y0 = e.clientY;
+  const x0 = e.clientX, y0 = e.clientY, vertical = window.innerWidth <= 960;
+  const r0 = box.getBoundingClientRect(), gx = x0 - r0.left, gy = y0 - r0.top;
   let moving = false;
+  // the dragged box follows the pointer from wherever it now sits in the row
+  const follow = ev => {
+    box.style.transition = 'none'; box.style.transform = '';
+    const r = box.getBoundingClientRect();
+    box.style.transform = vertical ? `translateY(${ev.clientY - gy - r.top}px)` : `translateX(${ev.clientX - gx - r.left}px)`;
+  };
   const move = ev => {
     if (!moving) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; moving = true; box.classList.add('moving'); const ws = window.getSelection(); if (ws) ws.removeAllRanges(); }
     const others = pins.filter(p => p !== id), boxes = others.map(p => pinBoxes.get(p));
-    const vertical = window.innerWidth <= 960;
     let k = 0;
-    boxes.forEach(b => { const r = b.getBoundingClientRect(); if (vertical ? ev.clientY > r.top + r.height / 2 : ev.clientX > r.left + r.width / 2) k = boxes.indexOf(b) + 1; });
+    boxes.forEach((b, n) => { const r = b.getBoundingClientRect(); if (vertical ? ev.clientY > r.top + r.height / 2 : ev.clientX > r.left + r.width / 2) k = n + 1; });
     const next = [...others.slice(0, k), id, ...others.slice(k)];
-    if (next.join() === pins.join()) return;
-    // move the boxes, keeping where each was scrolled to
-    const sc = new Map([...pinBoxes].map(([p, b]) => [p, b.scrollTop]));
-    pins = next;
-    let after = mainPanel;
-    for (const p of pins) { const b = pinBoxes.get(p); if (after.nextElementSibling !== b) after.after(b); after = b; }
-    for (const [p, b] of pinBoxes) if (b.scrollTop !== sc.get(p)) b.scrollTop = sc.get(p);
+    if (next.join() !== pins.join()) {
+      // move the boxes, keeping where each was scrolled to, and slide the others into place
+      const sc = new Map([...pinBoxes].map(([p, b]) => [p, b.scrollTop]));
+      const before = new Map(boxes.map(b => [b, b.getBoundingClientRect()]));
+      pins = next;
+      let after = mainPanel;
+      for (const p of pins) { const b = pinBoxes.get(p); if (after.nextElementSibling !== b) after.after(b); after = b; }
+      for (const [p, b] of pinBoxes) if (b.scrollTop !== sc.get(p)) b.scrollTop = sc.get(p);
+      slideFrom(before, box);
+    }
+    follow(ev);
   };
   const up = () => {
     window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
-    if (moving) { box.classList.remove('moving'); title._dragged = true; setTimeout(() => { title._dragged = false; }, 0); renderPanel(); }
+    if (!moving) return;
+    title._dragged = true; setTimeout(() => { title._dragged = false; }, 0);
+    // and it settles into its place
+    box.style.transition = 'transform 180ms ease'; box.style.transform = '';
+    setTimeout(() => { box.classList.remove('moving'); box.style.transition = ''; renderPanel(); }, 190);
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
 function renderPanel() {
-  pins = pins.filter(id => getEl(id));
+  pins = pins.filter(pinOk);
   for (const [id, box] of pinBoxes) if (!pins.includes(id)) { box.remove(); pinBoxes.delete(id); }
   // a pinned panel keeps its place in its own content while the selection moves around it:
   // read every scroll before anything is rebuilt or moved, since a box taken out of the
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
-  const mainShows = !(sel && pins.includes(sel.id));
+  // with nothing selected the main panel would show the Bench: not if that is pinned
+  const mainShows = sel ? !pins.includes(sel.id) : !(pins.includes(BENCH_PIN) && !selFibre());
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
   mainPanel.parentElement.style.setProperty('--rt-cols', String((mainShows ? 1 : 0) + pins.length));
@@ -9902,7 +9946,7 @@ function renderPanel() {
     if (!box) { box = h('aside', { class: 'rt-panel rt-pinned', 'aria-label': 'Pinned properties' }); pinBoxes.set(id, box); }
     if (after.nextElementSibling !== box) after.after(box);
     after = box;
-    box.classList.toggle('current', !!sel && sel.id === id);
+    box.classList.toggle('current', sel ? sel.id === id : id === BENCH_PIN && !selFibre());
     renderInto(box, getEl(id));
     if (scrolls.has(id)) holdScroll(box, scrolls.get(id));
   }
@@ -9944,16 +9988,8 @@ function renderPanelBody(el) {
   if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
   if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : F.wire ? ELEC.wirePanel : fibreLinkPanel)(F); else renderOverview(); return; }   // PIC hook
 
-  const pinned = pins.includes(el.id);
-  const pinBtn = h('button', { class: 'rt-pin' + (pinned ? ' on' : ''), type: 'button', 'aria-pressed': pinned ? 'true' : 'false',
-    title: pinned ? 'Unpin: let this panel close when something else is selected' : 'Pin: keep this panel open while you select other things',
-    onclick: () => togglePin(el) });
-  pinBtn.innerHTML = PIN_SVG;
-  const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)), pinBtn);
-  if (panel !== mainPanel) {
-    title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } selectEl(el); });
-    title.addEventListener('pointerdown', e => dragPinned(e, title, panel, el.id));
-  }
+  const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
+  pinTitle(title, el.id, () => selectEl(el));
   panel.append(title);
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
@@ -12638,7 +12674,9 @@ function drawCavityScan(cv, c, pseudo) {
 
 let benchTab = 'bench';
 function renderOverview() {
-  panel.append(h('h2', null, 'Bench'));
+  const title = h('h2', null, h('span', { style: 'flex:1' }, 'Bench'));
+  pinTitle(title, BENCH_PIN, () => { selectOne(null); renderPanel(); requestRender(); });
+  panel.append(title);
   // a bench with a cavity gets a Cavity tab, boxed in orange so it is plain there is one
   const cavs = project.elements.length ? findCavities() : [];
   if (!cavs.length) benchTab = 'bench';
@@ -18637,7 +18675,7 @@ function applyUi(ui) {
     const el = getEl(id);
     if (el && v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (plainVal(x)) vs(el)[k] = x;
   }
-  pins = (Array.isArray(ui.pins) ? ui.pins : []).filter(id => typeof id === 'string' && getEl(id));
+  pins = (Array.isArray(ui.pins) ? ui.pins : []).filter(id => typeof id === 'string' && pinOk(id));
   if (typeof ui.sel === 'string' && getEl(ui.sel)) selectOne(ui.sel);
   traceScene();
   renderPanel(); requestRender();

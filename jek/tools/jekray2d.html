@@ -20264,6 +20264,14 @@ document.getElementById('btnSave').addEventListener('click', saveFile);
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
+  ['Since 1.0', '29 September \u2013 4 October 2026', [
+    '<b>Electronics</b> (experimental): a fourth palette, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
+    'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',
+    'A <b>fibre-coupled LED</b>, and unpolarised fibre lasers. In fibre, broadband light is followed across its band, so filters, WDMs and Bragg gratings shape it, and it beats with itself on a photodetector.',
+    'New <b>fibre parts</b>: splitters and combiners (1\u00d7N, typed), M\u00d7N star couplers, a polarisation beam splitter, a <b>balanced photodetector</b>, an <b>optical spectrum analyser</b>, a fibre mirror, an optical switch, a variable delay line, a fibre stretcher (piezo, with a drive input), a tunable filter, a depolariser and a semiconductor amplifier. Fibres\u2019 ends can be connectors that reflect (PC, APC, flat cleaves).',
+    'Photodetectors in free space and fibre now work alike (material, dark current, amplifier noise), the free-space one drawn as a semicircle, with scope and spectrum views that match the instruments. An <b>optical chopper</b> for the free-space palette.',
+    'A bench that fills the window, a <b>Bench panel you can pin</b>, R and Shift+R to turn parts, steady readouts while sweeping, and the optimiser on mirrors as on screens.',
+    'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.']],
   ['1.0', APP_DATE, [
     'The free edition. An <b>examples gallery</b> with a picture of each bench, and a search.',
     '<b>Guided tours</b>: focus a laser beam, and build a Michelson interferometer, step by step on a tab of their own.',
@@ -20302,7 +20310,7 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
     body.replaceChildren(...NEWS.flatMap(([v, date, items]) => {
       const ul = h('ul');
       for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); }
-      return [h('h3', null, v === 'Before 1.0' ? v : 'Version ' + v, h('span', null, date)), ul];
+      return [h('h3', null, /^\d/.test(v) ? 'Version ' + v : v, h('span', null, date)), ul];
     }));
     dot.hidden = true;
     try { localStorage.setItem(NEWS_KEY, APP_VERSION); } catch (err) { /* shown again: fine */ }

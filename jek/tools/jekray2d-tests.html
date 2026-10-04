@@ -4276,6 +4276,55 @@ const TESTS = [
       return Math.max(e, Math.abs(lo) > 0.1 || Math.abs(hi - 5) > 0.1 ? 1 : 0);
     }),
   },
+  {
+    name: 'Light meets the electronics: a chopped beam’s photocurrent',
+    why: 'a 1 mW Gaussian beam through a 1 kHz chopper onto a bare photodiode: a square of current, so the fundamental is 4/π of its DC and the third harmonic a third of the fundamental; as a photodetector instead, its DC is the gain (10⁴ V/A) times the photodiode’s: the largest relative error',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const bench = diode => elecRun(J, [elecLaser(), { type: 'chopper', id: 'C', name: 'Chopper', x: 30, y: 0, f: 1000 }, { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180, diode }, elecPart('scope', 'SC', { x: 100 })],
+        [], () => J.elec.signal('PD', 0), [['D', 0, 'SC', 0]]);
+      const a = bench(true), b = bench(false), T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp;
+      return Math.max(Math.abs(T(a, 1000) / a.dc / (4 / Math.PI) - 1), Math.abs(T(a, 3000) / T(a, 1000) * 3 - 1) / 100, Math.abs(b.dc / a.dc / 1e4 - 1), a.unit === 'A' && b.unit === 'V' ? 0 : 1);
+    },
+  },
+  {
+    name: 'and the light follows each drive by its own law',
+    why: 'a laser’s power by 100%/V from a 0.5 V sine: a swing of half its DC; a fibre AOM’s output with 0.5 ± 0.25 V on its RF input: η = sin²(πv/2), so a fundamental of J₁(π/4) of the full power; an EOM in amplitude mode at 90° bias, Vπ 5 V, 1 V sine: a fundamental of 2J₁(π/5) of its DC: the largest relative error (the AOM and EOM read through a spline through 21 traced levels)',
+    want: 0, tol: 1e-4, unit: '',
+    run: J => {
+      const T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp, pd = { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180, diode: true };
+      const J1 = x => { let s = 0, t = x / 2; for (let k = 0; k < 30; k++) { s += t; t *= -(x * x / 4) / ((k + 1) * (k + 2)); } return s; };
+      const las = elecRun(J, [elecLaser({ modk: 100 }), elecPart('sig', 'G', { amp: 0.5, x: -40 }), pd, elecPart('scope', 'SC', { x: 100 })], [], () => J.elec.signal('PD', 0), [['G', 0, 'L', 0], ['D', 0, 'SC', 0]]);
+      const aom = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, power: 2 }, { type: 'fcomp', kind: 'aom', id: 'FA', name: 'FA', x: 30, y: 0, loss: 0 },
+        { type: 'fcomp', kind: 'pd', id: 'FP', name: 'FP', x: 60, y: 0, diode: true }, elecPart('sig', 'G', { amp: 0.25, offset: 0.5, y: 30 }), elecPart('scope', 'SC', { x: 100 })],
+        [], () => J.elec.signal('FP', 0), [['G', 0, 'FA', 2], ['FP', 1, 'SC', 0]], [{ a: ['FL', 0], b: ['FA', 0], len: 1, loss: 0 }, { a: ['FA', 1], b: ['FP', 0], len: 1, loss: 0 }]);
+      const eom = elecRun(J, [elecLaser(), { type: 'eom', id: 'M', name: 'EOM', x: 30, y: 0, emode: 'amplitude', beta: 0, bias: 90, vpi: 5 }, elecPart('sig', 'G', { amp: 1, y: 30 }), pd, elecPart('scope', 'SC', { x: 100 })],
+        [], () => J.elec.signal('PD', 0), [['G', 0, 'M', 0], ['D', 0, 'SC', 0]]);
+      return Math.max(Math.abs(T(las, 1000) / las.dc / 0.5 - 1), Math.abs(T(aom, 1000) / 2e-3 / J1(Math.PI / 4) - 1), Math.abs(T(eom, 1000) / eom.dc / (2 * J1(Math.PI / 5)) - 1));
+    },
+  },
+  {
+    name: 'and a lock-in on the chopper’s reference reads the chopped light',
+    why: 'a photodetector behind a 1 kHz chopper into a lock-in, its reference the chopper’s: R = √2 V_open/π, θ the amplifier’s lag −atan(1 kHz/1 MHz), with V_open twice the DC; read through the diffracted field instead, the same DC: the largest relative error (θ in degrees over 180)',
+    want: 0, tol: 1e-5, unit: '',
+    run: J => {
+      const run = field => elecRun(J, [elecLaser(), { type: 'chopper', id: 'C', name: 'Chopper', x: 30, y: 0, f: 1000 }, Object.assign({ type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180 }, field ? { fieldSample: true } : {}), elecPart('lockin', 'LI', { x: 100 })],
+        [], () => [J.elec.lockin('LI'), J.elec.signal('PD', 0).dc], [['D', 0, 'LI', 0], ['C', 0, 'LI', 1]]);
+      const [L, dc] = run(false), [, dcF] = run(true), Vo = 2 * dc, lag = Math.atan(1e-3) * 180 / Math.PI;
+      return Math.max(Math.abs(L.R / (Math.SQRT2 * Vo / Math.PI) * Math.sqrt(1 + 1e-6) - 1), Math.abs(L.theta + lag) / 180, Math.abs(dcF / dc - 1) / 10);
+    },
+  },
+  {
+    name: 'and wires to optical parts are kept, with their settings',
+    why: 'a chopper’s reference and a photodiode’s output wired to a lock-in, a laser’s modulation from a generator: saved and opened again, all three wires, the photodiode still bare and the laser’s modulation depth kept',
+    want: 3, tol: 0, unit: ' wires',
+    run: J => elecRun(J, [elecLaser({ modk: 40 }), { type: 'chopper', id: 'C', name: 'Chopper', x: 30, y: 0 }, { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180, diode: true }, elecPart('sig', 'G', { x: -40 }), elecPart('lockin', 'LI', { x: 100 })],
+      [], () => {
+        J.load(JSON.parse(JSON.stringify(J.serialize())));
+        const P = J.project(), d = P.elements.find(e => e.id === 'D'), l = P.elements.find(e => e.id === 'L');
+        return d.diode === true && l.modk === 40 ? P.fibres.filter(F => F.wire).length : -1;
+      }, [['D', 0, 'LI', 0], ['C', 0, 'LI', 1], ['G', 0, 'L', 0]]),
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',
@@ -4439,13 +4488,18 @@ const elecPart = (kind, name, o) => Object.assign({ type: 'elec', kind, id: name
 const elecBench = (els, wires) => ({ format: 'jekray', version: 1, name: 'elec', elements: els,
   fibres: (wires || []).map(([a, i, b, j]) => ({ a: [a, i], b: [b, j + 0], wire: true })) });
 /* run fn with the bench loaded and electronics switched on; an output index counts after the inputs */
-function elecRun(J, els, wires, fn) {
+function elecRun(J, els, wires, fn, raw, fibres) {
   J.experimental(true);
   const K = { sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
   const kinds = new Map(els.map(e => [e.name, e.kind]));
-  J.load(elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j])));
+  // raw: wires as [from id, port, to id, port], ports counted as the tool does (for optical parts)
+  const B = elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j]).concat(raw || []));
+  B.fibres.push(...(fibres || []));
+  J.load(B);
   try { return fn(); } finally { J.experimental(false); }
 }
+/* a 1 mW Gaussian beam at 633 nm along +x from the origin, as a laser for the electronics */
+const elecLaser = o => Object.assign({ type: 'source', id: 'L', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, wavelength: 633, power: 1, rays: 1, width: 1 }, o || {});
 /* a grid of directional couplers joined right and down, each row's end looping into the next row's start */
 function picLattice(R, C) {
   const els = [], fibres = [], wg = len => ({ preset: 'si', len });

@@ -611,7 +611,7 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 |---|---|---|
 | rl | `60` | Return loss (dB) |
 
-### kind "pd": Fibre photodiode
+### kind "pd": Fibre photodetector
 
 **ports:** 0 = in
 

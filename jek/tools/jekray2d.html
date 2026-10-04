@@ -1754,11 +1754,13 @@ function besselJ(n, x) {
 }
 /* an EOM's sidebands: [n, complex amplitude], those with more than 1e-5 of the power */
 function eomSidebands(el) {
-  const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180;
+  // ELEC hook: a slow drive _v (volts, set only while the electronics trace it) adds to the bias, or in phase mode a phase pi v / V_pi
+  const dv = el._v ? el._v / Math.max(1e-6, num(el.vpi, 5)) : 0;
+  const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180 + dv * Math.PI;
   for (let n = -40; n <= 40; n++) {
     let c;
     if (el.emode === 'amplitude') { const j = besselJ(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
-    else c = [besselJ(n, b), 0];
+    else c = [besselJ(n, b) * Math.cos(dv * Math.PI), besselJ(n, b) * Math.sin(dv * Math.PI)];
     c = [c[0] * a, c[1] * a];
     if (c[0] * c[0] + c[1] * c[1] > 1e-20) out.push([n, c]);
   }
@@ -2238,7 +2240,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2383,6 +2385,7 @@ function normSurface(s) {
 function normElement(e) {
   const o = normElementBase(e);
   if (!o) return null;
+  ELEC.normExtra(e, o);                                                                      // ELEC hook: an optical part's electrical settings
   if (o.type === 'source' && o.fibre) applyFibre(o);     // a fibre launch sets its own beam
   if ((o.type === 'source' || (o.type === 'fcomp' && o.kind === 'laser')) && o.tau > 0) applyPulse(o);
   o.sweeps = {};
@@ -2622,6 +2625,7 @@ function normElementBase(e) {
     }
     case 'pic': return PIC.norm(e, base);                                                    // PIC hook
     case 'elec': return ELEC.norm(e, base);                                                  // ELEC hook
+    case 'chopper': return ELEC.normChopper(e, base);                                        // ELEC hook
     case 'nlc':
       return Object.assign(base, {
         length: Math.max(0.1, num(e.length, 3)),              // aperture across, mm
@@ -2806,9 +2810,9 @@ function normMeasures(list, benches) {
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
 function normFibres(list, els) {
   const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
-  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0;
+  const nPorts = e => (e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0) + (e.type !== 'elec' ? ELEC.extra(e).length : 0);
   // ELEC hook: an electrical port's direction, for wires
-  const dir = x => { const e = byId.get(x[0]), P = e && e.type === 'elec' && ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null; return P && P.elec || null; };
+  const dir = x => { const e = byId.get(x[0]), P = !e ? null : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null) : portsOf(e)[x[1]]; return P && P.elec || null; };
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
   for (const F of Array.isArray(list) ? list : []) {
     let a = F && end(F.a), b = F && end(F.b);
@@ -3251,6 +3255,7 @@ function elementSurfaces(el) {
     return [face(-L), makeSurf(el, 0, 0, 0, 0, [], a, { kind: 'nlc' }), face(L)];
   }
   if (el.type === 'link') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'link' })];
+  if (el.type === 'chopper') return ELEC.chopSurfaces(el);                                    // ELEC hook: shut, a beam block
   if (el.type === 'stop') {
     return stopBlades(el).map(([lo, hi]) => makeSurf(el, 0, 0, 0, 0, [], (hi - lo) / 2,
       { kind: 'absorb', lf: { x: 0, y: (lo + hi) / 2, a: 0 } }));
@@ -5044,6 +5049,7 @@ function halfSize(el) {
   if (el.type === 'fcomp') return FC_H / 2 + 1;
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
+  if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return Math.max(el.width / 2, 5);
   if (el.type === 'stop') return el.outer / 2;
@@ -5183,7 +5189,7 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, source: 3 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   drawFibres();
   for (const el of els) if (el.type !== 'source') draw(el);
@@ -5305,7 +5311,9 @@ function roundRect(w, hh, r) {
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
 function drawPorts(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
+  ELEC.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
+    if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = on ? FIBRE_COLOUR : '#1b2327'; ctx.fill();
@@ -5462,9 +5470,9 @@ function drawFibreNodes(F, segs) {
 function portAt(px, py) {
   const r = 8;
   for (const el of project.elements) {
-    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic' && el.type !== 'elec')) continue;   // ELEC hook
-    const n = portsOf(el).length;
-    for (let i = 0; i < n; i++) { const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
+    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic' && el.type !== 'elec' && !ELEC.extra(el).length)) continue;   // ELEC hook
+    const ps = portsOf(el), n = ps.length;
+    for (let i = 0; i < n; i++) { if (ps[i].elec && el.type !== 'elec' && !exp('elec')) continue; const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
   }
   return null;
 }
@@ -5608,7 +5616,12 @@ function filterColour(el) {
   return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
 }
 function draw(el) {
+  drawBody(el);
+  if (el.type !== 'fcomp') ELEC.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
+}
+function drawBody(el) {
   const sel = el.id === selectedId || extraSel.has(el.id);
+  if (el.type === 'chopper') return ELEC.drawChopper(el, sel);                                // ELEC hook
   if (el.type === 'grating') return drawGrating(el, sel);
   if (el.type === 'aom' || el.type === 'eom') return drawModulator(el, sel);
   if (el.type === 'fibre') return drawFibre(el, sel);
@@ -5645,7 +5658,7 @@ function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, pic: 1, aom: 1, eom: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
+    filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, pic: 1, aom: 1, eom: 1, chopper: 1, elec: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) {
     const f = frame(el);
@@ -5675,6 +5688,7 @@ function hitTest(px, py) {
     }
     if (el.type === 'pic') { if (PIC.hit(el, lx, ly, tol)) return el; continue; }               // PIC hook
     if (el.type === 'elec') { if (ELEC.hit(el, lx, ly, tol)) return el; continue; }             // ELEC hook
+    if (el.type === 'chopper') { if (ELEC.hitChopper(el, lx, ly, tol)) return el; continue; }   // ELEC hook
     if (el.type === 'cell') {
       if (Math.abs(lx) <= el.cellLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
@@ -6853,7 +6867,7 @@ const FC = {
   term: { label: 'Terminator', tag: 'TERM', ports: [[-1, 0]], names: ['in'],
     params: [['rl', 'Return loss (dB)', 60]],
     S: el => [[0, 0, J2.I(dBa(el.rl))]] },
-  pd: { label: 'Fibre photodiode', tag: 'PD', ports: [[-1, 0]], names: ['in'],
+  pd: { label: 'Fibre photodetector', tag: 'PD', ports: [[-1, 0]], names: ['in'],
     params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
       ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (\u00b0)', 0]],
     S: () => [] },
@@ -6867,7 +6881,7 @@ const FC = {
   aom: { label: 'Fibre AOM', tag: 'AOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
     params: [['rf', 'Drive (MHz)', 80], ['order', 'Order (+1 or \u22121)', 1], ['loss', 'Insertion loss (dB)', 2.5]],
     // the shifted order is what the output fibre takes; order 0 is dumped
-    S: el => { const t = J2.I(dBa(el.loss)), f = (el.order < 0 ? -1 : 1) * el.rf * 1e6; return [[0, 1, t, f], [1, 0, t, -f]]; } },
+    S: el => { const t = J2.I(dBa(el.loss) * Math.sqrt(el._eta === undefined ? 1 : el._eta)), f = (el.order < 0 ? -1 : 1) * el.rf * 1e6; return [[0, 1, t, f], [1, 0, t, -f]]; } },   // ELEC hook: _eta, an RF level
   eom: { label: 'Fibre EOM', tag: 'EOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
     params: [['fm', 'Drive (MHz)', 1000], ['beta', 'Depth \u03b2 (rad)', 1.08], ['bias', 'Bias (\u00b0, amplitude mode)', 90], ['loss', 'Insertion loss (dB)', 3]],
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
@@ -6891,6 +6905,10 @@ const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 
 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
+  const X = ELEC.extra(el);                                                                  // ELEC hook: electrical ports after the fibre ones
+  return X.length ? portsOfOptic(el).concat(X) : portsOfOptic(el);
+}
+function portsOfOptic(el) {
   if (el.type === 'fcomp') return FC[el.kind].portList;
   if (el.type === 'pic') return PIC.ports(el);                                                // PIC hook
   if (el.type === 'elec') return ELEC.ports(el);                                              // ELEC hook
@@ -6898,7 +6916,7 @@ function portsOf(el) {
   return [];
 }
 const fibreTail = el => Math.max(8, 30 / V().scale) + Math.max(10, 40 / V().scale);
-const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : el.type === 'elec' ? ELEC.names(el)[p] : 'fibre';   // ELEC hook
+const portName = (el, p) => (portsOf(el)[p] || {}).name || (el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : el.type === 'elec' ? ELEC.names(el)[p] : 'fibre');   // ELEC hook
 function portWorld(el, p) {
   const P = portsOf(el)[p], f = frame(el);
   const [x, y] = toWorld(f, P.x, P.y), [dx, dy] = toWorldDir(f, P.dx, P.dy);
@@ -7884,7 +7902,8 @@ const ELEC = (() => {
   };
   const PALETTE = [['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
     ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:mixer', 'Mixer'],
-    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier']]
+    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
+    ['elec:pd', 'Photodiode', 'Photodiode: a current out, no amplifier'], ['elec:fpd', 'Fibre photodiode', 'Fibre photodiode: a current out, no amplifier'], ['elec:chopper', 'Chopper', 'Optical chopper']]
     .map(([k, l, t]) => [k, l, t || l, 'elec']);
 
   /* ---------- a part's box and ports ----------
@@ -7911,7 +7930,7 @@ const ELEC = (() => {
     }
     return base;
   }
-  const make = (kind, x, y) => normElement({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
+  const make = (kind, x, y) => makeOptic(kind, x, y) || normElement({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
 
   /* ---------- drawing ---------- */
   function draw(el, sel) {
@@ -8110,7 +8129,9 @@ const ELEC = (() => {
   let memo = { key: null, R: null };
   function solve() {
     const els = project.elements.filter(e => e.type === 'elec' && KINDS[e.kind]), wires = (project.fibres || []).filter(F => F.wire);
-    const key = JSON.stringify([els, wires.map(F => [F.a, F.b])]);
+    // with light in it, the bench as a whole (the trace's key) decides it
+    const optical = wires.some(F => [F.a, F.b].some(p => { const E = getEl(p[0]); return E && E.type !== 'elec'; })) || project.elements.some(e => e.type === 'chopper');
+    const key = optical ? traceKeyNow() : JSON.stringify([els, wires.map(F => [F.a, F.b])]);
     if (memo.key === key) return memo.R;
     const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
     const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
@@ -8120,8 +8141,36 @@ const ELEC = (() => {
       const src = feed.get(pkey(el.id, i));
       if (!src) return zero();
       const E = byId.get(src[0]);
-      if (!E) return zero();                                  // driven from a part not yet in the network (optics: step 4)
+      if (!E) return fromOptics(src);
       visit(E);
+      return out.get(pkey(...src)) || zero();
+    };
+    // an optical part's output: a chopper's reference, or a photodiode's, which needs the light
+    // worked out with every drive on the bench (once, the first time one is asked for)
+    let optState = 0;
+    const fromOptics = src => {
+      const O = getEl(src[0]);
+      if (!O) return zero();
+      if (O.type === 'chopper') return chopRef(O);
+      if (!isDet(O)) return zero();
+      if (optState === 1) { note(O, 'Its output feeds back into the light it reads: loops through the light are not solved, so it reads nothing'); return zero(); }
+      if (optState === 0) {
+        optState = 1;
+        const drives = [], dets = [];
+        for (const E of project.elements) {
+          if (E.type === 'elec') continue;
+          if (E.type === 'chopper') drives.push({ el: E });
+          const base = portsOf(E).length - extra(E).length;
+          extra(E).forEach((P, k) => {
+            if (P.elec === 'in' && feed.has(pkey(E.id, base + k))) drives.push({ el: E, S: input(E, base + k) });
+          });
+          if (isDet(E) && wires.some(F => F.a[0] === E.id)) dets.push(E);
+        }
+        const OS = opticalSignals(drives, dets);
+        for (const E of dets) out.set(pkey(E.id, portsOf(E).length - 1), detOutput(E, OS.P.get(E.id), m => note(E, m)));
+        for (const m of OS.notes) for (const E of dets) note(E, m);
+        optState = 2;
+      }
       return out.get(pkey(...src)) || zero();
     };
     const visit = el => {
@@ -8287,6 +8336,281 @@ const ELEC = (() => {
     for (let i = 0; i < n; i++) { const f = Math.exp(l1 + (l2 - l1) * (i + 0.5) / n); v += psdAt(S, f) * f * (l2 - l1) / n; }
     return Math.sqrt(v);
   }
+  /* ---------- where light meets the electronics ----------
+     Optical parts carry electrical ports too, after any fibre ports: a photodiode's or
+     photodetector's output, a laser's modulation input, an AOM's RF level input, an EOM's
+     modulation input and an optical chopper's reference output. Wires reach them as they
+     reach any block.
+     The light is worked out quasi-statically: the electronics are far slower than light
+     crossing the bench, so each drive is set at levels across its swing, the bench traced
+     again at each, and each photodiode's power read; the power then follows the drive through
+     time by that table (exactly, by a straight line, when the table is one). A chopper is
+     open or shut. With several drives each is taken alone, the others at their mean, and
+     their effects multiply, as they do for parts in series on one beam. A free-space
+     photodiode can be read through its diffracted field instead of the trace: slower, and
+     right where rays are not (fringes, a focus smaller than the diode's edges). */
+  const CHOP_HUB = 5;                                          // mm: the chopper's motor housing, beyond its blade
+  function extra(el) {
+    const k = 1 / V().scale;
+    switch (el.type) {
+      case 'detector': return [{ x: -Math.max(6, 24 * k), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];
+      case 'source': return [{ x: -26 * k, y: 0, dx: -1, dy: 0, elec: 'in', name: 'mod' }];
+      case 'aom': return [{ x: 0, y: el.length / 2 + 4 * k, dx: 0, dy: 1, elec: 'in', name: 'rf' }];
+      case 'eom': return [{ x: 0, y: el.length / 2 + 2 * k, dx: 0, dy: 1, elec: 'in', name: 'mod' }];
+      case 'chopper': return [{ x: 0, y: -(el.length / 2 + CHOP_HUB), dx: 0, dy: -1, elec: 'out', name: 'ref' }];
+      case 'fcomp': {
+        const n = { pd: ['out', 'out'], laser: ['in', 'mod'], aom: ['in', 'rf'], eom: ['in', 'mod'] }[el.kind];
+        return n ? [{ x: 0, y: FC_H / 2, dx: 0, dy: 1, elec: n[0], name: n[1] }] : [];
+      }
+    }
+    return [];
+  }
+  /* the settings an optical part keeps for the electronics, saved only when set */
+  function normExtra(e, o) {
+    if ((o.type === 'detector' || (o.type === 'fcomp' && o.kind === 'pd')) && e.diode === true) o.diode = true;   // no amplifier: a current out
+    if (o.type === 'detector' && e.fieldSample === true) o.fieldSample = true;
+    for (const k of ['modk', 'vsat', 'vpi']) if (e[k] !== undefined && e[k] !== null && isFinite(e[k])) o[k] = +e[k];
+  }
+  function normChopper(e, base) {
+    return Object.assign(base, { length: Math.max(0.1, num(e.length, 10)), f: Math.max(0, num(e.f, 1000)),
+      duty: clamp(num(e.duty, 50), 0.1, 99.9), phase: num(e.phase, 0) });
+  }
+  const modk = el => num(el.modk, 100), vsat = el => Math.max(1e-6, num(el.vsat, 1)), vpi = el => Math.max(1e-6, num(el.vpi, 5));
+  const isLaser = el => el.type === 'source' || (el.type === 'fcomp' && el.kind === 'laser');
+  /* a drive v (volts) applied to a part, for one trace (put back after) */
+  function applyDrive(el, v) {
+    if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
+    else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
+    else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
+    else if (el.type === 'eom' || (el.type === 'fcomp' && el.kind === 'eom')) el._v = v;
+    else if (el.type === 'chopper') el._closed = !(v > 0.5);
+  }
+  /* trace the bench with something changed, read it, and put everything back as it was */
+  function withOptics(apply, read) {
+    traceScene();
+    const keep = { T: lastTrace, K: lastTraceKey, ms: lastTraceMs, V: VSRC };
+    const snap = project.elements.map(e => [e, Object.assign({}, e)]);
+    try { apply(); traceSceneRaw(); return read(); } finally {
+      for (const [e, s] of snap) { for (const k of Object.keys(e)) if (!(k in s)) delete e[k]; Object.assign(e, s); }
+      lastTrace = keep.T; lastTraceKey = keep.K; lastTraceMs = keep.ms; VSRC = keep.V;
+      statsCache.clear(); diffCache.clear(); binCache.clear();
+    }
+  }
+  const isDet = el => el.type === 'detector' || (el.type === 'fcomp' && el.kind === 'pd');
+  /* the light on a photodiode, mW, as the bench is traced now */
+  function readDet(el) {
+    if (el.type === 'fcomp') return lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0;
+    if (el.fieldSample) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
+    return detectorReading(el).mw;
+  }
+  const scaled = (S, k, unit) => { const o = zero(unit || S.unit); o.dc = k * S.dc; o.tones = S.tones.map(t => ({ f: t.f, re: k * t.re, im: k * t.im })); for (let i = 0; i < NF; i++) o.psd[i] = k * k * S.psd[i]; return o; };
+  /* a drive's waveform over one period of its lowest tone, when its tones are all harmonics of
+     that one; a long series smoothed by Lanczos's factors, as on the scope */
+  function oneCycle(S, M) {
+    if (!S.tones.length || S.tones.length > 400) return null;
+    const f0 = Math.min(...S.tones.map(t => t.f));
+    if (!S.tones.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6)) return null;
+    const nmax = Math.max(...S.tones.map(t => Math.round(t.f / f0))), lz = S.tones.length >= 10 ? nmax + 1 : 0;
+    const v = new Float64Array(M);
+    for (const t of S.tones) {
+      const n = Math.round(t.f / f0), u = lz ? Math.PI * n / lz : 0, sg = u ? Math.sin(u) / u : 1;
+      for (let m = 0; m < M; m++) { const a = 2 * Math.PI * n * m / M; v[m] += sg * (t.re * Math.cos(a) - t.im * Math.sin(a)); }
+    }
+    for (let m = 0; m < M; m++) v[m] += S.dc;
+    return { f0, v };
+  }
+  /* the chopper's opening, 1 open and 0 shut, as a signal: open for the first duty of each cycle from its phase */
+  function chopWave(el, hi) {
+    const S = zero('V');
+    if (!(el.f > 0)) { S.dc = hi; return S; }
+    const [dc, terms] = series('pulse', hi, el.duty, Math.max(1, Math.min(NH, Math.floor(1e10 / el.f)))), ph0 = el.phase * Math.PI / 180;
+    S.dc = dc;
+    for (const [n, a, ph] of terms) { const p = ph - n * ph0; addTone(S.tones, n * el.f, a * Math.cos(p), a * Math.sin(p)); }
+    return tidy(S);
+  }
+  const LEVELS = 21, CYCLE = 512;
+  /* a natural cubic spline's second derivatives through y on a unit grid (the tridiagonal solve) */
+  function spline2(y) {
+    const n = y.length, M = new Float64Array(n), c = new Float64Array(n), d = new Float64Array(n);
+    for (let i = 1; i < n - 1; i++) {
+      const r = 6 * (y[i + 1] - 2 * y[i] + y[i - 1]), m = 4 - (i > 1 ? c[i - 1] : 0);
+      c[i] = 1 / m; d[i] = (r - (i > 1 ? d[i - 1] : 0)) / m;
+    }
+    for (let i = n - 2; i >= 1; i--) M[i] = d[i] - c[i] * M[i + 1];
+    return M;
+  }
+  let optMemo = { key: null, R: null };
+  /* each photodiode's light through time, mW, given the drives: Map(id -> signal), and notes */
+  function opticalSignals(drives, dets) {
+    const key = traceKeyNow() + '|' + JSON.stringify(drives.map(d => [d.el.id, d.S ? [d.S.dc, d.S.tones, Array.from(d.S.psd)] : 0])) + '|' + dets.map(e => e.id);
+    if (optMemo.key === key) return optMemo.R;
+    const analog = drives.filter(d => d.S), chops = drives.filter(d => !d.S);
+    const atMean = skip => { for (const d of analog) if (d !== skip) applyDrive(d.el, d.S.dc); };
+    const read = () => dets.map(readDet);
+    const ref = drives.length ? withOptics(() => atMean(null), read) : read();
+    const per = [], notes = [];
+    for (const d of chops) {
+      const shut = withOptics(() => { atMean(null); applyDrive(d.el, 0); }, read), W = chopWave(d.el, 1);
+      // P = P_shut + (P_open - P_shut) w(t)
+      per.push(dets.map((_, j) => { const S = scaled(W, ref[j] - shut[j], 'W'); S.dc += shut[j]; return S; }));
+    }
+    for (const d of analog) {
+      const S = d.S, C = oneCycle(S, CYCLE);
+      let lo = S.dc, hi = S.dc;
+      if (C) for (const v of C.v) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      else { const sw = S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0); lo -= sw; hi += sw; }
+      const sd = Math.sqrt(S.psd.reduce((a, p, i) => a + p * (i ? FG[i] - FG[i - 1] : 0), 0));
+      lo -= 3 * sd; hi += 3 * sd;
+      if (!(hi - lo > 1e-12)) { lo -= 1e-3; hi += 1e-3; }
+      { const h = (hi - lo) / (LEVELS - 5); lo -= 2 * h; hi += 2 * h; }      // two levels past each end: the spline's ends are loose
+      const lv = Array.from({ length: LEVELS }, (_, m) => lo + (hi - lo) * m / (LEVELS - 1));
+      const tab = lv.map(v => withOptics(() => { atMean(d); applyDrive(d.el, v); }, read));
+      per.push(dets.map((_, j) => {
+        // between levels, a natural cubic spline through them all, so a smooth response is followed closely
+        const yv = tab.map(r => r[j]), M2 = spline2(yv);
+        const P = v => {
+          const x = clamp((v - lo) / (hi - lo) * (LEVELS - 1), 0, LEVELS - 1), i = Math.min(LEVELS - 2, Math.floor(x)), t = x - i;
+          return (1 - t) * yv[i] + t * yv[i + 1] + ((1 - t) ** 3 - (1 - t)) * M2[i] / 6 + (t ** 3 - t) * M2[i + 1] / 6;
+        };
+        const slope = (tab[LEVELS - 1][j] - tab[0][j]) / (hi - lo), line = v => tab[0][j] + slope * (v - lo);
+        const straight = tab.every((r, m) => Math.abs(r[j] - line(lv[m])) <= 1e-9 * Math.max(1e-30, ...tab.map(q => Math.abs(q[j]))));
+        // the noise on the drive moves the light by the local slope
+        const xm = clamp((S.dc - lo) / (hi - lo) * (LEVELS - 1), 0, LEVELS - 1), im = Math.min(LEVELS - 2, Math.floor(xm));
+        const ls = (tab[im + 1][j] - tab[im][j]) / (lv[im + 1] - lv[im]);
+        const out = zero('W');
+        for (let i = 0; i < NF; i++) out.psd[i] = ls * ls * S.psd[i];
+        if (straight || !C) {
+          if (!straight && S.tones.length) notes.push('A drive whose tones are not harmonics of one frequency moves the light by its slope at its mean (small-signal)');
+          out.dc = P(S.dc);
+          for (const t of S.tones) addTone(out.tones, t.f, (straight ? slope : ls) * t.re, (straight ? slope : ls) * t.im);
+          return tidy(out);
+        }
+        // the light through one cycle, and its harmonics
+        const w = Array.from(C.v, P);
+        out.dc = w.reduce((a, b) => a + b, 0) / CYCLE;
+        for (let n = 1; n <= Math.min(NH, CYCLE / 2 - 1); n++) {
+          let re = 0, im2 = 0;
+          for (let m = 0; m < CYCLE; m++) { const a = 2 * Math.PI * n * m / CYCLE; re += w[m] * Math.cos(a); im2 += w[m] * Math.sin(a); }
+          addTone(out.tones, n * C.f0, 2 * re / CYCLE, -2 * im2 / CYCLE);
+        }
+        return tidy(out);
+      }));
+    }
+    const R = new Map();
+    dets.forEach((el, j) => {
+      let P;
+      if (!per.length) { P = zero('W'); P.dc = ref[j]; }
+      else if (per.length === 1) P = per[0][j];
+      else if (ref[j] > 0) { P = per[0][j]; for (let i = 1; i < per.length; i++) P = mixer(P, scaled(per[i][j], 1 / ref[j]), 1); }
+      else { P = zero('W'); for (const q of per) P = sum(P, q, 1, 1); P.dc -= (per.length - 1) * ref[j]; }   // none of it through: their changes add
+      P.unit = 'W';
+      R.set(el.id, P);
+    });
+    optMemo = { key, R: { P: R, notes: [...new Set(notes)] } };
+    return optMemo.R;
+  }
+  /* a photodiode's output, from the light on it (mW, through time): a current for a bare
+     diode, a voltage through the amplifier of a photodetector, with the beat notes the light
+     carries, shot noise and the amplifier's own */
+  function detOutput(el, P, note) {
+    const fibre = el.type === 'fcomp', diode = !!el.diode, PS = pdSignal(el);
+    const rd = fibre ? null : detectorReading(el);
+    const R = fibre ? el.resp : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]);
+    const L = scaled(P, 1);
+    for (const t of PS.tones) if (!t.incoh) addTone(L.tones, t.f, t.amp * Math.cos(t.ph), t.amp * Math.sin(t.ph));
+    const I = scaled(L, 1e-3 * R, 'A'), q = 1.602176634e-19;
+    let n2 = 2 * q * (Math.max(0, I.dc) + (fibre ? 0 : el.dark * 1e-9));
+    if (!diode) n2 += (el.gain > 0 ? 4 * KT / el.gain : 0) + (fibre ? 0 : (el.ampNoise * 1e-12) ** 2);
+    if (fibre && PS.noise) n2 += (PS.noise.parts.sigAse + PS.noise.parts.aseAse) / PS.B;
+    const S = through(I, pole(diode ? 1 : el.gain, el.bandwidth), diode ? 'A' : 'V', () => n2);
+    if (!diode && peak(S) > el.vmax) note('The output would reach ' + fmtSig(peak(S), 'V') + ', past its ' + fmtSig(el.vmax, 'V') + ' limit: it would clip');
+    if (PS.tones.some(t => t.incoh)) note('Beat notes between different lasers are left out: their phase wanders');
+    return S;
+  }
+  /* the chopper's reference output: 0 to 5 V, rising as it opens */
+  const chopRef = el => chopWave(el, 5);
+
+  /* ---------- the optical parts' electrical side, on the bench and in their panels ---------- */
+  function drawExtras(el) {
+    const X = extra(el);
+    if (!X.length || !exp('elec')) return;
+    const base = portsOf(el).length - X.length, used = portsInUse(), r = clamp(1.0 * V().scale, 3, 6);
+    X.forEach((P, k) => {
+      const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
+      ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
+      ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    });
+  }
+  /* the chopper: its blade across the beam (solid, dashed where the slots let light by) and its motor */
+  function drawChopper(el, sel) {
+    const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 1.2 * k;
+    pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
+    ctx.fillStyle = 'rgba(200,205,210,0.18)'; ctx.fill();
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = sel ? '#ffffff' : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke(); ctx.setLineDash([]);
+    pathLocal(f, [[-2.5, -L - CHOP_HUB], [2.5, -L - CHOP_HUB], [2.5, -L - 0.6], [-2.5, -L - 0.6]], true);
+    ctx.fillStyle = '#2b3338'; ctx.fill(); ctx.strokeStyle = sel ? '#ffffff' : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  }
+  const hitChopper = (el, lx, ly, tol) => Math.abs(lx) <= 2.5 + tol && ly >= -(el.length / 2 + CHOP_HUB) - tol && ly <= el.length / 2 + tol;
+  const chopSurfaces = el => el._closed ? [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'absorb' })] : [];
+  function chopperPanel(el) {
+    panel.append(h('h3', null, 'Optical chopper', h('span', { class: 'rt-exp' }, 'Experimental')));
+    panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
+      param('Phase (°)', el, 'phase'), param('Aperture (mm)', el, 'length')));
+    panel.append(readoutBox('chopper'));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open. Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in’s reference. Photodiodes’ outputs carry the chopped light.'));
+  }
+  function chopperReadout(el) {
+    return [[['Open', (+el.duty.toPrecision(3)) + '% of each ' + fmtSec(el.f > 0 ? 1 / el.f : Infinity) + ' cycle'], ['Reference', '0 to 5 V at ' + fmtHz(el.f)]],
+      'Light through it is chopped: a photodiode behind it reads the light when open, and nothing from it when shut.'];
+  }
+  /* an optical part's electrical settings and ports, in its panel */
+  function opticPanel(el) {
+    const X = extra(el);
+    if (!X.length || el.type === 'chopper') return;
+    panel.append(h('h3', null, 'Electronics', h('span', { class: 'rt-exp' }, 'Experimental')));
+    const rows = h('div', { class: 'rt-rows' });
+    let what = '';
+    if (isDet(el)) {
+      rows.append(selectField('Output', [['tia', 'Photodetector: a voltage, through its amplifier'], ['diode', 'Photodiode: its current, no amplifier']],
+        () => el.diode ? 'diode' : 'tia', v => { if (v === 'diode') el.diode = true; else delete el.diode; }, { wide: true }));
+      if (el.type === 'detector') rows.append(selectField('Read the light from', [['rays', 'The trace (fast)'], ['field', 'The diffracted field (slow)']],
+        () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
+      what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
+        'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
+    } else {
+      const key = isLaser(el) ? 'modk' : el.kind === 'aom' || el.type === 'aom' ? 'vsat' : 'vpi', d = { modk: 100, vsat: 1, vpi: 5 }[key];
+      if (el[key] === undefined) el[key] = d;
+      rows.append(param({ modk: 'Modulation (% per V)', vsat: 'RF in for full efficiency (V)', vpi: 'Vπ (V)' }[key], el, key, { wide: true }));
+      what = { modk: 'Its mod input sets the power: P = P₀ (1 + m v), never below zero.',
+        vsat: 'Its rf input sets the RF level: the diffracted share is the efficiency set times sin²(π v / 2 V_full), so 0 V diffracts nothing.',
+        vpi: el.emode === 'amplitude' ? 'Its mod input adds to the bias: v = Vπ moves it 180°.' : 'Its mod input adds a phase of π v / Vπ to the light through it (seen where it interferes).' }[key];
+    }
+    panel.append(rows);
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, what + ' Slow drives are worked out quasi-statically: the bench is traced again across the drive’s swing.'));
+  }
+  /* the electrical rows added to an optical part's readout */
+  function moreReadout(el, parts) {
+    const X = extra(el);
+    if (!X.length) return parts;
+    const base = portsOf(el).length - X.length, wires = (project.fibres || []).filter(F => F.wire);
+    const rows = parts ? parts[0].slice() : [];
+    X.forEach((P, k) => {
+      const p = pkey(el.id, base + k), F = wires.filter(G => pkey(...G.a) === p || pkey(...G.b) === p);
+      if (!F.length) return;
+      const ends = F.map(G => { const o = pkey(...G.a) === p ? G.b : G.a, E = getEl(o[0]); return E ? E.name + ' ' + portName(E, o[1]) : '?'; });
+      rows.push([{ out: 'Out port', mod: 'Mod in port', rf: 'RF in port', ref: 'Ref out port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
+      if (P.elec === 'out' && isDet(el)) rows.push(...describe(solve().out.get(p) || zero()));
+    });
+    for (const w of solve().warn.get(el.id) || []) rows.push(['Note', w]);
+    return [rows, parts ? parts[1] : ''];
+  }
+  function makeOptic(kind, x, y) {
+    if (kind === 'chopper') return normElement({ type: 'chopper', name: nextName('Chopper'), x, y, angle: 0 });
+    if (kind === 'pd') return normElement({ type: 'detector', name: nextName('Photodiode'), x, y, angle: 180, diode: true });
+    if (kind === 'fpd') return normElement({ type: 'fcomp', kind: 'pd', name: nextName('Fibre photodiode'), x, y, angle: 0, diode: true });
+    return null;
+  }
+
   function describe(S) {
     const u = S.unit, rows = [];
     rows.push(['DC', fmtSig(S.dc, u)]);
@@ -8327,12 +8651,18 @@ const ELEC = (() => {
 
   return {
     KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient, readout,
+    extra, normExtra, normChopper, drawExtras, drawChopper, hitChopper, chopSurfaces, chopperPanel, chopperReadout, opticPanel, moreReadout,
     ports: portList, names, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Electronics',
     // for the tests: a block's output by name and output number, and its transfer functions
     api: {
       signal(name, j) {
-        const el = project.elements.find(e => e.name === name && e.type === 'elec');
-        const S = el && signalOf(el, j || 0);
+        const el = project.elements.find(e => e.name === name);
+        let S = null;
+        if (el && el.type === 'elec') S = signalOf(el, j || 0);
+        else if (el) {                                         // an optical part's j-th electrical output
+          const X = extra(el), o = X.map((P, k) => [P, k]).filter(([P]) => P.elec === 'out')[j || 0];
+          S = o ? solve().out.get(pkey(el.id, portsOf(el).length - X.length + o[1])) || null : null;
+        }
         return S && { dc: S.dc, unit: S.unit, tones: S.tones.map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re) })), psd: f => psdAt(S, f), rms: (f1, f2) => noiseRms(S, f1, f2) };
       },
       notes(name) { const el = project.elements.find(e => e.name === name); return el ? solve().warn.get(el.id) || [] : null; },
@@ -9368,6 +9698,8 @@ function renderPanelBody(el) {
   if (el.type === 'pic') PIC.panelFor(el);                                                    // PIC hook
   if (el.type === 'elec') ELEC.panelFor(el);                                                  // ELEC hook
   if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
+  if (el.type === 'chopper') ELEC.chopperPanel(el);                                           // ELEC hook
+  if (exp('elec') && el.type !== 'elec') ELEC.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -10564,11 +10896,14 @@ function detectorPanel(el) {
     selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
   if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp', { wide: true }));
   panel.append(rows);
-  panel.append(h('h3', null, 'Amplifier'));
-  panel.append(h('div', { class: 'rt-rows' },
-    param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
-    param('Dark (nA)', el, 'dark'), param('Noise (pA/√Hz)', el, 'ampNoise'),
-    param('Output limit (V)', el, 'vmax', { wide: true })));
+  if (el.diode) panel.append(h('div', { class: 'rt-rows' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));   // a bare diode: no amplifier
+  else {
+    panel.append(h('h3', null, 'Amplifier'));
+    panel.append(h('div', { class: 'rt-rows' },
+      param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
+      param('Dark (nA)', el, 'dark'), param('Noise (pA/√Hz)', el, 'ampNoise'),
+      param('Output limit (V)', el, 'vmax', { wide: true })));
+  }
   panel.append(readoutBox('detector'));
   signalSection(el);
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
@@ -10637,10 +10972,10 @@ function portRows(el) {
 }
 function fcompPanel(el) {
   const K = FC[el.kind];
-  panel.append(h('h3', null, K.label));
+  panel.append(h('h3', null, typeLabel(el)));
   const rows = h('div', { class: 'rt-rows' });
   // a laser's pulse has a section of its own; while pulsed, the pulse sets its line
-  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', ...(el.tau > 0 ? ['coh'] : [])] : [];
+  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', ...(el.tau > 0 ? ['coh'] : [])] : el.kind === 'pd' && el.diode ? ['gain', 'vmax'] : [];
   for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(param(label, el, k));
   if (el.kind === 'laser') {
     rows.append(selectField('Polarisation', [['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle'], ['rcp', 'Circular, right-handed'], ['lcp', 'Circular, left-handed']],
@@ -16831,7 +17166,7 @@ function updateReadoutsIn(container, el) {
     const rows = portRows(el);
     if (el.kind === 'pd') {
       const net = lastTrace.net, mw = net ? netPower(net.pd.get(el.id), net.keys) : 0, mA = mw * el.resp, V = mA * 1e-3 * el.gain;
-      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ['Output', (+Math.min(V, el.vmax).toPrecision(4)) + ' V' + (V > el.vmax ? ', at its limit' : '')]);
+      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ...(el.diode ? [] : [['Output', (+Math.min(V, el.vmax).toPrecision(4)) + ' V' + (V > el.vmax ? ', at its limit' : '')]]));
     }
     if (el.kind === 'amp') {
       const net = lastTrace.net, Pin = net ? netPower(net.inn.get(pkey(el.id, 0)), net.keys) : 0, G = ampGain(el, el.centre), A = ampASE(el);
@@ -16858,8 +17193,8 @@ function updateReadoutsIn(container, el) {
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
     parts = [[...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
       ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
-      ['Photocurrent', f(r.mA) + ' mA'], ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
-      ['Noise', f(r.noiseV * 1e3) + ' mV rms'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
+      ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
+      ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the bandwidth given.'];
   } else if (el.type === 'aom') {
     const nm = benchNms()[0], lam = nm * 1e-6, Lam = el.v * 1e3 / (el.rf * 1e6);
@@ -16926,7 +17261,10 @@ function updateReadoutsIn(container, el) {
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
     parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + wls[0] + ' nm.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
+  } else if (el.type === 'chopper') {
+    parts = ELEC.chopperReadout(el);                                                           // ELEC hook
   } else return;
+  if (el && exp('elec') && el.type !== 'elec') parts = ELEC.moreReadout(el, parts);                // ELEC hook
   const sig = JSON.stringify(parts);
   if (sig === lastReadout && box.childNodes.length) return;   // avoid rebuilding the DOM every frame
   lastReadout = sig;

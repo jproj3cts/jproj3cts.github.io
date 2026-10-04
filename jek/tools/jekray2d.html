@@ -7692,45 +7692,63 @@ const PIC = (() => {
   }
 
   /* ---------- drawing ---------- */
-  /* ---------- the parts as schematic symbols, in green, drawn in the part's frame in mm (v down
-     the page); the box is still what is clicked. Rings are a fixed size, not to scale. ---------- */
+  /* ---------- the parts as schematic symbols, in green, as on the review sheet: each drawn in
+     the sheet's own units, mapped onto the part's ports (mm, v down the page); the box is still
+     what is clicked. Rings are a fixed size, not to scale. ---------- */
+  // each symbol's map from sheet units: u = (x - ox) kx, v = (y - oy) ky
+  const PMAP = { gc: [14 / 86, 14 / 86, -3, 0], dc: [7 / 48, 2.25 / 14, 0, 0], mmi12: [7 / 46, 2.25 / 12, 0, 0], mmi22: [7 / 46, 2.25 / 12, 0, 0],
+    ring: [7 / 46, 7 / 46, 0, 10 - 2.7 * 46 / 7], ringad: [7 / 46, 2.7 / 18, 0, 0], ps: [7 / 46, 7 / 46, 0, 0], pd: [7 / 46, 7 / 46, 0, 0] };
   const PSYM = {
-    gc(c) {
-      ln(c, -7, 0, -2.5, 0); shape(c, [[-2.5, -0.3], [1, -2.6], [1, 2.6], [-2.5, 0.3]], false);
-      for (const d of [0, 0.9, 1.8]) { c.beginPath(); c.arc(-3.5 + d, 0, 4.6, -0.55, 0.55); c.stroke(); }
-      const st = c.strokeStyle; c.strokeStyle = FIBRE_COLOUR; c.setLineDash([0.6, 0.6]); ln(c, 2.6, 0, 7, 0); c.setLineDash([]); c.strokeStyle = st;
+    gc(d) {
+      d.line([[-40, 0], [-14, 0]]); d.line([[-14, -1.5], [6, -14]]); d.line([[-14, 1.5], [6, 14]]);
+      const a = Math.asin(11 / 26), off = Math.sqrt(26 * 26 - 11 * 11);
+      for (const r of [0, 5, 10, 15]) d.arc(-2 + r - off, 0, 26, -a, a);
+      d.dash(FIBRE_COLOUR, [[18, 0], [34, 0]]);
     },
-    dc(c) { for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-4, sg * 2.25, -4, sg * 0.5, -2.5, sg * 0.5); c.lineTo(2.5, sg * 0.5); c.bezierCurveTo(4, sg * 0.5, 4, sg * 2.25, 7, sg * 2.25); c.stroke(); } },
-    // a taper: the waveguide at (u0, v) opening to the multimode section's edge at u1, the lines meeting the waveguide
-    mmi12(c) { mmiBody(c); taper(c, -7, -2.4, 0); taper(c, 7, 2.4, -2.25); taper(c, 7, 2.4, 2.25); },
-    mmi22(c) { mmiBody(c); for (const v of [-2.25, 2.25]) { taper(c, -7, -2.4, v); taper(c, 7, 2.4, v); } },
-    ring(c) { ln(c, -7, 2.7, 7, 2.7); c.beginPath(); c.arc(0, -0.6, 2.4, 0, 2 * Math.PI); c.stroke(); },
-    ringad(c) { ln(c, -7, 2.7, 7, 2.7); ln(c, -7, -2.7, 7, -2.7); c.beginPath(); c.arc(0, 0, 1.9, 0, 2 * Math.PI); c.stroke(); },
-    ps(c) { ln(c, -7, 0, 7, 0); c.fillStyle = '#7fd49b'; c.fillRect(-3.4, -1.9, 6.8, 1.1); ln(c, -3.4, -0.8, -3.4, -0.3); ln(c, 3.4, -0.8, 3.4, -0.3); },
-    pd(c) { ln(c, -7, 0, -1.5, 0); shape(c, [[-1.5, -2.6], [2.8, 0], [-1.5, 2.6]]); ln(c, 2.8, -2.6, 2.8, 2.6); arrow(c, -3.4, -4.4, -1.6, -2.6); arrow(c, -1.4, -4.4, 0.4, -2.6); },
+    dc(d) { for (const g of [-1, 1]) d.path([['M', -42, g * 14], ['C', -24, g * 14, -22, g * 3, -12, g * 3], ['L', 12, g * 3], ['C', 22, g * 3, 24, g * 14, 42, g * 14]]); },
+    mmi12(d) {
+      d.rect(-14, -12, 28, 24);
+      for (const P of [[[-40, 0], [-24, 0], [-14, -4]], [[-24, 0], [-14, 4]], [[14, -8], [24, -12], [40, -12]], [[14, -4], [24, -12]], [[14, 4], [24, 12], [40, 12]], [[14, 8], [24, 12]]]) d.line(P);
+    },
+    mmi22(d) {
+      d.rect(-14, -12, 28, 24);
+      for (const P of [[[-40, -12], [-24, -12], [-14, -8]], [[-24, -12], [-14, -4]], [[-40, 12], [-24, 12], [-14, 8]], [[-24, 12], [-14, 4]],
+        [[14, -8], [24, -12], [40, -12]], [[14, -4], [24, -12]], [[14, 4], [24, 12], [40, 12]], [[14, 8], [24, 12]]]) d.line(P);
+    },
+    ring(d) { d.line([[-40, 10], [40, 10]]); d.circle(0, -7, 14); },
+    ringad(d) { d.line([[-40, 18], [40, 18]]); d.line([[-40, -18], [40, -18]]); d.circle(0, 0, 14); },
+    ps(d) { d.line([[-40, 0], [40, 0]]); d.fillRect(-16, -9, 32, 5, '#7fd49b'); d.line([[-16, -4], [-16, -1]]); d.line([[16, -4], [16, -1]]); },
+    pd(d) {
+      d.line([[-40, 0], [-6, 0]]); d.poly([[-6, -12], [12, 0], [-6, 12]]); d.line([[12, -12], [12, 12]]);
+      for (const x of [-14, -4]) { d.line([[x, -26], [x + 10, -14]]); d.line([[x + 10, -14], [x + 9, -20]]); d.line([[x + 10, -14], [x + 4, -15]]); }
+    },
   };
-  const mmiBody = c => shape(c, [[-2.4, -3], [2.4, -3], [2.4, 3], [-2.4, 3]]);
-  function taper(c, u0, u1, v) {
-    const k = Math.sign(u1 - u0), um = u1 - k * 1.8, sv = v === 0 ? 1 : Math.sign(v), w = 0.9;
-    ln(c, u0, v, um, v);
-    // the two edges of the taper, curving from the narrow guide out to the section
-    c.beginPath(); c.moveTo(um, v); c.quadraticCurveTo(um + k * 1.2, v - w * 0.2, u1, v - w); c.stroke();
-    c.beginPath(); c.moveTo(um, v); c.quadraticCurveTo(um + k * 1.2, v + w * 0.2, u1, v + w); c.stroke();
+  // a key value beside each, where the sheet has it (sheet units)
+  const PVAL = { gc: el => [(+el.centre.toPrecision(5)) + ' nm', 4, 28], dc: el => ['κ ' + (+el.kappa.toPrecision(3)) + '%', 0, -8],
+    ring: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', 0, -26], ringad: el => ['R ' + (+el.radius.toPrecision(3)), 0, 0], ps: el => ['φ ' + (+el.phase.toPrecision(3)) + '°', 0, 16] };
+  // a drawing context in sheet units, for one part
+  function sheet(c, M) {
+    const [kx, ky, ox, oy] = M, U = x => (x - ox) * kx, W = y => (y - oy) * ky;
+    return {
+      line(P) { c.beginPath(); P.forEach(([x, y], i) => i ? c.lineTo(U(x), W(y)) : c.moveTo(U(x), W(y))); c.stroke(); },
+      path(P) { c.beginPath(); for (const [op, ...a] of P) { if (op === 'M') c.moveTo(U(a[0]), W(a[1])); else if (op === 'L') c.lineTo(U(a[0]), W(a[1])); else c.bezierCurveTo(U(a[0]), W(a[1]), U(a[2]), W(a[3]), U(a[4]), W(a[5])); } c.stroke(); },
+      poly(P) { c.beginPath(); P.forEach(([x, y], i) => i ? c.lineTo(U(x), W(y)) : c.moveTo(U(x), W(y))); c.closePath(); c.fillStyle = DARK; c.fill(); c.stroke(); },
+      rect(x, y, w, h) { c.beginPath(); c.rect(U(x), W(y), w * kx, h * ky); c.fillStyle = DARK; c.fill(); c.stroke(); },
+      fillRect(x, y, w, h, col) { c.fillStyle = col; c.globalAlpha = 0.85; c.fillRect(U(x), W(y), w * kx, h * ky); c.globalAlpha = 1; },
+      circle(x, y, r) { c.beginPath(); c.ellipse(U(x), W(y), r * kx, r * ky, 0, 0, 2 * Math.PI); c.stroke(); },
+      arc(x, y, r, a0, a1) { c.beginPath(); c.ellipse(U(x), W(y), r * kx, r * ky, 0, a0, a1); c.stroke(); },
+      dash(col, P) { const st = c.strokeStyle; c.strokeStyle = col; c.setLineDash([3 * kx, 3 * kx]); this.line(P); c.setLineDash([]); c.strokeStyle = st; },
+      at: (x, y) => [U(x), W(y)],
+    };
   }
-  // a key value beside each, and where (v, mm down the page)
-  const PVAL = { gc: el => [(+el.centre.toPrecision(5)) + ' nm', 4.2], dc: el => ['κ ' + (+el.kappa.toPrecision(3)) + '%', -3.4],
-    ring: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', -4.2], ringad: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', 4.4], ps: el => ['φ ' + (+el.phase.toPrecision(3)) + '°', 2] };
-  const ln = (c, a, b, d, e) => { c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); };
-  const shape = (c, P, close = true) => { c.beginPath(); P.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); if (close) { c.closePath(); c.fillStyle = DARK; c.fill(); } c.stroke(); };
-  const arrow = (c, a, b, d, e, h = 0.9) => { ln(c, a, b, d, e); const t = Math.atan2(e - b, d - a); shape(c, [[d - h * Math.cos(t - 0.45), e - h * Math.sin(t - 0.45)], [d, e], [d - h * Math.cos(t + 0.45), e - h * Math.sin(t + 0.45)]], false); };
   function draw(el, sel) {
-    const s = V().scale, c = ctx, ports = portList(el), names = KINDS[el.kind].names;
+    const s = V().scale, c = ctx, ports = portList(el), names = KINDS[el.kind].names, M = PMAP[el.kind];
     c.save(); c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
     c.strokeStyle = sel ? '#ffffff' : GREEN; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
-    PSYM[el.kind](c);
+    PSYM[el.kind](sheet(c, M));
     c.restore();
     if (PVAL[el.kind] && s > 2.5) {
-      const [t, v] = PVAL[el.kind](el), [x, y] = toWorld(frame(el), 0, -v);
+      const [t, x0, y0] = PVAL[el.kind](el), [u, v] = sheet(null, M).at(x0, y0), [x, y] = toWorld(frame(el), u, -v);
       c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = '#bfe8cc'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
     }
     const used = portsInUse(), r = clamp(1.1 * s, 3, 6);

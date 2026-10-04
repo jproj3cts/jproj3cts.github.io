@@ -6311,6 +6311,10 @@ function setParam(el, path, v) {
     case 'bandwidth': v = Math.max(1, v); break;
     case 'coh': v = Math.max(0, v); break;
     case 'bw': v = Math.max(0.001, v); break;
+    case 'db': v = Math.max(0, v); break;
+    case 'rate': v = Math.max(1e-3, v); break;
+    case 'bits': v = Math.round(clamp(v, 1, 32)); break;
+    case 'range': v = Math.max(1e-9, v); break;
     case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
     case 'att': case 'iso': case 'rl': case 'loss': v = Math.max(0, v); break;
     case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
@@ -8145,6 +8149,9 @@ const ELEC = (() => {
     lpf: { label: 'Low-pass filter', tag: 'LPF', ins: ['in'], outs: ['out'], params: [['fc', 'Corner (Hz)', 1e4], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
     hpf: { label: 'High-pass filter', tag: 'HPF', ins: ['in'], outs: ['out'], params: [['fc', 'Corner (Hz)', 100], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
     bpf: { label: 'Band-pass filter', tag: 'BPF', ins: ['in'], outs: ['out'], params: [['f0', 'Centre (Hz)', 1000], ['bw', 'Bandwidth (Hz)', 100], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
+    att: { label: 'Attenuator', tag: 'ATT', ins: ['in'], outs: ['out'], params: [['db', 'Attenuation (dB)', 10]] },
+    biastee: { label: 'Bias tee', tag: 'BIAS-T', ins: ['rf', 'dc'], outs: ['rf+dc'], params: [['fc', 'Corner (Hz)', 1e4]] },
+    comp: { label: 'Comparator', tag: 'COMP', ins: ['in'], outs: ['out'], params: [['thr', 'Threshold (V)', 0], ['vhi', 'Output high (V)', 5], ['vlo', 'Output low (V)', 0]] },
     mixer: { label: 'Mixer', tag: '×', ins: ['a', 'b'], outs: ['out'], params: [['k', 'Gain (1/V)', 1]] },
     sum: { label: 'Summing junction', tag: 'Σ', ins: ['a', 'b'], outs: ['out'], params: [['ga', 'Gain, a', 1], ['gb', 'Gain, b', 1]] },
     node: { label: 'Node', tag: '', ins: ['in'], outs: ['out'], params: [] },
@@ -8157,10 +8164,13 @@ const ELEC = (() => {
     lockin: { label: 'Lock-in amplifier', tag: 'LOCK-IN', ins: ['signal', 'ref'], outs: ['x', 'y'],
       params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
         ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
+    daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
+      params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
   };
   const PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
-    ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:mixer', 'Mixer'],
-    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier']]
+    ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:att', 'Attenuator'], ['elec:mixer', 'Mixer'],
+    ['elec:sum', 'Summing junction'], ['elec:biastee', 'Bias tee'], ['elec:comp', 'Comparator'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
+    ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)']]
     .map(([k, l, t]) => [k, l, t || l, 'elec']);
 
   /* ---------- a part's box and ports ----------
@@ -8225,6 +8235,24 @@ const ELEC = (() => {
     mixer: { L: v => circ(3.2, v), R: v => circ(3.2, v), draw(c) {
       c.beginPath(); c.arc(0, 0, 3.2, 0, 2 * Math.PI); c.stroke(); const d = 3.2 * Math.SQRT1_2; line(c, -d, -d, d, d); line(c, -d, d, d, -d);
     } },
+    // a resistor in a box
+    att: { L: () => 3.6, R: () => 3.6, draw(c) {
+      rect(c, 3.6, 3.6); c.beginPath(); c.moveTo(-3.6, 0); c.lineTo(-2.4, 0);
+      for (let i = 0; i < 6; i++) c.lineTo(-2 + i * 0.8, i % 2 ? 1.1 : -1.1);
+      c.lineTo(2.4, 0); c.lineTo(3.6, 0); c.stroke();
+    } },
+    // the RF through a capacitor, the DC through an inductor, meeting at the output
+    biastee: { L: () => 3.4, R: () => 1.6, draw(c) {
+      const a = -PITCH / 2, b = PITCH / 2;
+      line(c, -3.4, a, -1, a); line(c, -1, a - 1.2, -1, a + 1.2); line(c, -0.3, a - 1.2, -0.3, a + 1.2); line(c, -0.3, a, 1.6, a);
+      c.beginPath(); c.moveTo(-3.4, b); for (let i = 0; i < 4; i++) c.arc(-2.6 + i * 0.9, b, 0.45, Math.PI, 0); c.lineTo(1.6, b); c.stroke();
+      line(c, 1.6, a, 1.6, b); c.beginPath(); c.arc(1.6, 0, 0.45, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill();
+    } },
+    // an amplifier's triangle with a step in it
+    comp: { L: () => 3.4, R: v => Math.max(0, 3.8 - 7.2 * Math.abs(v) / 4), draw(c) {
+      poly(c, [[-3.4, -4], [3.8, 0], [-3.4, 4]]);
+      c.beginPath(); c.moveTo(-2.6, 1); c.lineTo(-1.2, 1); c.lineTo(-1.2, -1); c.lineTo(0.4, -1); c.stroke();
+    } },
     sum: { L: v => circ(3.2, v), R: v => circ(3.2, v), draw(c) {
       c.beginPath(); c.arc(0, 0, 3.2, 0, 2 * Math.PI); c.stroke(); line(c, -1.8, 0, 1.8, 0); line(c, 0, -1.8, 0, 1.8);
     } },
@@ -8233,6 +8261,11 @@ const ELEC = (() => {
     } },
     spec: { L: () => 4.6, R: () => 4.6, draw(c) {
       rect(c, 4.6, 3.6); c.beginPath(); c.moveTo(-3.6, 2.4); for (const [u, h] of [[-2, 4], [-0.2, 2.6], [1.6, 1.4]]) { c.lineTo(u, 2.4); c.lineTo(u, 2.4 - h); c.lineTo(u, 2.4); } c.lineTo(3.6, 2.4); c.stroke();
+    } },
+    // samples of a wave, as stems
+    daq: { L: () => 4.6, R: () => 4.6, draw(c) {
+      rect(c, 4.6, 3.6); line(c, -3.6, 0, 3.6, 0);
+      for (let i = 0; i < 6; i++) { const u = -3 + i * 1.2, v = -2.2 * Math.sin(2 * Math.PI * (i + 0.5) / 6); line(c, u, 0, u, v); c.beginPath(); c.arc(u, v, 0.35, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill(); }
     } },
     lockin: { L: () => 5.2, R: () => 5.2, draw(c) {
       rect(c, 5.2, 4.2);
@@ -8457,6 +8490,70 @@ const ELEC = (() => {
     return pk;
   }
 
+  /* a comparator: vhi where its input is above the threshold, vlo below. For a periodic input
+     (its tones all harmonics of the lowest), the crossings over one period are found on a fine
+     grid and placed by interpolation, and the output's Fourier series worked out from them
+     exactly (it is piecewise constant): DC and up to NH harmonics. An input whose tones share no
+     period is read by its DC and strongest tone. Noise on the input, which would make the edges
+     jitter, is not carried. */
+  function comparator(el, S, note) {
+    const out = zero('V'), thr = el.thr, hi = el.vhi, lo = el.vlo;
+    if (!S.tones.length) { out.dc = S.dc > thr ? hi : lo; return out; }
+    let T = S.tones, f0 = T[0].f;
+    if (!T.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6) || T.length > 400) {
+      const st = T.reduce((a, t) => Math.hypot(t.re, t.im) > Math.hypot(a.re, a.im) ? t : a);
+      T = [st]; f0 = st.f;
+      note('Its input has tones that share no period: worked out from its DC and strongest tone (' + fmtHz(f0) + ') alone');
+    }
+    const N = 4096, v = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) { const th = 2 * Math.PI * i / N; let x = S.dc; for (const t of T) { const a = Math.round(t.f / f0) * th; x += t.re * Math.cos(a) - t.im * Math.sin(a); } v[i] = x - thr; }
+    // the crossings, as phases in [0, 2 pi), and the state at the start
+    const cross = [];
+    for (let i = 0; i < N; i++) if ((v[i] > 0) !== (v[i + 1] > 0)) cross.push(2 * Math.PI * (i + v[i] / (v[i] - v[i + 1])) / N);
+    if (!cross.length) { out.dc = v[0] > 0 ? hi : lo; return out; }
+    const nmax = Math.max(1, Math.min(NH, Math.floor(1e10 / f0)));
+    const an = Array.from({ length: nmax + 1 }, () => [0, 0]);
+    let up = v[0] > 0, a0 = 0;
+    const seg = (a, b, y) => {
+      out.dc += y * (b - a) / (2 * Math.PI);
+      // a_n = (1/pi) int y e^{-i n th} dth = (y/pi) i (e^{-i n b} - e^{-i n a}) / n
+      for (let n = 1; n <= nmax; n++) { const dr = Math.cos(n * b) - Math.cos(n * a), di = -Math.sin(n * b) + Math.sin(n * a); an[n][0] += -y / Math.PI * di / n; an[n][1] += y / Math.PI * dr / n; }
+    };
+    for (const c of cross) { seg(a0, c, up ? hi : lo); a0 = c; up = !up; }
+    seg(a0, 2 * Math.PI, up ? hi : lo);
+    for (let n = 1; n <= nmax; n++) addTone(out.tones, n * f0, an[n][0], an[n][1]);
+    const sd = noiseRms(S, 0.01, 1e10);
+    if (sd > 1e-3 * Math.max(1e-30, peak(S))) note('Noise on its input (' + fmtSig(sd, S.unit) + ' rms) would make its edges jitter: that is not carried to its output');
+    return tidy(out);
+  }
+  /* a bias tee: the RF input through its capacitor (a high-pass at fc), the DC through its inductor (a low-pass), added */
+  function biasTee(el, RF, DC) {
+    const fc = Math.max(1e-6, el.fc);
+    return sum(through(RF, f => cdiv([0, f / fc], [1, f / fc]), 'V'), through(DC, f => cdiv([1, 0], [1, f / fc]), 'V'), 1, 1);
+  }
+  /* a DAQ: its input sampled at fs and read with bits over +-range. Each tone lands at its alias
+     in 0 to fs/2 (folded tones come back with their phase reversed; one at a multiple of fs reads
+     as DC), and all the noise, with the quantisation's own (one step squared over 12), folds into
+     that band, taken as flat there. Its output is the signal as read, rebuilt. */
+  function daq(el, S, note) {
+    const fs = Math.max(1e-3, el.rate), bits = Math.round(clamp(el.bits, 1, 32)), rng = Math.max(1e-9, el.range), lsb = 2 * rng / 2 ** bits;
+    const out = zero(S.unit), folded = [];
+    out.dc = S.dc;
+    for (const t of S.tones) {
+      let fa = t.f % fs, im = t.im;
+      if (fa > fs / 2) { fa = fs - fa; im = -im; }
+      if (fa <= 1e-9 * fs) out.dc += t.re;
+      else if (Math.abs(fa - fs / 2) <= 1e-9 * fs) addTone(out.tones, fs / 2, t.re, 0);
+      else addTone(out.tones, fa, t.re, im);
+      if (t.f > fs / 2 * (1 + 1e-9)) folded.push({ f: t.f, fa, amp: Math.hypot(t.re, t.im) });
+    }
+    const sd = noiseRms(S, 0.01, 1e10), qn = lsb / Math.sqrt(12), dens = (sd * sd + qn * qn) / (fs / 2);
+    for (let i = 0; i < NF; i++) out.psd[i] = FG[i] <= fs / 2 ? dens : 0;
+    if (peak(S) > rng) note('Its input reaches ' + fmtSig(peak(S), 'V') + ', past its ±' + fmtSig(rng, 'V') + ' range: it would clip');
+    if (folded.length) note(folded.length + ' tone' + (folded.length > 1 ? 's' : '') + ' above half its sample rate (' + fmtHz(fs / 2) + ') fold back as aliases');
+    return { out: tidy(out), info: { fs, bits, lsb, qn, sd, folded: folded.sort((a, b) => b.amp - a.amp) } };
+  }
+
   /* ---------- the network, solved ----------
      Every output's signal, in the order the wires need: a block is worked out once all that
      feeds it is. An input left open reads nothing; a loop is reported and its blocks read
@@ -8544,6 +8641,10 @@ const ELEC = (() => {
         }
         case 'lpf': case 'hpf': case 'bpf': set(0, through(In[0], FILTER[el.kind](el), In[0].unit)); break;
         case 'mixer': set(0, mixer(In[0], In[1], el.k)); break;
+        case 'att': { const g = Math.pow(10, -Math.max(0, el.db) / 20); set(0, through(In[0], () => [g, 0], In[0].unit)); break; }
+        case 'biastee': set(0, biasTee(el, In[0], In[1])); break;
+        case 'comp': set(0, comparator(el, In[0], m => note(el, m))); break;
+        case 'daq': { const D = daq(el, In[0], m => note(el, m)); lock.set(el.id, D.info); set(0, D.out); break; }
         case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
         case 'node': out.set(pkey(el.id, 0), In[0]); break;     // its one port carries on what it is given
         case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
@@ -9005,8 +9106,18 @@ const ELEC = (() => {
         if (L.ripple > 1e-3 * Math.max(L.R, 1e-30)) rows.push(['Ripple', fmtSig(L.ripple, u) + ' left on X by the filter (lengthen the time constant or steepen the slope)']);
       }
     }
+    if (el.kind === 'daq') {
+      const D = R.lock.get(el.id);
+      if (D) {
+        rows.unshift(['Sampling', (+D.fs.toPrecision(4)) + ' S/s (up to ' + fmtHz(D.fs / 2) + '), ' + D.bits + ' bits'],
+          ['One step', fmtSig(D.lsb, 'V') + ' (quantisation noise ' + fmtSig(D.qn, 'V') + ' rms)']);
+        if (D.folded.length) rows.splice(2, 0, ['Aliases', D.folded.slice(0, 4).map(q => fmtHz(q.f) + ' \u2192 ' + fmtHz(q.fa)).join(', ') + (D.folded.length > 4 ? ', \u2026' : '')]);
+      }
+    }
     for (const w of R.warn.get(el.id) || []) rows.push(['Note', w]);
-    const what = el.kind === 'lockin' ? 'X and Y are rms, as a bench lock-in reads them: a sine of amplitude A in phase gives X = A/√2. Its outputs carry X and Y on.'
+    const what = el.kind === 'daq' ? 'The signal as it reads it: tones moved to their aliases below half the sample rate, the noise and quantisation folded into that band. Its output carries it on.'
+      : el.kind === 'comp' ? 'Its output switches between its two levels as its input crosses the threshold.'
+      : el.kind === 'lockin' ? 'X and Y are rms, as a bench lock-in reads them: a sine of amplitude A in phase gives X = A/√2. Its outputs carry X and Y on.'
       : el.kind === 'scope' || el.kind === 'spec' ? 'What reaches its inputs, in steady state.'
       : 'Steady state: DC, the strongest tones (amplitude and phase of a cosine), and the noise density.';
     return [rows, what];
@@ -9101,7 +9212,11 @@ const INST = (() => {
       slow.forEach((q, j) => { const a = 2 * Math.PI * q.f * t; x += sg[j] * (q.re * Math.cos(a) - q.im * Math.sin(a)); });
       v[k] = x;
     }
-    const band = fast.reduce((a, q) => a + Math.hypot(q.re, q.im), 0);
+    // a fast tone that is a low harmonic of one drawn (a square's or a comparator's edges) is the sharpness of an edge the trace
+    // already draws as steep as a pixel allows, not a band: only the rest (a fast carrier, light beating) is drawn as one
+    const f1 = slow.length ? Math.min(...slow.filter(q => !q.incoh).map(q => q.f)) : 0;
+    const edge = q => !q.incoh && f1 > 0 && q.f / f1 <= 200 && Math.abs(q.f / f1 - Math.round(q.f / f1)) < 1e-6;
+    const band = fast.filter(q => !edge(q)).reduce((a, q) => a + Math.hypot(q.re, q.im), 0);
     return { v, band, sd: S.psd ? ELEC.noiseRms(S, 1 / span, BW) : 0, unit: S.unit === 'A' ? 'A' : 'V' };
   }
   /* the scope. chans: [{ S, key, name }] (S null for an open input); st: { mode, span, ch: [{ vdiv, off }] }.
@@ -19668,8 +19783,8 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'elec', name: 'Electronics', what: 'a fourth set of parts on the Add row, in yellow: sources, amplifiers, filters, a mixer and the instruments that read them, joined by wires. Being built: the parts and wiring first, their signals next.' },
-  { key: 'pic', name: 'Photonic circuits', what: 'a third set of parts on the Add row, in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Not yet validated.' },
+  { key: 'elec', name: 'Electronics', what: 'a fourth set of parts on the Add row, in yellow: sources, amplifiers, filters, an attenuator, a mixer, a summing junction, a bias tee and a comparator, and the instruments that read them (oscilloscope, spectrum analyser, lock-in, DAQ), joined by wires to each other and to the light: photodetectors and the chopper feed them, and they drive lasers, AOMs and EOMs. Each signal is worked out in steady state, as DC, tones and noise. Not yet: feedback loops (so no locking), outputs that really clip (they warn), and transients.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a third set of parts on the Add row, in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
 let expOn = false;

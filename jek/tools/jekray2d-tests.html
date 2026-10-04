@@ -4504,6 +4504,41 @@ const TESTS = [
     },
   },
   {
+    name: 'An attenuator takes off its decibels',
+    why: 'a 1 kHz, 1 V sine through 20 dB: 0.1 V, its phase kept: the error in volts',
+    want: 0.1, tol: 1e-12, unit: ' V',
+    run: J => elecRun(J, [elecPart('sig', 'G', { amp: 1 }), elecPart('att', 'A', { db: 20 })], [['G', 0, 'A', 0]], () => J.elec.signal('A', 0).tones[0].amp),
+  },
+  {
+    name: 'A bias tee puts a DC level under an RF signal, and blocks the RF below its corner',
+    why: 'corner 1 kHz; 2 V on its DC port; on its RF port 1 V at 1 MHz, then at 100 Hz: the output\u2019s DC 2 V, the 1 MHz tone 1/\u221a(1 + 10\u207b\u2076), the 100 Hz one 0.1/\u221a1.01 (a first-order high-pass): the largest error in volts',
+    want: 0, tol: 1e-9, unit: ' V',
+    run: J => {
+      const one = f => elecRun(J, [elecPart('sig', 'G', { amp: 1, f }), elecPart('dc', 'D', { v: 2 }), elecPart('biastee', 'B', { fc: 1000 })], [['G', 0, 'B', 0], ['D', 0, 'B', 1]], () => J.elec.signal('B', 0));
+      const a = one(1e6), b = one(100);
+      return Math.max(Math.abs(a.dc - 2), Math.abs(b.dc - 2), Math.abs(a.tones[0].amp - 1 / Math.sqrt(1 + 1e-6)), Math.abs(b.tones[0].amp - 0.1 / Math.sqrt(1.01)));
+    },
+  },
+  {
+    name: 'A comparator turns a sine into a square of the duty its threshold sets',
+    why: 'a 1 kHz, 1 V sine into a comparator switching 0 V to 5 V: at a threshold of 0, a square of half duty (DC 2.5 V, fundamental 10/\u03c0 V, no even harmonics, the third a third of the fundamental); at 0.5 V, high a third of the time (DC 5/3 V, fundamental (10/\u03c0) sin 60\u00b0): the largest error in volts',
+    want: 0, tol: 1e-5, unit: ' V',
+    run: J => {
+      const one = thr => elecRun(J, [elecPart('sig', 'G', { amp: 1 }), elecPart('comp', 'C', { thr, vhi: 5, vlo: 0 })], [['G', 0, 'C', 0]], () => J.elec.signal('C', 0));
+      const T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp, a = one(0), b = one(0.5), F = 10 / Math.PI;
+      return Math.max(Math.abs(a.dc - 2.5), Math.abs(T(a, 1000) - F), T(a, 2000), Math.abs(T(a, 3000) - F / 3), Math.abs(b.dc - 5 / 3), Math.abs(T(b, 1000) - F * Math.sin(Math.PI / 3)));
+    },
+  },
+  {
+    name: 'A DAQ folds a tone above half its sample rate back, and adds its quantisation noise',
+    why: 'sampling at 1 kS/s with 16 bits over \u00b110 V: a 900 Hz, 1 V tone reads at 100 Hz with its amplitude, and the noise below 500 Hz is one step (20 V / 2\u00b9\u2076) over \u221a12 (to the noise grid\u2019s 20 points a decade, which places the band\u2019s edge to within one step): the largest relative error',
+    want: 0, tol: 0.05, unit: '',
+    run: J => elecRun(J, [elecPart('sig', 'G', { amp: 1, f: 900 }), elecPart('daq', 'Q', { rate: 1000, bits: 16, range: 10 })], [['G', 0, 'Q', 0]], () => {
+      const S = J.elec.signal('Q', 0), q = 20 / 65536 / Math.sqrt(12);
+      return Math.max(Math.abs(S.tones[0].f - 100) / 100, Math.abs(S.tones[0].amp - 1), Math.abs(S.rms(0.01, 500) / q - 1));
+    }),
+  },
+  {
     name: 'An amplifier can invert',
     why: 'a 1 kHz, 1 V sine through an amplifier of gain −10 set in its panel (the gain was held at 0 or more): 10 V at the output, turned through 180°: the largest error, in volts and in turns',
     want: 0, tol: 1e-9, unit: '',

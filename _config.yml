@@ -4,4 +4,5 @@
 # either way — this is tidiness, not security.
 exclude:
   - worker
+  - jek-api
   - README.md

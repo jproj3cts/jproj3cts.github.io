@@ -498,6 +498,19 @@ A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.
 | bias | `90` | degrees, for "amplitude". |
 | loss | `0` | dB insertion loss. |
 
+### "chopper": Optical chopper
+
+An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open).
+
+**angle:** its blade’s normal: 0 (or 180) across a beam travelling along x, as a stop.
+
+| field | default | meaning |
+|---|---|---|
+| length | `10` | mm aperture across the beam. |
+| f | `1000` | Hz, the chopping frequency. |
+| duty | `50` | % of each cycle open. |
+| phase | `0` | degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0). |
+
 ## Fibre components ("type": "fcomp")
 
 Fibre components sit on the bench like any element (x, y, angle, name, id) and are joined by fibres from port to port. Give "kind" and its parameters; each port takes one fibre. At angle 0 the ports on the left are inputs and those on the right outputs, numbered from 0 in the order listed.

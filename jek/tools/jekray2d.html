@@ -2282,7 +2282,7 @@ const deg = Math.PI / 180;
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
   cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
-  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator' };
+  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
 const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
@@ -2704,7 +2704,7 @@ function normElementBase(e) {
 
 function makeElement(kind, x, y) {
   if (kind.startsWith('pic:')) return PIC.make(kind.slice(4), x, y);                         // PIC hook
-  if (kind.startsWith('elec:')) return ELEC.make(kind.slice(5), x, y);                       // ELEC hook
+  if (kind.startsWith('elec:')) return ELEC.make(kind.slice(5), x, y);                       // ELEC hook (and the chopper, a free-space part made there)
   switch (kind) {
     case 'source':
       return normElement({ type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 });
@@ -3822,8 +3822,9 @@ function sourceLines(src) {
    slow to trace is traced in a background thread while something is being dragged or a
    sweep plays (see traceLater), so the page keeps up and draws the rays as they come. */
 let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
+// the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
 const traceKeyNow = () => loadGen + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
-  JSON.stringify(project.elements) + '|' + JSON.stringify(project.fibres || []);
+  JSON.stringify(project.elements.filter(e => e.type !== 'elec')) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 function traceScene() {
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
@@ -6272,7 +6273,8 @@ function setParam(el, path, v) {
     case 'axisAngle': v = clamp(v, -89, 89); break;
     case 'wedge': v = clamp(v, 5, 60); break;
     case 'extinction': v = clamp(v, 0, 80); break;
-    case 'gain': case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
+    case 'gain': if (!(el.type === 'elec' && el.kind === 'amp')) v = Math.max(0, v); break;     // an electrical amplifier may invert
+    case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
     case 'bandwidth': v = Math.max(1, v); break;
     case 'coh': v = Math.max(0, v); break;
     case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
@@ -8122,8 +8124,7 @@ const ELEC = (() => {
   };
   const PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
     ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:mixer', 'Mixer'],
-    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
-    ['elec:chopper', 'Chopper', 'Optical chopper']]
+    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier']]
     .map(([k, l, t]) => [k, l, t || l, 'elec']);
 
   /* ---------- a part's box and ports ----------
@@ -8429,7 +8430,9 @@ const ELEC = (() => {
     const els = project.elements.filter(e => e.type === 'elec' && KINDS[e.kind]), wires = (project.fibres || []).filter(F => F.wire);
     // with light in it, the bench as a whole (the trace's key) decides it
     const optical = wires.some(F => [F.a, F.b].some(p => { const E = getEl(p[0]); return E && E.type !== 'elec'; })) || project.elements.some(e => e.type === 'chopper');
-    const key = optical ? traceKeyNow() : JSON.stringify([els, wires.map(F => [F.a, F.b])]);
+    // what the network is: each block's settings and the wiring, not where a block sits on the bench
+    const blocks = JSON.stringify([els.map(e => { const { x, y, angle, name, bench, sweeps, ...rest } = e; return rest; }), wires.map(F => [F.a, F.b])]);
+    const key = (optical ? traceKeyNow() : '') + '|' + blocks;
     if (memo.key === key) return memo.R;
     const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
     const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
@@ -8531,7 +8534,7 @@ const ELEC = (() => {
   /* a photodiode's output with the bench's drives in it, for its own signal plot: null when
      nothing on the bench drives the light (its beat notes are then all there is) */
   function detSignal(el) {
-    if (!exp('elec') || !isDet(el)) return null;
+    if (!isDet(el)) return null;
     const R = solve();
     return R.driven ? R.out.get(pkey(el.id, portsOf(el).length - 1)) || null : null;
   }
@@ -8858,11 +8861,12 @@ const ELEC = (() => {
   const hitChopper = (el, lx, ly, tol) => Math.abs(lx) <= 2.5 + tol && ly >= -(el.length / 2 + CHOP_HUB) - tol && ly <= el.length / 2 + tol;
   const chopSurfaces = el => el._closed ? [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'absorb' })] : [];
   function chopperPanel(el) {
-    panel.append(h('h3', null, 'Optical chopper', h('span', { class: 'rt-exp' }, 'Experimental')));
+    panel.append(h('h3', null, 'Optical chopper'));
     panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
       param('Phase (°)', el, 'phase'), param('Aperture (mm)', el, 'length')));
     panel.append(readoutBox('chopper'));
-    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open. Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in’s reference. Photodiodes’ outputs carry the chopped light.'));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open; photodetectors behind it see the chopped light in their Signal views. Its phase is when in the cycle it opens, against the start of the generators\u2019 cycles (t = 0): 0\u00b0 opens at t = 0, 90\u00b0 a quarter of a cycle later. It matters only against something else on the same clock (another chopper, a generator\u2019s drive); a lock-in referenced to this chopper\u2019s own ref output sees no change, its reference shifting with it.' +
+      (exp('elec') ? ' Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in\u2019s reference.' : '')));
   }
   function chopperReadout(el) {
     return [[['Open', (+el.duty.toPrecision(3)) + '% of each ' + fmtSec(el.f > 0 ? 1 / el.f : Infinity) + ' cycle'], ['Reference', '0 to 5 V at ' + fmtHz(el.f)]],
@@ -18716,6 +18720,7 @@ const AI_ANGLE = {
   cell: 'its axis: 0 for a beam travelling ±x (the cell lies along x).',
   nlc: 'its axis: 0 for a beam travelling ±x (the crystal lies along x).',
   link: 'its normal. Light crossing one plane of a pair leaves its partner (on another tab) the same way relative to that plane.',
+  chopper: 'its blade\u2019s normal: 0 (or 180) across a beam travelling along x, as a stop.',
   aom: 'its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.',
   eom: 'its normal: 0 for a beam travelling ±x.',
 };
@@ -18741,6 +18746,7 @@ const AI_WHAT = {
   nlc: 'A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the frequency of light polarised along its z axis: the second harmonic leaves as a beam of its own, from Boyd and Kleinman\u2019s theory for the focusing, the poling period and the temperature, and the fundamental leaves depleted. Put a lens before it so the beam focuses in its middle.',
   cell: 'An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light\u2019s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source\u2019s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).',
   link: 'One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.',
+  chopper: 'An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open).',
   aom: 'A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.',
   eom: 'A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.',
 };
@@ -18805,6 +18811,7 @@ const AI_FIELDS = {
   gain: { length: 'mm along the beam.', g0: 'small-signal single-pass power gain at the line centre (×); the pump sets it.', centre: 'nm line centre.', fwhm: 'nm line width.',
     isat: 'kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam.' },
   link: { length: 'mm width.', pair: 'the pair’s name: exactly two link planes share it, one on each tab.' },
+  chopper: { length: 'mm aperture across the beam.', f: 'Hz, the chopping frequency.', duty: '% of each cycle open.', phase: 'degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0).' },
   aom: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear).',
     eff: '% into the order.', order: '+1 or −1.' },
   eom: { length: 'mm aperture.', fm: 'MHz drive.', beta: 'modulation depth in radians.', emode: '"phase" (sidebands) or "amplitude".', bias: 'degrees, for "amplitude".', loss: 'dB insertion loss.' },
@@ -19568,7 +19575,7 @@ const PALETTES = {
     ['waveplate', 'Waveplate'], ['polariser', 'Polariser'], ['stop', 'Stop'], ['mask', 'Mask'], ['screen', 'Screen'],
     ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
     ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['cell', 'Vapour cell', 'Atomic vapour cell (Rb, Cs, K)'], ['nlc', 'Nonlinear crystal', 'Nonlinear crystal (second harmonic: PPLN, PPKTP)'], ['fibre', 'Fibre tip'],
-    ['detector', 'Photodetector'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
+    ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
   elec: ELEC.PALETTE,                                                                        // ELEC hook
   fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],

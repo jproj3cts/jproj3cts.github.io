@@ -4418,6 +4418,43 @@ const TESTS = [
         return Math.max(...T.rows.map(r => Math.abs(r[1] - 0.2)), T.sd > 1e-3 ? 0 : 1);
       }),
   },
+  {
+    name: 'An amplifier can invert',
+    why: 'a 1 kHz, 1 V sine through an amplifier of gain −10 set in its panel (the gain was held at 0 or more): 10 V at the output, turned through 180°: the largest error, in volts and in turns',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => elecRun(J, [elecPart('sig', 'G', { amp: 1 }), elecPart('amp', 'A', { bw: 1e9, vmax: 100 })], [['G', 0, 'A', 0]], () => {
+      J.setParam('A', 'gain', -10);
+      const a = J.elec.signal('G', 0).tones[0], b = J.elec.signal('A', 0).tones[0];
+      const dph = (((b.ph - a.ph) / (2 * Math.PI)) % 1 + 1) % 1;
+      return Math.max(Math.abs(b.amp - 10), Math.abs(dph - 0.5) > 1e-4 ? 1 : 0);
+    }),
+  },
+  {
+    name: 'A chopper chops a photodetector’s signal, electronics or none',
+    why: 'a 1 mW beam through a 1 kHz chopper onto a photodetector, the electronics switched off: its own oscilloscope (by itself, three periods) swings from 0 to the open level, twice the mean (within the 1% overshoot of a smoothed square): the largest relative error',
+    want: 0, tol: 0.02, unit: '',
+    run: J => {
+      J.experimental(false);
+      J.load({ format: 'jekray', version: 1, name: 'chop', elements: [elecLaser(), { type: 'chopper', id: 'C', name: 'Chopper', x: 30, y: 0, f: 1000 }, { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180 }] });
+      const D = J.scope('PD', 0), v = D.rows.map(r => r[1]), lo = Math.min(...v), hi = Math.max(...v), mean = v.reduce((a, b) => a + b, 0) / v.length;
+      return Math.max(Math.abs(lo) / hi, Math.abs(hi / (2 * mean) - 1), D.rows[D.rows.length - 1][0] > 2.9e-3 && D.rows[D.rows.length - 1][0] < 3.1e-3 ? 0 : 1);
+    },
+  },
+  {
+    name: 'Moving an electronics block calls for no new trace',
+    why: 'the lock-in demo traced, then its sample lock-in moved 30 mm and its time constant changed: the trace still current (the electronics carry no light), and the lock-in’s reading unchanged by the move (1 if not)',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      J.experimental(true);
+      try {
+        J.importText(getDemo('lockin-absorption')); J.trace();
+        const r0 = J.elec.lockin('Lock-in, sample').R;
+        J.setParam('Lock-in, sample', 'x', 200);
+        const cur = J.traceInfo().current, r1 = J.elec.lockin('Lock-in, sample').R;
+        return cur && r1 === r0 ? 0 : 1;
+      } finally { J.experimental(false); }
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

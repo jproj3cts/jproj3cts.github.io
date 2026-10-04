@@ -503,8 +503,6 @@
   .rt-notes:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   dialog.rt-dialog.rt-wide { width: min(52rem, calc(100vw - 2rem)); text-align: left; }
   .rt-welcome { text-align: left; }
-  .rt-sigspan { display: flex; align-items: center; gap: 0.5rem; margin: 0.45rem 0 0; font-size: 0.8rem; color: var(--jek-ink-soft); }
-  .rt-sigspan select { flex: 1; min-width: 0; }
   .rt-sharedbar { position: absolute; left: 50%; top: 4.6rem; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
     max-width: calc(100% - 1.6rem); padding: 0.45rem 0.55rem 0.45rem 0.85rem; font-size: 0.85rem; color: var(--jek-ink-soft); background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 2px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
   .rt-sharedbar b { color: var(--jek-ink); }
@@ -8109,8 +8107,12 @@ const ELEC = (() => {
     mixer: { label: 'Mixer', tag: '×', ins: ['a', 'b'], outs: ['out'], params: [['k', 'Gain (1/V)', 1]] },
     sum: { label: 'Summing junction', tag: 'Σ', ins: ['a', 'b'], outs: ['out'], params: [['ga', 'Gain, a', 1], ['gb', 'Gain, b', 1]] },
     node: { label: 'Node', tag: '', ins: ['in'], outs: ['out'], params: [] },
-    scope: { label: 'Oscilloscope', tag: 'SCOPE', ins: ['ch1', 'ch2'], outs: [], params: [['span', 'Time span (s)', 0.005]] },
-    spec: { label: 'Spectrum analyser', tag: 'SPEC', ins: ['in'], outs: [], params: [['fmin', 'From (Hz)', 10], ['fmax', 'To (Hz)', 1e6], ['rbw', 'Resolution bandwidth (Hz)', 10]] },
+    scope: { label: 'Oscilloscope', tag: 'SCOPE', ins: ['ch1', 'ch2'], outs: [],
+      params: [['mode', 'Mode', 'normal', choice(['normal', 'Normal'], ['roll', 'Roll'])], ['span', 'Time span (s; 0: auto)', 0.005],
+        ['v1div', 'Ch1 per division (0: auto)', 0], ['v1off', 'Ch1 offset', 0], ['v2div', 'Ch2 per division (0: auto)', 0], ['v2off', 'Ch2 offset', 0]] },
+    spec: { label: 'Spectrum analyser', tag: 'SPEC', ins: ['in'], outs: [],
+      params: [['scale', 'Frequency axis', 'log', choice(['log', 'Log'], ['linear', 'Linear'])], ['rbw', 'Resolution bandwidth (Hz)', 10],
+        ['fmin', 'From (Hz; 0: auto)', 10], ['fmax', 'To (Hz; 0: auto)', 1e6], ['dbdiv', 'dB per division (0: auto)', 0], ['ref', 'Top (dB)', 0]] },
     lockin: { label: 'Lock-in amplifier', tag: 'LOCK-IN', ins: ['signal', 'ref'], outs: ['x', 'y'],
       params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
         ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
@@ -8514,6 +8516,15 @@ const ELEC = (() => {
     return memo.R;
   }
   const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' ? 0 : KINDS[el.kind].ins.length + j)) || null;
+  /* a photodiode's output as its electrical port carries it (beat notes, the bench's drives,
+     its noise), for its own Signal views: what its out port would give, wired or not */
+  function detSignalFull(el) {
+    const S = detSignal(el);
+    if (S) return S;
+    const P = zero('W'), pic = el.type === 'pic';
+    P.dc = el.type === 'fcomp' ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : pic ? pdSignal(el).dc : detectorReading(el).mw;
+    return detOutput(el, P, () => {});
+  }
   /* a photodiode's output with the bench's drives in it, for its own signal plot: null when
      nothing on the bench drives the light (its beat notes are then all there is) */
   function detSignal(el) {
@@ -8570,80 +8581,15 @@ const ELEC = (() => {
      the noise up to its 100 MHz bandwidth. The analyser shows each tone as a peak at its rms
      level in dBV, over the noise in its resolution bandwidth. */
   const SCOPE_BW = 1e8, CH = ['#db3550', '#0092b2'];   // Jek red, Jek blue
+  /* the scope and the analyser: the shared instrument views (INST), fed what reaches their inputs */
   function drawScope(cv, el) {
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
-    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
-    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
-    const span = Math.max(1e-12, el.span), N = 1200, chans = [0, 1].map(i => inputOf(el, i));
-    const tr = chans.map(S => {
-      if (!S) return null;
-      const v = new Float64Array(N);
-      // a long series (a square's harmonics) is smoothed by Lanczos's sigma factors, so its truncation does not ring
-      const T = S.tones.filter(q => q.f <= N / (2 * span) * 4), lz = T.length >= 10 ? Math.min(...T.map(q => q.f)) + Math.max(...T.map(q => q.f)) : 0;
-      const sg = T.map(q => { const u = lz ? Math.PI * q.f / lz : 0; return u ? Math.sin(u) / u : 1; });
-      for (let k = 0; k < N; k++) { const t = span * k / (N - 1); let x = S.dc; T.forEach((q, j) => { const a = 2 * Math.PI * q.f * t; x += sg[j] * (q.re * Math.cos(a) - q.im * Math.sin(a)); }); v[k] = x; }
-      return { v, sd: noiseRms(S, 1 / span, SCOPE_BW), unit: S.unit };
-    });
-    // each channel its own vertical scale, as on a bench scope: fitted to its own trace, so a small
-    // ripple on one is not flattened by a large swing on the other; a flat trace sits mid-screen
-    const rangeOf = T => {
-      let lo = Infinity, hi = -Infinity;
-      for (const x of T.v) { lo = Math.min(lo, x - T.sd); hi = Math.max(hi, x + T.sd); }
-      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
-      return half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
-    };
-    const rg = tr.map(T => T ? rangeOf(T) : null), first = tr.findIndex(Boolean);
-    // a small swing on a large level is read as an offset and the swing about it, as with a scope's offset knob
-    const off = rg.map(r => r && Math.abs(r[0] + r[1]) / 2 > 500 * (r[1] - r[0]) ? (r[0] + r[1]) / 2 : 0);
-    const u0 = first >= 0 && tr[first].unit === 'A' ? 'A' : 'V';
-    const [lo, hi] = first >= 0 ? rg[first].map(v => v - off[first]) : [-1, 1];
-    const o1 = first >= 0 ? off[first] : 0;
-    const sy = { kind: 'plain', title: (tr[0] && tr[1] ? 'ch' + (first + 1) : u0) + (o1 ? ' about ' + fmtSig(o1, u0) : ''),
-      fmt: v => (o1 && v > 0 ? '+' : '') + (Math.abs(v) < 1e-15 * Math.max(1, Math.abs(hi - lo)) ? '0' : fmtSig(v, u0)) }, sx = { kind: 's', title: 'time' };
-    const A = plotArea(c, w, hgt, [lo, hi], sy);
-    const X = t => A.l + t / span * A.w;
-    plotCsv(cv, el.name + ' traces', ['time_s', 'ch1', 'ch2'], () => Array.from({ length: N }, (_, k) => [span * k / (N - 1), tr[0] ? tr[0].v[k] : '', tr[1] ? tr[1].v[k] : '']));
-    tr.forEach((T, i) => {
-      if (!T) return;
-      const [a, b] = rg[i], Y = v => A.t + A.h - (v - a) / (b - a) * A.h;
-      if (T.sd > 0) { c.fillStyle = CH[i] + '33'; c.beginPath(); for (let k = 0; k < N; k++) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] + T.sd)); for (let k = N - 1; k >= 0; k--) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] - T.sd)); c.fill(); }
-      c.strokeStyle = CH[i]; c.lineWidth = 1.5; c.beginPath(); for (let k = 0; k < N; k++) { const x = X(span * k / (N - 1)), y = Y(T.v[k]); k ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
-    });
-    drawAxes(c, A, [0, span], [lo, hi], sx, sy);
-    // the other channel's scale, in its colour, down the right-hand edge
-    const other = tr[0] && tr[1] ? 1 - first : -1;
-    if (other >= 0) {
-      const [a, b] = rg[other], u = tr[other].unit === 'A' ? 'A' : 'V', o = off[other], sg = v => (v > 0 ? '+' : v < 0 ? '\u2212' : '') + fmtSig(Math.abs(v), u);
-      c.save(); c.fillStyle = CH[other]; c.font = axisFont(); c.textAlign = 'right';
-      for (const q of [0, 0.5, 1]) {
-        const v = a + (b - a) * q, y = A.t + A.h - q * A.h;
-        c.textBaseline = q === 1 ? 'top' : q === 0 ? 'bottom' : 'middle';
-        c.fillText(o ? (q === 0.5 ? fmtSig(o, u) : sg(v - o)) : fmtSig(v, u), A.l + A.w - 3, y);
-      }
-      c.restore();
-    }
-    return tr;
+    const chans = [0, 1].map(i => ({ S: inputOf(el, i), key: el.id + ':' + i, name: 'ch' + (i + 1) }));
+    if (playing.size) for (const q of chans) if (q.S) INST.record(q.key, [q.S.dc, q.S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0), noiseRms(q.S, 0.1, INST_BW)]);
+    return INST.scope(cv, chans, { mode: el.mode, span: el.span, ch: [{ vdiv: el.v1div, off: el.v1off }, { vdiv: el.v2div, off: el.v2off }] }, el.name);
   }
+  const INST_BW = 1e8;
   function drawSpectrum(cv, el) {
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
-    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
-    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
-    const S = inputOf(el, 0), f1 = Math.max(1e-2, Math.min(el.fmin, el.fmax / 10)), f2 = Math.max(el.fmax, f1 * 10), rbw = Math.max(1e-3, el.rbw);
-    const l1 = Math.log10(f1), l2 = Math.log10(f2), N = 400, dB = v => 10 * Math.log10(Math.max(v, 1e-30));
-    const floor = S ? Array.from({ length: N }, (_, k) => dB(psdAt(S, Math.pow(10, l1 + (l2 - l1) * k / (N - 1))) * rbw)) : [];
-    const tones = S ? S.tones.filter(t => t.f >= f1 && t.f <= f2).map(t => ({ f: t.f, db: dB((t.re * t.re + t.im * t.im) / 2) })) : [];
-    let hi = Math.max(-200, ...floor, ...tones.map(t => t.db)) + 6, lo = Math.max(hi - 140, Math.min(...floor, ...tones.map(t => t.db), hi - 20) - 6);
-    if (!isFinite(hi)) { hi = 0; lo = -140; }
-    const sy = { kind: 'plain', title: 'dBV' + (S && S.unit === 'A' ? ' (A)' : '') }, sx = { kind: 'plain', title: 'frequency', fmt: v => Math.abs(v - Math.round(v)) < 1e-9 ? fmtHz(Math.pow(10, Math.round(v))) : '' };
-    const A = plotArea(c, w, hgt, [lo, hi], sy);
-    const X = l => A.l + (l - l1) / (l2 - l1) * A.w, Y = v => A.t + A.h - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * A.h;
-    plotCsv(cv, el.name + ' spectrum', ['frequency_Hz', 'level_dBV', 'kind'], () => [...floor.map((v, k) => [Math.pow(10, l1 + (l2 - l1) * k / (N - 1)), v, 'noise in RBW']), ...tones.map(t => [t.f, t.db, 'tone'])]);
-    c.strokeStyle = CH[0]; c.lineWidth = 1.4; c.beginPath();
-    floor.forEach((v, k) => { const x = A.l + k / (N - 1) * A.w; k ? c.lineTo(x, Y(v)) : c.moveTo(x, Y(v)); }); c.stroke();
-    c.strokeStyle = CH[1]; c.lineWidth = 1.6;
-    for (const t of tones) { const x = X(Math.log10(t.f)), base = S ? dB(psdAt(S, t.f) * rbw) : lo; c.beginPath(); c.moveTo(x, Y(Math.max(base, lo))); c.lineTo(x, Y(t.db)); c.stroke(); }
-    drawAxes(c, A, [l1, l2], [lo, hi], sx, sy);
-    return { S, tones, rbw };
+    return INST.spectrum(cv, inputOf(el, 0), { scale: el.scale, fmin: el.fmin, fmax: el.fmax, rbw: el.rbw, dbdiv: el.dbdiv, ref: el.ref }, el.name);
   }
   const fmtSec = v => v >= 1 ? (+v.toPrecision(3)) + ' s' : v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' ms' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' µs' : (+(v * 1e9).toPrecision(3)) + ' ns';
   function instrumentSection(el) {
@@ -8652,8 +8598,8 @@ const ELEC = (() => {
     panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
     bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
     panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
-      ? 'Channel 1 red, channel 2 blue, each on its own vertical scale (channel 1’s on the left, channel 2’s down the right in blue), with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
-      : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt.'));
+      ? 'Channel 1 red, channel 2 blue, each on its own scale (channel 1’s on the left, channel 2’s down the right), set as so much a division about an offset (the level at the centre line) or 0 for auto; a band of ±1σ for its noise up to 100 MHz, and a lighter band where a tone is too fast for the span. Normal shows the steady waveform, time starting where the generators’ cycles start; Roll shows the level as the sweeps play, over the last span of their clock (10 s on auto), flat with its bands when nothing changes.'
+      : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt; both axes auto (0) or set.'));
   }
 
   /* ---------- readouts ---------- */
@@ -8749,14 +8695,15 @@ const ELEC = (() => {
   const scaled = (S, k, unit) => { const o = zero(unit || S.unit); o.dc = k * S.dc; o.tones = S.tones.map(t => ({ f: t.f, re: k * t.re, im: k * t.im })); for (let i = 0; i < NF; i++) o.psd[i] = k * k * S.psd[i]; return o; };
   /* a drive's waveform over one period of its lowest tone, when its tones are all harmonics of
      that one; a long series smoothed by Lanczos's factors, as on the scope */
-  function oneCycle(S, M) {
+  function oneCycle(S, M, fejer) {
     if (!S.tones.length || S.tones.length > 400) return null;
     const f0 = Math.min(...S.tones.map(t => t.f));
     if (!S.tones.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6)) return null;
     const nmax = Math.max(...S.tones.map(t => Math.round(t.f / f0))), lz = S.tones.length >= 10 ? nmax + 1 : 0;
     const v = new Float64Array(M);
     for (const t of S.tones) {
-      const n = Math.round(t.f / f0), u = lz ? Math.PI * n / lz : 0, sg = u ? Math.sin(u) / u : 1;
+      // Fejer's factors never overshoot (for the drive's true swing); Lanczos's follow it closer (for the waveform)
+      const n = Math.round(t.f / f0), u = lz ? Math.PI * n / lz : 0, sg = !lz ? 1 : fejer ? 1 - n / lz : u ? Math.sin(u) / u : 1;
       for (let m = 0; m < M; m++) { const a = 2 * Math.PI * n * m / M; v[m] += sg * (t.re * Math.cos(a) - t.im * Math.sin(a)); }
     }
     for (let m = 0; m < M; m++) v[m] += S.dc;
@@ -8798,28 +8745,33 @@ const ELEC = (() => {
       per.push(dets.map((_, j) => { const S = scaled(W, ref[j] - shut[j], 'W'); S.dc += shut[j]; return S; }));
     }
     for (const d of analog) {
-      const S = d.S, C = oneCycle(S, CYCLE);
+      const S = d.S, C = oneCycle(S, CYCLE), Cf = oneCycle(S, CYCLE, true);
+      // the drive's swing: from its waveform without the overshoot a cut-off series has (a square's
+      // Gibbs ears are not in the square), so the bench is traced only where the drive really goes
       let lo = S.dc, hi = S.dc;
-      if (C) for (const v of C.v) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      if (Cf) for (const v of Cf.v) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
       else { const sw = S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0); lo -= sw; hi += sw; }
       const sd = Math.sqrt(S.psd.reduce((a, p, i) => a + p * (i ? FG[i] - FG[i - 1] : 0), 0));
       lo -= 3 * sd; hi += 3 * sd;
       if (!(hi - lo > 1e-12)) { lo -= 1e-3; hi += 1e-3; }
-      { const h = (hi - lo) / (LEVELS - 5); lo -= 2 * h; hi += 2 * h; }      // two levels past each end: the spline's ends are loose
-      const lv = Array.from({ length: LEVELS }, (_, m) => lo + (hi - lo) * m / (LEVELS - 1));
+      const LV = LEVELS - 4, lv = Array.from({ length: LV }, (_, m) => lo + (hi - lo) * m / (LV - 1));
       const tab = lv.map(v => withOptics(() => { atMean(d); applyDrive(d.el, v, d.port); }, read));
       per.push(dets.map((_, j) => {
-        // between levels, a natural cubic spline through them all, so a smooth response is followed closely
-        const yv = tab.map(r => r[j]), M2 = spline2(yv);
+        // between levels, a natural cubic spline, its ends two levels further out by cubic extrapolation
+        // of the last four (so its loose ends do not bend the curve where the drive goes)
+        const y = tab.map(r => r[j]), n = LV - 1;
+        const yv = [10 * y[0] - 20 * y[1] + 15 * y[2] - 4 * y[3], 4 * y[0] - 6 * y[1] + 4 * y[2] - y[3], ...y,
+          4 * y[n] - 6 * y[n - 1] + 4 * y[n - 2] - y[n - 3], 10 * y[n] - 20 * y[n - 1] + 15 * y[n - 2] - 4 * y[n - 3]], M2 = spline2(yv);
         const P = v => {
-          const x = clamp((v - lo) / (hi - lo) * (LEVELS - 1), 0, LEVELS - 1), i = Math.min(LEVELS - 2, Math.floor(x)), t = x - i;
+          // beyond the swing (a waveform's overshoot), the end of it
+          const x = clamp((v - lo) / (hi - lo) * n, 0, n) + 2, i = Math.min(LV, Math.floor(x)), t = x - i;
           return (1 - t) * yv[i] + t * yv[i + 1] + ((1 - t) ** 3 - (1 - t)) * M2[i] / 6 + (t ** 3 - t) * M2[i + 1] / 6;
         };
-        const slope = (tab[LEVELS - 1][j] - tab[0][j]) / (hi - lo), line = v => tab[0][j] + slope * (v - lo);
-        const straight = tab.every((r, m) => Math.abs(r[j] - line(lv[m])) <= 1e-9 * Math.max(1e-30, ...tab.map(q => Math.abs(q[j]))));
+        const slope = (y[n] - y[0]) / (hi - lo), line = v => y[0] + slope * (v - lo);
+        const straight = y.every((r, m) => Math.abs(r - line(lv[m])) <= 1e-9 * Math.max(1e-30, ...y.map(Math.abs)));
         // the noise on the drive moves the light by the local slope
-        const xm = clamp((S.dc - lo) / (hi - lo) * (LEVELS - 1), 0, LEVELS - 1), im = Math.min(LEVELS - 2, Math.floor(xm));
-        const ls = (tab[im + 1][j] - tab[im][j]) / (lv[im + 1] - lv[im]);
+        const xm = clamp((S.dc - lo) / (hi - lo) * n, 0, n), im = Math.min(n - 1, Math.floor(xm));
+        const ls = (y[im + 1] - y[im]) / (lv[im + 1] - lv[im]);
         const out = zero('W');
         for (let i = 0; i < NF; i++) out.psd[i] = ls * ls * S.psd[i];
         if (straight || !C) {
@@ -8856,7 +8808,7 @@ const ELEC = (() => {
      diode, a voltage through the amplifier of a photodetector, with the beat notes the light
      carries, shot noise and the amplifier's own */
   function detOutput(el, P, note) {
-    const fibre = el.type === 'fcomp', diode = !!el.diode, PS = pdSignal(el);
+    const fibre = el.type === 'fcomp' || el.type === 'pic', diode = !!el.diode, PS = pdSignal(el);
     const rd = fibre ? null : detectorReading(el);
     const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]);
     const L = scaled(P, 1);
@@ -8864,7 +8816,7 @@ const ELEC = (() => {
     const I = scaled(L, 1e-3 * R, 'A'), q = 1.602176634e-19;
     let n2 = 2 * q * (Math.max(0, I.dc) + (el.dark || 0) * 1e-9);
     if (!diode) n2 += (el.gain > 0 ? 4 * KT / el.gain : 0) + ((el.ampNoise || 0) * 1e-12) ** 2;
-    if (fibre && PS.noise) n2 += (PS.noise.parts.sigAse + PS.noise.parts.aseAse) / PS.B;
+    if (fibre && PS.noise && PS.B > 0) n2 += (PS.noise.parts.sigAse + PS.noise.parts.aseAse) / PS.B;
     const S = through(I, pole(diode ? 1 : el.gain, el.bandwidth), diode ? 'A' : 'V', () => n2);
     if (!diode && peak(S) > el.vmax) note('The output would reach ' + fmtSig(peak(S), 'V') + ', past its ' + fmtSig(el.vmax, 'V') + ' limit: it would clip');
     if (PS.tones.some(t => t.incoh)) note('Beat notes between different lasers are left out: their phase wanders');
@@ -9021,7 +8973,7 @@ const ELEC = (() => {
 
   return {
     KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient, readout,
-    extra, normExtra, normChopper, detSignal, drawExtras, drawChopper, hitChopper, chopSurfaces, chopperPanel, chopperReadout, opticPanel, moreReadout,
+    extra, normExtra, normChopper, detSignal, detSignalFull, fmtSig, noiseRms, psdAt, drawExtras, drawChopper, hitChopper, chopSurfaces, chopperPanel, chopperReadout, opticPanel, moreReadout,
     ports: portList, names, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Electronics',
     // for the tests: a block's output by name and output number, and its transfer functions
     api: {
@@ -9037,9 +8989,221 @@ const ELEC = (() => {
       },
       notes(name) { const el = project.elements.find(e => e.name === name); return el ? solve().warn.get(el.id) || [] : null; },
       lockin(name) { const el = project.elements.find(e => e.name === name); const L = el && solve().lock.get(el.id); return L ? Object.assign({}, L, { outX: undefined, outY: undefined }) : null; },
-      scope(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const T = drawScope(cv, el); cv.remove(); return T.map(t => t && { v: Array.from(t.v), sd: t.sd }); },
+      scope(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const T = drawScope(cv, el); cv.remove(); return T.map(t => t && { v: t.v ? Array.from(t.v) : null, rows: t.rows || null, sd: t.sd, band: t.band, range: t.range }); },
+      spectrum(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const R = drawSpectrum(cv, el); cv.remove(); return R.tones; },
     },
   };
+})();
+
+/* ==========================================================================
+   Instruments: one oscilloscope and one spectrum analyser view, drawn the same wherever a
+   signal is looked at (the electronics' scope and analyser, a photodetector's own Signal
+   section). A signal is a DC level, tones (each a frequency and complex amplitude c, the
+   signal Re(c e^{i 2 pi f t}); a tone marked incoh, two lasers beating, has no steady phase)
+   and a noise density on ELEC's frequency grid, in volts or amps.
+   The scope: Normal rebuilds the steady-state waveform from the tones over the time span, a
+   tone too fast for the span filling a band as on a real scope, with +-1 sigma of noise round
+   it; Roll draws the level recorded as the sweeps play over the last span of the sweep clock,
+   flat with the same bands when nothing changes. Time: auto (three periods of the slowest
+   tone) or a span; each channel's vertical scale auto or volts a division and an offset (the
+   level at the centre line), on eight divisions. The analyser: each tone at its rms level
+   over the noise in the resolution bandwidth, in dB of a volt (or an amp), on a log or linear
+   frequency axis, both axes auto or set.
+   ========================================================================== */
+const INST = (() => {
+  const fmtSig = (v, u) => ELEC.fmtSig(v, u);
+  const CH = ['#db3550', '#0092b2'];   // Jek red, Jek blue
+  const BW = 1e8;                      // the scope's own bandwidth, for its noise band
+  const DIV_X = 10, DIV_Y = 8;
+  /* the level recorded as sweeps play, per channel key: [clock s, dc, band, sigma] */
+  const hist = new Map();
+  function record(key, r) {
+    let H = hist.get(key);
+    if (!H) hist.set(key, H = []);
+    if (H.length && clockT < H[H.length - 1][0]) H.length = 0;
+    if (H.length && clockT === H[H.length - 1][0]) { H[H.length - 1] = [clockT, ...r]; return; }
+    H.push([clockT, ...r]);
+    while (H.length > 20000 || (H.length && H[0][0] < clockT - 3600)) H.shift();
+  }
+  const autoSpan = S => { const f = S && S.tones.filter(t => !t.incoh && t.f > 0).map(t => t.f); return f && f.length ? 3 / Math.min(...f) : 1e-3; };
+  /* one channel over a span: the trace, the band of tones too fast to draw, the noise */
+  function trace(S, span, N) {
+    const dt = span / (N - 1), slow = [], fast = [];
+    for (const q of S.tones) (q.incoh || q.f * dt >= 0.25 ? fast : slow).push(q);
+    // a long series (a square's harmonics) smoothed by Lanczos's sigma factors, so its truncation does not ring
+    const lz = slow.length >= 10 ? Math.min(...slow.map(q => q.f)) + Math.max(...slow.map(q => q.f)) : 0;
+    const sg = slow.map(q => { const u = lz ? Math.PI * q.f / lz : 0; return u ? Math.sin(u) / u : 1; });
+    const v = new Float64Array(N);
+    for (let k = 0; k < N; k++) {
+      const t = k * dt; let x = S.dc;
+      slow.forEach((q, j) => { const a = 2 * Math.PI * q.f * t; x += sg[j] * (q.re * Math.cos(a) - q.im * Math.sin(a)); });
+      v[k] = x;
+    }
+    const band = fast.reduce((a, q) => a + Math.hypot(q.re, q.im), 0);
+    return { v, band, sd: S.psd ? ELEC.noiseRms(S, 1 / span, BW) : 0, unit: S.unit === 'A' ? 'A' : 'V' };
+  }
+  /* the scope. chans: [{ S, key, name }] (S null for an open input); st: { mode, span, ch: [{ vdiv, off }] }.
+     Returns, per channel, { v, band, sd, unit } as drawn (Normal), or the recorded rows (Roll). */
+  function scope(cv, chans, st, title) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const roll = st.mode === 'roll', N = 1200, first = chans.find(q => q.S);
+    const span = st.span > 0 ? st.span : roll ? 10 : autoSpan(first && first.S);
+    // each channel as drawn: Normal from its tones; Roll from what was recorded, or flat at its level now
+    const tr = chans.map(q => {
+      if (!q.S) return null;
+      const T = trace(q.S, span, roll ? 2 : N);
+      if (!roll) return T;
+      const now = [q.S.dc, T.band, T.sd], H = (hist.get(q.key) || []).filter(r => r[0] >= clockT - span - 1e-9);
+      const rows = H.length > 1 ? H.map(r => [r[0] - clockT + span, r[1], r[2], r[3]]) : [[0, ...now], [span, ...now]];
+      return { rows, unit: T.unit, band: Math.max(...rows.map(r => r[2])), sd: Math.max(...rows.map(r => r[3])) };
+    });
+    // each channel's vertical range: set (offset +- 4 divisions) or fitted to its own trace and bands
+    const range = (T, set) => {
+      if (set && set.vdiv > 0) return [set.off - DIV_Y / 2 * set.vdiv, set.off + DIV_Y / 2 * set.vdiv];
+      const vals = roll ? T.rows.flatMap(r => [r[1] - r[2] - r[3], r[1] + r[2] + r[3]]) : [Math.min(...T.v) - T.band - T.sd, Math.max(...T.v) + T.band + T.sd];
+      let lo = Math.min(...vals), hi = Math.max(...vals);
+      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
+      return half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
+    };
+    const rg = tr.map((T, i) => T ? range(T, st.ch && st.ch[i]) : null), fi = tr.findIndex(Boolean);
+    tr.forEach((T, i) => { if (T) T.range = rg[i]; });
+    // a small swing on a large level, auto-scaled, is read as an offset and the swing about it
+    const off = rg.map((r, i) => r && !(st.ch && st.ch[i] && st.ch[i].vdiv > 0) && Math.abs(r[0] + r[1]) / 2 > 500 * (r[1] - r[0]) ? (r[0] + r[1]) / 2 : 0);
+    const u0 = fi >= 0 ? tr[fi].unit : 'V', two = tr.filter(Boolean).length > 1, set0 = fi >= 0 && st.ch && st.ch[fi] && st.ch[fi].vdiv > 0;
+    const [lo, hi] = fi >= 0 ? rg[fi].map(v => v - off[fi]) : [-1, 1];
+    const sy = { kind: 'plain', title: (two ? 'ch' + (fi + 1) + ' ' : '') + (set0 ? fmtSig(st.ch[fi].vdiv, u0) + '/div' : u0) + (off[fi] ? ' about ' + fmtSig(off[fi], u0) : ''),
+      fmt: v => (off[fi] && v > 0 ? '+' : '') + (Math.abs(v) < 1e-15 * Math.max(1, Math.abs(hi - lo)) ? '0' : fmtSig(v, u0)) };
+    const sx = { kind: 's', title: roll ? 'time, last ' + fmtTime(span) + ' (rolling)' : 'time' };
+    const A = plotArea(c, w, hgt, [lo, hi], sy);
+    const X = t => A.l + t / span * A.w;
+    // the graticule: ten divisions across, eight up
+    c.strokeStyle = 'rgba(0,0,0,0.07)'; c.lineWidth = 1; c.beginPath();
+    for (let i = 1; i < DIV_X; i++) { const x = Math.round(A.l + A.w * i / DIV_X) + 0.5; c.moveTo(x, A.t); c.lineTo(x, A.t + A.h); }
+    for (let i = 1; i < DIV_Y; i++) { const y = Math.round(A.t + A.h * i / DIV_Y) + 0.5; c.moveTo(A.l, y); c.lineTo(A.l + A.w, y); }
+    c.stroke();
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    tr.forEach((T, i) => {
+      if (!T) return;
+      const [a, b] = rg[i], Y = v => A.t + A.h - (v - a) / (b - a) * A.h, col = CH[i] || CH[0];
+      const pts = roll ? T.rows.map(r => [X(r[0]), r[1], r[2], r[3]]) : Array.from(T.v, (v, k) => [X(span * k / (N - 1)), v, T.band, T.sd]);
+      const fill = (w0, alpha) => { c.fillStyle = col + alpha; c.beginPath(); pts.forEach(([x, v, bd, sd]) => c.lineTo(x, Y(v + w0(bd, sd)))); for (let k = pts.length - 1; k >= 0; k--) { const [x, v, bd, sd] = pts[k]; c.lineTo(x, Y(v - w0(bd, sd))); } c.fill(); };
+      if (pts.some(p => p[2] > 0)) fill((bd, sd) => bd + sd, '26');        // tones too fast to draw, and the noise round them
+      if (pts.some(p => p[3] > 0)) fill((bd, sd) => sd, '40');            // the noise, +-1 sigma
+      c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath();
+      pts.forEach(([x, v], k) => k ? c.lineTo(x, Y(v)) : c.moveTo(x, Y(v))); c.stroke();
+    });
+    c.restore();
+    drawAxes(c, A, [0, span], [lo, hi], sx, sy, { noGrid: true });
+    // a second channel's scale down the right-hand edge, in its colour
+    const other = two ? 1 - fi : -1;
+    if (other >= 0) {
+      const [a, b] = rg[other], u = tr[other].unit, o = off[other], set = st.ch && st.ch[other] && st.ch[other].vdiv > 0;
+      const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtSig(Math.abs(v), u);
+      c.save(); c.fillStyle = CH[other]; c.font = axisFont(); c.textAlign = 'right';
+      for (const q of [0, 0.5, 1]) {
+        c.textBaseline = q === 1 ? 'top' : q === 0 ? 'bottom' : 'middle';
+        const v = a + (b - a) * q;
+        c.fillText(q === 1 && set ? fmtSig(st.ch[other].vdiv, u) + '/div' : o ? (q === 0.5 ? fmtSig(o, u) : sg(v - o)) : fmtSig(v, u), A.l + A.w - 3, A.t + A.h - q * A.h);
+      }
+      c.restore();
+    }
+    // the numbers behind it
+    if (roll) plotCsv(cv, title + ' (roll)', ['time_s', ...chans.flatMap((q, i) => tr[i] ? [q.name + '_' + tr[i].unit, q.name + '_band', q.name + '_noise_sd'] : [])],
+      () => (tr[fi] ? tr[fi].rows : []).map((r, k) => [r[0], ...tr.flatMap(T => T ? (T.rows[k] || T.rows[T.rows.length - 1]).slice(1) : [])]));
+    else {
+      const one = chans.length === 1, T0 = tr[0];
+      const cols = one ? ['time_s', 'output_' + u0, ...(T0 && T0.band > 0 ? ['band_low_' + u0, 'band_high_' + u0] : []), ...(T0 && T0.sd > 0 ? ['noise_sd_' + u0] : [])]
+        : ['time_s', ...chans.map((q, i) => q.name + (tr[i] ? '_' + tr[i].unit : ''))];
+      plotCsv(cv, title + ' traces', cols, () => Array.from({ length: N }, (_, k) => {
+        const t = span * k / (N - 1);
+        if (!one) return [t, ...tr.map(T => T ? T.v[k] : '')];
+        if (!T0) return [t, ''];
+        return [t, T0.v[k], ...(T0.band > 0 ? [T0.v[k] - T0.band, T0.v[k] + T0.band] : []), ...(T0.sd > 0 ? [T0.sd] : [])];
+      }));
+    }
+    return tr;
+  }
+  /* the analyser: one signal; st: { scale: 'log' | 'linear', fmin, fmax (0: auto), rbw, ref, dbdiv (0: auto) } */
+  function spectrum(cv, S, st, title) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const log = st.scale !== 'linear', rbw = Math.max(1e-3, st.rbw || 1000), dB = v => 10 * Math.log10(Math.max(v, 1e-30)), u = S && S.unit === 'A' ? 'A' : 'V';
+    const fs = S ? S.tones.filter(t => t.f > 0).map(t => t.f) : [];
+    // the frequency span: set, or round the tones (a decade either side on log, from 0 on linear)
+    let f1 = st.fmin > 0 ? st.fmin : log ? (fs.length ? Math.min(...fs) / 10 : 10) : 0;
+    let f2 = st.fmax > 0 ? st.fmax : fs.length ? Math.max(...fs) * (log ? 10 : 1.15) : 1e6;
+    if (log) { f1 = Math.max(1e-2, Math.min(f1, f2 / 10)); f2 = Math.min(1e10, Math.max(f2, f1 * 10)); } else if (!(f2 > f1)) f2 = f1 + 1;
+    const xOf = f => log ? Math.log10(f) : f, x1 = xOf(Math.max(f1, log ? 1e-2 : 0)), x2 = xOf(f2), N = 400;
+    const fAt = k => log ? Math.pow(10, x1 + (x2 - x1) * k / (N - 1)) : f1 + (f2 - f1) * k / (N - 1);
+    const floor = S && S.psd ? Array.from({ length: N }, (_, k) => dB(ELEC.psdAt(S, Math.max(fAt(k), 1e-2)) * rbw)) : [];
+    const tones = S ? S.tones.filter(t => t.f >= f1 && t.f <= f2).map(t => ({ f: t.f, db: dB((t.re * t.re + t.im * t.im) / 2), incoh: t.incoh })) : [];
+    // the level span: set (the top and dB a division, ten down), or fitted
+    let lo, hi;
+    if (st.dbdiv > 0) { hi = st.ref; lo = st.ref - 10 * st.dbdiv; }
+    else {
+      hi = Math.ceil((Math.max(-200, ...floor, ...tones.map(t => t.db)) + 6) / 10) * 10;
+      lo = Math.max(hi - 140, Math.floor((Math.min(...floor, ...tones.map(t => t.db), hi - 20) - 6) / 10) * 10);
+      if (!isFinite(hi)) { hi = 0; lo = -140; }
+    }
+    const sy = { kind: 'plain', title: 'dB' + u + (st.dbdiv > 0 ? ', ' + st.dbdiv + ' dB/div' : '') };
+    const sx = log ? { kind: 'plain', title: 'frequency', fmt: v => Math.abs(v - Math.round(v)) < 1e-9 ? fmtHz(Math.pow(10, Math.round(v))) : '' } : { kind: 'hz', title: 'frequency' };
+    const A = plotArea(c, w, hgt, [lo, hi], sy);
+    const X = f => A.l + (xOf(f) - x1) / (x2 - x1) * A.w, Y = v => A.t + A.h - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * A.h;
+    plotCsv(cv, title + ' spectrum', ['frequency_Hz', 'level_dB' + u, 'kind'], () => [...floor.map((v, k) => [fAt(k), v, 'noise in RBW']), ...tones.map(t => [t.f, t.db, t.incoh ? 'tone, two lasers' : 'tone'])]);
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    c.strokeStyle = CH[0]; c.lineWidth = 1.4; c.beginPath();
+    floor.forEach((v, k) => { const x = A.l + k / (N - 1) * A.w; k ? c.lineTo(x, Y(v)) : c.moveTo(x, Y(v)); }); c.stroke();
+    c.lineWidth = 1.8;
+    for (const t of tones) {
+      const x = X(t.f), base = S.psd ? dB(ELEC.psdAt(S, t.f) * rbw) : lo;
+      c.strokeStyle = t.incoh ? CH[1] + '80' : CH[1];
+      c.beginPath(); c.moveTo(x, Y(Math.max(base, lo))); c.lineTo(x, Y(t.db)); c.stroke();
+    }
+    c.restore();
+    drawAxes(c, A, [x1, x2], [lo, hi], sx, sy);
+    return { tones, rbw, floor, f1, f2 };
+  }
+  /* the settings rows for a view, from a settings object kept wherever the caller keeps it */
+  // a view's own number: changing it is not an edit of the bench (no undo step); blank is auto (0)
+  function viewNum(id, get, set, auto) {
+    const inp = h('input', { id, type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: auto ? 'auto' : '' });
+    const show = () => { const v = get(); inp.value = auto && !v ? '' : String(+(+v || 0).toPrecision(6)); };
+    show();
+    inp.addEventListener('change', () => { const r = inp.value.trim(), v = r === '' ? 0 : Number(r); if (isFinite(v)) set(v); show(); });
+    return inp;
+  }
+  const blankNum = (id, get, set) => viewNum(id, get, set, true);
+  const plainNum = (id, get, set) => viewNum(id, get, set, false);
+  function field(label, inp) { const id = inp.id; return h('div', { class: 'rt-f' }, h('label', { for: id }, label), inp); }
+  function scopeControls(st, nCh, redraw) {
+    const sel = h('select', { id: 'rtf' + (++fid) }, h('option', { value: 'normal' }, 'Normal'), h('option', { value: 'roll' }, 'Roll'));
+    sel.value = st.mode === 'roll' ? 'roll' : 'normal';
+    sel.addEventListener('change', () => { st.mode = sel.value; redraw(true); });
+    const rows = h('div', { class: 'rt-rows' }, field('Mode', sel),
+      field('Time span (s)', blankNum('rtf' + (++fid), () => st.span, v => { st.span = Math.max(0, v); redraw(); })));
+    st.ch = st.ch || [];
+    for (let i = 0; i < nCh; i++) {
+      const c = st.ch[i] || (st.ch[i] = { vdiv: 0, off: 0 }), nm = nCh > 1 ? 'Ch' + (i + 1) + ' ' : '';
+      rows.append(field(nm + 'Per division', blankNum('rtf' + (++fid), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); })),
+        field(nm + 'Offset', plainNum('rtf' + (++fid), () => c.off, v => { c.off = v; redraw(); })));
+    }
+    return rows;
+  }
+  function spectrumControls(st, redraw) {
+    const sel = h('select', { id: 'rtf' + (++fid) }, h('option', { value: 'linear' }, 'Linear'), h('option', { value: 'log' }, 'Log'));
+    sel.value = st.scale === 'log' ? 'log' : 'linear';
+    sel.addEventListener('change', () => { st.scale = sel.value; redraw(true); });
+    return h('div', { class: 'rt-rows' }, field('Frequency axis', sel),
+      field('Resolution bandwidth (Hz)', plainNum('rtf' + (++fid), () => st.rbw, v => { if (v > 0) { st.rbw = v; redraw(); } })),
+      field('From (Hz)', blankNum('rtf' + (++fid), () => st.fmin, v => { st.fmin = Math.max(0, v); redraw(); })),
+      field('To (Hz)', blankNum('rtf' + (++fid), () => st.fmax, v => { st.fmax = Math.max(0, v); redraw(); })),
+      field('dB per division', blankNum('rtf' + (++fid), () => st.dbdiv, v => { st.dbdiv = Math.max(0, v); redraw(); })),
+      field('Top (dB)', plainNum('rtf' + (++fid), () => st.ref, v => { st.ref = v; redraw(); })));
+  }
+  return { CH, scope, spectrum, record, trace, scopeControls, spectrumControls, autoSpan };
 })();
 
 /* ---------- A photodiode's signal: its DC and the beat notes in it ----------
@@ -9182,120 +9346,41 @@ function pdSignalAll(el) {
     .concat(S.tones.filter(t => t.incoh)).sort((a, b) => a.f - b.f);
   return Object.assign({}, S, { Vdc: E.dc, dc: k > 0 ? E.dc / k : S.dc, tones, unit: E.unit, driven: true, vmax: el.diode ? Infinity : S.vmax });
 }
-/* the signal's plot: its RF spectrum (each tone's amplitude, dB of a volt) or its trace in time */
-function drawSignal(cv, el, mode) {
-  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 150;
-  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
-  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
-  const S = pdSignalAll(el), T = S.tones.filter(t => t.V > 1e-9), u = S.unit === 'A' ? 'A' : 'V';
-  g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
-  if (mode === 'rf') {
-    plotCsv(cv, el.name + ' RF spectrum', ['frequency_Hz', 'amplitude_V', 'level_dBV', 'phase_deg', 'swing_mW', 'two_lasers'],
-      () => [[0, S.Vdc, 20 * Math.log10(Math.max(S.Vdc, 1e-12)), NaN, S.dc, 0], ...T.map(t => [t.f, t.V, 20 * Math.log10(Math.max(t.V, 1e-12)), t.incoh ? NaN : t.phV / deg, t.amp, t.incoh ? 1 : 0])]);
-    if (!T.length) { g.fillText('DC ' + (+S.Vdc.toPrecision(4)) + ' V; no beat notes: one frequency of each laser reaches it', 4, 14); return; }
-    const fmax = 1.15 * Math.max(...T.map(t => t.f)), dB = v => 20 * Math.log10(Math.max(v, 1e-12));
-    const top = Math.ceil(dB(Math.max(...T.map(t => t.V))) / 10) * 10 + 5, bot = top - 90;
-    const sx = { kind: 'hz', title: 'frequency' }, sy = { kind: 'plain', title: 'dB' + u };
-    const A = plotArea(g, w, hgt, [bot, top], sy);
-    for (const t of T) {
-      const X = A.l + t.f / fmax * A.w, Y = A.t + A.h - (Math.max(bot, dB(t.V)) - bot) / (top - bot) * A.h;
-      g.strokeStyle = t.incoh ? 'rgba(0,146,178,0.45)' : getCss('--jek-cyan'); g.lineWidth = 2;
-      g.beginPath(); g.moveTo(X, A.t + A.h); g.lineTo(X, Y); g.stroke();
-    }
-    drawAxes(g, A, [0, fmax], [bot, top], sx, sy);
-    return;
-  }
-  // the trace over the time axis chosen: by itself, a few periods of the slowest tone. A tone
-  // too fast to follow at this span (under four samples a period) fills a band, as on a real
-  // oscilloscope; on spans long enough for the sweeps to move things, the output recorded as
-  // they played (on the sweep clock) is drawn, the newest at the right
-  const fmin = T.length ? Math.min(...T.map(t => t.f)) : 0, n = 600;
-  // by itself, with no beat notes: the output over the last 10 s of the sweeps, as it changes
-  const want0 = vs(el).sigSpan, autoRoll = !(want0 > 0) && !T.length, want = autoRoll ? 10 : want0;
-  const span = want > 0 ? want : fmin > 0 ? 3 / fmin : 1e-6, dt = span / n;
-  const lim = S.driven ? 0.5 : 0.25, slow = T.filter(q => q.f * dt < lim), fast = T.filter(q => q.f * dt >= lim);
-  // a long series of harmonics (a square drive's) smoothed by Lanczos's factors, so its cut-off does not ring
-  const lz = S.driven && slow.length >= 10 ? Math.min(...slow.map(q => q.f)) + Math.max(...slow.map(q => q.f)) : 0;
-  for (const q of slow) { const x = lz ? Math.PI * q.f / lz : 0; q.sg = x ? Math.sin(x) / x : 1; }
-  const band = fast.reduce((a, q) => a + q.V, 0);
-  const H = (sigHist.get(el.id) || []).filter(r => r[0] >= clockT - span - 1e-12);
-  const rolled = want >= SIG_ROLL && H.length > 1;
-  const t0 = clockT - span;
-  const at = t => { if (!rolled) return S.Vdc; let k = 0; while (k + 1 < H.length && H[k + 1][0] <= t) k++; return t < H[0][0] ? NaN : H[k][1]; };
-  const Vt = t => at(t0 + t) + slow.reduce((a, q) => a + q.sg * q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0);
-  const ys = [], lo_ = [], hi_ = [];
-  for (let i = 0; i <= n; i++) { const v = Vt(span * i / n); ys.push(Number.isFinite(v) ? Math.min(S.vmax, v) : NaN); lo_.push(Math.min(S.vmax, v - band)); hi_.push(Math.min(S.vmax, v + band)); }
-  plotCsv(cv, el.name + ' oscilloscope', band > 0 ? ['time_s', 'output_V', 'band_low_V', 'band_high_V'] : ['time_s', 'output_V'],
-    () => ys.map((v, i) => band > 0 ? [span * i / n, v, lo_[i], hi_[i]] : [span * i / n, v]));
-  const fin = [...ys, ...lo_, ...hi_].filter(Number.isFinite);
-  let lo = Math.min(0, ...fin), hi = Math.max(...fin); if (!(hi - lo > 1e-9)) hi = lo + 1e-3;
-  const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
-  const sx = { kind: 's', title: rolled ? 'time, recorded' : 'time' }, sy = { kind: 'plain', title: 'output, ' + u };
-  const A = plotArea(g, w, hgt, [lo, hi], sy);
-  const X = i => A.l + i / n * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
-  if (band > 0) {
-    g.fillStyle = 'rgba(0,146,178,0.28)'; g.beginPath();
-    let open = false;
-    const close = k => { for (let m = k; m >= 0 && Number.isFinite(lo_[m]); m--) g.lineTo(X(m), Y(lo_[m])); g.closePath(); };
-    for (let i = 0; i <= n; i++) {
-      if (!Number.isFinite(hi_[i])) { if (open) { close(i - 1); open = false; } continue; }
-      open ? g.lineTo(X(i), Y(hi_[i])) : (g.moveTo(X(i), Y(hi_[i])), open = true);
-    }
-    if (open) close(n);
-    g.fill();
-  }
-  g.strokeStyle = getCss('--jek-cyan'); g.lineWidth = 1.4; g.beginPath();
-  let pen = false;
-  ys.forEach((v, i) => { if (!Number.isFinite(v)) { pen = false; return; } pen ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); pen = true; });
-  g.stroke();
-  drawAxes(g, A, [0, span], [lo, hi], sx, sy);
-  if (want >= SIG_ROLL && !rolled && !(autoRoll && !allSweeps().length)) {
-    g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont(); g.textAlign = 'left';
-    g.fillText(allSweeps().length ? 'press Play on a sweep to record the output over time' : 'give something a sweep and play it to see the output change', A.l + 6, A.t + 12);
-  }
-}
-/* the time axis a photodiode's oscilloscope can show: by itself, or a fixed span */
-const SIG_SPANS = [['auto', 'By itself (the beat notes)'], [1e-8, '10 ns'], [1e-7, '100 ns'], [1e-6, '1 µs'], [1e-5, '10 µs'], [1e-4, '100 µs'],
-  [1e-3, '1 ms'], [1e-2, '10 ms'], [0.1, '100 ms'], [1, '1 s'], [10, '10 s'], [60, '1 min']];
-const SIG_ROLL = 1e-3;                 // at or above this span the recorded output is drawn
-// what each photodiode put out as the sweeps played: [clock s, output V], kept an hour back
-const sigHist = new Map();
-function recordSignal(el, V) {
-  let H = sigHist.get(el.id);
-  if (!H) sigHist.set(el.id, H = []);
-  if (H.length && clockT < H[H.length - 1][0]) H.length = 0;          // the clock went back: a new record
-  if (H.length && clockT === H[H.length - 1][0]) { H[H.length - 1][1] = V; return; }
-  H.push([clockT, V]);
-  while (H.length > 20000 || (H.length && H[0][0] < clockT - 3600)) H.shift();
-}
 const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
 /* the signal section of a photodiode's panel */
+/* what a photodiode's Signal views show: the signal its electrical output carries (beat notes,
+   the bench's drives, its noise), with beats between different lasers as tones of no fixed phase */
+function pdInstSignal(el) {
+  const S = ELEC.detSignalFull(el), inc = pdSignal(el).tones.filter(t => t.incoh);
+  return inc.length ? Object.assign({}, S, { tones: S.tones.concat(inc.map(t => ({ f: t.f, re: t.V, im: 0, incoh: true }))) }) : S;
+}
 function signalSection(el) {
-  const fibre = el.type === 'fcomp' || el.type === 'pic';                                     // PIC hook
   panel.append(h('h3', null, 'Signal'));
   if (el.type !== 'pic') panel.append(h('div', { class: 'rt-rows' }, param('Demod. at (MHz)', el, 'demodF'), param('Demod. phase (\u00b0)', el, 'demodPhase')));
+  // the same scope and analyser as the electronics', on this photodiode's output; their settings are the view's
   const vsEl = vs(el);
   vsEl.sigView = vsEl.sigView || 'rf';
-  const tabs = h('div', { class: 'rt-tabs', style: 'margin-top:0.4rem' });
-  const cv = h('canvas', { height: '150', style: 'width:100%;display:block' });
-  const draw = () => drawSignal(cv, el, vsEl.sigView);
-  const spanSel = h('select', { 'aria-label': 'Time axis' }, ...SIG_SPANS.map(([v, t]) => h('option', { value: String(v) }, t)));
-  spanSel.value = String(vsEl.sigSpan > 0 ? vsEl.sigSpan : 'auto');
-  spanSel.addEventListener('change', () => { vsEl.sigSpan = spanSel.value === 'auto' ? 0 : +spanSel.value; draw(); });
-  const spanRow = h('label', { class: 'rt-sigspan' }, 'Time axis ', spanSel);
-  const showSpan = () => { spanRow.hidden = vsEl.sigView !== 'time'; };
-  for (const [k, label] of [['rf', 'RF spectrum'], ['time', 'Oscilloscope']]) {
-    const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); showSpan(); draw(); } }, label);
+  const sc = vsEl.scope || (vsEl.scope = { mode: 'normal', span: 0, ch: [{ vdiv: 0, off: 0 }] });
+  const spc = vsEl.spec || (vsEl.spec = { scale: 'linear', rbw: 1000, fmin: 0, fmax: 0, dbdiv: 0, ref: 0 });
+  const tabs = h('div', { class: 'rt-tabs', style: 'margin-top:0.4rem' }), ctl = h('div', { style: 'margin-top:0.3rem' });
+  const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
+  const draw = () => {
+    const S = pdInstSignal(el);
+    if (vsEl.sigView === 'time') INST.scope(cv, [{ S, key: el.id, name: 'output' }], sc, el.name); else INST.spectrum(cv, S, spc, el.name);
+  };
+  const showCtl = () => ctl.replaceChildren(vsEl.sigView === 'time' ? INST.scopeControls(sc, 1, draw) : INST.spectrumControls(spc, draw));
+  for (const [k, label] of [['rf', 'Spectrum'], ['time', 'Oscilloscope']]) {
+    const b = h('button', { class: 'rt-tab' + (vsEl.sigView === k ? ' on' : ''), type: 'button', onclick: () => { vsEl.sigView = k; [...tabs.children].forEach(x => x.classList.toggle('on', x === b)); showCtl(); draw(); } }, label);
     tabs.append(b);
   }
-  showSpan();
-  panel.append(tabs, spanRow, h('div', { style: 'margin-top:0.3rem' }, cv), plotSaveRow(cv));
+  showCtl();
+  panel.append(tabs, ctl, h('div', { style: 'margin-top:0.3rem' }, cv), plotSaveRow(cv));
   const rows = h('div', { class: 'rt-readout' });
   panel.append(rows);
   let sig = '';
   bindSync(cv, () => {
     const S = pdSignalAll(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3), u = S.unit === 'A' ? ' A' : ' V';
-    if (playing.size) recordSignal(el, Math.min(S.vmax, S.Vdc));
+    if (playing.size) { const Q = pdInstSignal(el); INST.record(el.id, [Q.dc, Q.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0), Q.psd ? ELEC.noiseRms(Q, 0.1, 1e8) : 0]); }
     const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + u]];
     if (S.driven) r.push(['Modulated', 'by what drives the light on the bench (the tones below)']);
     // the strongest, in order of frequency
@@ -9313,7 +9398,7 @@ function signalSection(el) {
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The oscilloscope\u2019s time axis shows a few beat periods by itself, or any span you set: beats too fast to follow at that span fill a band, as on a real oscilloscope, and from 1 ms up it shows the output recorded as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The spectrum and oscilloscope are the electronics\u2019 own, on this output: the spectrum each tone at its rms level over the noise in the resolution bandwidth; the oscilloscope in Normal a few periods of the slowest tone by itself (or the span set), tones too fast for it filling a band, with \u00b11\u03c3 of noise; in Roll the output as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen. Leave a setting blank for auto.'));
 }
 
 /* ---------- One-parameter search over a swept range ---------- */
@@ -20574,8 +20659,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the field steps kept between runs: how many, hits and misses since the last look; clear empties it
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
-    scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); vs(el).sigSpan = span; drawSignal(cv, el, 'time'); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
+    scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); INST.scope(cv, [{ S: pdInstSignal(el), key: el.id, name: 'output' }], { mode: 'normal', span, ch: [{ vdiv: 0, off: 0 }] }, el.name); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,
+    // a photodiode's own Spectrum view: its tones as drawn (f, dB at their rms level)
+    pdSpectrum(name) { const el = this.byName(name), cv = document.createElement('canvas'); return INST.spectrum(cv, pdInstSignal(el), vs(el).spec || { scale: 'linear', rbw: 1000 }, el.name).tones; },
     setParam(name, path, v) { setParam(this.byName(name), path, v); },
     getParam(name, path) { return getPath(this.byName(name), path); },
     sensitivity(names, targetName, key) {

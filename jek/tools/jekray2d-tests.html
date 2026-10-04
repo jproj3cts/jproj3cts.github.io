@@ -2382,7 +2382,7 @@ const TESTS = [
   },
   {
     name: 'A photodiode’s oscilloscope follows the time axis set',
-    why: 'a 1 MHz beat (an AOM shifting one arm of a fibre Mach–Zehnder): by itself three periods (3 µs); at 10 ns a plain trace; at 1 ms the beat too fast to draw, a band as wide as its swing about the DC (worst relative error of span and band)',
+    why: 'a 1 MHz beat (an AOM shifting one arm of a fibre Mach–Zehnder), on the shared scope: by itself three periods (3 µs); at 10 ns a plain trace (no band); at 1 ms the beat too fast to draw, a band as wide as its swing about the DC (worst relative error of span and band)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
       J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C1'), fc('aom', 'A', { rf: 1 }), fc('coupler', 'C2'), fc('pd', 'D')],
@@ -2393,7 +2393,7 @@ const TESTS = [
       const auto = J.scope('D', 0), fine = J.scope('D', 1e-8), slow = J.scope('D', 1e-3);
       const last = D => D.rows[D.rows.length - 1][0];
       const band = slow.rows[0][3] - slow.rows[0][1];
-      return Math.max(Math.abs(last(auto) / 3e-6 - 1), Math.abs(last(fine) / 1e-8 - 1), Math.abs(band / beat.V - 1), slow.cols.length === 4 ? 0 : 1, fine.cols.length === 2 ? 0 : 1);
+      return Math.max(Math.abs(last(auto) / 3e-6 - 1), Math.abs(last(fine) / 1e-8 - 1), Math.abs(band / beat.V - 1), slow.cols.includes('band_high_V') ? 0 : 1, fine.cols.includes('band_low_V') ? 1 : 0);
     },
   },
   {
@@ -4289,7 +4289,7 @@ const TESTS = [
   },
   {
     name: 'and the light follows each drive by its own law',
-    why: 'a laser’s power by 100%/V from a 0.5 V sine: a swing of half its DC; a fibre AOM’s output with 0.5 ± 0.25 V on its RF input: η = sin²(πv/2), so a fundamental of J₁(π/4) of the full power; an EOM in amplitude mode at 90° bias, Vπ 5 V, 1 V sine: a fundamental of 2J₁(π/5) of its DC: the largest relative error (the AOM and EOM read through a spline through 21 traced levels)',
+    why: 'a laser’s power by 100%/V from a 0.5 V sine: a swing of half its DC; a fibre AOM’s output with 0.5 ± 0.25 V on its RF input: η = sin²(πv/2), so a fundamental of J₁(π/4) of the full power; an EOM in amplitude mode at 90° bias, Vπ 5 V, 1 V sine: a fundamental of 2J₁(π/5) of its DC: the largest relative error (the AOM and EOM read through a spline through 17 levels traced across the drive’s swing)',
     want: 0, tol: 1e-4, unit: '',
     run: J => {
       const T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp, pd = { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180, diode: true };
@@ -4370,6 +4370,43 @@ const TESTS = [
     why: 'the Fabry–Perot demo, mirrors 250 mm apart: at the reflected port, the light leaking back out once a round trip, 500 mm apart in path (sorted by path, as the hits are not stored in the order the light took)',
     want: 500, tol: 1e-6, unit: ' mm',
     run: J => { J.load(JSON.parse(getDemo('fabry-perot'))); J.trace(); return J.stats('Reflected').roundTrip; },
+  },
+  {
+    name: 'A photodetector’s own spectrum and an analyser on its output agree',
+    why: 'the lock-in demo’s sample detector, its output also wired to a spectrum analyser: the 1 kHz tone’s level on its own Spectrum view and on the analyser, both dB of a volt rms (they differed by 3 dB, peak against rms): the difference in dB',
+    want: 0, tol: 1e-9, unit: ' dB',
+    run: J => {
+      J.experimental(true);
+      try {
+        const d = JSON.parse(getDemo('lockin-absorption'));
+        d.elements.push({ id: 'sa', type: 'elec', kind: 'spec', name: 'SA', x: 200, y: 0, fmin: 100, fmax: 1e5 });
+        d.fibres.push({ a: ['pds', 0], b: ['sa', 0], wire: true });
+        J.importText(JSON.stringify(d));
+        const at = L => (L.find(t => Math.abs(t.f - 1000) < 1e-3) || {}).db;
+        return Math.abs(at(J.pdSpectrum('Sample detector')) - at(J.elec.spectrum('SA')));
+      } finally { J.experimental(false); }
+    },
+  },
+  {
+    name: 'and a scope set by the division holds its scale',
+    why: 'a 1 kHz, 1 V sine on channel 1 at 0.5 V a division, offset 0.3 V: the screen from −1.7 V to 2.3 V (eight divisions about the offset), and the same with the sine at 3 V; on auto it fits the 3 V sine (wider than ±3 V): the largest error in volts, and 1 if auto did not refit',
+    want: 0, tol: 1e-12, unit: ' V',
+    run: J => {
+      const one = amp => elecRun(J, [elecPart('sig', 'G', { amp }), elecPart('scope', 'SC', { v1div: 0.5, v1off: 0.3, span: 0.003 })], [['G', 0, 'SC', 0]], () => J.elec.scope('SC')[0].range);
+      const a = one(1), b = one(3);
+      const auto = elecRun(J, [elecPart('sig', 'G', { amp: 3 }), elecPart('scope', 'SC', { span: 0.003 })], [['G', 0, 'SC', 0]], () => J.elec.scope('SC')[0].range);
+      return Math.max(Math.abs(a[0] + 1.7), Math.abs(a[1] - 2.3), Math.abs(b[0] + 1.7), Math.abs(b[1] - 2.3), auto[0] < -3 && auto[1] > 3 ? 0 : 1);
+    },
+  },
+  {
+    name: 'and in Roll it is flat, with its noise round it, when nothing sweeps',
+    why: 'a 0.2 V DC level with 1 µV/√Hz of noise on a scope in Roll: the trace flat at 0.2 V across its span, a ±1σ band of the noise up to 100 MHz (about 10 mV): the largest error of the level in volts, and 1 if no band',
+    want: 0, tol: 1e-12, unit: ' V',
+    run: J => elecRun(J, [elecPart('dc', 'D', { v: 0.2 }), elecPart('noise', 'N', { psd: 1000, bw: 1e8 }), elecPart('sum', 'S'), elecPart('scope', 'SC', { mode: 'roll', span: 0 })],
+      [['D', 0, 'S', 0], ['N', 0, 'S', 1], ['S', 0, 'SC', 0]], () => {
+        const T = J.elec.scope('SC')[0];
+        return Math.max(...T.rows.map(r => Math.abs(r[1] - 0.2)), T.sd > 1e-3 ? 0 : 1);
+      }),
   },
   /* ---------- Photonic circuits (experimental) ---------- */
   {

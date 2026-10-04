@@ -4,6 +4,8 @@
 import { checkOrigin, corsHeaders, preflight } from './http.js';
 import { Router } from './router.js';
 import { callback, start, unlink } from './auth.js';
+import * as B from './benches.js';
+import { exportAll } from './export.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { me } from './users.js';
 import { ApiError, errorResponse, json } from './util.js';
@@ -29,6 +31,53 @@ const router = new Router()
     if (ctx.sessionHash.startsWith(id)) ctx.setCookie = clearCookie();
     return json({ ok: true });
   })
+  .on('GET', '/v1/me/export', async (req, env, ctx) => {
+    const user = await requireUser(req, env, ctx);
+    return new Response(await exportAll(env, user), {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="jekray2d-export-${new Date().toISOString().slice(0, 10)}.zip"`,
+      },
+    });
+  })
+  // benches
+  .on('GET', '/v1/workspaces/:w/benches', async (req, env, ctx, { w }) => json(await B.list(req, env, await requireUser(req, env, ctx), w)))
+  .on('POST', '/v1/workspaces/:w/benches', async (req, env, ctx, { w }) =>
+    json(await B.create(req, env, await requireUser(req, env, ctx), w), 201),
+  )
+  .on('GET', '/v1/benches/:b', async (req, env, ctx, { b }) => {
+    const out = await B.get(env, await requireUser(req, env, ctx), b);
+    return json(out, 200, { ETag: `"${out.version}"` });
+  })
+  .on('PUT', '/v1/benches/:b', async (req, env, ctx, { b }) => {
+    const out = await B.save(req, env, await requireUser(req, env, ctx), b);
+    return json(out, 200, { ETag: `"${out.version}"` });
+  })
+  .on('PATCH', '/v1/benches/:b', async (req, env, ctx, { b }) => json(await B.patch(req, env, await requireUser(req, env, ctx), b)))
+  .on('DELETE', '/v1/benches/:b', async (req, env, ctx, { b }) => {
+    await B.remove(env, await requireUser(req, env, ctx), b);
+    return json({ ok: true });
+  })
+  .on('POST', '/v1/benches/:b/undelete', async (req, env, ctx, { b }) => json(await B.undelete(env, await requireUser(req, env, ctx), b)))
+  .on('GET', '/v1/benches/:b/versions', async (req, env, ctx, { b }) => json(await B.versions(env, await requireUser(req, env, ctx), b)))
+  .on('GET', '/v1/benches/:b/versions/:v', async (req, env, ctx, { b, v }) =>
+    json(await B.version(env, await requireUser(req, env, ctx), b, v)),
+  )
+  .on('POST', '/v1/benches/:b/versions/:v/restore', async (req, env, ctx, { b, v }) =>
+    json(await B.restore(env, await requireUser(req, env, ctx), b, v)),
+  )
+  // folders
+  .on('GET', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) => json(await B.folders(env, await requireUser(req, env, ctx), w)))
+  .on('POST', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) =>
+    json(await B.createFolder(req, env, await requireUser(req, env, ctx), w), 201),
+  )
+  .on('PATCH', '/v1/workspaces/:w/folders/:f', async (req, env, ctx, { w, f }) =>
+    json(await B.patchFolder(req, env, await requireUser(req, env, ctx), w, f)),
+  )
+  .on('DELETE', '/v1/workspaces/:w/folders/:f', async (req, env, ctx, { w, f }) => {
+    await B.deleteFolder(env, await requireUser(req, env, ctx), w, f);
+    return json({ ok: true });
+  })
   .on('GET', '/auth/:provider/start', start)
   .on('GET', '/auth/:provider/callback', callback)
   .on('POST', '/auth/signout', async (req, env, ctx) => {
@@ -39,6 +88,10 @@ const router = new Router()
   });
 
 export default {
+  // daily: empty the bin of benches deleted more than 30 days ago
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(B.purgeBin(env));
+  },
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return preflight(req, env);
     const ctx = {};

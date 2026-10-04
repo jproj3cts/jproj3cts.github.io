@@ -18,3 +18,16 @@ export async function signedIn(name = `Tester ${++n}`) {
   const { token } = await createSession(env, user.id, 'vitest');
   return { user, workspaceId, token };
 }
+
+// An active subscription on a workspace, as Stripe's webhook would leave it.
+export async function withPlan(workspaceId, status = 'active', periodEnd = Date.now() + 30 * 86400000) {
+  await env.DB.prepare(
+    "INSERT OR REPLACE INTO subscriptions VALUES (?, 'cus_test', ?, 'individual', 1, ?, ?, 0)",
+  ).bind(workspaceId, 'sub_' + workspaceId, status, periodEnd).run();
+}
+
+export const bench = (name = 'A bench', extra = {}) =>
+  JSON.stringify({ format: 'jek-raytracer', version: 1, name, elements: [], ...extra });
+
+export const send = (path, method, token, body, headers = {}) =>
+  call(path, { method, token, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...headers } });

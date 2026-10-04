@@ -37,6 +37,10 @@ bucket_name = "jek-benches"
 binding = "AUTH"
 id      = "51e89ffd5948439b9273b0b5d381ef0d"
 
+# Daily housekeeping: empty the bin of benches deleted 30 days ago.
+[triggers]
+crons = ["17 3 * * *"]
+
 # Custom domain: deploying creates api.jeksys.net and its DNS record in the
 # jeksys.net zone. URPG's Worker does not use this hostname.
 [[routes]]

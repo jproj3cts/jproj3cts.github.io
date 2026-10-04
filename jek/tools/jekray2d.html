@@ -5289,7 +5289,92 @@ function drawJones(el, sel) {
 }
 /* A thin plate seen edge-on: the shared look of the newer thin elements */
 /* A fibre component: a box with its tag, and its ports */
+/* Fibre components as schematic symbols, in rose, drawn in the part's own frame in mm with
+   v down the page (u across): leads run in from the ports, and a value (a ratio, a loss, a
+   shift) sits beside the symbol where it says something. The box is still what is clicked. */
+const FSYM = (() => {
+  const ln = (c, a, b, d, e) => { c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); };
+  const shape = (c, P, close = true) => { c.beginPath(); P.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); if (close) { c.closePath(); c.fillStyle = '#2b3338'; c.fill(); } c.stroke(); };
+  const box = (c, a, b) => shape(c, [[-a, -b], [a, -b], [a, b], [-a, b]]);
+  const arrow = (c, a, b, d, e, h = 0.9) => { ln(c, a, b, d, e); const t = Math.atan2(e - b, d - a); shape(c, [[d - h * Math.cos(t - 0.45), e - h * Math.sin(t - 0.45)], [d, e], [d - h * Math.cos(t + 0.45), e - h * Math.sin(t + 0.45)]], false); };
+  const hatch = (c, u, v0, v1, n) => { for (let i = 0; i < n; i++) { const v = v0 + (v1 - v0) * (i + 0.5) / n; ln(c, u, v, u + 1.1, v - 1.1); } };
+  const fmtNm = nm => (+nm.toPrecision(6)) + ' nm';
+  // each: draw(c, el), and the value shown, with where (v, mm down the page)
+  const S = {
+    laser: { draw(c, el) {
+      shape(c, [[-4, -2.8], [1.4, 0], [-4, 2.8]]); ln(c, 1.4, -2.8, 1.4, 2.8); ln(c, 1.4, 0, 7, 0);
+      const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength); arrow(c, -1.6, -2.4, 0.6, -4.4); arrow(c, 0.4, -1.6, 2.6, -3.6); c.strokeStyle = st;
+    }, val: el => [fmtNm(el.wavelength), 4.4] },
+    coupler: { draw(c) {
+      for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-2.5, sg * 2.25, -2, sg * 0.4, 0, sg * 0.4); c.bezierCurveTo(2, sg * 0.4, 2.5, sg * 2.25, 7, sg * 2.25); c.stroke(); }
+    }, val: el => [Math.round(100 - el.ratio) + ':' + Math.round(el.ratio), -3.6] },
+    wdm: { draw(c) {
+      c.beginPath(); c.moveTo(-7, 0); c.lineTo(-1, 0); c.bezierCurveTo(2, 0, 3, -2.25, 7, -2.25); c.stroke();
+      c.beginPath(); c.moveTo(-1, 0.3); c.bezierCurveTo(2, 0.3, 3, 2.25, 7, 2.25); c.stroke();
+    }, val: el => ['λ ' + fmtNm(el.centre), 4.2] },
+    circ: { draw(c) {
+      ln(c, -7, 0, -2.6, 0); ln(c, 2.6, 0, 7, 0); ln(c, 0, 2.6, 0, 4.5);
+      c.beginPath(); c.arc(0, 0, 2.6, 0, 2 * Math.PI); c.fillStyle = '#2b3338'; c.fill(); c.stroke();
+      c.beginPath(); c.arc(0, 0, 1.5, Math.PI * 0.85, Math.PI * 2.15); c.stroke();
+      const a = Math.PI * 2.15; arrow(c, 1.5 * Math.cos(a - 0.3), 1.5 * Math.sin(a - 0.3), 1.5 * Math.cos(a), 1.5 * Math.sin(a), 0.7);
+    } },
+    iso: { draw(c) { ln(c, -7, 0, -3, 0); ln(c, 3, 0, 7, 0); box(c, 3, 2); arrow(c, -1.8, 0, 1.8, 0); } },
+    voa: { draw(c) {
+      ln(c, -7, 0, -3, 0); ln(c, 3, 0, 7, 0); box(c, 3, 2);
+      shape(c, [[-2.2, 1.2], [-1.3, -1.2], [-0.4, 1.2], [0.5, -1.2], [1.4, 1.2], [2.2, -1]], false); arrow(c, -2, 2.6, 2.6, -2.6);
+    }, val: el => [(+el.att.toPrecision(3)) + ' dB', 4.2] },
+    pc: { draw(c) { ln(c, -7, 0, 7, 0); for (const u of [-3.2, 0, 3.2]) { c.beginPath(); c.arc(u, -1.5, 1.5, 0, 2 * Math.PI); c.stroke(); } } },
+    pol: { draw(c, el) {
+      ln(c, -7, 0, -2, 0); ln(c, 2, 0, 7, 0); box(c, 2, 3);
+      ln(c, 0, -2.2, 0, 2.2); shape(c, [[-0.7, -1.4], [0, -2.2], [0.7, -1.4]], false); shape(c, [[-0.7, 1.4], [0, 2.2], [0.7, 1.4]], false);
+    }, val: el => [(+el.axis.toPrecision(3)) + '°', 4.4] },
+    fm: { draw(c) {
+      ln(c, -7, 0, -1.2, 0);
+      c.save(); c.translate(-0.2, 0); shape(c, [[-1, -1.3], [1, -1.3], [1, 1.3], [-1, 1.3]]); c.restore();
+      const w = c.lineWidth; c.lineWidth = w * 1.8; ln(c, 1.8, -3.4, 1.8, 3.4); c.lineWidth = w; hatch(c, 1.8, -3.4, 3.4, 5);
+    } },
+    fbg: { draw(c) {
+      ln(c, -7, 0, 7, 0); for (let u = -3; u <= 3.01; u += 1) ln(c, u, -1.4, u, 1.4);
+      c.save(); c.setLineDash([0.5, 0.5]); c.lineWidth *= 0.6; c.strokeRect(-3.6, -1.9, 7.2, 3.8); c.restore();
+    }, val: el => [fmtNm(el.centre), -3.4] },
+    term: { draw(c) { ln(c, -7, 0, 0.6, 0); for (const u of [0.6, 1.8, 3]) ln(c, u, -2, u + 1.2, 2); } },
+    pd: { draw(c) {
+      ln(c, -7, 0, -3, 0); shape(c, [[-3, -2.8], [2, 0], [-3, 2.8]]); ln(c, 2, -2.8, 2, 2.8);
+      arrow(c, -4.6, -4.4, -2.8, -2.6); arrow(c, -2.6, -4.4, -0.8, -2.6);
+    } },
+    thru: { draw(c) {
+      ln(c, -3, 0, 7, 0); c.beginPath(); c.rect(-0.6, -3.6, 1.2, 7.2); c.fillStyle = '#2b3338'; c.fill(); c.stroke(); hatch(c, -2, -3.6, 3.6, 5);
+    }, val: el => [el.pair, 4.6] },
+    amp: { draw(c) { ln(c, -7, 0, -3.4, 0); ln(c, 3.4, 0, 7, 0); shape(c, [[-3.4, -3.6], [3.4, 0], [-3.4, 3.6]]); }, val: el => [(+el.g0.toPrecision(3)) + ' dB', 4.6] },
+    aom: { draw(c) {
+      ln(c, -7, 0, -3.2, 0); ln(c, 3.2, 0, 7, 0); box(c, 3.2, 2.2);
+      for (const u of [-2, -0.7, 0.6, 1.9]) { c.beginPath(); c.moveTo(u, -1.6); c.quadraticCurveTo(u + 0.7, -0.8, u, 0); c.quadraticCurveTo(u - 0.7, 0.8, u, 1.6); c.stroke(); }
+      c.fillStyle = c.strokeStyle; c.fillRect(-2.4, 2.2, 4.8, 0.9);
+    }, val: el => [(el.order < 0 ? '−' : '+') + fmtHz(el.rf * 1e6), 4.6] },
+    eom: { draw(c) {
+      ln(c, -7, 0, -3.2, 0); ln(c, 3.2, 0, 7, 0); box(c, 3.2, 1.6);
+      c.fillStyle = c.strokeStyle; c.fillRect(-3.2, -2.6, 6.4, 0.8); c.fillRect(-3.2, 1.8, 6.4, 0.8);
+    }, val: el => [fmtHz(el.fm * 1e6), 4.6] },
+  };
+  function draw(el, sel) {
+    const G = S[el.kind], s = V().scale;
+    if (!G) return false;
+    const c = ctx;
+    c.save(); c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
+    c.strokeStyle = sel ? '#ffffff' : FIBRE_COLOUR; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    G.draw(c, el);
+    c.restore();
+    if (G.val && s > 2.5) {
+      const [t, v] = G.val(el), f = frame(el), [x, y] = toWorld(f, 0, -v);
+      c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = el.kind === 'laser' ? wavelengthColour(el.wavelength) : 'rgba(244,199,220,0.9)';
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
+    }
+    return true;
+  }
+  return { draw };
+})();
 function drawFcomp(el, sel) {
+  if (FSYM.draw(el, sel)) { drawPorts(el); return; }
   const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = FC_H / 2, s = V().scale;
   const laser = el.kind === 'laser';
   pathLocal(f, roundRect(w, hh, 1.6), true);
@@ -5319,9 +5404,12 @@ function drawPorts(el) {
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = on ? FIBRE_COLOUR : '#1b2327'; ctx.fill();
     ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
-    if (ps.length > 1 && s > 3) {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '9px ' + getCss('--jek-mono'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(portName(el, i), X - Q.dx * (r + 6), Y + Q.dy * (r + 6));      // just inside the box
+    if (ps.filter(q => !q.elec).length > 1 && s > 3) {
+      // the name just outside the port, above it, upright whatever the part's angle
+      ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
+      const W = Math.abs(Q.dx) < 0.3;
+      ctx.textAlign = W ? 'left' : Q.dx > 0 ? 'left' : 'right'; ctx.textBaseline = W ? 'middle' : 'bottom';
+      ctx.fillText(portName(el, i), X + (W ? r + 3 : Q.dx * (r + 3)), Y - (W ? 0 : 3));
       ctx.textBaseline = 'alphabetic';
     }
   });

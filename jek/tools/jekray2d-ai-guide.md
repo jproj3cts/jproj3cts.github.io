@@ -178,6 +178,9 @@ A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 
 | k | `0` | conic constant (0 sphere, −1 paraboloid). |
 | R | `null` | mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex. |
 | gdd | `0` | fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror. |
+| mapScale | `"lin"` | "lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s). |
+| vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams arriving. |
+| mtfFreq | `50` | lp/mm at which its Diffraction tab quotes the MTF. |
 
 ### "lens": Lens
 

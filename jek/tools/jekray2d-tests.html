@@ -4111,6 +4111,17 @@ const TESTS = [
     want: 1, tol: 0.01, unit: '',
     run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
   },
+  {
+    name: 'A mirror reads the light arriving at its face, as a screen does',
+    why: 'five rays 4 mm across onto a fold mirror at 45°: all five recorded at its face, the outermost 2√2 mm along it either side, and none for light that reaches only its back',
+    want: 2 * Math.SQRT2, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('mirror-read', [src({ x: -30, rays: 5, width: 4 }), { type: 'mirror', name: 'M', x: 0, y: 0, angle: 135, length: 25.4 },
+        { type: 'mirror', name: 'Back', x: 0, y: 40, angle: 90, length: 25.4 }]));
+      const t = J.lastTrace(), hits = t.screens[J.byName('M').id].filter(h => !h.chief), back = t.screens[J.byName('Back').id];
+      return hits.length === 5 && back.length === 0 ? Math.max(...hits.map(h => Math.abs(h.y))) : NaN;
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

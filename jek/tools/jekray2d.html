@@ -2444,6 +2444,10 @@ function normElementBase(e) {
         k: num(e.k, 0),
         R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
         gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
+        // its readouts of the light arriving, as a screen's
+        mapScale: e.mapScale === 'log' ? 'log' : 'lin',
+        vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
+        mtfFreq: Math.max(0, num(e.mtfFreq, 50)),
       });
     case 'screen':
       return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), absorb: e.absorb !== false,
@@ -3806,7 +3810,7 @@ function traceSceneOnce() {
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {};
-  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector') { screens[el.id] = []; pulses[el.id] = []; }
+  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [], nlcHits = [];
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)
@@ -4290,6 +4294,11 @@ function traceSceneOnce() {
           pts.length -= 2;           // no kink in the drawn ray
           last = s;
           continue;
+        }
+        // a mirror notes the light arriving at its reflecting face, as a screen does, for its readouts
+        if (s.kind === 'mirror' && cosd < 0 && screens[s.el.id]) {
+          if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
+          else if (!probe && !fan) screens[s.el.id].push({ y: ly, w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
         }
         // part of the power leaves on a reflected branch, traced later from the stack
         // Split the field between a reflected branch and what carries on.
@@ -6230,9 +6239,12 @@ function keepFrame(map, key, v) {
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 /* screens whose diffracted field is on show: their panel is open at the Diffraction tab */
-const openScreens = () => project.elements.filter(e => e.type === 'screen' && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
+const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e.type === 'mirror') && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
   (e.id === selectedId || pins.includes(e.id)));
 const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
+/* the elements whose diffracted field a sweep's frames work out: every screen, and a mirror
+   whose Diffraction tab is open (a bench has many mirrors, and few are read) */
+const fieldReadouts = () => project.elements.filter(e => e.type === 'screen' || (e.type === 'mirror' && vs(e).screenTab === 'plots'));
 /* one cycle of the clock that brings every sweep in the list back to its start, if there is
    a short one: equal rates, or rates in small whole ratios */
 function commonPeriod(sws) {
@@ -6295,7 +6307,7 @@ function renderSweepFrames(list, onDone) {
             if (o && !o.mismatch && o.img) keepFrame(fieldFrames.closeup, vk, closeupFrame(o, CLOSEUP_STEP));
           }
         }
-        const screens = project.elements.filter(e => e.type === 'screen');
+        const screens = fieldReadouts();
         for (const [k, scr] of screens.entries()) {
           job.part = (k + 1) / (screens.length + 1);
           list.forEach(([el, path]) => setParam(el, path, clockValueAt(el.sweeps[path], t)));
@@ -6348,7 +6360,7 @@ function renderSweepFrames(list, onDone) {
           yield;
         }
       }
-      const screens = project.elements.filter(e => e.type === 'screen');
+      const screens = fieldReadouts();
       for (const [k, scr] of screens.entries()) {
         job.part = (k + 1) / (screens.length + 1);
         traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
@@ -8997,6 +9009,8 @@ function sourcePanel(el) {
 }
 
 function mirrorPanel(el) {
+  // what arrives at its face: the rays, the diffracted field and a pulse, read as a screen reads them
+  if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
   panel.append(h('h3', null, 'Mirror'));
   panel.append(h('div', { class: 'rt-rows' },
     param('Length (mm)', el, 'length'),
@@ -9432,10 +9446,17 @@ function pulseLine(el) {
     (P.gdd0 ? ' With that chirp it leaves ' + fmtFs(P.tau * Math.sqrt(1 + x * x)) + ' long.' : '');
 }
 function screenPanel(el) {
+  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap']])) return;
+  screenParams(el);
+}
+/* The tabs of an element that reads the light arriving at it (a screen, a mirror's face):
+   its own settings first, then the readouts. Draws the open readout and returns true, or
+   false to leave the settings to the caller. */
+function readoutTabs(el, stabs) {
   const tabs = h('div', { class: 'rt-tabs' });
-  // every tab is always there; one with nothing to show for this screen is greyed, and says why
-  const stabs = [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap']];
-  const btns = {};
+  // every tab is always there; one with nothing to show here is greyed, and says why
+  if (!stabs.some(([k]) => k === vs(el).screenTab)) vs(el).screenTab = 'params';
+  const btns = {}, what = el.type === 'screen' ? 'this screen' : 'this ' + typeLabel(el).toLowerCase();
   for (const [key, label] of stabs) {
     btns[key] = h('button', { class: 'rt-tab' + (vs(el).screenTab === key ? ' on' : ''), type: 'button',
       onclick: () => { vs(el).screenTab = key; renderPanel(); } }, label);
@@ -9444,20 +9465,24 @@ function screenPanel(el) {
   bindSync(tabs, () => {
     const all = (lastTrace.screens && lastTrace.screens[el.id]) || [];
     const why = {
-      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach this screen (a source with \u201cTrace the ray fan\u201d on)',
-      aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach this screen to sweep across the field',
-      plots: all.length ? '' : 'Nothing reaches this screen',
-      pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches this screen (a source or fibre laser with \u201cPulsed\u201d ticked)',
-      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches this screen (a source with \u201cPropagate a Gaussian beam\u201d on)',
+      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' (a source with \u201cTrace the ray fan\u201d on)',
+      aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' to sweep across the field',
+      plots: all.length ? '' : 'Nothing reaches ' + what,
+      pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
+      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (a source with \u201cPropagate a Gaussian beam\u201d on)',
     };
-    for (const [k, w] of Object.entries(why)) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
+    for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });
   panel.append(tabs);
-  if (vs(el).screenTab === 'plots') { screenPlots(el); return; }
-  if (vs(el).screenTab === 'rays') { rayPlots(el); return; }
-  if (vs(el).screenTab === 'aber') { aberSection(el); return; }
-  if (vs(el).screenTab === 'pulse') { pulseSection(el); return; }
-  if (vs(el).screenTab === 'trap') { trapSection(el); return; }
+  const tab = vs(el).screenTab;
+  if (tab === 'plots') { screenPlots(el); return true; }
+  if (tab === 'rays') { rayPlots(el); return true; }
+  if (tab === 'aber') { aberSection(el); return true; }
+  if (tab === 'pulse') { pulseSection(el); return true; }
+  if (tab === 'trap') { trapSection(el); return true; }
+  return false;
+}
+function screenParams(el) {
 
   panel.append(h('h3', null, 'Screen'));
   const stop = h('input', { type: 'checkbox' });
@@ -10796,7 +10821,8 @@ function diffractionSection(el) {
       : 'They come from separate launches, so the map adds their intensities; the figures are for the strongest.'));
     if (D.fine) notes.push('Some fringes here are finer than three map pixels, so the map can alias them: the powers stay right, the picture may not.');
     if (D.tilt > 1) notes.push('The screen is tilted ' + (+D.tilt.toPrecision(3)) + '\u00b0 to the beam: the map is the beam\u2019s cross-section projected onto it, without the extra spread along the tilt.');
-    if (D.curved) notes.push('The screen\u2019s curvature is not included in the field.');
+    if (el.type === 'mirror') notes.push('The field is the light arriving, on the plane where it meets the mirror: before it reflects, and without the mirror\u2019s curvature.');
+    else if (D.curved) notes.push('The screen\u2019s curvature is not included in the field.');
     if (D.coarse.length) notes.push(D.coarse.map(id => (getEl(id) || {}).name).join(', ') + ' has detail finer than three grid samples, so its diffraction here is only roughly right: raise the source\u2019s grid points.');
     if (D.steep.length) notes.push('The wavefront after ' + D.steep.map(id => (getEl(id) || {}).name).join(', ') + ' turns faster than the grid can follow: raise the source\u2019s grid points.');
     if (busy) notes.push('Updating\u2026');
@@ -17198,7 +17224,9 @@ const AI_FIELDS = {
   mirror: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
-    gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.' },
+    gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
+    mapScale: '"lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s).', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams arriving.',
+    mtfFreq: 'lp/mm at which its Diffraction tab quotes the MTF.' },
   lens: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },

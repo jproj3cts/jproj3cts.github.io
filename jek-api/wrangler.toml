@@ -1,0 +1,37 @@
+name = "jek-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# JEKray2D accounts and cloud benches. Separate from the URPG fulfilment
+# Worker in ../worker: no binding, bucket or secret is shared with it.
+# Secrets go in via `wrangler secret put` — never here.
+
+[vars]
+# Origins allowed to call the API with credentials, comma-separated.
+# For local work, override in .dev.vars, e.g. APP_ORIGINS="http://localhost:8765"
+APP_ORIGINS = "https://jeksys.net"
+
+# Accounts, sessions, workspaces and bench heads.
+# Replace database_id with the one `wrangler d1 create jek` prints.
+[[d1_databases]]
+binding        = "DB"
+database_name  = "jek"
+database_id    = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Bench history (one object per saved version).
+[[r2_buckets]]
+binding     = "BENCHES"
+bucket_name = "jek-benches"
+
+# Short-lived sign-in state and Stripe webhook idempotency.
+# Replace the id with the one `wrangler kv namespace create jek-auth` prints.
+[[kv_namespaces]]
+binding = "AUTH"
+id      = "00000000000000000000000000000000"
+
+# Custom domain. Needs api.jeksys.net in the jeksys.net zone; until then the
+# workers.dev URL works. URPG's Worker does not use this hostname.
+# [[routes]]
+# pattern = "api.jeksys.net"
+# custom_domain = true

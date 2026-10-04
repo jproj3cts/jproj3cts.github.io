@@ -786,6 +786,186 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |
 | pdg | `0.5` | dB, an SOA’s polarisation-dependent gain: p gains less than s by it |
 
+## Electronics ("type": "elec")
+
+Electronic parts sit on the bench like fibre components (x, y, angle, name, id) and are joined by wires: entries in "fibres" with "wire": true, from an output to an input, "a" the output’s end and "b" the input’s. An output may feed several inputs; an input takes one wire. A part’s ports are numbered from 0, its inputs first, then its outputs. Each signal is worked out in steady state: DC, tones and noise.
+
+Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output.
+
+### kind "dc": DC source
+
+**ports:** 0 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| v | `1` | Voltage (V) |
+
+### kind "sig": Signal generator
+
+**ports:** 0 = out (out), 1 = sync (out)
+
+| field | default | meaning |
+|---|---|---|
+| wave | `"sine"` | Waveform: "sine" (Sine), "square" (Square), "triangle" (Triangle), "pulse" (Pulse) |
+| f | `1000` | Frequency (Hz) |
+| amp | `1` | Amplitude (V) |
+| offset | `0` | Offset (V) |
+| phase | `0` | Phase (°) |
+| duty | `50` | Duty (%) |
+
+### kind "noise": Noise source
+
+**ports:** 0 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| psd | `100` | Density (nV/√Hz) |
+| bw | `1000000` | Bandwidth (Hz) |
+
+### kind "amp": Amplifier
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| gain | `10` | Gain (V/V) |
+| bw | `1000000` | Bandwidth (Hz) |
+| en | `5` | Input noise (nV/√Hz) |
+| vmax | `10` | Output limit (V) |
+
+### kind "tia": Transimpedance amplifier
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| gain | `100000` | Gain (V/A) |
+| bw | `100000` | Bandwidth (Hz) |
+| inoise | `1` | Input noise (pA/√Hz) |
+| vmax | `10` | Output limit (V) |
+
+### kind "lpf": Low-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `10000` | Corner (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "hpf": High-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `100` | Corner (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "bpf": Band-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| f0 | `1000` | Centre (Hz) |
+| bw | `100` | Bandwidth (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "att": Attenuator
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| db | `10` | Attenuation (dB) |
+
+### kind "biastee": Bias tee
+
+**ports:** 0 = rf (in), 1 = dc (in), 2 = rf+dc (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `10000` | Corner (Hz) |
+
+### kind "comp": Comparator
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| thr | `0` | Threshold (V) |
+| vhi | `5` | Output high (V) |
+| vlo | `0` | Output low (V) |
+
+### kind "mixer": Mixer
+
+**ports:** 0 = a (in), 1 = b (in), 2 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| k | `1` | Gain (1/V) |
+
+### kind "sum": Summing junction
+
+**ports:** 0 = a (in), 1 = b (in), 2 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| ga | `1` | Gain, a |
+| gb | `1` | Gain, b |
+
+### kind "node": Node
+
+**ports:** 0 = the node (one wire in, any number out)
+
+### kind "scope": Oscilloscope
+
+**ports:** 0 = ch1 (in), 1 = ch2 (in)
+
+| field | default | meaning |
+|---|---|---|
+| mode | `"normal"` | Mode: "normal" (Normal), "roll" (Roll) |
+| span | `0.005` | Time span (s; 0: auto) |
+| v1div | `0` | Ch1 per division (0: auto) |
+| v1off | `0` | Ch1 offset |
+| v2div | `0` | Ch2 per division (0: auto) |
+| v2off | `0` | Ch2 offset |
+
+### kind "spec": Spectrum analyser
+
+**ports:** 0 = in (in)
+
+| field | default | meaning |
+|---|---|---|
+| scale | `"log"` | Frequency axis: "log" (Log), "linear" (Linear) |
+| rbw | `10` | Resolution bandwidth (Hz) |
+| fmin | `10` | From (Hz; 0: auto) |
+| fmax | `1000000` | To (Hz; 0: auto) |
+| dbdiv | `0` | dB per division (0: auto) |
+| ref | `0` | Top (dB) |
+
+### kind "lockin": Lock-in amplifier
+
+**ports:** 0 = signal (in), 1 = ref (in), 2 = x (out), 3 = y (out)
+
+| field | default | meaning |
+|---|---|---|
+| harm | `1` | Harmonic |
+| phase | `0` | Phase (°) |
+| tau | `0.1` | Time constant (s) |
+| slope | `2` | Slope: 1 (6 dB/oct), 2 (12 dB/oct), 3 (18 dB/oct), 4 (24 dB/oct) |
+
+### kind "daq": DAQ (ADC)
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| rate | `10000` | Sample rate (S/s) |
+| bits | `16` | Bits |
+| range | `10` | Range, ± (V) |
+
 ## Catalogues
 
 **Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-F2, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.

@@ -10,7 +10,7 @@ Nothing here reads or changes URPG's resources.
 
 ## Status
 
-Steps 1 and 2 of the build order.
+Steps 1, 2 and 4 of the build order (benches before teams).
 
 - `migrations/0001_init.sql`: every table in the design's data model,
   including the ones for later phases (institution domains, jobs, audit).
@@ -19,14 +19,31 @@ Steps 1 and 2 of the build order.
   a cookie. A second provider is only ever linked by a signed-in person.
 - Sessions: hashed tokens in D1, a host-only HttpOnly cookie, 30 days,
   renewed on use; listed and ended from `/v1/me/sessions`.
+- Cloud benches: create, read, save with If-Match (409 with the newer
+  version on a clash), rename, move, delete to the bin and back; history in
+  R2 (on create, on Save, every 10 minutes of editing, before a restore;
+  the last 50 kept, then one a day for 90 days); folders; `GET /v1/me/export`
+  as a zip. Saving needs an active plan; reading and export never do.
+- A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,
   `GET /v1/me/sessions`, `DELETE /v1/me/sessions/:id`, `POST /auth/signout`.
 
 In the app, the Sign in button appears with the experimental feature
-"JEKray2D Pro accounts" switched on.
+"JEKray2D Pro accounts" switched on; signed in, the File menu gains My
+benches and Save to cloud.
 
-Next: workspaces, members, invitations and roles.
+Next: workspaces, members, invitations and roles; then Stripe.
+
+## Giving an account a plan by hand
+
+Until Stripe is connected, a plan can be granted directly (for yourself or
+a beta tester). Find the person's personal workspace, then add the plan:
+
+```sh
+npx wrangler d1 execute jek --remote --command "SELECT w.id, u.name, u.email FROM workspaces w JOIN users u ON u.id = w.owner_id WHERE w.kind = 'personal'"
+npx wrangler d1 execute jek --remote --command "INSERT INTO subscriptions (workspace_id, stripe_customer, plan, seats, status, updated_at) VALUES ('<workspace id>', 'manual', 'individual', 1, 'active', 0)"
+```
 
 ## Working on it
 

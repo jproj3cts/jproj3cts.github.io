@@ -545,6 +545,22 @@
   .rt-snaps .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-snaps .what small { color: var(--jek-ink-soft); }
   .rt-snaps p { margin: 0.8rem !important; }
+  /* My benches: the bar, where we are, the rows' actions */
+  .rt-cloudbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
+  .rt-cloudbar input[type=search] { flex: 1 1 12rem; min-width: 0; padding: 0.4rem 0.55rem; font: inherit; font-size: 0.85rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-paper, #fff); color: inherit; }
+  .rt-cloudbar select, .rt-cloudlist select { padding: 0.35rem; font: inherit; font-size: 0.85rem; max-width: 100%; }
+  .rt-cloudbar .rt-btn[aria-pressed="true"] { background: var(--jek-well); }
+  .rt-cloudcrumbs { margin: 0 0 0.5rem !important; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .rt-cloudnote { margin: 0 0 0.6rem !important; padding: 0.45rem 0.7rem; font-size: 0.85rem; background: var(--jek-well); border-left: 3px solid var(--jek-cyan); }
+  .rt-cloudlist > div { flex-wrap: wrap; }
+  .rt-cloudlist .when { min-width: 6.5rem; }
+  .rt-cloudlist .what { flex: 1 1 12rem; }
+  .rt-cloudlist .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.75rem; font-size: 0.8rem; }
+  .rt-cloudlist .folder .when { color: var(--jek-ink-soft); font-style: italic; }
+  .rt-cloudlist .here { background: var(--jek-well); }
+  .rt-cloudfoot { justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .rt-cloudfoot #cloudFoot { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--jek-ink-soft); }
+  .rt-ccacts { flex-wrap: wrap; }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
   .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
@@ -829,6 +845,8 @@
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
             <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
@@ -1079,6 +1097,25 @@
     <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
   </dialog>
 
+  <dialog class="rt-dialog rt-wide" id="cloudDialog" aria-labelledby="cloudTitle">
+    <h2 id="cloudTitle">My benches</h2>
+    <div class="rt-cloudbar" id="cloudBar"></div>
+    <p class="rt-cloudcrumbs" id="cloudCrumbs"></p>
+    <p class="rt-cloudnote" id="cloudNote" hidden></p>
+    <div class="rt-snaps rt-cloudlist" id="cloudList"></div>
+    <div class="rt-actions rt-cloudfoot"><span id="cloudFoot"></span><button class="rt-btn primary" id="cloudClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudConflict" aria-labelledby="ccTitle">
+    <h2 id="ccTitle">Saved somewhere else</h2>
+    <p id="cloudConflictText"></p>
+    <div class="rt-actions rt-ccacts">
+      <button class="rt-btn" id="ccTheirs">Open the newer one</button>
+      <button class="rt-btn" id="ccCopy">Keep mine as a copy</button>
+      <button class="rt-btn primary" id="ccMine">Overwrite with mine</button>
+    </div>
+  </dialog>
+
   <dialog class="rt-dialog" id="newDialog">
     <h2>Start a new project?</h2>
     <p>The current bench will be cleared. Save it as a .jekray file first if you want to keep it. You can still undo this.</p>
@@ -1143,6 +1180,7 @@
    ========================================================================== */
 
 const STORE_KEY = 'jek-raytracer-session-v1';
+let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 // This same script also runs as the field worker (see "The field worker" near the end): there
 // it has no page, and runs the way the tests do, without timers or drawing
 const IN_WORKER = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
@@ -3270,11 +3308,12 @@ function keepSnapshot(why, now) {
 let saveTimer = null;
 function scheduleSave() {
   if (TEST_MODE || EMBED) return;
+  if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
-      setStatus('Autosaved in this browser');
+      setStatus(cloud ? (cloud.dirty && cloudOn() ? 'Saving to the cloud shortly' : cloudNote || 'Linked to the cloud') : 'Autosaved in this browser');
       keepSnapshot('Autosave');
     } catch (err) {
       setStatus('This browser is blocking autosave. Use Save .jekray to keep your work.');
@@ -20028,6 +20067,7 @@ function parseProjectText(text) {
 }
 /* open a project from its data: undoable, then the report if anything was changed */
 function openProjectData(data, label) {
+  if (cloud && !cloudOpening) cloudLink(null);  // something else on the bench: no longer the cloud's
   const notes = [];
   data = JSON.parse(JSON.stringify(data));
   prepImport(data, notes);
@@ -20600,7 +20640,8 @@ const MENU_ICONS = {
   bug: 'M5 6.5A3 3.5 0 0 1 11 6.5V10A3 3.5 0 0 1 5 10Z M8 6.5V13 M5 8.5H2 M11 8.5H14 M5.5 5L3.5 3 M10.5 5L12.5 3 M5 11.5L3 13.5 M11 11.5L13 13.5',
   flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7',
   user: 'M8 2A3 3 0 1 1 7.99 2 M2.5 14.5A5.5 5 0 0 1 13.5 14.5', signin: 'M9.5 2.5H13.5V13.5H9.5 M2 8H10 M7 5L10 8L7 11',
-  signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
+  signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11',
+  cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
 for (const b of document.querySelectorAll('.rt-barlink')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
@@ -20627,7 +20668,7 @@ let account;                                   // undefined: not asked yet; null
 async function api(path, opts = {}) {
   const res = await fetch(API_BASE + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; throw e; }
+  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; e.version = body && body.error && body.error.version; throw e; }
   return body;
 }
 const PROVIDER_NAMES = { google: 'Google', orcid: 'ORCID' };
@@ -20666,16 +20707,253 @@ function fillAccount() {
     menu.replaceChildren(...rows);
   }
   menuIcons(menu);
+  cloudMenuShown();
 }
 async function loadAccount() {
   try { account = await api('/v1/me'); }
   catch (err) { account = null; if (err.status !== 401) toast('Could not reach your JEKray2D account: ' + err.message, true); }
   fillAccount();
+  if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
 }
 function accountShown() {
   const on = exp('cloud');
   document.getElementById('acct').hidden = !on;
+  cloudMenuShown();
   if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); loadAccount(); }
+}
+/* ---------- Cloud benches (experimental: 'cloud') ----------
+   A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
+   workspace and the version this copy is based on. Edits save themselves at most every 30
+   seconds, and at once when the tab is hidden; Save to cloud also keeps a version in its
+   history. A save based on an older version than the cloud's is refused by the API (409),
+   and the person chooses what to keep. Offline, the bench stays in this browser's autosave
+   and goes up when the connection returns: the link and whether it has unsaved changes
+   are kept with the autosave, so a reload picks up where it left off. */
+const CLOUD_KEY = 'jek-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
+let cloudTimer = null, cloudBusy = false, cloudAgain = false, cloudNote = '';
+function cloudKeep() {
+  if (TEST_MODE || EMBED) return;
+  try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* not kept: fine */ }
+}
+function cloudLink(link) {
+  cloud = link; clearTimeout(cloudTimer);
+  cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
+}
+function cloudSay(text) {
+  cloudNote = text;
+  setStatus(cloud ? text : 'Autosaved in this browser');
+}
+const cloudOn = () => exp('cloud') && !!account;
+function cloudChanged() {
+  if (!cloud || cloudOpening) return;          // opening replaces the bench: not an edit of the old link
+  if (!cloud.dirty) { cloud.dirty = true; cloudKeep(); }
+  if (!cloudOn()) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => cloudPush(), CLOUD_EVERY);
+}
+const cloudContent = () => JSON.stringify(serialize());
+async function cloudPush(opts = {}) {
+  if (!cloud || !cloudOn()) return false;
+  if (cloudBusy) { cloudAgain = true; return false; }
+  clearTimeout(cloudTimer);
+  cloudBusy = true; cloudAgain = false;
+  const link = cloud, content = cloudContent();
+  if (!opts.keepalive) cloudSay('Saving to the cloud…');
+  try {
+    const out = await api('/v1/benches/' + link.id, {
+      method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
+      headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
+      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint }),
+    });
+    if (cloud !== link) return false;                       // another bench was opened meanwhile
+    link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
+    cloudKeep();
+    cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+    return true;
+  } catch (err) {
+    if (cloud !== link) return false;
+    if (err.code === 'conflict') {
+      // the same bench as here (say, saved as the page closed, before its new version was noted):
+      // no clash, just a newer number
+      try {
+        const head = await api('/v1/benches/' + link.id), same = (x, y) => { const a = JSON.parse(x), b = JSON.parse(y); delete a.saved; delete b.saved; return JSON.stringify(a) === JSON.stringify(b); };
+        if (cloud === link && same(head.content, cloudContent())) { link.version = head.version; link.dirty = false; cloudKeep(); cloudSay('Saved to the cloud'); return true; }
+      } catch (e2) { /* fall through to asking */ }
+      if (cloud !== link) return false;
+      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
+    }
+    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKray2D Pro'); if (!opts.quiet) toast('Saving to the cloud needs JEKray2D Pro. This bench is still kept in this browser.', true); }
+    else if (err.status === 401) { cloudSay('Not saved: signed out'); account = null; fillAccount(); }
+    else if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); }
+    else if (err.status) { cloudSay('Not saved to the cloud: ' + err.message); }
+    else { cloudSay('Offline: will save to the cloud when back'); clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush({ quiet: true }), CLOUD_RETRY); }
+    return false;
+  } finally {
+    cloudBusy = false;
+    if (cloudAgain && cloud) { cloudAgain = false; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush(), 2000); }
+  }
+}
+window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
+const personalWs = () => account && (account.workspaces.find(w => w.kind === 'personal') || account.workspaces[0]);
+// Save to cloud: a new cloud bench, or a kept version of the linked one.
+async function cloudSave() {
+  if (!cloudOn()) return;
+  if (cloud) { if (await cloudPush({ checkpoint: true })) toast('Saved to the cloud, and kept in its history'); return; }
+  const ws = cloudPlace.ws || personalWs().id;
+  try {
+    const b = await api('/v1/workspaces/' + ws + '/benches', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: project.name, folder_id: cloudPlace.ws === ws ? cloudPlace.folder : null, content: cloudContent() }) });
+    cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+    toast('Saved to the cloud: “' + b.name + '” is in My benches');
+  } catch (err) {
+    toast(err.status === 402 ? 'Saving to the cloud needs JEKray2D Pro.' : 'Could not save to the cloud: ' + err.message, true);
+  }
+}
+async function cloudOpen(id, version) {
+  const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
+  const meta = version ? await api('/v1/benches/' + id) : b;
+  cloudOpening = true;
+  try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
+  finally { cloudOpening = false; }
+  // an old version opens as a copy: Save to cloud makes it a new bench
+  if (version) cloudLink(null);
+  else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
+}
+/* the conflict: someone saved this bench elsewhere since this copy was opened */
+function cloudConflict(theirs) {
+  const dlg = document.getElementById('cloudConflict'), link = cloud;
+  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved from another tab or device (version ' + theirs + ') after you opened it here. Which do you want to keep?';
+  const done = () => dlg.close();
+  document.getElementById('ccTheirs').onclick = async () => { done(); try { keepSnapshot('Before opening the cloud’s newer version', true); await cloudOpen(link.id); } catch (err) { toast(err.message, true); } };
+  document.getElementById('ccCopy').onclick = async () => {
+    done();
+    try {
+      const b = await api('/v1/workspaces/' + link.ws + '/benches', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: project.name + ' (my copy)', content: cloudContent() }) });
+      project.name = b.name; document.getElementById('projName').value = b.name;
+      cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+      toast('Kept yours as “' + b.name + '”');
+    } catch (err) { toast(err.message, true); }
+  };
+  document.getElementById('ccMine').onclick = () => { done(); cloudPush({ over: theirs, checkpoint: true }); };
+  if (!dlg.open) dlg.showModal();
+}
+/* ---------- My benches ---------- */
+const cloudPlace = { ws: null, folder: null, q: '', bin: false, history: null };
+const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+const whenAgo = t => {
+  const d = new Date(t), s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return new Date().toDateString() === d.toDateString() ? 'today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + hm;
+};
+async function fillCloud() {
+  const dlg = document.getElementById('cloudDialog'), box = document.getElementById('cloudList'), bar = document.getElementById('cloudBar');
+  const crumbs = document.getElementById('cloudCrumbs'), foot = document.getElementById('cloudFoot'), note = document.getElementById('cloudNote');
+  if (!account) { dlg.close(); return; }
+  if (!cloudPlace.ws || !account.workspaces.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = personalWs().id;
+  const ws = cloudPlace.ws, wsInfo = account.workspaces.find(w => w.id === ws);
+  const link = (label, fn, cls) => h('button', { type: 'button', class: 'rt-link' + (cls ? ' ' + cls : ''), onclick: fn }, label);
+  const busy = async (fn, ok) => { try { await fn(); if (ok) toast(ok); } catch (err) { toast(err.message, true); } if (dlg.open) fillCloud(); };
+  const json = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  box.replaceChildren(h('p', null, 'Loading…'));
+  // the bar: workspace, search, new folder, bin
+  const search = h('input', { type: 'search', placeholder: 'Search by name', value: cloudPlace.q, 'aria-label': 'Search benches' });
+  let searchT = null;
+  search.addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(() => { cloudPlace.q = search.value.trim(); fillCloud().then(() => { const s = bar.querySelector('input[type=search]'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }); }, 250); });
+  const wsSel = account.workspaces.length > 1 ? h('select', { 'aria-label': 'Workspace', onchange: e => { Object.assign(cloudPlace, { ws: e.target.value, folder: null, history: null }); fillCloud(); } },
+    ...account.workspaces.map(w => { const o = h('option', { value: w.id }, w.kind === 'personal' ? 'My benches' : w.name); o.selected = w.id === ws; return o; })) : null;
+  bar.replaceChildren(...[wsSel, search,
+    cloudPlace.history || cloudPlace.bin ? null : h('button', { type: 'button', class: 'rt-btn', onclick: () => {
+      const name = (prompt('Name of the new folder') || '').trim();
+      if (name) busy(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, json({ name, parent_id: cloudPlace.folder }))));
+    } }, 'New folder'),
+    h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': cloudPlace.bin ? 'true' : 'false', onclick: () => { Object.assign(cloudPlace, { bin: !cloudPlace.bin, history: null }); fillCloud(); } }, cloudPlace.bin ? 'Back to benches' : 'Bin')].filter(Boolean));
+  let folders = [], data;
+  try {
+    [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
+      cloudPlace.history ? api('/v1/benches/' + cloudPlace.history.id + '/versions')
+        : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(cloudPlace.bin ? { bin: '1' } : cloudPlace.q ? { q: cloudPlace.q } : { folder: cloudPlace.folder || '' }))]);
+  } catch (err) {
+    box.replaceChildren(h('p', null, err.status === 401 ? 'You are signed out. Sign in again from the top right.' : 'Could not reach your benches: ' + err.message));
+    if (err.status === 401) { account = null; fillAccount(); }
+    return;
+  }
+  const byId = new Map(folders.map(f => [f.id, f]));
+  if (cloudPlace.folder && !byId.has(cloudPlace.folder)) cloudPlace.folder = null;
+  // where we are
+  const top = wsInfo && wsInfo.kind !== 'personal' ? wsInfo.name : 'My benches';
+  const trail = [];
+  for (let f = byId.get(cloudPlace.folder); f; f = byId.get(f.parent_id)) trail.unshift(f);
+  const go = folder => () => { Object.assign(cloudPlace, { folder, q: '', bin: false, history: null }); fillCloud(); };
+  crumbs.replaceChildren(link(top, go(null)), ...trail.flatMap(f => [' › ', link(f.name, go(f.id))]),
+    cloudPlace.bin ? ' › Bin' : '', cloudPlace.history ? [' › History of “', cloudPlace.history.name, '”'].join('') : '', cloudPlace.q && !cloudPlace.bin ? ' › Search: “' + cloudPlace.q + '”' : '');
+  const writer = !!data.role ? ['owner', 'admin', 'editor'].includes(data.role) : true;
+  const active = data.active !== undefined ? data.active : (wsInfo && wsInfo.active);
+  note.hidden = !!active;
+  note.textContent = 'Saving to the cloud needs JEKray2D Pro. Benches here can still be opened, and downloaded below.';
+  const rows = [];
+  if (cloudPlace.history) {
+    const b = cloudPlace.history;
+    for (const v of data.versions) rows.push(h('div', null,
+      h('span', { class: 'when' }, whenAgo(v.created_at)),
+      h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
+      h('span', { class: 'acts' }, link('Open a copy', () => busy(async () => { dlg.close(); await cloudOpen(b.id, v.version); })),
+        writer && active ? link('Restore', () => busy(async () => {
+          await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
+          if (cloud && cloud.id === b.id) { dlg.close(); await cloudOpen(b.id); }
+        }, 'Restored version ' + v.version)) : null)));
+    if (!rows.length) rows.push(h('p', null, 'No versions kept yet.'));
+  } else {
+    if (!cloudPlace.bin && !cloudPlace.q) for (const f of folders.filter(f => (f.parent_id || null) === cloudPlace.folder)) rows.push(h('div', { class: 'folder' },
+      h('span', { class: 'when' }, 'Folder'),
+      h('span', { class: 'what' }, link(f.name, go(f.id))),
+      writer ? h('span', { class: 'acts' },
+        link('Rename', () => { const name = (prompt('Rename the folder', f.name) || '').trim(); if (name && name !== f.name) busy(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, json({ name })))); }),
+        link('Delete', () => busy(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'))) : null));
+    for (const b of data.benches) {
+      const mine = cloud && cloud.id === b.id;
+      const move = () => {
+        const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
+          ...folders.map(f => { const path = []; for (let x = f; x; x = byId.get(x.parent_id)) path.unshift(x.name); const o = h('option', { value: f.id }, path.join(' › ')); o.selected = f.id === b.folder_id; return o; }));
+        sel.addEventListener('change', () => busy(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, json({ folder_id: sel.value || null }))), 'Moved'));
+        acts.replaceChildren(sel); sel.focus();
+      };
+      const acts = h('span', { class: 'acts' }, ...(cloudPlace.bin
+        ? [writer ? link('Restore', () => busy(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')) : null]
+        : [link('Open', () => busy(async () => { dlg.close(); if (cloud && cloud.dirty && cloud.id !== b.id) await cloudPush({ quiet: true }); await cloudOpen(b.id); })),
+          link('History', () => { cloudPlace.history = { id: b.id, name: b.name }; fillCloud(); }),
+          writer && active ? link('Rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) busy(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, json({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } }); }) : null,
+          writer && active && folders.length ? link('Move', move) : null,
+          writer && active ? link('Duplicate', () => busy(async () => { const full = await api('/v1/benches/' + b.id); await api('/v1/workspaces/' + ws + '/benches', Object.assign({ method: 'POST' }, json({ name: b.name + ' (copy)', folder_id: b.folder_id, content: full.content }))); }, 'Duplicated')) : null,
+          writer ? link('Delete', () => busy(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days')) : null]).filter(Boolean));
+      rows.push(h('div', { class: mine ? 'here' : null },
+        h('span', { class: 'when' }, whenAgo(cloudPlace.bin ? b.deleted_at : b.updated_at)),
+        h('span', { class: 'what', title: b.name }, b.name, ' ', h('small', null, [mine ? 'open here' : null, cloudPlace.bin ? 'deleted' : b.updated_by && b.updated_by.name, kb(b.size_bytes), cloudPlace.q && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null].filter(Boolean).join(' · '))),
+        acts));
+    }
+    if (!rows.length) rows.push(h('p', null, cloudPlace.bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
+      : cloudPlace.q ? 'No bench matches “' + cloudPlace.q + '”.' : cloudPlace.folder ? 'This folder is empty.' : 'No benches yet. Use Save to cloud in the File menu to put this one here.'));
+  }
+  box.replaceChildren(...rows);
+  foot.replaceChildren(data.usage ? h('span', null, kb(data.usage.bytes) + ' of ' + kb(data.usage.quota) + ' used') : '',
+    h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download everything (.zip)'));
+}
+function cloudMenuShown() {
+  const on = cloudOn();
+  for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
+  if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
+}
+{
+  try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) cloud = v; } catch (err) { /* none */ }
+  document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
+  document.getElementById('btnCloudList').addEventListener('click', () => {
+    Object.assign(cloudPlace, { history: null, bin: false, q: '' });
+    document.getElementById('cloudDialog').showModal(); fillCloud();
+  });
+  document.getElementById('cloudClose').addEventListener('click', () => document.getElementById('cloudDialog').close());
 }
 {
   // the outcome of a sign-in, reported once, and taken out of the address
@@ -21372,7 +21650,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   if (project.elements.length) newDlg.showModal(); else newProject();
 });
 document.getElementById('newCancel').addEventListener('click', () => newDlg.close());
-document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); newProject(); });
+document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); });
 const nameInput = document.getElementById('projName');
 nameInput.addEventListener('input', () => { project.name = nameInput.value; scheduleSave(); });
 nameInput.addEventListener('change', () => { if (!nameInput.value.trim()) { project.name = 'Untitled bench'; nameInput.value = project.name; scheduleSave(); } });

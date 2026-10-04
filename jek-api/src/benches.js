@@ -250,7 +250,9 @@ export async function get(env, user, benchId) {
   return { ...meta(bench), content: row.head_json };
 }
 
-// PUT /v1/benches/:b  If-Match: <version>  {content, checkpoint?, label?}
+// PUT /v1/benches/:b  If-Match: <version>  {content, name?, checkpoint?, label?}
+// The name travels with the content, so a save that is the last thing a
+// closing page does still renames the bench.
 export async function save(req, env, user, benchId) {
   const a = await benchAccess(env, user, benchId);
   canWrite(a);
@@ -267,10 +269,10 @@ export async function save(req, env, user, benchId) {
   const next = b.head_version + 1;
   // Only succeeds if nobody saved since the version the app started from.
   const r = await env.DB.prepare(
-    `UPDATE benches SET head_json = ?, head_version = ?, size_bytes = ?, updated_at = ?, updated_by = ?
+    `UPDATE benches SET head_json = ?, head_version = ?, size_bytes = ?, updated_at = ?, updated_by = ?, name = ?
       WHERE id = ? AND head_version = ? AND deleted_at IS NULL`,
   )
-    .bind(content, next, bytes(content), t, user.id, b.id, match)
+    .bind(content, next, bytes(content), t, user.id, cleanName(body.name, b.name), b.id, match)
     .run();
   if (!r.meta.changes) {
     const cur = await env.DB.prepare('SELECT head_version FROM benches WHERE id = ?').bind(b.id).first();
@@ -282,7 +284,7 @@ export async function save(req, env, user, benchId) {
   if (body.checkpoint || label || t - (await lastCut(env, b.id)) >= CUT_EVERY) {
     await cutVersion(env, b.workspace_id, b.id, next, content, user.id, label);
   }
-  return { id: b.id, version: next, updated_at: t, size_bytes: bytes(content) };
+  return { id: b.id, version: next, updated_at: t, size_bytes: bytes(content), name: cleanName(body.name, b.name) };
 }
 
 // PATCH /v1/benches/:b  {name?, folder_id?}

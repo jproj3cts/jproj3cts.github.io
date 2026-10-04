@@ -99,6 +99,14 @@ describe('saving', () => {
     expect((await json(await call(`/v1/benches/${b.id}`, { token: s.token }))).body.content).toContain('tab A');
   });
 
+  it('renames with the save when a name comes with it', async () => {
+    const s = await pro();
+    const b = await make(s, 'Before');
+    const r = await json(await put(s, b.id, 1, bench('After'), { name: 'After' }));
+    expect(r.body).toMatchObject({ version: 2, name: 'After' });
+    expect((await json(await put(s, b.id, 2, bench('x')))).body.name).toBe('After'); // no name: kept
+  });
+
   it('needs If-Match', async () => {
     const s = await pro();
     const b = await make(s);

@@ -14044,6 +14044,10 @@ const POP_MAX_SEGS = 300;
 const popState = { key: '', result: null, timer: null, job: null };
 
 const popSources = () => allSources().filter(e => e.gauss && e.beamView === 'field');
+/* The element a beam's surface belongs to, for the keys that say whether a field must be
+   worked out again: the tracer's description of the surface leaves out what only the field
+   sees (a mask's formula, a coating), so the element's own settings go in with it */
+const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
@@ -14051,7 +14055,7 @@ function popKeyOf(beams, srcs) {
   const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, e.beamScale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
-    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh])) + ']';
+    [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElement(b.ev)])) + ']';
   popKeyMemo = { beams, cfg, key };
   return key;
 }
@@ -14125,7 +14129,7 @@ function stepHash(str) {
   return (h2 >>> 0).toString(36) + '.' + (h1 >>> 0).toString(36) + '.' + str.length.toString(36);
 }
 /* a beam as far as its field's steps depend on it */
-const stepDesc = b => [b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.ev, b.J, b.coh, b.par, b.fo, !!b.fan];
+const stepDesc = b => [b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.ev, evElement(b.ev), b.J, b.coh, b.par, b.fo, !!b.fan];
 const stepJSON = v => { try { return JSON.stringify(v); } catch (err) { return null; } };
 
 function popRun(beams, srcs, opts = {}) {
@@ -14187,7 +14191,7 @@ function* popRunGen(beams, srcs, opts = {}) {
     if (!job.F && eng === '2d') F0 = field2Vector(F0, b.J);
     // this field's key for the steps kept between runs: from its launch, or handed down
     if (!job.F) {
-      const d = stepJSON([eng, src, stepDesc(b), job.mode || 0, job.mn || null]);
+      const d = stepJSON([eng, src, stepDesc(b), job.mode || 0, job.mn || null, project.library || null]);
       job.fk = d === null ? null : stepHash('root|' + d);
     }
     if (job.F && loopAt.has(job.i) && job.decision) {
@@ -18279,7 +18283,9 @@ const EXAMPLES = [
     ['maltese-cross', 'Maltese cross', 'A steep focus seen through a polariser.'],
     ['off-axis-parabola', 'Off-axis parabola', 'A 90° off-axis mirror focuses with no spherical aberration.'],
     ['bessel-beam', 'Axicon: a Bessel beam', 'A cone lens makes a long, narrow line focus.'],
-    ['vortex-beams', 'Vortex beams: mode converter and SLM', 'Light with orbital angular momentum, made two ways.']]],
+    ['vortex-beams', 'Vortex beams: mode converter and SLM', 'Light with orbital angular momentum, made two ways.'],
+    ['optical-differentiator', 'Optical differentiator', 'A 4f system with a ramp in its Fourier plane takes the derivative of the light.'],
+    ['optical-integrator', 'Optical integrator', 'The same 4f system with a 1/x mask integrates it instead.']]],
   ['Polarisation and spectra', false, [
     ['wollaston-polarimeter', 'Wollaston polarimeter', 'A half-wave plate and a calcite Wollaston split s from p.'],
     ['optical-isolator', 'Optical isolator', 'A Faraday rotator stops light getting back into the laser.'],

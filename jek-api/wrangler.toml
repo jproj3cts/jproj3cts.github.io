@@ -17,11 +17,10 @@ GOOGLE_CLIENT_ID = "432503390292-hplcfdkn74jn50segtp0plbq5rnu45hj.apps.googleuse
 ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
 
 # Accounts, sessions, workspaces and bench heads.
-# Replace database_id with the one `wrangler d1 create jek` prints.
 [[d1_databases]]
 binding        = "DB"
 database_name  = "jek"
-database_id    = "00000000-0000-0000-0000-000000000000"
+database_id    = "17786ac0-2309-4c9a-ab7b-98f9e63503f9"
 migrations_dir = "migrations"
 
 # Bench history (one object per saved version).
@@ -30,10 +29,9 @@ binding     = "BENCHES"
 bucket_name = "jek-benches"
 
 # Short-lived sign-in state and Stripe webhook idempotency.
-# Replace the id with the one `wrangler kv namespace create jek-auth` prints.
 [[kv_namespaces]]
 binding = "AUTH"
-id      = "00000000000000000000000000000000"
+id      = "51e89ffd5948439b9273b0b5d381ef0d"
 
 # Custom domain: deploying creates api.jeksys.net and its DNS record in the
 # jeksys.net zone. URPG's Worker does not use this hostname.

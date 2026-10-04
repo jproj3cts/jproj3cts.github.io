@@ -4295,7 +4295,7 @@ const TESTS = [
       const T = (S, f) => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp, pd = { type: 'detector', id: 'D', name: 'PD', x: 60, y: 0, angle: 180, diode: true };
       const J1 = x => { let s = 0, t = x / 2; for (let k = 0; k < 30; k++) { s += t; t *= -(x * x / 4) / ((k + 1) * (k + 2)); } return s; };
       const las = elecRun(J, [elecLaser({ modk: 100 }), elecPart('sig', 'G', { amp: 0.5, x: -40 }), pd, elecPart('scope', 'SC', { x: 100 })], [], () => J.elec.signal('PD', 0), [['G', 0, 'L', 0], ['D', 0, 'SC', 0]]);
-      const aom = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, power: 2 }, { type: 'fcomp', kind: 'aom', id: 'FA', name: 'FA', x: 30, y: 0, loss: 0 },
+      const aom = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, ext: true, power: 2 }, { type: 'fcomp', kind: 'aom', id: 'FA', name: 'FA', x: 30, y: 0, loss: 0 },
         { type: 'fcomp', kind: 'pd', id: 'FP', name: 'FP', x: 60, y: 0, diode: true }, elecPart('sig', 'G', { amp: 0.25, offset: 0.5, y: 30 }), elecPart('scope', 'SC', { x: 100 })],
         [], () => J.elec.signal('FP', 0), [['G', 0, 'FA', 2], ['FP', 1, 'SC', 0]], [{ a: ['FL', 0], b: ['FA', 0], len: 1, loss: 0 }, { a: ['FA', 1], b: ['FP', 0], len: 1, loss: 0 }]);
       const eom = elecRun(J, [elecLaser(), { type: 'eom', id: 'M', name: 'EOM', x: 30, y: 0, emode: 'amplitude', beta: 0, bias: 90, vpi: 5 }, elecPart('sig', 'G', { amp: 1, y: 30 }), pd, elecPart('scope', 'SC', { x: 100 })],
@@ -4341,7 +4341,7 @@ const TESTS = [
     why: 'a fibre laser at 1550.2 nm, 1 GHz/V, a 1 kHz sine of 20 V on its FM input (±0.16 nm), through a fibre Bragg grating (1550 nm, 0.5 nm wide, 90%) onto a bare fibre photodiode: its DC and fundamental against the grating’s transmission 1 − R(λ(t)) over a cycle: the largest relative error',
     want: 0, tol: 1e-4, unit: '',
     run: J => {
-      const S = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, power: 1, wavelength: 1550.2, fmk: 1 }, { type: 'fcomp', kind: 'fbg', id: 'B', name: 'FBG', x: 30, y: 0, centre: 1550, fwhm: 0.5, rmax: 90 },
+      const S = elecRun(J, [{ type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: 0, y: 0, ext: true, power: 1, wavelength: 1550.2, fmk: 1 }, { type: 'fcomp', kind: 'fbg', id: 'B', name: 'FBG', x: 30, y: 0, centre: 1550, fwhm: 0.5, rmax: 90 },
         { type: 'fcomp', kind: 'pd', id: 'FP', name: 'FP', x: 60, y: 0, diode: true }, elecPart('sig', 'G', { amp: 20, y: 30 }), elecPart('scope', 'SC', { x: 100 })],
         [], () => J.elec.signal('FP', 0), [['G', 0, 'FL', 2], ['FP', 1, 'SC', 0]], [{ a: ['FL', 0], b: ['B', 0], len: 1, loss: 0 }, { a: ['B', 1], b: ['FP', 0], len: 1, loss: 0 }]);
       const T = lam => 1 - 0.9 * Math.exp(-4 * Math.LN2 * ((lam - 1550) / 0.5) ** 2), N = 4096;
@@ -4545,7 +4545,7 @@ function elecRun(J, els, wires, fn, raw, fibres) {
   try { return fn(); } finally { J.experimental(false); }
 }
 /* a 1 mW Gaussian beam at 633 nm along +x from the origin, as a laser for the electronics */
-const elecLaser = o => Object.assign({ type: 'source', id: 'L', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, wavelength: 633, power: 1, rays: 1, width: 1 }, o || {});
+const elecLaser = o => Object.assign({ type: 'source', id: 'L', name: 'Laser', x: 0, y: 0, angle: 0, ext: true, gauss: true, w0: 0.5, wavelength: 633, power: 1, rays: 1, width: 1 }, o || {});
 /* a grid of directional couplers joined right and down, each row's end looping into the next row's start */
 function picLattice(R, C) {
   const els = [], fibres = [], wg = len => ({ preset: 'si', len });

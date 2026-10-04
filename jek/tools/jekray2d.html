@@ -847,7 +847,7 @@
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
-    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray2d-ai-guide.md" download>the JEKray2D guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Open ▾ → Pasted text</b> or Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -5450,7 +5450,7 @@ function drawPorts(el) {
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = on ? FIBRE_COLOUR : '#1b2327'; ctx.fill();
     ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
-    if (ps.filter(q => !q.elec).length > 1 && s > 3) {
+    if (ps.length > 1 && s > 3) {                  // named when it has company: other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;
@@ -6149,6 +6149,15 @@ document.addEventListener('keydown', e => {
   if (!mod && e.key === ' ') { e.preventDefault(); if (!spaceDown) { spaceDown = true; canvas.classList.add('dragging'); } return; }
   if (!mod && (e.key === 'z' || e.key === 'Z')) { zoomToSelection(); return; }
   if (!mod && (e.key === 'm' || e.key === 'M')) { setMeasure(!measureMode); return; }
+  // R turns the selection 90 degrees anticlockwise, Shift+R clockwise
+  if (!mod && !e.altKey && (e.key === 'r' || e.key === 'R')) {
+    const list = selection();
+    if (!list.length) return;
+    e.preventDefault();
+    if (list.every(x => x.locked)) { toast((list.length === 1 ? list[0].name + ' is' : 'They are') + ' locked in place'); return; }
+    rotateEls(list, e.shiftKey ? -90 : 90);
+    return;
+  }
   if (e.key === 'Escape' && measureMode) { if (measureDraft) { measureDraft = null; requestRender(); } else setMeasure(false); return; }
   if (measureMode && (e.key === 'Delete' || e.key === 'Backspace')) {
     // the last one on this tab
@@ -6450,6 +6459,13 @@ let fieldRendered = null;              // { keys, period } of the sweeps last re
 const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e.type === 'mirror') && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
   (e.id === selectedId || pins.includes(e.id)));
 const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
+/* a sweep can work out the diffracted field (slow) wherever there is a Gaussian beam to diffract */
+const fieldPossible = () => fieldWanted() || allSources().some(e => e.gauss) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
+/* While sweeps play and none of them has "Render the diffracted field" ticked, the field is held:
+   nothing new is worked out (the bench shows the beams' outlines, screens and photodiodes keep
+   their last field), so a sweep is quick unless the slow field is asked for. It is worked out
+   again when they stop. */
+const fieldHeld = () => playing.size > 0 && !sweepJob && ![...playing.values()].some(({ id, path }) => { const e = getEl(id); return e && e.sweeps && e.sweeps[path] && e.sweeps[path].field; });
 /* the elements whose diffracted field a sweep's frames work out: every screen, and a mirror
    whose Diffraction tab is open (a bench has many mirrors, and few are read) */
 const fieldReadouts = () => project.elements.filter(e => e.type === 'screen' || (e.type === 'mirror' && vs(e).screenTab === 'plots'));
@@ -8416,6 +8432,14 @@ const ELEC = (() => {
       if (O.type === 'chopper') return chopRef(O);
       if (!isDet(O)) return zero();
       if (optState === 1) { note(O, 'Its output feeds back into the light it reads: loops through the light are not solved, so it reads nothing'); return zero(); }
+      runOptics();
+      return out.get(pkey(...src)) || zero();
+    };
+    // the light through time at every photodiode, with every drive on the bench: once, when a
+    // photodiode's output is first asked for, or at the end when something drives the light
+    // (so each one's own signal plot shows it, wired or not)
+    let driven = false;
+    const runOptics = () => {
       if (optState === 0) {
         optState = 1;
         const drives = [], dets = [];
@@ -8426,14 +8450,14 @@ const ELEC = (() => {
           extra(E).forEach((P, k) => {
             if (P.elec === 'in' && feed.has(pkey(E.id, base + k))) drives.push({ el: E, port: P.name, S: input(E, base + k) });
           });
-          if (isDet(E) && wires.some(F => F.a[0] === E.id)) dets.push(E);
+          if (isDet(E) && extra(E).length) dets.push(E);
         }
+        driven = drives.length > 0;
         const OS = opticalSignals(drives, dets);
         for (const E of dets) out.set(pkey(E.id, portsOf(E).length - 1), detOutput(E, OS.P.get(E.id), m => note(E, m)));
-        for (const m of OS.notes) for (const E of dets) note(E, m);
+        for (const m of OS.notes) for (const E of dets) if (wires.some(F => F.a[0] === E.id)) note(E, m);
         optState = 2;
       }
-      return out.get(pkey(...src)) || zero();
     };
     const visit = el => {
       const st = state.get(el.id);
@@ -8470,10 +8494,18 @@ const ELEC = (() => {
       state.set(el.id, 2);
     };
     for (const el of els) visit(el);
-    memo = { key, R: { out, warn, lock } };
+    if (optical && optState === 0) runOptics();
+    memo = { key, R: { out, warn, lock, driven } };
     return memo.R;
   }
   const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' ? 0 : KINDS[el.kind].ins.length + j)) || null;
+  /* a photodiode's output with the bench's drives in it, for its own signal plot: null when
+     nothing on the bench drives the light (its beat notes are then all there is) */
+  function detSignal(el) {
+    if (!exp('elec') || !isDet(el)) return null;
+    const R = solve();
+    return R.driven ? R.out.get(pkey(el.id, portsOf(el).length - 1)) || null : null;
+  }
   /* what a part's input receives */
   function inputOf(el, i) {
     const F = (project.fibres || []).find(G => G.wire && pkey(...G.b) === pkey(el.id, i));
@@ -8537,20 +8569,44 @@ const ELEC = (() => {
       for (let k = 0; k < N; k++) { const t = span * k / (N - 1); let x = S.dc; T.forEach((q, j) => { const a = 2 * Math.PI * q.f * t; x += sg[j] * (q.re * Math.cos(a) - q.im * Math.sin(a)); }); v[k] = x; }
       return { v, sd: noiseRms(S, 1 / span, SCOPE_BW), unit: S.unit };
     });
-    let lo = Infinity, hi = -Infinity;
-    for (const T of tr) if (T) for (const x of T.v) { lo = Math.min(lo, x - T.sd); hi = Math.max(hi, x + T.sd); }
-    if (!(hi > lo)) { lo = (isFinite(lo) ? lo : 0) - 1; hi = (isFinite(hi) ? hi : 0) + 1; }
-    const m = 0.08 * (hi - lo); lo -= m; hi += m;
-    const sy = { kind: 'plain', title: tr.find(Boolean) && tr.find(Boolean).unit === 'A' ? 'A' : 'V' }, sx = { kind: 's', title: 'time' };
+    // each channel its own vertical scale, as on a bench scope: fitted to its own trace, so a small
+    // ripple on one is not flattened by a large swing on the other; a flat trace sits mid-screen
+    const rangeOf = T => {
+      let lo = Infinity, hi = -Infinity;
+      for (const x of T.v) { lo = Math.min(lo, x - T.sd); hi = Math.max(hi, x + T.sd); }
+      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
+      return half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
+    };
+    const rg = tr.map(T => T ? rangeOf(T) : null), first = tr.findIndex(Boolean);
+    // a small swing on a large level is read as an offset and the swing about it, as with a scope's offset knob
+    const off = rg.map(r => r && Math.abs(r[0] + r[1]) / 2 > 500 * (r[1] - r[0]) ? (r[0] + r[1]) / 2 : 0);
+    const u0 = first >= 0 && tr[first].unit === 'A' ? 'A' : 'V';
+    const [lo, hi] = first >= 0 ? rg[first].map(v => v - off[first]) : [-1, 1];
+    const o1 = first >= 0 ? off[first] : 0;
+    const sy = { kind: 'plain', title: (tr[0] && tr[1] ? 'ch' + (first + 1) : u0) + (o1 ? ' about ' + fmtSig(o1, u0) : ''),
+      fmt: v => (o1 && v > 0 ? '+' : '') + (Math.abs(v) < 1e-15 * Math.max(1, Math.abs(hi - lo)) ? '0' : fmtSig(v, u0)) }, sx = { kind: 's', title: 'time' };
     const A = plotArea(c, w, hgt, [lo, hi], sy);
-    const X = t => A.l + t / span * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
+    const X = t => A.l + t / span * A.w;
     plotCsv(cv, el.name + ' traces', ['time_s', 'ch1', 'ch2'], () => Array.from({ length: N }, (_, k) => [span * k / (N - 1), tr[0] ? tr[0].v[k] : '', tr[1] ? tr[1].v[k] : '']));
     tr.forEach((T, i) => {
       if (!T) return;
+      const [a, b] = rg[i], Y = v => A.t + A.h - (v - a) / (b - a) * A.h;
       if (T.sd > 0) { c.fillStyle = CH[i] + '33'; c.beginPath(); for (let k = 0; k < N; k++) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] + T.sd)); for (let k = N - 1; k >= 0; k--) c.lineTo(X(span * k / (N - 1)), Y(T.v[k] - T.sd)); c.fill(); }
       c.strokeStyle = CH[i]; c.lineWidth = 1.5; c.beginPath(); for (let k = 0; k < N; k++) { const x = X(span * k / (N - 1)), y = Y(T.v[k]); k ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
     });
     drawAxes(c, A, [0, span], [lo, hi], sx, sy);
+    // the other channel's scale, in its colour, down the right-hand edge
+    const other = tr[0] && tr[1] ? 1 - first : -1;
+    if (other >= 0) {
+      const [a, b] = rg[other], u = tr[other].unit === 'A' ? 'A' : 'V', o = off[other], sg = v => (v > 0 ? '+' : v < 0 ? '\u2212' : '') + fmtSig(Math.abs(v), u);
+      c.save(); c.fillStyle = CH[other]; c.font = axisFont(); c.textAlign = 'right';
+      for (const q of [0, 0.5, 1]) {
+        const v = a + (b - a) * q, y = A.t + A.h - q * A.h;
+        c.textBaseline = q === 1 ? 'top' : q === 0 ? 'bottom' : 'middle';
+        c.fillText(o ? (q === 0.5 ? fmtSig(o, u) : sg(v - o)) : fmtSig(v, u), A.l + A.w - 3, y);
+      }
+      c.restore();
+    }
     return tr;
   }
   function drawSpectrum(cv, el) {
@@ -8581,7 +8637,7 @@ const ELEC = (() => {
     panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
     bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
     panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
-      ? 'Channel 1 red, channel 2 blue, each with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
+      ? 'Channel 1 red, channel 2 blue, each on its own vertical scale (channel 1’s on the left, channel 2’s down the right in blue), with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
       : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt.'));
   }
 
@@ -8617,7 +8673,8 @@ const ELEC = (() => {
     const k = 1 / V().scale;
     switch (el.type) {
       case 'detector': return [{ x: -Math.max(6, 24 * k), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];
-      case 'source': {                                         // power and frequency modulation, on its back
+      case 'source': {                                         // power and frequency modulation, on its back, when under external control
+        if (!el.ext) return [];
         const hw = Math.max(el.width / 2, 6 * k) + 3 * k;
         const d = Math.max(hw / 2, 8 * k);
         return [{ x: -26 * k, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -26 * k, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
@@ -8626,7 +8683,7 @@ const ELEC = (() => {
       case 'eom': return [{ x: 0, y: el.length / 2 + 2 * k, dx: 0, dy: 1, elec: 'in', name: 'mod' }];
       case 'chopper': return [{ x: 0, y: -(el.length / 2 + CHOP_HUB), dx: 0, dy: -1, elec: 'out', name: 'ref' }];
       case 'fcomp': {
-        if (el.kind === 'laser') return [{ x: -FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'mod' }, { x: FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'fm' }];
+        if (el.kind === 'laser') return !el.ext ? [] : [{ x: -FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'mod' }, { x: FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'fm' }];
         const n = { pd: ['out', 'out'], aom: ['in', 'rf'], eom: ['in', 'mod'] }[el.kind];
         return n ? [{ x: 0, y: FC_H / 2, dx: 0, dy: 1, elec: n[0], name: n[1] }] : [];
       }
@@ -8637,6 +8694,7 @@ const ELEC = (() => {
   function normExtra(e, o) {
     if ((o.type === 'detector' || (o.type === 'fcomp' && o.kind === 'pd')) && e.diode === true) o.diode = true;   // no amplifier: a current out
     if (o.type === 'detector' && e.fieldSample === true) o.fieldSample = true;
+    if (isLaser(o) && e.ext === true) o.ext = true;            // under external control: its mod and fm inputs
     for (const k of ['modk', 'fmk', 'vsat', 'vpi']) if (e[k] !== undefined && e[k] !== null && isFinite(e[k])) o[k] = +e[k];
   }
   function normChopper(e, base) {
@@ -8670,7 +8728,7 @@ const ELEC = (() => {
   /* the light on a photodiode, mW, as the bench is traced now */
   function readDet(el) {
     if (el.type === 'fcomp') return lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0;
-    if (el.fieldSample) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
+    if (el.fieldSample && !fieldHeld()) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
     return detectorReading(el).mw;
   }
   const scaled = (S, k, unit) => { const o = zero(unit || S.unit); o.dc = k * S.dc; o.tones = S.tones.map(t => ({ f: t.f, re: k * t.re, im: k * t.im })); for (let i = 0; i < NF; i++) o.psd[i] = k * k * S.psd[i]; return o; };
@@ -8809,6 +8867,14 @@ const ELEC = (() => {
       const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
       ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
       ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+      // its name beside it, outside the part, upright
+      if (V().scale > 2.2) {
+        ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
+        const side = Math.abs(Q.dx) > 0.3, X = sx(Q.x), Y = sy(Q.y);
+        ctx.textAlign = side ? (Q.dx > 0 ? 'left' : 'right') : 'left'; ctx.textBaseline = side ? 'bottom' : 'middle';
+        ctx.fillText(P.name, side ? X + Q.dx * (r + 3) : X + r + 3, side ? Y - 3 : Y - Q.dy * (r + 4));
+        ctx.restore();
+      }
     });
   }
   /* the chopper: its blade across the beam (solid, dashed where the slots let light by) and its motor */
@@ -8836,8 +8902,8 @@ const ELEC = (() => {
   /* an optical part's electrical settings and ports, in its panel */
   function opticPanel(el) {
     const X = extra(el);
-    if (!X.length || el.type === 'chopper') return;
-    panel.append(h('h3', null, 'Electronics', h('span', { class: 'rt-exp' }, 'Experimental')));
+    if (el.type === 'chopper' || (!X.length && !isLaser(el))) return;
+    if (!isLaser(el)) panel.append(h('h3', null, 'Electronics', h('span', { class: 'rt-exp' }, 'Experimental')));   // a laser's has its tickbox first
     const rows = h('div', { class: 'rt-rows' });
     let what = '';
     if (isDet(el)) {
@@ -8847,7 +8913,23 @@ const ELEC = (() => {
         () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
       what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
         'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
-    } else if (isLaser(el)) {
+ } else if (isLaser(el)) {
+      const tick = h('input', { type: 'checkbox' });
+      tick.checked = !!el.ext;
+      tick.addEventListener('change', () => {
+        checkpoint();
+        if (tick.checked) el.ext = true;
+        else {
+          // its inputs go, and the wires to them
+          const n = portsOfOptic(el).length;
+          project.fibres = (project.fibres || []).filter(F => !(F.wire && F.b[0] === el.id && F.b[1] >= n));
+          delete el.ext;
+        }
+        changed(true);
+      });
+      panel.append(h('h3', null, 'Electronics', h('span', { class: 'rt-exp' }, 'Experimental')));
+      panel.append(h('label', { class: 'rt-check' }, tick, 'External control: modulation inputs for its power and frequency'));
+      if (!el.ext) return;
       if (el.modk === undefined) el.modk = 100;
       if (el.fmk === undefined) el.fmk = 1;
       rows.append(param('Power modulation (% per V)', el, 'modk'), param('Frequency tuning (GHz per V)', el, 'fmk'));
@@ -8926,7 +9008,7 @@ const ELEC = (() => {
 
   return {
     KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient, readout,
-    extra, normExtra, normChopper, drawExtras, drawChopper, hitChopper, chopSurfaces, chopperPanel, chopperReadout, opticPanel, moreReadout,
+    extra, normExtra, normChopper, detSignal, drawExtras, drawChopper, hitChopper, chopSurfaces, chopperPanel, chopperReadout, opticPanel, moreReadout,
     ports: portList, names, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Electronics',
     // for the tests: a block's output by name and output number, and its transfer functions
     api: {
@@ -9074,12 +9156,24 @@ function pdSignal(el) {
   }
   return out;
 }
+/* the signal with what drives the light on the bench in it (a chopper, a modulated laser, an
+   AOM or EOM on a drive: ELEC hook), when anything does; else just its beat notes. Tones as
+   pdSignal's: V the output's amplitude, amp the light's swing in mW. */
+function pdSignalAll(el) {
+  const S = pdSignal(el), E = ELEC.detSignal(el);
+  if (!E) return S;
+  const fibre = el.type === 'fcomp', rd = fibre ? null : detectorReading(el);
+  const R = fibre ? el.resp : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), k = R * 1e-3 * (el.diode ? 1 : el.gain);   // output per mW
+  const tones = E.tones.map(t => { const V = Math.hypot(t.re, t.im); return { f: t.f, V, phV: Math.atan2(t.im, t.re), amp: k > 0 ? V / k : 0, incoh: false }; })
+    .concat(S.tones.filter(t => t.incoh)).sort((a, b) => a.f - b.f);
+  return Object.assign({}, S, { Vdc: E.dc, dc: k > 0 ? E.dc / k : S.dc, tones, unit: E.unit, driven: true, vmax: el.diode ? Infinity : S.vmax });
+}
 /* the signal's plot: its RF spectrum (each tone's amplitude, dB of a volt) or its trace in time */
 function drawSignal(cv, el, mode) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 150;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hgt);
-  const S = pdSignal(el), T = S.tones.filter(t => t.V > 1e-9);
+  const S = pdSignalAll(el), T = S.tones.filter(t => t.V > 1e-9), u = S.unit === 'A' ? 'A' : 'V';
   g.fillStyle = getCss('--jek-ink-soft'); g.font = axisFont();
   if (mode === 'rf') {
     plotCsv(cv, el.name + ' RF spectrum', ['frequency_Hz', 'amplitude_V', 'level_dBV', 'phase_deg', 'swing_mW', 'two_lasers'],
@@ -9087,7 +9181,7 @@ function drawSignal(cv, el, mode) {
     if (!T.length) { g.fillText('DC ' + (+S.Vdc.toPrecision(4)) + ' V; no beat notes: one frequency of each laser reaches it', 4, 14); return; }
     const fmax = 1.15 * Math.max(...T.map(t => t.f)), dB = v => 20 * Math.log10(Math.max(v, 1e-12));
     const top = Math.ceil(dB(Math.max(...T.map(t => t.V))) / 10) * 10 + 5, bot = top - 90;
-    const sx = { kind: 'hz', title: 'frequency' }, sy = { kind: 'plain', title: 'dBV' };
+    const sx = { kind: 'hz', title: 'frequency' }, sy = { kind: 'plain', title: 'dB' + u };
     const A = plotArea(g, w, hgt, [bot, top], sy);
     for (const t of T) {
       const X = A.l + t.f / fmax * A.w, Y = A.t + A.h - (Math.max(bot, dB(t.V)) - bot) / (top - bot) * A.h;
@@ -9105,13 +9199,16 @@ function drawSignal(cv, el, mode) {
   // by itself, with no beat notes: the output over the last 10 s of the sweeps, as it changes
   const want0 = vs(el).sigSpan, autoRoll = !(want0 > 0) && !T.length, want = autoRoll ? 10 : want0;
   const span = want > 0 ? want : fmin > 0 ? 3 / fmin : 1e-6, dt = span / n;
-  const slow = T.filter(q => q.f * dt < 0.25), fast = T.filter(q => q.f * dt >= 0.25);
+  const lim = S.driven ? 0.5 : 0.25, slow = T.filter(q => q.f * dt < lim), fast = T.filter(q => q.f * dt >= lim);
+  // a long series of harmonics (a square drive's) smoothed by Lanczos's factors, so its cut-off does not ring
+  const lz = S.driven && slow.length >= 10 ? Math.min(...slow.map(q => q.f)) + Math.max(...slow.map(q => q.f)) : 0;
+  for (const q of slow) { const x = lz ? Math.PI * q.f / lz : 0; q.sg = x ? Math.sin(x) / x : 1; }
   const band = fast.reduce((a, q) => a + q.V, 0);
   const H = (sigHist.get(el.id) || []).filter(r => r[0] >= clockT - span - 1e-12);
   const rolled = want >= SIG_ROLL && H.length > 1;
   const t0 = clockT - span;
   const at = t => { if (!rolled) return S.Vdc; let k = 0; while (k + 1 < H.length && H[k + 1][0] <= t) k++; return t < H[0][0] ? NaN : H[k][1]; };
-  const Vt = t => at(t0 + t) + slow.reduce((a, q) => a + q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0);
+  const Vt = t => at(t0 + t) + slow.reduce((a, q) => a + q.sg * q.V * Math.cos(2 * Math.PI * q.f * t + q.phV), 0);
   const ys = [], lo_ = [], hi_ = [];
   for (let i = 0; i <= n; i++) { const v = Vt(span * i / n); ys.push(Number.isFinite(v) ? Math.min(S.vmax, v) : NaN); lo_.push(Math.min(S.vmax, v - band)); hi_.push(Math.min(S.vmax, v + band)); }
   plotCsv(cv, el.name + ' oscilloscope', band > 0 ? ['time_s', 'output_V', 'band_low_V', 'band_high_V'] : ['time_s', 'output_V'],
@@ -9119,7 +9216,7 @@ function drawSignal(cv, el, mode) {
   const fin = [...ys, ...lo_, ...hi_].filter(Number.isFinite);
   let lo = Math.min(0, ...fin), hi = Math.max(...fin); if (!(hi - lo > 1e-9)) hi = lo + 1e-3;
   const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
-  const sx = { kind: 's', title: rolled ? 'time, recorded' : 'time' }, sy = { kind: 'plain', title: 'output, V' };
+  const sx = { kind: 's', title: rolled ? 'time, recorded' : 'time' }, sy = { kind: 'plain', title: 'output, ' + u };
   const A = plotArea(g, w, hgt, [lo, hi], sy);
   const X = i => A.l + i / n * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
   if (band > 0) {
@@ -9183,10 +9280,13 @@ function signalSection(el) {
   panel.append(rows);
   let sig = '';
   bindSync(cv, () => {
-    const S = pdSignal(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3);
+    const S = pdSignalAll(el), f = v => Math.abs(v) >= 0.01 || v === 0 ? String(+v.toPrecision(4)) : v.toExponential(3), u = S.unit === 'A' ? ' A' : ' V';
     if (playing.size) recordSignal(el, Math.min(S.vmax, S.Vdc));
-    const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + ' V']];
-    for (const t of S.tones.slice(0, 8)) r.push(['Beat at ' + fmtHz(t.f), fmtMw(t.amp) + ' swing, ' + f(t.V) + ' V' + (t.incoh ? ' (two lasers: phase wanders, line of both)' : ', phase ' + (t.phV / deg).toFixed(1) + '\u00b0')]);
+    const r = [['DC', fmtMw(S.dc) + ', ' + f(S.Vdc) + u]];
+    if (S.driven) r.push(['Modulated', 'by what drives the light on the bench (the tones below)']);
+    // the strongest, in order of frequency
+    const top = S.tones.slice().sort((a, b) => b.V - a.V).slice(0, 8).sort((a, b) => a.f - b.f);
+    for (const t of top) r.push([(t.incoh || !S.driven ? 'Beat at ' : 'At ') + fmtHz(t.f), fmtMw(t.amp) + ' swing, ' + f(t.V) + u + (t.incoh ? ' (two lasers: phase wanders, line of both)' : ', phase ' + (t.phV / deg).toFixed(1) + '\u00b0')]);
     if (S.tones.length > 8) r.push(['', (S.tones.length - 8) + ' more']);
     if (S.mixer !== undefined) r.push(['Mixer output', f(S.mixer) + ' V']);
     if (S.noise) {
@@ -9799,14 +9899,15 @@ function sweepControls(el, path, sw, label) {
     box.append(h('div', { class: 'rt-sweep-range' }, h('div', { class: 'rt-f' }, h('label', { for: id }, 'Steps a cycle'), inp)));
   }
   // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
-  if (fieldWanted() || sw.field) {
+  if (fieldPossible() || sw.field) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
     fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; fieldRendered = null; changed(false); });
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + '\u2026'
-        : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.' : '';
+        : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.'
+        : 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.';
       status.hidden = !status.textContent;
     });
     box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
@@ -11231,7 +11332,7 @@ function fibrePanel(el) {
   else panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
 function detectorPanel(el) {
-  panel.append(h('h3', null, 'Photodiode'));
+  panel.append(h('h3', null, el.diode ? 'Photodiode' : 'Photodetector'));
   const rows = h('div', { class: 'rt-rows' },
     param('Diameter (mm)', el, 'length'),
     selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
@@ -16041,7 +16142,7 @@ function popSlices(items, perIn) {
 
 /* Runs the field a few tens of milliseconds at a time; a change to the bench restarts it */
 function schedulePop() {
-  if (popState.timer || TEST_MODE || sweepJob) return;
+  if (popState.timer || TEST_MODE || sweepJob || fieldHeld()) return;
   if (fieldWorker()) {
     popState.timer = setTimeout(() => {
       popState.timer = null;
@@ -17024,6 +17125,7 @@ function detectorFieldResult(el) {
   if (c && c.key === key) return c.r;
   const now = () => { const r = detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })); detFieldCache.set(el.id, { key, r }); return r; };
   if (TEST_MODE || !fieldWorker()) return now();
+  if (fieldHeld()) return c && c.r ? c.r : null;               // held while a sweep plays: the tracer's figure meanwhile
   // one at a time, as for the screens: while the bench keeps changing, the reading being
   // worked out is finished and shown (the last one meanwhile), then the next is asked for
   if (!c || !c.asked) {
@@ -17062,6 +17164,7 @@ function diffractionLater(el) {
   if (fr) { popScreenCache.set(el.id, { key: job.key, D: fr }); return { D: fr, busy: false }; }
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (sweepJob) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
+  if (fieldHeld()) return { D: c ? c.D : null, busy: false };   // a sweep plays without the field: the last one stands
   const S = popScreenState, J0 = S.jobs.get(el.id);
   if (fieldWorker()) {
     // One field at a time per screen: while the bench keeps changing (a sweep playing, a
@@ -17863,8 +17966,8 @@ canvas.addEventListener('contextmenu', e => {
     { label: 'Cut', key: 'Ctrl+X', fn: () => { clipMem = clipOf(list); try { navigator.clipboard.writeText(JSON.stringify(clipMem)); } catch (err) { /* kept here */ } removeEls(list); } },
     paste,
     { label: 'Delete', key: 'Del', fn: () => removeEls(list) }, '-',
-    { label: 'Rotate 90\u00b0 anticlockwise', fn: () => rotateEls(list, 90) },
-    { label: 'Rotate 90\u00b0 clockwise', fn: () => rotateEls(list, -90) },
+    { label: 'Rotate 90\u00b0 anticlockwise', key: 'R', fn: () => rotateEls(list, 90) },
+    { label: 'Rotate 90\u00b0 clockwise', key: 'Shift+R', fn: () => rotateEls(list, -90) },
     { label: 'Turn round (180\u00b0)', fn: () => rotateEls(list, 180) },
     { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) }, '-',
     ...project.benches.filter(b => !list.every(x => x.bench === b.id)).map(b => ({ label: 'Move to ' + b.name, fn: () => moveToTab(list, b.id) })),
@@ -19354,7 +19457,7 @@ const PALETTES = {
     ['detector', 'Photodetector'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
   elec: ELEC.PALETTE,                                                                        // ELEC hook
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodiode', 'Fibre photodiode'],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],

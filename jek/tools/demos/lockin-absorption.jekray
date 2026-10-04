@@ -22,7 +22,8 @@
       "w0": 0.5,
       "rays": 1,
       "width": 1,
-      "modk": 100
+      "modk": 100,
+      "ext": true
     },
     {
       "id": "bs",

@@ -9141,16 +9141,29 @@ const INST = (() => {
       let lo = Math.min(...vals), hi = Math.max(...vals);
       // a trace with no swing at all (a steady level, no noise) sits mid-screen with a tenth of its level either side
       const flat = !(hi - lo > 1e-12 * Math.max(1e-12, Math.abs(lo), Math.abs(hi)));
-      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, flat ? Math.max(0.1 * Math.abs(mid), 1e-3) : 0, 1e-9 * Math.max(1, Math.abs(mid)), Math.abs(mid) * 1e-6);
-      return half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
+      // and a ripple under a percent of the level is not blown up to fill the screen: drawn flat at the level, as a bench scope's
+      // eight bits would show it
+      const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, flat ? Math.max(0.1 * Math.abs(mid), 1e-3) : 0.01 * Math.abs(mid), 1e-9 * Math.max(1, Math.abs(mid)));
+      const r = half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
+      r.swing = hi - lo; r.mid = mid;
+      return r;
     };
     const rg = tr.map((T, i) => T ? range(T, st.ch && st.ch[i]) : null), fi = tr.findIndex(Boolean);
+    // two channels in one unit, both on auto, on comparable scales (two lock-in outputs, say): one scale for both, so each sits
+    // at its own height rather than both filling the screen; a channel whose swing would shrink to a sliver keeps its own
+    const autoCh = i => !(st.ch && st.ch[i] && st.ch[i].vdiv > 0);
+    let shared = false;
+    if (tr[0] && tr[1] && tr[0].unit === tr[1].unit && autoCh(0) && autoCh(1)) {
+      const lo = Math.min(rg[0][0], rg[1][0]), hi = Math.max(rg[0][1], rg[1][1]);
+      // each either flat at this scale (its swing under a percent of its level) or still filling a third of the screen
+      if (rg.every(r => r.swing <= 0.01 * Math.abs(r.mid) || r.swing >= (hi - lo) / 3)) { const m = 0.08 * (hi - lo); rg[0] = rg[1] = [lo - m, hi + m]; shared = true; }
+    }
     tr.forEach((T, i) => { if (T) T.range = rg[i]; });
     // a small swing on a large level, auto-scaled, is read as an offset and the swing about it
     const off = rg.map((r, i) => r && !(st.ch && st.ch[i] && st.ch[i].vdiv > 0) && Math.abs(r[0] + r[1]) / 2 > 500 * (r[1] - r[0]) ? (r[0] + r[1]) / 2 : 0);
     const u0 = fi >= 0 ? tr[fi].unit : 'V', two = tr.filter(Boolean).length > 1, set0 = fi >= 0 && st.ch && st.ch[fi] && st.ch[fi].vdiv > 0;
     const [lo, hi] = fi >= 0 ? rg[fi].map(v => v - off[fi]) : [-1, 1];
-    const sy = { kind: 'plain', title: (two ? 'ch' + (fi + 1) + ' ' : '') + (set0 ? fmtSig(st.ch[fi].vdiv, u0) + '/div' : u0) + (off[fi] ? ', swing about the level' : ''),
+    const sy = { kind: 'plain', title: (two ? (shared ? 'ch1, ch2 ' : 'ch' + (fi + 1) + ' ') : '') + (set0 ? fmtSig(st.ch[fi].vdiv, u0) + '/div' : u0) + (off[fi] ? ', swing about the level' : ''),
       fmt: v => Math.abs(v) < 1e-9 * Math.max(1e-15, Math.abs(hi - lo)) ? fmtSig(off[fi] || 0, u0) : (off[fi] && v > 0 ? '+' : off[fi] ? '\u2212' : v < 0 ? '-' : '') + fmtSig(Math.abs(v), u0) };
     const sx = { kind: 's', title: roll ? 'time, last ' + fmtTime(span) + ' (rolling)' : 'time' };
     const A = plotArea(c, w, hgt, [lo, hi], sy);
@@ -9174,7 +9187,7 @@ const INST = (() => {
     c.restore();
     drawAxes(c, A, [0, span], [lo, hi], sx, sy, { noGrid: true });
     // a second channel's scale down the right-hand edge, in its colour
-    const other = two ? 1 - fi : -1;
+    const other = two && !shared ? 1 - fi : -1;
     if (other >= 0) {
       const [a, b] = rg[other], u = tr[other].unit, o = off[other], set = st.ch && st.ch[other] && st.ch[other].vdiv > 0;
       const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmtSig(Math.abs(v), u);

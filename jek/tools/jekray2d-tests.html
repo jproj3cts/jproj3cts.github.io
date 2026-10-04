@@ -4472,6 +4472,19 @@ const TESTS = [
     },
   },
   {
+    name: 'Two near-steady levels share one scale, each at its own height',
+    why: 'as two lock-in outputs: 0.25 V with a 1 µV, 1 kHz ripple on ch1 and 0.8 V on ch2, both on auto: one range for both covering 0.25 to 0.8 V (the ripple, 4 ppm of the level, drawn flat rather than filling the screen); a 1 V sine beside a 100 V level keeps its own scale: 0 when all hold, 1 for each that does not',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const a = elecRun(J, [elecPart('dc', 'D1', { v: 0.25 }), elecPart('sig', 'G', { amp: 1e-6 }), elecPart('sum', 'S'), elecPart('dc', 'D2', { v: 0.8 }), elecPart('scope', 'SC', { span: 0.003 })],
+        [['D1', 0, 'S', 0], ['G', 0, 'S', 1], ['S', 0, 'SC', 0], ['D2', 0, 'SC', 1]], () => J.elec.scope('SC'));
+      const b = elecRun(J, [elecPart('sig', 'G', { amp: 1 }), elecPart('dc', 'D2', { v: 100 }), elecPart('scope', 'SC', { span: 0.003 })],
+        [['G', 0, 'SC', 0], ['D2', 0, 'SC', 1]], () => J.elec.scope('SC'));
+      const [r0, r1] = [a[0].range, a[1].range];
+      return (r0[0] === r1[0] && r0[1] === r1[1] ? 0 : 1) + (r0[0] < 0.25 && r0[1] > 0.8 && r0[1] - r0[0] < 1 ? 0 : 1) + (b[0].range[1] < 2 && b[1].range[0] > 50 ? 0 : 1);
+    },
+  },
+  {
     name: 'An amplifier can invert',
     why: 'a 1 kHz, 1 V sine through an amplifier of gain −10 set in its panel (the gain was held at 0 or more): 10 V at the output, turned through 180°: the largest error, in volts and in turns',
     want: 0, tol: 1e-9, unit: '',

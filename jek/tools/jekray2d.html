@@ -421,8 +421,6 @@
   .rt-hint { display: block; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-sweep-range label { font-weight: 500; font-size: 0.75rem; }
   .rt-sweep-play { display: flex; align-items: center; gap: 0.6rem; }
-  .rt-sweep-bar { position: relative; height: 4px; border-radius: 2px; overflow: hidden; background: var(--jek-line); }
-  .rt-sweep-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-cyan); transition: width 0.15s linear; }
   .rt-sweep-play input[type=range] { flex: 1; min-width: 0; accent-color: var(--jek-cyan); padding: 0; border: none; background: none; }
   .rt-play {
     flex: none;
@@ -6228,9 +6226,10 @@ function syncPhases() {
    The field takes far longer to work out than a trace, so a sweep that shows it renders it
    first: the shared clock is sampled at the sweep's steps over one cycle (FIELD_FRAMES unless
    it sets its own), and at each sample the bench's field and the field on every screen the
-   light reaches are worked out and kept under the same keys the live runs use. The sweep then plays by stepping between those
-   samples, so every step finds its field ready, on whichever screen is opened. Whatever was
-   not rendered (a change to the bench) is simply worked out live, as it always was. */
+   light reaches are worked out and kept under the same keys the live runs use. The sweep
+   then plays by stepping between those samples, so every step finds its field ready, on
+   whichever screen is opened. Whatever was not rendered (a change to the bench) is simply
+   worked out live, as it always was. */
 const FIELD_FRAMES = 48;               // samples per cycle, unless a sweep sets its steps
 const SWEEP_STEPS_MAX = 240;
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
@@ -8647,24 +8646,18 @@ function sweepControls(el, path, sw, label) {
     bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
     box.append(h('div', { class: 'rt-sweep-range' }, h('div', { class: 'rt-f' }, h('label', { for: id }, 'Steps a cycle'), inp)));
   }
-  // the whole sweep rendered ahead, the diffracted field with it, so it plays without waiting:
-  // offered where there is a field
+  // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
   if (fieldWanted() || sw.field) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
     fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; fieldRendered = null; changed(false); });
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
-    const bar = h('i'), track = h('div', { class: 'rt-sweep-bar', role: 'progressbar', 'aria-label': 'Rendering the sweep', 'aria-valuemin': '0', 'aria-valuemax': '100' }, bar);
     bindSync(status, () => {
-      const on = rendering(), j = sweepJob, n = (sw.steps || FIELD_FRAMES);
-      const what = on && j.stage && j.stage !== 'tracing' ? ', ' + j.stage : '';
-      status.textContent = on ? 'Rendering the sweep: step ' + (j.i + 1) + ' of ' + j.n + what + '\u2026'
-        : sw.field ? 'Play first renders the sweep at ' + n + ' steps, the field on the bench and on every screen it reaches, then plays through them. More steps take longer.' : '';
+      status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + '\u2026'
+        : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.' : '';
       status.hidden = !status.textContent;
-      track.hidden = !on;
-      if (on) { const pc = Math.round(100 * (j.i + (j.part || 0)) / j.n); bar.style.width = pc + '%'; track.setAttribute('aria-valuenow', String(pc)); }
     });
-    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the whole sweep before playing (slow)'), track, status);
+    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
   }
 
   const key = sweepKey(el, path);

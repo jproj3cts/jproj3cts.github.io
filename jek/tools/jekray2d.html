@@ -8210,7 +8210,7 @@ const ELEC = (() => {
      the signals share (the start of the generators' cycles), with a band of +-1 sigma for
      the noise up to its 100 MHz bandwidth. The analyser shows each tone as a peak at its rms
      level in dBV, over the noise in its resolution bandwidth. */
-  const SCOPE_BW = 1e8, CH = ['#c08a12', '#0092b2'];
+  const SCOPE_BW = 1e8, CH = ['#db3550', '#0092b2'];   // Jek red, Jek blue
   function drawScope(cv, el) {
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170, c = cv.getContext('2d');
     cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
@@ -8269,7 +8269,7 @@ const ELEC = (() => {
     panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
     bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
     panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
-      ? 'Channel 1 gold, channel 2 blue, each with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
+      ? 'Channel 1 red, channel 2 blue, each with a band of ±1σ for its noise up to 100 MHz. Time starts where the generators’ cycles start.'
       : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt.'));
   }
 

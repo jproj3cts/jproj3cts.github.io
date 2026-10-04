@@ -147,11 +147,13 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | lines | `[]` | extra wavelengths in nm, up to 12. |
 | rays | `11` | number of rays in the fan, 1 to 501 (use 1 to 11 with gauss). |
 | power | `1` | mW. |
-| coh | `0` | coherence length in mm; 0 for a single frequency. |
+| coh | `0` | coherence length in mm, with cmode "line"; 0 for a single frequency. |
 | splitFrom | `null` | id of another source this one is split from (same laser, so they interfere); null for a laser of its own. |
 | splitPhase | `0` | degrees of phase against the source it is split from. |
 | splitPath | `0` | mm of extra fibre before this launch, against the other. |
 | lineshape | `"lorentz"` | "lorentz" or "gauss": the laser line’s shape, with coh. |
+| cmode | `"single"` | "single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere). |
+| bw | `40` | bandwidth in nm (FWHM), with cmode "broad": the coherence length is wavelength² / bw. |
 | m2 | `1` | beam quality M² ≥ 1. |
 | tem | `"gauss"` | "gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2. |
 | hm | `1` | HG m: nodes across the beam in the bench plane, 0–10. |
@@ -528,8 +530,11 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | tau | `0` | Pulse duration (fs; 0: continuous) |
 | rep | `80` | Repetition rate (MHz) |
 | gdd0 | `0` | Chirp at the laser (fs²) |
-| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed) |
+| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed), or "unpolarised" |
 | lineshape | `"lorentz"` | "lorentz" or "gauss" |
+| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |
+| bw | `40` | nm, FWHM, with cmode "broad" |
+| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |
 | pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |
 
 ### kind "coupler": 2×2 coupler
@@ -778,7 +783,7 @@ A fibre network on the bench: a fibre laser, a coupler and two fibre tips, each 
   "name": "Two launches from one laser",
   "minPower": 0.0001,
   "elements": [
-    {"type":"fcomp","kind":"laser","id":"laser","name":"Laser","x":-190,"y":125,"angle":0,"coh":3000},
+    {"type":"fcomp","kind":"laser","id":"laser","name":"Laser","x":-190,"y":125,"angle":0,"coh":3000,"cmode":"line"},
     {"type":"fcomp","kind":"coupler","id":"splitter","name":"Splitter","x":-140,"y":125,"angle":0},
     {"type":"fibre","id":"launch-a","name":"Launch A","x":-110.6,"y":0,"angle":0,"core":9,"na":0.14},
     {"type":"lens","id":"collimator-a","name":"Collimator A","x":-60,"y":0,"angle":0,"surfaces":[{"R":51.5},{"R":-51.5}],"gaps":[3.6],"materials":[{"glass":"N-BK7"}]},

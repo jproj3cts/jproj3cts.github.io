@@ -1985,6 +1985,19 @@ function pulseOf(src) {
   const r = src.virtual ? src : splitRoot(src);
   return r && r.tau > 0 ? r : null;
 }
+/* A source's coherence, one of three: a single frequency (every path interferes in full), a
+   line of its own (a coherence length, Lorentzian or Gaussian), or broadband, incoherent light
+   (an LED, a lamp through a filter) given by its bandwidth in nm: a Gaussian line whose
+   coherence length lambda^2 / bandwidth is a few wavelengths, so only near-equal paths still
+   make fringes (white-light fringes) and its own light adds as powers everywhere else.
+   A pulse sets the line itself. */
+const CMODES = ['single', 'line', 'broad'];
+const isLaserLike = e => e && (e.type === 'source' || (e.type === 'fcomp' && e.kind === 'laser'));
+function syncLine(el) {
+  if (el.tau > 0 || el.splitFrom) return;
+  if (el.cmode === 'single') el.coh = 0;
+  else if (el.cmode === 'broad') { el.coh = el.wavelength * el.wavelength * 1e-6 / Math.max(1e-3, el.bw); el.lineshape = 'gauss'; }
+}
 function applyPulse(src) {
   if (!(src.tau > 0)) return;
   src.coh = C_MM / pulseDnu(src);        // mm: the pulse's own coherence length
@@ -2284,7 +2297,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2432,6 +2445,7 @@ function normElement(e) {
   ELEC.normExtra(e, o);                                                                      // ELEC hook: an optical part's electrical settings
   if (o.type === 'source' && o.fibre) applyFibre(o);     // a fibre launch sets its own beam
   if ((o.type === 'source' || (o.type === 'fcomp' && o.kind === 'laser')) && o.tau > 0) applyPulse(o);
+  if (isLaserLike(o)) syncLine(o);
   o.sweeps = {};
   if (e.sweeps && typeof e.sweeps === 'object') {
     for (const [k, v] of Object.entries(e.sweeps)) {
@@ -2483,6 +2497,9 @@ function normElementBase(e) {
         splitFrom: typeof e.splitFrom === 'string' && e.splitFrom ? e.splitFrom : null,   // the source this is split from
         splitPhase: num(e.splitPhase, 0), splitPath: num(e.splitPath, 0),               // degrees; mm of fibre
         lineshape: e.lineshape === 'gauss' ? 'gauss' : 'lorentz',
+        // the coherence: from before there was a choice, a line when it had a coherence length
+        cmode: CMODES.includes(e.cmode) ? e.cmode : num(e.coh, 0) > 0 ? 'line' : 'single',
+        bw: Math.max(0.001, num(e.bw, 40)),                        // nm, FWHM, when broadband
         m2: Math.max(1, num(e.m2, 1)),                             // beam quality: 1 for a pure Gaussian
         tem: ['gauss', 'hg', 'lg'].includes(e.tem) ? e.tem : 'gauss',   // a higher-order mode: Hermite- or Laguerre-Gauss
         hm: Math.round(clamp(num(e.hm, 1), 0, 10)), hn: Math.round(clamp(num(e.hn, 0), 0, 10)),
@@ -2662,7 +2679,12 @@ function normElementBase(e) {
         // its polarisation: s, p, linear at polAngle from s, or circular; a file from before
         // there was a choice gave only the angle, which is s or p when it is one of them
         const a = ((base.polAngle % 360) + 360) % 360;
-        base.pol = FIBRE_POLS.includes(e.pol) ? e.pol : a % 180 === 0 ? 's' : a % 180 === 90 ? 'p' : 'linear'; }
+        base.pol = FIBRE_POLS.includes(e.pol) ? e.pol : e.led ? 'unpolarised' : a % 180 === 0 ? 's' : a % 180 === 90 ? 'p' : 'linear';
+        // a fibre-coupled LED: a laser's ports and drives, broadband light, unpolarised to start with, never pulsed
+        base.led = !!e.led;
+        base.cmode = base.led ? 'broad' : CMODES.includes(e.cmode) ? e.cmode : base.coh > 0 ? 'line' : 'single';
+        base.bw = Math.max(0.001, num(e.bw, 40));
+        if (base.led) base.tau = 0; }
       if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
       if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity
@@ -2761,6 +2783,8 @@ function makeElement(kind, x, y) {
     case 'eom':
       return normElement({ type: 'eom', name: nextName('EOM'), x, y, angle: 0 });
     case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
+    case 'led':
+      return normElement({ type: 'fcomp', kind: 'laser', led: true, name: nextName('LED'), x, y, angle: 0, wavelength: 1550, bw: 40, power: 0.1, pol: 'unpolarised' });
     case 'faom': case 'feom': {
       if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
       const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
@@ -3826,6 +3850,7 @@ let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
 const traceKeyNow = () => loadGen + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec')) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 function traceScene() {
+  for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
   const t0 = performance.now();
@@ -5360,11 +5385,19 @@ const FSYM = (() => {
   // each: draw(c, el), and the value shown, with where (v, mm down the page)
   const S = {
     laser: { draw(c, el) {
+      if (el.led) {
+        // an LED: the diode, its light leaving by two arrows, into the fibre at the right
+        ln(c, -5, 0, -2, 0); ln(c, 2, 0, 7, 0);
+        shape(c, [[-2, -2.2], [2, 0], [-2, 2.2]]); ln(c, 2, -2.2, 2, 2.2);
+        const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength);
+        arrow(c, -0.6, -2.4, 1.2, -4.2, 0.7); arrow(c, 1.2, -2.0, 3.0, -3.8, 0.7); c.strokeStyle = st;
+        return;
+      }
       // any laser: a gain medium between a high reflector and an output coupler, the beam leaving
       box(c, 2.6, 1.6); const w = c.lineWidth; c.lineWidth = w * 2; ln(c, -4, -3, -4, 3); c.lineWidth = w; hatch(c, -5.6, -3, 3, 4);
       ln(c, 4, -3, 4, 3);
       const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength); arrow(c, 4, 0, 6, 0); c.strokeStyle = st;
-    }, val: el => [fmtNm(el.wavelength), 4.4] },
+    }, val: el => [fmtNm(el.wavelength) + (el.led ? ', ' + (+el.bw.toPrecision(3)) + ' nm wide' : ''), 4.4] },
     coupler: { draw(c) {
       for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-2.5, sg * 2.25, -2, sg * 0.4, 0, sg * 0.4); c.bezierCurveTo(2, sg * 0.4, 2.5, sg * 2.25, 7, sg * 2.25); c.stroke(); }
     }, val: el => [Math.round(100 - el.ratio) + ':' + Math.round(el.ratio), -3.6] },
@@ -6277,6 +6310,7 @@ function setParam(el, path, v) {
     case 'dark': case 'ampNoise': case 'resp': case 'power': v = Math.max(0, v); break;
     case 'bandwidth': v = Math.max(1, v); break;
     case 'coh': v = Math.max(0, v); break;
+    case 'bw': v = Math.max(0.001, v); break;
     case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
     case 'att': case 'iso': case 'rl': case 'loss': v = Math.max(0, v); break;
     case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
@@ -7062,7 +7096,7 @@ for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
 /* A fibre laser's field in the fibre, [s re, s im, p re, p im]: s, p, linear at polAngle from s,
    or circular with p a quarter wave behind s (rcp) or ahead of it (lcp), right- and
    left-handed as the screens' Stokes S3 counts them */
-const FIBRE_POLS = ['s', 'p', 'linear', 'rcp', 'lcp'];
+const FIBRE_POLS = ['s', 'p', 'linear', 'rcp', 'lcp', 'unpolarised'];
 function fibreLaserField(el) {
   const r2 = Math.SQRT1_2, th = el.polAngle * deg;
   switch (el.pol) {
@@ -7180,7 +7214,9 @@ function fibreNet() {
   const inputs = [];
   for (const el of comps) {
     if (el.type === 'fcomp' && el.kind === 'laser') {
-      inputs.push({ port: [el.id, 0], E: fibreLaserField(el), key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
+      // unpolarised: s and p halves as launches of their own, so they add as powers
+      if (el.pol === 'unpolarised') for (const [E, k] of [[[Math.SQRT1_2, 0, 0, 0], ''], [[0, 0, Math.SQRT1_2, 0], '~p']]) inputs.push({ port: [el.id, 0], E, key: el.id + k + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
+      else inputs.push({ port: [el.id, 0], E: fibreLaserField(el), key: el.id + ':0:q0', nm: el.wavelength, dl: 0, root: el, fo: 0 });
     }
     if (el.type === 'fibre' && to.has(pkey(el.id, 0))) for (const I of tipInputs(el)) inputs.push(Object.assign(I, { port: [el.id, 0] }));
     // an amplifier's spontaneous emission: broadband light of its own, unpolarised (s and p
@@ -9355,7 +9391,8 @@ function pdSignal(el) {
     let ase = 0, sigNm = null, sigMw = 0;
     for (const K of lastTrace.net.keys) {
       const m = netPower(byG, [K]);
-      if (K.root.ase) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
+      // broadband light (an amplifier's ASE, an LED, any source set incoherent): it beats with itself and the signal
+      if (K.root.ase || (K.root.cmode === 'broad' && !(K.root.tau > 0) && K.root.coh > 0)) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
       else if (m > sigMw) { sigMw = m; sigNm = K.nm; }
     }
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, Ps = Math.max(0, dc - ase) * 1e-3, Pa = ase * 1e-3;
@@ -9431,7 +9468,7 @@ function signalSection(el) {
     if (S.mixer !== undefined) r.push(['Mixer output', f(S.mixer) + ' V']);
     if (S.noise) {
       const N = S.noise, big = Object.entries(N.parts).sort((a, b) => b[1] - a[1])[0];
-      if (N.ase > 0) r.push(['ASE reaching it', fmtMw(N.ase) + ' (in the DC)']);
+      if (N.ase > 0) r.push(['Broadband light (ASE, LEDs) reaching it', fmtMw(N.ase) + ' (in the DC)']);
       r.push(['Noise', f(N.V) + ' V rms over ' + fmtHz(S.B) + ', mostly ' + { shot: 'shot noise', thermal: 'the gain resistor\u2019s', sigAse: 'signal\u2013ASE beat', aseAse: 'ASE\u2013ASE beat', amp: 'the amplifier\u2019s' }[big[0]]]);
       if (N.snr !== null) r.push(['Signal to noise', N.snr.toFixed(1) + ' dB (electrical, DC signal)']);
     }
@@ -10085,6 +10122,28 @@ function textField(label, get, set, opts = {}) {
   bindSync(inp, () => { inp.value = get(); });
   return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), inp);
 }
+/* a laser's coherence: the choice of three, and the fields that go with it */
+function coherenceFields(el, rows) {
+  if (!el.led) rows.append(selectField('Spectrum', [['single', 'Single frequency'], ['line', 'A line (coherence length)'], ['broad', 'Incoherent, broadband']], () => el.cmode, v => {
+    const V = vs(el);
+    if (el.cmode === 'line') V.lineCoh = el.coh;
+    if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
+    el.cmode = v; syncLine(el);
+  }, { wide: true }));
+  if (el.cmode === 'line') rows.append(param('Coherence length (mm)', el, 'coh'),
+    selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+  if (el.cmode === 'broad') rows.append(param('Bandwidth (nm)', el, 'bw'));
+}
+function coherenceNote(el) {
+  if (el.cmode === 'single' || !(el.coh > 0)) return 'A single frequency: every path of this source interferes in full, however long. Separate sources never interfere.';
+  const dnu = 299792458e3 / el.coh, dl = el.wavelength * el.wavelength * 1e-6 / el.coh;
+  if (el.cmode === 'broad') return 'Broadband: ' + (+dl.toPrecision(3)) + ' nm wide (FWHM, Gaussian), a coherence length of ' + fmtLen(el.coh) + ', ' +
+    (+(el.coh / (el.wavelength * 1e-6)).toPrecision(2)) + ' wavelengths. Its own light adds as powers, but for paths equal to within about that (white-light fringes, at a balanced interferometer), ' +
+    'and a cavity passes its average over the band. Lenses, gratings and filters see its centre wavelength. Separate sources never interfere.';
+  return 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
+    'Two paths of this source a distance \u0394L apart interfere with fringe contrast ' + (el.lineshape === 'gauss' ? 'exp(\u2212(\u03c0\u0394L/Lc)\u00b2/4 ln 2)' : 'exp(\u2212\u03c0|\u0394L|/Lc)') +
+    ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
+}
 function selectField(label, options, get, set, opts = {}) {
   const id = 'rtf' + (++fid);
   const sel = h('select', { id });
@@ -10439,19 +10498,13 @@ function sourcePanel(el) {
   }
   const crows = h('div', { class: 'rt-rows' });
   const pulsed = !linked && el.tau > 0;
-  if (!linked && !pulsed) crows.append(param('Coherence length (mm)', el, 'coh'));
-  if (!linked && !pulsed) crows.append(selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']],
-    () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+  if (!linked && !pulsed) coherenceFields(el, crows);
   panel.append(crows);
   const cl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
   bindSync(cl, () => {
     if (linked) { cl.textContent = 'The line is ' + splitRoot(el).name + '\u2019s' + (el.coh > 0 ? ': coherence length ' + fmtLen(el.coh) + '.' : ': a single frequency.'); return; }
     if (el.tau > 0) { cl.textContent = 'Set by the pulse (below): coherence length ' + fmtLen(el.coh) + ', Gaussian.'; return; }
-    if (!(el.coh > 0)) { cl.textContent = '0 is a single frequency: every path of this source interferes in full, however long.'; return; }
-    const dnu = 299792458e3 / el.coh, dl = el.wavelength * el.wavelength * 1e-6 / el.coh;
-    cl.textContent = 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
-      'Two paths of this source a distance \u0394L apart interfere with fringe contrast ' + (el.lineshape === 'gauss' ? 'exp(\u2212(\u03c0\u0394L/Lc)\u00b2/4 ln 2)' : 'exp(\u2212\u03c0|\u0394L|/Lc)') +
-      ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
+    cl.textContent = coherenceNote(el);
   });
   panel.append(cl);
   panel.append(h('h3', null, 'Pulse'));
@@ -11559,7 +11612,7 @@ function fcompPanel(el) {
   panel.append(h('h3', null, typeLabel(el)));
   const rows = h('div', { class: 'rt-rows' });
   // a laser's pulse has a section of its own; while pulsed, the pulse sets its line
-  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', ...(el.tau > 0 ? ['coh'] : [])] : [];
+  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', 'coh'] : [];
   if (el.kind === 'pd') {
     // as a free-space photodetector: its material, then its amplifier (none on a bare photodiode)
     rows.append(selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; renderPanel(); }, { wide: el.material !== 'custom' }));
@@ -11570,13 +11623,20 @@ function fcompPanel(el) {
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));
   } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(param(label, el, k));
   if (el.kind === 'laser') {
-    rows.append(selectField('Polarisation', [['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle'], ['rcp', 'Circular, right-handed'], ['lcp', 'Circular, left-handed']],
+    rows.append(selectField('Polarisation', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle'], ['rcp', 'Circular, right-handed'], ['lcp', 'Circular, left-handed']],
       () => el.pol, v => { el.pol = v; renderPanel(); }, { wide: el.pol !== 'linear' }));
     if (el.pol === 'linear') rows.append(param('Angle from s (°)', el, 'polAngle'));
+    if (!(el.tau > 0)) coherenceFields(el, rows);
   }
-  if (el.kind === 'laser' && !(el.tau > 0)) rows.append(selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   if (el.kind === 'laser') {
-    panel.append(rows, h('h3', null, 'Pulse'), pulseToggle(el));
+    const cn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+    bindSync(cn, () => { cn.textContent = el.tau > 0 ? 'Set by the pulse (below): coherence length ' + fmtLen(el.coh) + ', Gaussian.'
+      : (el.led ? 'A fibre-coupled LED: spontaneous emission, broadband and incoherent, its power into the fibre. ' : '') + coherenceNote(el) +
+        (el.pol === 'unpolarised' ? ' Unpolarised: s and p halves that never interfere.' : ''); });
+    panel.append(rows, cn);
+  }
+  if (el.kind === 'laser' && !el.led) {
+    panel.append(h('h3', null, 'Pulse'), pulseToggle(el));
     if (el.tau > 0) {
       const prow = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, param('Duration (fs)', el, 'tau'),
         selectField('Shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }),
@@ -18797,7 +18857,9 @@ const AI_FIELDS = {
     beamScale: '"lin" or "log" for the field view.', popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
     traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
     polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
-    coh: 'coherence length in mm; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
+    coh: 'coherence length in mm, with cmode "line"; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
+    cmode: '"single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere).',
+    bw: 'bandwidth in nm (FWHM), with cmode "broad": the coherence length is wavelength² / bw.',
     splitFrom: 'id of another source this one is split from (same laser, so they interfere); null for a laser of its own.',
     splitPhase: 'degrees of phase against the source it is split from.', splitPath: 'mm of extra fibre before this launch, against the other.',
     fibre: 'optional {"core": µm, "na": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself.',
@@ -18886,7 +18948,9 @@ function aiReference() {
     if (K.params.length) {
       L.push('| field | default | meaning |', '|---|---|---|');
       for (const [p, label, def] of K.params) L.push('| ' + p + ' | `' + JSON.stringify(def) + '` | ' + mdCell(label) + ' |');
-      if (k === 'laser') L.push('| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed) |', '| lineshape | `"lorentz"` | "lorentz" or "gauss" |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
+      if (k === 'laser') L.push('| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed), or "unpolarised" |', '| lineshape | `"lorentz"` | "lorentz" or "gauss" |',
+        '| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |', '| bw | `40` | nm, FWHM, with cmode "broad" |',
+        '| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
       if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
       L.push('');
     }
@@ -19615,7 +19679,7 @@ const PALETTES = {
     ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
   elec: ELEC.PALETTE,                                                                        // ELEC hook
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],

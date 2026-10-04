@@ -2639,6 +2639,26 @@ const TESTS = [
     },
   },
   {
+    name: 'A source set incoherent, broadband, makes fringes only near equal paths',
+    why: 'Coherence "Incoherent, broadband", 31.65 nm wide at 633 nm: coherence length \u03bb\u00b2/\u0394\u03bb = 20 wavelengths, Gaussian. Arms 2 mm apart in round trip: no fringes (contrast 0, from two settings \u03bb/8 apart); arms equal: white-light fringes of full contrast: the largest error in contrast',
+    want: 0, tol: 2e-3, unit: '',
+    run: J => {
+      const P = d => { J.load(michelsonCube(d, 0, { cmode: 'broad', bw: NM / 20 })); return J.diffraction('Out').power; };
+      const far = Math.hypot(2 * P(1) - 1, 2 * P(1 + LAM / 8) - 1), near = Math.hypot(2 * P(0) - 1, 2 * P(LAM / 8) - 1);
+      return Math.max(far, Math.abs(1 - near), Math.abs(J.byName('Beam').coh - 20 * LAM));
+    },
+  },
+  {
+    name: 'and the coherence is one of three, a file from before keeping its line',
+    why: 'a source saved with a coherence length and no choice reads as "A line"; one set to a single frequency has no coherence length, whatever it was given; a broadband one follows its wavelength: the largest error in mm',
+    want: 0, tol: 1e-12, unit: ' mm',
+    run: J => {
+      J.load(bench('c', [src({ name: 'A', coh: 10 }), src({ name: 'B', y: 20, coh: 10, cmode: 'single' }), src({ name: 'C', y: 40, cmode: 'broad', bw: 10, wavelength: 1000 })]));
+      const A = J.byName('A'), B = J.byName('B'), C = J.byName('C');
+      return Math.max(A.cmode === 'line' ? Math.abs(A.coh - 10) : 1, Math.abs(B.coh), Math.abs(C.coh - 0.1));
+    },
+  },
+  {
     name: 'Glass in one arm: fringes need the group paths matched, not the phase paths',
     why: 'a 5 mm N-BK7 plate in one arm, coherence length 1 mm, group index n_g: with the mirror pulled back by t(n_g \u2212 1) the contrast is 1 (required); pulled back by t(n \u2212 1), where only the phase paths match, it is exp(\u2212\u03c0 \u00b7 2t(n_g \u2212 n) / Lc)',
     wantFrom: () => { const W = document.getElementById('rig').contentWindow.JEKray2D, g = { glass: 'N-BK7' };
@@ -2892,6 +2912,27 @@ const TESTS = [
     why: 'arms 1 m apart (group index 1.468), Lorentzian line Lc = 3 m: fringe contrast exp(\u2212\u03c0 \u00d7 1468 / 3000), from each path followed with its own delay',
     want: Math.exp(-Math.PI * 1468 / 3000), tol: 1e-5, unit: '',
     run: J => { const q = 1550e-9 / (4 * 1.468), a = fmz(J, 1, 3000)[0], c = fmz(J, 1 + q, 3000)[0], t = fmz(J, 1 + 2 * q, 3000)[0], m = (a + t) / 2; return Math.hypot((a - t) / 2, c - m) / m; },
+  },
+  {
+    name: 'A fibre-coupled LED adds as powers through a Mach\u2013Zehnder, but for equal arms',
+    why: 'an LED (unpolarised, 40 nm wide at 1550 nm: coherence length 60 µm) into a fibre Mach\u2013Zehnder: arms equal, all its light leaves the cross port (white-light fringe); arms 1 mm apart and a quarter wave more, half at each, whatever the phase: the largest error in mW of 1 mW',
+    want: 0, tol: 1e-6, unit: ' mW',
+    run: J => {
+      const P = dL => { J.load(fnet([fc('laser', 'L', { led: true, power: 1, bw: 40 }), fc('coupler', 'C1'), fc('coupler', 'C2'), fc('pd', 'P3'), fc('pd', 'P4')],
+        [['L', 0, 'C1', 0], ['C1', 2, 'C2', 0, 1], ['C1', 3, 'C2', 1, 1 + dL], ['C2', 2, 'P3', 0], ['C2', 3, 'P4', 0]])); return [J.fibrePd('P3'), J.fibrePd('P4')]; };
+      const q = 1550e-9 / (4 * 1.468), z = P(0), a = P(1e-3), c = P(1e-3 + q);
+      return Math.max(Math.abs(z[0]), Math.abs(z[1] - 1), ...[...a, ...c].map(v => Math.abs(v - 0.5)));
+    },
+  },
+  {
+    name: 'and its light beats with itself on a photodetector',
+    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2P\u00b2B/\u0394\u03bd, over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B/\u0394\u03bd, and 1 if it stays for a single frequency',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => {
+      const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1, bw: 40 }, o)), fc('pd', 'P', { material: 'custom', resp: 1 })], [['L', 0, 'P', 0]])); return J.pdSignal('P'); };
+      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.B, dnu = 299792458 * 40e-9 / (1550e-9) ** 2;
+      return S.noise.parts.aseAse / ((1e-3) ** 2 * B / dnu) + (C.noise.parts.aseAse > 0 ? 1 : 0);
+    },
   },
   {
     name: 'A lossy fibre ring dips on resonance as the all-pass formula says',

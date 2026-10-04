@@ -267,9 +267,12 @@
   .rt-btn.palette.fibre:hover { background: #b92a43; border-color: #b92a43; }
   #paletteMenu button::before { content: ''; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.5rem; border-radius: 2px; vertical-align: -0.02em; background: var(--jek-orange); }
   #paletteMenu button[data-palette="fibre"]::before { background: var(--jek-red); }
+  #paletteMenu button[data-palette="elec"]::before { background: #f2c14e; }
   /* photonic circuits (experimental): green, the tool's own colour for the chip */
   .rt-btn.palette.pic { background: #3a9d5d; border-color: #3a9d5d; }
   .rt-btn.palette.pic:hover { background: #2f844d; border-color: #2f844d; }
+  .rt-btn.palette.elec { background: #f2c14e; border-color: #f2c14e; color: #2b2617; }
+  .rt-btn.palette.elec:hover { background: #e2ad33; border-color: #e2ad33; }
   #paletteMenu button[data-palette="pic"]::before { background: #3a9d5d; }
   .rt-menu {
     position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 15rem;
@@ -681,6 +684,7 @@
               <button type="button" role="menuitem" data-palette="free">Free-space optics</button>
               <button type="button" role="menuitem" data-palette="fibre">Fibre components</button>
               <button type="button" role="menuitem" data-palette="pic" hidden>Photonic circuits (experimental)</button>
+              <button type="button" role="menuitem" data-palette="elec" hidden>Electronics (experimental)</button>
             </div>
           </div>
           <div class="rt-palette" id="paletteBox"></div>
@@ -2234,7 +2238,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'pic' ? PIC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'fcomp' ? FC[el.kind].label : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2617,6 +2621,7 @@ function normElementBase(e) {
       return base;
     }
     case 'pic': return PIC.norm(e, base);                                                    // PIC hook
+    case 'elec': return ELEC.norm(e, base);                                                  // ELEC hook
     case 'nlc':
       return Object.assign(base, {
         length: Math.max(0.1, num(e.length, 3)),              // aperture across, mm
@@ -2649,6 +2654,7 @@ function normElementBase(e) {
 
 function makeElement(kind, x, y) {
   if (kind.startsWith('pic:')) return PIC.make(kind.slice(4), x, y);                         // PIC hook
+  if (kind.startsWith('elec:')) return ELEC.make(kind.slice(5), x, y);                       // ELEC hook
   switch (kind) {
     case 'source':
       return normElement({ type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 });
@@ -2800,10 +2806,23 @@ function normMeasures(list, benches) {
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
 function normFibres(list, els) {
   const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
-  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0;
+  const nPorts = e => e.type === 'fcomp' ? (FC[e.kind] ? FC[e.kind].ports.length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0;
+  // ELEC hook: an electrical port's direction, for wires
+  const dir = x => { const e = byId.get(x[0]), P = e && e.type === 'elec' && ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null; return P && P.elec || null; };
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
   for (const F of Array.isArray(list) ? list : []) {
-    const a = F && end(F.a), b = F && end(F.b);
+    let a = F && end(F.a), b = F && end(F.b);
+    // a wire: from an output to an input, one wire to an input, any number from an output
+    if (a && b && (dir(a) || dir(b))) {
+      if (!dir(a) || !dir(b) || dir(a) === dir(b)) continue;
+      if (dir(a) === 'in') [a, b] = [b, a];
+      if (used.has(pkey(...b))) continue;
+      used.add(pkey(...b));
+      const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
+      const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
+      out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path });
+      continue;
+    }
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
     used.add(pkey(...a)); used.add(pkey(...b));
     const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
@@ -2824,6 +2843,7 @@ function normFibres(list, els) {
 }
 
 let VSRC = new Map();                  // the sources fibre tips make, by id (see tipSources)
+const FIBRE_COLOUR = '#e86fa6';        // fibres and fibre ports, rose: yellow is the electronics'
 const getEl = id => project.elements.find(e => e.id === id) || VSRC.get(id);
 /* every source: those on the benches, and those fibre tips make */
 const allSources = () => project.elements.filter(e => e.type === 'source').concat([...VSRC.values()]);
@@ -5023,6 +5043,7 @@ function drawRaysOn(ctx, rays) {
 function halfSize(el) {
   if (el.type === 'fcomp') return FC_H / 2 + 1;
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
+  if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return Math.max(el.width / 2, 5);
   if (el.type === 'stop') return el.outer / 2;
@@ -5062,7 +5083,7 @@ function drawLabels() {
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     if (el.type === 'fcomp' && el.kind === 'thru') {
       const P = thruPartner(el);
-      ctx.fillStyle = P ? '#f2c14e' : 'rgba(242,193,78,0.55)';
+      ctx.fillStyle = P ? FIBRE_COLOUR : 'rgba(232,111,166,0.55)';
       ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
     }
@@ -5287,8 +5308,8 @@ function drawPorts(el) {
   ps.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = on ? '#f2c14e' : '#1b2327'; ctx.fill();
-    ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = on ? FIBRE_COLOUR : '#1b2327'; ctx.fill();
+    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
     if (ps.length > 1 && s > 3) {
       ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '9px ' + getCss('--jek-mono'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(portName(el, i), X - Q.dx * (r + 6), Y + Q.dy * (r + 6));      // just inside the box
@@ -5395,12 +5416,14 @@ function fibreLight(F) {
 }
 function drawFibres() {
   const list = (project.fibres || []).filter(F => { const A = getEl(F.a[0]), B = getEl(F.b[0]); return A && B && onTab(A) && onTab(B); });
-  const lights = list.map(fibreLight), top = Math.max(1e-30, ...lights.map(l => l.mw));
+  const lights = list.map(F => F.wire ? { mw: 0 } : fibreLight(F)), top = Math.max(1e-30, ...lights.map(l => l.mw));
   list.forEach((F, i) => {
     const segs = fibreSegs(F);
     if (!segs) return;
     const sel = F.id === selFibreId;
-    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : '#f2c14e'; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : 0); ctx.stroke();   // PIC hook: waveguides in green
+    // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
+    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
       tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
@@ -5411,7 +5434,8 @@ function drawFibres() {
   if (drag && drag.mode === 'fibre' && drag.cur) {
     const el = getEl(drag.from[0]);
     const segs = el && fibreSegs({ a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
-    if (segs) { tracePath(segs); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]); }
+    const wire = !!ELEC.dirOf(drag.from);                                                   // ELEC hook: a wire being drawn
+    if (segs) { tracePath(segs); ctx.setLineDash([6, 4]); ctx.strokeStyle = wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = wire ? 1.8 : 2.5; ctx.stroke(); ctx.setLineDash([]); }
   }
 }
 /* a selected fibre's nodes (squares) and handles (lines to round knobs), as in a drawing program */
@@ -5438,7 +5462,7 @@ function drawFibreNodes(F, segs) {
 function portAt(px, py) {
   const r = 8;
   for (const el of project.elements) {
-    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic')) continue;
+    if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic' && el.type !== 'elec')) continue;   // ELEC hook
     const n = portsOf(el).length;
     for (let i = 0; i < n; i++) { const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
   }
@@ -5546,7 +5570,7 @@ function drawFibre(el, sel) {
   ctx.strokeStyle = sel ? '#ffffff' : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   // the jacketed fibre leaving the back of the ferrule
   pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
-  ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
   ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 3; ctx.stroke();
@@ -5597,6 +5621,7 @@ function draw(el) {
   if (el.type === 'link') { drawLink(el, sel); return; }
   if (el.type === 'fcomp') { drawFcomp(el, sel); return; }
   if (el.type === 'pic') { PIC.draw(el, sel); return; }                                      // PIC hook
+  if (el.type === 'elec') { ELEC.draw(el, sel); return; }                                    // ELEC hook
   if (el.type === 'faraday' || el.type === 'isolator') {
     const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
     drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
@@ -5649,6 +5674,7 @@ function hitTest(px, py) {
       continue;
     }
     if (el.type === 'pic') { if (PIC.hit(el, lx, ly, tol)) return el; continue; }               // PIC hook
+    if (el.type === 'elec') { if (ELEC.hit(el, lx, ly, tol)) return el; continue; }             // ELEC hook
     if (el.type === 'cell') {
       if (Math.abs(lx) <= el.cellLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol) return el;
       continue;
@@ -5739,7 +5765,8 @@ canvas.addEventListener('pointerdown', e => {
   // a port: draw a fibre from it, or take up the end of the one already there
   const port = portAt(px, py);
   if (port) {
-    const F = (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
+    // ELEC hook: an electrical output feeds any number of wires, so a drag from it always draws a new one
+    const F = ELEC.dirOf(port) === 'out' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
     drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null };
     return;
   }
@@ -5877,6 +5904,22 @@ function endPointer(e) {
     if (!d.cur) {                              // a click on a port: select its fibre
       if (F) { selFibreId = F.id; selectOne(null); renderPanel(); }
       requestRender(); return;
+    }
+    // ELEC hook: a wire joins an output to an input; an output may have several, an input one
+    const ek = to ? ELEC.linkKind(d.from, to) : undefined;
+    if (to && ek === null && pkey(...to) !== pkey(...d.from)) {
+      toast(ELEC.dirOf(d.from) && ELEC.dirOf(to) ? 'A wire joins an output to an input' : 'A wire joins electrical ports only; a fibre or waveguide cannot end on one', true);
+      requestRender(); return;
+    }
+    if (to && ek === 'wire') {
+      const [a, b] = ELEC.orient(d.from, to);
+      const taken = (project.fibres || []).some(G => G !== F && G.wire && pkey(...G.b) === pkey(...b));
+      if (taken) { toast('That input already has a wire: an input takes one', true); requestRender(); return; }
+      checkpoint();
+      if (F) { F.a = a; F.b = b; }
+      else { project.fibres = project.fibres || []; const G = { id: uid(), a, b, wire: true, path: [] }; project.fibres.push(G); selFibreId = G.id; selectOne(null); }
+      changed(true);
+      return;
     }
     const busy = to && (project.fibres || []).some(G => G !== F && (pkey(...G.a) === pkey(...to) || pkey(...G.b) === pkey(...to)));
     const lk = to ? PIC.linkKind(d.from, to) : null;             // PIC hook: a waveguide between chip ports, a fibre off the chip
@@ -6850,11 +6893,12 @@ const FC_ORDER = ['laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 
 function portsOf(el) {
   if (el.type === 'fcomp') return FC[el.kind].portList;
   if (el.type === 'pic') return PIC.ports(el);                                                // PIC hook
+  if (el.type === 'elec') return ELEC.ports(el);                                              // ELEC hook
   if (el.type === 'fibre') { const L = fibreTail(el); return [{ x: -L, y: 0, dx: -1, dy: 0 }]; }
   return [];
 }
 const fibreTail = el => Math.max(8, 30 / V().scale) + Math.max(10, 40 / V().scale);
-const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : 'fibre';
+const portName = (el, p) => el.type === 'fcomp' ? FC[el.kind].names[p] : el.type === 'pic' ? PIC.names(el)[p] : el.type === 'elec' ? ELEC.names(el)[p] : 'fibre';   // ELEC hook
 function portWorld(el, p) {
   const P = portsOf(el)[p], f = frame(el);
   const [x, y] = toWorld(f, P.x, P.y), [dx, dy] = toWorldDir(f, P.dx, P.dy);
@@ -6902,7 +6946,7 @@ let fibreNetMemo = { key: null, net: null };
 function fibreNetCached() {
   const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre' || e.type === 'pic');   // PIC hook
   if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }
-  const conn = new Set((project.fibres || []).flatMap(F => [F.a[0], F.b[0]]));
+  const conn = new Set((project.fibres || []).filter(F => !F.wire).flatMap(F => [F.a[0], F.b[0]]));
   const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id, A.comps || 0]));
   const srcs = project.elements.filter(e => e.type === 'source').map(e => [e.id, e.power, e.coh, e.lineshape]);
   const key = JSON.stringify([fels, project.fibres || [], arr, srcs]);
@@ -6937,7 +6981,7 @@ function fibreNet() {
   // where each port's fibre goes, with its transfer
   const to = new Map();
   for (const F of fibres) {
-    if (F.wg) continue;                                          // PIC hook: a waveguide is inside its chip
+    if (F.wg || F.wire) continue;                                // PIC hook: a waveguide is inside its chip; ELEC hook: a wire carries no light
     const Lmm = Math.max(0, F.len) * 1000, a = dBa(F.loss * F.len / 1000);
     to.set(pkey(...F.a), { port: F.b, Lmm, a, F, end: 'a' });
     to.set(pkey(...F.b), { port: F.a, Lmm, a, F, end: 'b' });
@@ -7556,7 +7600,7 @@ const PIC = (() => {
     }
     const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
     portList(el).forEach((P, i) => {
-      const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? GREEN : '#f2c14e';
+      const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? GREEN : FIBRE_COLOUR;
       ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
       ctx.fillStyle = on ? col : '#1b2327'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
     });
@@ -7798,6 +7842,137 @@ const PIC = (() => {
       ring(name) { const e = project.elements.find(q => q.name === name); if (!e || !(e.kind === 'ring' || e.kind === 'ringad')) return null; const r = ringLine(e); return { fsr: r.fsr, fw: r.fw, F: r.F }; },
       linkKind,
     },
+  };
+})();
+
+/* ==========================================================================
+   Electronics (experimental: exp('elec'))
+   The electronics of an experiment, drawn as a block diagram in yellow and joined by wires:
+   sources, amplifiers, filters, a mixer and a summing junction, and the instruments that read
+   them (an oscilloscope, a spectrum analyser, a lock-in amplifier). Each block is directional,
+   inputs on its left and outputs on its right; a wire runs from one output to one input, and
+   an output may feed any number of inputs. Wires are kept with the fibres, marked wire: true,
+   as waveguides are with wg, so they move, copy and undo as fibres do; the fibre network
+   leaves them out. Everything for it lives here, behind ELEC; the rest of the tool reaches it
+   only where a line is marked "ELEC hook".
+   ========================================================================== */
+const ELEC = (() => {
+  const YELLOW = '#f2c14e', DARK = '#2b2617', INK = '#f7e2a6';
+  const W_BOX = 14, PITCH = 4.5;
+  const choice = (...v) => v;
+  // each part: its label and tag, its inputs and outputs (names), its settings [key, label, default, choices]
+  const KINDS = {
+    dc: { label: 'DC source', tag: 'DC', ins: [], outs: ['out'], params: [['v', 'Voltage (V)', 1]] },
+    sig: { label: 'Signal generator', tag: 'SIG', ins: [], outs: ['out', 'sync'],
+      params: [['wave', 'Waveform', 'sine', choice(['sine', 'Sine'], ['square', 'Square'], ['triangle', 'Triangle'], ['pulse', 'Pulse'])],
+        ['f', 'Frequency (Hz)', 1000], ['amp', 'Amplitude (V)', 1], ['offset', 'Offset (V)', 0], ['phase', 'Phase (°)', 0], ['duty', 'Duty (%)', 50]] },
+    noise: { label: 'Noise source', tag: 'NOISE', ins: [], outs: ['out'], params: [['psd', 'Density (nV/√Hz)', 100], ['bw', 'Bandwidth (Hz)', 1e6]] },
+    amp: { label: 'Amplifier', tag: 'AMP', ins: ['in'], outs: ['out'],
+      params: [['gain', 'Gain (V/V)', 10], ['bw', 'Bandwidth (Hz)', 1e6], ['en', 'Input noise (nV/√Hz)', 5], ['vmax', 'Output limit (V)', 10]] },
+    tia: { label: 'Transimpedance amplifier', tag: 'TIA', ins: ['in'], outs: ['out'],
+      params: [['gain', 'Gain (V/A)', 1e5], ['bw', 'Bandwidth (Hz)', 1e5], ['inoise', 'Input noise (pA/√Hz)', 1], ['vmax', 'Output limit (V)', 10]] },
+    lpf: { label: 'Low-pass filter', tag: 'LPF', ins: ['in'], outs: ['out'], params: [['fc', 'Corner (Hz)', 1e4], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
+    hpf: { label: 'High-pass filter', tag: 'HPF', ins: ['in'], outs: ['out'], params: [['fc', 'Corner (Hz)', 100], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
+    bpf: { label: 'Band-pass filter', tag: 'BPF', ins: ['in'], outs: ['out'], params: [['f0', 'Centre (Hz)', 1000], ['bw', 'Bandwidth (Hz)', 100], ['order', 'Order', 1, choice([1, '1'], [2, '2'], [3, '3'], [4, '4'])]] },
+    mixer: { label: 'Mixer', tag: '×', ins: ['a', 'b'], outs: ['out'], params: [['k', 'Gain (1/V)', 1]] },
+    sum: { label: 'Summing junction', tag: 'Σ', ins: ['a', 'b'], outs: ['out'], params: [['ga', 'Gain, a', 1], ['gb', 'Gain, b', 1]] },
+    scope: { label: 'Oscilloscope', tag: 'SCOPE', ins: ['ch1', 'ch2'], outs: [], params: [['span', 'Time span (s)', 0.005]] },
+    spec: { label: 'Spectrum analyser', tag: 'SPEC', ins: ['in'], outs: [], params: [['fmin', 'From (Hz)', 10], ['fmax', 'To (Hz)', 1e6], ['rbw', 'Resolution bandwidth (Hz)', 10]] },
+    lockin: { label: 'Lock-in amplifier', tag: 'LOCK-IN', ins: ['signal', 'ref'], outs: ['x', 'y'],
+      params: [['harm', 'Reference harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
+        ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
+  };
+  const PALETTE = [['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
+    ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:mixer', 'Mixer'],
+    ['elec:sum', 'Summing junction'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier']]
+    .map(([k, l, t]) => [k, l, t || l, 'elec']);
+
+  /* ---------- a part's box and ports ----------
+     Inputs down the left, outputs down the right, at a fixed pitch; the box as tall as the
+     side with more of them. Ports carry elec: 'in' or 'out'. */
+  const rows = K => Math.max(1, K.ins.length, K.outs.length);
+  const boxH = K => Math.max(9, rows(K) * PITCH + 2.5);
+  const side = (n, i) => (i - (n - 1) / 2) * PITCH;
+  const portList = el => {
+    const K = KINDS[el.kind];
+    return [...K.ins.map((nm, i) => ({ x: -W_BOX / 2, y: -side(K.ins.length, i), dx: -1, dy: 0, elec: 'in' })),
+      ...K.outs.map((nm, i) => ({ x: W_BOX / 2, y: -side(K.outs.length, i), dx: 1, dy: 0, elec: 'out' }))];
+  };
+  const names = el => { const K = KINDS[el.kind]; return [...K.ins, ...K.outs]; };
+
+  /* ---------- the element, as saved ---------- */
+  function norm(e, base) {
+    const K = KINDS[e.kind];
+    if (!K) return null;
+    base.kind = e.kind;
+    for (const [k, , d, opts] of K.params) {
+      if (opts) base[k] = opts.some(([v]) => v === e[k]) ? e[k] : d;
+      else base[k] = num(e[k], d);
+    }
+    return base;
+  }
+  const make = (kind, x, y) => normElement({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
+
+  /* ---------- drawing ---------- */
+  function draw(el, sel) {
+    const K = KINDS[el.kind], f = frame(el), w = W_BOX / 2, hh = boxH(K) / 2, s = V().scale;
+    pathLocal(f, roundRect(w, hh, 1.2), true);
+    ctx.fillStyle = DARK; ctx.fill();
+    ctx.strokeStyle = sel ? '#ffffff' : YELLOW; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+    const fs = clamp(2.4 * s, 7, 13);
+    if (fs * K.tag.length * 0.62 < W_BOX * s * 0.9) {
+      ctx.save(); ctx.fillStyle = INK; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(K.tag, sx(el.x), sy(el.y)); ctx.restore();
+    }
+    const used = portsInUse(), r = clamp(1.0 * s, 3, 6);
+    portList(el).forEach((P, i) => {
+      const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
+      ctx.beginPath();
+      // an input is a hollow ring until wired, an output a filled triangle-ish dot
+      ctx.arc(X, Y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    });
+  }
+  const hit = (el, lx, ly, tol) => Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= boxH(KINDS[el.kind]) / 2 + tol;
+  const halfSize = el => boxH(KINDS[el.kind]) / 2 + 1;
+
+  /* ---------- panels ---------- */
+  function panelFor(el) {
+    const K = KINDS[el.kind];
+    panel.append(h('h3', null, K.label, h('span', { class: 'rt-exp' }, 'Experimental')));
+    const box = h('div', { class: 'rt-rows' });
+    for (const [k, label, , opts] of K.params) {
+      if (opts) box.append(selectField(label, opts.map(([v, t]) => [String(v), t]), () => String(el[k]), v => { const o = opts.find(([x]) => String(x) === v); el[k] = o ? o[0] : el[k]; }));
+      else box.append(param(label, el, k));
+    }
+    panel.append(box);
+    const io = [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
+      'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire. Electronics are experimental: the signals themselves come in a later step.'));
+  }
+  /* a wire, selected */
+  function wirePanel(F) {
+    const A = getEl(F.a[0]), B = getEl(F.b[0]);
+    const end = (E, p) => E ? E.name + ' ' + portName(E, p) : '?';
+    panel.append(h('h2', null, h('span', null, 'Wire'), h('span', { class: 'kind' }, end(A, F.a[1]) + ' → ' + end(B, F.b[1]))));
+    panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'An electrical connection from an output to an input. Drag its input end to another input to move it, or off its port to take it away.'));
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete wire')));
+  }
+  /* What a drag between two ports makes: 'wire' between an output and an input, null (and why)
+     for any other pairing that has an electrical port in it, undefined if neither is electrical */
+  function linkKind(a, b) {
+    const da = dirOf(a), db = dirOf(b);
+    if (!da && !db) return undefined;
+    if (da && db && da !== db) return 'wire';
+    return null;
+  }
+  const dirOf = p => { const E = getEl(p[0]), P = E && portsOf(E)[p[1]]; return P && P.elec || null; };
+  /* a wire's ends put output first, input second */
+  const orient = (a, b) => dirOf(a) === 'out' ? [a, b] : [b, a];
+
+  return {
+    KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient,
+    ports: portList, names, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Electronics',
   };
 })();
 
@@ -8779,7 +8954,7 @@ function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
   if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : fibreLinkPanel)(F); else renderOverview(); return; }   // PIC hook
+  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : F.wire ? ELEC.wirePanel : fibreLinkPanel)(F); else renderOverview(); return; }   // PIC hook
 
   const pinned = pins.includes(el.id);
   const pinBtn = h('button', { class: 'rt-pin' + (pinned ? ' on' : ''), type: 'button', 'aria-pressed': pinned ? 'true' : 'false',
@@ -8825,6 +9000,7 @@ function renderPanelBody(el) {
   if (el.type === 'link') linkPanel(el);
   if (el.type === 'fcomp') fcompPanel(el);
   if (el.type === 'pic') PIC.panelFor(el);                                                    // PIC hook
+  if (el.type === 'elec') ELEC.panelFor(el);                                                  // ELEC hook
   if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
@@ -11482,8 +11658,8 @@ function renderOverview() {
     const list = h('ul', { class: 'rt-list' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
-      grating: '#c9a6ff', crystal: '#b79bff', fibre: '#f2c14e', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
-      filter: '#9aa4ab', gain: '#ff6a3d', cell: '#c79bff', nlc: '#78c8a0', link: '#7fdcff', fcomp: '#f2c14e', aom: '#9ad0ff', eom: '#c6a8ff' };
+      grating: '#c9a6ff', crystal: '#b79bff', fibre: '#e86fa6', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
+      filter: '#9aa4ab', gain: '#ff6a3d', cell: '#c79bff', nlc: '#78c8a0', link: '#7fdcff', fcomp: '#e86fa6', elec: '#f2c14e', aom: '#9ad0ff', eom: '#c6a8ff' };
     // this tab's first, then the others', each under its name when there are several
     const multi = project.benches.length > 1;
     for (const b of [curBench(), ...project.benches.filter(b2 => b2 !== curBench())]) {
@@ -17406,7 +17582,9 @@ function aiCompact(data) {
   if (d.minPower && d.minPower !== 0.1) out.minPower = d.minPower;
   out.elements = els;
   if (d.fibres && d.fibres.length) out.fibres = d.fibres.map(F => {
+    if (F.wire) return { a: [ids.get(F.a[0]), F.a[1]], b: [ids.get(F.b[0]), F.b[1]], wire: true };
     const o = { a: [ids.get(F.a[0]), F.a[1]], b: [ids.get(F.b[0]), F.b[1]], len: F.len };
+    if (F.wg) o.wg = F.wg;
     if (F.loss !== 0.2) o.loss = F.loss;
     if (F.path && F.path.length) o.path = F.path.map(n => ({ x: n.x, y: n.y }));
     return o;
@@ -17499,7 +17677,10 @@ function shareData() {
   if (multi) { out.benches = d.benches.map(b => ({ id: b.id, name: b.name, view: b.view })); out.tab = d.tab; }
   out.elements = els;
   if (d.fibres.length) out.fibres = d.fibres.map(F => {
+    // a wire is its ends (ELEC hook); a waveguide keeps its settings (PIC hook)
+    if (F.wire) return Object.assign({ id: F.id, a: F.a, b: F.b, wire: true }, F.path && F.path.length ? { path: F.path } : {});
     const o = { id: F.id, a: F.a, b: F.b, len: F.len };
+    if (F.wg) o.wg = F.wg;
     if (F.loss !== 0.2) o.loss = F.loss;
     if (F.path && F.path.length) o.path = F.path;
     if (F.ta !== null && F.ta !== undefined) o.ta = F.ta;
@@ -17676,9 +17857,13 @@ function checkImport(raw, p, notes) {
     if (raw.benches && typeof e.bench === 'string' && n.bench !== e.bench) notes.push(who + ': bench ' + fmtV(e.bench) + ' is not one of the tabs: put on ' + fmtV(benchNameIn(p, n.bench)) + '.');
   });
   // fibres: the ones that could not be joined, and why
-  const kept = new Set(p.fibres.map(F => pkey(...F.a) + '|' + pkey(...F.b)));
-  const nPorts = e => e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : 0;
-  const portName = e => e.type === 'fcomp' ? FC[e.kind].names.map((q, i) => i + ' (' + q + ')').join(', ') : e.type === 'pic' ? PIC.names(e).map((q, i) => i + ' (' + q + ')').join(', ') : '0';
+  // a wire's ends may have been put output first, so either way round counts (ELEC hook)
+  const kept = new Set(p.fibres.flatMap(F => [pkey(...F.a) + '|' + pkey(...F.b), pkey(...F.b) + '|' + pkey(...F.a)]));
+  const isElec = e => e.type === 'elec' && ELEC.KINDS[e.kind];
+  const nPorts = e => e.type === 'fcomp' ? FC[e.kind].ports.length : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : isElec(e) ? ELEC.ports(e).length : 0;
+  const portName = e => e.type === 'fcomp' ? FC[e.kind].names.map((q, i) => i + ' (' + q + ')').join(', ') : e.type === 'pic' ? PIC.names(e).map((q, i) => i + ' (' + q + ')').join(', ')
+    : isElec(e) ? ELEC.names(e).map((q, i) => i + ' (' + q + ')').join(', ') : '0';
+  const outPort = (e, k) => isElec(e) && ELEC.ports(e)[k] && ELEC.ports(e)[k].elec === 'out';      // shared by any number of wires
   const used = new Map();
   (Array.isArray(raw.fibres) ? raw.fibres : []).forEach((F, i) => {
     const tag = 'Fibre ' + (i + 1);
@@ -17690,7 +17875,7 @@ function checkImport(raw, p, notes) {
       const np = nPorts(e);
       if (!np) why.push('<b>' + esc(e.name) + '</b> has no fibre port (only fibre components and fibre tips do)');
       else if (!((end[1] | 0) >= 0 && (end[1] | 0) < np)) why.push('<b>' + esc(e.name) + '</b> has ports ' + portName(e) + ', not ' + fmtV(end[1]));
-      else { const k = pkey(e.id, end[1] | 0); if (used.has(k)) why.push('port ' + (end[1] | 0) + ' of <b>' + esc(e.name) + '</b> already has ' + used.get(k)); else used.set(k, tag.toLowerCase()); }
+      else if (!outPort(e, end[1] | 0)) { const k = pkey(e.id, end[1] | 0); if (used.has(k)) why.push('port ' + (end[1] | 0) + ' of <b>' + esc(e.name) + '</b> already has ' + used.get(k)); else used.set(k, tag.toLowerCase()); }
     }
     if (why.length) notes.push(tag + ': ' + why.join('; ') + ': left out.');
     else if (!kept.has(pkey(String(F.a[0]), F.a[1] | 0) + '|' + pkey(String(F.b[0]), F.b[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
@@ -18056,6 +18241,7 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'elec', name: 'Electronics', what: 'a fourth set of parts on the Add row, in yellow: sources, amplifiers, filters, a mixer and the instruments that read them, joined by wires. Being built: the parts and wiring first, their signals next.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a third set of parts on the Add row, in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Not yet validated.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
@@ -18078,22 +18264,26 @@ const PALETTES = {
     ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['cell', 'Vapour cell', 'Atomic vapour cell (Rb, Cs, K)'], ['nlc', 'Nonlinear crystal', 'Nonlinear crystal (second harmonic: PPLN, PPKTP)'], ['fibre', 'Fibre tip'],
     ['detector', 'Photodetector'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
+  elec: ELEC.PALETTE,                                                                        // ELEC hook
   fibre: [['laser', 'Laser', 'Fibre laser'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodiode', 'Fibre photodiode'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
 };
 let palette = 'free';
-try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic') palette = pv; } catch (err) { /* private window: free space */ }
+try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec') palette = pv; } catch (err) { /* private window: free space */ }
 function layoutPalette() {
   const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
   if (palette === 'pic' && !exp('pic')) palette = 'free';                                    // PIC hook
+  if (palette === 'elec' && !exp('elec')) palette = 'free';                                  // ELEC hook
   document.querySelector('#paletteMenu [data-palette="pic"]').hidden = !exp('pic');
+  document.querySelector('#paletteMenu [data-palette="elec"]').hidden = !exp('elec');
   const row = document.getElementById('addRow'), items = PALETTES[palette].filter(it => !it[3] || exp(it[3]));
   const pb = document.getElementById('btnPalette');
-  pb.textContent = ({ fibre: 'Fibre', pic: 'Photonic' }[palette] || 'Free-space') + ' \u25be';
+  pb.textContent = ({ fibre: 'Fibre', pic: 'Photonic', elec: 'Electronics' }[palette] || 'Free-space') + ' \u25be';
   pb.classList.toggle('fibre', palette === 'fibre');
   pb.classList.toggle('pic', palette === 'pic');
+  pb.classList.toggle('elec', palette === 'elec');
   box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
   menu.replaceChildren();
   moreWrap.hidden = false;

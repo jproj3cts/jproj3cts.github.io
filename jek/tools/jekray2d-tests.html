@@ -4158,6 +4158,42 @@ const TESTS = [
     want: 1, tol: 0.01, unit: '',
     run: J => picker4f(J, 'optical-integrator', false),
   },
+  /* ---------- Electronics (experimental) ---------- */
+  {
+    name: 'Electronics: wires run from an output to an input',
+    why: 'a wire saved input first is turned round; one output feeds two inputs; a second wire to a taken input, and a wire between two outputs, are left out; the fibre beside them is kept (1: all so)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.experimental(true);
+      J.load({ format: 'jekray', version: 1, name: 'wires', elements: [
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Gen', x: -40, y: 20 }, { type: 'elec', kind: 'amp', id: 'A', name: 'Amp', x: 0, y: 20 },
+        { type: 'elec', kind: 'scope', id: 'S', name: 'Scope', x: 40, y: 20 }, { type: 'elec', kind: 'lockin', id: 'L', name: 'Lock-in', x: 40, y: -10 },
+        { type: 'fcomp', kind: 'laser', id: 'FL', name: 'Fibre laser', x: -40, y: -40 }, { type: 'fcomp', kind: 'pd', id: 'FP', name: 'Fibre PD', x: 0, y: -40 }],
+        fibres: [{ a: ['A', 0], b: ['G', 0], wire: true }, { a: ['G', 0], b: ['S', 0], wire: true }, { a: ['A', 1], b: ['S', 1], wire: true },
+          { a: ['G', 1], b: ['S', 1], wire: true }, { a: ['A', 1], b: ['L', 2], wire: true }, { a: ['FL', 0], b: ['FP', 0], len: 2 }] });
+      const got = J.serialize().fibres.map(F => (F.wire ? 'w ' : 'f ') + F.a.join('.') + '>' + F.b.join('.')).join(',');
+      J.experimental(false);
+      return got === 'w G.0>A.0,w G.0>S.0,w A.1>S.1,f FL.0>FP.0' ? 1 : 0;
+    },
+  },
+  {
+    name: 'and wires and waveguides survive a share link',
+    why: 'two wires and a silicon nitride waveguide 333 µm long, through a share link and back: the same ends, still wires, the waveguide still a waveguide of that length (1: so)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.experimental(true);
+      J.load({ format: 'jekray', version: 1, name: 'share', elements: [
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Gen', x: -40, y: 20 }, { type: 'elec', kind: 'scope', id: 'S', name: 'Scope', x: 40, y: 20 },
+        { type: 'pic', kind: 'dc', id: 'D1', name: 'DC 1', x: -30, y: -20 }, { type: 'pic', kind: 'dc', id: 'D2', name: 'DC 2', x: 30, y: -20 }],
+        fibres: [{ a: ['G', 0], b: ['S', 0], wire: true }, { a: ['G', 1], b: ['S', 1], wire: true }, { a: ['D1', 2], b: ['D2', 0], wg: { preset: 'sin', len: 333 } }] });
+      const sig = () => JSON.stringify(J.serialize().fibres.map(F => [F.a, F.b, !!F.wire, F.wg ? F.wg.len : null]));
+      const before = sig();
+      J.shareUiRoundTrip();
+      const after = sig();
+      J.experimental(false);
+      return before === after && /333/.test(after) ? 1 : 0;
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

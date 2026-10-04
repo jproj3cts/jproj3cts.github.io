@@ -2324,6 +2324,16 @@ const TESTS = [
       return r.best;
     },
   },
+  {
+    name: 'and finds it on a mirror, as on a screen',
+    why: 'the same lens and fan with a mirror in the screen’s place, facing the light: the mirror reads the rays arriving at its face as a screen does, so moving it to the smallest RMS spot finds the same 50.66 mm',
+    want: 50.655, tol: 0.05, unit: ' mm',
+    run: J => {
+      J.load(bench('optm', [src({ name: 'HeNe', width: 10, rays: 15 }), bk7Lens({}),
+        { type: 'mirror', id: 'M', name: 'Mirror', x: 45, y: 0, angle: 180, length: 25.4, sweeps: { x: { min: 40, max: 60, freq: 0.25, phase: 0, wave: 'sine' } } }]));
+      return J.optimise('Mirror', 'x', 'Mirror', 'rms', 'min', 0).best;
+    },
+  },
   { group: 'Gratings, fibres, detectors, crystals, filters and gain' },
   {
     name: 'A grating sends order +1 along the grating equation',

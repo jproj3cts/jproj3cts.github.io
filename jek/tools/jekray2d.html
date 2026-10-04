@@ -4934,11 +4934,14 @@ function drawScreen(el, sel) {
   }
 }
 
+/* a source's body, in mm on the bench (so it zooms with everything else): its length, and its
+   half-height, a little more than its beam's */
+const srcBody = el => ({ L: 20, hw: Math.max(el.width / 2, 2) + 1.5 });
 function drawSource(el, sel) {
   const f = frame(el);
   const k = 1 / V().scale;             // px → mm
-  const halfW = Math.max(el.width / 2, 6 * k);
-  const body = [[-26 * k, -halfW - 3*k], [0, -halfW - 3*k], [0, halfW + 3*k], [-26 * k, halfW + 3*k]];
+  const { L, hw } = srcBody(el);
+  const body = [[-L, -hw], [0, -hw], [0, hw], [-L, hw]];
   pathLocal(f, body, true);
   ctx.fillStyle = '#2b2622';
   ctx.fill();
@@ -5105,7 +5108,7 @@ function halfSize(el) {
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
   if (el.type === 'lens') return el.diameter / 2;
-  if (el.type === 'source') return Math.max(el.width / 2, 5);
+  if (el.type === 'source') return srcBody(el).hw;
   if (el.type === 'stop') return el.outer / 2;
   if (el.type === 'waveplate' || el.type === 'polariser') return el.length / 2;
   if (el.type === 'cube') return el.size / Math.SQRT2;
@@ -5119,7 +5122,7 @@ function halfSize(el) {
 }
 function elementExtentPx(el) {
   const s = V().scale;
-  if (el.type === 'source') return Math.max(30, el.width / 2 * s + 14);
+  if (el.type === 'source') return Math.max(30, srcBody(el).hw * s + 14);
   return Math.max(34, halfSize(el) * s + 20);
 }
 function handlePos(el) {
@@ -5134,7 +5137,7 @@ function drawLabels() {
   for (const el of project.elements) {
     if (!onTab(el)) continue;
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
-    const r = el.type === 'source' ? 14 : halfSize(el) * V().scale;
+    const r = halfSize(el) * V().scale;
     const a = el.angle * deg;
     // place the label below the element, whichever way it's rotated
     const ex = Math.abs(Math.sin(a)) * r, ey = Math.abs(Math.cos(a)) * r;
@@ -5815,8 +5818,8 @@ function hitTest(px, py) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
     if (el.type === 'source') {
-      const hw = Math.max(el.width / 2, 6 / V().scale) + tol;
-      if (lx <= tol && lx >= -26 / V().scale - tol && Math.abs(ly) <= hw) return el;
+      const { L, hw } = srcBody(el);
+      if (lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol) return el;
       continue;
     }
     if (el.type === 'cube' || el.type === 'prism') {
@@ -8636,9 +8639,8 @@ const ELEC = (() => {
       case 'detector': return [{ x: -detR(el), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];          // at the back of its semicircle
       case 'source': {                                         // power and frequency modulation, on its back, when under external control
         if (!el.ext) return [];
-        const hw = Math.max(el.width / 2, 6 * k) + 3 * k;
-        const d = Math.max(hw / 2, 8 * k);
-        return [{ x: -26 * k, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -26 * k, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
+        const { L, hw } = srcBody(el), d = hw / 2;
+        return [{ x: -L, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -L, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
       }
       case 'aom': return [{ x: 0, y: el.length / 2 + 4 * k, dx: 0, dy: 1, elec: 'in', name: 'rf' }];
       case 'eom': return [{ x: 0, y: el.length / 2 + 2 * k, dx: 0, dy: 1, elec: 'in', name: 'mod' }];
@@ -9489,15 +9491,17 @@ const GOAL_LABEL = { min: 'Smallest', max: 'Largest', match: 'Match a target' };
    diffracted field, or first-order optics */
 const METRIC_FAMS = [['rays', 'Rays'], ['gauss', 'Gaussian beam'], ['field', 'Diffracted field'], ['paraxial', 'First order'], ['device', 'Fibre and detector'], ['pulse', 'Pulse']];
 const metricsFor = kind => METRICS.filter(m => m.on === kind);
+/* a mirror reads the light arriving at its face as a screen does, so it is measured as one */
+const metricKind = el => el.type === 'mirror' ? 'screen' : el.type;
 const metricByKey = key => METRICS.find(m => m.key === key);
 const measurable = () => {                    // screens first: they are what most studies measure
-  const rank = { screen: 0, detector: 0, fibre: 0, stop: 1, lens: 2 };
+  const rank = { screen: 0, detector: 0, fibre: 0, mirror: 1, stop: 1, lens: 2 };
   return project.elements.filter(e => rank[e.type] !== undefined).sort((a, b) => rank[a.type] - rank[b.type]);
 };
 
 function metricRaw(el, key) {
   const m = metricByKey(key);
-  if (!el || !m || m.on !== el.type) return null;
+  if (!el || !m || m.on !== metricKind(el)) return null;
   if (m.getEl) { const v = m.getEl(el); return isFinite(v) ? v : null; }
   const st = screenStats(el);
   if (!st || st.empty) return null;
@@ -20071,7 +20075,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   metricSel.replaceChildren();
   famBox.replaceChildren();
   if (!el) return;
-  const all = metricsFor(el.type);
+  const all = metricsFor(metricKind(el));
   const fams = METRIC_FAMS.filter(([f]) => all.some(m => m.fam === f));
   if (!fams.some(([f]) => f === famBox.dataset.fam)) famBox.dataset.fam = fams.length ? fams[0][0] : '';
   for (const [f, label] of fams) {

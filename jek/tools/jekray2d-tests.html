@@ -4326,14 +4326,14 @@ const TESTS = [
       }, [['D', 0, 'LI', 0], ['C', 0, 'LI', 1], ['G', 0, 'L', 0]]),
   },
   {
-    name: 'A node hands on what reaches it, to as many inputs as it feeds',
-    why: 'a 1 kHz square through two nodes in a row, then one node feeding a low-pass filter and a scope: the filter’s output as if wired straight, and the node’s own output the generator’s: the largest difference in any tone or the DC',
+    name: 'A node is one point on the wiring, handing on what reaches it',
+    why: 'a 1 kHz square into a node, on to a second node, and from that one point to a low-pass filter and a scope: the filter’s output as if wired straight, and the node’s own output the generator’s: the largest difference in any tone or the DC',
     want: 0, tol: 1e-15, unit: '',
     run: J => {
       const g = elecPart('sig', 'G', { wave: 'square' }), f = elecPart('lpf', 'F'), cmp = (A, B) => Math.max(Math.abs(A.dc - B.dc), ...A.tones.map((t, i) => Math.abs(t.amp - B.tones[i].amp) + Math.abs(t.ph - B.tones[i].ph)), A.tones.length === B.tones.length ? 0 : 1);
       const direct = elecRun(J, [g, f], [['G', 0, 'F', 0]], () => J.elec.signal('F', 0));
       return elecRun(J, [g, f, elecPart('node', 'N1'), elecPart('node', 'N2'), elecPart('scope', 'SC')], [['G', 0, 'N1', 0], ['N1', 0, 'N2', 0], ['N2', 0, 'F', 0], ['N2', 0, 'SC', 0]],
-        () => Math.max(cmp(J.elec.signal('F', 0), direct), cmp(J.elec.signal('N2', 0), J.elec.signal('G', 0))));
+        () => J.project().fibres.length === 4 ? Math.max(cmp(J.elec.signal('F', 0), direct), cmp(J.elec.signal('N2', 0), J.elec.signal('G', 0))) : NaN);
     },
   },
   {
@@ -4516,7 +4516,7 @@ const elecBench = (els, wires) => ({ format: 'jekray', version: 1, name: 'elec',
 /* run fn with the bench loaded and electronics switched on; an output index counts after the inputs */
 function elecRun(J, els, wires, fn, raw, fibres) {
   J.experimental(true);
-  const K = { node: 1, sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
+  const K = { node: 0, sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2, lockin: 2, scope: 2, spec: 1 };
   const kinds = new Map(els.map(e => [e.name, e.kind]));
   // raw: wires as [from id, port, to id, port], ports counted as the tool does (for optical parts)
   const B = elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j]).concat(raw || []));

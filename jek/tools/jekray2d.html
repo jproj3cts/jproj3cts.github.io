@@ -2818,8 +2818,8 @@ function normFibres(list, els) {
     let a = F && end(F.a), b = F && end(F.b);
     // a wire: from an output to an input, one wire to an input, any number from an output
     if (a && b && (dir(a) || dir(b))) {
-      if (!dir(a) || !dir(b) || dir(a) === dir(b)) continue;
-      if (dir(a) === 'in') [a, b] = [b, a];
+      if (!dir(a) || !dir(b) || (dir(a) === dir(b) && dir(a) !== 'io')) continue;
+      if (dir(a) === 'in' || dir(b) === 'out') [a, b] = [b, a];
       if (used.has(pkey(...b))) continue;
       used.add(pkey(...b));
       const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
@@ -5394,8 +5394,11 @@ function fibreGrip(F, px, py) {
     if (near([n.x + n.h2[0], n.y + n.h2[1]])) return { type: 'h2', i };
   }
   for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i };
-  if (near(segs[0][1])) return { type: 'ta' };
-  if (near(segs[segs.length - 1][2])) return { type: 'tb' };
+  // an end with no direction (an electrical node) has no handle: its point is the node's own
+  const loose = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-9;
+  if (loose(segs[0][1], segs[0][0]) && near(segs[0][1])) return { type: 'ta' };
+  const L = segs[segs.length - 1];
+  if (loose(L[2], L[3]) && near(L[2])) return { type: 'tb' };
   return null;
 }
 /* moving a grip to a point on the bench; free (Shift) lets a node's two handles part */
@@ -5473,7 +5476,7 @@ function portAt(px, py) {
   for (const el of project.elements) {
     if (!onTab(el) || (el.type !== 'fcomp' && el.type !== 'fibre' && el.type !== 'pic' && el.type !== 'elec' && !ELEC.extra(el).length)) continue;   // ELEC hook
     const ps = portsOf(el), n = ps.length;
-    for (let i = 0; i < n; i++) { if (ps[i].elec && el.type !== 'elec' && !exp('elec')) continue; const Q = portWorld(el, i); if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
+    for (let i = 0; i < n; i++) { if (ps[i].elec && el.type !== 'elec' && !exp('elec')) continue; const Q = portWorld(el, i), r = ps[i].elec === 'io' ? 5 : 8; if (Math.hypot(sx(Q.x) - px, sy(Q.y) - py) <= r) return [el.id, i]; }
   }
   return null;
 }
@@ -5781,7 +5784,7 @@ canvas.addEventListener('pointerdown', e => {
   const port = portAt(px, py);
   if (port) {
     // ELEC hook: an electrical output feeds any number of wires, so a drag from it always draws a new one
-    const F = ELEC.dirOf(port) === 'out' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
+    const F = ELEC.dirOf(port) === 'out' || ELEC.dirOf(port) === 'io' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
     drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null };
     return;
   }
@@ -7914,14 +7917,14 @@ const ELEC = (() => {
   const rows = K => Math.max(1, K.ins.length, K.outs.length);
   const boxH = K => Math.max(9, rows(K) * PITCH + 2.5);
   const side = (n, i) => (i - (n - 1) / 2) * PITCH;
-  const NODE_R = 1.2;
+  const NODE_R = 1.2, NODE_PORT = 4;                          // a node's ring (mm) and its port at the centre (px)
   const portList = el => {
     const K = KINDS[el.kind];
-    if (el.kind === 'node') return [{ x: -NODE_R, y: 0, dx: -1, dy: 0, elec: 'in' }, { x: NODE_R, y: 0, dx: 1, dy: 0, elec: 'out' }];
+    if (el.kind === 'node') return [{ x: 0, y: 0, dx: 0, dy: 0, elec: 'io' }];          // one point: a wire in, any number out
     return [...K.ins.map((nm, i) => ({ x: -W_BOX / 2, y: -side(K.ins.length, i), dx: -1, dy: 0, elec: 'in' })),
       ...K.outs.map((nm, i) => ({ x: W_BOX / 2, y: -side(K.outs.length, i), dx: 1, dy: 0, elec: 'out' }))];
   };
-  const names = el => { const K = KINDS[el.kind]; return [...K.ins, ...K.outs]; };
+  const names = el => { const K = KINDS[el.kind]; return el.kind === 'node' ? ['node'] : [...K.ins, ...K.outs]; };
 
   /* ---------- the element, as saved ---------- */
   function norm(e, base) {
@@ -7957,18 +7960,14 @@ const ELEC = (() => {
       ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
     });
   }
-  const hit = (el, lx, ly, tol) => el.kind === 'node' ? Math.hypot(lx, ly) <= NODE_R + tol : Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= boxH(KINDS[el.kind]) / 2 + tol;
+  const hit = (el, lx, ly, tol) => el.kind === 'node' ? Math.hypot(lx, ly) <= Math.max(NODE_R, 12 / V().scale) + tol : Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= boxH(KINDS[el.kind]) / 2 + tol;
   const halfSize = el => el.kind === 'node' ? NODE_R + 0.5 : boxH(KINDS[el.kind]) / 2 + 1;
   /* a node: a yellow dot on the wiring, its input and output either side; it hands on what it is given */
   function drawNode(el, sel) {
-    const s = V().scale, X = sx(el.x), Y = sy(el.y), r = clamp(NODE_R * s, 4, 9);
+    const s = V().scale, X = sx(el.x), Y = sy(el.y), r = clamp(NODE_R * s, 7, 12);
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = DARK; ctx.fill(); ctx.strokeStyle = sel ? '#ffffff' : YELLOW; ctx.lineWidth = sel ? 2.4 : 1.6; ctx.stroke();
-    const used = portsInUse(), pr = clamp(0.6 * s, 2.5, 4.5);
-    portList(el).forEach((P, i) => {
-      const Q = portWorld(el, i); ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), pr, 0, 2 * Math.PI);
-      ctx.fillStyle = used.has(pkey(el.id, i)) || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.2; ctx.stroke();
-    });
+    ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); ctx.fillStyle = YELLOW; ctx.fill();
   }
 
   /* ---------- panels ---------- */
@@ -7981,10 +7980,10 @@ const ELEC = (() => {
       else box.append(param(label, el, k));
     }
     panel.append(box);
-    const io = [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
+    const io = el.kind === 'node' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
     panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
       'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.' +
-      (el.kind === 'node' ? ' A node hands on what reaches it unchanged: put one where wires should bend or branch, and wire its output to as many inputs as you like. Its name shows only when it is selected.' : '')));
+      (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : '')));
     instrumentSection(el);
     panel.append(readoutBox('elec'));
   }
@@ -8001,12 +8000,13 @@ const ELEC = (() => {
   function linkKind(a, b) {
     const da = dirOf(a), db = dirOf(b);
     if (!da && !db) return undefined;
-    if (da && db && da !== db) return 'wire';
+    if (da && db && (da !== db || da === 'io')) return 'wire';
     return null;
   }
   const dirOf = p => { const E = getEl(p[0]), P = E && portsOf(E)[p[1]]; return P && P.elec || null; };
   /* a wire's ends put output first, input second */
-  const orient = (a, b) => dirOf(a) === 'out' ? [a, b] : [b, a];
+  // a node goes either way: it is the input to an output, the output to an input, and between two nodes the drag runs from the source
+  const orient = (a, b) => dirOf(a) === 'in' || dirOf(b) === 'out' ? [b, a] : [a, b];
 
 
   /* ---------- signals ----------
@@ -8217,7 +8217,7 @@ const ELEC = (() => {
         case 'lpf': case 'hpf': case 'bpf': set(0, through(In[0], FILTER[el.kind](el), In[0].unit)); break;
         case 'mixer': set(0, mixer(In[0], In[1], el.k)); break;
         case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
-        case 'node': set(0, In[0]); break;
+        case 'node': out.set(pkey(el.id, 0), In[0]); break;     // its one port carries on what it is given
         case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
         default: K.outs.forEach((_, j) => set(j, zero()));
       }
@@ -8228,7 +8228,7 @@ const ELEC = (() => {
     memo = { key, R: { out, warn, lock } };
     return memo.R;
   }
-  const signalOf = (el, j) => solve().out.get(pkey(el.id, KINDS[el.kind].ins.length + j)) || null;
+  const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' ? 0 : KINDS[el.kind].ins.length + j)) || null;
   /* what a part's input receives */
   function inputOf(el, i) {
     const F = (project.fibres || []).find(G => G.wire && pkey(...G.b) === pkey(el.id, i));

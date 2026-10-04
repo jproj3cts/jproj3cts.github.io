@@ -621,6 +621,8 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | gain | `10000` | Gain (V/A) |
 | vmax | `10` | Output limit (V) |
 | bandwidth | `1000000000` | Bandwidth (Hz) |
+| dark | `1` | Dark (nA) |
+| ampNoise | `2` | Noise (pA/√Hz) |
 | demodF | `0` | Demod. at (MHz) |
 | demodPhase | `0` | Demod. phase (°) |
 

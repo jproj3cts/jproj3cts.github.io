@@ -4134,6 +4134,30 @@ const TESTS = [
       return got[0] === 12 && got[1] === 240 && got[2] === undefined && got[3] === undefined ? 1 : 0;
     },
   },
+  {
+    name: 'A field worked out before is not reused when only a mask’s formula differs',
+    why: 'the integrator demo, then the differentiator demo (the same parts in the same places, another formula in the Fourier plane): the output field as from nothing, not as the integrator left it (1: it is)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const sig = () => { const o = J.popSegments().filter(s => s.el && /^L2/.test(s.el))[0], pr = o.profile(o.len); let h = 0; for (let i = 0; i < pr.I.length; i++) h += pr.I[i] * (i % 7 + 1); return h; };
+      J.load(JSON.parse(getDemo('optical-integrator'))); J.trace(); const a = sig();
+      J.load(JSON.parse(getDemo('optical-differentiator'))); J.trace(); const b = sig();
+      J.popCache(true); J.load(JSON.parse(getDemo('optical-differentiator'))); J.trace(); const c = sig();
+      return a !== b && b === c ? 1 : 0;
+    },
+  },
+  {
+    name: 'The optical differentiator demo takes the derivative of its input',
+    why: 'its output against f′(−x) under the beam, f = 0.6 cos(2πx/1.5) + 0.4 sin(2πx/0.5): the correlation of the intensities within ±4 mm, and against the integral the other demo makes, under 0.85 (NaN if not)',
+    want: 1, tol: 0.01, unit: '',
+    run: J => picker4f(J, 'optical-differentiator', true),
+  },
+  {
+    name: 'and the optical integrator demo its integral',
+    why: 'the same against the integral of f(−x) under the beam, and against the derivative under 0.85 (NaN if not)',
+    want: 1, tol: 0.01, unit: '',
+    run: J => picker4f(J, 'optical-integrator', false),
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',
@@ -4277,6 +4301,21 @@ const picDropBench = nm => ({ format: 'jekray', version: 1, name: 'drop', elemen
   { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, wavelength: nm, power: 1 }, { type: 'pic', kind: 'gc', id: 'G1', name: 'GC in', x: -30, y: 0, angle: 180, centre: nm },
   { type: 'pic', kind: 'ringad', id: 'R', name: 'Ring', x: 0, y: 0, radius: 10, kappa1: 3, kappa2: 3 }, { type: 'pic', kind: 'pd', id: 'P', name: 'Drop PD', x: -30, y: 20 }],
   fibres: [{ a: ['L', 0], b: ['G1', 1], len: 1, loss: 0 }, { a: ['G1', 0], b: ['R', 0], wg: { len: 0, loss: 0 } }, { a: ['R', 3], b: ['P', 0], wg: { len: 0, loss: 0 } }] });
+/* A 4f demo's output (the field arriving at its output screen, which starts at L2) against the
+   derivative (or integral) of its two-tone input under the beam, imaged to -x: the correlation
+   of the intensities, or NaN if it is as like the other operation */
+function picker4f(J, demo, isD) {
+  J.load(JSON.parse(getDemo(demo))); J.trace();
+  const o = J.popSegments().filter(s => s.el && /^L2/.test(s.el))[0], pr = o.profile(o.len);
+  const w0 = 3, k1 = 2 * Math.PI / 1.5, k2 = 2 * Math.PI / 0.5;
+  const op = D => x => { const u = -x, g = Math.exp(-u * u / (w0 * w0));
+    return (D ? -0.6 * k1 * Math.sin(k1 * u) + 0.4 * k2 * Math.cos(k2 * u) : 0.6 / k1 * Math.sin(k1 * u) - 0.4 / k2 * Math.cos(k2 * u)) ** 2 * g * g; };
+  const sel = Array.from(pr.r).map((x, i) => [x, pr.I[i]]).filter(([x]) => Math.abs(x) < 4);
+  const corr = f => { const a = sel.map(q => q[1]), w = sel.map(q => f(q[0])), ma = a.reduce((p, q) => p + q) / a.length, mw = w.reduce((p, q) => p + q) / w.length;
+    let ab = 0, aa = 0, bb = 0; a.forEach((v, i) => { ab += (v - ma) * (w[i] - mw); aa += (v - ma) ** 2; bb += (w[i] - mw) ** 2; }); return ab / Math.sqrt(aa * bb); };
+  const own = corr(op(isD)), other = corr(op(!isD));
+  return other < 0.85 ? own : NaN;
+}
 /* a grid of directional couplers joined right and down, each row's end looping into the next row's start */
 function picLattice(R, C) {
   const els = [], fibres = [], wg = len => ({ preset: 'si', len });

@@ -2923,6 +2923,7 @@ const TESTS = [
         const el = J.byName(J.add(k));
         if (k === 'fibre') return el.type !== 'fibre';
         if (k === 'led') return !(el.kind === 'laser' && el.led);
+        if (k === 'bpd') return !(el.kind === 'pd' && el.balanced);
         if (k === 'splitter' || k === 'combiner') return !(el.kind === 'split' && el.combine === (k === 'combiner'));
         return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
       });
@@ -2966,6 +2967,111 @@ const TESTS = [
       J.setParam('S', 'ways', 2); J.trace();
       const ok = J.fibreCount() === 3 && Math.abs(J.fibrePd('P1') - 0.5) < 1e-12 && J.fibrePd('P3') === 0 && J.portCount('S') === 3;
       return ok ? 0 : 1;
+    },
+  },
+  {
+    name: 'A polarisation beam splitter sends each polarisation its own way',
+    why: '1 mW linear at 45\u00b0 into a PBS (axis s, 60 dB extinction, no loss): half along, half across; s alone: all along, 10\u207b\u2076 leaking across: the largest error in mW',
+    want: 0, tol: 1e-9, unit: ' mW',
+    run: J => {
+      const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1 }, o)), fc('pbs', 'B', { loss: 0, extinction: 60 }), fc('pd', 'A'), fc('pd', 'C')], [['L', 0, 'B', 0], ['B', 1, 'A', 0], ['B', 2, 'C', 0]])); return [J.fibrePd('A'), J.fibrePd('C')]; };
+      const d = one({ pol: 'linear', polAngle: 45 }), s = one({ pol: 's' });
+      return Math.max(Math.abs(d[0] - 0.5 - 5e-7), Math.abs(d[1] - 0.5 - 5e-7), Math.abs(s[0] - 1), Math.abs(s[1] - 1e-6));
+    },
+  },
+  {
+    name: 'and run backwards combines s and p into one fibre',
+    why: 's light into its along port and p light into its across port, 1 mW each, unrelated lasers: 2 mW out of its common port (a polarisation combiner loses nothing, unlike a 50:50 coupler): the error in mW',
+    want: 2, tol: 1e-5, unit: ' mW',
+    run: J => { J.load(fnet([fc('laser', 'A', { power: 1, pol: 's' }), fc('laser', 'B', { power: 1, pol: 'p', wavelength: 1550.1 }), fc('pbs', 'P', { loss: 0, extinction: 60 }), fc('pd', 'D')],
+      [['A', 0, 'P', 1], ['B', 0, 'P', 2], ['P', 0, 'D', 0]])); return J.fibrePd('D'); },
+  },
+  {
+    name: 'A balanced photodetector reads the difference of its two inputs',
+    why: 'a fibre Mach\u2013Zehnder\u2019s two outputs on the + and \u2212 inputs: equal arms (all light on \u2212) read \u22121 mW, a quarter wave apart 0, half a wave +1 mW, so the fringe swings twice as far as on one detector: the largest error in mW',
+    want: 0, tol: 1e-9, unit: ' mW',
+    run: J => {
+      const one = dL => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C1'), fc('coupler', 'C2'), fc('pd', 'D', { balanced: true })],
+        [['L', 0, 'C1', 0], ['C1', 2, 'C2', 0, 1], ['C1', 3, 'C2', 1, 1 + dL], ['C2', 2, 'D', 0], ['C2', 3, 'D', 1]])); return J.fibrePd('D'); };
+      const q = 1550e-9 / (4 * 1.468);
+      return Math.max(Math.abs(one(0) + 1), Math.abs(one(q)), Math.abs(one(2 * q) - 1));
+    },
+  },
+  {
+    name: 'and cancels the excess noise both share, to its common-mode rejection',
+    why: 'an LED\u2019s light split 50:50 onto a balanced detector (rejection 30 dB) and all of it onto one detector: the LED\u2019s beat noise on the balanced one 10\u207b\u00b3 of the single one\u2019s (each side carries half the power, so a quarter of the beat noise, twice over), while its shot noise is the same: the ratios, the first scaled by 2000, their largest error from 1',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { led: true, power: 1 }), fc('split', 'S', { ways: 2, loss: 0 }), fc('pd', 'D', { balanced: true, cmrr: 30 })], [['L', 0, 'S', 0], ['S', 1, 'D', 0], ['S', 2, 'D', 1]]));
+      const b = J.pdSignal('D').noise.parts;
+      J.load(fnet([fc('laser', 'L', { led: true, power: 1 }), fc('pd', 'D')], [['L', 0, 'D', 0]]));
+      const s = J.pdSignal('D').noise.parts;
+      return Math.max(Math.abs(b.aseAse / s.aseAse * 2000 - 1), Math.abs(b.shot / s.shot - 1));
+    },
+  },
+  {
+    name: 'A fibre mirror reflects its share and passes the rest',
+    why: '1 mW through a circulator onto a 30% fibre mirror: 0.3 mW back out of the circulator\u2019s third port, 0.7 mW through: the largest error in mW',
+    want: 0, tol: 1e-12, unit: ' mW',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('circ', 'K', { loss: 0, iso: 200 }), fc('fmir', 'M', { rmax: 30 }), fc('pd', 'T'), fc('pd', 'R')], [['L', 0, 'K', 0], ['K', 1, 'M', 0], ['M', 1, 'T', 0], ['K', 2, 'R', 0]]));
+      return Math.max(Math.abs(J.fibrePd('T') - 0.7), Math.abs(J.fibrePd('R') - 0.3));
+    },
+  },
+  {
+    name: 'and two make a fibre Fabry\u2013P\u00e9rot',
+    why: 'two 90% fibre mirrors about 10 cm of fibre apart: on resonance all 1 mW through; half a free spectral range off, T = (1 \u2212 R)\u00b2 / (1 + R)\u00b2 = 1/361: the largest relative error',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const one = d => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('fmir', 'M1', { rmax: 90 }), fc('fmir', 'M2', { rmax: 90 }), fc('pd', 'T')], [['L', 0, 'M1', 0], ['M1', 1, 'M2', 0, 0.1 + d], ['M2', 1, 'T', 0]])); return J.fibrePd('T'); };
+      // the mirrors reflect with opposite signs inside (as lossless ones do), so the round trip 2kL is an odd number of
+      // half waves on resonance: L = (2m + 1) lambda / 4n; half way between, a quarter wave of length further
+      const lam = 1550e-9, n = 1.468, m = Math.round(4 * n * 0.1 / lam / 2 - 0.5), dOn = (2 * m + 1) * lam / (4 * n) - 0.1;
+      return Math.max(Math.abs(one(dOn) - 1), Math.abs(one(dOn + lam / (4 * n)) * 361 - 1));
+    },
+  },
+  {
+    name: 'An optical switch sends its input one way or the other',
+    why: 'into port 1 of a 2\u00d72 switch (no loss, 50 dB crosstalk): bar, all to 3 and 10\u207b\u2075 to 4; cross, the other way round: the largest error in mW',
+    want: 0, tol: 1e-12, unit: ' mW',
+    run: J => {
+      const one = x => { J.load(fnet([fc('laser', 'L', { power: 1 }), fc('switch', 'S', { cross: x, loss: 0 }), fc('pd', 'A'), fc('pd', 'C')], [['L', 0, 'S', 0], ['S', 2, 'A', 0], ['S', 3, 'C', 0]])); return [J.fibrePd('A'), J.fibrePd('C')]; };
+      const b = one(0), c = one(1);
+      return Math.max(Math.abs(b[0] - 1), Math.abs(b[1] - 1e-5), Math.abs(c[0] - 1e-5), Math.abs(c[1] - 1));
+    },
+  },
+  {
+    name: 'A delay line and a fibre stretcher each shift a Mach\u2013Zehnder\u2019s fringe',
+    why: 'a 1\u00d72 splitter into a 2\u00d71 combiner, a delay line in one arm and a stretcher in the other, arms equal: all through; a delay of half a wave (\u03bb/2c), none; the stretcher at 180\u00b0, none, and at 90\u00b0, half; and driven by 1 V with V\u03c0 2 V, half again: the largest error in mW',
+    want: 0, tol: 1e-9, unit: ' mW',
+    run: J => {
+      const els = (ps, ph) => [fc('laser', 'L', { power: 1 }), fc('split', 'S', { ways: 2, loss: 0 }), fc('delay', 'Dl', { delay: ps, loss: 0 }), fc('stretch', 'P', { phase: ph, loss: 0, vpi: 2 }), fc('split', 'C', { ways: 2, combine: true, loss: 0 }), fc('pd', 'A')];
+      const fib = [['L', 0, 'S', 0], ['S', 1, 'Dl', 0], ['Dl', 1, 'C', 1, 0.5], ['S', 2, 'P', 0], ['P', 1, 'C', 2, 0.5], ['C', 0, 'A', 0]];
+      const mz = (ps, ph) => { J.load(fnet(els(ps, ph), fib)); return J.fibrePd('A'); };
+      const half = 1550e-6 / 2 / 0.299792458;
+      const driven = elecRun(J, [...els(0, 0), elecPart('dc', 'V', { v: 1 })], [], () => J.elec.signal('A', 0).dc, [['V', 0, 'P', 2]],
+        fib.map(([a, pa, b, pb, len]) => ({ a: [a, pa], b: [b, pb], len: len ?? 1, loss: 0 })));
+      // the photodetector's output: 0.5 mW times its responsivity and gain (1 A/W, 10^4 V/A), 5 V
+      return Math.max(Math.abs(mz(0, 0) - 1), Math.abs(mz(half, 0)), Math.abs(mz(0, 180)), Math.abs(mz(0, 90) - 0.5), Math.abs(driven / 10 - 0.5));
+    },
+  },
+  {
+    name: 'A tunable filter passes its band',
+    why: 'a Gaussian pass band 1 nm wide at 1550 nm, no loss: a laser at 1550 nm all through, at 1550.5 nm half: the largest error in mW',
+    want: 0, tol: 1e-12, unit: ' mW',
+    run: J => {
+      const one = nm => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: nm }), fc('tbf', 'F', { centre: 1550, fwhm: 1, loss: 0 }), fc('pd', 'A')], [['L', 0, 'F', 0], ['F', 1, 'A', 0]])); return J.fibrePd('A'); };
+      return Math.max(Math.abs(one(1550) - 1), Math.abs(one(1550.5) - 0.5));
+    },
+  },
+  {
+    name: 'An optical spectrum analyser shows a laser at its power and an LED by its density',
+    why: 'resolution 0.1 nm: a 1 mW single-frequency laser peaks at 1 mW (0 dBm); a 1 mW LED 40 nm wide at 1 mW \u00d7 0.1/\u221a(40\u00b2 + 0.1\u00b2), about \u221226 dBm, its line 40 nm wide: the largest relative error',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1 }, o)), fc('osa', 'O', { rbw: 0.1 })], [['L', 0, 'O', 0]])); return J.osa('O'); };
+      const a = one({}), b = one({ led: true, bw: 40 });
+      return Math.max(Math.abs(a.peak - 1), Math.abs(b.peak / (0.1 / Math.hypot(40, 0.1)) - 1), Math.abs(b.lines[0].w / 40 - 1));
     },
   },
   {

@@ -555,6 +555,77 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | ways | `2` | Branches |
 | loss | `0.2` | Excess loss (dB) |
 
+### kind "pbs": Polarisation beam splitter
+
+**ports:** 0 = common, 1 = along, 2 = across
+
+| field | default | meaning |
+|---|---|---|
+| axis | `0` | Axis (° from s) |
+| extinction | `25` | Extinction (dB) |
+| loss | `0.5` | Insertion loss (dB) |
+
+### kind "fmir": Fibre mirror
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| rmax | `50` | Reflectance (%) |
+| loss | `0` | Excess loss (dB) |
+
+### kind "switch": Optical switch
+
+**ports:** 0 = 1, 1 = 2, 2 = 3, 3 = 4
+
+| field | default | meaning |
+|---|---|---|
+| cross | `0` | State (0 bar, 1 cross) |
+| loss | `0.8` | Insertion loss (dB) |
+| xt | `50` | Crosstalk (dB) |
+
+### kind "delay": Variable delay line
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| delay | `0` | Delay (ps) |
+| loss | `1` | Insertion loss (dB) |
+
+### kind "stretch": Fibre stretcher
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| phase | `0` | Phase (°) |
+| vpi | `2` | Vπ (V) |
+| loss | `0.1` | Insertion loss (dB) |
+| (electrical) | | its drive input: π of phase per Vpi volts on top of "phase" |
+
+### kind "tbf": Tunable filter
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| centre | `1550` | Centre (nm) |
+| fwhm | `1` | Width (nm) |
+| loss | `1` | Insertion loss (dB) |
+
+### kind "osa": Optical spectrum analyser
+
+**ports:** 0 = in
+
+| field | default | meaning |
+|---|---|---|
+| rbw | `0.1` | Resolution (nm) |
+| wmin | `0` | From (nm; 0: auto) |
+| wmax | `0` | To (nm; 0: auto) |
+| ref | `10` | Top (dBm) |
+| dbdiv | `10` | dB per division |
+
 ### kind "wdm": WDM
 
 **ports:** 0 = common, 1 = pass, 2 = rest
@@ -652,6 +723,8 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | ampNoise | `2` | Noise (pA/√Hz) |
 | demodF | `0` | Demod. at (MHz) |
 | demodPhase | `0` | Demod. phase (°) |
+| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in −, reading the first’s light less the second’s |
+| cmrr | `30` | dB, a balanced detector’s common-mode rejection of excess noise |
 
 ### kind "thru": Feedthrough
 

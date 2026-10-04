@@ -2297,7 +2297,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
   crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -2686,6 +2686,8 @@ function normElementBase(e) {
         base.bw = Math.max(0.001, num(e.bw, 40));
         if (base.led) base.tau = 0; }
       if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
+      if (e.kind === 'pd') { base.balanced = !!e.balanced; base.cmrr = Math.max(0, num(e.cmrr, 30)); }
+      if (e.kind === 'switch') base.cross = base.cross >= 0.5 ? 1 : 0;
       if (e.kind === 'split') { base.ways = Math.round(clamp(base.ways, 2, 64)); base.loss = Math.max(0, base.loss); base.combine = !!e.combine; }
       if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
       // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity
@@ -2787,6 +2789,9 @@ function makeElement(kind, x, y) {
       return normElement({ type: 'fcomp', kind: 'split', combine: kind === 'combiner', name: nextName(kind === 'combiner' ? 'Combiner' : 'Splitter'), x, y, angle: 0, ways: 4 });
     case 'led':
       return normElement({ type: 'fcomp', kind: 'laser', led: true, name: nextName('LED'), x, y, angle: 0, wavelength: 1550, bw: 40, power: 0.1, pol: 'unpolarised' });
+    case 'bpd':
+      return normElement({ type: 'fcomp', kind: 'pd', balanced: true, material: 'ingaas', name: nextName('Balanced detector'), x, y, angle: 0 });
+    case 'pbs': case 'fmir': case 'switch': case 'delay': case 'stretch': case 'tbf': case 'osa':
     case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru':
     case 'amp': case 'faom': case 'feom': {
       if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
@@ -5441,9 +5446,50 @@ const FSYM = (() => {
       c.save(); c.setLineDash([0.5, 0.5]); c.lineWidth *= 0.6; c.strokeRect(-3.6, -1.9, 7.2, 3.8); c.restore();
     }, val: el => [fmtNm(el.centre), -3.4] },
     term: { draw(c) { ln(c, -7, 0, 0.6, 0); for (const u of [0.6, 1.8, 3]) ln(c, u, -2, u + 1.2, 2); } },
-    pd: { draw(c) {
+    pd: { draw(c, el) {
+      if (el.balanced) {
+        // two photodiodes back to back, the difference of their currents taken from between them
+        for (const v of [-2.25, 2.25]) { ln(c, -7, v, -3, v); shape(c, [[-3, v - 1.5], [0, v], [-3, v + 1.5]]); ln(c, 0, v - 1.5, 0, v + 1.5); ln(c, 0, v, 2, v); }
+        ln(c, 2, -2.25, 2, 2.25); ln(c, 2, 0, 4, 0); c.beginPath(); c.arc(2, 0, 0.5, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill();
+        return;
+      }
       ln(c, -7, 0, -3, 0); shape(c, [[-3, -2.8], [2, 0], [-3, 2.8]]); ln(c, 2, -2.8, 2, 2.8);
       arrow(c, -4.6, -4.4, -2.8, -2.6); arrow(c, -2.6, -4.4, -0.8, -2.6);
+    } },
+    pbs: { draw(c) {
+      // a cube with its coating across it, the two polarisations leaving by two fibres
+      ln(c, -7, 0, -2.6, 0); box(c, 2.6, 2.6); ln(c, -2.6, 2.6, 2.6, -2.6);
+      c.beginPath(); c.moveTo(2.6, -0.6); c.bezierCurveTo(4.5, -0.6, 4.6, -2.25, 7, -2.25); c.stroke();
+      c.beginPath(); c.moveTo(2.6, 0.6); c.bezierCurveTo(4.5, 0.6, 4.6, 2.25, 7, 2.25); c.stroke();
+    }, val: el => [(+el.axis.toPrecision(3)) + '\u00b0', 4.4] },
+    fmir: { draw(c) {
+      ln(c, -7, 0, -0.7, 0); ln(c, 0.7, 0, 7, 0); c.beginPath(); c.rect(-0.7, -3, 1.4, 6); c.fillStyle = c.strokeStyle; c.fill();
+    }, val: el => ['R ' + (+el.rmax.toPrecision(3)) + '%', 4.6] },
+    switch: { draw(c, el) {
+      // two blades on their pivots, set bar or cross
+      for (const v of [-2.25, 2.25]) { ln(c, -7, v, -3, v); ln(c, 3, v, 7, v); }
+      for (const [u, v] of [[-3, -2.25], [-3, 2.25], [3, -2.25], [3, 2.25]]) { c.beginPath(); c.arc(u, v, 0.5, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill(); }
+      if (el.cross >= 0.5) { ln(c, -3, -2.25, 3, 2.25); ln(c, -3, 2.25, 3, -2.25); } else { ln(c, -3, -2.25, 3, -2.25); ln(c, -3, 2.25, 3, 2.25); }
+    }, val: el => [el.cross >= 0.5 ? 'cross' : 'bar', 4.6] },
+    delay: { draw(c) {
+      // a trombone: the light out along a slide and back
+      ln(c, -7, 0, -3.2, 0); ln(c, 3.2, 0, 7, 0); box(c, 3.2, 2.4);
+      c.beginPath(); c.moveTo(-3.2, 0); c.lineTo(-2.2, 0); c.lineTo(-2.2, -1.2); c.lineTo(1.6, -1.2); c.lineTo(1.6, 1.2); c.lineTo(-2.2, 1.2); c.lineTo(-2.2, 0.4); c.stroke();
+      arrow(c, 0.6, 0, 2.6, 0, 0.6);
+    }, val: el => [(+el.delay.toPrecision(4)) + ' ps', 4.6] },
+    stretch: { draw(c) {
+      // fibre wound round a piezo drum
+      ln(c, -7, 0, -2.6, 0); ln(c, 2.6, 0, 7, 0); c.beginPath(); c.arc(0, 0, 2.6, 0, 2 * Math.PI); c.fillStyle = '#2b3338'; c.fill(); c.stroke();
+      c.beginPath(); c.arc(0, 0, 1.4, 0, 2 * Math.PI); c.stroke();
+    }, val: el => [(+el.phase.toPrecision(3)) + '\u00b0', 4.6] },
+    tbf: { draw(c) {
+      ln(c, -7, 0, -3.2, 0); ln(c, 3.2, 0, 7, 0); box(c, 3.2, 2.4);
+      c.beginPath(); for (let i = 0; i <= 24; i++) { const u = -2.4 + 4.8 * i / 24, v = 1.4 - 2.6 * Math.exp(-((u / 0.8) ** 2)); i ? c.lineTo(u, v) : c.moveTo(u, v); } c.stroke();
+      arrow(c, -1.6, 1.9, 1.6, 1.9, 0.5); arrow(c, 1.6, 1.9, -1.6, 1.9, 0.5);
+    }, val: el => [(+el.centre.toPrecision(6)) + ' nm', 4.6] },
+    osa: { draw(c) {
+      ln(c, -7, 0, -4.6, 0); box(c, 4.6, 3.4);
+      c.beginPath(); c.moveTo(-3.6, 2.4); for (const [u, h] of [[-1.8, 3.8], [0.6, 2.2], [2.2, 1.2]]) { c.lineTo(u - 0.5, 2.4); c.lineTo(u, 2.4 - h); c.lineTo(u + 0.5, 2.4); } c.lineTo(3.6, 2.4); c.stroke();
     } },
     thru: { draw(c) {
       ln(c, -3, 0, 7, 0); c.beginPath(); c.rect(-0.6, -3.6, 1.2, 7.2); c.fillStyle = '#2b3338'; c.fill(); c.stroke(); hatch(c, -2, -3.6, 3.6, 5);
@@ -6325,6 +6371,8 @@ function setParam(el, path, v) {
     case 'rate': v = Math.max(1e-3, v); break;
     case 'bits': v = Math.round(clamp(v, 1, 32)); break;
     case 'ways': v = Math.round(clamp(v, 2, 64)); break;
+    case 'cmrr': v = Math.max(0, v); break;
+    case 'vpi': v = Math.max(1e-3, v); break;
     case 'range': v = Math.max(1e-9, v); break;
     case 'ratio': case 'rmax': v = clamp(v, 0, 100); break;
     case 'att': case 'iso': case 'rl': case 'loss': v = Math.max(0, v); break;
@@ -7040,7 +7088,8 @@ function ampASE(el) {
 }
 /* The kinds of fibre component: their ports (local position and outward direction, mm),
    their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2]. */
-const FC_W = 14, FC_H = 9, SPLIT_P = 4.5;                // a splitter's branches, mm apart
+const FC_W = 14, FC_H = 9, SPLIT_P = 4.5;
+const C_MM_PS = 0.299792458;                               // light, mm per ps                // a splitter's branches, mm apart
 const fcPorts = sides => sides.map(([x, y]) => ({ x: x * FC_W / 2, y: y * FC_H / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y) }));
 const FC = {
   laser: { label: 'Fibre laser', tag: 'LASER', ports: [[1, 0]], names: ['out'],
@@ -7064,6 +7113,40 @@ const FC = {
       const k = clamp(el.ratio, 0, 100) / 100, a = dBa(el.loss), t = J2.I(a * Math.sqrt(1 - k)), x = J2.sc(J2.I(a * Math.sqrt(k)), [0, 1]);
       return [[0, 2, t], [0, 3, x], [1, 2, x], [1, 3, t], [2, 0, t], [3, 0, x], [2, 1, x], [3, 1, t]];
     } },
+  // a polarisation beam splitter: the common port's light along its axis to one branch, across
+  // it to the other (each leaking its extinction of the other); backwards it combines them
+  pbs: { label: 'Polarisation beam splitter', tag: 'PBS', ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['common', 'along', 'across'],
+    params: [['axis', 'Axis (\u00b0 from s)', 0], ['extinction', 'Extinction (dB)', 25], ['loss', 'Insertion loss (dB)', 0.5]],
+    S: el => { const a = [dBa(el.loss), 0], A = J2.sc(J2.pol(el.axis * deg, dBa(el.extinction)), a), B = J2.sc(J2.pol(el.axis * deg + Math.PI / 2, dBa(el.extinction)), a);
+      return [[0, 1, A], [1, 0, A], [0, 2, B], [2, 0, B]]; } },
+  // a partly reflecting mirror in the fibre: r back from either side (the opposite sign from the
+  // second, as a lossless mirror's), the rest through
+  fmir: { label: 'Fibre mirror', tag: el => (+el.rmax.toPrecision(3)) + '%', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['rmax', 'Reflectance (%)', 50], ['loss', 'Excess loss (dB)', 0]],
+    S: el => { const R = clamp(el.rmax, 0, 100) / 100, a = dBa(el.loss), r = J2.I(a * Math.sqrt(R)), t = J2.I(a * Math.sqrt(1 - R));
+      return [[0, 0, r], [1, 1, J2.sc(r, [-1, 0])], [0, 1, t], [1, 0, t]]; } },
+  // a 2x2 optical switch: bar (1 to 3, 2 to 4) or cross (1 to 4, 2 to 3), the other way leaking its crosstalk
+  switch: { label: 'Optical switch', tag: el => el.cross >= 0.5 ? 'CROSS' : 'BAR', ports: [[-1, 0.5], [-1, -0.5], [1, 0.5], [1, -0.5]], names: ['1', '2', '3', '4'],
+    params: [['cross', 'State (0 bar, 1 cross)', 0], ['loss', 'Insertion loss (dB)', 0.8], ['xt', 'Crosstalk (dB)', 50]],
+    S: el => { const x = el.cross >= 0.5, on = J2.I(dBa(el.loss)), off = J2.I(dBa(el.loss + el.xt)), A = x ? off : on, B = x ? on : off;
+      return [[0, 2, A], [2, 0, A], [1, 3, A], [3, 1, A], [0, 3, B], [3, 0, B], [1, 2, B], [2, 1, B]]; } },
+  // a variable delay line (free space inside, so its group and phase delays are one): a delay
+  // in ps, its path c tau in mm, and the phase that path gives at the light's wavelength
+  delay: { label: 'Variable delay line', tag: el => (+el.delay.toPrecision(4)) + ' ps', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['delay', 'Delay (ps)', 0], ['loss', 'Insertion loss (dB)', 1]],
+    S: (el, nm) => { const L = el.delay * C_MM_PS, M = J2.sc(J2.I(dBa(el.loss)), ci.e(-2 * Math.PI * L / (nm * 1e-6))); return [[0, 1, M, 0, L], [1, 0, M, 0, L]]; } },
+  // a piezo fibre stretcher: a phase, set and driven (pi radians for Vpi volts on its input)
+  stretch: { label: 'Fibre stretcher', tag: 'PZT', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['phase', 'Phase (\u00b0)', 0], ['vpi', 'V\u03c0 (V)', 2], ['loss', 'Insertion loss (dB)', 0.1]],
+    S: el => { const ph = el.phase * deg + Math.PI * (el._v || 0) / Math.max(1e-9, el.vpi), M = J2.sc(J2.I(dBa(el.loss)), ci.e(-ph)); return [[0, 1, M], [1, 0, M]]; } },
+  // a tunable band-pass filter: a Gaussian pass band, what it does not pass lost
+  tbf: { label: 'Tunable filter', tag: el => (+el.centre.toPrecision(6)) + '', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
+    params: [['centre', 'Centre (nm)', 1550], ['fwhm', 'Width (nm)', 1], ['loss', 'Insertion loss (dB)', 1]],
+    S: (el, nm) => { const T = Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2), M = J2.I(dBa(el.loss) * Math.sqrt(T)); return [[0, 1, M], [1, 0, M]]; } },
+  // an optical spectrum analyser: it takes the light in and shows it against wavelength
+  osa: { label: 'Optical spectrum analyser', tag: 'OSA', ports: [[-1, 0]], names: ['in'],
+    params: [['rbw', 'Resolution (nm)', 0.1], ['wmin', 'From (nm; 0: auto)', 0], ['wmax', 'To (nm; 0: auto)', 0], ['ref', 'Top (dBm)', 10], ['dbdiv', 'dB per division', 10]],
+    S: () => [] },
   wdm: { label: 'WDM', tag: 'WDM', ports: [[-1, 0], [1, 0.5], [1, -0.5]], names: ['common', 'pass', 'rest'],
     params: [['centre', 'Pass band centre (nm)', 1550], ['fwhm', 'Pass band width (nm)', 20], ['loss', 'Insertion loss (dB)', 0.3]],
     S: (el, nm) => {
@@ -7105,6 +7188,8 @@ const FC = {
     params: [['rl', 'Return loss (dB)', 60]],
     S: el => [[0, 0, J2.I(dBa(el.rl))]] },
   pd: { label: 'Fibre photodetector', tag: 'PD', ports: [[-1, 0]], names: ['in'],
+    // balanced: two inputs, the second's light taken from the first's
+    portsOf: el => el.balanced ? BAL_PORTS : FC.pd.portList, namesOf: el => el.balanced ? ['in +', 'in \u2212'] : ['in'],
     params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
       ['dark', 'Dark (nA)', 1], ['ampNoise', 'Noise (pA/\u221aHz)', 2], ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (\u00b0)', 0]],
     S: () => [] },
@@ -7124,6 +7209,7 @@ const FC = {
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
 };
 for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
+const BAL_PORTS = fcPorts([[-1, 0.5], [-1, -0.5]]);
 /* a component's ports, names and height: most are fixed by their kind, a splitter's by its branches */
 const fcPortsOf = el => FC[el.kind].portsOf ? FC[el.kind].portsOf(el) : FC[el.kind].portList;
 const fcNames = el => FC[el.kind].namesOf ? FC[el.kind].namesOf(el) : FC[el.kind].names;
@@ -7142,7 +7228,7 @@ function fibreLaserField(el) {
     default: return [Math.cos(th), 0, Math.sin(th), 0];
   }
 }
-const FC_ORDER = ['laser', 'coupler', 'split', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
+const FC_ORDER = ['laser', 'coupler', 'split', 'pbs', 'fmir', 'switch', 'delay', 'stretch', 'tbf', 'osa', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'aom', 'eom', 'amp'];
 
 /* A component's ports, local: a fibre tip has one at the end of its tail */
 function portsOf(el) {
@@ -7319,9 +7405,9 @@ function fibreNet() {
           for (const o of PIC.scatter(el, q[1], G.nm, fo)) { const E2 = J2.app(o.M, E), dl2 = dl + o.ddl; if (o.sink) rec(res.pd, o.to[0], gk, { dl: dl2, E: E2, fo, gdd, sp }); else emit(next, o.to, dl2, E2, fo, gdd, sp); }
           continue;
         }
-        if (el.kind === 'pd') { rec(res.pd, el.id, gk, { dl, E, fo, gdd, sp }); continue; }
+        if (el.kind === 'pd' || el.kind === 'osa') { rec(res.pd, el.balanced && q[1] === 1 ? el.id + '~' : el.id, gk, { dl, E, fo, gdd, sp }); continue; }
         if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); continue; }
-        for (const [a, b, M, df] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl, J2.app(M, E), fo + (df || 0), gdd, sp);
+        for (const [a, b, M, df, ddl] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), gdd, sp);
       }
       wave = next;
       if (wave.size > 20000) { res.truncated = true; break; }
@@ -8709,7 +8795,7 @@ const ELEC = (() => {
     const S = detSignal(el);
     if (S) return S;
     const P = zero('W'), pic = el.type === 'pic';
-    P.dc = el.type === 'fcomp' ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : pic ? pdSignal(el).dc : detectorReading(el).mw;
+    P.dc = el.type === 'fcomp' ? pdNetMw(el) : pic ? pdSignal(el).dc : detectorReading(el).mw;
     return detOutput(el, P, () => {});
   }
   /* a photodiode's output with the bench's drives in it, for its own signal plot: null when
@@ -8830,7 +8916,7 @@ const ELEC = (() => {
       case 'chopper': return [{ x: 0, y: -(el.length / 2 + CHOP_HUB), dx: 0, dy: -1, elec: 'out', name: 'ref' }];
       case 'fcomp': {
         if (el.kind === 'laser') return !el.ext ? [] : [{ x: -FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'mod' }, { x: FC_W / 4, y: FC_H / 2, dx: 0, dy: 1, elec: 'in', name: 'fm' }];
-        const n = { pd: ['out', 'out'], aom: ['in', 'rf'], eom: ['in', 'mod'] }[el.kind];
+        const n = { pd: ['out', 'out'], aom: ['in', 'rf'], eom: ['in', 'mod'], stretch: ['in', 'drive'] }[el.kind];
         return n ? [{ x: 0, y: FC_H / 2, dx: 0, dy: 1, elec: n[0], name: n[1] }] : [];
       }
     }
@@ -8856,7 +8942,7 @@ const ELEC = (() => {
     else if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
     else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
     else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
-    else if (el.type === 'eom' || (el.type === 'fcomp' && el.kind === 'eom')) el._v = v;
+    else if (el.type === 'eom' || (el.type === 'fcomp' && (el.kind === 'eom' || el.kind === 'stretch'))) el._v = v;
     else if (el.type === 'chopper') el._closed = !(v > 0.5);
   }
   /* trace the bench with something changed, read it, and put everything back as it was */
@@ -8873,7 +8959,7 @@ const ELEC = (() => {
   const isDet = el => el.type === 'detector' || (el.type === 'fcomp' && el.kind === 'pd');
   /* the light on a photodiode, mW, as the bench is traced now */
   function readDet(el) {
-    if (el.type === 'fcomp') return lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0;
+    if (el.type === 'fcomp') return pdNetMw(el);
     if (el.fieldSample && !fieldHeld()) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
     return detectorReading(el).mw;
   }
@@ -9491,10 +9577,17 @@ function beatTones(parts) {
   return [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);
 }
 /* a fibre photodiode's light, as parts */
-function fibrePdParts(el) {
+/* the light on a fibre photodetector, mW: a balanced one's second input taken from its first */
+function pdNetMw(el) {
+  const net = lastTrace.net;
+  if (!net) return 0;
+  const p = netPower(net.pd.get(el.id), net.keys);
+  return el.balanced ? p - netPower(net.pd.get(el.id + '~'), net.keys) : p;
+}
+function fibrePdParts(el, minus) {
   const net = lastTrace.net, out = [];
   if (!net) return out;
-  const byG = net.pd.get(el.id);
+  const byG = net.pd.get(el.id + (minus ? '~' : ''));
   if (!byG) return out;
   for (const K of net.keys) if (!K.root.ase) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, key: K.gk, nm: K.nm });
   return out;
@@ -9541,12 +9634,81 @@ function freePdTones(el) {
   }
   return [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);
 }
+/* An optical spectrum analyser's view: each launch reaching it as a line at its wavelength, as
+   wide as its own line (lambda^2 / coherence length: a laser's narrow, an LED's or a slice of
+   ASE broad), seen through the analyser's resolution: a Gaussian of width sqrt(line^2 + rbw^2)
+   holding the line's power, so a line narrower than the resolution peaks at its power and a
+   broad one at its power in a resolution bandwidth. */
+function osaLines(el) {
+  const net = lastTrace.net, out = [];
+  if (!net) return out;
+  const byG = net.pd.get(el.id);
+  for (const K of net.keys) {
+    const m = netPower(byG, [K]);
+    if (!(m > 1e-15)) continue;
+    const w = K.root.coh > 0 ? K.nm * K.nm * 1e-6 / K.root.coh : 0, k = K.nm.toFixed(5) + '|' + w.toPrecision(4);
+    const q = out.find(x => x.k === k);
+    if (q) q.mw += m; else out.push({ k, nm: K.nm, mw: m, w, name: K.root.name || '' });
+  }
+  return out.sort((a, b) => a.nm - b.nm);
+}
+function osaTrace(el, lines, lo, hi, n) {
+  const rbw = Math.max(1e-6, el.rbw), xs = [], ys = [];
+  for (let i = 0; i < n; i++) {
+    const x = lo + (hi - lo) * i / (n - 1);
+    let p = 0;
+    for (const L of lines) { const W = Math.hypot(L.w, rbw); p += L.mw * rbw / W * Math.exp(-4 * Math.LN2 * ((x - L.nm) / W) ** 2); }
+    xs.push(x); ys.push(p);
+  }
+  return { xs, ys };
+}
+/* its span: as set, or every line with three of its widths either side (at least 40 resolutions) */
+function osaSpan(el, lines) {
+  const rbw = Math.max(1e-6, el.rbw);
+  let lo = el.wmin, hi = el.wmax;
+  if (lo > 0 && hi > lo) return [lo, hi];
+  if (lines.length) { lo = Math.min(...lines.map(L => L.nm - 3 * Math.hypot(L.w, rbw))); hi = Math.max(...lines.map(L => L.nm + 3 * Math.hypot(L.w, rbw))); }
+  else { lo = 1500; hi = 1600; }
+  const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, 20 * rbw);
+  return [mid - half, mid + half];
+}
+function osaSection(el) {
+  panel.append(h('h3', null, 'Spectrum'));
+  const cv = h('canvas', { height: '190', style: 'width:100%;display:block' });
+  panel.append(cv, plotSaveRow(cv));
+  bindSync(cv, () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 190, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const lines = osaLines(el), [lo, hi] = osaSpan(el, lines);
+    const top = el.ref, bot = el.ref - 10 * Math.max(0.1, el.dbdiv), T = osaTrace(el, lines, lo, hi, 600);
+    const dbm = p => p > 0 ? 10 * Math.log10(p) : -1e9;
+    const sy = { kind: 'plain', title: 'dBm' }, sx = { kind: 'plain', title: 'wavelength, nm' };
+    const A = plotArea(c, w, hgt, [bot, top], sy), X = x => A.l + (x - lo) / (hi - lo) * A.w, Y = v => A.t + A.h - (Math.max(bot, Math.min(top, v)) - bot) / (top - bot) * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    c.strokeStyle = '#db3550'; c.lineWidth = 1.5; c.beginPath();
+    T.xs.forEach((x, i) => { const y = Y(dbm(T.ys[i])); i ? c.lineTo(X(x), y) : c.moveTo(X(x), y); }); c.stroke(); c.restore();
+    drawAxes(c, A, [lo, hi], [bot, top], sx, sy);
+    plotCsv(cv, el.name + ' spectrum', ['wavelength_nm', 'power_dBm'], () => T.xs.map((x, i) => [x, T.ys[i] > 0 ? 10 * Math.log10(T.ys[i]) : '']));
+  });
+}
+/* a balanced detector's tones: the first input's less the second's, as fields at each
+   frequency (a beat between unrelated lasers, with no phase to it, adds in power) */
+function balancedTones(A, B) {
+  const m = new Map();
+  for (const [L, sg] of [[A, 1], [B, -1]]) for (const t of L) {
+    const k = (t.incoh ? 'x' : '') + Math.round(t.f), q = m.get(k) || { f: t.f, re: 0, im: 0, p: 0, incoh: t.incoh };
+    if (t.incoh) q.p += t.amp * t.amp; else { q.re += sg * t.amp * Math.cos(t.ph); q.im += sg * t.amp * Math.sin(t.ph); }
+    m.set(k, q);
+  }
+  return [...m.values()].map(q => q.incoh ? { f: q.f, amp: Math.sqrt(q.p), ph: 0, incoh: true } : { f: q.f, amp: Math.hypot(q.re, q.im), ph: Math.atan2(q.im, q.re) }).filter(t => t.amp > 1e-15).sort((a, b) => a.f - b.f);
+}
 /* the signal: DC (mW), tones (mW of optical power swing, and V out), the mixer */
 function pdSignal(el) {
   const fibre = el.type === 'fcomp' || el.type === 'pic';                                     // PIC hook: an on-chip photodiode reads as a fibre one
-  const dc = fibre ? (lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : detectorReading(el).mw;
+  const dc = fibre ? (el.type === 'fcomp' ? pdNetMw(el) : lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0) : detectorReading(el).mw;
   const Ff = !fibre && viaCavity(el) ? detectorFieldResult(el) : null;
-  const tones = fibre ? beatTones(fibrePdParts(el)) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + '#tones' }), () => freePdTones(el));
+  const tones = fibre ? (el.balanced ? balancedTones(beatTones(fibrePdParts(el)), beatTones(fibrePdParts(el, true))) : beatTones(fibrePdParts(el))) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + '#tones' }), () => freePdTones(el));
   // a free-space diode's responsivity is that of the light arriving (each wavelength at its own)
   const rd = fibre ? null : detectorReading(el);
   const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), G = el.diode ? 1 : el.gain, B = el.bandwidth;
@@ -9557,25 +9719,34 @@ function pdSignal(el) {
     // noise: shot noise on all the light, the gain resistor's Johnson noise, and where an
     // amplifier's ASE arrives, the signal beating with the ASE of its own polarisation and
     // the ASE with itself (over the ASE's optical band Bo)
-    const byG = lastTrace.net.pd.get(el.id);
-    // the ASE reaching it, slice by slice (both polarisations together), and the signal's wavelength
-    const sl = new Map();
-    let ase = 0, sigNm = null, sigMw = 0;
-    for (const K of lastTrace.net.keys) {
-      const m = netPower(byG, [K]);
-      // broadband light (an amplifier's ASE, an LED, any source set incoherent): it beats with itself and the signal
-      if (K.root.ase || (K.root.cmode === 'broad' && !(K.root.tau > 0) && K.root.coh > 0)) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
-      else if (m > sigMw) { sigMw = m; sigNm = K.nm; }
-    }
-    const q = 1.602176634e-19, kT = 1.380649e-23 * 295, Ps = Math.max(0, dc - ase) * 1e-3, Pa = ase * 1e-3;
-    // the signal beats with the ASE of its own polarisation at its own wavelength (spectral density there)
-    let dens = 0;
-    if (sigNm !== null && sl.size) { let best = null; for (const s of sl.values()) if (!best || Math.abs(s.nm - sigNm) < Math.abs(best.nm - sigNm)) best = s; dens = best.mw * 1e-3 / best.B; }
-    let aa = 0; for (const s of sl.values()) aa += (s.mw * 1e-3) ** 2 / s.B;
-    const amp = !el.diode && el.type === 'fcomp';
-    const parts = { shot: 2 * q * (R * (Ps + Pa) + (el.dark || 0) * 1e-9) * B, thermal: !el.diode && G > 0 ? 4 * kT * B / G : 0,
-      sigAse: 2 * R * R * Ps * dens * B, aseAse: R * R * aa * B, amp: amp ? ((el.ampNoise || 0) * 1e-12) ** 2 * B : 0 };
-    const i2 = parts.shot + parts.thermal + parts.sigAse + parts.aseAse, Is = R * Ps;
+    // each input on its own (a balanced detector has two): its broadband light (an amplifier's
+    // ASE, an LED, any source set incoherent), slice by slice with both polarisations together,
+    // which beats with itself and with the signal, and the rest, the signal, and its wavelength
+    const side = byG => {
+      const sl = new Map();
+      let ase = 0, tot = 0, sigNm = null, sigMw = 0;
+      for (const K of lastTrace.net.keys) {
+        const m = netPower(byG, [K]);
+        tot += m;
+        if (K.root.ase || (K.root.cmode === 'broad' && !(K.root.tau > 0) && K.root.coh > 0)) { ase += m; const k = K.nm.toFixed(6), s = sl.get(k) || { nm: K.nm, mw: 0, B: C_MM / K.root.coh }; s.mw += m; sl.set(k, s); }
+        else if (m > sigMw) { sigMw = m; sigNm = K.nm; }
+      }
+      const Ps = Math.max(0, tot - ase) * 1e-3, Pa = ase * 1e-3;
+      // the signal beats with the ASE of its own polarisation at its own wavelength (spectral density there)
+      let dens = 0;
+      if (sigNm !== null && sl.size) { let best = null; for (const s of sl.values()) if (!best || Math.abs(s.nm - sigNm) < Math.abs(best.nm - sigNm)) best = s; dens = best.mw * 1e-3 / best.B; }
+      let aa = 0; for (const s of sl.values()) aa += (s.mw * 1e-3) ** 2 / s.B;
+      return { ase, Ps, Pa, sigAse: 2 * R * R * Ps * dens * B, aseAse: R * R * aa * B };
+    };
+    const sides = [side(lastTrace.net.pd.get(el.id))];
+    if (el.balanced) sides.push(side(lastTrace.net.pd.get(el.id + '~')));
+    // shot noise on all the light either side; the excess (beat) noise, a balanced detector cancels to its common-mode rejection
+    const cm = el.balanced ? Math.pow(10, -(el.cmrr || 0) / 10) : 1, sum = k => sides.reduce((a, x) => a + x[k], 0);
+    const q = 1.602176634e-19, kT = 1.380649e-23 * 295, amp = !el.diode && el.type === 'fcomp';
+    const parts = { shot: 2 * q * (R * (sum('Ps') + sum('Pa')) + (el.dark || 0) * 1e-9) * B, thermal: !el.diode && G > 0 ? 4 * kT * B / G : 0,
+      sigAse: cm * sum('sigAse'), aseAse: cm * sum('aseAse'), amp: amp ? ((el.ampNoise || 0) * 1e-12) ** 2 * B : 0 };
+    const i2 = parts.shot + parts.thermal + parts.sigAse + parts.aseAse + parts.amp, ase = sum('ase');
+    const Is = R * Math.abs(sides[0].Ps - (sides[1] ? sides[1].Ps : 0));
     out.noise = { ase, parts, i2, V: Math.sqrt(i2) * G, snr: Is > 0 && i2 > 0 ? 10 * Math.log10(Is * Is / i2) : null };
   }
   if (el.demodF > 0) {
@@ -11796,11 +11967,15 @@ function fcompPanel(el) {
     // as a free-space photodetector: its material, then its amplifier (none on a bare photodiode)
     rows.append(selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; renderPanel(); }, { wide: el.material !== 'custom' }));
     if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp'));
+    if (el.balanced) rows.append(param('Common-mode rejection (dB)', el, 'cmrr', { wide: true }));
     panel.append(rows);
+    if (el.balanced) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Two photodiodes, the second\u2019s current taken from the first\u2019s: what is the same on both (the light\u2019s intensity noise, an amplifier\u2019s ASE beating with itself) cancels to the common-mode rejection, what differs (the interference between them, opposite in the two outputs of a coupler) doubles. Shot noise from both adds.'));
     if (el.diode) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));
     else panel.append(h('h3', null, 'Amplifier'), h('div', { class: 'rt-rows' }, param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));
-  } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(k === 'ways' ? param(el.combine ? 'Inputs' : 'Outputs', el, k, { noSweep: true, commit: true }) : param(label, el, k));
+  } else for (const [k, label] of K.params) if (!skip.includes(k)) rows.append(k === 'ways' ? param(el.combine ? 'Inputs' : 'Outputs', el, k, { noSweep: true, commit: true })
+    : k === 'cross' ? selectField('State', [['0', 'Bar: 1 \u2192 3, 2 \u2192 4'], ['1', 'Cross: 1 \u2192 4, 2 \u2192 3']], () => String(el.cross >= 0.5 ? 1 : 0), v => { el.cross = +v; }, { wide: true })
+    : param(label, el, k));
   if (el.kind === 'split') {
     const sn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(sn, () => { const N = el.ways, dB = 10 * Math.log10(N) + el.loss;
@@ -11860,6 +12035,7 @@ function fcompPanel(el) {
   }
   panel.append(readoutBox('fcomp'));
   if (el.kind === 'pd') signalSection(el);
+  if (el.kind === 'osa') osaSection(el);
   const notes = {
     laser: 'A laser coupled straight into fibre. Its polarisation angle is from s: where a tip meets free space, s is out of the bench plane. Give it a coherence length and the network weighs every pair of paths by it. Give it a pulse duration and each fibre\u2019s dispersion chirps the pulse on its way to the tips.',
     coupler: 'Ports 1 and 2 on one side, 3 and 4 on the other: 1 goes to 3 and, across, to 4; 2 goes to 4 and, across, to 3. The light crossing over picks up a quarter-wave, as in a real coupler, so two equal arms recombine all into one port.',
@@ -18017,9 +18193,10 @@ function updateReadoutsIn(container, el) {
   } else if (el.type === 'fcomp') {
     const rows = portRows(el);
     if (el.kind === 'pd') {
-      const net = lastTrace.net, mw = net ? netPower(net.pd.get(el.id), net.keys) : 0, R = pdResp(el), mA = mw * R, V = mA * 1e-3 * el.gain;
+      const net = lastTrace.net, mw = pdNetMw(el), R = pdResp(el), mA = mw * R, V = mA * 1e-3 * el.gain;
       const N = pdSignal(el).noise, f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
-      rows.unshift(['Optical power', fmtMw(mw)], ['Responsivity', (+R.toPrecision(3)) + ' A/W' + (el.material === 'custom' ? '' : ', at ' + (+fibrePdNm(el).toFixed(1)) + ' nm')],
+      if (el.balanced && net) { const a = netPower(net.pd.get(el.id), net.keys), b = netPower(net.pd.get(el.id + '~'), net.keys); rows.unshift(['On in +, in \u2212', fmtMw(a) + ', ' + fmtMw(b)]); }
+      rows.unshift([el.balanced ? 'Optical power, + less \u2212' : 'Optical power', fmtMw(mw)], ['Responsivity', (+R.toPrecision(3)) + ' A/W' + (el.material === 'custom' ? '' : ', at ' + (+fibrePdNm(el).toFixed(1)) + ' nm')],
         ['Photocurrent', (+mA.toPrecision(4)) + ' mA'],
         ...(el.diode ? (N ? [['Noise', f(Math.sqrt(N.i2) * 1e9) + ' nA rms']] : []) : [['Output', (+Math.min(V, el.vmax).toPrecision(4)) + ' V' + (V > el.vmax ? ', at its limit' : '')], ...(N ? [['Noise', f(N.V * 1e3) + ' mV rms']] : [])]),
         ...(N && N.snr !== null ? [['Signal to noise', (+N.snr.toPrecision(4)) + ' dB']] : []));
@@ -19139,6 +19316,8 @@ function aiReference() {
         '| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |', '| bw | `40` | nm, FWHM, with cmode "broad" |',
         '| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
       if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
+      if (k === 'pd') L.push('| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in \u2212, reading the first\u2019s light less the second\u2019s |', '| cmrr | `30` | dB, a balanced detector\u2019s common-mode rejection of excess noise |');
+      if (k === 'stretch') L.push('| (electrical) | | its drive input: \u03c0 of phase per Vpi volts on top of "phase" |');
       L.push('');
     }
   }
@@ -19866,9 +20045,11 @@ const PALETTES = {
     ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
   pic: PIC.PALETTE,                                                                          // PIC hook
   elec: ELEC.PALETTE,                                                                        // ELEC hook
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
+    ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
-    ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['term', 'Terminator'],
+    ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
+    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
 };
 let palette = 'free';
@@ -20907,7 +21088,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el) }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
-    fibrePd(name) { const el = this.byName(name), net = lastTrace.net; return net ? netPower(net.pd.get(el.id), net.keys) : 0; },
+    fibrePd(name) { return pdNetMw(this.byName(name)); },
     portPower(name, p) { return portPower(this.byName(name), p); },
     fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) switchTab(b.id); return project.tab; },
@@ -21058,6 +21239,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     add(kind) { addElement(kind); traceScene(); return selected().name; },
     palette(name) { return PALETTES[name].map(it => it[0]); },
     fibreCount() { return (project.fibres || []).length; },
+    osa(name) { const el = this.byName(name), L = osaLines(el), [lo, hi] = osaSpan(el, L), T = osaTrace(el, L, lo, hi, 2001); return { lines: L.map(q => ({ nm: q.nm, mw: q.mw, w: q.w })), lo, hi, peak: Math.max(...T.ys) }; },
     portCount(name) { return portsOf(this.byName(name)).length; },
     aberrations(name, opts) { const el = this.byName(name); if (!el) return null; if (opts) Object.assign(el, opts); traceScene(); aberCache.key = ''; return aberrations(el); },
     metricList() { return METRICS.map(m => ({ key: m.key, fam: m.fam, on: m.on })); },

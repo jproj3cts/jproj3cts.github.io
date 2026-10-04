@@ -5302,8 +5302,10 @@ const FSYM = (() => {
   // each: draw(c, el), and the value shown, with where (v, mm down the page)
   const S = {
     laser: { draw(c, el) {
-      shape(c, [[-4, -2.8], [1.4, 0], [-4, 2.8]]); ln(c, 1.4, -2.8, 1.4, 2.8); ln(c, 1.4, 0, 7, 0);
-      const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength); arrow(c, -1.6, -2.4, 0.6, -4.4); arrow(c, 0.4, -1.6, 2.6, -3.6); c.strokeStyle = st;
+      // any laser: a gain medium between a high reflector and an output coupler, the beam leaving
+      box(c, 2.6, 1.6); const w = c.lineWidth; c.lineWidth = w * 2; ln(c, -4, -3, -4, 3); c.lineWidth = w; hatch(c, -5.6, -3, 3, 4);
+      ln(c, 4, -3, 4, 3);
+      const st = c.strokeStyle; c.strokeStyle = wavelengthColour(el.wavelength); arrow(c, 4, 0, 6, 0); c.strokeStyle = st;
     }, val: el => [fmtNm(el.wavelength), 4.4] },
     coupler: { draw(c) {
       for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-2.5, sg * 2.25, -2, sg * 0.4, 0, sg * 0.4); c.bezierCurveTo(2, sg * 0.4, 2.5, sg * 2.25, 7, sg * 2.25); c.stroke(); }
@@ -7690,29 +7692,54 @@ const PIC = (() => {
   }
 
   /* ---------- drawing ---------- */
+  /* ---------- the parts as schematic symbols, in green, drawn in the part's frame in mm (v down
+     the page); the box is still what is clicked. Rings are a fixed size, not to scale. ---------- */
+  const PSYM = {
+    gc(c) {
+      ln(c, -7, 0, -2.5, 0); shape(c, [[-2.5, -0.3], [1, -2.6], [1, 2.6], [-2.5, 0.3]], false);
+      for (const d of [0, 0.9, 1.8]) { c.beginPath(); c.arc(-3.5 + d, 0, 4.6, -0.55, 0.55); c.stroke(); }
+      const st = c.strokeStyle; c.strokeStyle = FIBRE_COLOUR; c.setLineDash([0.6, 0.6]); ln(c, 2.6, 0, 7, 0); c.setLineDash([]); c.strokeStyle = st;
+    },
+    dc(c) { for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-4, sg * 2.25, -4, sg * 0.5, -2.5, sg * 0.5); c.lineTo(2.5, sg * 0.5); c.bezierCurveTo(4, sg * 0.5, 4, sg * 2.25, 7, sg * 2.25); c.stroke(); } },
+    mmi12(c) {
+      shape(c, [[-2.4, -2.4], [2.4, -2.4], [2.4, 2.4], [-2.4, 2.4]]);
+      ln(c, -7, 0, -4.2, 0); shape(c, [[-4.2, 0], [-2.4, -0.8], [-2.4, 0.8]]);
+      for (const sg of [-1, 1]) { ln(c, 4.2, sg * 2.25, 7, sg * 2.25); shape(c, [[2.4, sg * 2.25 - 0.8], [4.2, sg * 2.25], [2.4, sg * 2.25 + 0.8]]); }
+    },
+    mmi22(c) {
+      shape(c, [[-2.4, -2.4], [2.4, -2.4], [2.4, 2.4], [-2.4, 2.4]]);
+      for (const sg of [-1, 1]) for (const u of [-1, 1]) { ln(c, u * 4.2, sg * 2.25, u * 7, sg * 2.25); shape(c, [[u * 2.4, sg * 2.25 - 0.8], [u * 4.2, sg * 2.25], [u * 2.4, sg * 2.25 + 0.8]]); }
+    },
+    ring(c) { ln(c, -7, 2.7, 7, 2.7); c.beginPath(); c.arc(0, -0.6, 2.4, 0, 2 * Math.PI); c.stroke(); },
+    ringad(c) { ln(c, -7, 2.7, 7, 2.7); ln(c, -7, -2.7, 7, -2.7); c.beginPath(); c.arc(0, 0, 1.9, 0, 2 * Math.PI); c.stroke(); },
+    ps(c) { ln(c, -7, 0, 7, 0); c.fillStyle = '#7fd49b'; c.fillRect(-3.4, -1.9, 6.8, 1.1); ln(c, -3.4, -0.8, -3.4, -0.3); ln(c, 3.4, -0.8, 3.4, -0.3); },
+    pd(c) { ln(c, -7, 0, -1.5, 0); shape(c, [[-1.5, -2.6], [2.8, 0], [-1.5, 2.6]]); ln(c, 2.8, -2.6, 2.8, 2.6); arrow(c, -3.4, -4.4, -1.6, -2.6); arrow(c, -1.4, -4.4, 0.4, -2.6); },
+  };
+  // a key value beside each, and where (v, mm down the page)
+  const PVAL = { gc: el => [(+el.centre.toPrecision(5)) + ' nm', 4.2], dc: el => ['κ ' + (+el.kappa.toPrecision(3)) + '%', -3.4],
+    ring: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', -4.2], ringad: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', 4.4], ps: el => ['φ ' + (+el.phase.toPrecision(3)) + '°', 2] };
+  const ln = (c, a, b, d, e) => { c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); };
+  const shape = (c, P, close = true) => { c.beginPath(); P.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); if (close) { c.closePath(); c.fillStyle = DARK; c.fill(); } c.stroke(); };
+  const arrow = (c, a, b, d, e, h = 0.9) => { ln(c, a, b, d, e); const t = Math.atan2(e - b, d - a); shape(c, [[d - h * Math.cos(t - 0.45), e - h * Math.sin(t - 0.45)], [d, e], [d - h * Math.cos(t + 0.45), e - h * Math.sin(t + 0.45)]], false); };
   function draw(el, sel) {
-    const f = frame(el), w = W_BOX / 2, hh = H_BOX / 2, s = V().scale;
-    pathLocal(f, roundRect(w, hh, 1.6), true);
-    ctx.fillStyle = DARK; ctx.fill();
-    ctx.strokeStyle = sel ? '#ffffff' : GREEN; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
-    // a ring's glyph: the ring beside its bus
-    if (el.kind === 'ring' || el.kind === 'ringad') {
-      const r = 2.2, pts = []; for (let i = 0; i <= 32; i++) { const a = 2 * Math.PI * i / 32; pts.push([r * Math.cos(a), r * Math.sin(a)]); }
-      pathLocal(f, pts); ctx.strokeStyle = GREEN; ctx.lineWidth = 1.2; ctx.stroke();
-      pathLocal(f, [[-w, -0.6 * hh], [w, -0.6 * hh]]); ctx.stroke();
-      if (el.kind === 'ringad') { pathLocal(f, [[-w, 0.6 * hh], [w, 0.6 * hh]]); ctx.stroke(); }
-    } else {
-      const tag = KINDS[el.kind].tag, fs = clamp(2.6 * s, 7, 14);
-      if (fs * tag.length * 0.62 < W_BOX * s) {
-        ctx.save(); ctx.fillStyle = '#bfe6cc'; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tag, sx(el.x), sy(el.y)); ctx.restore();
-      }
+    const s = V().scale, c = ctx, ports = portList(el), names = KINDS[el.kind].names;
+    c.save(); c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
+    c.strokeStyle = sel ? '#ffffff' : GREEN; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    PSYM[el.kind](c);
+    c.restore();
+    if (PVAL[el.kind] && s > 2.5) {
+      const [t, v] = PVAL[el.kind](el), [x, y] = toWorld(frame(el), 0, -v);
+      c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = '#bfe8cc'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
     }
     const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
-    portList(el).forEach((P, i) => {
+    ports.forEach((P, i) => {
       const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? GREEN : FIBRE_COLOUR;
-      ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = on ? col : '#1b2327'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+      c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
+      c.fillStyle = on ? col : '#1b2327'; c.fill(); c.strokeStyle = col; c.lineWidth = 1.4; c.stroke();
+      if (ports.length > 1 && s > 3) {
+        c.save(); c.fillStyle = '#bfe8cc'; c.font = '9px ' + getCss('--jek-mono'); c.textAlign = Q.dx > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
+        c.fillText(names[i], X + Q.dx * (r + 3), Y - 3); c.restore();
+      }
     });
   }
   const hit = (el, lx, ly, tol) => Math.abs(lx) <= W_BOX / 2 + tol && Math.abs(ly) <= H_BOX / 2 + tol;

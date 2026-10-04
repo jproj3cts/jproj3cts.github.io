@@ -11,6 +11,11 @@ compatibility_date = "2026-08-01"
 # For local work, override in .dev.vars, e.g. APP_ORIGINS="http://localhost:8765"
 APP_ORIGINS = "https://jeksys.net"
 
+# Sign-in clients. The IDs are public; the matching secrets are set with
+# `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.
+GOOGLE_CLIENT_ID = "432503390292-hplcfdkn74jn50segtp0plbq5rnu45hj.apps.googleusercontent.com"
+ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
+
 # Accounts, sessions, workspaces and bench heads.
 # Replace database_id with the one `wrangler d1 create jek` prints.
 [[d1_databases]]
@@ -30,8 +35,8 @@ bucket_name = "jek-benches"
 binding = "AUTH"
 id      = "00000000000000000000000000000000"
 
-# Custom domain. Needs api.jeksys.net in the jeksys.net zone; until then the
-# workers.dev URL works. URPG's Worker does not use this hostname.
-# [[routes]]
-# pattern = "api.jeksys.net"
-# custom_domain = true
+# Custom domain: deploying creates api.jeksys.net and its DNS record in the
+# jeksys.net zone. URPG's Worker does not use this hostname.
+[[routes]]
+pattern       = "api.jeksys.net"
+custom_domain = true

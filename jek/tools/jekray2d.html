@@ -7701,20 +7701,22 @@ const PIC = (() => {
       const st = c.strokeStyle; c.strokeStyle = FIBRE_COLOUR; c.setLineDash([0.6, 0.6]); ln(c, 2.6, 0, 7, 0); c.setLineDash([]); c.strokeStyle = st;
     },
     dc(c) { for (const sg of [-1, 1]) { c.beginPath(); c.moveTo(-7, sg * 2.25); c.bezierCurveTo(-4, sg * 2.25, -4, sg * 0.5, -2.5, sg * 0.5); c.lineTo(2.5, sg * 0.5); c.bezierCurveTo(4, sg * 0.5, 4, sg * 2.25, 7, sg * 2.25); c.stroke(); } },
-    mmi12(c) {
-      shape(c, [[-2.4, -2.4], [2.4, -2.4], [2.4, 2.4], [-2.4, 2.4]]);
-      ln(c, -7, 0, -4.2, 0); shape(c, [[-4.2, 0], [-2.4, -0.8], [-2.4, 0.8]]);
-      for (const sg of [-1, 1]) { ln(c, 4.2, sg * 2.25, 7, sg * 2.25); shape(c, [[2.4, sg * 2.25 - 0.8], [4.2, sg * 2.25], [2.4, sg * 2.25 + 0.8]]); }
-    },
-    mmi22(c) {
-      shape(c, [[-2.4, -2.4], [2.4, -2.4], [2.4, 2.4], [-2.4, 2.4]]);
-      for (const sg of [-1, 1]) for (const u of [-1, 1]) { ln(c, u * 4.2, sg * 2.25, u * 7, sg * 2.25); shape(c, [[u * 2.4, sg * 2.25 - 0.8], [u * 4.2, sg * 2.25], [u * 2.4, sg * 2.25 + 0.8]]); }
-    },
+    // a taper: the waveguide at (u0, v) opening to the multimode section's edge at u1, the lines meeting the waveguide
+    mmi12(c) { mmiBody(c); taper(c, -7, -2.4, 0); taper(c, 7, 2.4, -2.25); taper(c, 7, 2.4, 2.25); },
+    mmi22(c) { mmiBody(c); for (const v of [-2.25, 2.25]) { taper(c, -7, -2.4, v); taper(c, 7, 2.4, v); } },
     ring(c) { ln(c, -7, 2.7, 7, 2.7); c.beginPath(); c.arc(0, -0.6, 2.4, 0, 2 * Math.PI); c.stroke(); },
     ringad(c) { ln(c, -7, 2.7, 7, 2.7); ln(c, -7, -2.7, 7, -2.7); c.beginPath(); c.arc(0, 0, 1.9, 0, 2 * Math.PI); c.stroke(); },
     ps(c) { ln(c, -7, 0, 7, 0); c.fillStyle = '#7fd49b'; c.fillRect(-3.4, -1.9, 6.8, 1.1); ln(c, -3.4, -0.8, -3.4, -0.3); ln(c, 3.4, -0.8, 3.4, -0.3); },
     pd(c) { ln(c, -7, 0, -1.5, 0); shape(c, [[-1.5, -2.6], [2.8, 0], [-1.5, 2.6]]); ln(c, 2.8, -2.6, 2.8, 2.6); arrow(c, -3.4, -4.4, -1.6, -2.6); arrow(c, -1.4, -4.4, 0.4, -2.6); },
   };
+  const mmiBody = c => shape(c, [[-2.4, -3], [2.4, -3], [2.4, 3], [-2.4, 3]]);
+  function taper(c, u0, u1, v) {
+    const k = Math.sign(u1 - u0), um = u1 - k * 1.8, sv = v === 0 ? 1 : Math.sign(v), w = 0.9;
+    ln(c, u0, v, um, v);
+    // the two edges of the taper, curving from the narrow guide out to the section
+    c.beginPath(); c.moveTo(um, v); c.quadraticCurveTo(um + k * 1.2, v - w * 0.2, u1, v - w); c.stroke();
+    c.beginPath(); c.moveTo(um, v); c.quadraticCurveTo(um + k * 1.2, v + w * 0.2, u1, v + w); c.stroke();
+  }
   // a key value beside each, and where (v, mm down the page)
   const PVAL = { gc: el => [(+el.centre.toPrecision(5)) + ' nm', 4.2], dc: el => ['κ ' + (+el.kappa.toPrecision(3)) + '%', -3.4],
     ring: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', -4.2], ringad: el => ['R ' + (+el.radius.toPrecision(3)) + ' µm', 4.4], ps: el => ['φ ' + (+el.phase.toPrecision(3)) + '°', 2] };

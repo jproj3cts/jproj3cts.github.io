@@ -659,8 +659,9 @@
   .rt-bar .rt-title::after { width: 52px; margin-top: 0.22rem; }
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
-  .rt-btn.rt-addbtn { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
-  .rt-btn.rt-addbtn:hover { background: #d9602f; border-color: #d9602f; }
+  /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
+  .rt-btn.rt-addbtn { color: #fff; background: #111; border-color: #111; }
+  .rt-btn.rt-addbtn:hover { background: #333; border-color: #333; }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
@@ -20318,8 +20319,8 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'elec', name: 'Electronics', what: 'a fourth set of parts on the Add row, in yellow: sources, amplifiers, filters, an attenuator, a mixer, a summing junction, a bias tee and a comparator, and the instruments that read them (oscilloscope, spectrum analyser, lock-in, DAQ), joined by wires to each other and to the light: photodetectors and the chopper feed them, and they drive lasers, AOMs and EOMs. Each signal is worked out in steady state, as DC, tones and noise. Not yet: feedback loops (so no locking), outputs that really clip (they warn), and transients.' },
-  { key: 'pic', name: 'Photonic circuits', what: 'a third set of parts on the Add row, in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
+  { key: 'elec', name: 'Electronics', what: 'a set of parts of its own (Add part, and the rail), in yellow: sources, amplifiers, filters, an attenuator, a mixer, a summing junction, a bias tee and a comparator, and the instruments that read them (oscilloscope, spectrum analyser, lock-in, DAQ), joined by wires to each other and to the light: photodetectors and the chopper feed them, and they drive lasers, AOMs and EOMs. Each signal is worked out in steady state, as DC, tones and noise. Not yet: feedback loops (so no locking), outputs that really clip (they warn), and transients.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
 let expOn = false;
@@ -20340,8 +20341,6 @@ const PALETTES = {
     ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
     ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['cell', 'Vapour cell', 'Atomic vapour cell (Rb, Cs, K)'], ['nlc', 'Nonlinear crystal', 'Nonlinear crystal (second harmonic: PPLN, PPKTP)'], ['fibre', 'Fibre tip'],
     ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
-  pic: PIC.PALETTE,                                                                          // PIC hook
-  elec: ELEC.PALETTE,                                                                        // ELEC hook
   fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
     ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
@@ -20349,6 +20348,8 @@ const PALETTES = {
     ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
     ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
+  elec: ELEC.PALETTE,                                                                        // ELEC hook
+  pic: PIC.PALETTE,                                                                          // PIC hook
 };
 let palette = 'free';
 try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec') palette = pv; } catch (err) { /* private window: free space */ }
@@ -20356,7 +20357,7 @@ try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibr
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', pic: 'Photonic', elec: 'Electronics' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', pic: 'Chip', elec: 'Elec' };
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', pic: 'Photonic' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', elec: 'Elec', pic: 'Chip' };
 const PART_GROUPS = {
   free: [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']], ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'cylinder', 'axicon']],
     ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']], ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -20784,10 +20785,10 @@ const EXAMPLES = [
   ['Nonlinear optics', false, [
     ['frequency-doubling', 'Frequency doubling: PPLN and PPKTP', '1560 nm to 780 nm and 1064 nm to 532 nm in poled crystals.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
-  ['Photonic circuits', false, [
-    ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['Electronics', false, [
     ['lockin-absorption', 'Lock-in absorption measurement', 'A sample’s transmission from two lock-ins, the light square-wave modulated at 1 kHz.', 'elec']]],
+  ['Photonic circuits', false, [
+    ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [
     ['levitated-trap', 'Levitated nanorod trap (Hu et al. 2023)', 'The standing-wave trap from a Nature Communications paper.']]],
 ];

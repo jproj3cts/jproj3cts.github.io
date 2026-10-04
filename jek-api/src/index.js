@@ -3,18 +3,34 @@
 
 import { checkOrigin, corsHeaders, preflight } from './http.js';
 import { Router } from './router.js';
-import { clearCookie, requireUser } from './sessions.js';
+import { callback, start, unlink } from './auth.js';
+import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { me } from './users.js';
 import { ApiError, errorResponse, json } from './util.js';
 
-export const VERSION = '0.1.0';
+const VERSION = '0.1.0';
 
-export const router = new Router()
+const router = new Router()
   .on('GET', '/v1/health', async (req, env) => {
     await env.DB.prepare('SELECT 1').first();
     return json({ ok: true, version: VERSION });
   })
   .on('GET', '/v1/me', async (req, env, ctx) => json(await me(env, await requireUser(req, env, ctx))))
+  .on('DELETE', '/v1/me/identities/:provider', async (req, env, ctx, params) => {
+    await unlink(req, env, ctx, params, await requireUser(req, env, ctx));
+    return json({ ok: true });
+  })
+  .on('GET', '/v1/me/sessions', async (req, env, ctx) =>
+    json({ sessions: await listSessions(env, await requireUser(req, env, ctx), ctx) }),
+  )
+  .on('DELETE', '/v1/me/sessions/:id', async (req, env, ctx, { id }) => {
+    const user = await requireUser(req, env, ctx);
+    await endSession(env, user, id);
+    if (ctx.sessionHash.startsWith(id)) ctx.setCookie = clearCookie();
+    return json({ ok: true });
+  })
+  .on('GET', '/auth/:provider/start', start)
+  .on('GET', '/auth/:provider/callback', callback)
   .on('POST', '/auth/signout', async (req, env, ctx) => {
     await requireUser(req, env, ctx);
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(ctx.sessionHash).run();

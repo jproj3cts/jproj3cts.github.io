@@ -56,3 +56,27 @@ export async function requireUser(req, env, ctx) {
   if (!user) throw new ApiError(401, 'signed_out', 'Sign in to use the cloud.');
   return user;
 }
+
+// Sessions are shown by a short id (the start of the hash), never the token.
+export async function listSessions(env, user, ctx) {
+  const { results } = await env.DB.prepare(
+    'SELECT token_hash, created_at, expires_at, user_agent FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC',
+  )
+    .bind(user.id, now())
+    .all();
+  return results.map((s) => ({
+    id: s.token_hash.slice(0, 16),
+    created_at: s.created_at,
+    expires_at: s.expires_at,
+    user_agent: s.user_agent,
+    current: s.token_hash === ctx.sessionHash,
+  }));
+}
+
+export async function endSession(env, user, id) {
+  if (!/^[0-9a-f]{16}$/.test(id)) throw new ApiError(404, 'not_found', 'No such session.');
+  const r = await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND substr(token_hash, 1, 16) = ?')
+    .bind(user.id, id)
+    .run();
+  if (!r.meta.changes) throw new ApiError(404, 'not_found', 'No such session.');
+}

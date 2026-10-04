@@ -666,6 +666,15 @@
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
   .rt-menu.rt-menu-right { left: auto; right: 0; }
+  /* the account button: Sign in, or the person's initials once signed in */
+  .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
+    font: 700 0.72rem/1 var(--jek-sans); letter-spacing: 0.02em; color: #fff; background: #111; border-color: #111; }
+  .rt-btn.rt-acct.in:hover { background: #333; border-color: #333; }
+  .rt-acctmenu { min-width: 17rem; }
+  .rt-acctmenu .rt-accthead { padding: 0.4rem 0.9rem 0.45rem 2.35rem; font-size: 0.8125rem; line-height: 1.35; }
+  .rt-acctmenu .rt-accthead b { display: block; }
+  .rt-acctmenu .rt-accthead span { display: block; color: var(--jek-ink-soft); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
+  .rt-acctmenu .rt-menunote a { color: inherit; }
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
   .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
@@ -890,6 +899,10 @@
               <span class="rt-menunote">JEKray2D <span id="appVersion"></span></span>
             </div>
             <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
+          </div>
+          <div class="rt-more" id="acct" hidden>
+            <button class="rt-btn rt-acct" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
+            <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
           </div>
         </div>
       </div>
@@ -20331,6 +20344,7 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'cloud', name: 'JEKray2D Pro accounts', what: 'Sign in with Google or ORCID, from the button at the top right. Only the account for now: cloud saving, teams and subscriptions follow. Signing in sets one cookie, on api.jeksys.net; see the privacy policy.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
@@ -20343,6 +20357,7 @@ function setExperimental(on) {
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !expOn;
   layoutPalette(); renderPanel(); requestRender();
+  if (typeof accountShown === 'function') accountShown();
 }
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
@@ -20555,7 +20570,7 @@ stage.addEventListener('dragover', e => { if (e.dataTransfer.types.includes(PART
 stage.addEventListener('drop', e => { const k = e.dataTransfer.getData(PART_DRAG); if (k) { e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null); addPart(k, [e.clientX, e.clientY]); } }, true);
 document.querySelector('.rt-toolbar').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) addElement(b.dataset.add); });
 /* the menus: File (by the bench's name), View, Sweeps and Help */
-for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu']]) {
+for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); } };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
@@ -20584,19 +20599,95 @@ const MENU_ICONS = {
   star: 'M8 1.5L9.9 5.6L14.3 6L11 9L12 13.5L8 11.2L4 13.5L5 9L1.7 6L6.1 5.6Z', quote: 'M3 4H7V8H5L3.5 12 M9 4H13V8H11L9.5 12',
   bug: 'M5 6.5A3 3.5 0 0 1 11 6.5V10A3 3.5 0 0 1 5 10Z M8 6.5V13 M5 8.5H2 M11 8.5H14 M5.5 5L3.5 3 M10.5 5L12.5 3 M5 11.5L3 13.5 M11 11.5L13 13.5',
   flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7',
+  user: 'M8 2A3 3 0 1 1 7.99 2 M2.5 14.5A5.5 5 0 0 1 13.5 14.5', signin: 'M9.5 2.5H13.5V13.5H9.5 M2 8H10 M7 5L10 8L7 11',
+  signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
 for (const b of document.querySelectorAll('.rt-barlink')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
-for (const n of document.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  p.setAttribute('d', MENU_ICONS[n.dataset.icon] || '');
-  svg.append(p); n.prepend(svg);
+function menuIcons(root) {
+  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
+    if (n.querySelector(':scope > svg.ic')) continue;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', MENU_ICONS[n.dataset.icon] || '');
+    svg.append(p); n.prepend(svg);
+  }
 }
+menuIcons(document);
 // the experimental features' box opens from the Help menu, which closes as it does
 document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
 document.getElementById('btnSave').addEventListener('click', saveFile);
+/* ---------- JEKray2D Pro account (experimental: 'cloud') ----------
+   Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
+   provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
+   on the API's host that this page never sees. The bench survives the trip in the autosave. */
+const API_BASE = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://api.jeksys.net';
+let account;                                   // undefined: not asked yet; null: signed out; else /v1/me
+async function api(path, opts = {}) {
+  const res = await fetch(API_BASE + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
+  const body = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; throw e; }
+  return body;
+}
+const PROVIDER_NAMES = { google: 'Google', orcid: 'ORCID' };
+const AUTH_OUTCOMES = {
+  signed_in: ['Signed in'], linked: ['Sign-in linked to your account'], cancelled: ['Sign-in cancelled'],
+  expired: ['That sign-in took too long or was opened in another browser. Please try again.', true],
+  failed: ['Sign-in did not work. Please try again.', true], taken: ['That sign-in already belongs to another JEKray2D account.', true],
+  signed_out: ['Please sign in first.', true],
+};
+function signIn(provider, link) {
+  const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
+  if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+  location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
+}
+const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
+function fillAccount() {
+  const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
+  const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
+  const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'));
+  if (!account) {
+    btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
+    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
+      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKray2D Pro: your benches in the cloud, their history, and teams. Coming soon.'), legal);
+  } else {
+    const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
+    btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+    const orcid = ids.find(i => i.provider === 'orcid');
+    const plan = w => w.active ? 'JEKray2D Pro' : w.plan ? 'Subscription ' + w.plan.status.replace(/_/g, ' ') : 'No subscription yet';
+    const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
+      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + plan(w))), h('div', { class: 'sep' })];
+    for (const p of ['google', 'orcid']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
+    rows.push(item('signout', 'Sign out', async () => {
+      try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
+      catch (err) { toast(err.message, true); }
+    }), h('div', { class: 'sep' }), legal);
+    menu.replaceChildren(...rows);
+  }
+  menuIcons(menu);
+}
+async function loadAccount() {
+  try { account = await api('/v1/me'); }
+  catch (err) { account = null; if (err.status !== 401) toast('Could not reach your JEKray2D account: ' + err.message, true); }
+  fillAccount();
+}
+function accountShown() {
+  const on = exp('cloud');
+  document.getElementById('acct').hidden = !on;
+  if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); loadAccount(); }
+}
+{
+  // the outcome of a sign-in, reported once, and taken out of the address
+  const q = new URLSearchParams(location.search), outcome = q.get('jekauth');
+  if (outcome) {
+    q.delete('jekauth');
+    window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+    const m = AUTH_OUTCOMES[outcome];
+    if (m) setTimeout(() => toast(m[0], m[1]), 600);
+  }
+  accountShown();
+}
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [

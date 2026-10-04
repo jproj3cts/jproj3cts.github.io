@@ -9,7 +9,7 @@ export function call(path, { method = 'GET', origin = APP, token, headers = {}, 
   const h = { ...headers };
   if (origin) h.Origin = origin;
   if (token) h.Cookie = `jek_session=${token}`;
-  return exports.default.fetch(new Request(API + path, { method, headers: h, body }));
+  return exports.default.fetch(new Request(API + path, { method, headers: h, body, redirect: 'manual' }));
 }
 
 let n = 0;

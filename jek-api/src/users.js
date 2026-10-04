@@ -2,7 +2,9 @@
 
 import { newId, now } from './util.js';
 
-export async function createUser(env, { name, email = null }) {
+// With `identity` ({ provider, subject }), the sign-in is attached in the
+// same batch, so a person is never left without a way in.
+export async function createUser(env, { name, email = null, identity = null }) {
   const t = now();
   const user = { id: newId(), name, email, created_at: t };
   const ws = newId();
@@ -16,6 +18,13 @@ export async function createUser(env, { name, email = null }) {
     env.DB.prepare(
       "INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'owner', 1, ?)",
     ).bind(ws, user.id, t),
+    ...(identity
+      ? [
+          env.DB.prepare('INSERT INTO identities (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)').bind(
+            identity.provider, identity.subject, user.id, t,
+          ),
+        ]
+      : []),
   ]);
   return { user, workspaceId: ws };
 }

@@ -10,6 +10,10 @@ compatibility_date = "2026-08-01"
 # Origins allowed to call the API with credentials, comma-separated.
 # For local work, override in .dev.vars, e.g. APP_ORIGINS="http://localhost:8765"
 APP_ORIGINS = "https://jeksys.net"
+# This API's own address; sign-in callbacks are built from it.
+API_URL = "https://api.jeksys.net"
+# Where sign-in returns to when no other page of an allowed origin is given.
+APP_URL = "https://jeksys.net/jek/tools/jekray2d.html"
 
 # Sign-in clients. The IDs are public; the matching secrets are set with
 # `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.

@@ -4194,6 +4194,54 @@ const TESTS = [
       return before === after && /333/.test(after) ? 1 : 0;
     },
   },
+  {
+    name: 'Electronics: a square wave is its Fourier series',
+    why: 'a 1 V square at 1 kHz: odd harmonics 4/(nπ) V, none even, no DC; at 25% duty a DC of −0.5 V and a fundamental of (4/π) sin(π/4) V (the largest relative error)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => elecRun(J, [elecPart('sig', 'G', { wave: 'square', f: 1000, amp: 1, duty: 50 })], [], () => {
+      const S = J.elec.signal('G', 0), T = f => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp;
+      let e = Math.max(Math.abs(S.dc), T(2000), Math.abs(T(1000) / (4 / Math.PI) - 1), Math.abs(T(3000) / (4 / (3 * Math.PI)) - 1), Math.abs(T(99000) / (4 / (99 * Math.PI)) - 1));
+      J.load(elecBench([elecPart('sig', 'G', { wave: 'square', f: 1000, amp: 1, duty: 25 })]));
+      const Q = J.elec.signal('G', 0), f1 = Q.tones.find(t => Math.abs(t.f - 1000) < 1e-3).amp;
+      return Math.max(e, Math.abs(Q.dc + 0.5), Math.abs(f1 / (4 / Math.PI * Math.sin(Math.PI / 4)) - 1));
+    }),
+  },
+  {
+    name: 'and the filters are Butterworth filters',
+    why: 'a 1 V sine through each: a second-order low-pass is 1/√2 at its corner and 0.01 a decade above, a third-order high-pass 1/√2 at its corner and 0.001 a decade below, a first-order band-pass 1 at its centre and 1/√2 at its edges (the largest error)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const amp = (kind, o, f) => elecRun(J, [elecPart('sig', 'G', { wave: 'sine', f, amp: 1 }), elecPart(kind, 'F', o)], [['G', 0, 'F', 0]],
+        () => (J.elec.signal('F', 0).tones.find(t => Math.abs(t.f - f) < 1e-6 * f) || { amp: 0 }).amp);
+      const lp = { fc: 1000, order: 2 }, hp = { fc: 1000, order: 3 }, bp = { f0: 1000, bw: 100, order: 1 }, edge = (Math.sqrt(100 ** 2 + 4e6) + 100) / 2;
+      return Math.max(Math.abs(amp('lpf', lp, 1000) - Math.SQRT1_2), Math.abs(amp('lpf', lp, 1e4) - 1 / Math.sqrt(1 + 1e4)),
+        Math.abs(amp('hpf', hp, 1000) - Math.SQRT1_2), Math.abs(amp('hpf', hp, 100) - 1 / Math.sqrt(1 + 1e6)),
+        Math.abs(amp('bpf', bp, 1000) - 1), Math.abs(amp('bpf', bp, edge) - Math.SQRT1_2));
+    },
+  },
+  {
+    name: 'and a TIA’s noise is its resistor’s and its input’s',
+    why: '100 kΩ with 1 pA/√Hz at its input, nothing driving it: at 1 kHz, √(4kTR + (iₙR)²) at 295 K (relative error)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => elecRun(J, [elecPart('dc', 'D', { v: 0 }), elecPart('tia', 'T', { gain: 1e5, bw: 1e6, inoise: 1 })], [['D', 0, 'T', 0]], () => {
+      const kT = 1.380649e-23 * 295, f = 1000, H2 = 1 / (1 + (f / 1e6) ** 2);
+      return Math.abs(Math.sqrt(J.elec.signal('T', 0).psd(f)) / Math.sqrt((4 * kT * 1e5 + 1e-14) * H2 * 1e10 / 1e10) - 1);
+    }),
+  },
+  {
+    name: 'and a mixer multiplies, noise and all',
+    why: 'a 1 V sine times itself: ½ V at DC and ½ V at twice the frequency, none at the frequency itself; 100 nV/√Hz of white noise times a 1 V sine: half the density near DC (the largest error)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const a = elecRun(J, [elecPart('sig', 'G', { wave: 'sine', f: 1000, amp: 1 }), elecPart('mixer', 'M', { k: 1 })], [['G', 0, 'M', 0], ['G', 0, 'M', 1]], () => {
+        const S = J.elec.signal('M', 0), T = f => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp;
+        return Math.max(Math.abs(S.dc - 0.5), Math.abs(T(2000) - 0.5), T(1000));
+      });
+      const b = elecRun(J, [elecPart('sig', 'G', { wave: 'sine', f: 1000, amp: 1 }), elecPart('noise', 'N', { psd: 100, bw: 1e6 }), elecPart('mixer', 'M', { k: 1 })],
+        [['G', 0, 'M', 0], ['N', 0, 'M', 1]], () => Math.abs(J.elec.signal('M', 0).psd(1) / (1e-14 / 2) - 1));
+      return Math.max(a, b);
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',
@@ -4351,6 +4399,18 @@ function picker4f(J, demo, isD) {
     let ab = 0, aa = 0, bb = 0; a.forEach((v, i) => { ab += (v - ma) * (w[i] - mw); aa += (v - ma) ** 2; bb += (w[i] - mw) ** 2; }); return ab / Math.sqrt(aa * bb); };
   const own = corr(op(isD)), other = corr(op(!isD));
   return other < 0.85 ? own : NaN;
+}
+/* electronics benches: parts by kind and name, wires as [from, output, to, input] by name */
+const elecPart = (kind, name, o) => Object.assign({ type: 'elec', kind, id: name, name, x: 0, y: 0 }, o || {});
+const elecBench = (els, wires) => ({ format: 'jekray', version: 1, name: 'elec', elements: els,
+  fibres: (wires || []).map(([a, i, b, j]) => ({ a: [a, i], b: [b, j + 0], wire: true })) });
+/* run fn with the bench loaded and electronics switched on; an output index counts after the inputs */
+function elecRun(J, els, wires, fn) {
+  J.experimental(true);
+  const K = { sig: 0, dc: 0, noise: 0, amp: 1, tia: 1, lpf: 1, hpf: 1, bpf: 1, mixer: 2, sum: 2 };
+  const kinds = new Map(els.map(e => [e.name, e.kind]));
+  J.load(elecBench(els, wires.map(([a, i, b, j]) => [a, (K[kinds.get(a)] || 0) + i, b, j])));
+  try { return fn(); } finally { J.experimental(false); }
 }
 /* a grid of directional couplers joined right and down, each row's end looping into the next row's start */
 function picLattice(R, C) {

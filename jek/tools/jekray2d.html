@@ -7948,7 +7948,8 @@ const ELEC = (() => {
     panel.append(box);
     const io = [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
     panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
-      'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire. Electronics are experimental: the signals themselves come in a later step.'));
+      'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.'));
+    panel.append(readoutBox('elec'));
   }
   /* a wire, selected */
   function wirePanel(F) {
@@ -7970,9 +7971,247 @@ const ELEC = (() => {
   /* a wire's ends put output first, input second */
   const orient = (a, b) => dirOf(a) === 'out' ? [a, b] : [b, a];
 
+
+  /* ---------- signals ----------
+     A signal is what a block hands on, steady state: a DC level, tones (each a frequency and a
+     complex amplitude c, the signal being Re(c e^{i 2 pi f t})), and noise, a one-sided power
+     spectral density on a log grid of frequencies (V^2/Hz, or A^2/Hz for a current), and its
+     unit. Linear blocks multiply each tone by H(f) and the density by |H(f)|^2; a mixer
+     multiplies tone by tone, and moves the noise on one input by the other's tones (which is
+     how a lock-in turns the noise beside its reference into noise at DC). Noise from one
+     source reaching a block by two paths is added as if unrelated. */
+  const NF = 241, FLO = -2;                                   // 0.01 Hz to 10 GHz, 20 points a decade
+  const FG = Float64Array.from({ length: NF }, (_, i) => Math.pow(10, FLO + i / 20));
+  const KT = 1.380649e-23 * 295;
+  const zero = unit => ({ dc: 0, tones: [], psd: new Float64Array(NF), unit: unit || 'V' });
+  const psdAt = (S, f) => {
+    const x = (Math.log10(Math.max(f, 1e-300)) - FLO) * 20;
+    if (x <= 0) return S.psd[0];
+    if (x >= NF - 1) return S.psd[NF - 1];
+    const i = Math.floor(x), t = x - i;
+    return S.psd[i] * (1 - t) + S.psd[i + 1] * t;
+  };
+  /* tones at one frequency merge; ones too weak to matter go */
+  function addTone(list, f, re, im) {
+    if (!(f > 0)) return;
+    const q = list.find(t => Math.abs(t.f - f) <= 1e-9 * f);
+    if (q) { q.re += re; q.im += im; } else list.push({ f, re, im });
+  }
+  const tidy = S => { const pk = Math.max(Math.abs(S.dc), ...S.tones.map(t => Math.hypot(t.re, t.im)), 0); S.tones = S.tones.filter(t => Math.hypot(t.re, t.im) > 1e-12 * pk).sort((a, b) => a.f - b.f); return S; };
+  /* through a linear block H(f) (complex [re, im]), with input noise n2 (density, the input's units) added first */
+  function through(S, H, unit, n2) {
+    const out = zero(unit), H0 = H(0);
+    out.dc = S.dc * H0[0];
+    for (const t of S.tones) { const h = H(t.f); out.tones.push({ f: t.f, re: t.re * h[0] - t.im * h[1], im: t.re * h[1] + t.im * h[0] }); }
+    for (let i = 0; i < NF; i++) { const h = H(FG[i]); out.psd[i] = (S.psd[i] + (n2 ? n2(FG[i]) : 0)) * (h[0] * h[0] + h[1] * h[1]); }
+    return tidy(out);
+  }
+  /* complex helpers for the transfer functions */
+  const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+  const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+  /* a Butterworth low-pass of order n, at s (normalised: s = i f / fc), as prod (-p_k) / (s - p_k) */
+  function butterLP(n, s) {
+    let h = [1, 0];
+    for (let k = 1; k <= n; k++) {
+      const a = Math.PI * (2 * k + n - 1) / (2 * n), pk = [Math.cos(a), Math.sin(a)];
+      h = cmul(h, cdiv([-pk[0], -pk[1]], [s[0] - pk[0], s[1] - pk[1]]));
+    }
+    return h;
+  }
+  const pole = (G, B) => f => cdiv([G, 0], [1, f / B]);       // G / (1 + i f / B)
+  const FILTER = {
+    lpf: el => f => butterLP(el.order, [0, f / el.fc]),
+    hpf: el => f => f > 0 ? butterLP(el.order, cdiv([1, 0], [0, f / el.fc])) : [0, 0],
+    // low-pass to band-pass: s -> (s^2 + 1) / (b s), s = i f / f0, b = bandwidth / f0
+    bpf: el => f => { if (!(f > 0)) return [0, 0]; const s = [0, f / el.f0], b = el.bw / el.f0; return butterLP(el.order, cdiv([1 - (f / el.f0) ** 2, 0], [b * s[0], b * s[1]])); },
+  };
+
+  /* the generator's waveform as its Fourier series: [DC, [[n, amplitude, phase of cos(n w t + phase)], ...]] */
+  const NH = 99;
+  function series(wave, A, duty, nmax) {
+    const D = clamp(duty / 100, 0.001, 0.999), out = [];
+    if (wave === 'sine') return [0, [[1, A, -Math.PI / 2]]];                         // A sin = A cos(. - pi/2)
+    if (wave === 'triangle') {
+      // 8A/pi^2 sum (-1)^((n-1)/2) sin(n w t) / n^2, odd n: rising through zero as the sine does
+      for (let n = 1; n <= nmax; n += 2) out.push([n, 8 * A / (Math.PI * Math.PI * n * n) * ((n - 1) / 2 % 2 ? -1 : 1), -Math.PI / 2]);
+      return [0, out];
+    }
+    // a pulse train, 1 for the first duty fraction of the period and 0 after: D + sum (2/(n pi)) sin(n pi D) cos(n w (t - D T / 2));
+    // a square is 2 p - 1 (A for the first part, -A after), a pulse A p
+    const sq = wave === 'square', k = sq ? 2 * A : A;
+    for (let n = 1; n <= nmax; n++) { const c = k * 2 / (n * Math.PI) * Math.sin(n * Math.PI * D); if (Math.abs(c) > 1e-15 * A) out.push([n, c, -n * Math.PI * D]); }
+    return [sq ? A * (2 * D - 1) : A * D, out];
+  }
+  function generator(el, sync) {
+    const S = zero('V'), f = el.f;
+    if (!(f > 0)) return S;
+    const nmax = Math.max(1, Math.min(NH, Math.floor(1e10 / f)));
+    const [dc, terms] = sync ? series('square', 2.5, 50, nmax) : series(el.wave, el.amp, el.duty, nmax);
+    S.dc = sync ? dc + 2.5 : dc + el.offset;
+    const ph0 = el.phase * Math.PI / 180;                      // a phase shift of the whole waveform: n times it at the nth harmonic
+    for (const [n, a, ph] of terms) { const p = ph + n * ph0; addTone(S.tones, n * f, a * Math.cos(p), a * Math.sin(p)); }
+    return tidy(S);
+  }
+  function mixer(A, B, k) {
+    const out = zero('V');
+    out.dc = k * A.dc * B.dc;
+    for (const a of A.tones) addTone(out.tones, a.f, k * a.re * B.dc, k * a.im * B.dc);
+    for (const b of B.tones) addTone(out.tones, b.f, k * b.re * A.dc, k * b.im * A.dc);
+    // Re(a e^{i w1 t}) Re(b e^{i w2 t}) = (1/2) Re(a b e^{i (w1 + w2) t}) + (1/2) Re(a conj(b) e^{i (w1 - w2) t})
+    for (const a of A.tones) for (const b of B.tones) {
+      const ab = cmul([a.re, a.im], [b.re, b.im]), ac = cmul([a.re, a.im], [b.re, -b.im]);
+      addTone(out.tones, a.f + b.f, 0.5 * k * ab[0], 0.5 * k * ab[1]);
+      const d = a.f - b.f;
+      if (Math.abs(d) <= 1e-9 * Math.max(a.f, b.f)) out.dc += 0.5 * k * ac[0];
+      else if (d > 0) addTone(out.tones, d, 0.5 * k * ac[0], 0.5 * k * ac[1]);
+      else addTone(out.tones, -d, 0.5 * k * ac[0], -0.5 * k * ac[1]);
+    }
+    // the noise on each input, moved by the other's DC and tones (noise times noise left out)
+    for (let i = 0; i < NF; i++) {
+      const f = FG[i];
+      let v = A.dc * A.dc * B.psd[i] + B.dc * B.dc * A.psd[i];
+      for (const [X, Y] of [[A, B], [B, A]]) for (const t of X.tones) {
+        const m = (t.re * t.re + t.im * t.im) / 4;
+        v += m * (psdAt(Y, Math.abs(f - t.f)) + psdAt(Y, f + t.f));
+      }
+      out.psd[i] = k * k * v;
+    }
+    return tidy(out);
+  }
+  function sum(A, B, ga, gb) {
+    const out = zero(A.unit === B.unit ? A.unit : 'V');
+    out.dc = ga * A.dc + gb * B.dc;
+    for (const t of A.tones) addTone(out.tones, t.f, ga * t.re, ga * t.im);
+    for (const t of B.tones) addTone(out.tones, t.f, gb * t.re, gb * t.im);
+    for (let i = 0; i < NF; i++) out.psd[i] = ga * ga * A.psd[i] + gb * gb * B.psd[i];
+    return tidy(out);
+  }
+  /* the peak a signal reaches: from its waveform over one period when its tones are all
+     harmonics of the lowest, or else at most its DC and every tone's amplitude together */
+  function peak(S) {
+    const bound = Math.abs(S.dc) + S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
+    if (!S.tones.length) return bound;
+    const f0 = S.tones[0].f;
+    if (!S.tones.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6) || S.tones.length > 400) return bound;
+    let pk = 0;
+    for (let i = 0; i < 2048; i++) {
+      const th = 2 * Math.PI * i / 2048;
+      let v = S.dc; for (const t of S.tones) { const a = Math.round(t.f / f0) * th; v += t.re * Math.cos(a) - t.im * Math.sin(a); }
+      pk = Math.max(pk, Math.abs(v));
+    }
+    return pk;
+  }
+
+  /* ---------- the network, solved ----------
+     Every output's signal, in the order the wires need: a block is worked out once all that
+     feeds it is. An input left open reads nothing; a loop is reported and its blocks read
+     nothing. Returns { out: Map(pkey -> signal), warn: Map(element id -> [notes]) }. */
+  let memo = { key: null, R: null };
+  function solve() {
+    const els = project.elements.filter(e => e.type === 'elec' && KINDS[e.kind]), wires = (project.fibres || []).filter(F => F.wire);
+    const key = JSON.stringify([els, wires.map(F => [F.a, F.b])]);
+    if (memo.key === key) return memo.R;
+    const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
+    const out = new Map(), warn = new Map(), state = new Map();
+    const note = (el, msg) => { if (!warn.has(el.id)) warn.set(el.id, []); if (!warn.get(el.id).includes(msg)) warn.get(el.id).push(msg); };
+    const byId = new Map(els.map(e => [e.id, e]));
+    const input = (el, i) => {
+      const src = feed.get(pkey(el.id, i));
+      if (!src) return zero();
+      const E = byId.get(src[0]);
+      if (!E) return zero();                                  // driven from a part not yet in the network (optics: step 4)
+      visit(E);
+      return out.get(pkey(...src)) || zero();
+    };
+    const visit = el => {
+      const st = state.get(el.id);
+      if (st === 2) return;
+      if (st === 1) { note(el, 'Part of a loop: loops are not solved yet, so it reads nothing'); return; }
+      state.set(el.id, 1);
+      const K = KINDS[el.kind], nIn = K.ins.length, set = (j, S) => out.set(pkey(el.id, nIn + j), S);
+      const In = K.ins.map((_, i) => input(el, i));
+      switch (el.kind) {
+        case 'dc': { const S = zero(); S.dc = el.v; set(0, S); break; }
+        case 'sig': set(0, generator(el, false)); set(1, generator(el, true)); break;
+        case 'noise': { const S = zero(), e2 = (el.psd * 1e-9) ** 2; for (let i = 0; i < NF; i++) S.psd[i] = FG[i] <= el.bw ? e2 : 0; set(0, S); break; }
+        case 'amp': {
+          if (In[0].unit === 'A') note(el, 'Its input is a current: a voltage amplifier reads it as volts; a TIA turns a current into a voltage');
+          const S = through(In[0], pole(el.gain, el.bw), 'V', () => (el.en * 1e-9) ** 2);
+          if (peak(S) > el.vmax) note(el, 'The output would reach ' + fmtSig(peak(S), 'V') + ', past its ' + fmtSig(el.vmax, 'V') + ' limit: it would clip');
+          set(0, S); break;
+        }
+        case 'tia': {
+          if (In[0].unit !== 'A' && (In[0].dc || In[0].tones.length)) note(el, 'Its input is a voltage: a TIA takes a current (a photodiode’s), and reads this as amps');
+          // input current noise, and the feedback resistor's own (4kT/R)
+          const S = through(In[0], pole(el.gain, el.bw), 'V', () => (el.inoise * 1e-12) ** 2 + (el.gain > 0 ? 4 * KT / el.gain : 0));
+          if (peak(S) > el.vmax) note(el, 'The output would reach ' + fmtSig(peak(S), 'V') + ', past its ' + fmtSig(el.vmax, 'V') + ' limit: it would clip');
+          set(0, S); break;
+        }
+        case 'lpf': case 'hpf': case 'bpf': set(0, through(In[0], FILTER[el.kind](el), In[0].unit)); break;
+        case 'mixer': set(0, mixer(In[0], In[1], el.k)); break;
+        case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
+        default: K.outs.forEach((_, j) => set(j, zero()));      // the instruments: their readings come in a later step
+      }
+      for (let i = 0; i < nIn; i++) if (K.ins.length && !feed.has(pkey(el.id, i)) && el.kind !== 'scope') note(el, 'Input ' + K.ins[i] + ' is not wired: it reads nothing');
+      state.set(el.id, 2);
+    };
+    for (const el of els) visit(el);
+    memo = { key, R: { out, warn } };
+    return memo.R;
+  }
+  const signalOf = (el, j) => solve().out.get(pkey(el.id, KINDS[el.kind].ins.length + j)) || null;
+
+  /* ---------- readouts ---------- */
+  function fmtSig(v, unit) {
+    const a = Math.abs(v);
+    if (!(a > 0)) return '0 ' + unit;
+    const [d, p] = a >= 1 ? [1, ''] : a >= 1e-3 ? [1e-3, 'm'] : a >= 1e-6 ? [1e-6, 'µ'] : a >= 1e-9 ? [1e-9, 'n'] : a >= 1e-12 ? [1e-12, 'p'] : [1e-15, 'f'];
+    return (+(v / d).toPrecision(4)) + ' ' + p + unit;
+  }
+  /* rms noise from f1 to f2, from the density */
+  function noiseRms(S, f1, f2) {
+    let v = 0;
+    const n = 200, l1 = Math.log(Math.max(f1, 1e-2)), l2 = Math.log(f2);
+    for (let i = 0; i < n; i++) { const f = Math.exp(l1 + (l2 - l1) * (i + 0.5) / n); v += psdAt(S, f) * f * (l2 - l1) / n; }
+    return Math.sqrt(v);
+  }
+  function describe(S) {
+    const u = S.unit, rows = [];
+    rows.push(['DC', fmtSig(S.dc, u)]);
+    const big = S.tones.slice().sort((a, b) => Math.hypot(b.re, b.im) - Math.hypot(a.re, a.im)).slice(0, 5).sort((a, b) => a.f - b.f);
+    for (const t of big) {
+      const A = Math.hypot(t.re, t.im);
+      rows.push([fmtHz(t.f), fmtSig(A, u) + ' peak (' + fmtSig(A / Math.SQRT2, u) + ' rms), phase ' + (+(Math.atan2(t.im, t.re) * 180 / Math.PI).toFixed(1)) + '°']);
+    }
+    if (S.tones.length > 5) rows.push(['', (S.tones.length - 5) + ' more tones']);
+    let pk = 0, fpk = 0; for (let i = 0; i < NF; i++) if (S.psd[i] > pk) { pk = S.psd[i]; fpk = FG[i]; }
+    if (pk > 0) rows.push(['Noise', fmtSig(Math.sqrt(psdAt(S, 1000)), u) + '/√Hz at 1 kHz; ' + fmtSig(noiseRms(S, 1, 1e9), u) + ' rms from 1 Hz to 1 GHz']);
+    return rows;
+  }
+  function readout(el) {
+    const K = KINDS[el.kind], R = solve(), rows = [];
+    K.outs.forEach((name, j) => {
+      const S = signalOf(el, j);
+      if (!S || el.kind === 'scope' || el.kind === 'spec' || el.kind === 'lockin') return;
+      rows.push([K.outs.length > 1 ? 'Output ' + name : 'Output', '']);
+      rows.push(...describe(S));
+    });
+    for (const w of R.warn.get(el.id) || []) rows.push(['Note', w]);
+    return [rows, K.outs.length && !['scope', 'spec', 'lockin'].includes(el.kind) ? 'Steady state: DC, the strongest tones (amplitude and phase of a cosine), and the noise density.' : 'Its readings come in the next step.'];
+  }
+
   return {
-    KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient,
+    KINDS, YELLOW, PALETTE, norm, make, draw, hit, halfSize, panelFor, wirePanel, linkKind, dirOf, orient, readout,
     ports: portList, names, label: el => KINDS[el.kind] ? KINDS[el.kind].label : 'Electronics',
+    // for the tests: a block's output by name and output number, and its transfer functions
+    api: {
+      signal(name, j) {
+        const el = project.elements.find(e => e.name === name && e.type === 'elec');
+        const S = el && signalOf(el, j || 0);
+        return S && { dc: S.dc, unit: S.unit, tones: S.tones.map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re) })), psd: f => psdAt(S, f), rms: (f1, f2) => noiseRms(S, f1, f2) };
+      },
+      notes(name) { const el = project.elements.find(e => e.name === name); return el ? solve().warn.get(el.id) || [] : null; },
+    },
   };
 })();
 
@@ -16459,6 +16698,8 @@ function updateReadoutsIn(container, el) {
       (st && st.mixed ? ' Path figures use the most common wavelength on this screen.' : '')];
   } else if (el.type === 'pic') {
     parts = PIC.readout(el);                                                                   // PIC hook
+  } else if (el.type === 'elec') {
+    parts = ELEC.readout(el);                                                                  // ELEC hook
   } else if (el.type === 'fcomp') {
     const rows = portRows(el);
     if (el.kind === 'pd') {
@@ -19351,6 +19592,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     experimental(on) { if (on !== undefined) setExperimental(on); return { on: expOn, list: EXPERIMENTAL.map(f => f.key) }; },
     exp: key => exp(key),
     pic: PIC.api,                                                                              // PIC hook
+    elec: ELEC.api,                                                                            // ELEC hook
     // the field steps kept between runs: how many, hits and misses since the last look; clear empties it
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns

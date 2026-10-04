@@ -649,7 +649,80 @@
   .rt-pinned h2 { touch-action: none; user-select: none; -webkit-user-select: none; }
   .rt-pinned.moving { position: relative; z-index: 6; box-shadow: 0 10px 28px rgba(0,0,0,0.28); cursor: grabbing; }
 
+  /* one bar: the bench's name and its File menu, the title, + Add part, undo and redo, Measure,
+     View and Sweeps; Examples, Share, Save and Help at its right */
+  .rt-app .rt-toolbar { padding: 0.45rem 0.75rem; gap: 0; }
+  .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
+  .rt-file { display: flex; align-items: center; gap: 0.1rem; }
+  .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
+  .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.6rem; font-size: 1.15rem; }
+  .rt-bar .rt-title::after { width: 52px; margin-top: 0.22rem; }
+  .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
+  .rt-tight { gap: 0.2rem; }
+  .rt-btn.rt-addbtn { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
+  .rt-btn.rt-addbtn:hover { background: #d9602f; border-color: #d9602f; }
+  #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
+  .rt-btn.rt-help { position: relative; }
+  .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
+  .rt-menu.rt-menu-right { left: auto; right: 0; }
+  /* on a phone, Examples, Share and Measure go into the File and View menus */
+  .rt-menu button.rt-narrow { display: none; }
+  @media (max-width: 600px) {
+    #btnExamples, #btnShare, #btnMeasure, .rt-wide { display: none; }
+    .rt-menu button.rt-narrow { display: block; }
+  }
+  .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
+  .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
+  .rt-menunote { display: block; padding: 0.3rem 0.65rem 0.25rem; font-size: 0.78rem; line-height: 1.4; color: var(--jek-ink-soft); text-align: left; }
+  #fileMenu .rt-status:empty, #fileMenu .rt-status:empty + * { display: none; }
+  /* the parts picker, under + Add part */
+  .rt-picker { position: fixed; z-index: 60; width: min(660px, calc(100vw - 16px)); max-height: min(72vh, 640px); display: flex; flex-direction: column;
+    background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 12px 34px rgba(0,0,0,0.22); }
+  .rt-picker[hidden] { display: none; }
+  .rt-phead { display: flex; gap: 0.4rem; padding: 0.6rem 0.6rem 0.4rem; }
+  .rt-psearch { flex: 1; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-psearch:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-pclose { width: 2rem; border: 0; background: none; font-size: 1.3rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-ptabs { display: flex; gap: 0.25rem; padding: 0 0.6rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-ptab { padding: 0.4rem 0.75rem; font: 600 0.8125rem var(--jek-sans); color: var(--jek-ink-soft); background: none; border: 0; border-bottom: 3px solid transparent; cursor: pointer; }
+  .rt-ptab.on { color: var(--jek-ink); }
+  .rt-ptab.free.on { border-color: var(--jek-orange); } .rt-ptab.fibre.on { border-color: var(--jek-red); }
+  .rt-ptab.pic.on { border-color: #3a9d5d; } .rt-ptab.elec.on { border-color: #c08a12; }
+  .rt-pbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0.2rem 0.6rem 0.6rem; }
+  .rt-pbody h4, .rt-flyout h4 { margin: 0.7rem 0 0.35rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.3rem, 1fr)); gap: 0.35rem; }
+  .rt-ptile { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.35rem 0.25rem 0.4rem; font: 600 0.72rem var(--jek-sans); line-height: 1.2;
+    color: var(--jek-ink); background: none; border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; text-align: center; }
+  .rt-ptile img { display: block; width: 48px; height: 48px; border-radius: 2px; pointer-events: none; }
+  .rt-ptile:hover, .rt-ptile:focus-visible { outline: none; border-color: var(--jek-orange); background: var(--jek-well); }
+  .rt-ptile.fibre:hover, .rt-ptile.fibre:focus-visible { border-color: var(--jek-red); }
+  .rt-ptile.pic:hover, .rt-ptile.pic:focus-visible { border-color: #3a9d5d; }
+  .rt-ptile.elec:hover, .rt-ptile.elec:focus-visible { border-color: #c08a12; }
+  .rt-pnone { margin: 1rem 0; color: var(--jek-ink-soft); font-size: 0.875rem; }
+  .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
+  /* the parts rail, down the bench's left edge below its tabs */
+  .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    overflow-y: auto; scrollbar-width: none; background: rgba(16,21,24,0.82); border: 1px solid rgba(255,255,255,0.12); border-left: 0; border-radius: 0 2px 2px 0; }
+  .rt-rail[hidden] { display: none; }
+  .rt-rpals { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid rgba(255,255,255,0.14); }
+  .rt-rpal { height: 18px; padding: 0; font: 700 0.6rem var(--jek-sans); letter-spacing: 0.02em; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
+  .rt-rpal.free { border-color: var(--jek-orange); } .rt-rpal.fibre { border-color: var(--jek-red); } .rt-rpal.pic { border-color: #3a9d5d; } .rt-rpal.elec { border-color: #c08a12; }
+  .rt-rpal.on.free { background: var(--jek-orange); color: #fff; } .rt-rpal.on.fibre { background: var(--jek-red); color: #fff; }
+  .rt-rpal.on.pic { background: #3a9d5d; color: #fff; } .rt-rpal.on.elec { background: #c08a12; color: #fff; }
+  .rt-rgroup { flex: none; width: 42px; height: 42px; padding: 2px; background: none; border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
+  .rt-rgroup img { display: block; width: 36px; height: 36px; border-radius: 2px; pointer-events: none; }
+  .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: rgba(255,255,255,0.65); }
+  .rt-rgroup.free.on { border-color: var(--jek-orange); } .rt-rgroup.fibre.on { border-color: var(--jek-red); }
+  .rt-rgroup.pic.on { border-color: #3a9d5d; } .rt-rgroup.elec.on { border-color: #c08a12; }
+  .rt-rall { margin-top: 2px; font: 300 1.5rem/1 var(--jek-sans); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.22); }
+  .rt-flyout { position: absolute; left: 56px; z-index: 6; width: min(19rem, calc(100% - 64px)); max-height: calc(100% - 1rem); overflow-y: auto; box-sizing: border-box; padding: 0 0.55rem 0.55rem;
+    background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
+  .rt-flyout[hidden] { display: none; }
+  .rt-stage.rail .rt-welcome { left: calc(52px + 0.8rem); }
+  body.rt-embed .rt-rail, body.rt-embed .rt-flyout, body.rt-embed .rt-picker { display: none !important; }
   @media (max-width: 960px) {
+    .rt-bar .rt-title { display: none; }
+    .rt-file .rt-name { width: 9rem; flex-basis: 9rem; }
     .rt-app .rt-wrap { height: auto; min-height: 0; }
     .rt-app .rt-grid { grid-template-rows: none; }
     .rt-app .rt-stage { height: 62vh; min-height: 360px; }
@@ -689,79 +762,76 @@
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray2D controls">
-      <div class="rt-row">
-        <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+      <div class="rt-row rt-bar">
+        <div class="rt-more rt-file">
+          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+          <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+          <div class="rt-menu" id="fileMenu" role="menu" hidden>
+            <button type="button" role="menuitem" class="rt-narrow" data-click="btnExamples">Examples…</button>
+            <button type="button" role="menuitem" class="rt-narrow" data-click="btnShare">Copy a share link</button>
+            <button type="button" role="menuitem" id="btnNew">New bench</button>
+            <button type="button" role="menuitem" id="btnOpen">Open a .jekray file…</button>
+            <button type="button" role="menuitem" id="btnPasteProj" title="Such as one an AI assistant wrote; Ctrl+V on the bench does the same">Open pasted text…</button>
+            <button type="button" role="menuitem" id="btnSnaps" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnImport">Import a lens (.zmx)…</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-export="png">Export layout as PNG</button>
+            <button type="button" role="menuitem" data-export="svg">Export layout as SVG (vector)</button>
+            <button type="button" role="menuitem" data-export="pdf">Export layout as PDF (vector)</button>
+            <div class="sep"></div>
+            <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
+          </div>
+        </div>
         <h1 class="rt-title">JEKray2D</h1>
+        <button class="rt-btn rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)">+ Add part</button>
+        <div class="rt-group rt-tight">
+          <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+          <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        </div>
+        <button class="rt-btn" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
+        <div class="rt-more">
+          <button class="rt-btn" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
+          <div class="rt-menu" id="viewMenu" role="menu" hidden>
+            <button type="button" role="menuitem" class="rt-narrow" data-click="btnMeasure">Measure<span class="k">M</span></button>
+            <button type="button" role="menuitem" id="btnFit">Fit view</button>
+            <button type="button" role="menuitem" id="btnZoomSel">Zoom to selection<span class="k">Z</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true">Parts rail on the bench</button>
+          </div>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps ▾</button>
+          <div class="rt-menu" id="sweepsMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnPlayAll" disabled>Play all</button>
+            <button type="button" role="menuitem" id="btnPauseAll" disabled>Pause all</button>
+            <button type="button" role="menuitem" id="btnSync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnOptimise" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
+            <button type="button" role="menuitem" id="btnTol" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
+            <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
+          </div>
+        </div>
         <div class="rt-group rt-right">
           <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <div class="rt-more">
-            <button class="rt-btn" id="btnOpenMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="openMenu">Open ▾</button>
-            <div class="rt-menu rt-menu-right" id="openMenu" role="menu" hidden>
-              <button type="button" role="menuitem" id="btnOpen">A .jekray file…</button>
-              <button type="button" role="menuitem" id="btnSnaps" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-              <button type="button" role="menuitem" id="btnPasteProj" title="Such as one an AI assistant wrote; Ctrl+V on the bench does the same">Pasted text…</button>
-            </div>
-          </div>
           <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
-          <button class="rt-btn primary" id="btnSave">Save .jekray</button>
-          <button class="rt-btn" id="btnNew">New</button>
-        </div>
-      </div>
-
-
-      <div class="rt-row">
-        <span class="rt-group-label">Add</span>
-        <div class="rt-group rt-addrow" id="addRow">
+          <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
           <div class="rt-more">
-            <button class="rt-btn palette" id="btnPalette" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="paletteMenu">Free-space ▾</button>
-            <div class="rt-menu" id="paletteMenu" role="menu" hidden>
-              <button type="button" role="menuitem" data-palette="free">Free-space optics</button>
-              <button type="button" role="menuitem" data-palette="fibre">Fibre components</button>
-              <button type="button" role="menuitem" data-palette="pic" hidden>Photonic circuits (experimental)</button>
-              <button type="button" role="menuitem" data-palette="elec" hidden>Electronics (experimental)</button>
+            <button class="rt-btn rt-help" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
+            <div class="rt-menu rt-menu-right" id="helpMenu" role="menu" hidden>
+              <button type="button" role="menuitem" id="btnHelp">Keyboard and mouse shortcuts<span class="k">?</span></button>
+              <button type="button" role="menuitem" data-tour="focus">Tour: focus a laser beam</button>
+              <button type="button" role="menuitem" data-tour="michelson">Tour: build a Michelson</button>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" id="btnNews">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnCite">Cite JEKray2D</button>
+              <button type="button" role="menuitem" id="btnBug">Report a bug</button>
+              <button type="button" role="menuitem" id="btnExp" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+              <div class="sep"></div>
+              <span class="rt-menunote">JEKray2D <span id="appVersion"></span></span>
             </div>
-          </div>
-          <div class="rt-palette" id="paletteBox"></div>
-          <div class="rt-more" id="moreWrap">
-            <button class="rt-btn" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu">More ▾</button>
-            <div class="rt-menu" id="moreMenu" role="menu" hidden></div>
+            <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
           </div>
         </div>
-        <div class="rt-group">
-          <button class="rt-btn" id="btnImport">Import .zmx</button>
-        </div>
-      </div>
-
-
-      <div class="rt-row">
-        <span class="rt-group-label">Sweeps</span>
-        <div class="rt-group">
-          <button class="rt-btn" id="btnPlayAll" disabled>Play all</button>
-          <button class="rt-btn" id="btnPauseAll" disabled>Pause all</button>
-          <button class="rt-btn" id="btnSync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
-          <button class="rt-btn" id="btnOptimise" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
-          <button class="rt-btn" id="btnTol" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
-        </div>
-        <div class="rt-group rt-right">
-          <button class="rt-btn" id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
-          <button class="rt-btn" id="btnRedo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-          <button class="rt-btn" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
-          <button class="rt-btn" id="btnZoomSel" type="button" title="Zoom to the selection (Z)">Zoom to selection</button>
-          <button class="rt-btn" id="btnFit">Fit view</button>
-          <div class="rt-more">
-            <button class="rt-btn" id="btnExport" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">Export ▾</button>
-            <div class="rt-menu rt-menu-right" id="exportMenu" role="menu" hidden>
-              <button type="button" role="menuitem" data-export="png">Layout as PNG image</button>
-              <button type="button" role="menuitem" data-export="svg">Layout as SVG (vector)</button>
-              <button type="button" role="menuitem" data-export="pdf">Layout as PDF (vector)</button>
-            </div>
-          </div>
-          <button class="rt-btn rt-help" id="btnHelp" type="button" title="Keyboard and mouse shortcuts (?)" aria-label="Shortcuts">?</button>
-        </div>
-      </div>
-      <div class="rt-row" style="border-top:none;padding-top:0">
-        <span class="rt-meta"><button type="button" class="rt-link" id="btnNews">JEKray2D <span id="appVersion"></span> · What’s new<span class="rt-dot" id="newsDot" hidden></span></button> · <button type="button" class="rt-link" id="btnCite">Cite</button> · <button type="button" class="rt-link" id="btnBug">Report a bug</button> · <span class="rt-expwrap"><button type="button" class="rt-link" id="btnExp" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features<span class="rt-dot exp" id="expDot" hidden></span> ▾</button><div class="rt-menu rt-expmenu" id="expMenu" hidden></div></span></span>
-        <span class="rt-status rt-right" id="status" aria-live="polite"></span>
       </div>
     </div>
 
@@ -845,7 +915,7 @@
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
-    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray2d-ai-guide.md" download>the JEKray2D guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Open ▾ → Pasted text</b> or Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -5257,7 +5327,7 @@ function niceStep(target) {
 function drawScaleBar() {
   const mm = niceStep(90 / V().scale);
   const px = mm * V().scale;
-  const x = 14, y = H - 16;
+  const x = 14 + (stage.classList.contains('rail') && !exporting ? 52 : 0), y = H - 16;     // clear of the parts rail
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();
@@ -10445,6 +10515,10 @@ function updateSweepButtons() {
   document.getElementById('btnSync').disabled = !total;
   pa.disabled = !playing.size;
   pa.textContent = playing.size ? 'Pause all (' + playing.size + ')' : 'Pause all';
+  // the menu's button shows when sweeps are playing
+  const sb = document.getElementById('btnSweeps');
+  sb.classList.toggle('playing', playing.size > 0);
+  sb.textContent = (playing.size ? 'Sweeps \u25b6 ' + playing.size : 'Sweeps') + ' \u25be';
 }
 
 /* ==========================================================================
@@ -20219,47 +20293,211 @@ const PALETTES = {
 };
 let palette = 'free';
 try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec') palette = pv; } catch (err) { /* private window: free space */ }
+/* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
+   the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
+   edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
+   the middle of the view, or dragged onto the bench to put it there. */
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', pic: 'Photonic', elec: 'Electronics' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', pic: 'Chip', elec: 'Elec' };
+const PART_GROUPS = {
+  free: [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']], ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'cylinder', 'axicon']],
+    ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']], ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
+    ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']], ['Tabs', ['link']]],
+  fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
+    ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
+    ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
+    ['Ends and links', ['fibre', 'fmir', 'fm', 'term', 'thru']]],
+  pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
+  elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
+    ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
+};
+const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) && (p !== 'elec' || exp('elec')));
+const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
+// a palette's parts in their groups; any not listed in a group under Other
+function partGroups(pal) {
+  const items = partsOf(pal), by = new Map(items.map(p => [p.key, p])), used = new Set(), out = [];
+  for (const [name, keys] of PART_GROUPS[pal] || []) { const g = keys.map(k => by.get(k)).filter(Boolean); g.forEach(p => used.add(p.key)); if (g.length) out.push({ name, parts: g }); }
+  const rest = items.filter(p => !used.has(p.key));
+  if (rest.length) out.push({ name: 'Other', parts: rest });
+  return out;
+}
+/* a part's symbol, drawn as the bench draws it (on the bench's own colour), once per part and theme */
+const partIcons = new Map();
+function partIcon(key) {
+  const theme = getCss('--rt-bench'), ck = key + '|' + theme;
+  if (partIcons.has(ck)) return partIcons.get(ck);
+  if (!project) return '';
+  const N = 48, cv = document.createElement('canvas');
+  cv.width = cv.height = N * 2;
+  const c = cv.getContext('2d');
+  c.setTransform(2, 0, 0, 2, 0, 0); c.fillStyle = theme; c.fillRect(0, 0, N, N);
+  const keep = { ctx, W, H, DPR, view: project.view, names: project.elements };
+  let url = '';
+  try {
+    const el = makeElement(key, 0, 0);
+    if (el) {
+      const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
+      ctx = c; W = N; H = N; DPR = 2; project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
+      draw(el);
+      url = cv.toDataURL();
+    }
+  } catch (err) { url = ''; } finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; }
+  partIcons.set(ck, url);
+  return url;
+}
+const RECENT_KEY = 'jek-raytracer-recent-parts';
+const recentParts = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]').filter(k => palettesOn().some(p => partsOf(p).some(q => q.key === k))); } catch (err) { return []; } };
+/* add a part: in the middle of the view, or where it was dropped (screen point) */
+function addPart(key, at) {
+  addElement(key);
+  const el = selected();
+  if (el && at) {
+    const r = canvas.getBoundingClientRect();
+    el.x = snapVal(wx(at[0] - r.left)); el.y = snapVal(wy(at[1] - r.top));
+    changed(true);
+  }
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify([key, ...recentParts().filter(k => k !== key)].slice(0, 8))); } catch (err) { /* not kept: fine */ }
+  railRecent();
+}
+const PART_DRAG = 'application/x-jekray-part';
+// a part's tile: its symbol and name; clicked to add, dragged onto the bench
+function partTile(p, onAdd, where) {
+  const img = h('img', { alt: '', src: partIcon(p.key), width: '48', height: '48' });
+  const b = h('button', { type: 'button', class: 'rt-ptile ' + p.pal, 'data-add': p.key, title: p.long, draggable: 'true' }, img, h('span', null, p.short, where ? h('small', null, PALETTE_NAMES[p.pal]) : null));
+  b.addEventListener('click', e => { e.stopPropagation(); onAdd(p.key, e); });
+  b.addEventListener('dragstart', e => { e.dataTransfer.setData(PART_DRAG, p.key); e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setDragImage(img, 24, 24); });
+  return b;
+}
+/* ---------- the picker ---------- */
+const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
+document.querySelector('.rt-wrap').append(picker);
+let pickTab = palette;
+function pickerShown(on) {
+  if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
+  if (!palettesOn().includes(pickTab)) pickTab = 'free';
+  const r = document.getElementById('btnAddPart').getBoundingClientRect();
+  picker.style.top = Math.round(r.bottom + 4) + 'px';
+  picker.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - Math.min(660, window.innerWidth - 16) - 8))) + 'px';
+  picker.hidden = false; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'true');
+  fillPicker('');
+}
+function fillPicker(q) {
+  const search = h('input', { type: 'search', class: 'rt-psearch', placeholder: 'Search all parts (Enter adds the first)', 'aria-label': 'Search parts', value: q });
+  const body = h('div', { class: 'rt-pbody' });
+  const add = (key, e) => { addPart(key); if (!e || !e.shiftKey) pickerShown(false); };
+  const show = () => {
+    const t = search.value.trim().toLowerCase();
+    body.replaceChildren();
+    if (t) {
+      // every palette's parts whose name has each word typed
+      const words = t.split(/\s+/), hits = palettesOn().flatMap(pal => partsOf(pal)).filter(p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w)));
+      body.append(hits.length ? h('div', { class: 'rt-pgrid' }, ...hits.map(p => partTile(p, add, true))) : h('p', { class: 'rt-pnone' }, 'No part matches “' + search.value.trim() + '”.'));
+      return;
+    }
+    const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
+    if (rec.length) body.append(h('h4', null, 'Recent'), h('div', { class: 'rt-pgrid' }, ...rec.map(p => partTile(p, add, p.pal !== pickTab))));
+    for (const g of partGroups(pickTab)) body.append(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, add))));
+  };
+  search.addEventListener('input', show);
+  search.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const b = body.querySelector('[data-add]'); if (b) add(b.dataset.add, e); }
+    if (e.key === 'Escape') { pickerShown(false); document.getElementById('btnAddPart').focus(); }
+    e.stopPropagation();
+  });
+  const tabs = h('div', { class: 'rt-ptabs', role: 'tablist' }, ...palettesOn().map(pal => {
+    const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
+    b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
+    return b;
+  }));
+  picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
+    h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
+  show();
+  search.focus();
+}
+document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
+document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target)) pickerShown(false); });
+document.addEventListener('keydown', e => {
+  if (EMBED || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
+  if (e.key === 'a' || e.key === 'A' || e.key === '/') { e.preventDefault(); pickerShown(true); }
+  else if (e.key === 'Escape' && !picker.hidden) pickerShown(false);
+});
+/* ---------- the rail ---------- */
+const RAIL_KEY = 'jek-raytracer-rail';
+let railOn = true;
+try { railOn = localStorage.getItem(RAIL_KEY) !== '0'; } catch (err) { /* on */ }
+const rail = h('nav', { class: 'rt-rail', id: 'rail', 'aria-label': 'Parts' });
+stage.append(rail);
+const flyout = h('div', { class: 'rt-flyout', hidden: '' });
+stage.append(flyout);
+let flyFor = null;
+function flyShown(btn, g) {
+  if (!btn || flyFor === btn) { flyout.hidden = true; flyFor = null; rail.querySelectorAll('.on').forEach(b => b.classList.remove('on')); return; }
+  flyFor = btn;
+  rail.querySelectorAll('.rt-rgroup').forEach(b => b.classList.toggle('on', b === btn));
+  flyout.replaceChildren(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, (key, e) => { addPart(key); if (!e.shiftKey) flyShown(null); }))));
+  const sr = stage.getBoundingClientRect(), br = btn.getBoundingClientRect();
+  flyout.hidden = false;
+  flyout.style.top = Math.max(4, Math.min(br.top - sr.top, sr.height - flyout.offsetHeight - 8)) + 'px';
+}
+function railRecent() { /* the rail's recent part, kept current as parts are added */ if (railOn) fillRail(); }
+function fillRail() {
+  if (!project) { requestAnimationFrame(fillRail); return; }          // the bench is not loaded yet: its symbols are drawn once it is
+  if (EMBED) { rail.hidden = true; return; }                          // an embedded bench is for looking at
+  rail.hidden = !railOn; flyout.hidden = true; flyFor = null;
+  document.getElementById('btnRailToggle').setAttribute('aria-checked', railOn ? 'true' : 'false');
+  stage.classList.toggle('rail', railOn);
+  if (!railOn) return;
+  // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
+  const pals = h('div', { class: 'rt-rpals' }, ...palettesOn().map(pal => {
+    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_SHORT[pal]);
+    b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
+    return b;
+  }));
+  const groups = partGroups(palette).map(g => {
+    const b = h('button', { type: 'button', class: 'rt-rgroup ' + palette, title: g.name, 'aria-label': g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '36', height: '36' }));
+    b.addEventListener('click', e => { e.stopPropagation(); flyShown(b, g); });
+    return b;
+  });
+  const more = h('button', { type: 'button', class: 'rt-rgroup rt-rall', title: 'All parts, with a search (A)', 'aria-label': 'All parts' }, '+');
+  more.addEventListener('click', e => { e.stopPropagation(); pickTab = palette; pickerShown(true); });
+  rail.replaceChildren(pals, ...groups, more);
+}
+document.addEventListener('click', e => { if (!flyout.hidden && !flyout.contains(e.target)) flyShown(null); });
+document.getElementById('btnRailToggle').addEventListener('click', () => {
+  railOn = !railOn;
+  try { localStorage.setItem(RAIL_KEY, railOn ? '1' : '0'); } catch (err) { /* not kept: fine */ }
+  fillRail(); requestRender();
+});
+function setPalette(pal) {
+  palette = pal;
+  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
+  fillRail();
+}
+/* the palettes offered change with the experimental switch */
 function layoutPalette() {
-  const box = document.getElementById('paletteBox'), menu = document.getElementById('moreMenu'), moreWrap = document.getElementById('moreWrap');
   if (palette === 'pic' && !exp('pic')) palette = 'free';                                    // PIC hook
   if (palette === 'elec' && !exp('elec')) palette = 'free';                                  // ELEC hook
-  document.querySelector('#paletteMenu [data-palette="pic"]').hidden = !exp('pic');
-  document.querySelector('#paletteMenu [data-palette="elec"]').hidden = !exp('elec');
-  const row = document.getElementById('addRow'), items = PALETTES[palette].filter(it => !it[3] || exp(it[3]));
-  const pb = document.getElementById('btnPalette');
-  pb.textContent = ({ fibre: 'Fibre', pic: 'Photonic', elec: 'Electronics' }[palette] || 'Free-space') + ' \u25be';
-  pb.classList.toggle('fibre', palette === 'fibre');
-  pb.classList.toggle('pic', palette === 'pic');
-  pb.classList.toggle('elec', palette === 'elec');
-  box.replaceChildren(...items.map(([k, label]) => h('button', { class: 'rt-btn', type: 'button', 'data-add': k }, label)));
-  menu.replaceChildren();
-  moreWrap.hidden = false;
-  // as many as fit beside the palette switch and More, the rest into More
-  const room = row.clientWidth - (row.firstElementChild.offsetWidth + moreWrap.offsetWidth) - 2 * 6;
-  const btns = [...box.children];
-  let used = 0, n = 0;
-  for (const b of btns) { const w = b.offsetWidth + 6; if (used + w > room) break; used += w; n++; }
-  if (n === btns.length) { moreWrap.hidden = true; return; }
-  btns.slice(n).forEach((b, i) => { b.remove(); const it = items[n + i]; menu.append(h('button', { type: 'button', role: 'menuitem', 'data-add': it[0] }, it[2] || it[1])); });
+  fillRail();
+  if (!picker.hidden) fillPicker('');
 }
+layoutPalette();
+/* a part dragged from the picker or the rail onto the bench lands where it is dropped */
+stage.addEventListener('dragover', e => { if (e.dataTransfer.types.includes(PART_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+stage.addEventListener('drop', e => { const k = e.dataTransfer.getData(PART_DRAG); if (k) { e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null); addPart(k, [e.clientX, e.clientY]); } }, true);
 document.querySelector('.rt-toolbar').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) addElement(b.dataset.add); });
-document.getElementById('paletteMenu').addEventListener('click', e => {
-  const b = e.target.closest('[data-palette]');
-  if (!b) return;
-  palette = b.dataset.palette;
-  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
-  layoutPalette();
-});
-new ResizeObserver(() => layoutPalette()).observe(document.getElementById('addRow').parentElement);
-/* the palette and More menus */
-for (const [bId, mId] of [['btnMore', 'moreMenu'], ['btnPalette', 'paletteMenu'], ['btnExport', 'exportMenu'], ['btnOpenMenu', 'openMenu']]) {
+/* the menus: File (by the bench's name), View, Sweeps and Help */
+for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
-  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) menu.querySelector('button').focus(); };
+  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); } };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-  menu.addEventListener('click', () => show(false));
+  menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
 }
+document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
+// the menus' stand-ins for the bar's own buttons (a phone hides those)
+for (const m of ['fileMenu', 'viewMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) document.getElementById(b.dataset.click).click(); });
+// the experimental features' box opens from the Help menu, which closes as it does
+document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
 document.getElementById('btnSave').addEventListener('click', saveFile);
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
@@ -20298,6 +20536,8 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
 {
   document.getElementById('appVersion').textContent = APP_VERSION;
   const dlg = document.getElementById('newsDialog'), dot = document.getElementById('newsDot');
+  // the Help button carries the What's new dot, its menu being shut
+  new MutationObserver(() => { document.getElementById('helpDot').hidden = dot.hidden; }).observe(dot, { attributes: true, attributeFilter: ['hidden'] });
   const NEWS_KEY = 'jek-raytracer-news';
   try {
     const seen = localStorage.getItem(NEWS_KEY);
@@ -20515,7 +20755,7 @@ function showWelcome() {
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray2D'),
     h('ul', null,
-      h('li', null, 'Add parts from the Add row above; the orange Free-space button switches to fibre parts (red).'),
+      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
       h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),
       h('li', null, 'Press ? for every shortcut.')),
@@ -20535,19 +20775,19 @@ const tourRetro = el => !!(lastTrace && (lastTrace.beams || []).some(b => {
 }));
 const TOURS = {
   focus: { title: 'Focus a laser beam', tab: 'Tour: focus', steps: [
-    { text: 'Add a light source: click <b>Source</b> in the Add row. It sends a collimated beam to the right.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
+    { text: 'Add a light source: click <b>+ Add part</b> (or press A) and choose <b>Source</b>. It sends a collimated beam to the right.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
     { text: 'Add a lens with <b>Lens</b>.', target: 'lens', done: () => tourEls('lens').length, after: () => tourPlace('lens', -20, -35) },
     { text: 'Drag the lens up into the beam. The rays bend towards a focus about 50 mm past it.', done: () => tourEls('lens').some(tourLit) },
-    { text: 'Add a <b>Screen</b> and drag it past the lens into the rays. (If the Screen button isn’t showing, it’s under <b>More ▾</b>.)', target: 'screen', done: () => tourEls('screen').some(tourLit) },
+    { text: 'Add a <b>Screen</b> (+ Add part, or type \u201cscreen\u201d in its search) and drag it past the lens into the rays.', target: 'screen', done: () => tourEls('screen').some(tourLit) },
     { text: 'Click the screen. The panel on the right shows what arrives: the spot, its size, and the beam’s profile.', done: () => { const e = selected(); return e && e.type === 'screen'; } },
     { text: 'Drag the screen along the beam until the spot is smallest. The <b>RMS spot</b> in the panel falls as you reach the focus.', done: () => tourEls('screen').some(e => { const st = screenStats(e); return st && st.rms < 0.05; }) },
     { text: 'That’s the focus. Click the lens to change its curvatures or glass and watch the focus move, or turn it round with a right-click. Try the Michelson tour next, or open an example.', final: true }] },
   michelson: { title: 'Build a Michelson interferometer', tab: 'Tour: Michelson', steps: [
-    { text: 'Add a light source: click <b>Source</b> in the Add row.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
+    { text: 'Add a light source: <b>+ Add part</b> (or A), then <b>Source</b>.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
     { text: 'Add a <b>Beam splitter</b> and drag it into the beam. Half the light goes on, half is turned through 90°.', target: 'cube', done: () => tourEls('cube').some(tourLit), before: () => tourPlace('cube', -20, -35) },
     { text: 'Add a <b>Mirror</b> and drag it into the straight-through beam. Then turn it to face the splitter: click it and set its <b>Angle</b> to 180 in the panel (the way it faces), or drag its round handle.', target: 'mirror', done: () => tourEls('mirror').some(tourRetro) },
     { text: 'Add a second <b>Mirror</b> in the beam the splitter turned, and turn it to face the splitter too (Angle 90 or −90, whichever points back at it).', target: 'mirror', done: () => tourEls('mirror').filter(tourRetro).length >= 2 },
-    { text: 'Light from both arms now meets again at the splitter. Add a <b>Screen</b> (under <b>More ▾</b> if it isn’t showing) on the splitter’s fourth side, the output port, and turn it to face the splitter (its Angle is the way it faces).', target: 'screen',
+    { text: 'Light from both arms now meets again at the splitter. Add a <b>Screen</b> on the splitter’s fourth side, the output port, and turn it to face the splitter (its Angle is the way it faces).', target: 'screen',
       done: () => { const n = Math.max(1, ...tourEls('source').map(e => e.rays || 1)); return tourEls('screen').some(e => { const st = screenStats(e); return st && st.count >= 1.5 * n; }); } },
     { text: 'Click the screen: its plot shows the two beams interfering. Now nudge one mirror with the arrow keys, or give its position a sweep and press Play, and watch the output rise and fall.', final: true }] },
 };
@@ -20584,8 +20824,8 @@ function endTour() {
   for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
 }
 function tourTarget(kind) {
-  const all = [...document.querySelectorAll('.rt-toolbar [data-add="' + kind + '"]')];
-  return all.find(e => e.offsetParent !== null) || (all.length ? document.getElementById('btnMore') : null);
+  const all = [...document.querySelectorAll('[data-add="' + kind + '"]')];
+  return all.find(e => e.offsetParent !== null) || document.getElementById('btnAddPart');
 }
 function tourShow() {
   if (!tour) return;
@@ -20629,7 +20869,7 @@ function updateEmpty() {
   if (!empty) { if (c) c.remove(); return; }
   if (c) return;
   document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint' },
-    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part from the Add row above, or:'),
+    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with + Add part above (or press A), from the rail at the left, or:'),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));
@@ -20707,7 +20947,7 @@ document.querySelectorAll('[data-demo]:not([role=menuitem])').forEach(btn => btn
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);
-document.getElementById('exportMenu').addEventListener('click', e => { const b = e.target.closest('[data-export]'); if (b) exportLayout(b.dataset.export); });
+document.getElementById('fileMenu').addEventListener('click', e => { const b = e.target.closest('[data-export]'); if (b) exportLayout(b.dataset.export); });
 document.getElementById('btnPlayAll').addEventListener('click', playAll);
 document.getElementById('btnPauseAll').addEventListener('click', pauseAll);
 document.getElementById('btnSync').addEventListener('click', syncPhases);

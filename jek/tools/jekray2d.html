@@ -204,7 +204,10 @@
   .rt-modes h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; }
   .rt-mode { display: flex; gap: 0.6rem; align-items: center; margin: 0.35rem 0; font-size: 0.8rem; }
   .rt-mode canvas { flex: none; border-radius: 3px; }
-  .rt-zoom { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  /* the zoom buttons and the save buttons: each at its own width, the row wrapping when the
+     panel is narrow rather than squeezing one into the next */
+  .rt-zoom { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-zoom > * { flex: none; }
   .rt-zoom span { margin-left: 0.35rem; }
   .rt-zoom span:first-child { margin-left: 0; }
   .rt-zoom .rt-save { margin-left: auto; display: inline-flex; gap: 0.25rem; }
@@ -213,7 +216,6 @@
     min-width: 1.6rem; height: 1.5rem; padding: 0 0.35rem; border: 1px solid var(--jek-line); border-radius: 4px;
     background: transparent; color: var(--jek-ink); font: inherit; font-weight: 600; cursor: pointer;
   }
-  .rt-zb:last-child { margin-left: auto; }
   .rt-zb:hover { border-color: var(--jek-ink-soft); }
   .rt-zb:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned.current { outline: 2px solid var(--jek-cyan); outline-offset: -1px; }

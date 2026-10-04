@@ -4351,6 +4351,20 @@ const TESTS = [
       return Math.max(Math.abs(S.dc / dc - 1), Math.abs(f1.amp / Math.abs(a1) - 1));
     },
   },
+  {
+    name: 'The lock-in absorption demo measures its sample’s transmission',
+    why: 'the demo as shipped (a 1 kHz square on the laser, a 50:50 cube, an OD 0.5 sample in one arm, a lock-in on each detector, both referenced to the generator’s sync through a node): it opens with nothing changed, and the ratio of the two lock-ins’ R is 10^−0.5; set the sample to OD 1 and it is 10^−1: the largest relative error',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.experimental(true);
+      try {
+        const rep = J.importText(getDemo('lockin-absorption'));
+        const ratio = () => J.elec.lockin('Lock-in, sample').R / J.elec.lockin('Lock-in, reference').R;
+        const a = ratio(); J.setParam('Sample (OD 0.5)', 'od', 1); const b2 = ratio();
+        return rep.length ? NaN : Math.max(Math.abs(a / Math.pow(10, -0.5) - 1), Math.abs(b2 / 0.1 - 1));
+      } finally { J.experimental(false); }
+    },
+  },
   /* ---------- Photonic circuits (experimental) ---------- */
   {
     name: 'Photonic circuits: an all-pass ring matches its closed form',

@@ -1,0 +1,209 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Lock-in absorption measurement",
+  "notes": "A sample's transmission measured with a lock-in, the light square-wave modulated at 1 kHz. A signal generator drives the laser's power input with a 1 kHz square (0 to -1 V on a 100%/V input: the laser on, then off), and its sync output, through a node, gives both lock-ins their reference. A 50:50 cube splits the beam: one half crosses the sample (an OD 0.5 filter here) to the sample detector, the other goes straight to the reference detector. Each lock-in reads only what is modulated at 1 kHz, so steady light and the detectors' offsets drop out, and the noise is only what lies within its 1.25 Hz equivalent bandwidth. The sample's transmission is the ratio of the two R readings: 10^-0.5 = 0.316 for OD 0.5. Change the sample's OD, or sweep it, and watch the ratio follow; the scope shows the chopped detector signal against the sync.",
+  "view": {
+    "cx": 65,
+    "cy": 2,
+    "scale": 4.4
+  },
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "Laser, 633 nm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "power": 1,
+      "gauss": true,
+      "w0": 0.5,
+      "rays": 1,
+      "width": 1,
+      "modk": 100
+    },
+    {
+      "id": "bs",
+      "type": "cube",
+      "name": "50:50 cube",
+      "x": 40,
+      "y": 0,
+      "angle": 0,
+      "size": 12.7,
+      "reflect": 50
+    },
+    {
+      "id": "sample",
+      "type": "filter",
+      "name": "Sample (OD 0.5)",
+      "x": 80,
+      "y": 0,
+      "angle": 0,
+      "length": 12.7,
+      "ftype": "nd",
+      "od": 0.5
+    },
+    {
+      "id": "pds",
+      "type": "detector",
+      "name": "Sample detector",
+      "x": 120,
+      "y": 0,
+      "angle": 180
+    },
+    {
+      "id": "pdr",
+      "type": "detector",
+      "name": "Reference detector",
+      "x": 40,
+      "y": 45,
+      "angle": 270
+    },
+    {
+      "id": "gen",
+      "type": "elec",
+      "kind": "sig",
+      "name": "1 kHz square",
+      "x": -40,
+      "y": -40,
+      "angle": 0,
+      "wave": "square",
+      "f": 1000,
+      "amp": 0.5,
+      "offset": -0.5
+    },
+    {
+      "id": "node",
+      "type": "elec",
+      "kind": "node",
+      "name": "Sync",
+      "x": 135,
+      "y": -40,
+      "angle": 0
+    },
+    {
+      "id": "lis",
+      "type": "elec",
+      "kind": "lockin",
+      "name": "Lock-in, sample",
+      "x": 170,
+      "y": 0,
+      "angle": 0,
+      "tau": 0.1,
+      "slope": 2
+    },
+    {
+      "id": "lir",
+      "type": "elec",
+      "kind": "lockin",
+      "name": "Lock-in, reference",
+      "x": 170,
+      "y": 45,
+      "angle": 0,
+      "tau": 0.1,
+      "slope": 2
+    },
+    {
+      "id": "scope",
+      "type": "elec",
+      "kind": "scope",
+      "name": "Scope",
+      "x": 170,
+      "y": -40,
+      "angle": 0,
+      "span": 0.003
+    }
+  ],
+  "fibres": [
+    {
+      "a": [
+        "gen",
+        0
+      ],
+      "b": [
+        "laser",
+        0
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "gen",
+        1
+      ],
+      "b": [
+        "node",
+        0
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "node",
+        0
+      ],
+      "b": [
+        "lis",
+        1
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "node",
+        0
+      ],
+      "b": [
+        "lir",
+        1
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "node",
+        0
+      ],
+      "b": [
+        "scope",
+        1
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "pds",
+        0
+      ],
+      "b": [
+        "lis",
+        0
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "pds",
+        0
+      ],
+      "b": [
+        "scope",
+        0
+      ],
+      "wire": true
+    },
+    {
+      "a": [
+        "pdr",
+        0
+      ],
+      "b": [
+        "lir",
+        0
+      ],
+      "wire": true
+    }
+  ]
+}

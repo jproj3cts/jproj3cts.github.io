@@ -665,11 +665,39 @@
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
   .rt-menu.rt-menu-right { left: auto; right: 0; }
+  /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
+     the row lit in the accent colour under the pointer, submenus to the side */
+  .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
+  .rt-imenu > button, .rt-imenu > .rt-sub { display: flex; align-items: center; gap: 0.55rem; width: 100%; box-sizing: border-box; padding: 0.3rem 0.9rem 0.3rem 0.6rem;
+    font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); background: none; border: 0; border-radius: 0; text-align: left; cursor: pointer; white-space: nowrap; }
+  .rt-imenu .ic { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.75; }
+  .rt-menu.rt-imenu button .k { float: none; margin-left: auto; padding-left: 1.5rem; font: 0.75rem var(--jek-mono); color: var(--jek-ink-soft); }
+  .rt-imenu > button:hover, .rt-imenu > button:focus-visible, .rt-imenu > .rt-sub:hover, .rt-imenu > .rt-sub:focus-within { background: var(--jek-cyan); color: #fff; outline: none; }
+  .rt-menu.rt-imenu > button:hover .k, .rt-menu.rt-imenu > button:focus-visible .k { color: rgba(255,255,255,0.85); }
+  .rt-imenu > button:hover .ic, .rt-imenu > .rt-sub:hover > .ic { opacity: 1; }
+  .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
+  .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
+  .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
+  .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
+  .rt-imenu .rt-dot { margin-left: 0.35rem; }
+  .rt-sub { position: relative; }
+  .rt-sub::after { content: '\25b8'; margin-left: auto; padding-left: 1.5rem; font-size: 0.7rem; opacity: 0.7; }
+  .rt-sub > .rt-menu { display: none; position: absolute; top: -5px; left: 100%; min-width: 12rem; }
+  .rt-sub.rt-subleft > .rt-menu { left: auto; right: 100%; }
+  .rt-sub:hover > .rt-menu, .rt-sub:focus-within > .rt-menu { display: flex; }
+  .rt-sub > .rt-menu > button { color: var(--jek-ink); }
+  /* the menu bar's own items: flat words, lit on hover, as a menu bar's */
+  .rt-btn.rt-mbar { background: none; border-color: transparent; font-weight: 600; }
+  .rt-btn.rt-mbar:hover, .rt-btn.rt-mbar[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
+  .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
   @media (max-width: 600px) {
     #btnExamples, #btnShare, #btnMeasure, .rt-wide { display: none; }
-    .rt-menu button.rt-narrow { display: block; }
+    .rt-menu button.rt-narrow { display: flex; }
+    /* submenus open in place, under their item */
+    .rt-sub { flex-wrap: wrap; }
+    .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
@@ -766,18 +794,23 @@
         <div class="rt-more rt-file">
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
           <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
-          <div class="rt-menu" id="fileMenu" role="menu" hidden>
-            <button type="button" role="menuitem" class="rt-narrow" data-click="btnExamples">Examples…</button>
-            <button type="button" role="menuitem" class="rt-narrow" data-click="btnShare">Copy a share link</button>
-            <button type="button" role="menuitem" id="btnNew">New bench</button>
-            <button type="button" role="menuitem" id="btnOpen">Open a .jekray file…</button>
-            <button type="button" role="menuitem" id="btnPasteProj" title="Such as one an AI assistant wrote; Ctrl+V on the bench does the same">Open pasted text…</button>
-            <button type="button" role="menuitem" id="btnSnaps" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-            <button type="button" role="menuitem" id="btnImport">Import a lens (.zmx)…</button>
+          <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
+            <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
+            <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
+            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-export="png">Export layout as PNG</button>
-            <button type="button" role="menuitem" data-export="svg">Export layout as SVG (vector)</button>
-            <button type="button" role="menuitem" data-export="pdf">Export layout as PDF (vector)</button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-icon="vector">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf">PDF (vector)</button>
+              </div>
+            </div>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
@@ -788,26 +821,28 @@
           <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
           <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
         </div>
-        <button class="rt-btn" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
+        <button class="rt-btn rt-mbar" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
         <div class="rt-more">
-          <button class="rt-btn" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
-          <div class="rt-menu" id="viewMenu" role="menu" hidden>
-            <button type="button" role="menuitem" class="rt-narrow" data-click="btnMeasure">Measure<span class="k">M</span></button>
-            <button type="button" role="menuitem" id="btnFit">Fit view</button>
-            <button type="button" role="menuitem" id="btnZoomSel">Zoom to selection<span class="k">Z</span></button>
+          <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
+          <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
+            <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
+            <button type="button" role="menuitem" data-icon="ruler" data-click="btnMeasure">Measure<span class="k">M</span></button>
             <div class="sep"></div>
-            <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true">Parts rail on the bench</button>
+            <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
+            <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
           </div>
         </div>
         <div class="rt-more">
-          <button class="rt-btn" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps ▾</button>
-          <div class="rt-menu" id="sweepsMenu" role="menu" hidden>
-            <button type="button" role="menuitem" id="btnPlayAll" disabled>Play all</button>
-            <button type="button" role="menuitem" id="btnPauseAll" disabled>Pause all</button>
-            <button type="button" role="menuitem" id="btnSync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
+          <button class="rt-btn rt-mbar" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps</button>
+          <div class="rt-menu rt-imenu" id="sweepsMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnPlayAll" data-icon="play" disabled>Play all</button>
+            <button type="button" role="menuitem" id="btnPauseAll" data-icon="pause" disabled><span class="lbl">Pause all</span></button>
+            <button type="button" role="menuitem" id="btnSync" data-icon="sync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnOptimise" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
-            <button type="button" role="menuitem" id="btnTol" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
+            <button type="button" role="menuitem" id="btnOptimise" data-icon="target" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
+            <button type="button" role="menuitem" id="btnTol" data-icon="dice" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
+            <div class="sep"></div>
             <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
           </div>
         </div>
@@ -817,15 +852,19 @@
           <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
           <div class="rt-more">
             <button class="rt-btn rt-help" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
-            <div class="rt-menu rt-menu-right" id="helpMenu" role="menu" hidden>
-              <button type="button" role="menuitem" id="btnHelp">Keyboard and mouse shortcuts<span class="k">?</span></button>
-              <button type="button" role="menuitem" data-tour="focus">Tour: focus a laser beam</button>
-              <button type="button" role="menuitem" data-tour="michelson">Tour: build a Michelson</button>
+            <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
+              <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
+                <div class="rt-menu rt-imenu" role="menu">
+                  <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
+                  <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
+                </div>
+              </div>
               <div class="sep"></div>
-              <button type="button" role="menuitem" id="btnNews">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
-              <button type="button" role="menuitem" id="btnCite">Cite JEKray2D</button>
-              <button type="button" role="menuitem" id="btnBug">Report a bug</button>
-              <button type="button" role="menuitem" id="btnExp" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray2D</button>
+              <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
+              <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
               <div class="sep"></div>
               <span class="rt-menunote">JEKray2D <span id="appVersion"></span></span>
             </div>
@@ -10514,11 +10553,11 @@ function updateSweepButtons() {
   document.getElementById('btnPlayAll').disabled = !total || playing.size >= total;
   document.getElementById('btnSync').disabled = !total;
   pa.disabled = !playing.size;
-  pa.textContent = playing.size ? 'Pause all (' + playing.size + ')' : 'Pause all';
+  (pa.querySelector('.lbl') || pa).textContent = playing.size ? 'Pause all (' + playing.size + ')' : 'Pause all';
   // the menu's button shows when sweeps are playing
   const sb = document.getElementById('btnSweeps');
   sb.classList.toggle('playing', playing.size > 0);
-  sb.textContent = (playing.size ? 'Sweeps \u25b6 ' + playing.size : 'Sweeps') + ' \u25be';
+  sb.textContent = playing.size ? 'Sweeps \u25b6 ' + playing.size : 'Sweeps';
 }
 
 /* ==========================================================================
@@ -20495,7 +20534,33 @@ for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['bt
 }
 document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
 // the menus' stand-ins for the bar's own buttons (a phone hides those)
-for (const m of ['fileMenu', 'viewMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) document.getElementById(b.dataset.click).click(); });
+for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+/* the menus' icons: small line drawings on a 16 px square, in the text's colour, as a drawing
+   program's menus have them; and a tick for an option that is on */
+const MENU_ICONS = {
+  new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5',
+  paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', history: 'M8 2.5A5.5 5.5 0 1 1 2.6 7 M2.5 3V7H6.5 M8 5V8.5L10.5 10',
+  save: 'M2.5 2.5H11.5L13.5 4.5V13.5H2.5Z M5 2.5V6H10.5V2.5 M5 13.5V9.5H11V13.5', import: 'M8 1.5V10 M4.5 6.5L8 10L11.5 6.5 M2.5 10.5V14H13.5V10.5',
+  export: 'M8 10.5V2 M4.5 5.5L8 2L11.5 5.5 M2.5 10.5V14H13.5V10.5', image: 'M2 3H14V13H2Z M2 11L6 7L9 10L11 8L14 11 M10.5 5.6A0.9 0.9 0 1 0 10.49 5.6',
+  vector: 'M3 13C5 4 11 12 13 3 M2 12H4V14H2Z M12 2H14V4H12Z', pdf: 'M4 1.5H9.5L12.5 4.5V14.5H4Z M6 9H10 M6 11.5H10 M6 6.5H8',
+  gallery: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', link: 'M6.5 9.5L9.5 6.5 M7 4.5L8.5 3A2.5 2.5 0 0 1 13 6.5L11.5 8 M9 11.5L7.5 13A2.5 2.5 0 0 1 3 9.5L4.5 8',
+  fit: 'M2 5.5V2H5.5 M10.5 2H14V5.5 M14 10.5V14H10.5 M5.5 14H2V10.5', zoom: 'M7 2.5A4.5 4.5 0 1 1 6.99 2.5 M10.3 10.3L14 14 M5 7H9 M7 5V9',
+  ruler: 'M1.5 10.5L10.5 1.5L14.5 5.5L5.5 14.5Z M4.5 7.5L6 9 M6.5 5.5L8.5 7.5 M8.5 3.5L10 5', parts: 'M8 2V14 M2 8H14',
+  check: 'M3 8.5L6.5 12L13 4.5', play: 'M4.5 2.5L13 8L4.5 13.5Z', pause: 'M4.5 2.5V13.5 M11.5 2.5V13.5',
+  sync: 'M13 6A5.2 5.2 0 0 0 3.4 4.6 M3 2V5H6 M3 10A5.2 5.2 0 0 0 12.6 11.4 M13 14V11H10', target: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5A3.5 3.5 0 1 1 7.99 4.5 M8 7.5A0.5 0.5 0 1 1 7.99 7.5',
+  dice: 'M2.5 2.5H13.5V13.5H2.5Z M5.5 5.5H5.6 M10.5 5.5H10.6 M8 8H8.1 M5.5 10.5H5.6 M10.5 10.5H10.6', keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H4.1 M6.5 6.5H6.6 M9 6.5H9.1 M11.5 6.5H11.6 M4.5 9.5H11.5',
+  flag: 'M3 14.5V2 M3 2.5H12L10 5.5L12 8.5H3', beam: 'M1.5 8H6 M6 8L14 4 M6 8L14 12 M5.5 5V11', split: 'M1.5 8H14.5 M8 1.5V14.5 M5 5L11 11',
+  star: 'M8 1.5L9.9 5.6L14.3 6L11 9L12 13.5L8 11.2L4 13.5L5 9L1.7 6L6.1 5.6Z', quote: 'M3 4H7V8H5L3.5 12 M9 4H13V8H11L9.5 12',
+  bug: 'M5 6.5A3 3.5 0 0 1 11 6.5V10A3 3.5 0 0 1 5 10Z M8 6.5V13 M5 8.5H2 M11 8.5H14 M5.5 5L3.5 3 M10.5 5L12.5 3 M5 11.5L3 13.5 M11 11.5L13 13.5',
+  flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7',
+};
+for (const n of document.querySelectorAll('.rt-imenu [data-icon]')) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', MENU_ICONS[n.dataset.icon] || '');
+  svg.append(p); n.prepend(svg);
+}
 // the experimental features' box opens from the Help menu, which closes as it does
 document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
 document.getElementById('btnSave').addEventListener('click', saveFile);

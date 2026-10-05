@@ -5,7 +5,11 @@
 import { me } from './users.js';
 import { zip } from './zip.js';
 
-const safe = (s) => (s || 'Untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Untitled';
+// A file or folder name that every unzip tool keeps inside the folder it
+// unzips into: no slashes or reserved characters, and no leading dots (so
+// never '.' or '..').
+const safe = (s) =>
+  String(s || 'Untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').trim().slice(0, 80) || 'Untitled';
 
 export async function exportAll(env, user) {
   const account = await me(env, user);

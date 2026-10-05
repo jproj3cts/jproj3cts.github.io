@@ -2,6 +2,7 @@
 // The app (https://jeksys.net) is the only browser caller; see README.md.
 
 import { checkOrigin, corsHeaders, preflight } from './http.js';
+import { overLimit, readCapped } from './limits.js';
 import { Router } from './router.js';
 import { deleteAccount } from './account.js';
 import { callback, start, unlink } from './auth.js';
@@ -15,6 +16,16 @@ import { me } from './users.js';
 import { ApiError, errorResponse, json } from './util.js';
 
 const VERSION = '0.1.0';
+// a bench (2 MB) and its JSON wrapping, with room to spare
+const MAX_BODY = 2 * 1024 * 1024 + 256 * 1024;
+
+async function purgeExpired(env) {
+  const t = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(t),
+    env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(t),
+  ]);
+}
 
 const router = new Router()
   .on('GET', '/v1/health', async (req, env) => {
@@ -135,8 +146,10 @@ const router = new Router()
 
 export default {
   // daily: empty the bin of benches deleted more than 30 days ago
+  // and clear out expired sessions and abandoned sign-ins
   async scheduled(event, env, ctx) {
     ctx.waitUntil(B.purgeBin(env));
+    ctx.waitUntil(purgeExpired(env));
   },
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return preflight(req, env);
@@ -148,6 +161,15 @@ export default {
       if (!hit) throw new ApiError(404, 'not_found', 'No such endpoint.');
       if (hit.allow) throw new ApiError(405, 'method_not_allowed', `Use ${hit.allow.join(' or ')}.`);
       checkOrigin(req, env, hit.route.opts.anyOrigin);
+      if (await overLimit(req, env, url.pathname)) {
+        throw new ApiError(429, 'slow_down', 'Too many requests just now. Please wait a minute and try again.', { retry_after: 60 });
+      }
+      // every body is read here, at most MAX_BODY bytes, whatever the request says its length is
+      if (req.body && req.method !== 'GET' && req.method !== 'HEAD') {
+        const bytes = await readCapped(req, MAX_BODY);
+        if (!bytes) throw new ApiError(413, 'too_large', 'That request is too large.');
+        req = new Request(req, { body: bytes });
+      }
       res = await hit.route.handler(req, env, ctx, hit.params);
     } catch (err) {
       if (!(err instanceof ApiError)) {
@@ -160,6 +182,12 @@ export default {
     for (const [k, v] of Object.entries(corsHeaders(req, env))) headers.set(k, v);
     if (ctx.setCookie) headers.append('Set-Cookie', ctx.setCookie);
     if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'no-store');   // a thumbnail says otherwise
+    // nothing here is a page: never sniffed as one, framed, or sent anywhere but by HTTPS
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('Strict-Transport-Security', 'max-age=31536000');
+    headers.set('Referrer-Policy', 'no-referrer');
+    headers.set('X-Frame-Options', 'DENY');
+    if (res.status === 429) headers.set('Retry-After', '60');
     return new Response(res.body, { status: res.status, headers });
   },
 };

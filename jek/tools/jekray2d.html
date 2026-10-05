@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- What this page may load and talk to: itself and the JEKray2D Pro API. The app's own code
+     is inline and compiles mask formulas, hence 'unsafe-inline' and 'unsafe-eval'; what the
+     policy adds is that nothing here can send data, or load images or code, from anywhere else. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>JEKray2D</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
@@ -3691,7 +3695,8 @@ function compileMaskExpr(src) {
     if (tk.t === 'id') {
       i++;
       if (isOp('(')) {
-        const F = MASK_FNS[tk.v];
+        // own names only: never 'constructor' and the like from Object's prototype
+        const F = Object.hasOwn(MASK_FNS, tk.v) ? MASK_FNS[tk.v] : null;
         if (!F) throw new Error('no function \u201c' + tk.v + '\u201d');
         i++;
         const args = [];
@@ -3700,7 +3705,7 @@ function compileMaskExpr(src) {
         if (F[1] >= 0 && args.length !== F[1]) throw new Error(tk.v + ' takes ' + F[1] + ' argument' + (F[1] === 1 ? '' : 's'));
         return F[0] + '(' + args.join(',') + ')';
       }
-      if (!(tk.v in MASK_VARS)) throw new Error('no variable \u201c' + tk.v + '\u201d');
+      if (!Object.hasOwn(MASK_VARS, tk.v)) throw new Error('no variable \u201c' + tk.v + '\u201d');
       return '(' + MASK_VARS[tk.v] + ')';
     }
     if (isOp('(')) { i++; const e = ternary(); need(')'); return e; }

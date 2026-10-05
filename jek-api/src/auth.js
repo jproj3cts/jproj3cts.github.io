@@ -3,7 +3,7 @@
 // provider sends them back to /auth/<provider>/callback; we open a session
 // and send them back to the app.
 //
-// The state lives in KV for 10 minutes and is also tied to this browser by a
+// The state lives in D1 for 10 minutes and is also tied to this browser by a
 // short-lived cookie, so a sign-in started elsewhere (login CSRF) is refused.
 // Google and Microsoft also get PKCE. Accounts are never merged on a matching email: a
 // second provider is attached only by a signed-in person, from the app.
@@ -163,11 +163,9 @@ export async function start(req, env, ctx, { provider: name }) {
   }
   const state = newToken();
   const verifier = p.pkce ? newToken() + newToken() : null;
-  await env.AUTH.put(
-    `state:${await sha256(state)}`,
-    JSON.stringify({ provider: name, verifier, ret, linkUser }),
-    { expirationTtl: STATE_TTL },
-  );
+  await env.DB.prepare('INSERT INTO oauth_states (hash, data, expires_at) VALUES (?, ?, ?)')
+    .bind(await sha256(state), JSON.stringify({ provider: name, verifier, ret, linkUser }), now() + STATE_TTL * 1000)
+    .run();
   const q = new URLSearchParams({
     client_id: p.clientId(env),
     response_type: 'code',
@@ -201,13 +199,15 @@ export async function callback(req, env, ctx, { provider: name }) {
   const state = url.searchParams.get('state') || '';
   const clear = stateCookie('', 0);
 
-  // The state must be one we issued, to this browser, for this provider.
-  const key = `state:${await sha256(state)}`;
-  const saved = state && (await env.AUTH.get(key, 'json'));
+  // The state must be one we issued, to this browser, for this provider, and is
+  // used up here whatever happens next.
+  const row = state && /^[0-9a-f]{64}$/.test(state)
+    ? await env.DB.prepare('DELETE FROM oauth_states WHERE hash = ? RETURNING data, expires_at').bind(await sha256(state)).first()
+    : null;
+  const saved = row && row.expires_at > now() ? JSON.parse(row.data) : null;
   if (!saved || saved.provider !== name || cookie(req, STATE_COOKIE) !== state) {
     return redirect(withOutcome(safeReturn(env, null), 'expired'), [clear]);
   }
-  await env.AUTH.delete(key);
   const ret = saved.ret;
 
   if (url.searchParams.get('error') || !url.searchParams.get('code')) {

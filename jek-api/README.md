@@ -67,7 +67,15 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   (licence, tier, monthly counts, what it covers, invitations), invitations by
   email, and taking people off or back by email, answering the same whether
   or not the address has an account. They never see who uses it.
-- A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
+- Security (October 2026 pass): rate limits with Cloudflare's rate limiting
+  bindings (`src/limits.js`: sign-in and /ops per address, changes and slow
+  actions per person); every body capped at 2.25 MB however it is sent;
+  OAuth state in D1 (`oauth_states`, used once) rather than KV; nosniff,
+  HSTS, no-referrer and DENY framing on every answer; export paths kept inside
+  their folder. `test/isolation.test.js` calls every route that names another
+  account's data as someone else, signed out and from another origin.
+- A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago and
+  clears expired sessions and abandoned sign-ins.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,
   `GET /v1/me/sessions`, `DELETE /v1/me/sessions/:id`, `POST /auth/signout`.

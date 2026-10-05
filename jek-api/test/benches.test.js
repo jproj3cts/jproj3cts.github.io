@@ -338,3 +338,16 @@ describe('export', () => {
     expect(files['My benches/Same.jekray']).toBe(bench('Same'));
   });
 });
+
+describe('the export', () => {
+  it('keeps every path inside the folder it unzips into', async () => {
+    const s = await pro('Zip');
+    const f = (await json(await send(`/v1/workspaces/${s.workspaceId}/folders`, 'POST', s.token, { name: '..' }))).body;
+    await make(s, '../../evil', { folder_id: f.id });
+    const r = await call('/v1/me/export', { token: s.token });
+    // each name appears twice in a zip: with its file, and in the index at the end
+    const names = [...new Set([...new TextDecoder('latin1').decode(new Uint8Array(await r.arrayBuffer())).matchAll(/My benches\/[^\u0000]*?\.jekray/g)].map((m) => m[0]))];
+    expect(names.length).toBe(1);
+    expect(names[0].split('/').every((p) => p !== '..' && p !== '.' && !p.startsWith('.'))).toBe(true);
+  });
+});

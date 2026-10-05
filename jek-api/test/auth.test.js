@@ -73,8 +73,9 @@ describe('start', () => {
     expect(set).toMatch(/SameSite=Lax/);
     expect(set).toMatch(/Path=\/auth/);
     // Only the hash of the state is used as the key.
-    expect(await env.AUTH.get(`state:${state}`)).toBeNull();
-    expect(await env.AUTH.get(`state:${await sha256(state)}`)).not.toBeNull();
+    const has = async (h) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM oauth_states WHERE hash = ?').bind(h).first()).n;
+    expect(await has(state)).toBe(0);
+    expect(await has(await sha256(state))).toBe(1);
   });
 
   it('sends the person to ORCID with the authenticate scope', async () => {

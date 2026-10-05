@@ -6,7 +6,8 @@ export const APP = 'https://jeksys.net';
 export const API = 'https://api.jeksys.net';
 
 export function call(path, { method = 'GET', origin = APP, token, headers = {}, body } = {}) {
-  const h = { ...headers };
+  // each call from its own address, so the per-address limits only bite where a test means them to
+  const h = { 'CF-Connecting-IP': `10.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`, ...headers };
   if (origin) h.Origin = origin;
   if (token) h.Cookie = `jek_session=${token}`;
   return exports.default.fetch(new Request(API + path, { method, headers: h, body, redirect: 'manual' }));

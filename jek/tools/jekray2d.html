@@ -17046,8 +17046,39 @@ function popTimes(F0, len, n) {
   for (let k = 0; k <= nu; k++) ts.push(len * k / nu);
   const a0 = Math.atan(F0.z / F0.zR), a1 = Math.atan((F0.z + len) / F0.zR);
   for (let k = 1; k < ng; k++) ts.push(F0.zR * Math.tan(a0 + (a1 - a0) * k / ng) - F0.z);
+  // the waist itself, where the width turns round
+  if (-F0.z > 0 && -F0.z < len) ts.push(-F0.z);
   ts.sort((a, b) => a - b);
-  return ts.filter((t, i) => t >= 0 && t <= len && (i === 0 || t - ts[i - 1] > len * 1e-4));
+  // samples closer than this are one: a part of the length, or of the Rayleigh range when that is
+  // shorter (a long leg from a tight focus keeps the samples that show its first few microns)
+  const gap = Math.min(len * 1e-4, 0.05 * Math.max(1e-12, F0.zR));
+  const base = ts.filter((t, i) => t >= 0 && t <= len && (i === 0 || t - ts[i - 1] > gap));
+  // Between those, the width may still change a long way: past a tight focus the Gouy samples
+  // all fall within a few Rayleigh ranges and the even ones are far apart, so the cone just
+  // before and after the waist was drawn as one thin slice then a sudden full one. Extra
+  // samples go in wherever the width would change by more than WSTEP, spaced evenly in its
+  // logarithm on the same side of the waist, as a spreading beam's width grows.
+  const WSTEP = 1.15, EXTRA = 96, zR = Math.max(1e-12, F0.zR);
+  const wOf = t => Math.sqrt(1 + ((F0.z + t) / zR) ** 2);
+  const out = [base[0]];
+  let extra = 0;
+  for (let i = 1; i < base.length; i++) {
+    const a = base[i - 1], b = base[i], ua = (F0.z + a) / zR, ub = (F0.z + b) / zR;
+    const r = wOf(b) / wOf(a), ratio = r > 1 ? r : 1 / r;
+    if (ratio > WSTEP && ua * ub > 0 && extra < EXTRA) {
+      const m = Math.min(EXTRA - extra, Math.ceil(Math.log(ratio) / Math.log(WSTEP)) - 1);
+      // evenly in log width: w = sqrt(1 + u^2), so u steps geometrically in sqrt(w^2 - 1)
+      const la = Math.log(wOf(a)), lb = Math.log(wOf(b)), sg = Math.sign(ua);
+      for (let k = 1; k <= m; k++) {
+        const w = Math.exp(la + (lb - la) * k / (m + 1)), u = sg * Math.sqrt(Math.max(0, w * w - 1));
+        const t = u * zR - F0.z;
+        if (t > out[out.length - 1] && t < b) out.push(t);
+      }
+      extra += m;
+    }
+    out.push(b);
+  }
+  return out;
 }
 
 function popSlices(items, perIn) {
@@ -21229,7 +21260,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 5 October 2026', [
-    'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden.',
+    'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',
     'A <b>fibre-coupled LED</b>, and unpolarised fibre lasers. In fibre, broadband light is followed across its band, so filters, WDMs and Bragg gratings shape it, and it beats with itself on a photodetector.',
@@ -22298,7 +22329,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     fieldDrawn() {
       traceScene();
       const R = popRun(lastTrace.beams, popSources(), { draw: true });
-      return R.segs.filter(sg => sg.draw).map(sg => ({ at: sg.b.ev && sg.b.ev.el ? getEl(sg.b.ev.el).name : null, members: sg.draw.members, Ys: [sg.draw.Ys[0], sg.draw.Ys[sg.draw.Ys.length - 1]] }));
+      return R.segs.filter(sg => sg.draw).map(sg => ({ at: sg.b.ev && sg.b.ev.el ? getEl(sg.b.ev.el).name : null, members: sg.draw.members,
+        Ys: [sg.draw.Ys[0], sg.draw.Ys[sg.draw.Ys.length - 1]], ts: Array.from(sg.draw.ts), all: Array.from(sg.draw.Ys) }));
     },
     // what the bench's field would cost, as the heavy-field notice reckons it (raw: before this computer's speed)
     fieldCost() { traceScene(); const e = fieldCost(lastTrace.beams, popSources()); return { raw: e.raw, segs: e.segs, ghost: e.ghost, heavy: e.raw > HEAVY_MS }; },

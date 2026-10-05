@@ -1467,6 +1467,27 @@ const TESTS = [
     },
   },
   {
+    name: 'A tight focus is drawn without jumps, into the trap and out of it',
+    why: 'an NA 0.8 objective focusing into a trap screen: from slice to slice the drawn half-width changes by at most 30%, and the leg after the focus is sampled within its first 10 \u00b5m. The samples near a waist sit within a few Rayleigh ranges (about 1 \u00b5m here) and the even ones were far apart, so the cone stopped short of the trap, a thin streak stood at the focus, and past it a full-height block began 0.6 mm on; on a 1000 mm leg the samples near the focus were also dropped as too close together',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('tight focus', [
+        src({ name: 'Laser', x: -30, gauss: true, w0: 3, width: 6, rays: 5, wavelength: 1064, pol: 's', popN: 128, beamView: 'field' }),
+        { type: 'mask', name: 'Objective', x: 0, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda', preset: 'custom' },
+        screen({ name: 'Trap', x: 2, length: 0.1, absorb: false }),
+      ]));
+      const drawn = J.fieldDrawn().filter(d => d.at === 'Objective' || d.at === 'Trap');
+      if (drawn.length < 2) return NaN;
+      let worst = 1, early = false;
+      for (const d of drawn) {
+        for (let i = 1; i < d.all.length; i++) { const a = d.all[i - 1], b = d.all[i]; if (a > 0 && b > 0) worst = Math.max(worst, a > b ? a / b : b / a); }
+        if (d.at === 'Trap') early = d.ts.some(t => t > 0 && t < 0.01);
+      }
+      TESTS_EXPECT.focusJump = worst;
+      return worst <= 1.3 && early ? 1 : 0;
+    },
+  },
+  {
     name: 'The field worker starts from the page\u2019s own code and traces',
     why: 'the bench works its fields out in a worker; a page-only feature used at the top level of the code (a MutationObserver, from 4 October) stopped it, and every field then ran on the page, holding it up for seconds at a time',
     want: 1, tol: 0, unit: '',

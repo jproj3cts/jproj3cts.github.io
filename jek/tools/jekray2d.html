@@ -561,6 +561,22 @@
   .rt-cloudfoot { justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .rt-cloudfoot #cloudFoot { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--jek-ink-soft); }
   .rt-ccacts { flex-wrap: wrap; }
+  /* Subscribe */
+  .rt-subtabs { display: inline-flex; gap: 0; margin-bottom: 0.8rem; }
+  .rt-subtabs .rt-btn { border-radius: 0; }
+  .rt-subtabs .rt-btn + .rt-btn { margin-left: -1px; }
+  .rt-subtabs .rt-btn[aria-checked="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-subcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; margin-bottom: 0.6rem; }
+  .rt-subcard { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.9rem 1rem; border: 1px solid var(--jek-line); border-radius: 2px; }
+  .rt-subcard h3 { margin: 0; font-size: 1rem; }
+  .rt-subcard p { margin: 0 !important; font-size: 0.85rem; }
+  .rt-subcard .rt-subprice b { font-size: 1.5rem; }
+  .rt-subcard .rt-subprice small { color: var(--jek-ink-soft); }
+  .rt-subcard .rt-btn.primary { margin-top: auto; align-self: flex-start; }
+  .rt-subcard .rt-btn:disabled { opacity: 0.45; cursor: default; }
+  .rt-subok { color: #1c7c3c; }
+  .rt-subcheck { color: var(--jek-ink-soft); }
+  .rt-subsmall { font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
   .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
@@ -1104,6 +1120,14 @@
     <p class="rt-cloudnote" id="cloudNote" hidden></p>
     <div class="rt-snaps rt-cloudlist" id="cloudList"></div>
     <div class="rt-actions rt-cloudfoot"><span id="cloudFoot"></span><button class="rt-btn primary" id="cloudClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKray2D Pro</h2>
+    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, and organise them in folders. The simulator itself stays free.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKray2D Pro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
   </dialog>
 
   <dialog class="rt-dialog" id="cloudConflict" aria-labelledby="ccTitle">
@@ -20641,6 +20665,7 @@ const MENU_ICONS = {
   flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7',
   user: 'M8 2A3 3 0 1 1 7.99 2 M2.5 14.5A5.5 5 0 0 1 13.5 14.5', signin: 'M9.5 2.5H13.5V13.5H9.5 M2 8H10 M7 5L10 8L7 11',
   signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11',
+  card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
@@ -20684,6 +20709,86 @@ function signIn(provider, link) {
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
 }
 const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
+/* ---------- JEKray2D Pro subscription ----------
+   Stripe Checkout takes the payment and Stripe's portal manages it; the plan itself only ever
+   changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
+const shortDate = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+function planText(w) {
+  const p = w.plan;
+  if (!p) return 'No subscription yet';
+  const name = p.plan === 'academic' ? 'JEKray2D Pro (academic)' : 'JEKray2D Pro';
+  if (!p.billing) return w.active ? name : 'Plan ended';
+  if (p.status === 'past_due') return w.active ? name + ': payment failed, please update your card in Billing' : 'Paused: payment failed';
+  if (!w.active) return 'Subscription ' + (p.status === 'canceled' ? 'ended' : p.status.replace(/_/g, ' '));
+  const how = p.interval === 'year' ? 'yearly' : 'monthly';
+  return name + ', ' + how + (p.cancel_at ? ', ends ' + shortDate(p.cancel_at) : p.period_end ? ', renews ' + shortDate(p.period_end) : '');
+}
+const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: (cur || 'gbp').toUpperCase(), minimumFractionDigits: pence % 100 ? 2 : 0 }).format(pence / 100);
+let subInterval = 'month';
+async function showSubscribe() {
+  const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
+  if (!dlg.open) dlg.showModal();
+  box.replaceChildren(h('p', null, 'Loading prices…'));
+  let prices;
+  try { prices = await api('/v1/billing/prices'); }
+  catch (err) { box.replaceChildren(h('p', null, 'Could not load prices: ' + err.message)); return; }
+  const mine = account && account.workspaces.find(w => w.kind === 'personal');
+  const tabs = h('div', { class: 'rt-subtabs', role: 'radiogroup', 'aria-label': 'Billing period' },
+    ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': subInterval === v ? 'true' : 'false', class: 'rt-btn', onclick: () => { subInterval = v; showSubscribe(); } }, label)));
+  const card = (tier, title, blurb, extra) => {
+    const p = prices[tier + (subInterval === 'year' ? '_yearly' : '_monthly')];
+    if (!p) return null;
+    const month = prices[tier + '_monthly'];
+    const saving = subInterval === 'year' && month ? Math.round(100 * (1 - p.amount / (12 * month.amount))) : 0;
+    const go = h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(mine.id, tier, go) }, 'Continue to payment');
+    if (extra && extra.locked) go.disabled = true;
+    return h('div', { class: 'rt-subcard' }, h('h3', null, title), h('p', { class: 'rt-subprice' }, h('b', null, money(p.amount, p.currency)), ' a ' + (subInterval === 'year' ? 'year' : 'month'), saving > 0 ? h('small', null, ' · save ' + saving + '%') : null),
+      h('p', null, blurb), extra ? extra.node : null, go);
+  };
+  const ac = account && account.academic;
+  const check = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
+    check.disabled = true; check.textContent = 'Checking…';
+    try { const r = await api('/v1/me/academic', { method: 'POST' }); account.academic = r; toast('Academic price confirmed'); }
+    catch (err) { toast(err.message, true); }
+    showSubscribe();
+  } }, 'Check that I qualify');
+  const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + ac.via + ')') : h('p', { class: 'rt-subcheck' }, 'For current students and staff of a university or similar. ', check,
+    ': we look for a university email on your Google sign-in, or a current university role on your ORCID record.');
+  box.replaceChildren(tabs, h('div', { class: 'rt-subcards' },
+    card('pro', 'JEKray2D Pro', 'For anyone: your benches in the cloud, their history, on every device.'),
+    card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
+}
+async function startCheckout(ws, tier, btn) {
+  btn.disabled = true; btn.textContent = 'Opening secure payment…';
+  try {
+    const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekbilling'); ret.searchParams.delete('jekauth');
+    if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+    const { url } = await api('/v1/workspaces/' + ws + '/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: tier, interval: subInterval, return: ret.toString() }) });
+    location.href = url;
+  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = 'Continue to payment'; }
+}
+async function openPortal(ws) {
+  try {
+    const ret = new URL(location.href); ret.hash = '';
+    const { url } = await api('/v1/workspaces/' + ws + '/billing/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ return: ret.toString() }) });
+    location.href = url;
+  } catch (err) { toast(err.message, true); }
+}
+async function switchInterval(ws, interval) {
+  if (!confirm(interval === 'year' ? 'Switch to yearly billing? You are charged for the year now, less what is left of this month.' : 'Switch to monthly billing? What is left of your year is credited against the coming months.')) return;
+  try { await api('/v1/workspaces/' + ws + '/billing/interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interval }) }); toast('Billing switched to ' + (interval === 'year' ? 'yearly' : 'monthly')); loadAccount(); }
+  catch (err) { toast(err.message, true); }
+}
+// back from Stripe Checkout: the webhook may take a moment to arrive
+async function awaitPlan(tries = 12) {
+  for (let i = 0; i < tries; i++) {
+    await new Promise(r => setTimeout(r, i ? 2000 : 500));
+    try { account = await api('/v1/me'); } catch (err) { continue; }
+    const mine = account.workspaces.find(w => w.kind === 'personal');
+    if (mine && mine.active) { fillAccount(); toast('Welcome to JEKray2D Pro. Thank you!'); if (cloud && cloud.dirty) cloudPush({ quiet: true }); return; }
+  }
+  fillAccount(); toast('Payment received. Your plan will show here in a minute or two; reload if it does not.');
+}
 function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
   const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
@@ -20696,9 +20801,19 @@ function fillAccount() {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
     const orcid = ids.find(i => i.provider === 'orcid');
-    const plan = w => w.active ? 'JEKray2D Pro' : w.plan ? 'Subscription ' + w.plan.status.replace(/_/g, ' ') : 'No subscription yet';
     const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
-      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + plan(w))), h('div', { class: 'sep' })];
+      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))), h('div', { class: 'sep' })];
+    // the personal workspace's plan: subscribe, or manage it
+    const mine = ws.find(w => w.kind === 'personal');
+    if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKray2D Pro…', () => showSubscribe()));
+    if (mine && mine.active && mine.plan && mine.plan.billing) {
+      rows.push(item('card', 'Billing and invoices…', () => openPortal(mine.id)));
+      if (!mine.plan.cancel_at && mine.plan.interval) {
+        const other = mine.plan.interval === 'month' ? 'year' : 'month';
+        rows.push(item('sync', other === 'year' ? 'Switch to yearly billing' : 'Switch to monthly billing', () => switchInterval(mine.id, other)));
+      }
+    }
+    if (rows[rows.length - 1].className !== 'sep') rows.push(h('div', { class: 'sep' }));
     for (const p of ['google', 'orcid']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
@@ -20782,7 +20897,7 @@ async function cloudPush(opts = {}) {
       if (cloud !== link) return false;
       cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
     }
-    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKray2D Pro'); if (!opts.quiet) toast('Saving to the cloud needs JEKray2D Pro. This bench is still kept in this browser.', true); }
+    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKray2D Pro'); if (!opts.quiet) toast('Saving to the cloud needs JEKray2D Pro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
     else if (err.status === 401) { cloudSay('Not saved: signed out'); account = null; fillAccount(); }
     else if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); }
     else if (err.status) { cloudSay('Not saved to the cloud: ' + err.message); }
@@ -20954,6 +21069,7 @@ function cloudMenuShown() {
     document.getElementById('cloudDialog').showModal(); fillCloud();
   });
   document.getElementById('cloudClose').addEventListener('click', () => document.getElementById('cloudDialog').close());
+  document.getElementById('subClose').addEventListener('click', () => document.getElementById('subDialog').close());
 }
 {
   // the outcome of a sign-in, reported once, and taken out of the address
@@ -20963,6 +21079,13 @@ function cloudMenuShown() {
     window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
     const m = AUTH_OUTCOMES[outcome];
     if (m) setTimeout(() => toast(m[0], m[1]), 600);
+  }
+  const billing = q.get('jekbilling');
+  if (billing) {
+    q.delete('jekbilling');
+    window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+    if (billing === 'cancelled') setTimeout(() => toast('Payment cancelled: nothing was charged'), 600);
+    if (billing === 'success' && exp('cloud')) setTimeout(() => awaitPlan(), 300);
   }
   accountShown();
 }

@@ -10,7 +10,7 @@ Nothing here reads or changes URPG's resources.
 
 ## Status
 
-Steps 1, 2 and 4 of the build order (benches before teams).
+Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams).
 
 - `migrations/0001_init.sql`: every table in the design's data model,
   including the ones for later phases (institution domains, jobs, audit).
@@ -24,6 +24,12 @@ Steps 1, 2 and 4 of the build order (benches before teams).
   R2 (on create, on Save, every 10 minutes of editing, before a restore;
   the last 50 kept, then one a day for 90 days); folders; `GET /v1/me/export`
   as a zip. Saving needs an active plan; reading and export never do.
+- Stripe: Checkout for the individual and academic plans, the customer
+  portal, switching monthly/yearly, and the webhook at `/stripe/webhook`
+  that mirrors each subscription (7 days' grace after a failed payment).
+  Prices are found by lookup key: `pro_monthly`, `pro_yearly`,
+  `academic_monthly`, `academic_yearly`. The academic price needs a
+  university email or a current university role on ORCID (`/v1/me/academic`).
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,
@@ -33,7 +39,7 @@ In the app, the Sign in button appears with the experimental feature
 "JEKray2D Pro accounts" switched on; signed in, the File menu gains My
 benches and Save to cloud.
 
-Next: workspaces, members, invitations and roles; then Stripe.
+Next: workspaces, members, invitations, roles and team billing.
 
 ## Giving an account a plan by hand
 
@@ -78,4 +84,8 @@ npm run migrate:remote
 npm run deploy
 ```
 
-Secrets are added with `npx wrangler secret put NAME` and never committed.
+Secrets are added with `npx wrangler secret put NAME` and never committed:
+`GOOGLE_CLIENT_SECRET`, `ORCID_CLIENT_SECRET`, `STRIPE_SECRET_KEY` (a
+restricted key: write on Checkout Sessions, Customers, Customer portal and
+Subscriptions; read on Prices, Products and Invoices) and
+`STRIPE_WEBHOOK_SECRET`.

@@ -22,6 +22,12 @@
   .product-info li::marker { color: var(--jek-orange); }
   .product-actions a { text-decoration: none; }
   .rt-feature p a, .rt-examples > p a, .product-info li a { color: var(--jek-cyan-dark); }
+  /* JEKray2D Pro's own button: black, beside the orange Launch */
+  .rt-pro-button, .rt-feature a.rt-pro-button { display: inline-block; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; text-decoration: none; background: #111; border: 2px solid #111; border-radius: 6px; transition: background-color 0.12s ease, transform 0.06s ease; }
+  .rt-pro-button:hover, .rt-feature a.rt-pro-button:hover { background: #333; border-color: #333; color: #fff; text-decoration: none; }
+  .rt-pro-button:active { transform: translateY(1px); }
+  @media (max-width: 520px) { .product-actions .rt-pro-button { flex: 1 1 100%; text-align: center; } }
+  .rt-pro-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-notify { margin: 0.9rem 0 0; font-size: 0.875rem; color: var(--jek-ink-soft); }
   .rt-notify a { color: var(--jek-cyan-dark); font-weight: 600; }
   .rt-video { width: 100%; max-width: 1040px; margin: 0 0 2.75rem; text-align: left; }
@@ -187,6 +193,7 @@
         <p class="product-price">Free. Runs in your browser. <a class="licence-link" href="/jek/tools/jekray2d-licence.html">Licence terms</a></p>
         <div class="product-actions accent-orange">
           <a class="buy-button" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
+          <a class="rt-pro-button" href="#pro">JEKray2D Pro</a>
           <a class="quote-button" href="#examples">Try an example</a>
         </div>
         <p class="rt-notify"><strong>JEKray2D Pro</strong> keeps your benches in the cloud, with their history, on any computer: &pound;9.99 a month or &pound;99 a year, and half that for students and university staff. <a href="#pro">About Pro</a> &middot; <a href="/jek/universities.html">For universities</a></p>
@@ -352,6 +359,7 @@
         <p>Sign in with Google, Microsoft (a university or work account) or ORCID, and your benches save to the cloud as you work. Open them on any computer, go back to any earlier version, and keep them in folders, with a picture of each to find them by. Export everything at any time, and delete your account whenever you like.</p>
         <p>&pound;9.99 a month or &pound;99 a year. Students and university staff pay half: &pound;4.99 a month or &pound;49 a year. If a subscription ends, every bench can still be opened and exported. Subscribe from the account menu in JEKray2D; the simulator itself stays free, with or without an account.</p>
         <p>For a whole university, one licence covers everyone there, with no seats to manage: see <a href="/jek/universities.html">JEKray2D Pro for universities</a>.</p>
+        <p><a class="rt-pro-button" href="/jek/tools/jekray2d.html#pro">Get JEKray2D Pro</a></p>
         <p><a href="/jek/terms.html">JEKray2D Pro Terms</a> &middot; <a href="/jek/privacy.html">Privacy</a> &middot; <a href="/jek/security.html">Security</a></p>
       </div>
     </section>

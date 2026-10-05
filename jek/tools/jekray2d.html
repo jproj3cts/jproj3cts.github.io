@@ -21243,11 +21243,23 @@ async function loadAccount() {
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 const accountsOn = () => !TEST_MODE && !EMBED;
+let accountLoaded = null;       // the first look at the account, for what waits on it (#pro)
+/* #pro, from the product page's JEKray2D Pro buttons: the subscription box when signed in,
+   the sign-in choices when not, and a word when Pro is already theirs */
+async function proLink() {
+  await accountLoaded;
+  const mine = account && account.workspaces.find(w => w.kind === 'personal');
+  if (mine && mine.active) { toast(account.licence ? 'You have JEKray2D Pro through ' + account.licence.name : 'You already have JEKray2D Pro'); return; }
+  if (account) { showSubscribe(); return; }
+  const btn = document.getElementById('btnAcct');
+  if (btn && document.getElementById('acctMenu').hidden) btn.click();
+  toast('Sign in to subscribe to JEKray2D Pro');
+}
 function accountShown() {
   const on = accountsOn();
   document.getElementById('acct').hidden = !on;
   cloudMenuShown();
-  if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); loadAccount(); }
+  if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); accountLoaded = loadAccount(); }
 }
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -22531,7 +22543,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   if (EMBED) embedMode();
   const shared = !TEST_MODE && location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/);
   if (shared) { if (!EMBED) window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
-  else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();
@@ -22780,13 +22792,13 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
-  // #examples opens the gallery, #tour=<name> starts a tour (the product page links to both)
+  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKray2D Pro (the product page links to all three)
   const helpLink = () => {
-    const tr = location.hash.match(/^#tour=([a-z]+)/);
-    if (location.hash !== '#examples' && !(tr && TOURS[tr[1]])) return false;
+    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro';
+    if (location.hash !== '#examples' && !pro && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
-    setTimeout(() => { if (tr) startTour(tr[1]); else openGallery(); }, 0);
+    setTimeout(() => { if (tr) startTour(tr[1]); else if (pro) proLink(); else openGallery(); }, 0);
     return true;
   };
   if (!TEST_MODE && !EMBED) helpLink();

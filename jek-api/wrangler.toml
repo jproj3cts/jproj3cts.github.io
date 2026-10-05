@@ -22,7 +22,7 @@ ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
 # Microsoft (university and work accounts): the app registration's
 # Application (client) ID; its secret with `npx wrangler secret put MICROSOFT_CLIENT_SECRET`.
 # Empty: Microsoft sign-in is not offered.
-MICROSOFT_CLIENT_ID = ""
+MICROSOFT_CLIENT_ID = "cd167344-4d1b-407d-8d8c-f00e52ddce2c"
 
 # Accounts, sessions, workspaces and bench heads.
 [[d1_databases]]

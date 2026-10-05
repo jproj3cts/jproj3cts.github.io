@@ -6,3 +6,7 @@ exclude:
   - worker
   - jek-api
   - README.md
+# served although it starts with a dot: Microsoft checks it to confirm the
+# JEKray2D sign-in app belongs to jeksys.net
+include:
+  - .well-known

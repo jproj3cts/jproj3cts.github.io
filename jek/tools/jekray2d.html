@@ -291,6 +291,16 @@
     font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
     text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
+  /* a heavy field, said before it is worked out: top middle of the bench, with what would lighten it */
+  .rt-heavy {
+    position: absolute; z-index: 6; left: 50%; top: 2.4rem; transform: translateX(-50%); width: min(34rem, calc(100% - 2rem)); box-sizing: border-box;
+    padding: 0.6rem 0.75rem; font-size: 0.8rem; line-height: 1.4; color: #fff; background: rgba(17,17,17,0.92); border-radius: 3px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+  }
+  .rt-heavy p { margin: 0 0 0.5rem; }
+  .rt-heavy-acts { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .rt-heavy .rt-btn { font-size: 0.78rem; padding: 0.3rem 0.6rem; color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); }
+  .rt-heavy .rt-btn:hover { background: rgba(255,255,255,0.18); }
   .rt-act-text { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.3rem; line-height: 1.3; white-space: nowrap; }
   .rt-act-text span:first-child { overflow: hidden; text-overflow: ellipsis; }
   .rt-act-pct { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; }
@@ -4645,7 +4655,9 @@ function traceSceneOnce() {
               const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
               stack.push({ qShare, px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn, fo,
                 bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: par ^ 1,
-                qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid, evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }) : evR,
+                qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid,
+                // a weak reflection, followed only because ghosts are on: marked, for the field's cost
+                evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }, s.kind === 'refract' && Rs <= 0.2 && Rp <= 0.2 ? { ghost: true } : null) : evR,
                 fam, k, path: path + 'r' + bounce, tag, wk: 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
@@ -13794,8 +13806,8 @@ function renderOverview() {
   const gh = h('input', { type: 'checkbox' });
   gh.checked = project.ghosts;
   gh.addEventListener('change', () => { checkpoint(); project.ghosts = gh.checked; changed(false); });
-  panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, gh, 'Trace Fresnel reflections as ghost rays'));
-  panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'Surface losses always count against the power. With this on, the reflected part is followed as well, which is how ghosts and back-reflections show up.'));
+  panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, gh, 'Follow weak reflections (ghosts), in rays and beams'));
+  panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'The few percent a bare glass surface reflects. Its loss always counts against the power; with this on, the reflected light is followed too, which is how ghosts and back-reflections show up. Each one is another branch of a Gaussian beam to work out, so with the diffracted field shown it can slow the bench down a lot, a retroreflector\u2019s most of all.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'bench' }));
 
   panel.append(h('h3', null, 'Using the bench'));
@@ -17118,6 +17130,75 @@ function popSlices(items, perIn) {
   }
 }
 
+/* ---------- A heavy field, said before it is worked out ----------
+   What a field run will cost, from what the tracer made: the Gaussian segments each source's
+   field will carry (as popRunGen counts them), on its grid, round or 2D. The time per segment
+   was measured (round about 10 ms + 7.5e-5 N^2, 2D about 40 ms + 1.7e-3 N^2) and is scaled by
+   how fast this computer turned out to be on the runs it has finished. Past HEAVY_MS the bench
+   says so, and offers what would lighten it. */
+const HEAVY_MS = 8000;
+const fieldSpeed = { f: 1 };                    // measured over estimated, on this computer
+function fieldCost(beams, srcs) {
+  const by = new Map(srcs.map(e => [e.id, { el: e, n: 0, ghost: 0, twoD: e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e), root: 0 }]));
+  const ghostAt = new Uint8Array(beams.length);
+  beams.forEach((b, i) => {
+    const S = by.get(b.src);
+    if (!S) return;
+    ghostAt[i] = (b.ev && b.ev.ghost) || (b.parent >= 0 && ghostAt[b.parent]) ? 1 : 0;
+    if (!popRoundEv(b.ev)) S.twoD = true;
+    if (b.parent < 0) S.root = Math.max(S.root, b.w || 1);
+  });
+  beams.forEach((b, i) => {
+    const S = by.get(b.src);
+    if (!S || (b.parent >= 0 && b.w < (S.twoD ? 1e-3 : 1e-4) * (S.root || 1))) return;
+    S.n++; if (ghostAt[i]) S.ghost++;
+  });
+  let ms = 0, segs = 0, ghost = 0, worst = null;
+  for (const S of by.values()) {
+    const N = S.el.popN || 256, n = Math.min(S.n, S.twoD ? POP_MAX_SEGS_2D : POP_MAX_SEGS);
+    const per = S.twoD ? 40 + 1.7e-3 * N * N : 10 + 7.5e-5 * N * N;
+    S.ms = n * per * Math.max(1, srcModes(S.el).length);
+    // the main path is worked out whatever happens; weak reflections fill what the cap leaves
+    ms += S.ms; segs += n; ghost += clamp(n - (S.n - S.ghost), 0, S.ghost);
+    if (!worst || S.ms > worst.ms) worst = S;
+  }
+  return { ms: ms * fieldSpeed.f, raw: ms, segs, ghost, worst };
+}
+function fieldSpeedLearn(took, raw) {
+  if (!(raw > 500 && took > 0)) return;
+  const r = clamp(took / raw, 0.2, 5);
+  fieldSpeed.f = clamp(fieldSpeed.f * 0.6 + r * 0.4, 0.2, 5);
+}
+const heavy = { box: null, key: null, go: new Set(), hidden: new Set() };
+const aboutTime = ms => ms < 90000 ? 'about ' + Math.max(10, Math.round(ms / 5000) * 5) + ' s' : 'about ' + Math.round(ms / 60000) + ' min';
+// shown while a heavy field is worked out; held: the page has no worker, so it waits to be asked
+function heavyShow(key, est, held) {
+  if (TEST_MODE || heavy.hidden.has(key)) return;
+  if (!heavy.box) {
+    heavy.box = h('div', { class: 'rt-heavy', role: 'status', 'aria-live': 'polite' });
+    document.getElementById('stage').append(heavy.box);
+  }
+  heavy.key = key;
+  const S = est.worst, el = S && S.el, N = el ? el.popN : 0;
+  const what = est.segs + ' beam segment' + (est.segs === 1 ? '' : 's') + (el ? ' on a ' + (S.twoD ? N + ' \u00d7 ' + N : N + '-point round') + ' grid' : '') +
+    (est.ghost ? ', ' + est.ghost + ' of them from weak reflections' : '');
+  const act = (label, fn) => h('button', { type: 'button', class: 'rt-btn', onclick: () => { fn(); } }, label);
+  const acts = [];
+  if (est.ghost && project.ghosts) acts.push(act('Stop following weak reflections', () => { checkpoint(); project.ghosts = false; changed(true); toast('Weak reflections are no longer followed'); }));
+  if (el && N >= 512) acts.push(act('Use ' + N / 2 + ' points', () => { checkpoint(); el.popN = N / 2; changed(true); toast(el.name + ': ' + N / 2 + ' grid points'); }));
+  if (est.segs > 12 && project.minPower < 2) {
+    const f = +Math.min(2, project.minPower * 10).toPrecision(2);
+    acts.push(act('Raise the power floor to ' + f + '%', () => { checkpoint(); project.minPower = f; changed(true); toast('Power floor ' + f + '%'); }));
+  }
+  if (held) acts.push(act('Work it out anyway', () => { heavy.go.add(key); heavyHide(); schedulePop(); }));
+  else acts.push(act('Hide', () => { heavy.hidden.add(key); heavyHide(); }));
+  heavy.box.replaceChildren(
+    h('p', null, h('b', null, (held ? 'This field would take ' : 'This field will take ') + aboutTime(est.ms)), ': ' + what + '.' + (held ? ' The page would be held up while it is worked out.' : '')),
+    h('div', { class: 'rt-heavy-acts' }, ...acts));
+  heavy.box.hidden = false;
+}
+function heavyHide() { if (heavy.box) heavy.box.hidden = true; heavy.key = null; }
+
 /* Runs the field a few tens of milliseconds at a time; a change to the bench restarts it */
 function schedulePop() {
   if (popState.timer || TEST_MODE || sweepJob || fieldHeld()) return;
@@ -17126,8 +17207,10 @@ function schedulePop() {
       popState.timer = null;
       const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
       if (key === popState.key || (popState.job && popState.job.key === key)) return;
-      if (!srcs.length) { popState.result = null; popState.key = key; popState.job = null; requestRender(); return; }
-      const job = { key }, beams = lastTrace.beams;
+      if (!srcs.length) { popState.result = null; popState.key = key; popState.job = null; heavyHide(); requestRender(); return; }
+      const est = fieldCost(lastTrace.beams, srcs);
+      if (est.ms > HEAVY_MS) heavyShow(key, est, false); else heavyHide();
+      const job = { key, t0: performance.now(), raw: est.raw }, beams = lastTrace.beams;
       popState.job = job;
       fwRequest('bench', 'bench').then(o => {
         if (popState.job !== job) return;
@@ -17135,6 +17218,8 @@ function schedulePop() {
         if (!o) { requestRender(); return; }             // abandoned: the next frame asks again if still wanted
         fwMismatch(o.key === key);
         if (o.key !== key) { requestRender(); return; }
+        fieldSpeedLearn(performance.now() - job.t0, job.raw);
+        if (heavy.key === key) heavyHide();
         popState.result = fwUnpackRun(o.R, beams); popState.key = key;
         requestRender(); syncPanel();
       }).catch(() => { if (popState.job === job) popState.job = null; schedulePop(); });
@@ -17146,10 +17231,14 @@ function schedulePop() {
     const key = popKeyOf(lastTrace.beams, srcs);
     if (!popState.job || popState.job.key !== key) {
       if (key === popState.key) { popState.timer = null; popState.job = null; return; }
-      if (!srcs.length) { popState.result = null; popState.key = key; popState.timer = null; requestRender(); return; }
+      if (!srcs.length) { popState.result = null; popState.key = key; popState.timer = null; heavyHide(); requestRender(); return; }
+      // on the page a heavy field would hold everything up: it waits to be asked for
+      const est = fieldCost(lastTrace.beams, srcs);
+      if (est.ms > HEAVY_MS && !heavy.go.has(key)) { heavyShow(key, est, true); popState.timer = null; return; }
+      if (est.ms > HEAVY_MS) heavyShow(key, est, false); else heavyHide();
       // slices per segment from a rough count of the segments to come
       const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
-      popState.job = { key, gen: popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }) };
+      popState.job = { key, t0: performance.now(), raw: est.raw, gen: popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }) };
       showActivityNow();
       popState.timer = setTimeout(step, 30);    // a frame for the bar to show before the first slice
       return;
@@ -17158,6 +17247,8 @@ function schedulePop() {
     let r;
     do r = popState.job.gen.next(); while (!r.done && performance.now() < until);
     if (r.done) {
+      fieldSpeedLearn(performance.now() - popState.job.t0, popState.job.raw);
+      if (heavy.key === popState.job.key) heavyHide();
       popState.result = r.value; popState.key = popState.job.key; popState.job = null; popState.timer = null;
       requestRender(); syncPanel();
       return;
@@ -21122,7 +21213,8 @@ function cloudMenuShown() {
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
-  ['Since 1.0', '29 September \u2013 4 October 2026', [
+  ['Since 1.0', '29 September \u2013 5 October 2026', [
+    'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',
     'A <b>fibre-coupled LED</b>, and unpolarised fibre lasers. In fibre, broadband light is followed across its band, so filters, WDMs and Bragg gratings shape it, and it beats with itself on a photodetector.',
@@ -22193,6 +22285,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const R = popRun(lastTrace.beams, popSources(), { draw: true });
       return R.segs.filter(sg => sg.draw).map(sg => ({ at: sg.b.ev && sg.b.ev.el ? getEl(sg.b.ev.el).name : null, members: sg.draw.members, Ys: [sg.draw.Ys[0], sg.draw.Ys[sg.draw.Ys.length - 1]] }));
     },
+    // what the bench's field would cost, as the heavy-field notice reckons it (raw: before this computer's speed)
+    fieldCost() { traceScene(); const e = fieldCost(lastTrace.beams, popSources()); return { raw: e.raw, segs: e.segs, ghost: e.ghost, heavy: e.raw > HEAVY_MS }; },
     // Gaussian beam segments: how many there are, and how many start at an element (by name)
     beamsAt(name) { traceScene(); const el = name && this.byName(name); return lastTrace.beams.filter(b => !el || (b.ev && b.ev.el === el.id)).length; },
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Accessibility statement for JEKray2D | JEK Systems</title>
+<style>
+.main-content > ul { width: 100%; max-width: var(--jek-measure); margin: 0 0 1rem; padding-left: 1.4rem; line-height: 1.6; text-align: left; }
+.main-content > ul li { margin-bottom: 0.35rem; }
+.main-content > p a { color: var(--jek-cyan-dark); }
+.main-content > ol { width: 100%; max-width: var(--jek-measure); margin: 0 0 1rem; padding-left: 1.6rem; line-height: 1.6; text-align: left; }
+.main-content > ol li { margin-bottom: 0.4rem; }
+.main-content > ol li a, .main-content > ul li a { color: var(--jek-cyan-dark); }
+.doc-table { width: 100%; max-width: var(--jek-measure); border-collapse: collapse; margin: 0 0 1.2rem; font-size: 0.92rem; text-align: left; }
+.doc-table th, .doc-table td { border: 1px solid var(--jek-line-2); padding: 0.45rem 0.6rem; vertical-align: top; }
+.doc-table th { width: 34%; font-weight: 600; }
+.doc-table td.fill { height: 1.6rem; }
+.doc-note { width: 100%; max-width: var(--jek-measure); border-left: 3px solid var(--jek-cyan, #0a8fa8); padding: 0.4rem 0.8rem; margin: 0 0 1.2rem; text-align: left; }
+@media print { .top-container, footer, .doc-noprint { display: none !important; } .main-content { padding-top: 0 !important; } a { color: inherit !important; } }
+</style>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+</head>
+<body>
+
+  <!-- Top with Overlay -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <div class="text-overlay">JEK Systems</div>
+  </div>
+
+    <!-- Scrollable Content Area -->
+  <main class="main-content">
+    <h1 class="page-title">Accessibility statement for JEKray2D</h1>
+
+    <p><em>Version 1.0, 5 October 2026</em></p>
+
+    <p>This statement covers the JEKray2D optical bench simulator at <a href="/jek/tools/jekray2d.html">jeksys.net/jek/tools/jekray2d.html</a> and its JEKray2D Pro account features. We want as many people as possible to be able to use it, and we would rather tell you plainly what does not work yet than leave you to find out.</p>
+
+    <h2>What you can do</h2>
+    <ul>
+      <li>Use the menus, dialogs, account features and settings with a keyboard. Dialogs are standard HTML dialogs, menus are lists of buttons, and status messages are announced to screen readers.</li>
+      <li>Add parts from the parts picker with the keyboard: each part is a button that places it in the middle of the view.</li>
+      <li>Select any part from the list of parts in the side panel, then move it with the arrow keys (Shift for larger steps), rotate it with R, and remove it with Delete. You can type its exact position, angle and every other setting in the side panel instead of dragging.</li>
+      <li>Read results as numbers in the side panel, and download the data behind most plots as CSV files to open in a spreadsheet or your own tools.</li>
+      <li>Zoom the page with your browser, and use JEKray2D on a phone or a narrow window, where the layout rearranges into one column.</li>
+      <li>Reduce motion: the app's animations stop when your system asks for reduced motion.</li>
+    </ul>
+
+    <h2>What does not work yet</h2>
+    <p>JEKray2D is partly accessible. These are the problems we know of, against the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA:</p>
+    <ul>
+      <li><strong>The bench drawing is a picture.</strong> The bench, its rays, beams and fields are drawn on a canvas, which screen readers cannot describe (WCAG 1.1.1). The list of parts and their settings in the side panel, and the numerical results, are available as text.</li>
+      <li><strong>Plots are pictures too.</strong> Plots on screens, detectors and instruments are drawn on canvases (WCAG 1.1.1). The data of most of them can be downloaded as CSV.</li>
+      <li><strong>Colour carries meaning.</strong> Beam colours show wavelength, and field and intensity maps use colour scales (WCAG 1.4.1). Wavelengths and values are also given as numbers.</li>
+      <li><strong>Some drawn labels may have low contrast</strong> against the bench background (WCAG 1.4.3).</li>
+      <li><strong>Drawing fibre routes and measurements</strong> needs a mouse, pen or touch.</li>
+    </ul>
+
+    <h2>What we are doing about it</h2>
+    <ul>
+      <li>A text description of the bench, listing its parts in order along the light&rsquo;s path, with the main results, readable by screen readers.</li>
+      <li>Patterns or line styles as well as colour where colour carries meaning, and a check of the contrast of drawn labels.</li>
+      <li>Keyboard ways to draw fibre routes and measurements.</li>
+    </ul>
+    <p>If one of these matters to you, tell us: it helps us decide what to do first.</p>
+
+    <h2>Getting help</h2>
+    <p>If you cannot use part of JEKray2D, or need information in another format, email <a href="mailto:support@jeksys.net">support@jeksys.net</a>. Tell us what you were trying to do and what assistive technology you use, if any. We will reply within five working days.</p>
+    <p>If you teach with JEKray2D, we can help you provide alternatives for students who need them, such as bench descriptions or result tables for set exercises.</p>
+
+    <h2>How we tested</h2>
+    <p>This statement is based on our own checks in October 2026, using the keyboard alone, browser zoom and a phone-sized screen. JEKray2D has not yet been audited independently. We will review this statement when we make significant changes, and at least once a year.</p>
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script src="/jek/assets/js/cart.js"></script>
+
+</body>
+</html>

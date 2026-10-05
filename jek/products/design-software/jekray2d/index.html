@@ -182,21 +182,22 @@
 
       <!-- Right side: title, launch -->
       <div class="product-info">
-        <h1>JEKray2D Optical Bench Simulator</h1>
+        <h1>JEKray2D Optical Bench Simulator<span class="rt-beta">Open beta</span></h1>
         <p class="product-tagline">Lay out an optical system, trace it, and see the waves as well as the rays.</p>
         <p class="product-price">Free. Runs in your browser. <a class="licence-link" href="/jek/tools/jekray2d-licence.html">Licence terms</a></p>
         <div class="product-actions accent-orange">
           <a class="buy-button" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
           <a class="quote-button" href="#examples">Try an example</a>
         </div>
-        <p class="rt-notify">A Pro edition for labs and companies is on the way. <a href="mailto:sales@jeksys.net?subject=JEKray2D%20Pro%3A%20let%20me%20know&amp;body=Please%20let%20me%20know%20when%20JEKray2D%20Pro%20is%20available.%0A%0AName%3A%0AOrganisation%3A%0AWhat%20I%20would%20use%20it%20for%3A">Tell me when it’s ready</a></p>
+        <p class="rt-notify"><strong>JEKray2D Pro</strong> keeps your benches in the cloud, with their history, on any computer: &pound;9.99 a month or &pound;99 a year, and half that for students and university staff. <a href="#pro">About Pro</a> &middot; <a href="/jek/universities.html">For universities</a></p>
         <ul>
-          <li>Nothing to install and no account; a two-minute guided tour and 36 examples to start from</li>
+          <li>Nothing to install and no account needed; a two-minute guided tour and 40 examples to start from</li>
           <li>Exact rays through real glass, and diffracted Gaussian beams with interference and polarisation</li>
-          <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters and fibre subsystems</li>
-          <li>Cavities, lasers, photodiode signals and lock error signals</li>
-          <li>Aberrations, pulses, nonlinear optics, vapour cells and optical traps</li>
+          <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters, fibre subsystems and the electronics after the detector</li>
+          <li>Cavities, lasers, photodiode signals, oscilloscopes, lock-ins and lock error signals</li>
+          <li>Aberrations, pulses, broadband light, nonlinear optics, vapour cells and optical traps</li>
           <li>Share benches as links or live embeds, import Thorlabs .zmx files, export pictures and data</li>
+          <li>With JEKray2D Pro, benches save to the cloud as you work, with their whole history; sign in with Google, Microsoft or ORCID</li>
           <li>Design with an AI assistant using the <a href="/jek/tools/jekray2d-ai-guide.md" download>JEKray2D guide</a></li>
         </ul>
       </div>
@@ -212,15 +213,18 @@
       <p>
         It does more than a basic ray tracer. Each ray carries its polarisation and its optical path, so interferometers show fringes and cavities resonate. A Gaussian beam is followed through every branch of the system. The diffracted field is propagated surface by surface by physical optics propagation, so slits, stops and tight focuses behave as they do on a real bench.
       </p>
+      <p>
+        <strong>JEKray2D is in open beta.</strong> Everything here works and is checked against published results on the <a href="/jek/tools/jekray2d-validation.html">validation page</a>, and it is still growing quickly. If something looks wrong, use Report a bug in the tool: it comes straight to us.
+      </p>
     </div>
 
     <!-- A short screen recording of the editor -->
     <section class="rt-video">
       <h2>See it work</h2>
-      <p>Open an example from the gallery, turn a prism by its handle, drag a lens: the light is traced again as you move.</p>
+      <p>Open an example from the gallery and drag a lens: the light is traced again as you move. Read the spectrum on the detector, find any part in the picker, and save the bench to the cloud with JEKray2D Pro.</p>
       <figure>
         <video id="demoVideo" src="img/jekray2d-demo.webm" poster="img/jekray2d-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
-          aria-label="Screen recording: the examples gallery, a dispersing prism turned by its handle, and a plano-convex lens dragged along its beam"></video>
+          aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches"></video>
       </figure>
       <p class="rt-links"><a href="/jek/tools/jekray2d.html#tour=focus">Take the two-minute tour →</a> &nbsp; <a href="/jek/tools/jekray2d.html#examples">Browse all the examples →</a></p>
     </section>
@@ -229,11 +233,11 @@
     <section class="rt-feature">
       <figure class="rt-shot">
         <img src="img/michelson.png" alt="A Michelson interferometer: laser, 50/50 cube, fixed and moving mirrors, input and output screens" loading="lazy">
-        <figcaption>Michelson interferometer, built from the Add toolbar</figcaption>
+        <figcaption>Michelson interferometer, built from the parts picker</figcaption>
       </figure>
       <div>
         <h2>Build a bench in minutes</h2>
-        <p>Add parts from the toolbar and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
+        <p>Add parts from the parts picker, by search or by palette, or from the rail beside the bench, and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
         <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed an optimiser, which varies several values at once against several weighted goals, and a Monte Carlo tolerance study.</p>
         <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play. Or embed it, live, in a web page or course notes, where readers can drag, zoom and play it.</p>
         <p>New to it? The <a href="/jek/tools/jekray2d.html#tour=focus">guided tour</a> builds a focusing lens and then a Michelson interferometer with you, a step at a time.</p>
@@ -284,8 +288,8 @@
       </figure>
       <div>
         <h2>Fibre, free space and the signals between</h2>
-        <p>Draw fibre subsystems next to the free-space optics: lasers, couplers, WDMs, circulators, Bragg gratings, AOMs and EOMs, joined port to port with fibres you shape by dragging. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
-        <p>Photodiodes read what a real one would: DC power, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to. Put a magnetic field on a cell and its lines split into their Zeeman components, worked out exactly from weak fields to the Paschen–Back regime, so DAVLL locks, Faraday filters and polarisation spectroscopy work as on the bench.</p>
+        <p>Draw fibre subsystems next to the free-space optics: lasers and LEDs, couplers, 1&times;N splitters and star couplers, WDMs, circulators, polarisation beam splitters, Bragg gratings, switches, delay lines, stretchers, tunable filters, depolarisers, semiconductor amplifiers, AOMs and EOMs, joined port to port with fibres you shape by dragging. Their connectors reflect as PC, APC or flat ends do. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
+        <p>Photodiodes and balanced detectors read what real ones would: DC power with dark current and amplifier noise, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output; an optical spectrum analyser shows what is in the fibre. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to. Put a magnetic field on a cell and its lines split into their Zeeman components, worked out exactly from weak fields to the Paschen–Back regime, so DAVLL locks, Faraday filters and polarisation spectroscopy work as on the bench.</p>
       </div>
     </section>
 
@@ -296,7 +300,7 @@
       </figure>
       <div>
         <h2>Spectra and ultrafast pulses</h2>
-        <p>Every source can carry several wavelengths, so gratings and prisms spread light into its spectrum and chromatic focal shift shows up on its own. Filters and dichroics pass or reflect by wavelength.</p>
+        <p>Every source can carry several wavelengths, so gratings and prisms spread light into its spectrum and chromatic focal shift shows up on its own. Filters and dichroics pass or reflect by wavelength. A source’s coherence is yours to set: a single frequency, a line of its own, or incoherent broadband light such as an LED’s, which adds as powers except near equal paths, where white-light fringes appear.</p>
         <p>Give a laser a pulse duration and JEKray2D traces its spectrum through glass, prism and grating compressors, chirped mirrors and fibre. Any screen or photodiode shows the pulse that arrives: its duration against the transform limit, peak power, group delay dispersion and third-order dispersion, spatial chirp and pulse-front tilt.</p>
         <p>Nonlinear optics too: periodically poled PPLN and PPKTP crystals double a laser’s frequency (1560 → 780 nm, 1064 → 532 nm) from Boyd and Kleinman’s theory, with the focusing, poling period and temperature tuning and the fundamental used up as it converts. In fibre, strong pulses pick up self-phase modulation, worked out by the nonlinear Schrödinger equation: their spectra broaden, and in anomalous dispersion they can travel as solitons.</p>
       </div>
@@ -323,6 +327,32 @@
         <h2>Optical traps, atoms to nanoparticles</h2>
         <p>Put a screen at a focus and its Trap tab reads the trap the light makes for rubidium, caesium, potassium or sodium atoms, or for a dielectric sphere of any glass. It finds where the particle settles, with radiation pressure pushing it along, and gives the depth, the trap frequency in each direction and the light it scatters.</p>
         <p>Every beam through the focus counts, as its full vector field: counter-propagating beams make a standing wave, crossed ones a lattice, and a steep focus traps more softly along its polarisation. The particle can sit in vacuum, in air at a set pressure, which gives its damping and quality factor, or in water on the bench.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/lockin-absorption.png" alt="A laser modulated by a 1 kHz square wave, split onto a reference and a sample detector, each read by a lock-in amplifier, with an oscilloscope" loading="lazy">
+        <figcaption>A lock-in absorption measurement</figcaption>
+      </figure>
+      <div>
+        <h2>Electronics and instruments</h2>
+        <p>The signal after the detector has a palette of its own: sources, amplifiers and a transimpedance amplifier, filters, an attenuator, a mixer, a summing junction, a bias tee and a comparator, wired port to port.</p>
+        <p>Read them as on the bench: an oscilloscope (normal or rolling), a spectrum analyser, a lock-in amplifier and a DAQ, with its sampling, aliasing and quantisation. An optical chopper or a modulated laser puts the signal on the light in the first place.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature" id="pro">
+      <figure class="rt-shot" style="background: var(--jek-panel)">
+        <img src="img/jekray2d-pro.png" alt="The My benches dialog: five saved benches, each with a picture, its history and actions to open, rename, duplicate or delete" loading="lazy">
+        <figcaption>My benches, in JEKray2D Pro</figcaption>
+      </figure>
+      <div>
+        <h2>JEKray2D Pro<span class="rt-beta">Open beta</span></h2>
+        <p>Sign in with Google, Microsoft (a university or work account) or ORCID, and your benches save to the cloud as you work. Open them on any computer, go back to any earlier version, and keep them in folders, with a picture of each to find them by. Export everything at any time, and delete your account whenever you like.</p>
+        <p>&pound;9.99 a month or &pound;99 a year. Students and university staff pay half: &pound;4.99 a month or &pound;49 a year. If a subscription ends, every bench can still be opened and exported. Subscribe from the account menu in JEKray2D; the simulator itself stays free, with or without an account.</p>
+        <p>For a whole university, one licence covers everyone there, with no seats to manage: see <a href="/jek/universities.html">JEKray2D Pro for universities</a>.</p>
+        <p><a href="/jek/terms.html">JEKray2D Pro Terms</a> &middot; <a href="/jek/privacy.html">Privacy</a> &middot; <a href="/jek/security.html">Security</a></p>
       </div>
     </section>
 
@@ -435,7 +465,7 @@
         </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Diffraction and imaging</span><span class="rt-exdrop-count">9 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Diffraction and imaging</span><span class="rt-exdrop-count">11 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=youngs-double-slit">
           <img src="img/youngs-double-slit.png" alt="" loading="lazy">
@@ -506,6 +536,22 @@
           <div class="rt-example-body">
             <h3>Vortex beams: mode converter and SLM</h3>
             <p>A Laguerre–Gauss vortex through a cylindrical-lens mode converter comes out as a Hermite–Gauss mode turned 45°. A fork hologram on an SLM focuses to a dark-centred ring.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-differentiator">
+          <img src="img/optical-differentiator.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Optical differentiator</h3>
+            <p>A 4f system with a ramp in its Fourier plane: what comes out is the derivative of the light that went in.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=optical-integrator">
+          <img src="img/optical-integrator.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Optical integrator</h3>
+            <p>The same 4f system with a 1/x mask in its Fourier plane integrates the light instead.</p>
             <span class="rt-open">Open in JEKray2D →</span>
           </div>
         </a>
@@ -705,6 +751,19 @@
       </div>
       </details>
       <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Electronics</span><span class="rt-exdrop-count">1 example</span></summary>
+        <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray2d.html#demo=lockin-absorption">
+          <img src="img/lockin-absorption.png" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Lock-in absorption measurement</h3>
+            <p>A sample’s transmission from two lock-in amplifiers, with the light square-wave modulated at 1 kHz.</p>
+            <span class="rt-open">Open in JEKray2D →</span>
+          </div>
+        </a>
+        </div>
+      </details>
+      <details class="rt-exdrop">
         <summary><span class="rt-exdrop-title">From a paper</span><span class="rt-exdrop-count">1 example</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray2d.html#demo=levitated-trap">
@@ -758,6 +817,23 @@
 
       <div class="dropdown">
         <button class="dropdown-toggle" type="button">
+          JEKray2D Pro, your account and your data
+          <span class="chevron">▾</span>
+        </button>
+        <div class="dropdown-panel rt-tall">
+          <div class="dropdown-panel-inner">
+            <p>Signing in is optional: the simulator works the same without an account, and keeps your work in your browser. With JEKray2D Pro, benches are stored by JEK Systems on Cloudflare, with their history; card payments are handled by Stripe, and we never see card numbers.</p>
+            <a href="/jek/terms.html">JEKray2D Pro Terms</a>
+            <a href="/jek/privacy.html">Privacy Policy</a>
+            <a href="/jek/security.html">Security overview</a>
+            <a href="/jek/accessibility.html">Accessibility statement</a>
+            <a href="/jek/universities.html">JEKray2D Pro for universities</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="dropdown">
+        <button class="dropdown-toggle" type="button">
           Limits of the model
           <span class="chevron">▾</span>
         </button>
@@ -776,7 +852,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |

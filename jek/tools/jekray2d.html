@@ -78,6 +78,8 @@
   .rt-btn.primary { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.primary:hover { background: var(--jek-cyan-dark); border-color: var(--jek-cyan-dark); }
   .rt-btn.danger { color: var(--jek-red); }
+  .rt-beta-pill { align-self: center; flex: none; padding: 0.15rem 0.5rem; border: 0; border-radius: 4px; background: var(--jek-orange); color: #fff; font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-red); }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -720,7 +722,7 @@
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
   /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
-  .rt-btn.rt-addbtn { color: #fff; background: #111; border-color: #111; }
+  .rt-btn.rt-addbtn { flex: none; color: #fff; background: #111; border-color: #111; }
   .rt-btn.rt-addbtn:hover { background: #333; border-color: #333; }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.rt-help { position: relative; }
@@ -771,8 +773,8 @@
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 15rem; min-width: 8rem; width: auto; }
   }
-  @media (max-width: 1380px) { .rt-bar .rt-title { display: none; } }
-  @media (max-width: 1240px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
+  @media (max-width: 1500px) { .rt-bar .rt-title { display: none; } }
+  @media (max-width: 1440px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
   @media (max-width: 1100px) {
     .rt-barlink, #btnExamples { display: none; }
     .rt-menu button.rt-narrow[data-click="btnExamples"] { display: flex; }
@@ -937,6 +939,7 @@
           </div>
         </div>
         <div class="rt-group rt-right">
+          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray2D is in open beta: if something looks wrong, tell us">Open beta</button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray2D in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
@@ -20681,7 +20684,6 @@ function importZmx(file) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'cloud', name: 'JEKray2D Pro accounts', what: 'Sign in with Google or ORCID, from the button at the top right. Only the account for now: cloud saving, teams and subscriptions follow. Signing in sets one cookie, on api.jeksys.net; see the privacy policy.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
@@ -20952,7 +20954,7 @@ const MENU_ICONS = {
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
-for (const b of document.querySelectorAll('.rt-barlink')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
+for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
 function menuIcons(root) {
   for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
@@ -20967,7 +20969,7 @@ menuIcons(document);
 // the experimental features' box opens from the Help menu, which closes as it does
 document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
 document.getElementById('btnSave').addEventListener('click', saveFile);
-/* ---------- JEKray2D Pro account (experimental: 'cloud') ----------
+/* ---------- JEKray2D Pro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
    provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
    on the API's host that this page never sees. The bench survives the trip in the autosave. */
@@ -21096,7 +21098,7 @@ function fillAccount() {
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
     menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
-      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKray2D Pro: your benches in the cloud, their history, and teams. Coming soon.'), legal);
+      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKray2D Pro, in open beta: your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
@@ -21221,7 +21223,11 @@ function showDeleteAccount() {
 }
 async function loadAccount() {
   try { account = await api('/v1/me'); }
-  catch (err) { account = null; if (err.status !== 401) toast('Could not reach your JEKray2D account: ' + err.message, true); }
+  catch (err) {
+    account = null;
+    // said only to someone whose bench here saves to the cloud; anyone else just sees Sign in
+    if (err.status !== 401 && cloud) toast('Could not reach your JEKray2D account: ' + err.message, true);
+  }
   // signed in with ORCID and on no plan: a university licence through it is looked for, once a day
   const mine = account && account.workspaces.find(w => w.kind === 'personal');
   if (account && !account.licence && mine && !mine.active && (account.identities || []).some(i => i.provider === 'orcid') && !TEST_MODE) {
@@ -21235,13 +21241,15 @@ async function loadAccount() {
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
 }
+// accounts are part of the tool (open beta); not in an embed, nor in test mode
+const accountsOn = () => !TEST_MODE && !EMBED;
 function accountShown() {
-  const on = exp('cloud');
+  const on = accountsOn();
   document.getElementById('acct').hidden = !on;
   cloudMenuShown();
   if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); loadAccount(); }
 }
-/* ---------- Cloud benches (experimental: 'cloud') ----------
+/* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
    workspace and the version this copy is based on. Edits save themselves at most every 30
    seconds, and at once when the tab is hidden; Save to cloud also keeps a version in its
@@ -21263,7 +21271,7 @@ function cloudSay(text) {
   cloudNote = text;
   setStatus(cloud ? text : 'Autosaved in this browser');
 }
-const cloudOn = () => exp('cloud') && !!account;
+const cloudOn = () => accountsOn() && !!account;
 function cloudChanged() {
   if (!cloud || cloudOpening) return;          // opening replaces the bench: not an edit of the old link
   if (!cloud.dirty) { cloud.dirty = true; cloudKeep(); }
@@ -21538,7 +21546,7 @@ function cloudMenuShown() {
     q.delete('jekbilling');
     window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
     if (billing === 'cancelled') setTimeout(() => toast('Payment cancelled: nothing was charged'), 600);
-    if (billing === 'success' && exp('cloud')) setTimeout(() => awaitPlan(), 300);
+    if (billing === 'success' && accountsOn()) setTimeout(() => awaitPlan(), 300);
   }
   accountShown();
 }
@@ -21546,6 +21554,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 5 October 2026', [
+    '<b>JEKray2D is in open beta</b>, and so is <b>JEKray2D Pro</b>: sign in with Google, Microsoft (university or work) or ORCID from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',

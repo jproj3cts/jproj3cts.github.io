@@ -89,6 +89,19 @@ describe('Sign in with Microsoft', () => {
     expect((await send(`/v1/workspaces/${ws}/benches`, 'POST', r.session, { name: 'B', content: bench('B') })).status).toBe(201);
   });
 
+  it('sends an IT administrator back to the app with the outcome of approving it', async () => {
+    const yes = await call(`/auth/microsoft/callback?admin_consent=True&tenant=${TENANT}`, { origin: null });
+    expect(new URL(yes.headers.get('Location')).searchParams.get('jekauth')).toBe('consented');
+    const no = await call('/auth/microsoft/callback?error=access_denied&admin_consent=False', { origin: null });
+    expect(new URL(no.headers.get('Location')).searchParams.get('jekauth')).toBe('consent_failed');
+    expect(yes.headers.getSetCookie().some((c) => c.startsWith('jek_session='))).toBe(false);
+  });
+
+  it('gives each university\u2019s admins the approval link for its tenant', async () => {
+    const uni = await (await ops('/ops/institutions', { name: 'Approving University', tenants: ['eeeeeeee-1111-2222-3333-444444444444'] })).json();
+    expect(uni.microsoft_approval).toBe(`https://login.microsoftonline.com/eeeeeeee-1111-2222-3333-444444444444/adminconsent?client_id=${env.MICROSOFT_CLIENT_ID}&redirect_uri=${encodeURIComponent('https://api.jeksys.net/auth/microsoft/callback')}`);
+  });
+
   it('is offered back to the app as unavailable when not set up', async () => {
     const saved = env.MICROSOFT_CLIENT_ID;
     env.MICROSOFT_CLIENT_ID = '';

@@ -53,6 +53,7 @@ function show(i) {
   console.log(`  domains   ${i.domains.join(', ') || '-'}`);
   console.log(`  ORCID     ${i.orgs.map((x) => `${x.scheme} ${x.value}`).join(', ') || '-'}`);
   console.log(`  Microsoft ${i.tenants.join(', ') || '-'}`);
+  if (i.microsoft_approval) console.log(`  IT approval link  ${i.microsoft_approval}`);
   console.log(`  admins    ${i.admins.map((a) => `${a.name} <${a.email}>`).join(', ') || '-'}`);
   console.log(`  invited   ${i.invited}`);
   console.log(`  licence   ${l ? `${l.billing}, ${l.status}${l.active ? '' : ' (not counting)'}, to ${day(l.period_end)}${l.stripe_subscription ? `, Stripe ${l.stripe_subscription}` : ''}` : 'none yet'}`);

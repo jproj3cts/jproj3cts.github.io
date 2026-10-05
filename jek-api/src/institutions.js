@@ -25,6 +25,7 @@
 // (OPS_TOKEN, a secret), from scripts/institutions.mjs; never from a browser.
 
 import { orcidOrgs } from './academic.js';
+import { adminConsentUrl } from './auth.js';
 import { mirror, stripe } from './billing.js';
 import { planActive } from './users.js';
 import { ApiError, newId, now } from './util.js';
@@ -266,6 +267,7 @@ async function describe(env, id, t = now()) {
     domains: d.results.map((r) => r.domain),
     orgs: o.results,
     tenants: ten.results.map((r) => r.tenant),
+    microsoft_approval: ten.results.length ? adminConsentUrl(env, ten.results[0].tenant) : null,
     admins: adm.results,
     invited: inv.results[0].n,
     licence: sub && {
@@ -536,6 +538,8 @@ export async function adminGet(env, user, id, t = now()) {
     domains: d.domains,
     orgs: d.orgs,
     tenants: d.tenants,
+    // for their IT: approves JEKray2D's Microsoft sign-in for everyone there
+    microsoft_approval: d.tenants.length ? adminConsentUrl(env, d.tenants[0]) : null,
     invites,
   };
 }

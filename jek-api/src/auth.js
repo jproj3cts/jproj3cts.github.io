@@ -107,6 +107,14 @@ const provider = (name) => {
   return p;
 };
 
+// The link a university's Microsoft administrator opens to approve JEKray2D
+// for everyone in their organisation, once (tenant: its id or a domain).
+export const adminConsentUrl = (env, tenant) =>
+  env.MICROSOFT_CLIENT_ID
+    ? `https://login.microsoftonline.com/${encodeURIComponent(tenant || 'organizations')}/adminconsent?client_id=${env.MICROSOFT_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(`${env.API_URL}/auth/microsoft/callback`)}`
+    : null;
+
 // Must match the redirect address registered with the provider exactly.
 const callbackUrl = (req, env, name) => `${env.API_URL || new URL(req.url).origin}/auth/${name}/callback`;
 
@@ -180,6 +188,12 @@ export async function start(req, env, ctx, { provider: name }) {
 export async function callback(req, env, ctx, { provider: name }) {
   const p = provider(name);
   const url = new URL(req.url);
+  // Back from a university's IT approving the app for everyone there (the
+  // admin consent link): no sign-in, just the outcome for the app to show.
+  if (name === 'microsoft' && url.searchParams.has('admin_consent')) {
+    const yes = url.searchParams.get('admin_consent') === 'True' && !url.searchParams.get('error');
+    return redirect(withOutcome(safeReturn(env, null), yes ? 'consented' : 'consent_failed'));
+  }
   const state = url.searchParams.get('state') || '';
   const clear = stateCookie('', 0);
 

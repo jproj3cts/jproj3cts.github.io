@@ -20981,6 +20981,8 @@ const AUTH_OUTCOMES = {
   failed: ['Sign-in did not work. Please try again.', true], taken: ['That sign-in already belongs to another JEKray2D account.', true],
   signed_out: ['Please sign in first.', true],
   unavailable: ['That way of signing in is not available yet. Please use another.', true],
+  consented: ['Thank you: JEKray2D is approved for your organisation, and everyone there can now sign in with Microsoft.'],
+  consent_failed: ['JEKray2D was not approved for your organisation. Nothing has changed.', true],
 };
 function signIn(provider, link) {
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
@@ -21160,7 +21162,10 @@ async function showUniAdmin(id) {
     h('p', null, 'You see how many people use the licence, never who they are.'),
     h('h3', null, 'Who it covers'),
     h('p', null, covers.length ? 'Anyone who signs in with ' + covers.join(', or ') + ', and the people you invite below. To change this, email ' : 'The people you invite below. To add your university\u2019s addresses, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), '.'),
-    d.tenants.length ? h('p', null, 'If people see \u201cNeed admin approval\u201d when signing in with Microsoft, an administrator of your university\u2019s Microsoft account approves JEKray2D once: they sign in with Microsoft and tick \u201cConsent on behalf of your organization\u201d.') : null,
+    d.tenants.length ? h('p', null, 'If people see \u201cNeed admin approval\u201d when signing in with Microsoft, your IT team approves JEKray2D once, for everyone. Send them ',
+      d.microsoft_approval ? h('a', { href: d.microsoft_approval, target: '_blank', rel: 'noopener' }, 'this approval link') : 'the approval link from support@jeksys.net',
+      d.microsoft_approval ? h('button', { type: 'button', class: 'rt-link', onclick: () => { try { navigator.clipboard.writeText(d.microsoft_approval); toast('Approval link copied'); } catch (err) { toast('Copy the link from its right-click menu', true); } } }, ' (copy)') : null,
+      ': an administrator of your Microsoft organisation opens it, signs in and accepts. JEKray2D asks only to sign people in.') : null,
     h('h3', null, 'Invite people without a university address'),
     h('p', null, 'They are covered when they sign in with Google or Microsoft using this address.'),
     h('div', { class: 'uni-row' }, invEmail, invite), invites,

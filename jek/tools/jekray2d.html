@@ -4320,6 +4320,18 @@ function traceSceneOnce() {
         // leaving the element it was split at, a branch is an ordinary ray again
         if (skipEl && hit.el.id !== skipEl) skipEl = null;
         if (forceEl && hit.el.id !== forceEl) forceEl = null;
+        // light that went round an element has a hole in its middle: an element that fits inside
+        // the hole (a smaller lens than the one it went round) is missed by all of it, and it
+        // passes by unchanged, hole and all, rather than being bent as if through the middle
+        if (hole && isQ && !hitSeg && hit.el && hit.kind !== 'iris') {
+          const [, lyP] = toLocal(hit.f, px, py);
+          const rEl = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
+          if (rEl > 0 && rEl + Math.abs(lyP) <= hole * (1 + 1e-9) + 1e-9) {
+            evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyP, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+            skipEl = hit.el.id; last = null; pts.length -= 2;
+            continue;
+          }
+        }
         // (a branch's field keeps the power its cut leaves it, so its reference ray's amplitude
         // stays as it was; its share is noted for what counts power by the reference ray)
         const splitState = (share, extra) => Object.assign({ px, py, dx, dy, sr, si, pr, pi, qShare: qShare * share,
@@ -4398,10 +4410,15 @@ function traceSceneOnce() {
         if (s.kind === 'iris') {
           const m = s.el;
           // light that went round an element has a hole in its middle: a round stop whose opening
-          // lies inside the hole lets none of it through, so the branch ends here
+          // lies inside the hole lets none of it through; only what passes outside the stop's
+          // outer edge goes on, and if that is next to nothing the branch ends here
           if (isQ && hole > 0 && m.shape === 'round' && !m.slits) {
             const d = Math.abs(ly - (m.offset || 0)), bwS = beamAt(qr, qi, nCur, nm, m2Env(src)).w;
-            if (m.aperture / 2 + d <= hole && m.outer / 2 >= Math.abs(ly) + 3 * bwS) { pts.length -= 2; break; }
+            if (m.aperture / 2 + d <= hole) {
+              const out = 1 - apertureShare({ semi: m.outer / 2 }, ly - (m.offset || 0), 1, bwS, bwS);
+              if (out * qShare <= SPLIT_MIN) { pts.length -= 2; break; }
+              qShare *= out;
+            }
           }
           evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2,
             ext: stopExtent(m), slits: stopSlitLike(m) } });
@@ -4672,7 +4689,9 @@ function traceSceneOnce() {
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid,
                 // a weak reflection, followed only because ghosts are on: marked, for the field's cost
                 evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }, s.kind === 'refract' && Rs <= 0.2 && Rp <= 0.2 ? { ghost: true } : null) : evR,
-                fam, k, path: path + 'r' + bounce, tag, wk: 0 });
+                fam, k, path: path + 'r' + bounce, tag, wk: 0,
+                // light that went round an element keeps its hole off a plane mirror
+                hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
               rays.push({ pts: pts.slice(), colour, w, bench: bn });
@@ -22379,6 +22398,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // what the bench's field would cost, as the heavy-field notice reckons it (raw: before this computer's speed)
     fieldCost() { traceScene(); const e = fieldCost(lastTrace.beams, popSources()); return { raw: e.raw, segs: e.segs, ghost: e.ghost, heavy: e.raw > HEAVY_MS }; },
     // Gaussian beam segments: how many there are, and how many start at an element (by name)
+    // each beam of the trace: its parent, the element it starts at and how (a split is light that went round it)
+    beamList() { traceScene(); return lastTrace.beams.map(b => ({ parent: b.parent, at: b.ev ? (getEl(b.ev.el) || {}).name : null, kind: b.ev ? b.ev.kind : 'source' })); },
     beamsAt(name) { traceScene(); const el = name && this.byName(name); return lastTrace.beams.filter(b => !el || (b.ev && b.ev.el === el.id)).length; },
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns

@@ -31,7 +31,9 @@ const bytes = (s) => new TextEncoder().encode(s).length;
 // covers its owner (the only member a personal workspace has).
 async function activeFor(env, user, row) {
   if (planActive(row.status && row)) return true;
-  return row.kind === 'personal' && !!(await licenceFor(env, user));
+  if (row.kind !== 'personal') return false;
+  const lic = await licenceFor(env, user);
+  return !!lic && !lic.full;
 }
 
 // The caller's role in a workspace, and whether its plan is active.

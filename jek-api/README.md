@@ -46,7 +46,10 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   institution is a workspace of kind `institution` owned by the `system`
   user; its subscription is the licence, invoiced by Stripe
   (`collection_method: send_invoice`, yearly, 60 days' grace when late) or a
-  pilot set by hand with an end date. Anyone whose verified email is at one
+  licence set by hand (paid outside Stripe) with an end date. A licence is
+  for a tier: at most `seats` people (0: no limit) using it in any 12
+  months, never charged beyond; when full, someone new waits for a place,
+  which frees after 12 months without use or on removal (`remove-person`). Anyone whose verified email is at one
   of its domains, or (on `POST /v1/me/institution`) whose ORCID record shows
   a current affiliation with one of its ROR/Ringgold/GRID ids, gets Pro on
   their personal workspace; each month they use it is counted. Set up with

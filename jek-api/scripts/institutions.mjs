@@ -4,13 +4,16 @@
 //   export JEK_OPS_TOKEN=...            (the same value as the OPS_TOKEN secret)
 //   node scripts/institutions.mjs list
 //   node scripts/institutions.mjs create "King's College London" --domain kcl.ac.uk --ror 0220mzb33
-//   node scripts/institutions.mjs pilot <id> --until 2027-01-31
-//   node scripts/institutions.mjs invoice <id> --amount 3500 --email accounts@kcl.ac.uk --po PO123 [--contact "Dr A"] [--days 30]
+//   node scripts/institutions.mjs invoice <id> --users 300 --amount 6000 --email accounts@kcl.ac.uk --po PO123 [--contact "Dr A"] [--days 30]
+//   node scripts/institutions.mjs tier <id> --users 500          (a different tier, as agreed)
+//   node scripts/institutions.mjs remove-person <id> --email someone@kcl.ac.uk   (at the university's request)
+//   node scripts/institutions.mjs manual <id> --users 300 --until 2027-10-31   (a licence paid outside Stripe)
 //   node scripts/institutions.mjs show <id>
 //   node scripts/institutions.mjs add <id> --domain kcl-staff.ac.uk --ror ...   /   remove <id> --domain ...
 //   node scripts/institutions.mjs rename <id> "New name"
 //
-// --amount is in pounds a year. JEK_API overrides https://api.jeksys.net
+// --users is the tier: the most people who may use it in any 12 months, or
+// 'unlimited'. --amount is in pounds a year. JEK_API overrides https://api.jeksys.net
 // (http://localhost:8787 for wrangler dev).
 
 import { parseArgs } from 'node:util';
@@ -22,7 +25,7 @@ const { positionals: [cmd, ...args], values: o } = parseArgs({
   allowPositionals: true,
   options: {
     domain: { type: 'string', multiple: true }, ror: { type: 'string', multiple: true }, ringgold: { type: 'string', multiple: true },
-    until: { type: 'string' }, amount: { type: 'string' }, email: { type: 'string' }, po: { type: 'string' },
+    until: { type: 'string' }, users: { type: 'string' }, amount: { type: 'string' }, email: { type: 'string' }, po: { type: 'string' },
     contact: { type: 'string' }, days: { type: 'string' }, description: { type: 'string' }, json: { type: 'boolean' },
   },
 });
@@ -49,10 +52,15 @@ function show(i) {
   console.log(`  domains   ${i.domains.join(', ') || '-'}`);
   console.log(`  ORCID     ${i.orgs.map((x) => `${x.scheme} ${x.value}`).join(', ') || '-'}`);
   console.log(`  licence   ${l ? `${l.billing}, ${l.status}${l.active ? '' : ' (not counting)'}, to ${day(l.period_end)}${l.stripe_subscription ? `, Stripe ${l.stripe_subscription}` : ''}` : 'none yet'}`);
-  console.log(`  people    ${i.people}`);
+  console.log(`  tier      ${l ? (l.max_users ? `${l.max_users} people` : 'unlimited') : '-'}; ${i.users_12_months} used it in the last 12 months`);
+  console.log(`  people    ${i.people} ever covered`);
   console.log(`  active    ${i.active_users.length ? i.active_users.map((m) => `${m.month}: ${m.users}`).join('  ') : '-'}`);
 }
 
+const users = () => {
+  const v = need(o.users, '--users (the tier: a number of people, or unlimited)');
+  return v === 'unlimited' ? 'unlimited' : Number(v);
+};
 const need = (v, what) => {
   if (!v) throw new Error(`Missing ${what}. See the top of this file for usage.`);
   return v;
@@ -72,16 +80,21 @@ try {
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`, 'PATCH', { [`${key}_domains`]: o.domain || [], [`${key}_orgs`]: orgs() }));
   } else if (cmd === 'rename') {
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`, 'PATCH', { name: need(args[1], 'the new name') }));
-  } else if (cmd === 'pilot') {
-    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/pilot`, 'POST', { until: need(o.until, '--until YYYY-MM-DD') }));
+  } else if (cmd === 'manual') {
+    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/manual`, 'POST', { until: need(o.until, '--until YYYY-MM-DD'), max_users: users() }));
+  } else if (cmd === 'remove-person') {
+    const out = await api(`/ops/institutions/${need(args[0], 'the institution id')}/remove`, 'POST', { email: need(o.email, '--email') });
+    console.log(`Removed ${out.removed} account(s).`); show(out);
+  } else if (cmd === 'tier') {
+    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/tier`, 'POST', { max_users: users() }));
   } else if (cmd === 'invoice') {
     const pounds = Number(need(o.amount, '--amount (pounds a year)'));
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/invoice`, 'POST', {
-      amount: Math.round(pounds * 100), email: need(o.email, '--email (where the invoice goes)'), po: o.po, contact: o.contact,
+      amount: Math.round(pounds * 100), max_users: users(), email: need(o.email, '--email (where the invoice goes)'), po: o.po, contact: o.contact,
       days_until_due: o.days ? Number(o.days) : undefined, description: o.description,
     }));
   } else {
-    console.log('Commands: list, show, create, add, remove, rename, pilot, invoice. See the top of scripts/institutions.mjs.');
+    console.log('Commands: list, show, create, add, remove, rename, invoice, tier, manual, remove-person. See the top of scripts/institutions.mjs.');
     process.exitCode = cmd ? 1 : 0;
   }
 } catch (err) {

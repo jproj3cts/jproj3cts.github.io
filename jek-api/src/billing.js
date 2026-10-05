@@ -227,7 +227,9 @@ export async function mirror(env, s) {
        status = excluded.status, period_end = excluded.period_end, interval = excluded.interval,
        cancel_at = excluded.cancel_at, past_due_since = excluded.past_due_since, updated_at = excluded.updated_at`,
   )
-    .bind(ws, typeof s.customer === 'string' ? s.customer : s.customer && s.customer.id, s.id, plan, item.quantity || 1,
+    // a university's tier (its most people in 12 months; 0 for no limit) travels in the metadata
+    .bind(ws, typeof s.customer === 'string' ? s.customer : s.customer && s.customer.id, s.id, plan,
+      plan === 'institution' ? Math.max(0, parseInt(s.metadata.max_users, 10) || 0) : item.quantity || 1,
       s.status, periodEnd, interval, cancelAt, pastDueSince, now())
     .run();
   return true;

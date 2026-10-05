@@ -20980,6 +20980,9 @@ function planText(w) {
   const p = w.plan, lic = w.kind === 'personal' && account && account.licence;
   // a university's licence, unless they pay for their own as well
   if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKray2D Pro through ' + lic.name;
+  // their university has a licence, but every place in its tier is taken
+  const full = w.kind === 'personal' && !w.active && account && account.licence_full;
+  if (full) return full.name + '\u2019s licence is full: ask whoever looks after it for a larger tier';
   if (!p) return 'No subscription yet';
   const name = p.plan === 'academic' ? 'JEKray2D Pro (academic)' : 'JEKray2D Pro';
   if (!p.billing) return w.active ? name : 'Plan ended';

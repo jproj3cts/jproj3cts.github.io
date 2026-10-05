@@ -39,7 +39,7 @@ export const INSTITUTION_GRACE_MS = 60 * 24 * 60 * 60 * 1000;
 
 export function planActive(sub, t = now()) {
   if (!sub) return false;
-  // one set by hand (a pilot, a gift) ends on its date
+  // one set by hand (paid some other way, a gift) ends on its date
   if (sub.stripe_customer === 'manual' && sub.period_end && t >= sub.period_end) return false;
   if (sub.status === 'active' || sub.status === 'trialing') return true;
   // 7 days' grace from the failed payment (or, for rows without that, the period end)
@@ -69,7 +69,9 @@ export async function me(env, user) {
   return {
     user,
     academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via } : null,
-    licence: licence && { name: licence.name, via: licence.via },
+    licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,
+    // their university has a licence, but its tier has no room for them
+    licence_full: licence && licence.full ? { name: licence.full } : null,
     identities: ids.results,
     workspaces: ws.results.map((w) => ({
       id: w.id,
@@ -82,7 +84,7 @@ export async function me(env, user) {
             cancel_at: w.cancel_at, billing: w.stripe_customer !== 'manual',
           }
         : null,
-      active: planActive(w.plan && w, t) || (w.kind === 'personal' && !!licence),
+      active: planActive(w.plan && w, t) || (w.kind === 'personal' && !!licence && !licence.full),
     })),
   };
 }

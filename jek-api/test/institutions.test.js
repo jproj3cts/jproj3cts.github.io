@@ -14,7 +14,7 @@ const ops = (path, method = 'GET', body, token = OPS) =>
   call(path, { method, origin: null, body: body && JSON.stringify(body), headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
 
 // A stand-in for Stripe and ORCID: records calls; ORCID affiliations per iD.
-let calls, orcid;
+let calls, orcid, lastWs, subN = 0, lastSub;
 beforeEach(() => {
   calls = []; orcid = {};
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init = {}) => {
@@ -32,10 +32,15 @@ beforeEach(() => {
     if (url.pathname === '/v1/products/jekray2d_university') return ok({ error: { message: 'No such product' } }, 404);
     if (url.pathname === '/v1/products') return ok({ id: 'jekray2d_university' });
     if (url.pathname === '/v1/customers') return ok({ id: 'cus_uni' });
+    if (url.pathname.startsWith('/v1/subscriptions/sub_uni')) {
+      return ok({ id: url.pathname.split('/').pop(), object: 'subscription', customer: 'cus_uni', status: 'active', cancel_at_period_end: false, cancel_at: null,
+        metadata: { workspace_id: lastWs, plan: 'institution', max_users: body.get('metadata[max_users]') },
+        items: { data: [{ id: 'si_uni', quantity: 1, current_period_end: Math.floor((Date.now() + 365 * DAY) / 1000), price: { id: 'price_x', lookup_key: null, recurring: { interval: 'year' } } }] } });
+    }
     if (url.pathname === '/v1/subscriptions') {
       return ok({
-        id: 'sub_uni', object: 'subscription', customer: 'cus_uni', status: 'active', cancel_at_period_end: false, cancel_at: null,
-        metadata: { workspace_id: body.get('metadata[workspace_id]'), plan: body.get('metadata[plan]') },
+        id: (lastSub = 'sub_uni' + ++subN), object: 'subscription', customer: 'cus_uni', status: 'active', cancel_at_period_end: false, cancel_at: null,
+        metadata: { workspace_id: (lastWs = body.get('metadata[workspace_id]')), plan: body.get('metadata[plan]'), max_users: body.get('metadata[max_users]') },
         items: { data: [{ id: 'si_uni', quantity: 1, current_period_end: Math.floor((Date.now() + 365 * DAY) / 1000),
           price: { id: 'price_x', lookup_key: null, unit_amount: Number(body.get('items[0][price_data][unit_amount]')), currency: 'gbp', recurring: { interval: 'year' } } }] },
       });
@@ -61,7 +66,7 @@ async function uni(extra = {}) {
   expect(r.status).toBe(201);
   return { ...(await r.json()), domain: d };
 }
-const pilot = (id, until) => ops(`/ops/institutions/${id}/pilot`, 'POST', { until });
+const manual = (id, until, max_users = 'unlimited') => ops(`/ops/institutions/${id}/manual`, 'POST', { until, max_users });
 const orcidJob = (ror, { ended = false, name = 'King’s College London', scheme = 'ROR' } = {}) => ({
   kind: 'employments',
   summary: { organization: { name, 'disambiguated-organization': { 'disambiguated-organization-identifier': scheme === 'ROR' ? `https://ror.org/${ror}` : ror, 'disambiguation-source': scheme } },
@@ -95,7 +100,7 @@ describe('a licence through a university email', () => {
     const ada = await person(`ada@${a.domain}`), bea = await person(`bea@physics.${a.domain}`), eve = await person('eve@gmail.com');
     expect((await save(ada)).status).toBe(402);
     expect((await me(ada)).licence).toBeNull();
-    await pilot(a.id, Date.now() + 30 * DAY);
+    await manual(a.id, Date.now() + 30 * DAY);
     const m = await me(ada);
     expect(m.licence).toEqual({ name: a.name, via: 'email' });
     expect(m.workspaces.find((w) => w.kind === 'personal').active).toBe(true);
@@ -105,12 +110,12 @@ describe('a licence through a university email', () => {
     expect((await save(eve)).status).toBe(402);
   });
 
-  it('ends with the licence: a pilot past its date, and a cancelled invoice', async () => {
+  it('ends with the licence: one set by hand past its date', async () => {
     const a = await uni();
     const ada = await person(`ada@${a.domain}`);
-    await pilot(a.id, Date.now() + DAY);
+    await manual(a.id, Date.now() + DAY);
     expect((await save(ada)).status).toBe(201);
-    await pilot(a.id, Date.now() - 1000);
+    await manual(a.id, Date.now() - 1000);
     expect((await me(ada)).licence).toBeNull();
     expect((await save(ada)).status).toBe(402);
     // their benches stay readable, as for any lapsed plan
@@ -119,22 +124,83 @@ describe('a licence through a university email', () => {
 
   it('is counted once a month for the usage report', async () => {
     const a = await uni();
-    await pilot(a.id, Date.now() + DAY);
+    await manual(a.id, Date.now() + DAY);
     const ada = await person(`ada@${a.domain}`), bea = await person(`bea@${a.domain}`);
     await me(ada); await me(ada); await me(bea);
     const d = await (await ops(`/ops/institutions/${a.id}`)).json();
     expect(d.people).toBe(2);
     expect(d.active_users).toEqual([{ month: monthOf(), users: 2 }]);
-    expect(d.licence).toMatchObject({ billing: 'pilot', active: true });
+    expect(d.licence).toMatchObject({ billing: 'manual', active: true, max_users: null });
+    expect(d.users_12_months).toBe(2);
   });
 
   it('is not given to someone the institution took off', async () => {
     const a = await uni();
-    await pilot(a.id, Date.now() + DAY);
+    await manual(a.id, Date.now() + DAY);
     const ada = await person(`ada@${a.domain}`);
     await me(ada);
     await env.DB.prepare('UPDATE licences SET removed_at = 1 WHERE user_id = ?').bind(ada.user.id).run();
     expect((await me(ada)).licence).toBeNull();
+  });
+});
+
+describe('a tier', () => {
+  it('lets no more people in than it holds, in any 12 months, and never cuts off those already in', async () => {
+    const a = await uni();
+    await manual(a.id, Date.now() + 30 * DAY, 2);
+    const [p1, p2, p3] = [await person(`p1@${a.domain}`), await person(`p2@${a.domain}`), await person(`p3@${a.domain}`)];
+    expect((await me(p1)).licence).toMatchObject({ via: 'email' });
+    expect((await me(p2)).licence).toMatchObject({ via: 'email' });
+    const m3 = await me(p3);
+    expect(m3.licence).toBeNull();
+    expect(m3.licence_full).toEqual({ name: a.name });
+    expect(m3.workspaces.find((w) => w.kind === 'personal').active).toBe(false);
+    expect((await save(p3)).status).toBe(402);
+    const r = await call('/v1/me/institution', { method: 'POST', token: p3.token });
+    expect(r.status).toBe(403);
+    expect((await r.json()).error.code).toBe('licence_full');
+    // those in stay in
+    expect((await me(p1)).licence).toMatchObject({ via: 'email' });
+    expect((await save(p2)).status).toBe(201);
+    // a larger tier lets the next one in
+    const d = await (await ops(`/ops/institutions/${a.id}/tier`, 'POST', { max_users: 3 })).json();
+    expect(d.licence.max_users).toBe(3);
+    expect((await me(p3)).licence).toMatchObject({ via: 'email' });
+    expect(d.users_12_months).toBe(2);
+  });
+
+  it('frees a place when someone has not used it for 12 months', async () => {
+    const a = await uni();
+    await manual(a.id, Date.now() + 30 * DAY, 1);
+    const old = await person(`old@${a.domain}`), next = await person(`new@${a.domain}`);
+    await me(old);
+    expect((await me(next)).licence_full).toEqual({ name: a.name });
+    await env.DB.prepare("UPDATE licence_months SET month = '2020-01' WHERE user_id = ?").bind(old.user.id).run();
+    expect((await me(next)).licence).toMatchObject({ via: 'email' });
+  });
+
+  it('frees a place at once when the institution has someone removed, who then cannot rejoin', async () => {
+    const a = await uni();
+    await manual(a.id, Date.now() + 30 * DAY, 1);
+    const gone = await person(`gone@${a.domain}`), next = await person(`next@${a.domain}`);
+    await me(gone);
+    expect((await me(next)).licence_full).toEqual({ name: a.name });
+    const r = await ops(`/ops/institutions/${a.id}/remove`, 'POST', { email: `GONE@${a.domain}` });
+    expect((await r.json()).removed).toBe(1);
+    expect((await me(gone)).licence).toBeNull();
+    expect((await me(next)).licence).toMatchObject({ via: 'email' });
+    expect((await ops(`/ops/institutions/${a.id}/remove`, 'POST', { email: 'nobody@nowhere.ac.uk' })).status).toBe(404);
+  });
+
+  it('is changed on the Stripe subscription for an invoiced licence, and read back from it', async () => {
+    const a = await uni();
+    await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, max_users: 100, email: 'ap@uni.ac.uk' });
+    calls.length = 0;
+    const r = await ops(`/ops/institutions/${a.id}/tier`, 'POST', { max_users: 'unlimited' });
+    expect(r.status).toBe(200);
+    expect(calls.map((c) => c.method + ' ' + c.path)).toEqual(['POST /v1/subscriptions/' + lastSub]);
+    expect(calls[0].body.get('metadata[max_users]')).toBe('0');
+    expect((await r.json()).licence.max_users).toBeNull();
   });
 });
 
@@ -150,7 +216,7 @@ describe('a licence through ORCID', () => {
 
   it('is found when asked, lasts a year, and is not found for an ended or unknown affiliation', async () => {
     const a = await uni({ orgs: [{ scheme: 'ROR', value: '0220mzb33' }] });
-    await pilot(a.id, Date.now() + DAY);
+    await manual(a.id, Date.now() + DAY);
     const ada = await person(null, { orcidId: '0000-0002-0000-0001' });
     orcid['0000-0002-0000-0001'] = [orcidJob('0220mzb33')];
     const r = await call('/v1/me/institution', { method: 'POST', token: ada.token });
@@ -172,10 +238,10 @@ describe('a licence through ORCID', () => {
 describe('an invoiced licence', () => {
   it('makes a yearly Stripe subscription that is invoiced by email, with the PO, and mirrors it as an institution’s', async () => {
     const a = await uni();
-    const r = await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, email: 'ap@uni.ac.uk', contact: 'Dr A', po: 'PO-1234' });
+    const r = await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, max_users: 300, email: 'ap@uni.ac.uk', contact: 'Dr A', po: 'PO-1234' });
     expect(r.status).toBe(200);
     const d = await r.json();
-    expect(d.licence).toMatchObject({ billing: 'invoice', status: 'active', active: true, stripe_subscription: 'sub_uni' });
+    expect(d.licence).toMatchObject({ billing: 'invoice', status: 'active', active: true, stripe_subscription: lastSub, max_users: 300 });
     expect(calls.map((c) => c.method + ' ' + c.path)).toEqual(['GET /v1/products/jekray2d_university', 'POST /v1/products', 'POST /v1/customers', 'POST /v1/subscriptions']);
     const cust = calls[2].body, sub = calls[3].body;
     expect(cust.get('email')).toBe('ap@uni.ac.uk');
@@ -187,19 +253,21 @@ describe('an invoiced licence', () => {
     expect(sub.get('items[0][price_data][recurring][interval]')).toBe('year');
     expect(sub.get('items[0][price_data][product]')).toBe('jekray2d_university');
     expect(sub.get('metadata[plan]')).toBe('institution');
+    expect(sub.get('metadata[max_users]')).toBe('300');
     const row = await env.DB.prepare('SELECT plan FROM subscriptions WHERE workspace_id = ?').bind(a.id).first();
     expect(row.plan).toBe('institution');
     // and its people are covered
     expect((await me(await person(`x@${a.domain}`))).licence).toMatchObject({ via: 'email' });
     // a second one is refused, and so is a pilot over it
-    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, email: 'ap@uni.ac.uk' })).status).toBe(409);
-    expect((await pilot(a.id, Date.now() + DAY)).status).toBe(409);
+    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, max_users: 300, email: 'ap@uni.ac.uk' })).status).toBe(409);
+    expect((await manual(a.id, Date.now() + DAY)).status).toBe(409);
   });
 
-  it('checks the amount and the email first', async () => {
+  it('checks the amount, the tier and the email first', async () => {
     const a = await uni();
-    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 'lots', email: 'ap@uni.ac.uk' })).status).toBe(400);
-    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, email: 'nope' })).status).toBe(400);
+    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 'lots', max_users: 300, email: 'ap@uni.ac.uk' })).status).toBe(400);
+    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, max_users: 300, email: 'nope' })).status).toBe(400);
+    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 350000, email: 'ap@uni.ac.uk' })).status).toBe(400);
     expect(calls).toEqual([]);
   });
 
@@ -214,7 +282,7 @@ describe('an invoiced licence', () => {
 describe('deleting an account', () => {
   it('takes its licence records with it', async () => {
     const a = await uni();
-    await pilot(a.id, Date.now() + DAY);
+    await manual(a.id, Date.now() + DAY);
     const ada = await person(`ada@${a.domain}`);
     await me(ada);
     const r = await call('/v1/me', { method: 'DELETE', token: ada.token, body: JSON.stringify({ confirm: CONFIRM }), headers: { 'Content-Type': 'application/json' } });

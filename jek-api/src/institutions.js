@@ -10,7 +10,13 @@
 //     organisations (by ROR, Ringgold or GRID id), checked when they ask and
 //     good for a year.
 // Covered, their personal workspace counts as on a plan. Each month they use
-// the app is noted, for the institution's usage report and price band.
+// the app is noted, for the institution's usage report.
+//
+// A licence is for a tier: at most so many people (subscriptions.seats; 0
+// for no limit) using it in any 12 months. There is never a charge for more:
+// once the tier is full, someone new is not let in until a place frees, which
+// happens when a person has not used it for 12 months. People already using
+// it are never cut off.
 //
 // Institutions are set up by JEK Systems through /ops, with a bearer token
 // (OPS_TOKEN, a secret), from scripts/institutions.mjs; never from a browser.
@@ -33,9 +39,40 @@ function domainsOf(email) {
   return out;
 }
 
-const SUB_COLS = 's.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer';
+const SUB_COLS = 's.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer, s.seats';
 
-// The licence covering this person now, or null: { workspace_id, name, via, detail }.
+// The first month of the 12 that a tier counts: this one and the 11 before.
+export function windowStart(t = now()) {
+  const d = new Date(t);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 11, 1)).toISOString().slice(0, 7);
+}
+
+// People who used an institution's licence in the last 12 months.
+export async function usersInWindow(env, ws, t = now()) {
+  // someone the institution had removed holds no place
+  const r = await env.DB.prepare(
+    `SELECT COUNT(DISTINCT m.user_id) AS n FROM licence_months m
+       LEFT JOIN licences l ON l.workspace_id = m.workspace_id AND l.user_id = m.user_id
+      WHERE m.workspace_id = ? AND m.month >= ? AND l.removed_at IS NULL`,
+  )
+    .bind(ws, windowStart(t))
+    .first();
+  return r.n;
+}
+
+// Whether this person may use this licence: always, if they already used it in
+// the last 12 months; otherwise only while the tier has room.
+async function hasPlace(env, r, user, t) {
+  if (!r.seats || r.seats <= 0) return true;
+  const mine = await env.DB.prepare('SELECT 1 AS y FROM licence_months WHERE workspace_id = ? AND user_id = ? AND month >= ?')
+    .bind(r.workspace_id, user.id, windowStart(t))
+    .first();
+  if (mine) return true;
+  return (await usersInWindow(env, r.workspace_id, t)) < r.seats;
+}
+
+// The licence covering this person now: { workspace_id, name, via, detail }; or
+// { full: name } when their institution's tier has no room for them; or null.
 export async function licenceFor(env, user, t = now()) {
   const found = [];
   const ds = domainsOf(user.email);
@@ -60,14 +97,19 @@ export async function licenceFor(env, user, t = now()) {
     .bind(user.id, t)
     .all();
   found.push(...kept);
-  const live = found.find((r) => planActive(r, t));
-  return live ? { workspace_id: live.workspace_id, name: live.name, via: live.via, detail: live.detail } : null;
+  let full = null;
+  for (const r of found) {
+    if (!planActive(r, t)) continue;
+    if (await hasPlace(env, r, user, t)) return { workspace_id: r.workspace_id, name: r.name, via: r.via, detail: r.detail };
+    full = full || r.name;
+  }
+  return full ? { full } : null;
 }
 
 // The licence, noted as used this month (and, for an email match, as joined).
 export async function useLicence(env, user, t = now()) {
   const lic = await licenceFor(env, user, t);
-  if (!lic) return null;
+  if (!lic || lic.full) return lic;
   await env.DB.batch([
     env.DB.prepare(
       'INSERT OR IGNORE INTO licences (workspace_id, user_id, via, detail, joined_at) VALUES (?, ?, ?, ?, ?)',
@@ -79,11 +121,15 @@ export async function useLicence(env, user, t = now()) {
   return lic;
 }
 
+export const fullError = (name) => new ApiError(403, 'licence_full',
+  `${name}'s JEKray2D Pro licence has no free places just now. Ask whoever looks after it at ${name} to move to a larger tier.`);
+
 // POST /v1/me/institution — look for a licence through the person's ORCID
 // record (an email match needs no asking).
 export async function checkInstitution(env, user) {
-  const direct = await licenceFor(env, user);
-  if (direct) return { licence: direct };
+  const direct = await useLicence(env, user);
+  if (direct && !direct.full) return { licence: direct };
+  if (direct) throw fullError(direct.full);
   const id = await env.DB.prepare("SELECT subject FROM identities WHERE user_id = ? AND provider = 'orcid'").bind(user.id).first();
   if (id) {
     let orgs;
@@ -111,7 +157,9 @@ export async function checkInstitution(env, user) {
         .bind(inst.id, user.id, o.name.slice(0, 200), t, t + YEAR)
         .run();
       if (!r.meta.changes) continue; // taken off by the institution
-      return { licence: await useLicence(env, user) };
+      const lic = await useLicence(env, user);
+      if (lic && lic.full) throw fullError(lic.full);
+      if (lic) return { licence: lic };
     }
   }
   throw new ApiError(404, 'no_licence',
@@ -181,14 +229,16 @@ async function describe(env, id, t = now()) {
     domains: d.results.map((r) => r.domain),
     orgs: o.results,
     licence: sub && {
-      billing: sub.stripe_customer === 'manual' ? 'pilot' : 'invoice',
+      billing: sub.stripe_customer === 'manual' ? 'manual' : 'invoice',
       status: sub.status,
       active: planActive(sub, t),
       period_end: sub.period_end,
+      max_users: sub.seats || null,
       stripe_customer: sub.stripe_customer === 'manual' ? null : sub.stripe_customer,
       stripe_subscription: sub.stripe_subscription,
     },
     people: n.results[0].n,
+    users_12_months: await usersInWindow(env, id, t),
     active_users: months.results, // newest first: { month: '2026-10', users }
   };
 }
@@ -213,6 +263,14 @@ async function setLists(env, id, body) {
     st.push(env.DB.prepare('DELETE FROM institution_orgs WHERE workspace_id = ? AND scheme = ? AND value = ?').bind(id, o.scheme, o.value));
   }
   if (st.length) await env.DB.batch(st);
+}
+
+// A tier: a whole number of people, or 'unlimited' (stored as 0).
+function maxUsers(v) {
+  if (v === 'unlimited' || v === 0) return 0;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 1_000_000) throw new ApiError(400, 'bad_request', "max_users is the tier's number of people, or 'unlimited'.");
+  return n;
 }
 
 const readBody = (req) => req.json().catch(() => {
@@ -268,25 +326,28 @@ export async function opsPatch(req, env, id) {
   return describe(env, id);
 }
 
-// POST /ops/institutions/:id/pilot  {until: ms or 'YYYY-MM-DD'} — a licence
-// with no invoice, until a date; until in the past ends it.
-export async function opsPilot(req, env, id) {
+// POST /ops/institutions/:id/manual  {until: ms or 'YYYY-MM-DD', max_users} — a
+// licence not invoiced through Stripe (paid some other way), until a date;
+// until in the past ends it.
+export async function opsManual(req, env, id) {
   requireOps(req, env);
   await institution(env, id);
   const body = await readBody(req);
   const until = typeof body.until === 'number' ? body.until : Date.parse(body.until);
   if (!Number.isFinite(until)) throw new ApiError(400, 'bad_request', 'until must be a date.');
+  const seats = maxUsers(body.max_users);
   const cur = await env.DB.prepare('SELECT stripe_customer, status FROM subscriptions WHERE workspace_id = ?').bind(id).first();
   if (cur && cur.stripe_customer !== 'manual' && cur.status !== 'canceled') {
     throw new ApiError(409, 'invoiced', 'This institution has an invoiced licence; change it in Stripe.');
   }
   await env.DB.prepare(
     `INSERT INTO subscriptions (workspace_id, stripe_customer, stripe_subscription, plan, seats, status, period_end, updated_at)
-     VALUES (?, 'manual', NULL, 'institution', 0, 'active', ?, ?)
+     VALUES (?, 'manual', NULL, 'institution', ?, 'active', ?, ?)
      ON CONFLICT (workspace_id) DO UPDATE SET stripe_customer = 'manual', stripe_subscription = NULL, plan = 'institution',
-       status = 'active', period_end = excluded.period_end, past_due_since = NULL, cancel_at = NULL, updated_at = excluded.updated_at`,
+       seats = excluded.seats, status = 'active', period_end = excluded.period_end, past_due_since = NULL, cancel_at = NULL,
+       updated_at = excluded.updated_at`,
   )
-    .bind(id, until, now())
+    .bind(id, seats, until, now())
     .run();
   return describe(env, id);
 }
@@ -306,6 +367,7 @@ export async function opsInvoice(req, env, id) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError(400, 'bad_request', 'email is where Stripe sends the invoice.');
   const days = body.days_until_due === undefined ? 30 : Math.round(Number(body.days_until_due));
   if (!Number.isInteger(days) || days < 1 || days > 120) throw new ApiError(400, 'bad_request', 'days_until_due is 1 to 120.');
+  const seats = maxUsers(body.max_users);
   const cur = await env.DB.prepare('SELECT stripe_customer, stripe_subscription, status FROM subscriptions WHERE workspace_id = ?').bind(id).first();
   if (cur && cur.stripe_customer !== 'manual' && ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'].includes(cur.status)) {
     throw new ApiError(409, 'invoiced', 'This institution already has an invoiced licence; change it in Stripe.');
@@ -330,8 +392,42 @@ export async function opsInvoice(req, env, id) {
     description: (typeof body.description === 'string' && body.description.trim()) ||
       `JEKray2D Pro for everyone at ${w.name}, for one year`,
     items: [{ price_data: { currency: 'gbp', product: PRODUCT, unit_amount: amount, recurring: { interval: 'year' } } }],
-    metadata: { workspace_id: id, plan: 'institution' },
+    metadata: { workspace_id: id, plan: 'institution', max_users: String(seats) },
   });
   await mirror(env, s);
+  return describe(env, id);
+}
+
+// POST /ops/institutions/:id/remove  {email} — at the institution's request,
+// someone no longer covered; their place frees at once.
+export async function opsRemove(req, env, id) {
+  requireOps(req, env);
+  await institution(env, id);
+  const email = String((await readBody(req)).email || '').trim().toLowerCase();
+  if (!email.includes('@')) throw new ApiError(400, 'bad_request', 'email is the address of the person to remove.');
+  const { results } = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL').bind(email).all();
+  if (!results.length) throw new ApiError(404, 'not_found', `No account has the email ${email}.`);
+  const t = now();
+  await env.DB.batch(results.map((u) => env.DB.prepare(
+    `INSERT INTO licences (workspace_id, user_id, via, detail, joined_at, removed_at) VALUES (?, ?, 'invite', 'removed', ?, ?)
+     ON CONFLICT (workspace_id, user_id) DO UPDATE SET removed_at = excluded.removed_at`,
+  ).bind(id, u.id, t, t)));
+  return { removed: results.length, ...(await describe(env, id)) };
+}
+
+// POST /ops/institutions/:id/tier  {max_users} — a different tier, as agreed
+// (kept on the Stripe subscription for an invoiced licence).
+export async function opsTier(req, env, id) {
+  requireOps(req, env);
+  await institution(env, id);
+  const seats = maxUsers((await readBody(req)).max_users);
+  const cur = await env.DB.prepare('SELECT stripe_customer, stripe_subscription FROM subscriptions WHERE workspace_id = ?').bind(id).first();
+  if (!cur) throw new ApiError(404, 'no_licence', 'This institution has no licence yet.');
+  if (cur.stripe_customer === 'manual') {
+    await env.DB.prepare('UPDATE subscriptions SET seats = ?, updated_at = ? WHERE workspace_id = ?').bind(seats, now(), id).run();
+  } else {
+    const s = await stripe(env, 'POST', `/subscriptions/${cur.stripe_subscription}`, { metadata: { max_users: String(seats) } });
+    await mirror(env, s);
+  }
   return describe(env, id);
 }

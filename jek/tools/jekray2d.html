@@ -4241,7 +4241,8 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur, skipEl, forceEl, qShare } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole } = stack.pop();
+      hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
@@ -4333,20 +4334,27 @@ function traceSceneOnce() {
           pts.length -= 2; last = null;
           continue;
         }
-        // the beam meets the element but part of it misses: that part carries on past it
+        // the beam meets the element but part of it misses: that part carries on past it. A
+        // lens's surface may be smaller than the lens (a mounted asphere's back face): light
+        // between the two meets the ground edge, as a ray there does, and goes no further;
+        // only what misses the whole lens goes on past it
         if (splits && !hitSeg && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
           const fin = apertureShare(hit, lyH, cth, bw, bw);
-          if ((1 - fin) * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
+          const rOut = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
+          const past = rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
+          if (past * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
             splitsLeft--;
-            stack.push(splitState(1 - fin, { skipEl: hit.el.id, path: path + 'b' + bounce,
+            stack.push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(0, rOut - Math.abs(lyH)),
               evt: bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
             qShare *= fin;
-          }
+          } else if (fin * qShare > SPLIT_MIN && (1 - past) - fin > SPLIT_MIN) qShare *= fin / (1 - past);   // only the edge took some
         }
 
         const s = hit;
+        // the hole goes with the light that went round: a plane mirror or a stop keeps it, a surface that bends the light does not
+        if (hole && s.kind !== 'iris' && s.kind !== 'mirror' && !(s.el && s.el.type === 'screen' && !s.el.absorb)) hole = 0;
         // leaving a walk-off crystal: its faces refract the wave normal, not the energy
         if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
         const [lx, ly] = toLocal(s.f, px, py);
@@ -4389,6 +4397,12 @@ function traceSceneOnce() {
         }
         if (s.kind === 'iris') {
           const m = s.el;
+          // light that went round an element has a hole in its middle: a round stop whose opening
+          // lies inside the hole lets none of it through, so the branch ends here
+          if (isQ && hole > 0 && m.shape === 'round' && !m.slits) {
+            const d = Math.abs(ly - (m.offset || 0)), bwS = beamAt(qr, qi, nCur, nm, m2Env(src)).w;
+            if (m.aperture / 2 + d <= hole && m.outer / 2 >= Math.abs(ly) + 3 * bwS) { pts.length -= 2; break; }
+          }
           evt = Object.assign(passEv(), { mask: { shape: m.shape, a: m.aperture / 2, o: m.offset, h: m.height / 2, side: m.side, b: m.outer / 2,
             ext: stopExtent(m), slits: stopSlitLike(m) } });
           pts.length -= 2; last = s; continue;
@@ -10303,7 +10317,8 @@ function metricRaw(el, key) {
   if (!el || !m || m.on !== metricKind(el)) return null;
   if (m.getEl) { const v = m.getEl(el); return isFinite(v) ? v : null; }
   const st = screenStats(el);
-  if (!st || st.empty) return null;
+  // a Gaussian beam's figures need no rays: with the fan hidden the beam still arrives
+  if (!st || (st.empty && !(m.fam === 'gauss' && st.beam))) return null;
   const v = m.get(st);
   return (v === null || v === undefined || !isFinite(v)) ? null : v;
 }
@@ -21214,7 +21229,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 5 October 2026', [
-    'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam.',
+    'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',
     'A <b>fibre-coupled LED</b>, and unpolarised fibre lasers. In fibre, broadband light is followed across its band, so filters, WDMs and Bragg gratings shape it, and it beats with itself on a photodetector.',

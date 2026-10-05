@@ -94,6 +94,9 @@ describe('Sign in with Microsoft', () => {
     expect(new URL(yes.headers.get('Location')).searchParams.get('jekauth')).toBe('consented');
     const no = await call('/auth/microsoft/callback?error=access_denied&admin_consent=False', { origin: null });
     expect(new URL(no.headers.get('Location')).searchParams.get('jekauth')).toBe('consent_failed');
+    const why = await call('/auth/microsoft/callback?error=invalid_request&error_description=' + encodeURIComponent('AADSTS650056: Misconfigured application.') + '&admin_consent=False', { origin: null });
+    const back = new URL(why.headers.get('Location'));
+    expect([back.searchParams.get('jekauth'), back.searchParams.get('jekauthcode')]).toEqual(['consent_failed', 'AADSTS650056']);
     expect(yes.headers.getSetCookie().some((c) => c.startsWith('jek_session='))).toBe(false);
   });
 

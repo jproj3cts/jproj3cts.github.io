@@ -192,7 +192,11 @@ export async function callback(req, env, ctx, { provider: name }) {
   // admin consent link): no sign-in, just the outcome for the app to show.
   if (name === 'microsoft' && url.searchParams.has('admin_consent')) {
     const yes = url.searchParams.get('admin_consent') === 'True' && !url.searchParams.get('error');
-    return redirect(withOutcome(safeReturn(env, null), yes ? 'consented' : 'consent_failed'));
+    const back = new URL(withOutcome(safeReturn(env, null), yes ? 'consented' : 'consent_failed'));
+    // Microsoft's own error code (AADSTS…), so the reason can be looked up
+    const code = (url.searchParams.get('error_description') || '').match(/AADSTS\d+/);
+    if (!yes && (code || url.searchParams.get('error'))) back.searchParams.set('jekauthcode', code ? code[0] : String(url.searchParams.get('error')).slice(0, 40));
+    return redirect(back.toString());
   }
   const state = url.searchParams.get('state') || '';
   const clear = stateCookie('', 0);

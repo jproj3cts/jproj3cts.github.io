@@ -21520,12 +21520,13 @@ function cloudMenuShown() {
 }
 {
   // the outcome of a sign-in, reported once, and taken out of the address
-  const q = new URLSearchParams(location.search), outcome = q.get('jekauth');
+  const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode');
   if (outcome) {
-    q.delete('jekauth');
+    q.delete('jekauth'); q.delete('jekauthcode');
     window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
     const m = AUTH_OUTCOMES[outcome];
-    if (m) setTimeout(() => toast(m[0], m[1]), 600);
+    // the provider's own error code, when it gave one, so the reason can be looked up
+    if (m) setTimeout(() => toast(m[0] + (code && /^[\w-]{1,40}$/.test(code) ? ' (Microsoft: ' + code + ')' : ''), m[1]), 600);
   }
   const billing = q.get('jekbilling');
   if (billing) {

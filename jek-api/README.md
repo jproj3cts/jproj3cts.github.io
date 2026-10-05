@@ -37,6 +37,11 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams).
   and sessions. A team with other members needs a new owner first. The user
   row stays, emptied to "Deleted user", for benches they saved in others'
   workspaces.
+- Thumbnails: `PUT /v1/benches/:b/thumb` with a WebP, PNG or JPEG of at
+  most 128 KB (checked by its first bytes, not its Content-Type), kept in R2
+  under a fresh name each time; the bench's `thumb` is its URL, served with
+  a year's private caching, nosniff and a sandboxing CSP. They go with the
+  bench when the bin is emptied, and with the account.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,

@@ -571,6 +571,8 @@
   .rt-cloudlist .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.75rem; font-size: 0.8rem; }
   .rt-cloudlist .folder .when { color: var(--jek-ink-soft); font-style: italic; }
   .rt-cloudlist .here { background: var(--jek-well); }
+  .rt-cloudlist .thumb { flex: none; width: 7.2rem; height: 4.5rem; border-radius: 2px; background: var(--rt-bench); object-fit: cover; display: block; }
+  .rt-cloudlist span.thumb { opacity: 0.35; }
   .rt-cloudfoot { justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .rt-cloudfoot #cloudFoot { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--jek-ink-soft); }
   .rt-ccacts { flex-wrap: wrap; }
@@ -5583,10 +5585,11 @@ function render() {
   }
   if (!exporting) { drawMinimap(); drawSelection(); }
   drawScaleBar();
-  if (exporting) drawCredit();
+  if (exporting && !thumbing) drawCredit();
   updateReadouts();
 }
 /* on an exported picture: where it was made */
+let thumbing = false;                 // drawing My benches' picture of the bench: no credit line
 function drawCredit() {
   ctx.save();
   ctx.font = '11px ' + getCss('--jek-sans');
@@ -21181,6 +21184,7 @@ async function cloudPush(opts = {}) {
     link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
     cloudKeep();
     cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+    if (!opts.keepalive) cloudThumb(link, opts.checkpoint);
     return true;
   } catch (err) {
     if (cloud !== link) return false;
@@ -21217,10 +21221,55 @@ async function cloudSave() {
     const b = await api('/v1/workspaces/' + ws + '/benches', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: project.name, folder_id: cloudPlace.ws === ws ? cloudPlace.folder : null, content: cloudContent() }) });
     cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+    cloudThumb(cloud, true);
     toast('Saved to the cloud: “' + b.name + '” is in My benches');
   } catch (err) {
     toast(err.status === 402 ? 'Saving to the cloud needs JEKray2D Pro.' : 'Could not save to the cloud: ' + err.message, true);
   }
+}
+/* My benches' picture of a bench: the view as it was last seen, without the handles, cut to
+   8:5 and drawn small. Sent after a save at most every two minutes, and always after Save to
+   cloud; a failure is no matter (the next save tries again) */
+const THUMB_W = 320, THUMB_H = 200, THUMB_EVERY = 2 * 60 * 1000;
+function benchThumb() {
+  return new Promise(resolve => {
+    try {
+      if (!W || !H) return resolve(null);
+      exporting = true; thumbing = true; render(); exporting = false; thumbing = false;
+      const cv = document.createElement('canvas'); cv.width = THUMB_W; cv.height = THUMB_H;
+      const c = cv.getContext('2d'), sw = canvas.width, sh = canvas.height, d = sw / W;
+      // the parts as seen, with a margin, cut to 8:5 and kept inside the view
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const e of project.elements.filter(onTab)) {
+        const r = halfSize(e) * V().scale;
+        x0 = Math.min(x0, sx(e.x) - r); x1 = Math.max(x1, sx(e.x) + r); y0 = Math.min(y0, sy(e.y) - r); y1 = Math.max(y1, sy(e.y) + r);
+      }
+      x0 = Math.max(0, x0) * d; x1 = Math.min(W, x1) * d; y0 = Math.max(0, y0) * d; y1 = Math.min(H, y1) * d;
+      let w = sw, hh = sh, cx = sw / 2, cy = sh / 2;
+      if (x1 > x0 && y1 > y0) { w = (x1 - x0) * 1.2; hh = (y1 - y0) * 1.2; cx = (x0 + x1) / 2; cy = (y0 + y1) / 2; }
+      // no closer than the thumbnail's own size (a lone part stays a part, not a blur)
+      w = Math.max(w, hh * THUMB_W / THUMB_H, THUMB_W * d); hh = w * THUMB_H / THUMB_W;
+      if (w > sw) { w = sw; hh = w * THUMB_H / THUMB_W; }
+      if (hh > sh) { hh = sh; w = hh * THUMB_W / THUMB_H; }
+      const left = Math.min(Math.max(0, cx - w / 2), sw - w), top = Math.min(Math.max(0, cy - hh / 2), sh - hh);
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(canvas, left, top, w, hh, 0, 0, THUMB_W, THUMB_H);
+      requestRender();
+      // WebP where the browser writes it (Safari writes PNG instead), JPEG if that is too big
+      cv.toBlob(b => {
+        if (b && b.size <= 120000) return resolve(b);
+        cv.toBlob(j => resolve(j && j.size <= 120000 ? j : null), 'image/jpeg', 0.75);
+      }, 'image/webp', 0.8);
+    } catch (err) { exporting = false; thumbing = false; resolve(null); }
+  });
+}
+async function cloudThumb(link, force) {
+  if (!link || TEST_MODE || (!force && Date.now() - (link.thumbAt || 0) < THUMB_EVERY)) return;
+  link.thumbAt = Date.now();
+  const blob = await benchThumb();
+  if (!blob || cloud !== link) return;
+  try { await api('/v1/benches/' + link.id + '/thumb', { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob }); }
+  catch (err) { link.thumbAt = 0; }
 }
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
@@ -21342,6 +21391,7 @@ async function fillCloud() {
           writer && active ? link('Duplicate', () => busy(async () => { const full = await api('/v1/benches/' + b.id); await api('/v1/workspaces/' + ws + '/benches', Object.assign({ method: 'POST' }, json({ name: b.name + ' (copy)', folder_id: b.folder_id, content: full.content }))); }, 'Duplicated')) : null,
           writer ? link('Delete', () => busy(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days')) : null]).filter(Boolean));
       rows.push(h('div', { class: mine ? 'here' : null },
+        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
         h('span', { class: 'when' }, whenAgo(cloudPlace.bin ? b.deleted_at : b.updated_at)),
         h('span', { class: 'what', title: b.name }, b.name, ' ', h('small', null, [mine ? 'open here' : null, cloudPlace.bin ? 'deleted' : b.updated_by && b.updated_by.name, kb(b.size_bytes), cloudPlace.q && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null].filter(Boolean).join(' · '))),
         acts));

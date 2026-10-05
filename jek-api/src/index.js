@@ -67,6 +67,8 @@ const router = new Router()
     return json({ ok: true });
   })
   .on('POST', '/v1/benches/:b/undelete', async (req, env, ctx, { b }) => json(await B.undelete(env, await requireUser(req, env, ctx), b)))
+  .on('PUT', '/v1/benches/:b/thumb', async (req, env, ctx, { b }) => json(await B.putThumb(req, env, await requireUser(req, env, ctx), b)))
+  .on('GET', '/v1/benches/:b/thumb', async (req, env, ctx, { b }) => B.getThumb(env, await requireUser(req, env, ctx), b))
   .on('GET', '/v1/benches/:b/versions', async (req, env, ctx, { b }) => json(await B.versions(env, await requireUser(req, env, ctx), b)))
   .on('GET', '/v1/benches/:b/versions/:v', async (req, env, ctx, { b, v }) =>
     json(await B.version(env, await requireUser(req, env, ctx), b, v)),
@@ -135,7 +137,7 @@ export default {
     const headers = new Headers(res.headers);
     for (const [k, v] of Object.entries(corsHeaders(req, env))) headers.set(k, v);
     if (ctx.setCookie) headers.append('Set-Cookie', ctx.setCookie);
-    headers.set('Cache-Control', 'no-store');
+    if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'no-store');   // a thumbnail says otherwise
     return new Response(res.body, { status: res.status, headers });
   },
 };

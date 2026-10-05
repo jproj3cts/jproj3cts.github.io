@@ -44,7 +44,7 @@ export async function workspaceAccess(env, user, wsId) {
 async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
-            b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by,
+            b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by, b.thumb_key,
             w.kind, m.role, s.status, s.period_end, s.past_due_since
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
@@ -75,6 +75,7 @@ const meta = (b) => ({
   updated_at: b.updated_at,
   updated_by: b.updated_by ? { id: b.updated_by, name: b.updated_by_name } : null,
   deleted_at: b.deleted_at,
+  thumb: thumbPath(b.id, b.thumb_key),
 });
 
 // ---------- input ----------
@@ -195,7 +196,7 @@ export async function list(req, env, user, wsId) {
   const q = (url.searchParams.get('q') || '').trim();
   const folder = url.searchParams.get('folder');
   let sql = `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
-                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name
+                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, b.thumb_key
                FROM benches b LEFT JOIN users u ON u.id = b.updated_by
               WHERE b.workspace_id = ? AND b.deleted_at IS ${bin ? 'NOT NULL' : 'NULL'}`;
   const args = [a.ws];
@@ -390,6 +391,65 @@ export async function restore(env, user, benchId, v) {
   return { id: b.id, version: next, updated_at: t, size_bytes: bytes(old) };
 }
 
+// ---------- thumbnails ----------
+//
+// A small picture of the bench, drawn by the app after a save and shown in
+// My benches. One per bench, in R2 under a fresh name each time, so its URL
+// changes when it does and the browser can keep each one for good.
+
+export const MAX_THUMB = 128 * 1024;
+const thumbPath = (id, key) => (key ? `/v1/benches/${id}/thumb?k=${key.slice(key.lastIndexOf('/') + 1)}` : null);
+
+// The image's type from its first bytes; anything else is refused, so what
+// is served back can only ever be one of these.
+function imageType(b) {
+  const at = (i, ...xs) => xs.every((x, j) => b[i + j] === x);
+  if (b.length > 12 && at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp';
+  if (b.length > 8 && at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
+  if (b.length > 3 && at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg';
+  return null;
+}
+
+// PUT /v1/benches/:b/thumb  with the image itself as the body
+export async function putThumb(req, env, user, benchId) {
+  const a = await benchAccess(env, user, benchId);
+  canWrite(a);
+  if (Number(req.headers.get('Content-Length') || 0) > MAX_THUMB) throw new ApiError(413, 'too_large', 'A thumbnail can be at most 128 KB.');
+  const body = new Uint8Array(await req.arrayBuffer());
+  if (body.length > MAX_THUMB) throw new ApiError(413, 'too_large', 'A thumbnail can be at most 128 KB.');
+  const type = imageType(body);
+  if (!type) throw new ApiError(415, 'bad_image', 'A thumbnail must be a WebP, PNG or JPEG image.');
+  const b = a.bench;
+  const key = `w/${b.workspace_id}/b/${b.id}/t/${newId()}`;
+  await env.BENCHES.put(key, body, { httpMetadata: { contentType: type } });
+  // Only replaces the one this request saw: of two at once, the loser's image is dropped.
+  const r = await env.DB.prepare('UPDATE benches SET thumb_key = ? WHERE id = ? AND thumb_key IS ?').bind(key, b.id, b.thumb_key).run();
+  if (!r.meta.changes) {
+    await env.BENCHES.delete(key);
+    throw new ApiError(409, 'conflict', 'Another thumbnail was saved at the same time.');
+  }
+  if (b.thumb_key) await env.BENCHES.delete(b.thumb_key);
+  return { thumb: thumbPath(b.id, key) };
+}
+
+// GET /v1/benches/:b/thumb
+export async function getThumb(env, user, benchId) {
+  const { bench } = await benchAccess(env, user, benchId, { bin: true });
+  const obj = bench.thumb_key && (await env.BENCHES.get(bench.thumb_key));
+  if (!obj) throw new ApiError(404, 'not_found', 'This bench has no thumbnail yet.');
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': obj.httpMetadata.contentType,
+      'Content-Length': String(obj.size),
+      // its URL names this image alone, and only this person may see it
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Cross-Origin-Resource-Policy': 'same-site',
+    },
+  });
+}
+
 // ---------- folders ----------
 
 export async function folders(env, user, wsId) {
@@ -457,10 +517,11 @@ export async function deleteFolder(env, user, wsId, folderId) {
 // ---------- the bin, emptied daily ----------
 
 export async function purgeBin(env, t = now()) {
-  const { results } = await env.DB.prepare('SELECT id FROM benches WHERE deleted_at IS NOT NULL AND deleted_at < ?')
+  const { results } = await env.DB.prepare('SELECT id, thumb_key FROM benches WHERE deleted_at IS NOT NULL AND deleted_at < ?')
     .bind(t - BIN_MS)
     .all();
-  for (const { id } of results) {
+  for (const { id, thumb_key } of results) {
+    if (thumb_key) await env.BENCHES.delete(thumb_key);
     const { results: vs } = await env.DB.prepare('SELECT r2_key FROM bench_versions WHERE bench_id = ?').bind(id).all();
     for (let i = 0; i < vs.length; i += 1000) await env.BENCHES.delete(vs.slice(i, i + 1000).map((v) => v.r2_key));
     await env.DB.prepare('DELETE FROM benches WHERE id = ?').bind(id).run(); // versions go with it

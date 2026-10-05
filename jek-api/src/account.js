@@ -46,7 +46,7 @@ export async function deleteAccount(req, env, user) {
     }
   }
   const ids = owned.map((w) => w.id);
-  // History in R2 first: the rows that name the objects go with the workspaces.
+  // History and thumbnails in R2 first: the rows that name the objects go with the workspaces.
   for (const ws of ids) {
     const { results: vs } = await env.DB.prepare(
       'SELECT v.r2_key FROM bench_versions v JOIN benches b ON b.id = v.bench_id WHERE b.workspace_id = ?',
@@ -54,6 +54,10 @@ export async function deleteAccount(req, env, user) {
       .bind(ws)
       .all();
     for (let i = 0; i < vs.length; i += 1000) await env.BENCHES.delete(vs.slice(i, i + 1000).map((v) => v.r2_key));
+    const { results: ts } = await env.DB.prepare('SELECT thumb_key FROM benches WHERE workspace_id = ? AND thumb_key IS NOT NULL')
+      .bind(ws)
+      .all();
+    for (let i = 0; i < ts.length; i += 1000) await env.BENCHES.delete(ts.slice(i, i + 1000).map((x) => x.thumb_key));
   }
   const del = (sql, ...args) => env.DB.prepare(sql).bind(...args);
   await env.DB.batch([

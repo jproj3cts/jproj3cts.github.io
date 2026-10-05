@@ -10,6 +10,7 @@
 
 import { allowedOrigins } from './http.js';
 import { createSession, currentUser } from './sessions.js';
+import { orcidLegacy, orcidOn } from './orcid.js';
 import { createUser } from './users.js';
 import { ApiError, cookie, newToken, now, sha256 } from './util.js';
 
@@ -155,6 +156,11 @@ export async function start(req, env, ctx, { provider: name }) {
   const ret = safeReturn(env, url.searchParams.get('return'));
   // a provider not yet set up here (no client id): back to the app, which says so
   if (!p.clientId(env) || !p.secret(env)) return redirect(withOutcome(ret, 'unavailable'));
+  // ORCID, while off (src/orcid.js): never linked, and signing in only for a while, for existing accounts
+  if (name === 'orcid' && !orcidOn(env)) {
+    if (url.searchParams.get('link') === '1') return redirect(withOutcome(ret, 'unavailable'));
+    if (!orcidLegacy(env)) return redirect(withOutcome(ret, 'orcid_closed'));
+  }
   let linkUser = null;
   if (url.searchParams.get('link') === '1') {
     const user = await currentUser(req, env, ctx);
@@ -243,6 +249,11 @@ export async function callback(req, env, ctx, { provider: name }) {
   )
     .bind(name, id.subject)
     .first();
+
+  // ORCID, while off: only an account that already signs in with it, and only to sign in
+  if (name === 'orcid' && !orcidOn(env) && (saved.linkUser || !found || !orcidLegacy(env))) {
+    return redirect(withOutcome(ret, saved.linkUser ? 'unavailable' : 'orcid_closed'), [clear]);
+  }
 
   let userId;
   if (saved.linkUser) {

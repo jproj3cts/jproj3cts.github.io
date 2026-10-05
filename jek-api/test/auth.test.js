@@ -1,8 +1,8 @@
 import { env } from 'cloudflare:workers';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { safeReturn } from '../src/auth.js';
 import { sha256 } from '../src/util.js';
-import { API, APP, call, signedIn } from './helpers.js';
+import { API, APP, call, signedIn, orcidOnFor } from './helpers.js';
 
 const APP_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
 
@@ -199,6 +199,7 @@ describe('state checks', () => {
 });
 
 describe('ORCID sign-in', () => {
+  orcidOnFor(beforeEach, afterEach);
   it('creates an account from the iD and name, with no email', async () => {
     const { state } = await begin('orcid');
     const sent = provider({ access_token: 'x', orcid: '0000-0002-1825-0097', name: 'Josiah Carberry' });
@@ -224,6 +225,7 @@ describe('ORCID sign-in', () => {
 });
 
 describe('linking a second sign-in', () => {
+  orcidOnFor(beforeEach, afterEach);
   it('attaches ORCID to the signed-in account', async () => {
     const { user, token } = await signedIn();
     const { state } = await begin('orcid', { token, link: true });

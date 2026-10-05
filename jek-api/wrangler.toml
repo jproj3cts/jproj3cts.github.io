@@ -19,6 +19,11 @@ APP_URL = "https://jeksys.net/jek/tools/jekray2d.html"
 # `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.
 GOOGLE_CLIENT_ID = "432503390292-hplcfdkn74jn50segtp0plbq5rnu45hj.apps.googleusercontent.com"
 ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
+# ORCID is off (its Public API terms rule out paid services; src/orcid.js):
+# "1" turns it back on. Existing ORCID accounts may sign in, to link Google or
+# Microsoft, until ORCID_LEGACY_UNTIL; after it the daily cron removes ORCID data.
+ORCID_ON = ""
+ORCID_LEGACY_UNTIL = "2026-10-31T23:59:59Z"
 # Microsoft (university and work accounts): the app registration's
 # Application (client) ID; its secret with `npx wrangler secret put MICROSOFT_CLIENT_SECRET`.
 # Empty: Microsoft sign-in is not offered.

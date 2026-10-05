@@ -3,6 +3,7 @@
 
 import { checkOrigin, corsHeaders, preflight } from './http.js';
 import { overLimit, readCapped } from './limits.js';
+import { purgeOrcid } from './orcid.js';
 import { Router } from './router.js';
 import { deleteAccount } from './account.js';
 import { callback, start, unlink } from './auth.js';
@@ -150,6 +151,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(B.purgeBin(env));
     ctx.waitUntil(purgeExpired(env));
+    ctx.waitUntil(purgeOrcid(env));
   },
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return preflight(req, env);

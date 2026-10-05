@@ -298,6 +298,8 @@ describe('academic verification', () => {
   });
 
   it('verifies by ORCID when the email does not show it', async () => {
+    const was = env.ORCID_ON; env.ORCID_ON = '1';
+    try {
     const s = await signedIn();
     await env.DB.prepare("UPDATE users SET email = 'someone@gmail.com' WHERE id = ?").bind(s.user.id).run();
     let r = await call('/v1/me/academic', { method: 'POST', token: s.token });
@@ -312,5 +314,8 @@ describe('academic verification', () => {
     expect(m.academic.until).toBeGreaterThan(Date.now() + 360 * DAY);
     const read = calls.find((c) => c.path.endsWith('/educations'));
     expect(read.headers.Authorization).toBe('Bearer orcid-read');
+    } finally {
+      env.ORCID_ON = was;
+    }
   });
 });

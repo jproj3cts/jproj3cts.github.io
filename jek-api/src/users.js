@@ -1,6 +1,7 @@
 // Users and their personal workspace, created together.
 
 import { useLicence } from './institutions.js';
+import { orcidLegacy, orcidLegacyUntil } from './orcid.js';
 import { newId, now } from './util.js';
 
 // With `identity` ({ provider, subject }), the sign-in is attached in the
@@ -70,6 +71,8 @@ export async function me(env, user) {
     user,
     academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via } : null,
     licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,
+    // ORCID sign-in is ending (src/orcid.js): when, for someone who has it
+    orcid_ends: orcidLegacy(env, t) && ids.results.some((i) => i.provider === 'orcid') ? orcidLegacyUntil(env) : null,
     // their university has a licence, but its tier has no room for them
     licence_full: licence && licence.full ? { name: licence.full } : null,
     identities: ids.results,

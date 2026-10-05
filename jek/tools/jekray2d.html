@@ -737,6 +737,7 @@
   .rt-acctmenu .rt-accthead b { display: block; }
   .rt-acctmenu .rt-accthead span { display: block; color: var(--jek-ink-soft); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .rt-acctmenu .rt-menunote a { color: inherit; }
+  .rt-acctmenu .rt-menunote.rt-warn { color: var(--jek-red); font-weight: 600; }
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
   .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
@@ -20988,6 +20989,7 @@ const AUTH_OUTCOMES = {
   failed: ['Sign-in did not work. Please try again.', true], taken: ['That sign-in already belongs to another JEKray2D account.', true],
   signed_out: ['Please sign in first.', true],
   unavailable: ['That way of signing in is not available yet. Please use another.', true],
+  orcid_closed: ['Signing in with ORCID has ended. Sign in with Google or Microsoft; if your account could only sign in with ORCID, email support@jeksys.net and we will move it for you.', true],
   consented: ['Thank you: JEKray2D is approved for your organisation, and everyone there can now sign in with Microsoft.'],
   consent_failed: ['JEKray2D was not approved for your organisation. Nothing has changed.', true],
 };
@@ -21047,7 +21049,7 @@ async function showSubscribe() {
     showSubscribe();
   } }, 'Check that I qualify');
   const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + ac.via + ')') : h('p', { class: 'rt-subcheck' }, 'For current students and staff of a university or similar. ', check,
-    ': we look for a university email on your Google sign-in, or a current university role on your ORCID record.');
+    ': we look for a university email on your Google or Microsoft sign-in. No university address? Email support@jeksys.net and we will check by hand.');
   const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     uni.disabled = true; uni.textContent = 'Checking…';
     try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKrayPro through ' + account.licence.name); return; }
@@ -21055,7 +21057,7 @@ async function showSubscribe() {
     uni.disabled = false; uni.textContent = 'Check for a university licence';
   } }, 'Check for a university licence');
   const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKrayPro for everyone? ', uni,
-    ': with your university Google or Microsoft account it shows on its own; with ORCID, we look for your current university on your record.');
+    ': with your university Google or Microsoft account it shows on its own, or ask your university\u2019s licence administrator to invite you.');
   box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
     card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device.'),
     card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
@@ -21097,14 +21099,17 @@ function fillAccount() {
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
-    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
+    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')),
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray2D (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
     const orcid = ids.find(i => i.provider === 'orcid');
     const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
-      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))), h('div', { class: 'sep' })];
+      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))),
+      // ORCID sign-in is ending: someone with no other way in is asked to link one
+      account.orcid_ends && !ids.some(i => i.provider !== 'orcid') ? h('span', { class: 'rt-menunote rt-warn' }, 'Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + '. Link Google or Microsoft below to keep your account.') : null,
+      h('div', { class: 'sep' })].filter(Boolean);
     // a university's licence, for those who look after it there
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
     // the personal workspace's plan: subscribe, or manage it
@@ -21118,7 +21123,7 @@ function fillAccount() {
       }
     }
     if (rows[rows.length - 1].className !== 'sep') rows.push(h('div', { class: 'sep' }));
-    for (const p of ['google', 'microsoft', 'orcid']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
+    for (const p of ['google', 'microsoft']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
@@ -21228,22 +21233,17 @@ async function loadAccount() {
     // said only to someone whose bench here saves to the cloud; anyone else just sees Sign in
     if (err.status !== 401 && cloud) toast('Could not reach your JEKray2D account: ' + err.message, true);
   }
-  // signed in with ORCID and on no plan: a university licence through it is looked for, once a day
-  const mine = account && account.workspaces.find(w => w.kind === 'personal');
-  if (account && !account.licence && mine && !mine.active && (account.identities || []).some(i => i.provider === 'orcid') && !TEST_MODE) {
-    let last = 0; try { last = +localStorage.getItem('jek-raytracer-unicheck') || 0; } catch (err) { /* none */ }
-    if (Date.now() - last > 86400000) {
-      try { localStorage.setItem('jek-raytracer-unicheck', String(Date.now())); } catch (err) { /* not kept: fine */ }
-      try { await api('/v1/me/institution', { method: 'POST' }); account = await api('/v1/me'); toast('You have JEKrayPro through ' + account.licence.name); }
-      catch (err) { /* none found, or ORCID unreachable: the Subscribe box offers the check */ }
-    }
+  // someone who signs in with ORCID alone is told, once a session, that it is ending
+  if (account && account.orcid_ends && !(account.identities || []).some(i => i.provider !== 'orcid') && !orcidWarned) {
+    orcidWarned = true;
+    setTimeout(() => toast('Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + ': link Google or Microsoft from the account menu, top right, to keep your account.', true), 1200);
   }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 const accountsOn = () => !TEST_MODE && !EMBED;
-let accountLoaded = null;       // the first look at the account, for what waits on it (#pro)
+let accountLoaded = null, orcidWarned = false;       // the first look at the account, for what waits on it (#pro)
 /* #pro, from the product page's JEKrayPro buttons: the subscription box when signed in,
    the sign-in choices when not, and a word when Pro is already theirs */
 async function proLink() {
@@ -21566,7 +21566,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 5 October 2026', [
-    '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google, Microsoft (university or work) or ORCID from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
+    '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',

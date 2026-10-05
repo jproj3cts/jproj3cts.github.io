@@ -3,6 +3,7 @@
 // academic domain (from Google), or a current education or employment record
 // on their public ORCID profile. Verification lasts a year.
 
+import { orcidOn } from './orcid.js';
 import { ApiError, now } from './util.js';
 
 const YEAR = 365 * 24 * 60 * 60 * 1000;
@@ -111,7 +112,7 @@ export async function verify(env, user) {
   let via = null;
   const domain = academicEmail(u && u.email);
   if (domain) via = `email: ${domain}`;
-  if (!via) {
+  if (!via && orcidOn(env)) {
     const id = await env.DB.prepare("SELECT subject FROM identities WHERE user_id = ? AND provider = 'orcid'").bind(user.id).first();
     if (id) {
       try {
@@ -125,7 +126,9 @@ export async function verify(env, user) {
   }
   if (!via) {
     throw new ApiError(403, 'not_academic',
-      'We could not confirm a university address or a current university affiliation on your ORCID record. Sign in with your university Google account, link your ORCID iD, or email support@jeksys.net.');
+      orcidOn(env)
+        ? 'We could not confirm a university address or a current university affiliation on your ORCID record. Sign in with your university Google account, link your ORCID iD, or email support@jeksys.net.'
+        : 'We could not confirm a university address. Sign in with your university Google or Microsoft account, or email support@jeksys.net and we will check by hand.');
   }
   const until = now() + YEAR;
   await env.DB.prepare('UPDATE users SET academic_until = ?, academic_via = ? WHERE id = ?').bind(until, via, user.id).run();

@@ -51,7 +51,7 @@
   <main class="main-content">
     <h1 class="page-title">JEKrayPro security overview</h1>
 
-    <p><em>Version 1.2, 5 October 2026</em></p>
+    <p><em>Version 1.3, 5 October 2026</em></p>
 
     <p>How JEKray2D and JEKrayPro are built and protected, for information security teams reviewing them. It answers most of a typical supplier security questionnaire; we are glad to complete yours as well. Questions: <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
 
@@ -66,7 +66,7 @@
 
     <h2>2. Sign-in and sessions</h2>
     <ul>
-      <li>Users sign in with Google or Microsoft (OpenID Connect, with PKCE) or ORCID (OAuth). We never see or store passwords. We ask Google and Microsoft only for the basic sign-in scopes, and read nothing from a university&rsquo;s directory.</li>
+      <li>Users sign in with Google or Microsoft (OpenID Connect, with PKCE). We never see or store passwords. We ask Google and Microsoft only for the basic sign-in scopes, and read nothing from a university&rsquo;s directory.</li>
       <li>Microsoft sign-in accepts university and work accounts only. A person is identified by their tenant and object identifiers; their email address is taken from their sign-in name, whose domain the tenant has had to prove it owns, never from the editable email claim, and guest accounts give none.</li>
       <li>Each sign-in is tied to the browser that started it by a one-time state value, which expires after 10 minutes.</li>
       <li>Accounts are never merged because two sign-ins share an email address. A second sign-in method can only be linked by someone already signed in.</li>
@@ -78,7 +78,7 @@
       <li>Every request is checked against the user&rsquo;s membership and role in the workspace concerned (owner, admin, editor or viewer). Another workspace&rsquo;s benches are indistinguishable from ones that do not exist.</li>
       <li>Changes need an allowed origin (jeksys.net), as well as the session cookie, so other websites cannot act for a signed-in user. Only jeksys.net may read the service&rsquo;s responses in a browser.</li>
       <li>Saving needs an active plan; reading and exporting never do, so people can always get their data out.</li>
-      <li>Requests are rate limited: sign-in per network address, changes and slower actions (ORCID checks, exports, payments, account deletion) per person, and every request body is capped in size however it is sent.</li>
+      <li>Requests are rate limited: sign-in per network address, changes and slower actions (eligibility checks, exports, payments, account deletion) per person, and every request body is capped in size however it is sent.</li>
       <li>A university&rsquo;s licence administrators see only counts, and can invite or take off people by email address; taking someone off answers the same whether or not they have an account.</li>
       <li>Our own administration of university licences uses a separate 256-bit key over HTTPS, and is switched off entirely when the key is not set.</li>
     </ul>

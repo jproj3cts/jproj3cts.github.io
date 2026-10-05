@@ -26,6 +26,7 @@
 
 import { orcidOrgs } from './academic.js';
 import { adminConsentUrl } from './auth.js';
+import { orcidOn } from './orcid.js';
 import { mirror, stripe } from './billing.js';
 import { planActive } from './users.js';
 import { ApiError, newId, now } from './util.js';
@@ -113,8 +114,8 @@ export async function licenceFor(env, user, t = now()) {
   if (user.email) {
     await live('invite', "SELECT workspace_id, 'invited' AS detail FROM institution_invites WHERE email = ?", [String(user.email).toLowerCase()]);
   }
-  // a current affiliation found on ORCID, for a year
-  const { results: kept } = await env.DB.prepare(
+  // a current affiliation found on ORCID, for a year (while ORCID is on: src/orcid.js)
+  const { results: kept } = !orcidOn(env) ? { results: [] } : await env.DB.prepare(
     `SELECT w.id AS workspace_id, w.name, l.via, l.detail, ${SUB_COLS}
        FROM licences l JOIN workspaces w ON w.id = l.workspace_id AND w.kind = 'institution'
        JOIN subscriptions s ON s.workspace_id = w.id
@@ -156,7 +157,7 @@ export async function checkInstitution(env, user) {
   const direct = await useLicence(env, user);
   if (direct && !direct.full) return { licence: direct };
   if (direct) throw fullError(direct.full);
-  const id = await env.DB.prepare("SELECT subject FROM identities WHERE user_id = ? AND provider = 'orcid'").bind(user.id).first();
+  const id = orcidOn(env) && (await env.DB.prepare("SELECT subject FROM identities WHERE user_id = ? AND provider = 'orcid'").bind(user.id).first());
   if (id) {
     let orgs;
     try {
@@ -189,7 +190,9 @@ export async function checkInstitution(env, user) {
     }
   }
   throw new ApiError(404, 'no_licence',
-    'We found no university licence for you. Sign in with your university Google account, or link an ORCID iD that shows your current university.');
+    orcidOn(env)
+      ? 'We found no university licence for you. Sign in with your university Google account, or link an ORCID iD that shows your current university.'
+      : 'We found no university licence for you. Sign in with your university Google or Microsoft account, or ask your university\u2019s licence administrator to invite you.');
 }
 
 // ---------- operations: JEK Systems only ----------
@@ -538,7 +541,7 @@ export async function adminGet(env, user, id, t = now()) {
     users_12_months: d.users_12_months,
     months: d.active_users.slice(0, 12),
     domains: d.domains,
-    orgs: d.orgs,
+    orgs: orcidOn(env) ? d.orgs : [], // ORCID matching is off (src/orcid.js)
     tenants: d.tenants,
     // for their IT: approves JEKray2D's Microsoft sign-in for everyone there
     microsoft_approval: d.tenants.length ? adminConsentUrl(env, d.tenants[0]) : null,

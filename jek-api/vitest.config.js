@@ -20,6 +20,7 @@ export default defineConfig(async () => {
             MICROSOFT_CLIENT_SECRET: 'test-microsoft-secret',
             STRIPE_SECRET_KEY: 'rk_test_x',
             STRIPE_WEBHOOK_SECRET: 'whsec_test',
+            ORCID_LEGACY_UNTIL: '2099-01-01T00:00:00Z',
             OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
           },
         },

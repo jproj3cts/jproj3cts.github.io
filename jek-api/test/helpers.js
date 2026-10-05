@@ -32,3 +32,10 @@ export const bench = (name = 'A bench', extra = {}) =>
 
 export const send = (path, method, token, body, headers = {}) =>
   call(path, { method, token, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...headers } });
+
+// ORCID is off in production (src/orcid.js); tests of what it does when on switch it on.
+export function orcidOnFor(beforeEach, afterEach) {
+  let was;
+  beforeEach(() => { was = env.ORCID_ON; env.ORCID_ON = '1'; });
+  afterEach(() => { env.ORCID_ON = was; });
+}

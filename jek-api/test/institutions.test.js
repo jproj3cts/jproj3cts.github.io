@@ -6,7 +6,7 @@ import { monthOf } from '../src/institutions.js';
 import { planActive } from '../src/users.js';
 import { createSession } from '../src/sessions.js';
 import { createUser } from '../src/users.js';
-import { bench, call, send } from './helpers.js';
+import { bench, call, send, orcidOnFor } from './helpers.js';
 
 const OPS = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const DAY = 86400000;
@@ -205,6 +205,7 @@ describe('a tier', () => {
 });
 
 describe('a licence through ORCID', () => {
+  orcidOnFor(beforeEach, afterEach);
   it('reads current affiliations and their ids, and skips ended ones', () => {
     const orgs = currentOrgs({ 'affiliation-group': [
       { summaries: [{ 'employment-summary': orcidJob('0220mzb33').summary }] },

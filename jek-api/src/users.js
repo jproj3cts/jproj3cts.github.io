@@ -36,7 +36,9 @@ export const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 export function planActive(sub, t = now()) {
   if (!sub) return false;
   if (sub.status === 'active' || sub.status === 'trialing') return true;
-  if (sub.status === 'past_due' && sub.period_end && t < sub.period_end + GRACE_MS) return true;
+  // 7 days' grace from the failed payment (or, for rows without that, the period end)
+  const since = sub.past_due_since || sub.period_end;
+  if (sub.status === 'past_due' && since && t < since + GRACE_MS) return true;
   return false;
 }
 
@@ -46,7 +48,8 @@ export async function me(env, user) {
       user.id,
     ),
     env.DB.prepare(
-      `SELECT w.id, w.kind, w.name, m.role, s.plan, s.status, s.seats, s.period_end
+      `SELECT w.id, w.kind, w.name, m.role, s.plan, s.status, s.seats, s.period_end, s.interval, s.cancel_at,
+              s.past_due_since, s.stripe_customer
          FROM members m JOIN workspaces w ON w.id = m.workspace_id
          LEFT JOIN subscriptions s ON s.workspace_id = w.id
         WHERE m.user_id = ?
@@ -54,15 +57,22 @@ export async function me(env, user) {
     ).bind(user.id),
   ]);
   const t = now();
+  const ac = await env.DB.prepare('SELECT academic_until, academic_via FROM users WHERE id = ?').bind(user.id).first();
   return {
     user,
+    academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via } : null,
     identities: ids.results,
     workspaces: ws.results.map((w) => ({
       id: w.id,
       kind: w.kind,
       name: w.name,
       role: w.role,
-      plan: w.plan ? { plan: w.plan, status: w.status, seats: w.seats, period_end: w.period_end } : null,
+      plan: w.plan
+        ? {
+            plan: w.plan, status: w.status, seats: w.seats, period_end: w.period_end, interval: w.interval,
+            cancel_at: w.cancel_at, billing: w.stripe_customer !== 'manual',
+          }
+        : null,
       active: planActive(w.plan && w, t),
     })),
   };

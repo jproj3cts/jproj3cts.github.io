@@ -76,7 +76,7 @@ describe('sessions', () => {
 
   it('shows a mirrored subscription as active', async () => {
     const { workspaceId, token } = await signedIn();
-    await env.DB.prepare("INSERT INTO subscriptions VALUES (?, 'cus_1', 'sub_1', 'individual', 1, 'active', ?, 0)")
+    await env.DB.prepare("INSERT INTO subscriptions (workspace_id, stripe_customer, stripe_subscription, plan, seats, status, period_end, updated_at) VALUES (?, 'cus_1', 'sub_1', 'individual', 1, 'active', ?, 0)")
       .bind(workspaceId, Date.now() + 30 * DAY).run();
     const ws = (await (await call('/v1/me', { token })).json()).workspaces[0];
     expect(ws.plan).toMatchObject({ plan: 'individual', status: 'active', seats: 1 });

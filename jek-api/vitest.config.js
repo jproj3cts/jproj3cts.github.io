@@ -16,6 +16,8 @@ export default defineConfig(async () => {
             API_URL: 'https://api.jeksys.net',
             GOOGLE_CLIENT_SECRET: 'test-google-secret',
             ORCID_CLIENT_SECRET: 'test-orcid-secret',
+            STRIPE_SECRET_KEY: 'rk_test_x',
+            STRIPE_WEBHOOK_SECRET: 'whsec_test',
           },
         },
       }),

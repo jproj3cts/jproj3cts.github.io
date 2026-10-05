@@ -29,7 +29,7 @@ const bytes = (s) => new TextEncoder().encode(s).length;
 // The caller's role in a workspace, and whether its plan is active.
 export async function workspaceAccess(env, user, wsId) {
   const row = await env.DB.prepare(
-    `SELECT w.id, w.kind, m.role, s.status, s.period_end
+    `SELECT w.id, w.kind, m.role, s.status, s.period_end, s.past_due_since
        FROM workspaces w JOIN members m ON m.workspace_id = w.id AND m.user_id = ?
        LEFT JOIN subscriptions s ON s.workspace_id = w.id
       WHERE w.id = ?`,
@@ -45,7 +45,7 @@ async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
             b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by,
-            w.kind, m.role, s.status, s.period_end
+            w.kind, m.role, s.status, s.period_end, s.past_due_since
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
        JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?

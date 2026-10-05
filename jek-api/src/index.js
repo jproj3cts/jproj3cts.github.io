@@ -6,6 +6,8 @@ import { Router } from './router.js';
 import { callback, start, unlink } from './auth.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
+import { verify as verifyAcademic } from './academic.js';
+import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { me } from './users.js';
 import { ApiError, errorResponse, json } from './util.js';
@@ -78,6 +80,20 @@ const router = new Router()
     await B.deleteFolder(env, await requireUser(req, env, ctx), w, f);
     return json({ ok: true });
   })
+  // billing
+  .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
+  .on('POST', '/v1/me/academic', async (req, env, ctx) => json(await verifyAcademic(env, await requireUser(req, env, ctx))))
+  .on('POST', '/v1/workspaces/:w/billing/checkout', async (req, env, ctx, { w }) =>
+    json(await checkout(req, env, await requireUser(req, env, ctx), w)),
+  )
+  .on('POST', '/v1/workspaces/:w/billing/portal', async (req, env, ctx, { w }) =>
+    json(await portal(req, env, await requireUser(req, env, ctx), w)),
+  )
+  .on('POST', '/v1/workspaces/:w/billing/interval', async (req, env, ctx, { w }) =>
+    json(await switchInterval(req, env, await requireUser(req, env, ctx), w)),
+  )
+  // Stripe proves itself by signature, not by Origin.
+  .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
   .on('GET', '/auth/:provider/start', start)
   .on('GET', '/auth/:provider/callback', callback)
   .on('POST', '/auth/signout', async (req, env, ctx) => {

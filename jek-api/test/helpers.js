@@ -22,7 +22,7 @@ export async function signedIn(name = `Tester ${++n}`) {
 // An active subscription on a workspace, as Stripe's webhook would leave it.
 export async function withPlan(workspaceId, status = 'active', periodEnd = Date.now() + 30 * 86400000) {
   await env.DB.prepare(
-    "INSERT OR REPLACE INTO subscriptions VALUES (?, 'cus_test', ?, 'individual', 1, ?, ?, 0)",
+    "INSERT OR REPLACE INTO subscriptions (workspace_id, stripe_customer, stripe_subscription, plan, seats, status, period_end, updated_at) VALUES (?, 'cus_test', ?, 'individual', 1, ?, ?, 0)",
   ).bind(workspaceId, 'sub_' + workspaceId, status, periodEnd).run();
 }
 

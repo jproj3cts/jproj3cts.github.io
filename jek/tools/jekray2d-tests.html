@@ -1376,6 +1376,32 @@ const TESTS = [
 
   { group: 'Stops and masks on the field' },
   {
+    name: 'Light passing round a small mask is drawn at its full width',
+    why: 'an 8 mm beam past a 3 mm mask: the light that misses the mask and the light through it are drawn together, at least 95% as wide as the beam that arrives. The group was drawn to 2.5 of the refitted pilot\u2019s width, an embedded Gaussian narrower than the light, and the beam was cut off: to 6.0 mm of 7.0 at 128 points, 3.7 at 1024',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('round mask', [
+        src({ gauss: true, w0: 4, width: 8, rays: 3, popN: 128, beamView: 'field', wavelength: 532 }),
+        { type: 'mask', name: 'M', x: 0, y: 0, angle: 0, length: 3, amp: '0.6+0.3*cos(2*pi*x/0.6)', delay: '0', preset: 'custom' },
+        screen({ x: 100 }),
+      ]));
+      const drawn = J.fieldDrawn(), launch = drawn.find(d => d.at === null), after = drawn.filter(d => d.at === 'M' && d.members > 1);
+      if (!launch || !after.length) return NaN;
+      return Math.min(...after.flatMap(d => d.Ys)) >= 0.95 * Math.max(...launch.Ys) ? 1 : 0;
+    },
+  },
+  {
+    name: 'The field worker starts from the page\u2019s own code and traces',
+    why: 'the bench works its fields out in a worker; a page-only feature used at the top level of the code (a MutationObserver, from 4 October) stopped it, and every field then ran on the page, holding it up for seconds at a time',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('worker', [src({ gauss: true, w0: 1, width: 2, rays: 3 }), screen({})]));
+      const r = await J.workerProbe();
+      TESTS_EXPECT.workerErr = r.ok ? '' : r.err;
+      return r.ok && r.rays > 0 ? 1 : 0;
+    },
+  },
+  {
     name: 'A knife edge through the beam\u2019s centre passes half',
     why: 'the reference ray passes the blade, so the field carries on behind it with half the power',
     want: 0.5, tol: 2e-3, unit: '',
@@ -5117,7 +5143,7 @@ const fmt = (v, unit) => {
   return s + (unit || '');
 };
 
-function runAll() {
+async function runAll() {
   const J = document.getElementById('rig').contentWindow.JEKray2D;
   rows.replaceChildren();
   if (!J) {
@@ -5138,7 +5164,7 @@ function runAll() {
       continue;
     }
     let got, err = null;
-    try { got = t.run(J); } catch (e) { err = e; got = NaN; }
+    try { got = await t.run(J); } catch (e) { err = e; got = NaN; }
     const want = t.wantFrom ? t.wantFrom() : t.want;
     const tol = t.rel ? Math.abs(want * t.tol) : t.tol;
     let ok = typeof got === 'number' && Number.isFinite(got) && Math.abs(got - want) <= tol;
@@ -5170,7 +5196,7 @@ function runAll() {
   timeEl.textContent = ms + ' ms';
 }
 
-runBtn.addEventListener('click', () => { runBtn.disabled = true; setTimeout(() => { runAll(); runBtn.disabled = false; }, 10); });
+runBtn.addEventListener('click', () => { runBtn.disabled = true; setTimeout(async () => { await runAll(); runBtn.disabled = false; }, 10); });
 document.getElementById('rig').addEventListener('load', () => setTimeout(runAll, 150));
 })();
 </script>

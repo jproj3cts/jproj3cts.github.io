@@ -28,7 +28,8 @@ function form(obj, prefix = '', out = new URLSearchParams()) {
   return out;
 }
 
-export async function stripe(env, method, path, params) {
+// With allow404, a missing object is null rather than an error.
+export async function stripe(env, method, path, params, { allow404 = false } = {}) {
   if (!env.STRIPE_SECRET_KEY) throw new ApiError(503, 'billing_off', 'Subscriptions are not open yet.');
   const url = `${STRIPE}${path}${method === 'GET' && params ? '?' + form(params) : ''}`;
   const res = await fetch(url, {
@@ -41,6 +42,7 @@ export async function stripe(env, method, path, params) {
     body: method === 'GET' || !params ? undefined : form(params),
   });
   const body = await res.json().catch(() => ({}));
+  if (allow404 && res.status === 404) return null;
   if (!res.ok) {
     console.error('Stripe', method, path, res.status, body.error && body.error.message);
     throw new ApiError(502, 'stripe', 'The payment service did not answer as expected. Please try again.');
@@ -205,7 +207,8 @@ export async function mirror(env, s) {
   if (!exists) return false;
   const item = (s.items && s.items.data && s.items.data[0]) || {};
   const key = (item.price && item.price.lookup_key) || '';
-  const plan = PLAN_OF[key.split('_')[0]] || 'individual';
+  // a university licence is priced for each institution, so it has no lookup key
+  const plan = s.metadata.plan === 'institution' ? 'institution' : PLAN_OF[key.split('_')[0]] || 'individual';
   const interval = (item.price && item.price.recurring && item.price.recurring.interval) || null;
   // Since the 2025 API versions the period lives on the item.
   const periodEnd = ms(item.current_period_end || s.current_period_end);

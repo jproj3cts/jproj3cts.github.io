@@ -10,7 +10,7 @@ Nothing here reads or changes URPG's resources.
 
 ## Status
 
-Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams).
+Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), and university licences.
 
 - `migrations/0001_init.sql`: every table in the design's data model,
   including the ones for later phases (institution domains, jobs, audit).
@@ -42,6 +42,16 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams).
   under a fresh name each time; the bench's `thumb` is its URL, served with
   a year's private caching, nosniff and a sandboxing CSP. They go with the
   bench when the bin is emptied, and with the account.
+- University licences (`src/institutions.js`, migration 0003): an
+  institution is a workspace of kind `institution` owned by the `system`
+  user; its subscription is the licence, invoiced by Stripe
+  (`collection_method: send_invoice`, yearly, 60 days' grace when late) or a
+  pilot set by hand with an end date. Anyone whose verified email is at one
+  of its domains, or (on `POST /v1/me/institution`) whose ORCID record shows
+  a current affiliation with one of its ROR/Ringgold/GRID ids, gets Pro on
+  their personal workspace; each month they use it is counted. Set up with
+  `scripts/institutions.mjs` through `/ops`, which needs the `OPS_TOKEN`
+  secret and does not exist without it.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,

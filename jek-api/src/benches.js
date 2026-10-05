@@ -10,6 +10,7 @@
 // Reading and exporting always work. Saving needs an active plan on the
 // workspace (or its grace period) and a role of editor or above.
 
+import { licenceFor } from './institutions.js';
 import { planActive } from './users.js';
 import { ApiError, newId, now } from './util.js';
 
@@ -26,10 +27,17 @@ const bytes = (s) => new TextEncoder().encode(s).length;
 
 // ---------- access ----------
 
+// A workspace's plan counts, or, for a personal one, a university's licence
+// covers its owner (the only member a personal workspace has).
+async function activeFor(env, user, row) {
+  if (planActive(row.status && row)) return true;
+  return row.kind === 'personal' && !!(await licenceFor(env, user));
+}
+
 // The caller's role in a workspace, and whether its plan is active.
 export async function workspaceAccess(env, user, wsId) {
   const row = await env.DB.prepare(
-    `SELECT w.id, w.kind, m.role, s.status, s.period_end, s.past_due_since
+    `SELECT w.id, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
        FROM workspaces w JOIN members m ON m.workspace_id = w.id AND m.user_id = ?
        LEFT JOIN subscriptions s ON s.workspace_id = w.id
       WHERE w.id = ?`,
@@ -38,14 +46,14 @@ export async function workspaceAccess(env, user, wsId) {
     .first();
   // Someone else's workspace looks the same as one that does not exist.
   if (!row) throw new ApiError(404, 'not_found', 'No such workspace.');
-  return { ws: row.id, kind: row.kind, role: row.role, active: planActive(row.status && row) };
+  return { ws: row.id, kind: row.kind, role: row.role, active: await activeFor(env, user, row) };
 }
 
 async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
             b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by, b.thumb_key,
-            w.kind, m.role, s.status, s.period_end, s.past_due_since
+            w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
        JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?
@@ -56,7 +64,7 @@ async function benchAccess(env, user, benchId, { bin = false } = {}) {
     .bind(user.id, benchId)
     .first();
   if (!row || (row.deleted_at && !bin)) throw new ApiError(404, 'not_found', 'No such bench.');
-  return { bench: row, role: row.role, active: planActive(row.status && row), kind: row.kind };
+  return { bench: row, role: row.role, active: await activeFor(env, user, row), kind: row.kind };
 }
 
 function canWrite(a, { plan = true } = {}) {

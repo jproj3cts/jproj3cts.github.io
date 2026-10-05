@@ -18,6 +18,7 @@ export default defineConfig(async () => {
             ORCID_CLIENT_SECRET: 'test-orcid-secret',
             STRIPE_SECRET_KEY: 'rk_test_x',
             STRIPE_WEBHOOK_SECRET: 'whsec_test',
+            OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
           },
         },
       }),

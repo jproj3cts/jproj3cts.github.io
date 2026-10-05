@@ -1,5 +1,6 @@
 // Users and their personal workspace, created together.
 
+import { useLicence } from './institutions.js';
 import { newId, now } from './util.js';
 
 // With `identity` ({ provider, subject }), the sign-in is attached in the
@@ -33,12 +34,18 @@ export async function createUser(env, { name, email = null, identity = null }) {
 // 7 days' grace after a failed payment.
 export const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
+// A university pays on an invoice, often late: 60 days' grace after it falls due.
+export const INSTITUTION_GRACE_MS = 60 * 24 * 60 * 60 * 1000;
+
 export function planActive(sub, t = now()) {
   if (!sub) return false;
+  // one set by hand (a pilot, a gift) ends on its date
+  if (sub.stripe_customer === 'manual' && sub.period_end && t >= sub.period_end) return false;
   if (sub.status === 'active' || sub.status === 'trialing') return true;
   // 7 days' grace from the failed payment (or, for rows without that, the period end)
   const since = sub.past_due_since || sub.period_end;
-  if (sub.status === 'past_due' && since && t < since + GRACE_MS) return true;
+  const grace = sub.plan === 'institution' ? INSTITUTION_GRACE_MS : GRACE_MS;
+  if (sub.status === 'past_due' && since && t < since + grace) return true;
   return false;
 }
 
@@ -58,9 +65,11 @@ export async function me(env, user) {
   ]);
   const t = now();
   const ac = await env.DB.prepare('SELECT academic_until, academic_via FROM users WHERE id = ?').bind(user.id).first();
+  const licence = await useLicence(env, user, t);
   return {
     user,
     academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via } : null,
+    licence: licence && { name: licence.name, via: licence.via },
     identities: ids.results,
     workspaces: ws.results.map((w) => ({
       id: w.id,
@@ -73,7 +82,7 @@ export async function me(env, user) {
             cancel_at: w.cancel_at, billing: w.stripe_customer !== 'manual',
           }
         : null,
-      active: planActive(w.plan && w, t),
+      active: planActive(w.plan && w, t) || (w.kind === 'personal' && !!licence),
     })),
   };
 }

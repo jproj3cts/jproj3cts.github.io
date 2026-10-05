@@ -20977,7 +20977,9 @@ const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w
    changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
 const shortDate = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 function planText(w) {
-  const p = w.plan;
+  const p = w.plan, lic = w.kind === 'personal' && account && account.licence;
+  // a university's licence, unless they pay for their own as well
+  if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKray2D Pro through ' + lic.name;
   if (!p) return 'No subscription yet';
   const name = p.plan === 'academic' ? 'JEKray2D Pro (academic)' : 'JEKray2D Pro';
   if (!p.billing) return w.active ? name : 'Plan ended';
@@ -21017,7 +21019,15 @@ async function showSubscribe() {
   } }, 'Check that I qualify');
   const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + ac.via + ')') : h('p', { class: 'rt-subcheck' }, 'For current students and staff of a university or similar. ', check,
     ': we look for a university email on your Google sign-in, or a current university role on your ORCID record.');
-  box.replaceChildren(tabs, h('div', { class: 'rt-subcards' },
+  const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
+    uni.disabled = true; uni.textContent = 'Checking…';
+    try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKray2D Pro through ' + account.licence.name); return; }
+    catch (err) { toast(err.message, true); }
+    uni.disabled = false; uni.textContent = 'Check for a university licence';
+  } }, 'Check for a university licence');
+  const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKray2D Pro for everyone? ', uni,
+    ': with your university Google account it shows on its own; with ORCID, we look for your current university on your record.');
+  box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
     card('pro', 'JEKray2D Pro', 'For anyone: your benches in the cloud, their history, on every device.'),
     card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
 }
@@ -21127,6 +21137,16 @@ function showDeleteAccount() {
 async function loadAccount() {
   try { account = await api('/v1/me'); }
   catch (err) { account = null; if (err.status !== 401) toast('Could not reach your JEKray2D account: ' + err.message, true); }
+  // signed in with ORCID and on no plan: a university licence through it is looked for, once a day
+  const mine = account && account.workspaces.find(w => w.kind === 'personal');
+  if (account && !account.licence && mine && !mine.active && (account.identities || []).some(i => i.provider === 'orcid') && !TEST_MODE) {
+    let last = 0; try { last = +localStorage.getItem('jek-raytracer-unicheck') || 0; } catch (err) { /* none */ }
+    if (Date.now() - last > 86400000) {
+      try { localStorage.setItem('jek-raytracer-unicheck', String(Date.now())); } catch (err) { /* not kept: fine */ }
+      try { await api('/v1/me/institution', { method: 'POST' }); account = await api('/v1/me'); toast('You have JEKray2D Pro through ' + account.licence.name); }
+      catch (err) { /* none found, or ORCID unreachable: the Subscribe box offers the check */ }
+    }
+  }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
 }

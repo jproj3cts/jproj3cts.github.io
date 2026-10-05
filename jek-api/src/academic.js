@@ -59,6 +59,39 @@ export function currentAcademic(affiliations, t = now()) {
   return null;
 }
 
+// Every current education or employment: its organisation's name and the ids
+// ORCID gives it (ROR as the bare id, Ringgold, GRID).
+export function currentOrgs(affiliations, t = now()) {
+  const out = [];
+  for (const group of affiliations['affiliation-group'] || []) {
+    for (const wrap of group.summaries || []) {
+      const s = wrap['employment-summary'] || wrap['education-summary'];
+      if (!s || !s.organization) continue;
+      const end = s['end-date'];
+      if (end && end.year && Date.UTC(Number(end.year.value), end.month ? Number(end.month.value) : 12, 1) < t) continue;
+      const d = s.organization['disambiguated-organization'];
+      const scheme = d && String(d['disambiguation-source'] || '').toUpperCase();
+      let value = d && String(d['disambiguated-organization-identifier'] || '').trim();
+      if (scheme === 'ROR') value = value.replace(/^https?:\/\/ror\.org\//i, '').toLowerCase();
+      out.push({ name: s.organization.name || '', id: value && ['ROR', 'RINGGOLD', 'GRID'].includes(scheme) ? { scheme, value } : null });
+    }
+  }
+  return out;
+}
+
+// The current affiliations on a public ORCID record.
+export async function orcidOrgs(env, orcid) {
+  const token = await orcidToken(env);
+  const out = [];
+  for (const kind of ['employments', 'educations']) {
+    const res = await fetch(`https://pub.orcid.org/v3.0/${orcid}/${kind}`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) out.push(...currentOrgs(await res.json()));
+  }
+  return out;
+}
+
 async function orcidAcademic(env, orcid) {
   const token = await orcidToken(env);
   for (const kind of ['employments', 'educations']) {

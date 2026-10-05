@@ -7,6 +7,7 @@ import { deleteAccount } from './account.js';
 import { callback, start, unlink } from './auth.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
+import * as I from './institutions.js';
 import { verify as verifyAcademic } from './academic.js';
 import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
@@ -90,6 +91,7 @@ const router = new Router()
   })
   // billing
   .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
+  .on('POST', '/v1/me/institution', async (req, env, ctx) => json(await I.checkInstitution(env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/me/academic', async (req, env, ctx) => json(await verifyAcademic(env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/workspaces/:w/billing/checkout', async (req, env, ctx, { w }) =>
     json(await checkout(req, env, await requireUser(req, env, ctx), w)),
@@ -100,6 +102,13 @@ const router = new Router()
   .on('POST', '/v1/workspaces/:w/billing/interval', async (req, env, ctx, { w }) =>
     json(await switchInterval(req, env, await requireUser(req, env, ctx), w)),
   )
+  // JEK Systems' own operations: a bearer token, never a browser (scripts/institutions.mjs)
+  .on('GET', '/ops/institutions', async (req, env) => json(await I.opsList(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/institutions', async (req, env) => json(await I.opsCreate(req, env), 201), { anyOrigin: true })
+  .on('GET', '/ops/institutions/:id', async (req, env, ctx, { id }) => json(await I.opsGet(req, env, id)), { anyOrigin: true })
+  .on('PATCH', '/ops/institutions/:id', async (req, env, ctx, { id }) => json(await I.opsPatch(req, env, id)), { anyOrigin: true })
+  .on('POST', '/ops/institutions/:id/pilot', async (req, env, ctx, { id }) => json(await I.opsPilot(req, env, id)), { anyOrigin: true })
+  .on('POST', '/ops/institutions/:id/invoice', async (req, env, ctx, { id }) => json(await I.opsInvoice(req, env, id)), { anyOrigin: true })
   // Stripe proves itself by signature, not by Origin.
   .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
   .on('GET', '/auth/:provider/start', start)

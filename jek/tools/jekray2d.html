@@ -3889,7 +3889,9 @@ const toWorldDir = (f, x, y) => [x*f.c - y*f.s, x*f.s + y*f.c];
    the reference ray set out with. */
 const SPLIT_MIN = 0.01;
 const SPLIT_KINDS = new Set(['iris', 'link', 'absorb']);          // stops are masks on the field already; link planes are no edge
-const splittable = s => s && s.el && !SPLIT_KINDS.has(s.kind) && s.semi > 0 && !s.y0;
+// a screen that lets the light through (a trap's, a plane that only records) is no edge either:
+// splitting at it doubled the beams at every pass, a retroreflected trap's most of all
+const splittable = s => s && s.el && !SPLIT_KINDS.has(s.kind) && !(s.el.type === 'screen' && !s.el.absorb) && s.semi > 0 && !s.y0;
 /* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface,
    travelling at cos(theta) = cth to the element's axis, that lands inside its aperture */
 function apertureShare(s, ly, cth, w, wv) {
@@ -22191,6 +22193,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const R = popRun(lastTrace.beams, popSources(), { draw: true });
       return R.segs.filter(sg => sg.draw).map(sg => ({ at: sg.b.ev && sg.b.ev.el ? getEl(sg.b.ev.el).name : null, members: sg.draw.members, Ys: [sg.draw.Ys[0], sg.draw.Ys[sg.draw.Ys.length - 1]] }));
     },
+    // Gaussian beam segments: how many there are, and how many start at an element (by name)
+    beamsAt(name) { traceScene(); const el = name && this.byName(name); return lastTrace.beams.filter(b => !el || (b.ev && b.ev.el === el.id)).length; },
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
     scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); INST.scope(cv, [{ S: pdInstSignal(el), key: el.id, name: 'output' }], { mode: 'normal', span, ch: [{ vdiv: 0, off: 0 }] }, el.name); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },

@@ -1391,6 +1391,20 @@ const TESTS = [
     },
   },
   {
+    name: 'A retroreflected trap: the beam passes the trap\u2019s screen whole, both ways',
+    why: 'a screen that lets light through is no edge: the beam coming back from the mirror is wider than the 3 mm screen, and was split there into the part across it and the part past it, doubling the beams at every pass; one segment starts at the screen each way',
+    want: 2, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('retro trap', [
+        src({ name: 'Laser', x: -40, gauss: true, w0: 1, width: 2, rays: 5, wavelength: 1064, pol: 's', popN: 128 }),
+        { type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Trap', x: 101, length: 3, absorb: false }),
+        { type: 'mirror', name: 'Retro', x: 180, y: 0, angle: 180, length: 25.4 },
+      ], { minPower: 0.01 }));
+      return J.beamsAt('Trap');
+    },
+  },
+  {
     name: 'The field worker starts from the page\u2019s own code and traces',
     why: 'the bench works its fields out in a worker; a page-only feature used at the top level of the code (a MutationObserver, from 4 October) stopped it, and every field then ran on the page, holding it up for seconds at a time',
     want: 1, tol: 0, unit: '',

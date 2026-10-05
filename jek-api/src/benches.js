@@ -73,7 +73,7 @@ function canWrite(a, { plan = true } = {}) {
   // a university's licence is not a place for benches
   if (a.kind === 'institution') throw new ApiError(403, 'forbidden', 'Benches cannot be saved to a university licence.');
   if (!WRITERS.has(a.role)) throw new ApiError(403, 'forbidden', 'Your role in this workspace cannot change benches.');
-  if (plan && !a.active) throw new ApiError(402, 'no_plan', 'Saving to the cloud needs JEKray2D Pro.');
+  if (plan && !a.active) throw new ApiError(402, 'no_plan', 'Saving to the cloud needs JEKrayPro.');
 }
 
 const meta = (b) => ({

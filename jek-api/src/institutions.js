@@ -1,4 +1,4 @@
-// University licences: JEKray2D Pro for everyone at an institution, paid by
+// University licences: JEKrayPro for everyone at an institution, paid by
 // the institution on an invoice.
 //
 // An institution is a workspace of kind 'institution' owned by the 'system'
@@ -147,7 +147,7 @@ export async function useLicence(env, user, t = now()) {
 }
 
 export const fullError = (name) => new ApiError(403, 'licence_full',
-  `${name}'s JEKray2D Pro licence has no free places just now. Ask whoever looks after it at ${name} to move to a larger tier.`);
+  `${name}'s JEKrayPro licence has no free places just now. Ask whoever looks after it at ${name} to move to a larger tier.`);
 
 // POST /v1/me/institution — look for a licence through the person's ORCID
 // record (an email match needs no asking).
@@ -425,7 +425,7 @@ export async function opsInvoice(req, env, id) {
   }
   const product = await stripe(env, 'GET', `/products/${PRODUCT}`, null, { allow404: true });
   if (!product) {
-    await stripe(env, 'POST', '/products', { id: PRODUCT, name: 'JEKray2D Pro university licence' });
+    await stripe(env, 'POST', '/products', { id: PRODUCT, name: 'JEKrayPro university licence' });
   }
   const po = typeof body.po === 'string' && body.po.trim() ? body.po.trim().slice(0, 30) : null;
   const customer = await stripe(env, 'POST', '/customers', {
@@ -441,7 +441,7 @@ export async function opsInvoice(req, env, id) {
     collection_method: 'send_invoice',
     days_until_due: days,
     description: (typeof body.description === 'string' && body.description.trim()) ||
-      `JEKray2D Pro for everyone at ${w.name}, for one year`,
+      `JEKrayPro for everyone at ${w.name}, for one year`,
     items: [{ price_data: { currency: 'gbp', product: PRODUCT, unit_amount: amount, recurring: { interval: 'year' } } }],
     metadata: { workspace_id: id, plan: 'institution', max_users: String(seats) },
   });

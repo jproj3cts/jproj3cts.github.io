@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- What this page may load and talk to: itself and the JEKray2D Pro API. The app's own code
+<!-- What this page may load and talk to: itself and the JEKrayPro API. The app's own code
      is inline and compiles mask formulas, hence 'unsafe-inline' and 'unsafe-eval'; what the
      policy adds is that nothing here can send data, or load images or code, from anywhere else. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -1168,10 +1168,10 @@
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
-    <h2 id="subTitle">JEKray2D Pro</h2>
+    <h2 id="subTitle">JEKrayPro</h2>
     <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, and organise them in folders. The simulator itself stays free.</p>
     <div id="subPlans"></div>
-    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKray2D Pro Terms</a>.</p>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
   </dialog>
 
@@ -20969,7 +20969,7 @@ menuIcons(document);
 // the experimental features' box opens from the Help menu, which closes as it does
 document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
 document.getElementById('btnSave').addEventListener('click', saveFile);
-/* ---------- JEKray2D Pro account ----------
+/* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
    provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
    on the API's host that this page never sees. The bench survives the trip in the autosave. */
@@ -20997,20 +20997,20 @@ function signIn(provider, link) {
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
 }
 const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
-/* ---------- JEKray2D Pro subscription ----------
+/* ---------- JEKrayPro subscription ----------
    Stripe Checkout takes the payment and Stripe's portal manages it; the plan itself only ever
    changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
 const shortDate = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 function planText(w) {
-  if (w.kind === 'institution') return 'you look after its JEKray2D Pro licence';
+  if (w.kind === 'institution') return 'you look after its JEKrayPro licence';
   const p = w.plan, lic = w.kind === 'personal' && account && account.licence;
   // a university's licence, unless they pay for their own as well
-  if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKray2D Pro through ' + lic.name;
+  if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKrayPro through ' + lic.name;
   // their university has a licence, but every place in its tier is taken
   const full = w.kind === 'personal' && !w.active && account && account.licence_full;
   if (full) return full.name + '\u2019s licence is full: ask whoever looks after it for a larger tier';
   if (!p) return 'No subscription yet';
-  const name = p.plan === 'academic' ? 'JEKray2D Pro (academic)' : 'JEKray2D Pro';
+  const name = p.plan === 'academic' ? 'JEKrayPro (academic)' : 'JEKrayPro';
   if (!p.billing) return w.active ? name : 'Plan ended';
   if (p.status === 'past_due') return w.active ? name + ': payment failed, please update your card in Billing' : 'Paused: payment failed';
   if (!w.active) return 'Subscription ' + (p.status === 'canceled' ? 'ended' : p.status.replace(/_/g, ' '));
@@ -21050,14 +21050,14 @@ async function showSubscribe() {
     ': we look for a university email on your Google sign-in, or a current university role on your ORCID record.');
   const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     uni.disabled = true; uni.textContent = 'Checking…';
-    try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKray2D Pro through ' + account.licence.name); return; }
+    try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKrayPro through ' + account.licence.name); return; }
     catch (err) { toast(err.message, true); }
     uni.disabled = false; uni.textContent = 'Check for a university licence';
   } }, 'Check for a university licence');
-  const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKray2D Pro for everyone? ', uni,
+  const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKrayPro for everyone? ', uni,
     ': with your university Google or Microsoft account it shows on its own; with ORCID, we look for your current university on your record.');
   box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKray2D Pro', 'For anyone: your benches in the cloud, their history, on every device.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device.'),
     card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
 }
 async function startCheckout(ws, tier, btn) {
@@ -21087,7 +21087,7 @@ async function awaitPlan(tries = 12) {
     await new Promise(r => setTimeout(r, i ? 2000 : 500));
     try { account = await api('/v1/me'); } catch (err) { continue; }
     const mine = account.workspaces.find(w => w.kind === 'personal');
-    if (mine && mine.active) { fillAccount(); toast('Welcome to JEKray2D Pro. Thank you!'); if (cloud && cloud.dirty) cloudPush({ quiet: true }); return; }
+    if (mine && mine.active) { fillAccount(); toast('Welcome to JEKrayPro. Thank you!'); if (cloud && cloud.dirty) cloudPush({ quiet: true }); return; }
   }
   fillAccount(); toast('Payment received. Your plan will show here in a minute or two; reload if it does not.');
 }
@@ -21098,7 +21098,7 @@ function fillAccount() {
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
     menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
-      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKray2D Pro, in open beta: your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
+      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray2D (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
@@ -21109,7 +21109,7 @@ function fillAccount() {
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
     // the personal workspace's plan: subscribe, or manage it
     const mine = ws.find(w => w.kind === 'personal');
-    if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKray2D Pro…', () => showSubscribe()));
+    if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKrayPro…', () => showSubscribe()));
     if (mine && mine.active && mine.plan && mine.plan.billing) {
       rows.push(item('card', 'Billing and invoices…', () => openPortal(mine.id)));
       if (!mine.plan.cancel_at && mine.plan.interval) {
@@ -21140,7 +21140,7 @@ async function showUniAdmin(id) {
   catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
   document.getElementById('uniTitle').textContent = d.name;
   const l = d.licence, post = (path, obj) => api('/v1/institutions/' + id + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
-  const status = !l ? 'There is no licence yet.' : l.active ? 'JEKray2D Pro licence, active' + (l.until ? ' until ' + shortDate(l.until) : '') + (l.invoiced ? ', invoiced yearly.' : '.') : 'The licence has ended. People keep their accounts and can open and export their benches.';
+  const status = !l ? 'There is no licence yet.' : l.active ? 'JEKrayPro licence, active' + (l.until ? ' until ' + shortDate(l.until) : '') + (l.invoiced ? ', invoiced yearly.' : '.') : 'The licence has ended. People keep their accounts and can open and export their benches.';
   const tier = l ? (l.max_users ? 'Tier: ' + l.max_users + ' people in any 12 months. ' : 'Tier: no limit on people. ') + d.users_12_months + (d.users_12_months === 1 ? ' person has' : ' people have') + ' used it in the last 12 months.' : '';
   const full = l && l.max_users && d.users_12_months >= l.max_users ? h('p', null, h('b', null, 'The tier is full: '), 'someone new can join once a place frees, when a person has not used it for 12 months or you take someone off below. For a larger tier, email ', h('a', { href: 'mailto:sales@jeksys.net' }, 'sales@jeksys.net'), '.') : null;
   const months = d.months.length ? h('table', null, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Month'), h('th', { scope: 'col' }, 'People who used it'))),
@@ -21198,7 +21198,7 @@ function showDeleteAccount() {
     h('ul', null,
       h('li', null, 'every bench in your personal workspace, with its history, its folders and anything in the bin;'),
       h('li', null, 'your name, email address, sign-ins (' + (account.identities || []).map(i => PROVIDER_NAMES[i.provider]).join(' and ') + ') and every session, on every device.'),
-      paying.length ? h('li', null, h('b', null, 'Your JEKray2D Pro subscription is cancelled now'), ', not at the end of the period, and the rest of the period is not refunded. If you subscribed in the last 14 days, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), ' for your refund.') : null,
+      paying.length ? h('li', null, h('b', null, 'Your JEKrayPro subscription is cancelled now'), ', not at the end of the period, and the rest of the period is not refunded. If you subscribed in the last 14 days, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), ' for your refund.') : null,
       mine && mine.plan && mine.plan.billing ? h('li', null, 'Stripe keeps your invoices for six years, as UK tax law requires.') : null),
     teams.length ? h('p', null, 'Benches you saved in ' + teams.map(w => '\u201c' + w.name + '\u201d').join(', ') + ' stay there, marked as by a deleted user.' + (owned.length ? ' A team with other people in it needs a new owner first.' : '')) : null,
     h('p', null, 'This cannot be undone. Your benches in this browser are kept. ', h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download all your cloud benches (.zip)'), ' first if you want a copy.'));
@@ -21234,7 +21234,7 @@ async function loadAccount() {
     let last = 0; try { last = +localStorage.getItem('jek-raytracer-unicheck') || 0; } catch (err) { /* none */ }
     if (Date.now() - last > 86400000) {
       try { localStorage.setItem('jek-raytracer-unicheck', String(Date.now())); } catch (err) { /* not kept: fine */ }
-      try { await api('/v1/me/institution', { method: 'POST' }); account = await api('/v1/me'); toast('You have JEKray2D Pro through ' + account.licence.name); }
+      try { await api('/v1/me/institution', { method: 'POST' }); account = await api('/v1/me'); toast('You have JEKrayPro through ' + account.licence.name); }
       catch (err) { /* none found, or ORCID unreachable: the Subscribe box offers the check */ }
     }
   }
@@ -21244,16 +21244,16 @@ async function loadAccount() {
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 const accountsOn = () => !TEST_MODE && !EMBED;
 let accountLoaded = null;       // the first look at the account, for what waits on it (#pro)
-/* #pro, from the product page's JEKray2D Pro buttons: the subscription box when signed in,
+/* #pro, from the product page's JEKrayPro buttons: the subscription box when signed in,
    the sign-in choices when not, and a word when Pro is already theirs */
 async function proLink() {
   await accountLoaded;
   const mine = account && account.workspaces.find(w => w.kind === 'personal');
-  if (mine && mine.active) { toast(account.licence ? 'You have JEKray2D Pro through ' + account.licence.name : 'You already have JEKray2D Pro'); return; }
+  if (mine && mine.active) { toast(account.licence ? 'You have JEKrayPro through ' + account.licence.name : 'You already have JEKrayPro'); return; }
   if (account) { showSubscribe(); return; }
   const btn = document.getElementById('btnAcct');
   if (btn && document.getElementById('acctMenu').hidden) btn.click();
-  toast('Sign in to subscribe to JEKray2D Pro');
+  toast('Sign in to subscribe to JEKrayPro');
 }
 function accountShown() {
   const on = accountsOn();
@@ -21323,7 +21323,7 @@ async function cloudPush(opts = {}) {
       if (cloud !== link) return false;
       cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
     }
-    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKray2D Pro'); if (!opts.quiet) toast('Saving to the cloud needs JEKray2D Pro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
+    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) toast('Saving to the cloud needs JEKrayPro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
     else if (err.status === 401) { cloudSay('Not saved: signed out'); account = null; fillAccount(); }
     else if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); }
     else if (err.status) { cloudSay('Not saved to the cloud: ' + err.message); }
@@ -21349,7 +21349,7 @@ async function cloudSave() {
     cloudThumb(cloud, true);
     toast('Saved to the cloud: “' + b.name + '” is in My benches');
   } catch (err) {
-    toast(err.status === 402 ? 'Saving to the cloud needs JEKray2D Pro.' : 'Could not save to the cloud: ' + err.message, true);
+    toast(err.status === 402 ? 'Saving to the cloud needs JEKrayPro.' : 'Could not save to the cloud: ' + err.message, true);
   }
 }
 /* My benches' picture of a bench: the view as it was last seen, without the handles, cut to
@@ -21479,7 +21479,7 @@ async function fillCloud() {
   const writer = !!data.role ? ['owner', 'admin', 'editor'].includes(data.role) : true;
   const active = data.active !== undefined ? data.active : (wsInfo && wsInfo.active);
   note.hidden = !!active;
-  note.textContent = 'Saving to the cloud needs JEKray2D Pro. Benches here can still be opened, and downloaded below.';
+  note.textContent = 'Saving to the cloud needs JEKrayPro. Benches here can still be opened, and downloaded below.';
   const rows = [];
   if (cloudPlace.history) {
     const b = cloudPlace.history;
@@ -21566,7 +21566,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 5 October 2026', [
-    '<b>JEKray2D is in open beta</b>, and so is <b>JEKray2D Pro</b>: sign in with Google, Microsoft (university or work) or ORCID from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
+    '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google, Microsoft (university or work) or ORCID from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
     'A source\u2019s <b>coherence</b> is a choice of three: a single frequency, a line of its own, or <b>incoherent, broadband</b> light given by its bandwidth, which adds as powers but for near-equal paths (white-light fringes).',
@@ -22792,7 +22792,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
-  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKray2D Pro (the product page links to all three)
+  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three)
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro';
     if (location.hash !== '#examples' && !pro && !(tr && TOURS[tr[1]])) return false;

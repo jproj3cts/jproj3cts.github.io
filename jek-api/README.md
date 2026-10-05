@@ -81,7 +81,7 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   `GET /v1/me/sessions`, `DELETE /v1/me/sessions/:id`, `POST /auth/signout`.
 
 In the app, the Sign in button appears with the experimental feature
-"JEKray2D Pro accounts" switched on; signed in, the File menu gains My
+"JEKrayPro accounts" switched on; signed in, the File menu gains My
 benches and Save to cloud.
 
 Next: workspaces, members, invitations, roles and team billing.

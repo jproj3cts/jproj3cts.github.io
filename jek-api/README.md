@@ -30,6 +30,13 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams).
   Prices are found by lookup key: `pro_monthly`, `pro_yearly`,
   `academic_monthly`, `academic_yearly`. The academic price needs a
   university email or a current university role on ORCID (`/v1/me/academic`).
+- Deleting an account (`DELETE /v1/me` with `{"confirm": "delete my account"}`):
+  any live Stripe subscription is cancelled first (nothing is deleted if
+  Stripe cannot be reached), then every workspace the person owns alone goes
+  with its benches, R2 history and folders, and their memberships, sign-ins
+  and sessions. A team with other members needs a new owner first. The user
+  row stays, emptied to "Deleted user", for benches they saved in others'
+  workspaces.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,

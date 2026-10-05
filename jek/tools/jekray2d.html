@@ -74,6 +74,9 @@
   .rt-btn.primary { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.primary:hover { background: var(--jek-cyan-dark); border-color: var(--jek-cyan-dark); }
   .rt-btn.danger { color: var(--jek-red); }
+  .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
+  .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
+  dialog.rt-dialog #deleteConfirm { width: min(20rem, 100%); box-sizing: border-box; font: inherit; margin-top: 0.3rem; }
 
   .rt-name {
     flex: 0 1 18rem;
@@ -763,7 +766,7 @@
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
   @media (max-width: 600px) {
-    #btnExamples, #btnShare, #btnMeasure, .rt-wide { display: none; }
+    #btnExamples, #btnShare, #btnMeasure, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
     .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
@@ -1130,6 +1133,14 @@
     <p class="rt-cloudnote" id="cloudNote" hidden></p>
     <div class="rt-snaps rt-cloudlist" id="cloudList"></div>
     <div class="rt-actions rt-cloudfoot"><span id="cloudFoot"></span><button class="rt-btn primary" id="cloudClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
@@ -20875,7 +20886,16 @@ document.querySelector('.rt-toolbar').addEventListener('click', e => { const b =
 /* the menus: File (by the bench's name), View, Sweeps and Help */
 for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
-  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); } };
+  const show = on => {
+    menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (!on) return;
+    // kept on the screen: a menu set against its button's right edge would run off a phone's left
+    menu.style.translate = '';
+    const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, pad = 8;
+    const dx = r.left < pad ? pad - r.left : r.right > vw - pad ? Math.max(pad - r.left, vw - pad - r.right) : 0;
+    if (dx) menu.style.translate = dx + 'px 0';
+    const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus();
+  };
   btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
   menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
@@ -20905,6 +20925,7 @@ const MENU_ICONS = {
   user: 'M8 2A3 3 0 1 1 7.99 2 M2.5 14.5A5.5 5 0 0 1 13.5 14.5', signin: 'M9.5 2.5H13.5V13.5H9.5 M2 8H10 M7 5L10 8L7 11',
   signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11',
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7',
+  trash: 'M2.5 4H13.5 M6 4V2.5H10V4 M3.5 4L4.5 14H11.5L12.5 4 M6.5 6.5V11.5 M9.5 6.5V11.5',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
@@ -21057,11 +21078,48 @@ function fillAccount() {
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
-    }), h('div', { class: 'sep' }), legal);
+    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), legal);
     menu.replaceChildren(...rows);
   }
   menuIcons(menu);
   cloudMenuShown();
+}
+/* Deleting the account: what goes and what stays said plainly, the export offered first, and
+   the words typed out, as the API asks for them */
+const DELETE_WORDS = 'delete my account';
+function showDeleteAccount() {
+  if (!account) return;
+  const dlg = document.getElementById('deleteDialog'), input = document.getElementById('deleteConfirm'), go = document.getElementById('deleteGo'), err = document.getElementById('deleteError');
+  const ws = account.workspaces || [], mine = ws.find(w => w.kind === 'personal');
+  const teams = ws.filter(w => w.kind !== 'personal'), owned = teams.filter(w => w.role === 'owner');
+  const paying = ws.filter(w => w.role === 'owner' && w.plan && w.plan.billing && w.active && !w.plan.cancel_at);
+  document.getElementById('deleteBody').replaceChildren(
+    h('p', null, 'This deletes, at once and for good:'),
+    h('ul', null,
+      h('li', null, 'every bench in your personal workspace, with its history, its folders and anything in the bin;'),
+      h('li', null, 'your name, email address, sign-ins (' + (account.identities || []).map(i => PROVIDER_NAMES[i.provider]).join(' and ') + ') and every session, on every device.'),
+      paying.length ? h('li', null, h('b', null, 'Your JEKray2D Pro subscription is cancelled now'), ', not at the end of the period, and the rest of the period is not refunded. If you subscribed in the last 14 days, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), ' for your refund.') : null,
+      mine && mine.plan && mine.plan.billing ? h('li', null, 'Stripe keeps your invoices for six years, as UK tax law requires.') : null),
+    teams.length ? h('p', null, 'Benches you saved in ' + teams.map(w => '\u201c' + w.name + '\u201d').join(', ') + ' stay there, marked as by a deleted user.' + (owned.length ? ' A team with other people in it needs a new owner first.' : '')) : null,
+    h('p', null, 'This cannot be undone. Your benches in this browser are kept. ', h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download all your cloud benches (.zip)'), ' first if you want a copy.'));
+  input.value = ''; go.disabled = true; err.hidden = true;
+  dlg.showModal(); input.focus();
+}
+{
+  const dlg = document.getElementById('deleteDialog'), input = document.getElementById('deleteConfirm'), go = document.getElementById('deleteGo'), err = document.getElementById('deleteError');
+  input.addEventListener('input', () => { go.disabled = input.value.trim().toLowerCase() !== DELETE_WORDS; });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !go.disabled) go.click(); });
+  document.getElementById('deleteCancel').addEventListener('click', () => dlg.close());
+  go.addEventListener('click', async () => {
+    go.disabled = true; go.textContent = 'Deleting…'; err.hidden = true;
+    try {
+      await api('/v1/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: DELETE_WORDS }) });
+      dlg.close(); account = null;
+      if (cloud) cloudLink(null);                      // the bench here stays, in this browser only
+      fillAccount(); toast('Your account has been deleted');
+    } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
+    go.textContent = 'Delete my account';
+  });
 }
 async function loadAccount() {
   try { account = await api('/v1/me'); }

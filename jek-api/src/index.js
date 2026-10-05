@@ -3,6 +3,7 @@
 
 import { checkOrigin, corsHeaders, preflight } from './http.js';
 import { Router } from './router.js';
+import { deleteAccount } from './account.js';
 import { callback, start, unlink } from './auth.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
@@ -20,6 +21,11 @@ const router = new Router()
     return json({ ok: true, version: VERSION });
   })
   .on('GET', '/v1/me', async (req, env, ctx) => json(await me(env, await requireUser(req, env, ctx))))
+  .on('DELETE', '/v1/me', async (req, env, ctx) => {
+    const out = await deleteAccount(req, env, await requireUser(req, env, ctx));
+    ctx.setCookie = clearCookie();
+    return json(out);
+  })
   .on('DELETE', '/v1/me/identities/:provider', async (req, env, ctx, params) => {
     await unlink(req, env, ctx, params, await requireUser(req, env, ctx));
     return json({ ok: true });

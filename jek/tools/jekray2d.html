@@ -4350,12 +4350,21 @@ function traceSceneOnce() {
         // lens's surface may be smaller than the lens (a mounted asphere's back face): light
         // between the two meets the ground edge, as a ray there does, and goes no further;
         // only what misses the whole lens goes on past it
+        // (light already inside the lens, at its far face, cannot go round it, only meet the edge:
+        // a stop or mount placed inside the lens's body comes between its faces, so the last
+        // surface met is no guide to that)
+        const fromGlass = () => {
+          if (!hit.front || !hit.back) return false;
+          const [, lyF] = toLocal(hit.f, px, py), [ldxF, ldyF] = toLocalDir(hit.f, dx, dy);
+          const mF = (ldxF - ldyF * dsagFn(hit, lyF)) > 0 ? hit.front : hit.back;
+          return !!mF && mF.glass !== 'AIR';
+        };
         if (splits && !hitSeg && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
           const fin = apertureShare(hit, lyH, cth, bw, bw);
           const rOut = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
-          const past = rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
+          const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
           if (past * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
             splitsLeft--;
             stack.push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(0, rOut - Math.abs(lyH)),

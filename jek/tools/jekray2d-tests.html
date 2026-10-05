@@ -1449,7 +1449,7 @@ const TESTS = [
   },
   {
     name: 'A beam wider than two mounted aspheres, between stops and a mirror, stays a few dozen branches',
-    why: 'a 4 mm beam on 3.7 mm aspheres whose back faces are 2 mm across, stops of 3 mm and a mirror (a user\u2019s levitation trap): light past a face but inside the lens met the ground edge and should stop, and light that went round a lens should stop at a 3 mm stop, but both went on and split again at every surface: 382 branches. Now under 60',
+    why: 'a 4 mm beam on 3.7 mm aspheres whose back faces are 2 mm across, stops of 3 mm and a mirror (a user\u2019s levitation trap): light past a face but inside the lens met the ground edge and should stop, and light that went round a lens should stop at a 3 mm stop, but both went on and split again at every surface: 382 branches. Now under 48',
     want: 1, tol: 0, unit: '',
     run: J => {
       const asph = (name, x, angle) => ({ type: 'lens', name, x, y: 0, angle, diameter: 3.7,
@@ -1463,7 +1463,7 @@ const TESTS = [
         { type: 'screen', name: 'Back', x: -48, y: 0, angle: 0, length: 50 },
       ]));
       TESTS_EXPECT.asphBeams = J.beamsAt();
-      return TESTS_EXPECT.asphBeams < 60 ? 1 : 0;
+      return TESTS_EXPECT.asphBeams < 48 ? 1 : 0;
     },
   },
   {
@@ -1484,6 +1484,26 @@ const TESTS = [
       const B = J.beamList(), holed = i => { for (let j = B[i].parent; j >= 0; j = B[j].parent) if (B[j].kind === 'split') return true; return false; };
       if (!B.some(b => b.kind === 'split')) return NaN;
       return B.filter((b, i) => b.kind !== 'split' && (b.at === 'L1' || b.at === 'L2') && holed(i)).length;
+    },
+  },
+  {
+    name: 'Light inside a lens does not go round it, with a stop inside the lens',
+    why: 'the same trap, whose 3 mm stops sit inside the aspheres\u2019 bodies (between their faces): light reaching a lens\u2019s far face from inside the glass met the stop last, not the lens, so it was taken to be arriving from outside and part of it to go round the lens, drawn as wide cones out of both lenses. Light inside meets only the ground edge. Branches that go round a lens just after a stop: 0 when so',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const asph = (name, x, angle) => ({ type: 'lens', name, x, y: 0, angle, diameter: 3.7,
+        surfaces: [{ R: 2.5912490091215195, k: -0.9029508626753, A: [0.002903857580327, 0.0001043665847952, 0.000003714988780821] }, { R: null, semi: 1.026031545341 }],
+        gaps: [3.64862840814], materials: [{ glass: 'D-ZK3M' }] });
+      const stop = (name, x, ap) => ({ type: 'stop', name, x, y: 0, angle: 0, aperture: ap, outer: 25.4, shape: 'round' });
+      J.load(bench('stops in lenses', [
+        src({ name: 'Laser', x: -47, gauss: true, w0: 2, width: 4, rays: 11, wavelength: 1550, pol: 's', traceRays: false }),
+        asph('L1', -8, 0), asph('L2', 1.15, -180), stop('S1', -8, 3), stop('S2', 1, 3),
+        { type: 'mirror', name: 'M', x: 12, y: 0, angle: -180, length: 25.4 },
+        { type: 'screen', name: 'Back', x: -48, y: 0, angle: 0, length: 50 },
+      ]));
+      const B = J.beamList();
+      if (!B.some(b => b.kind === 'split')) return NaN;
+      return B.filter(b => b.kind === 'split' && b.parent >= 0 && /^S\d$/.test(B[b.parent].at || '')).length;
     },
   },
   {

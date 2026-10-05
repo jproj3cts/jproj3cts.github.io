@@ -16,6 +16,8 @@ export default defineConfig(async () => {
             API_URL: 'https://api.jeksys.net',
             GOOGLE_CLIENT_SECRET: 'test-google-secret',
             ORCID_CLIENT_SECRET: 'test-orcid-secret',
+            MICROSOFT_CLIENT_ID: '11111111-2222-3333-4444-555555555555',
+            MICROSOFT_CLIENT_SECRET: 'test-microsoft-secret',
             STRIPE_SECRET_KEY: 'rk_test_x',
             STRIPE_WEBHOOK_SECRET: 'whsec_test',
             OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',

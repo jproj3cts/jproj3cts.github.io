@@ -55,6 +55,18 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   their personal workspace; each month they use it is counted. Set up with
   `scripts/institutions.mjs` through `/ops`, which needs the `OPS_TOKEN`
   secret and does not exist without it.
+- Sign in with Microsoft (migration 0004): university and work accounts only
+  (the `organizations` endpoint), PKCE; the subject is `<tenant>:<object id>`
+  and the email is the UPN when it is on the tenant's own domain (never the
+  `email` claim). A university may list its Entra tenants, whose people are
+  covered. Needs `MICROSOFT_CLIENT_ID` (wrangler.toml) and the
+  `MICROSOFT_CLIENT_SECRET` secret; without them the app is told it is
+  unavailable.
+- University administrators (members of the institution's workspace with
+  role `admin`, appointed with `add-admin`): `GET /v1/institutions/:id`
+  (licence, tier, monthly counts, what it covers, invitations), invitations by
+  email, and taking people off or back by email, answering the same whether
+  or not the address has an account. They never see who uses it.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago.
 - CORS and the Origin check for writes.
 - `GET /v1/health`, `GET /v1/me`, `DELETE /v1/me/identities/:provider`,

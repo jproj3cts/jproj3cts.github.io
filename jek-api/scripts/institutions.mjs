@@ -3,13 +3,14 @@
 //
 //   export JEK_OPS_TOKEN=...            (the same value as the OPS_TOKEN secret)
 //   node scripts/institutions.mjs list
-//   node scripts/institutions.mjs create "King's College London" --domain kcl.ac.uk --ror 0220mzb33
+//   node scripts/institutions.mjs create "King's College London" --domain kcl.ac.uk --ror 0220mzb33 [--tenant <Microsoft tenant id>]
 //   node scripts/institutions.mjs invoice <id> --users 300 --amount 6000 --email accounts@kcl.ac.uk --po PO123 [--contact "Dr A"] [--days 30]
 //   node scripts/institutions.mjs tier <id> --users 500          (a different tier, as agreed)
 //   node scripts/institutions.mjs remove-person <id> --email someone@kcl.ac.uk   (at the university's request)
 //   node scripts/institutions.mjs manual <id> --users 300 --until 2027-10-31   (a licence paid outside Stripe)
 //   node scripts/institutions.mjs show <id>
-//   node scripts/institutions.mjs add <id> --domain kcl-staff.ac.uk --ror ...   /   remove <id> --domain ...
+//   node scripts/institutions.mjs add <id> --domain kcl-staff.ac.uk --ror ... --tenant ...   /   remove <id> --domain ...
+//   node scripts/institutions.mjs add-admin <id> --email it-person@kcl.ac.uk   /   remove-admin <id> --email ...
 //   node scripts/institutions.mjs rename <id> "New name"
 //
 // --users is the tier: the most people who may use it in any 12 months, or
@@ -24,7 +25,7 @@ const TOKEN = process.env.JEK_OPS_TOKEN;
 const { positionals: [cmd, ...args], values: o } = parseArgs({
   allowPositionals: true,
   options: {
-    domain: { type: 'string', multiple: true }, ror: { type: 'string', multiple: true }, ringgold: { type: 'string', multiple: true },
+    domain: { type: 'string', multiple: true }, tenant: { type: 'string', multiple: true }, ror: { type: 'string', multiple: true }, ringgold: { type: 'string', multiple: true },
     until: { type: 'string' }, users: { type: 'string' }, amount: { type: 'string' }, email: { type: 'string' }, po: { type: 'string' },
     contact: { type: 'string' }, days: { type: 'string' }, description: { type: 'string' }, json: { type: 'boolean' },
   },
@@ -51,6 +52,9 @@ function show(i) {
   console.log(`${i.name}\n  id        ${i.id}`);
   console.log(`  domains   ${i.domains.join(', ') || '-'}`);
   console.log(`  ORCID     ${i.orgs.map((x) => `${x.scheme} ${x.value}`).join(', ') || '-'}`);
+  console.log(`  Microsoft ${i.tenants.join(', ') || '-'}`);
+  console.log(`  admins    ${i.admins.map((a) => `${a.name} <${a.email}>`).join(', ') || '-'}`);
+  console.log(`  invited   ${i.invited}`);
   console.log(`  licence   ${l ? `${l.billing}, ${l.status}${l.active ? '' : ' (not counting)'}, to ${day(l.period_end)}${l.stripe_subscription ? `, Stripe ${l.stripe_subscription}` : ''}` : 'none yet'}`);
   console.log(`  tier      ${l ? (l.max_users ? `${l.max_users} people` : 'unlimited') : '-'}; ${i.users_12_months} used it in the last 12 months`);
   console.log(`  people    ${i.people} ever covered`);
@@ -74,14 +78,16 @@ try {
   } else if (cmd === 'show') {
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`));
   } else if (cmd === 'create') {
-    show(await api('/ops/institutions', 'POST', { name: need(args[0], 'the name'), domains: o.domain || [], orgs: orgs() }));
+    show(await api('/ops/institutions', 'POST', { name: need(args[0], 'the name'), domains: o.domain || [], orgs: orgs(), tenants: o.tenant || [] }));
   } else if (cmd === 'add' || cmd === 'remove') {
     const key = cmd === 'add' ? 'add' : 'remove';
-    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`, 'PATCH', { [`${key}_domains`]: o.domain || [], [`${key}_orgs`]: orgs() }));
+    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`, 'PATCH', { [`${key}_domains`]: o.domain || [], [`${key}_orgs`]: orgs(), [`${key}_tenants`]: o.tenant || [] }));
   } else if (cmd === 'rename') {
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}`, 'PATCH', { name: need(args[1], 'the new name') }));
   } else if (cmd === 'manual') {
     show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/manual`, 'POST', { until: need(o.until, '--until YYYY-MM-DD'), max_users: users() }));
+  } else if (cmd === 'add-admin' || cmd === 'remove-admin') {
+    show(await api(`/ops/institutions/${need(args[0], 'the institution id')}/admins`, 'POST', { email: need(o.email, '--email'), remove: cmd === 'remove-admin' }));
   } else if (cmd === 'remove-person') {
     const out = await api(`/ops/institutions/${need(args[0], 'the institution id')}/remove`, 'POST', { email: need(o.email, '--email') });
     console.log(`Removed ${out.removed} account(s).`); show(out);
@@ -94,7 +100,7 @@ try {
       days_until_due: o.days ? Number(o.days) : undefined, description: o.description,
     }));
   } else {
-    console.log('Commands: list, show, create, add, remove, rename, invoice, tier, manual, remove-person. See the top of scripts/institutions.mjs.');
+    console.log('Commands: list, show, create, add, remove, rename, invoice, tier, manual, remove-person, add-admin, remove-admin. See the top of scripts/institutions.mjs.');
     process.exitCode = cmd ? 1 : 0;
   }
 } catch (err) {

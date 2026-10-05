@@ -19,6 +19,10 @@ APP_URL = "https://jeksys.net/jek/tools/jekray2d.html"
 # `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.
 GOOGLE_CLIENT_ID = "432503390292-hplcfdkn74jn50segtp0plbq5rnu45hj.apps.googleusercontent.com"
 ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
+# Microsoft (university and work accounts): the app registration's
+# Application (client) ID; its secret with `npx wrangler secret put MICROSOFT_CLIENT_SECRET`.
+# Empty: Microsoft sign-in is not offered.
+MICROSOFT_CLIENT_ID = ""
 
 # Accounts, sessions, workspaces and bench heads.
 [[d1_databases]]

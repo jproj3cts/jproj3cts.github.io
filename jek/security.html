@@ -66,7 +66,8 @@
 
     <h2>2. Sign-in and sessions</h2>
     <ul>
-      <li>Users sign in with Google (OpenID Connect, with PKCE) or ORCID (OAuth). We never see or store passwords. We ask Google only for the basic sign-in scopes.</li>
+      <li>Users sign in with Google or Microsoft (OpenID Connect, with PKCE) or ORCID (OAuth). We never see or store passwords. We ask Google and Microsoft only for the basic sign-in scopes, and read nothing from a university&rsquo;s directory.</li>
+      <li>Microsoft sign-in accepts university and work accounts only. A person is identified by their tenant and object identifiers; their email address is taken from their sign-in name, whose domain the tenant has had to prove it owns, never from the editable email claim, and guest accounts give none.</li>
       <li>Each sign-in is tied to the browser that started it by a one-time state value, which expires after 10 minutes.</li>
       <li>Accounts are never merged because two sign-ins share an email address. A second sign-in method can only be linked by someone already signed in.</li>
       <li>A session is a 256-bit random token in a cookie that is <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code> and limited to api.jeksys.net. We store only its SHA-256 hash, so a copy of our database would not let anyone sign in. Sessions last 30 days from last use and end on sign-out or account deletion.</li>
@@ -77,6 +78,7 @@
       <li>Every request is checked against the user&rsquo;s membership and role in the workspace concerned (owner, admin, editor or viewer). Another workspace&rsquo;s benches are indistinguishable from ones that do not exist.</li>
       <li>Changes need an allowed origin (jeksys.net), as well as the session cookie, so other websites cannot act for a signed-in user. Only jeksys.net may read the service&rsquo;s responses in a browser.</li>
       <li>Saving needs an active plan; reading and exporting never do, so people can always get their data out.</li>
+      <li>A university&rsquo;s licence administrators see only counts, and can invite or take off people by email address; taking someone off answers the same whether or not they have an account.</li>
       <li>Our own administration of university licences uses a separate 256-bit key over HTTPS, and is switched off entirely when the key is not set.</li>
     </ul>
 
@@ -120,7 +122,7 @@
     <h2>9. What we do not have yet</h2>
     <ul>
       <li>An independent penetration test or a formal certification such as Cyber Essentials or ISO 27001. We will share results when we have them.</li>
-      <li>Sign-in through university accounts (single sign-on). Sign-in is through Google or ORCID.</li>
+      <li>Sign-in through the UK Access Federation (SAML). University single sign-on is through Microsoft accounts.</li>
     </ul>
 
     <p>Related: <a href="/jek/privacy.html">Privacy Policy</a>, <a href="/jek/university-data.html">Data protection for universities</a>, <a href="/jek/university-licence.html">University Licence</a>.</p>

@@ -92,6 +92,16 @@ const router = new Router()
   // billing
   .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
   .on('POST', '/v1/me/institution', async (req, env, ctx) => json(await I.checkInstitution(env, await requireUser(req, env, ctx))))
+  // a university's licence, for its own administrators
+  .on('GET', '/v1/institutions/:id', async (req, env, ctx, { id }) => json(await I.adminGet(env, await requireUser(req, env, ctx), id)))
+  .on('POST', '/v1/institutions/:id/invites', async (req, env, ctx, { id }) =>
+    json(await I.adminInvite(req, env, await requireUser(req, env, ctx), id)),
+  )
+  .on('DELETE', '/v1/institutions/:id/invites/:email', async (req, env, ctx, { id, email }) =>
+    json(await I.adminUninvite(env, await requireUser(req, env, ctx), id, email)),
+  )
+  .on('POST', '/v1/institutions/:id/remove', async (req, env, ctx, { id }) => json(await I.adminRemove(req, env, await requireUser(req, env, ctx), id)))
+  .on('POST', '/v1/institutions/:id/restore', async (req, env, ctx, { id }) => json(await I.adminRestore(req, env, await requireUser(req, env, ctx), id)))
   .on('POST', '/v1/me/academic', async (req, env, ctx) => json(await verifyAcademic(env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/workspaces/:w/billing/checkout', async (req, env, ctx, { w }) =>
     json(await checkout(req, env, await requireUser(req, env, ctx), w)),
@@ -108,6 +118,7 @@ const router = new Router()
   .on('GET', '/ops/institutions/:id', async (req, env, ctx, { id }) => json(await I.opsGet(req, env, id)), { anyOrigin: true })
   .on('PATCH', '/ops/institutions/:id', async (req, env, ctx, { id }) => json(await I.opsPatch(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/manual', async (req, env, ctx, { id }) => json(await I.opsManual(req, env, id)), { anyOrigin: true })
+  .on('POST', '/ops/institutions/:id/admins', async (req, env, ctx, { id }) => json(await I.opsAdmin(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/remove', async (req, env, ctx, { id }) => json(await I.opsRemove(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/tier', async (req, env, ctx, { id }) => json(await I.opsTier(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/invoice', async (req, env, ctx, { id }) => json(await I.opsInvoice(req, env, id)), { anyOrigin: true })

@@ -76,6 +76,15 @@
   .rt-btn.danger { color: var(--jek-red); }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
+  #uniBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
+  #uniBody p { margin: 0.3rem 0 0.6rem; }
+  #uniBody table { border-collapse: collapse; font-size: 0.85rem; margin: 0.2rem 0 0.4rem; }
+  #uniBody th, #uniBody td { padding: 0.2rem 0.9rem 0.2rem 0; text-align: left; font-variant-numeric: tabular-nums; }
+  #uniBody th { font-weight: 600; color: var(--jek-ink-soft); }
+  #uniBody .uni-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.3rem 0; }
+  #uniBody .uni-row input { flex: 1 1 14rem; min-width: 0; padding: 0.4rem; font: inherit; font-size: 0.875rem; }
+  #uniBody .uni-list { margin: 0.2rem 0 0.4rem; padding: 0; list-style: none; font-size: 0.875rem; }
+  #uniBody .uni-list li { display: flex; gap: 0.75rem; align-items: center; padding: 0.15rem 0; }
   dialog.rt-dialog #deleteConfirm { width: min(20rem, 100%); box-sizing: border-box; font: inherit; margin-top: 0.3rem; }
 
   .rt-name {
@@ -1135,6 +1144,12 @@
     <p class="rt-cloudnote" id="cloudNote" hidden></p>
     <div class="rt-snaps rt-cloudlist" id="cloudList"></div>
     <div class="rt-actions rt-cloudfoot"><span id="cloudFoot"></span><button class="rt-btn primary" id="cloudClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
@@ -20959,12 +20974,13 @@ async function api(path, opts = {}) {
   if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; e.version = body && body.error && body.error.version; throw e; }
   return body;
 }
-const PROVIDER_NAMES = { google: 'Google', orcid: 'ORCID' };
+const PROVIDER_NAMES = { google: 'Google', microsoft: 'Microsoft', orcid: 'ORCID' };
 const AUTH_OUTCOMES = {
   signed_in: ['Signed in'], linked: ['Sign-in linked to your account'], cancelled: ['Sign-in cancelled'],
   expired: ['That sign-in took too long or was opened in another browser. Please try again.', true],
   failed: ['Sign-in did not work. Please try again.', true], taken: ['That sign-in already belongs to another JEKray2D account.', true],
   signed_out: ['Please sign in first.', true],
+  unavailable: ['That way of signing in is not available yet. Please use another.', true],
 };
 function signIn(provider, link) {
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
@@ -20977,6 +20993,7 @@ const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w
    changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
 const shortDate = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 function planText(w) {
+  if (w.kind === 'institution') return 'you look after its JEKray2D Pro licence';
   const p = w.plan, lic = w.kind === 'personal' && account && account.licence;
   // a university's licence, unless they pay for their own as well
   if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKray2D Pro through ' + lic.name;
@@ -21029,7 +21046,7 @@ async function showSubscribe() {
     uni.disabled = false; uni.textContent = 'Check for a university licence';
   } }, 'Check for a university licence');
   const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKray2D Pro for everyone? ', uni,
-    ': with your university Google account it shows on its own; with ORCID, we look for your current university on your record.');
+    ': with your university Google or Microsoft account it shows on its own; with ORCID, we look for your current university on your record.');
   box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
     card('pro', 'JEKray2D Pro', 'For anyone: your benches in the cloud, their history, on every device.'),
     card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
@@ -21071,7 +21088,7 @@ function fillAccount() {
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
-    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
+    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with ORCID', () => signIn('orcid')),
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKray2D Pro: your benches in the cloud, their history, and teams. Coming soon.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
@@ -21079,6 +21096,8 @@ function fillAccount() {
     const orcid = ids.find(i => i.provider === 'orcid');
     const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
       ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))), h('div', { class: 'sep' })];
+    // a university's licence, for those who look after it there
+    for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
     // the personal workspace's plan: subscribe, or manage it
     const mine = ws.find(w => w.kind === 'personal');
     if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKray2D Pro…', () => showSubscribe()));
@@ -21090,7 +21109,7 @@ function fillAccount() {
       }
     }
     if (rows[rows.length - 1].className !== 'sep') rows.push(h('div', { class: 'sep' }));
-    for (const p of ['google', 'orcid']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
+    for (const p of ['google', 'microsoft', 'orcid']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
@@ -21100,6 +21119,59 @@ function fillAccount() {
   menuIcons(menu);
   cloudMenuShown();
 }
+/* A university's licence, for the people who look after it there: its state, its tier and
+   how many use it each month, what it covers, invitations for people without a university
+   address, and taking someone off by email. Who uses it is never shown. */
+async function showUniAdmin(id) {
+  const dlg = document.getElementById('uniDialog'), body = document.getElementById('uniBody');
+  if (!dlg.open) dlg.showModal();
+  body.replaceChildren(h('p', null, 'Loading\u2026'));
+  let d;
+  try { d = await api('/v1/institutions/' + id); }
+  catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
+  document.getElementById('uniTitle').textContent = d.name;
+  const l = d.licence, post = (path, obj) => api('/v1/institutions/' + id + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+  const status = !l ? 'There is no licence yet.' : l.active ? 'JEKray2D Pro licence, active' + (l.until ? ' until ' + shortDate(l.until) : '') + (l.invoiced ? ', invoiced yearly.' : '.') : 'The licence has ended. People keep their accounts and can open and export their benches.';
+  const tier = l ? (l.max_users ? 'Tier: ' + l.max_users + ' people in any 12 months. ' : 'Tier: no limit on people. ') + d.users_12_months + (d.users_12_months === 1 ? ' person has' : ' people have') + ' used it in the last 12 months.' : '';
+  const full = l && l.max_users && d.users_12_months >= l.max_users ? h('p', null, h('b', null, 'The tier is full: '), 'someone new can join once a place frees, when a person has not used it for 12 months or you take someone off below. For a larger tier, email ', h('a', { href: 'mailto:sales@jeksys.net' }, 'sales@jeksys.net'), '.') : null;
+  const months = d.months.length ? h('table', null, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Month'), h('th', { scope: 'col' }, 'People who used it'))),
+    h('tbody', null, ...d.months.map(m => h('tr', null, h('td', null, new Date(m.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })), h('td', null, String(m.users))))))
+    : h('p', null, 'No one has used it yet.');
+  const covers = [...d.domains.map(x => 'an email address at ' + x), ...(d.tenants.length ? ['a Microsoft account from your university'] : []), ...d.orgs.map(o => 'a current affiliation on ORCID (' + o.scheme + ' ' + o.value + ')')];
+  // invitations
+  const invEmail = h('input', { type: 'email', 'aria-label': 'Email address to invite', placeholder: 'visitor@example.com', autocomplete: 'off' });
+  const invite = h('button', { type: 'button', class: 'rt-btn' }, 'Invite');
+  invite.addEventListener('click', async () => {
+    try { await post('/invites', { email: invEmail.value }); toast('Invited ' + invEmail.value.trim()); showUniAdmin(id); } catch (err) { toast(err.message, true); }
+  });
+  const invites = d.invites.length ? h('ul', { class: 'uni-list' }, ...d.invites.map(i => h('li', null, h('span', null, i.email),
+    h('button', { type: 'button', class: 'rt-link', onclick: async () => { try { await api('/v1/institutions/' + id + '/invites/' + encodeURIComponent(i.email), { method: 'DELETE' }); showUniAdmin(id); } catch (err) { toast(err.message, true); } } }, 'Remove'))))
+    : h('p', null, 'No one invited.');
+  // taking someone off, and back
+  const offEmail = h('input', { type: 'email', 'aria-label': 'Email address of the person', placeholder: 'name@' + (d.domains[0] || 'university.ac.uk'), autocomplete: 'off' });
+  const said = h('p', { role: 'status' });
+  const act = (path, msg) => async () => {
+    const e = offEmail.value.trim();
+    try { await post(path, { email: e }); said.textContent = msg(e); } catch (err) { said.textContent = err.message; }
+  };
+  body.replaceChildren(...[
+    h('p', null, status), tier ? h('p', null, tier) : null, full,
+    h('h3', null, 'People who used it, by month'), months,
+    h('p', null, 'You see how many people use the licence, never who they are.'),
+    h('h3', null, 'Who it covers'),
+    h('p', null, covers.length ? 'Anyone who signs in with ' + covers.join(', or ') + ', and the people you invite below. To change this, email ' : 'The people you invite below. To add your university\u2019s addresses, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), '.'),
+    d.tenants.length ? h('p', null, 'If people see \u201cNeed admin approval\u201d when signing in with Microsoft, an administrator of your university\u2019s Microsoft account approves JEKray2D once: they sign in with Microsoft and tick \u201cConsent on behalf of your organization\u201d.') : null,
+    h('h3', null, 'Invite people without a university address'),
+    h('p', null, 'They are covered when they sign in with Google or Microsoft using this address.'),
+    h('div', { class: 'uni-row' }, invEmail, invite), invites,
+    h('h3', null, 'Take someone off'),
+    h('p', null, 'By their email address. Their place frees at once; their benches stay theirs.'),
+    h('div', { class: 'uni-row' }, offEmail,
+      h('button', { type: 'button', class: 'rt-btn', onclick: act('/remove', e => 'If ' + e + ' was using the licence, they no longer can, and their place is free.') }, 'Take off'),
+      h('button', { type: 'button', class: 'rt-btn', onclick: act('/restore', e => 'If ' + e + ' was taken off, they can use the licence again.') }, 'Restore')),
+    said].filter(Boolean));
+}
+document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
 /* Deleting the account: what goes and what stays said plainly, the export offered first, and
    the words typed out, as the API asks for them */
 const DELETE_WORDS = 'delete my account';

@@ -1,11 +1,11 @@
-// Sign-in with Google or ORCID: OAuth 2.0 authorisation code flow, handled
+// Sign-in with Google, Microsoft or ORCID: OAuth 2.0 authorisation code flow, handled
 // entirely here. The app sends the person to /auth/<provider>/start; the
 // provider sends them back to /auth/<provider>/callback; we open a session
 // and send them back to the app.
 //
 // The state lives in KV for 10 minutes and is also tied to this browser by a
 // short-lived cookie, so a sign-in started elsewhere (login CSRF) is refused.
-// Google also gets PKCE. Accounts are never merged on a matching email: a
+// Google and Microsoft also get PKCE. Accounts are never merged on a matching email: a
 // second provider is attached only by a signed-in person, from the app.
 
 import { allowedOrigins } from './http.js';
@@ -20,6 +20,17 @@ const b64url = (bytes) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 const fromB64url = (s) => atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+
+// Microsoft's tenant for personal accounts, which never sign in here.
+const MSA_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
+// A UPN as an email address, when it is one on the tenant's own domain: not a
+// guest's (#EXT#) and not the tenant's built-in onmicrosoft.com name.
+export function upnEmail(upn) {
+  const u = String(upn || '').trim().toLowerCase();
+  if (!/^[^\s@#]+@([a-z0-9-]+\.)+[a-z]{2,}$/.test(u) || u.includes('#ext#') || u.endsWith('.onmicrosoft.com')) return null;
+  return u;
+}
 
 export const PROVIDERS = {
   google: {
@@ -45,6 +56,33 @@ export const PROVIDERS = {
         name: c.name || c.given_name || c.email || 'Google user',
         email: c.email && c.email_verified ? c.email : null,
       };
+    },
+  },
+  // University and work accounts only (the 'organizations' endpoint), not
+  // personal Microsoft accounts.
+  microsoft: {
+    authorize: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+    token: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+    scope: 'openid email profile',
+    pkce: true,
+    clientId: (env) => env.MICROSOFT_CLIENT_ID,
+    secret: (env) => env.MICROSOFT_CLIENT_SECRET,
+    // As for Google, the ID token comes straight from the token endpoint over
+    // TLS. The person is their tenant and object id. Their email is taken from
+    // the sign-in name (UPN), whose domain the tenant must have proved it owns;
+    // the 'email' claim is not used, as a tenant can set it to anything.
+    identity(tok, env) {
+      const parts = (tok.id_token || '').split('.');
+      if (parts.length !== 3) throw new Error('no id_token');
+      const c = JSON.parse(fromB64url(parts[1]));
+      const tid = String(c.tid || '').toLowerCase(), oid = String(c.oid || '').toLowerCase();
+      const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+      if (!GUID.test(tid) || !GUID.test(oid)) throw new Error('tid/oid');
+      if (tid === MSA_TENANT) throw new Error('personal account');
+      if (c.iss !== `https://login.microsoftonline.com/${tid}/v2.0`) throw new Error('iss');
+      if (c.aud !== env.MICROSOFT_CLIENT_ID) throw new Error('aud');
+      if (!(c.exp * 1000 > now())) throw new Error('exp');
+      return { subject: `${tid}:${oid}`, name: c.name || c.preferred_username || 'Microsoft user', email: upnEmail(c.preferred_username) };
     },
   },
   orcid: {
@@ -107,6 +145,8 @@ export async function start(req, env, ctx, { provider: name }) {
   const p = provider(name);
   const url = new URL(req.url);
   const ret = safeReturn(env, url.searchParams.get('return'));
+  // a provider not yet set up here (no client id): back to the app, which says so
+  if (!p.clientId(env) || !p.secret(env)) return redirect(withOutcome(ret, 'unavailable'));
   let linkUser = null;
   if (url.searchParams.get('link') === '1') {
     const user = await currentUser(req, env, ctx);
@@ -132,7 +172,7 @@ export async function start(req, env, ctx, { provider: name }) {
     q.set('code_challenge', b64url(new Uint8Array(d)));
     q.set('code_challenge_method', 'S256');
   }
-  if (name === 'google') q.set('prompt', 'select_account');
+  if (name === 'google' || name === 'microsoft') q.set('prompt', 'select_account');
   return redirect(`${p.authorize}?${q}`, [stateCookie(state, STATE_TTL)]);
 }
 
@@ -204,7 +244,7 @@ export async function callback(req, env, ctx, { provider: name }) {
   if (found && found.deleted_at) return redirect(withOutcome(ret, 'failed'), [clear]);
   if (found) {
     userId = found.id;
-    // Google's verified email is kept up to date; ORCID gives none.
+    // Google's verified email (or Microsoft's sign-in name) is kept up to date; ORCID gives none.
     if (id.email) await env.DB.prepare('UPDATE users SET email = ? WHERE id = ?').bind(id.email, userId).run();
   } else {
     try {

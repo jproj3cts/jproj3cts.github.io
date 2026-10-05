@@ -6,9 +6,12 @@
 // licence counts and either
 //   - their verified email is at one of its domains (or a subdomain of one),
 //     checked afresh each time, or
+//   - they signed in with Microsoft from one of its Entra tenants, or
+//   - one of its administrators invited their verified email address, or
 //   - their public ORCID record shows a current affiliation with one of its
 //     organisations (by ROR, Ringgold or GRID id), checked when they ask and
 //     good for a year.
+// All but ORCID are checked afresh each time.
 // Covered, their personal workspace counts as on a plan. Each month they use
 // the app is noted, for the institution's usage report.
 //
@@ -75,6 +78,22 @@ async function hasPlace(env, r, user, t) {
 // { full: name } when their institution's tier has no room for them; or null.
 export async function licenceFor(env, user, t = now()) {
   const found = [];
+  const live = async (via, sql, args) => {
+    const { results } = await env.DB.prepare(
+      `SELECT w.id AS workspace_id, w.name, x.detail, ${SUB_COLS}, l.removed_at
+         FROM (${sql}) x JOIN workspaces w ON w.id = x.workspace_id AND w.kind = 'institution'
+         JOIN subscriptions s ON s.workspace_id = w.id
+         LEFT JOIN licences l ON l.workspace_id = w.id AND l.user_id = ?`,
+    )
+      .bind(...args, user.id)
+      .all();
+    for (const r of results) if (!r.removed_at) found.push({ ...r, via });
+  };
+  // their university's Microsoft tenant
+  await live('microsoft',
+    `SELECT t.workspace_id, 'Microsoft account' AS detail FROM identities i
+       JOIN institution_tenants t ON t.tenant = substr(i.subject, 1, instr(i.subject, ':') - 1)
+      WHERE i.user_id = ? AND i.provider = 'microsoft'`, [user.id]);
   const ds = domainsOf(user.email);
   if (ds.length) {
     const { results } = await env.DB.prepare(
@@ -88,11 +107,16 @@ export async function licenceFor(env, user, t = now()) {
       .all();
     for (const r of results) if (!r.removed_at) found.push({ ...r, via: 'email' });
   }
+  // invited by the university's administrators
+  if (user.email) {
+    await live('invite', "SELECT workspace_id, 'invited' AS detail FROM institution_invites WHERE email = ?", [String(user.email).toLowerCase()]);
+  }
+  // a current affiliation found on ORCID, for a year
   const { results: kept } = await env.DB.prepare(
     `SELECT w.id AS workspace_id, w.name, l.via, l.detail, ${SUB_COLS}
        FROM licences l JOIN workspaces w ON w.id = l.workspace_id AND w.kind = 'institution'
        JOIN subscriptions s ON s.workspace_id = w.id
-      WHERE l.user_id = ? AND l.removed_at IS NULL AND l.via != 'email' AND (l.until IS NULL OR l.until > ?)`,
+      WHERE l.user_id = ? AND l.removed_at IS NULL AND l.via = 'orcid' AND l.until > ?`,
   )
     .bind(user.id, t)
     .all();
@@ -203,6 +227,14 @@ function cleanOrgs(list) {
   });
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function cleanTenants(list) {
+  return [...new Set((list || []).map((x) => String(x).trim().toLowerCase()))].map((x) => {
+    if (!GUID.test(x) || x === '9188040d-6c67-4c5b-b112-36a304b66dad') throw new ApiError(400, 'bad_tenant', `Not a Microsoft tenant id: ${x}`);
+    return x;
+  });
+}
+
 async function institution(env, id) {
   const w = await env.DB.prepare("SELECT id, name, created_at FROM workspaces WHERE id = ? AND kind = 'institution'").bind(id).first();
   if (!w) throw new ApiError(404, 'not_found', 'No such institution.');
@@ -212,7 +244,7 @@ async function institution(env, id) {
 // Everything about one institution, as the ops script shows it.
 async function describe(env, id, t = now()) {
   const w = await institution(env, id);
-  const [d, o, s, n, months] = await env.DB.batch([
+  const [d, o, s, n, months, ten, adm, inv] = await env.DB.batch([
     env.DB.prepare('SELECT domain FROM institution_domains WHERE workspace_id = ? ORDER BY domain').bind(id),
     env.DB.prepare('SELECT scheme, value FROM institution_orgs WHERE workspace_id = ? ORDER BY scheme, value').bind(id),
     env.DB.prepare('SELECT * FROM subscriptions WHERE workspace_id = ?').bind(id),
@@ -220,6 +252,11 @@ async function describe(env, id, t = now()) {
     env.DB.prepare(
       'SELECT month, COUNT(*) AS users FROM licence_months WHERE workspace_id = ? GROUP BY month ORDER BY month DESC LIMIT 24',
     ).bind(id),
+    env.DB.prepare('SELECT tenant FROM institution_tenants WHERE workspace_id = ? ORDER BY tenant').bind(id),
+    env.DB.prepare(
+      "SELECT u.name, u.email FROM members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? AND m.role = 'admin' ORDER BY u.name",
+    ).bind(id),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM institution_invites WHERE workspace_id = ?').bind(id),
   ]);
   const sub = s.results[0] || null;
   return {
@@ -228,6 +265,9 @@ async function describe(env, id, t = now()) {
     created_at: w.created_at,
     domains: d.results.map((r) => r.domain),
     orgs: o.results,
+    tenants: ten.results.map((r) => r.tenant),
+    admins: adm.results,
+    invited: inv.results[0].n,
     licence: sub && {
       billing: sub.stripe_customer === 'manual' ? 'manual' : 'invoice',
       status: sub.status,
@@ -261,6 +301,14 @@ async function setLists(env, id, body) {
   }
   for (const o of cleanOrgs(body.remove_orgs)) {
     st.push(env.DB.prepare('DELETE FROM institution_orgs WHERE workspace_id = ? AND scheme = ? AND value = ?').bind(id, o.scheme, o.value));
+  }
+  for (const x of cleanTenants(body.add_tenants || body.tenants)) {
+    const taken = await env.DB.prepare('SELECT workspace_id FROM institution_tenants WHERE tenant = ?').bind(x).first();
+    if (taken && taken.workspace_id !== id) throw new ApiError(409, 'tenant_taken', `Tenant ${x} belongs to another institution.`);
+    st.push(env.DB.prepare('INSERT OR IGNORE INTO institution_tenants (workspace_id, tenant) VALUES (?, ?)').bind(id, x));
+  }
+  for (const x of cleanTenants(body.remove_tenants)) {
+    st.push(env.DB.prepare('DELETE FROM institution_tenants WHERE workspace_id = ? AND tenant = ?').bind(id, x));
   }
   if (st.length) await env.DB.batch(st);
 }
@@ -303,6 +351,7 @@ export async function opsCreate(req, env) {
   // checked before anything is written
   cleanDomains(body.domains);
   cleanOrgs(body.orgs);
+  cleanTenants(body.tenants);
   const id = newId();
   await env.DB.prepare("INSERT INTO workspaces (id, kind, name, owner_id, created_at) VALUES (?, 'institution', ?, 'system', ?)")
     .bind(id, name, now())
@@ -405,14 +454,134 @@ export async function opsRemove(req, env, id) {
   await institution(env, id);
   const email = String((await readBody(req)).email || '').trim().toLowerCase();
   if (!email.includes('@')) throw new ApiError(400, 'bad_request', 'email is the address of the person to remove.');
+  const n = await removeByEmail(env, id, email);
+  if (!n) throw new ApiError(404, 'not_found', `No account has the email ${email}.`);
+  return { removed: n, ...(await describe(env, id)) };
+}
+
+// Takes everyone with this verified email off an institution's licence (and
+// any invitation of it); the number of accounts.
+async function removeByEmail(env, id, email) {
   const { results } = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL').bind(email).all();
-  if (!results.length) throw new ApiError(404, 'not_found', `No account has the email ${email}.`);
   const t = now();
-  await env.DB.batch(results.map((u) => env.DB.prepare(
-    `INSERT INTO licences (workspace_id, user_id, via, detail, joined_at, removed_at) VALUES (?, ?, 'invite', 'removed', ?, ?)
-     ON CONFLICT (workspace_id, user_id) DO UPDATE SET removed_at = excluded.removed_at`,
-  ).bind(id, u.id, t, t)));
-  return { removed: results.length, ...(await describe(env, id)) };
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM institution_invites WHERE workspace_id = ? AND email = ?').bind(id, email),
+    ...results.map((u) => env.DB.prepare(
+      `INSERT INTO licences (workspace_id, user_id, via, detail, joined_at, removed_at) VALUES (?, ?, 'invite', 'removed', ?, ?)
+       ON CONFLICT (workspace_id, user_id) DO UPDATE SET removed_at = excluded.removed_at`,
+    ).bind(id, u.id, t, t)),
+  ]);
+  return results.length;
+}
+
+// POST /ops/institutions/:id/admins  {email, remove?} — someone (with an
+// account) who looks after the licence at the institution.
+export async function opsAdmin(req, env, id) {
+  requireOps(req, env);
+  await institution(env, id);
+  const body = await readBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const u = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL ORDER BY created_at LIMIT 1').bind(email).first();
+  if (!u) throw new ApiError(404, 'not_found', `No account has the email ${email}. They sign in to JEKray2D once first.`);
+  if (body.remove) await env.DB.prepare("DELETE FROM members WHERE workspace_id = ? AND user_id = ? AND role = 'admin'").bind(id, u.id).run();
+  else {
+    await env.DB.prepare("INSERT OR IGNORE INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'admin', 0, ?)")
+      .bind(id, u.id, now())
+      .run();
+  }
+  return describe(env, id);
+}
+
+// ---------- the institution's own administrators ----------
+//
+// They see the licence, its tier and monthly counts, and who it is set up to
+// cover; they can invite people without a qualifying address, and take
+// people off by email. They never see who uses it: removing someone says
+// the same whether or not that person has an account.
+
+async function adminOf(env, user, id) {
+  const m = await env.DB.prepare(
+    `SELECT w.id, w.name FROM members m JOIN workspaces w ON w.id = m.workspace_id AND w.kind = 'institution'
+      WHERE m.workspace_id = ? AND m.user_id = ? AND m.role IN ('owner', 'admin')`,
+  )
+    .bind(id, user.id)
+    .first();
+  if (!m) throw new ApiError(404, 'not_found', 'No such institution.');
+  return m;
+}
+
+const EMAIL = /^[^\s@]+@([a-z0-9-]+\.)+[a-z]{2,}$/;
+const emailOf = (body) => {
+  const e = String((body && body.email) || '').trim().toLowerCase();
+  if (!EMAIL.test(e)) throw new ApiError(400, 'bad_request', 'Give an email address.');
+  return e;
+};
+
+// GET /v1/institutions/:id
+export async function adminGet(env, user, id, t = now()) {
+  await adminOf(env, user, id);
+  const d = await describe(env, id, t);
+  const { results: invites } = await env.DB.prepare(
+    'SELECT email, created_at FROM institution_invites WHERE workspace_id = ? ORDER BY email',
+  )
+    .bind(id)
+    .all();
+  const l = d.licence;
+  return {
+    id: d.id,
+    name: d.name,
+    licence: l && { active: l.active, status: l.status, until: l.period_end, max_users: l.max_users, invoiced: l.billing === 'invoice' },
+    users_12_months: d.users_12_months,
+    months: d.active_users.slice(0, 12),
+    domains: d.domains,
+    orgs: d.orgs,
+    tenants: d.tenants,
+    invites,
+  };
+}
+
+// POST /v1/institutions/:id/invites  {email}
+export async function adminInvite(req, env, user, id) {
+  await adminOf(env, user, id);
+  const email = emailOf(await readBody(req));
+  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM institution_invites WHERE workspace_id = ?').bind(id).first();
+  if (n.n >= 1000) throw new ApiError(409, 'too_many', 'This licence has 1,000 invitations; remove some first.');
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR IGNORE INTO institution_invites (workspace_id, email, invited_by, created_at) VALUES (?, ?, ?, ?)')
+      .bind(id, email, user.id, now()),
+    // inviting someone undoes their removal
+    env.DB.prepare(
+      'UPDATE licences SET removed_at = NULL WHERE workspace_id = ? AND user_id IN (SELECT id FROM users WHERE lower(email) = ?)',
+    ).bind(id, email),
+  ]);
+  return adminGet(env, user, id);
+}
+
+// DELETE /v1/institutions/:id/invites/:email
+export async function adminUninvite(env, user, id, email) {
+  await adminOf(env, user, id);
+  await env.DB.prepare('DELETE FROM institution_invites WHERE workspace_id = ? AND email = ?').bind(id, String(email).toLowerCase()).run();
+  return adminGet(env, user, id);
+}
+
+// POST /v1/institutions/:id/remove  {email} — the same answer whether or not
+// the address has an account.
+export async function adminRemove(req, env, user, id) {
+  await adminOf(env, user, id);
+  await removeByEmail(env, id, emailOf(await readBody(req)));
+  return { ok: true };
+}
+
+// POST /v1/institutions/:id/restore  {email}
+export async function adminRestore(req, env, user, id) {
+  await adminOf(env, user, id);
+  const email = emailOf(await readBody(req));
+  await env.DB.prepare(
+    'UPDATE licences SET removed_at = NULL WHERE workspace_id = ? AND user_id IN (SELECT id FROM users WHERE lower(email) = ?)',
+  )
+    .bind(id, email)
+    .run();
+  return { ok: true };
 }
 
 // POST /ops/institutions/:id/tier  {max_users} — a different tier, as agreed

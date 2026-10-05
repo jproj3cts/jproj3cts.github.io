@@ -263,6 +263,22 @@ describe('an invoiced licence', () => {
     expect((await manual(a.id, Date.now() + DAY)).status).toBe(409);
   });
 
+  it('renames the Stripe product if it still has an older name', async () => {
+    vi.restoreAllMocks();
+    const seen = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init = {}) => {
+      const url = new URL(String(input)), body = init.body ? new URLSearchParams(String(init.body)) : null;
+      seen.push([init.method || 'GET', url.pathname, body && body.get('name')]);
+      const ok = (o) => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json' } });
+      if (url.pathname === '/v1/products/jekray2d_university' && (init.method || 'GET') === 'GET') return ok({ id: 'jekray2d_university', name: 'JEKray2D Pro university licence' });
+      if (url.pathname === '/v1/subscriptions') return ok({ id: 'sub_rename', object: 'subscription', customer: 'cus_r', status: 'active', metadata: { workspace_id: body.get('metadata[workspace_id]'), plan: 'institution', max_users: '10' }, items: { data: [{ id: 'si', quantity: 1, current_period_end: 2e9, price: { lookup_key: null, recurring: { interval: 'year' } } }] } });
+      return ok({ id: 'x' });
+    });
+    const a = await uni();
+    expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 100, max_users: 10, email: 'ap@uni.ac.uk' })).status).toBe(200);
+    expect(seen.slice(0, 2)).toEqual([['GET', '/v1/products/jekray2d_university', null], ['POST', '/v1/products/jekray2d_university', 'JEKrayPro university licence']]);
+  });
+
   it('checks the amount, the tier and the email first', async () => {
     const a = await uni();
     expect((await ops(`/ops/institutions/${a.id}/invoice`, 'POST', { amount: 'lots', max_users: 300, email: 'ap@uni.ac.uk' })).status).toBe(400);

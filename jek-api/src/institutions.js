@@ -32,6 +32,7 @@ import { ApiError, newId, now } from './util.js';
 
 const YEAR = 365 * 24 * 60 * 60 * 1000;
 export const PRODUCT = 'jekray2d_university';
+export const PRODUCT_NAME = 'JEKrayPro university licence';
 export const monthOf = (t = now()) => new Date(t).toISOString().slice(0, 7);
 
 // 'a.physics.kcl.ac.uk' -> ['a.physics.kcl.ac.uk', 'physics.kcl.ac.uk', 'kcl.ac.uk', 'ac.uk']
@@ -423,10 +424,11 @@ export async function opsInvoice(req, env, id) {
   if (cur && cur.stripe_customer !== 'manual' && ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'].includes(cur.status)) {
     throw new ApiError(409, 'invoiced', 'This institution already has an invoiced licence; change it in Stripe.');
   }
+  // made the first time, and renamed if it still carries an older name (it has no saved price,
+  // so Stripe's dashboard will not edit it without adding one)
   const product = await stripe(env, 'GET', `/products/${PRODUCT}`, null, { allow404: true });
-  if (!product) {
-    await stripe(env, 'POST', '/products', { id: PRODUCT, name: 'JEKrayPro university licence' });
-  }
+  if (!product) await stripe(env, 'POST', '/products', { id: PRODUCT, name: PRODUCT_NAME });
+  else if (product.name !== PRODUCT_NAME) await stripe(env, 'POST', `/products/${PRODUCT}`, { name: PRODUCT_NAME });
   const po = typeof body.po === 'string' && body.po.trim() ? body.po.trim().slice(0, 30) : null;
   const customer = await stripe(env, 'POST', '/customers', {
     name: w.name,

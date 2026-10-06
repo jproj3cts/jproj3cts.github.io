@@ -427,10 +427,10 @@ export async function fork(req, env, user, benchId) {
   canWrite(a);
   const v = body.version === undefined || body.version === null ? null : Number(body.version);
   if (v !== null && !(Number.isInteger(v) && v >= 1)) throw new ApiError(400, 'bad_request', 'version must be a version number.');
-  let content;
-  if (v === null) content = (await env.DB.prepare('SELECT head_json FROM benches WHERE id = ?').bind(src.id).first()).head_json;
+  // the head and its number read together, so a save meanwhile cannot pair one with the other
+  let content, from = v;
+  if (v === null) ({ head_json: content, head_version: from } = await env.DB.prepare('SELECT head_json, head_version FROM benches WHERE id = ?').bind(src.id).first());
   else content = await versionContent(env, src.id, v);
-  const from = v || src.head_version;
   // the original's version the fork leaves from is kept in its history (by whoever saved it)
   if (v === null && !(await env.DB.prepare('SELECT 1 FROM bench_versions WHERE bench_id = ? AND version = ?').bind(src.id, from).first())) {
     await cutVersion(env, src.workspace_id, src.id, from, content, src.updated_by);

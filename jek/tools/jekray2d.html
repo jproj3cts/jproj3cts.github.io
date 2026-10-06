@@ -583,9 +583,10 @@
   .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
   .rt-hmark b { background: #111; color: #fff; padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
-  .rt-hback { flex: none; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-hback { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; line-height: 1.2; }
   .rt-hhead input[type=search] { flex: 1 1 14rem; max-width: 26rem; min-width: 0; margin-left: auto; padding: 0.42rem 0.6rem; font: inherit; font-size: 0.875rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-paper, #fff); color: inherit; }
-  .rt-hhead #homeNew { flex: none; }
+  .rt-hhead #homeNew { flex: none; background: #111; border-color: #111; color: #fff; }
+  .rt-hhead #homeNew:hover { background: #333; border-color: #333; }
   .rt-hbody { flex: 1; display: flex; min-height: 0; }
   .rt-hrail { flex: none; width: 15rem; overflow-y: auto; padding: 0.75rem 0.5rem; background: var(--jek-panel); border-right: 1px solid var(--jek-line); display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.875rem; }
   .rt-hrail h2 { margin: 0.9rem 0.6rem 0.3rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--jek-ink-soft); }
@@ -614,7 +615,7 @@
   .rt-hcard.flash { animation: rt-flash 1.4s ease-out; }
   .rt-hcard > .rt-hopen { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: inherit; font: inherit; }
   .rt-hcard .thumb { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: cover; background: var(--rt-bench); }
-  .rt-hcard span.thumb { opacity: 0.35; }
+  .rt-hcard span.thumb { display: grid; place-items: center; font-size: 0.78rem; color: #9aa6ad; }
   .rt-hcard .rt-hinfo { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.55rem 2.4rem 0.6rem 0.7rem; min-width: 0; }
   .rt-hcard .rt-hinfo b { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rt-hcard .rt-hinfo small { font-size: 0.76rem; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -684,7 +685,6 @@
     .rt-hhead { flex-wrap: wrap; padding: 0.5rem 16px; gap: 0.5rem; }
     .rt-hhead h1 { order: -1; flex: 1 1 100%; font-size: 0.95rem; }
     .rt-hhead input[type=search] { order: 3; flex: 1 1 100%; max-width: none; margin: 0; }
-    .rt-hback { max-width: 60%; }
     .rt-hhead #homeNew { margin-left: auto; }
     .rt-hbody { flex-direction: column; }
     .rt-hrail { width: auto; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 0.4rem 16px; border-right: 0; border-bottom: 1px solid var(--jek-line); }
@@ -1258,7 +1258,7 @@
   <!-- My benches: a page of its own over the tool, as a CAD system's documents page -->
   <section class="rt-home" id="home" hidden aria-labelledby="homeTitle">
     <header class="rt-hhead">
-      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)">&larr; <span id="homeBackName">Back to the bench</span></button>
+      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
       <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
       <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
@@ -21715,6 +21715,8 @@ async function fillHome() {
   // the top; each fork branching off from the version it was made from, at the time it was
   // made; and the bench it was itself forked from, at the foot
   if (P.view === 'history') {
+    // a fork or an original in another workspace: shown in its own, with its own rights
+    if (data.bench.workspace_id !== ws && places.some(w => w.id === data.bench.workspace_id)) { P.ws = data.bench.workspace_id; fillHome(); return; }
     const b = data.bench, mine = cloud && cloud.id === b.id, origin = data.forked_from;
     const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name } }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
     const side = h('div', { class: 'rt-hside' },
@@ -21841,7 +21843,7 @@ async function fillHome() {
     const where = (P.q || P.view === 'recent') && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null;
     return h('div', { class: 'rt-hcard' + (mine ? ' here' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id },
       h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”', onclick: bin ? () => more.click() : () => homeOpenBench(b.id) },
-        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' })),
+        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
       h('div', { class: 'rt-hinfo' },
         h('b', { title: b.name }, b.name),
         h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
@@ -21857,14 +21859,22 @@ async function fillHome() {
     : 'No benches yet. Use Save to cloud in the File menu to put the bench you are working on here, or New bench to start one.'));
   box.replaceChildren(...out.filter(Boolean));
 }
+// everything but the page (and the dialogs, which may open over it) is out of reach while it is up
+function homeInert(on) {
+  const home = document.getElementById('home');
+  for (const el of [...document.body.children, ...home.parentElement.children]) {
+    if (el === home || el.contains(home) || el.tagName === 'SCRIPT' || el.tagName === 'DIALOG') continue;
+    el.inert = on;
+  }
+}
 function openHome(push = true) {
   if (!cloudOn()) { toast(accountsOn() ? 'Sign in, top right, to see your benches' : 'Cloud benches are not available here', true); return; }
   const home = document.getElementById('home');
   Object.assign(cloudPlace, { q: '' });
   if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });
   document.getElementById('homeSearch').value = '';
-  document.getElementById('homeBackName').textContent = project.name ? 'Back to “' + project.name + '”' : 'Back to the bench';
   home.hidden = false;
+  homeInert(true);
   document.documentElement.style.overflow = 'hidden';
   if (push && location.hash !== '#benches') window.history.pushState(null, '', location.pathname + location.search + '#benches');
   fillHome();
@@ -21875,6 +21885,7 @@ function closeHome() {
   if (home.hidden) return;
   closeHomeMenu();
   home.hidden = true;
+  homeInert(false);
   document.documentElement.style.overflow = '';
   if (location.hash === '#benches') window.history.replaceState(null, '', location.pathname + location.search);
   requestRender();
@@ -21919,7 +21930,7 @@ function cloudMenuShown() {
     home.addEventListener(t, e => e.stopPropagation());
     window.addEventListener(t, e => {
       if (!homeOpen()) return;
-      if (t === 'keydown' && e.key === 'Escape') {
+      if (t === 'keydown' && e.key === 'Escape' && !document.querySelector('dialog[open]')) {
         e.preventDefault();
         if (homeMenu) { const b = homeMenu.btn; closeHomeMenu(); b.focus(); } else closeHome();
         e.stopPropagation(); return;

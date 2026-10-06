@@ -647,20 +647,38 @@
   .rt-hmenu .sep { height: 1px; margin: 4px 2px; background: var(--jek-line); }
   .rt-hmenu select { margin: 0.2rem 0.4rem 0.4rem; padding: 0.3rem; font: inherit; font-size: 0.85rem; }
   /* a bench's history */
-  .rt-hhist { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1.4rem; align-items: start; }
+  .rt-hhist { display: grid; grid-template-columns: minmax(13rem, 19rem) 1fr; gap: 1.4rem; align-items: start; }
   .rt-hhist .rt-hside { display: flex; flex-direction: column; gap: 0.6rem; }
   .rt-hhist .rt-hside img, .rt-hhist .rt-hside span.thumb { width: 100%; aspect-ratio: 8 / 5; object-fit: cover; background: var(--rt-bench); border-radius: 3px; display: block; }
   .rt-hhist .rt-hside .rt-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; }
+  .rt-hhist .rt-hside .rt-nopic { display: grid; place-items: center; padding: 1rem; box-sizing: border-box; text-align: center; font-size: 0.8rem; color: #c9d1d6; }
+  .rt-hhist .rt-hside .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
   .rt-hhist .rt-hside p { margin: 0; font-size: 0.85rem; color: var(--jek-ink-soft); }
   .rt-hhist .rt-hside ul { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; }
   .rt-hhist .rt-hside h4 { margin: 0.4rem 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jek-ink-soft); }
-  .rt-hvers { border: 1px solid var(--jek-line); border-radius: 3px; }
-  .rt-hvers > div { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.9rem; padding: 0.55rem 0.8rem; font-size: 0.875rem; }
-  .rt-hvers > div + div { border-top: 1px solid var(--jek-line); }
-  .rt-hvers .when { min-width: 8rem; color: var(--jek-ink-soft); font-variant-numeric: tabular-nums; }
-  .rt-hvers .what { flex: 1 1 12rem; min-width: 0; }
-  .rt-hvers .what small { color: var(--jek-ink-soft); }
-  .rt-hvers .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.9rem; font-size: 0.82rem; }
+  .rt-hgraph { position: relative; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
+  .rt-hlines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .rt-hlines .main { fill: none; stroke: var(--jek-ink-soft); stroke-width: 2; }
+  .rt-hlines .main.from { stroke-dasharray: 3 4; }
+  .rt-hlines .branch { fill: none; stroke-width: 2; }
+  .rt-hlines .node { fill: var(--jek-ink-soft); stroke: var(--jek-panel); stroke-width: 2; }
+  .rt-hlines .node.head { fill: var(--jek-cyan); }
+  .rt-hlines .node.origin { fill: var(--jek-panel); stroke: var(--jek-ink-soft); stroke-width: 2; }
+  .rt-hevs > div { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.9rem; min-height: 2.5rem; padding: 0.45rem 0.8rem 0.45rem calc(var(--g) + 0.3rem); font-size: 0.875rem; box-sizing: border-box; }
+  .rt-hevs > div + div { border-top: 1px solid var(--jek-line); }
+  .rt-hevs .when { min-width: 7.5rem; color: var(--jek-ink-soft); font-variant-numeric: tabular-nums; }
+  .rt-hevs .what { flex: 1 1 12rem; min-width: 0; }
+  .rt-hevs .what small { color: var(--jek-ink-soft); }
+  .rt-hevs .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.9rem; font-size: 0.82rem; }
+  .rt-hevs .head .what { font-weight: 600; }
+  .rt-hevs .head .what small { font-weight: 400; }
+  .rt-hevs .fork { background: linear-gradient(90deg, transparent var(--g), color-mix(in srgb, var(--lane) 7%, transparent) var(--g)); }
+  .rt-hevs .fork .thumb { flex: none; width: 4.8rem; aspect-ratio: 8 / 5; object-fit: cover; border-radius: 2px; background: var(--rt-bench); border: 2px solid var(--lane); display: block; box-sizing: border-box; }
+  .rt-hevs .fork span.thumb { opacity: 0.5; }
+  .rt-hevs .fork .what .ic { width: 13px; height: 13px; vertical-align: -2px; color: var(--lane); }
+  .rt-hevs .fork .what .rt-link { font-weight: 600; }
+  .rt-hevs .origin { color: var(--jek-ink-soft); font-style: italic; }
+  .rt-hevs .origin .rt-link { font-style: normal; font-weight: 600; }
   .rt-home .rt-toast { position: fixed; top: 4rem; z-index: 80; }
   @media (max-width: 760px) {
     .rt-hhead { flex-wrap: wrap; padding: 0.5rem 16px; gap: 0.5rem; }
@@ -21567,7 +21585,7 @@ const homeIcon = name => {
 };
 const homeOpen = () => !document.getElementById('home').hidden;
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-let homeSeq = 0;
+let homeSeq = 0, homeRO = null;
 /* a card's menu: [label, icon, fn, cls] items, 'sep', or an element */
 let homeMenu = null;
 function closeHomeMenu() {
@@ -21693,34 +21711,94 @@ async function fillHome() {
     } }, homeIcon('folder'), ' New folder') : null].filter(Boolean));
   for (const b of tools.querySelectorAll('.rt-btn')) b.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem';
   box.classList.toggle('rows', homeView.rows && P.view !== 'history');
-  // the history of one bench: where it came from, its forks, its versions
+  // the history of one bench, as a graph down the side: its versions on one line, newest at
+  // the top; each fork branching off from the version it was made from, at the time it was
+  // made; and the bench it was itself forked from, at the foot
   if (P.view === 'history') {
-    const b = data.bench, mine = cloud && cloud.id === b.id;
-    const origin = data.forked_from;
+    const b = data.bench, mine = cloud && cloud.id === b.id, origin = data.forked_from;
+    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name } }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
     const side = h('div', { class: 'rt-hside' },
-      b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
+      b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
       h('div', { class: 'rt-actions' },
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id) }, 'Open'),
-        can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, 'Fork') : null),
-      origin ? h('h4', null, 'Forked from') : null,
-      origin ? h('p', null, link('“' + origin.name + '”', () => { Object.assign(P, { view: 'history', history: { id: origin.id, name: origin.name } }); fillHome(); }), ', version ' + origin.version) : null,
-      data.forks.length ? h('h4', null, data.forks.length === 1 ? '1 fork' : data.forks.length + ' forks') : null,
-      data.forks.length ? h('ul', null, ...data.forks.map(f => h('li', null, link(f.name, () => { Object.assign(P, { view: 'history', history: { id: f.id, name: f.name } }); fillHome(); }), ' ', h('small', null, 'from version ' + f.version)))) : null);
-    const rows = data.versions.map(v => h('div', null,
-      h('span', { class: 'when' }, whenAgo(v.created_at)),
-      h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
-      h('span', { class: 'acts' },
-        link('Open a copy', () => homeOpenBench(b.id, v.version)),
-        can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
-        can && v.version !== b.version ? link('Restore', homeSay(async () => {
-          await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
-          if (cloud && cloud.id === b.id) await cloudOpen(b.id);
-        }, 'Restored version ' + v.version)) : null)));
+        can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
+      h('p', { class: 'rt-subsmall' }, 'A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'));
+    // the events, newest first: a fork comes just after the version it was made from
+    const ev = [...data.versions.map(v => ({ kind: 'v', t: v.created_at, v })), ...data.forks.map(f => ({ kind: 'f', t: f.created_at, f }))]
+      .sort((x, y) => y.t - x.t || (x.kind === 'f' ? -1 : 1));
+    if (origin) ev.push({ kind: 'o' });
+    const rowOf = new Map();
+    ev.forEach((e, i) => { if (e.kind === 'v') rowOf.set(e.v.version, i); });
+    const vRows = ev.map((e, i) => e.kind === 'v' ? i : -1).filter(i => i >= 0);
+    // each fork's lane: the lowest free one between its row and its version's
+    const LANES = 5, laneEnd = [];
+    for (const [i, e] of ev.entries()) {
+      if (e.kind !== 'f') continue;
+      let at = rowOf.get(e.f.version);
+      if (at === undefined || at < i) at = vRows.find(r => r > i && ev[r].v.version <= e.f.version) ?? ev.length - 1;
+      let lane = 1;
+      while (lane < LANES && laneEnd[lane] !== undefined && laneEnd[lane] >= i) lane++;
+      laneEnd[lane] = Math.max(laneEnd[lane] ?? -1, at);
+      e.lane = lane; e.from = at;
+    }
+    const lanes = Math.max(0, ...ev.map(e => e.lane || 0));
+    const X0 = 14, DX = 20, G = X0 + lanes * DX + 16;
+    const COLOURS = ['var(--jek-cyan)', 'var(--jek-orange)', '#7a5cc4', 'var(--jek-red)', '#2e8b57'];
+    const rows = ev.map(e => {
+      if (e.kind === 'v') {
+        const v = e.v;
+        return h('div', { class: 'rt-hev' + (v.version === b.version ? ' head' : '') },
+          h('span', { class: 'when' }, whenAgo(v.created_at)),
+          h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
+          h('span', { class: 'acts' },
+            link('Open a copy', () => homeOpenBench(b.id, v.version)),
+            can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
+            can && v.version !== b.version ? link('Restore', homeSay(async () => {
+              await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
+              if (cloud && cloud.id === b.id) await cloudOpen(b.id);
+            }, 'Restored version ' + v.version)) : null));
+      }
+      if (e.kind === 'f') {
+        const f = e.f;
+        return h('div', { class: 'rt-hev fork', style: '--lane:' + COLOURS[(e.lane - 1) % COLOURS.length] },
+          f.thumb ? h('img', { class: 'thumb', src: API_BASE + f.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
+          h('span', { class: 'what' }, homeIcon('fork'), ' ', link(f.name, toHist(f.id, f.name)), ' ',
+            h('small', null, ['forked from version ' + f.version, f.created_by, whenAgo(f.created_at), f.forks ? (f.forks === 1 ? '1 fork of its own' : f.forks + ' forks of its own') : null].filter(Boolean).join(' · '))),
+          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name))));
+      }
+      return h('div', { class: 'rt-hev origin' },
+        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version));
+    });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'rt-hlines'); svg.setAttribute('aria-hidden', 'true');
+    const list = h('div', { class: 'rt-hevs', style: '--g:' + G + 'px' }, ...rows);
+    const graph = h('div', { class: 'rt-hgraph' }, svg, list);
+    const draw = () => {
+      const H = list.offsetHeight, ys = rows.map(r => r.offsetTop + Math.min(r.offsetHeight / 2, 20));
+      svg.setAttribute('width', G); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + G + ' ' + H);
+      const NS = 'http://www.w3.org/2000/svg', el = (tag, at) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); svg.append(n); return n; };
+      svg.replaceChildren();
+      const firstV = ev.findIndex(e => e.kind === 'v'), lastV = ev.length - 1 - [...ev].reverse().findIndex(e => e.kind === 'v');
+      if (firstV >= 0) el('path', { d: 'M' + X0 + ' ' + ys[firstV] + 'V' + ys[lastV], class: 'main' });
+      if (origin && lastV >= 0) el('path', { d: 'M' + X0 + ' ' + ys[lastV] + 'V' + ys[ev.length - 1], class: 'main from' });
+      ev.forEach((e, i) => {
+        if (e.kind !== 'f') return;
+        const x = X0 + e.lane * DX, y0 = ys[e.from], y1 = ys[i], c = COLOURS[(e.lane - 1) % COLOURS.length];
+        const bend = Math.min(14, (y0 - y1) / 2);
+        el('path', { d: 'M' + X0 + ' ' + y0 + 'C' + X0 + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - 2 * bend) + 'V' + y1, class: 'branch', style: 'stroke:' + c });
+      });
+      ev.forEach((e, i) => {
+        if (e.kind === 'v') el('circle', { cx: X0, cy: ys[i], r: e.v.version === b.version ? 6 : 4.5, class: e.v.version === b.version ? 'node head' : 'node' });
+        else if (e.kind === 'f') el('circle', { cx: X0 + e.lane * DX, cy: ys[i], r: 5, class: 'node fork', style: 'fill:' + COLOURS[(e.lane - 1) % COLOURS.length] });
+        else el('circle', { cx: X0, cy: ys[i], r: 5, class: 'node origin' });
+      });
+    };
     box.replaceChildren(h('div', { class: 'rt-hhist' }, side, h('div', null,
-      h('h3', null, 'Kept versions'),
-      rows.length ? h('div', { class: 'rt-hvers' }, ...rows) : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'),
-      h('p', { class: 'rt-subsmall' }, 'A version is kept on Save to cloud, every 10 minutes or so while you work, and before a restore: the last 50, then one a day for 90 days.'))));
+      h('h3', null, 'Versions and forks'),
+      ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
+    if (homeRO) homeRO.disconnect();
+    if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
     return;
   }
   // folders, then benches, as cards
@@ -21878,7 +21956,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 6 October 2026', [
-    '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a fork remembers where it came from, and a bench lists its forks. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
+    '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
     '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',

@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
+import { prune } from '../src/benches.js';
 import { bench, call, send, signedIn, withPlan } from './helpers.js';
 
 const json = async (res) => ({ status: res.status, body: await res.json() });
@@ -105,5 +106,25 @@ describe('forks', () => {
     expect(r.body).toMatchObject({ workspace_id: v.workspaceId, folder_id: null, forked_from: { id: tb.id } });
     expect((await history(v, tb.id)).forks.map((f) => f.id)).toEqual([r.body.id]);
     expect((await history(a, tb.id)).forks).toEqual([]);
+  });
+
+  it('keeps the version a fork left from, even one not kept before, and never prunes it', async () => {
+    const s = await pro('Ada');
+    const b = await make(s, 'B');
+    // a save that is not kept as a version (not a Save, and within 10 minutes of the last)
+    await send(`/v1/benches/${b.id}`, 'PUT', s.token, { content: bench('B v2') }, { 'If-Match': '"1"' });
+    expect((await history(s, b.id)).versions.map((v) => v.version)).toEqual([1]);
+    const r = await fork(s, b.id);
+    expect(r.body.forked_from.version).toBe(2);
+    const h = await history(s, b.id);
+    expect(h.versions.map((v) => v.version)).toEqual([2, 1]);
+    expect(h.forks).toMatchObject([{ id: r.body.id, version: 2, created_by: 'Ada', forks: 0 }]);
+    // 100 newer versions, all within the hour: only the last 50 would be kept, but version 2 stays
+    const t = Date.now();
+    for (let i = 3; i < 103; i++) await env.DB.prepare("INSERT INTO bench_versions VALUES (?, ?, ?, 1, ?, ?, NULL)").bind(b.id, i, `k${b.id}${i}`, t - (103 - i) * 1000, s.user.id).run();
+    await prune(env, b.id, t);
+    const kept = (await env.DB.prepare('SELECT version FROM bench_versions WHERE bench_id = ? ORDER BY version').bind(b.id).all()).results.map((v) => v.version);
+    // the fork's, then the newest 50 and today's daily one, as ever
+    expect(kept).toEqual([2, 52, ...Array.from({ length: 50 }, (_, i) => 53 + i)]);
   });
 });

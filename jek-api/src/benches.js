@@ -169,8 +169,11 @@ async function cutVersion(env, ws, bench, version, content, userId, label = null
 
 // Keep the newest 50, then the newest of each UTC day for 90 days.
 export async function prune(env, bench, t = now()) {
+  // a version a fork was made from is kept, so the history can show where each fork left
   const { results } = await env.DB.prepare(
-    'SELECT version, r2_key, created_at FROM bench_versions WHERE bench_id = ? ORDER BY version DESC',
+    `SELECT version, r2_key, created_at FROM bench_versions v
+      WHERE bench_id = ?1 AND NOT EXISTS (SELECT 1 FROM benches f WHERE f.forked_from = ?1 AND f.forked_version = v.version)
+      ORDER BY version DESC`,
   )
     .bind(bench)
     .all();
@@ -428,6 +431,10 @@ export async function fork(req, env, user, benchId) {
   if (v === null) content = (await env.DB.prepare('SELECT head_json FROM benches WHERE id = ?').bind(src.id).first()).head_json;
   else content = await versionContent(env, src.id, v);
   const from = v || src.head_version;
+  // the original's version the fork leaves from is kept in its history (by whoever saved it)
+  if (v === null && !(await env.DB.prepare('SELECT 1 FROM bench_versions WHERE bench_id = ? AND version = ?').bind(src.id, from).first())) {
+    await cutVersion(env, src.workspace_id, src.id, from, content, src.updated_by);
+  }
   const folder = body.folder_id === undefined && a.ws === src.workspace_id ? src.folder_id : await folderIn(env, a.ws, body.folder_id);
   const name = cleanName(body.name, cleanName(`${src.name} (fork)`));
   await checkQuota(env, a.ws, a.kind, 2 * bytes(content));
@@ -457,14 +464,20 @@ export async function fork(req, env, user, benchId) {
 // The forks of a bench that the caller can see (in workspaces they belong to).
 async function forksOf(env, user, benchId) {
   const { results } = await env.DB.prepare(
-    `SELECT b.id, b.workspace_id, b.name, b.forked_version, b.updated_at
-       FROM benches b JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?
-      WHERE b.forked_from = ? AND b.deleted_at IS NULL
+    `SELECT b.id, b.workspace_id, b.name, b.forked_version, b.created_at, b.updated_at, b.thumb_key, u.name AS created_by_name,
+            (SELECT COUNT(*) FROM benches g JOIN members gm ON gm.workspace_id = g.workspace_id AND gm.user_id = ?1
+              WHERE g.forked_from = b.id AND g.deleted_at IS NULL) AS forks
+       FROM benches b JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?1
+       LEFT JOIN users u ON u.id = b.created_by
+      WHERE b.forked_from = ?2 AND b.deleted_at IS NULL
       ORDER BY b.created_at DESC LIMIT 100`,
   )
     .bind(user.id, benchId)
     .all();
-  return results.map((f) => ({ id: f.id, workspace_id: f.workspace_id, name: f.name, version: f.forked_version, updated_at: f.updated_at }));
+  return results.map((f) => ({
+    id: f.id, workspace_id: f.workspace_id, name: f.name, version: f.forked_version, created_at: f.created_at,
+    updated_at: f.updated_at, created_by: f.created_by_name, thumb: thumbPath(f.id, f.thumb_key), forks: f.forks,
+  }));
 }
 
 // ---------- thumbnails ----------

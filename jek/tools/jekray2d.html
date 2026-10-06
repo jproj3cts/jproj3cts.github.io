@@ -876,24 +876,27 @@
   .rt-barlink { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 500; color: var(--jek-ink-soft); }
   .rt-barlink:hover { color: var(--jek-ink); }
   .rt-barlink .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-  /* on a desktop the bar stays one row, giving way as the window narrows: the bench's name first,
-     then Cite and Report a bug's words (their icons stay), then they and Save's ".jekray" go, then
-     Examples and Share go to the File menu; the JEKray2D logo always stays */
+  /* on a desktop the bar stays one row, giving way as the window narrows so the bench's name keeps
+     room to be read (its box is as wide as the name): Cite and Report a bug's words go first (their
+     icons stay), then they and Save's ".jekray", then Measure (in the View menu), then Examples and
+     Share (to the File menu); the JEKray2D logo always stays, and the name gives way last */
   @media (min-width: 961px) {
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
-    .rt-file .rt-name { flex: 0 1 15rem; min-width: 8rem; width: auto; }
+    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
   }
-  @media (max-width: 1440px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
-  @media (max-width: 1280px) {
+  @media (max-width: 1800px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
+  @media (max-width: 1440px) {
     .rt-barlink { display: none; }
     .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray" */
   }
-  @media (max-width: 1100px) {
+  @media (max-width: 1280px) { #btnMeasure { display: none; } }   /* Measure stays in the View menu, M */
+  @media (max-width: 1240px) {
     #btnExamples, #btnShare { display: none; }
     .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: flex; }
   }
+  @media (max-width: 1100px) { .rt-pillopen { display: none; } }   /* "Beta" */
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
@@ -954,7 +957,7 @@
   .rt-stage.rail .rt-welcome { left: calc(52px + 0.8rem); }
   body.rt-embed .rt-rail, body.rt-embed .rt-flyout, body.rt-embed .rt-picker { display: none !important; }
   @media (max-width: 960px) {
-    .rt-file .rt-name { width: 9rem; flex-basis: 9rem; }
+    .rt-file .rt-name { width: var(--name-w, 9rem); flex: 0 1 auto; min-width: 7rem; max-width: calc(100vw - 7.5rem); }
     .rt-app .rt-wrap { height: auto; min-height: 0; }
     .rt-app .rt-grid { grid-template-rows: none; }
     .rt-app .rt-stage { height: 62vh; min-height: 360px; }
@@ -1034,7 +1037,7 @@
           </div>
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray2D is in open beta: if something looks wrong, tell us">Open beta</button>
+          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray2D is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray2D in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
@@ -22624,6 +22627,23 @@ document.getElementById('btnNew').addEventListener('click', () => {
 document.getElementById('newCancel').addEventListener('click', () => newDlg.close());
 document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); });
 const nameInput = document.getElementById('projName');
+/* the name's box is as wide as the name (within limits), so as much of it as the bar has room
+   for can be read: sized on every change, however the value is set */
+{
+  const cv = document.createElement('canvas').getContext('2d');
+  const fit = () => {
+    const cs = getComputedStyle(nameInput);
+    cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const w = cv.measureText(nameInput.value || nameInput.placeholder || '').width;
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    nameInput.style.setProperty('--name-w', Math.ceil(w + pad + 6) + 'px');
+  };
+  const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  Object.defineProperty(nameInput, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); fit(); } });
+  nameInput.addEventListener('input', fit);
+  if (document.fonts) document.fonts.ready.then(fit);
+  fit();
+}
 nameInput.addEventListener('input', () => { project.name = nameInput.value; scheduleSave(); });
 nameInput.addEventListener('change', () => { if (!nameInput.value.trim()) { project.name = 'Untitled bench'; nameInput.value = project.name; scheduleSave(); } });
 

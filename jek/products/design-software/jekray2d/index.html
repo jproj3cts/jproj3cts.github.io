@@ -23,7 +23,7 @@
   .product-actions a { text-decoration: none; }
   .rt-feature p a, .rt-examples > p a, .product-info li a { color: var(--jek-cyan-dark); }
   /* JEKrayPro's own button: black, beside the orange Launch */
-  .rt-pro-button, .rt-feature a.rt-pro-button { display: inline-block; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; text-decoration: none; background: #111; border: 2px solid #111; border-radius: 6px; transition: background-color 0.12s ease, transform 0.06s ease; }
+  .rt-pro-button, .rt-feature a.rt-pro-button { display: inline-block; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; text-decoration: none; background: #111; border: 2px solid #111; border-radius: 2px; transition: background-color 0.12s ease, transform 0.06s ease; }
   .rt-pro-button:hover, .rt-feature a.rt-pro-button:hover { background: #333; border-color: #333; color: #fff; text-decoration: none; }
   .rt-pro-button:active { transform: translateY(1px); }
   @media (max-width: 520px) { .product-actions .rt-pro-button { flex: 1 1 100%; text-align: center; } }
@@ -115,14 +115,14 @@
   .rt-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
 
   /* every example, by topic: full white boxes that open */
-  .rt-exdrop { margin-top: 0.75rem; background: #ffffff; border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: var(--jek-shadow); }
+  .rt-exdrop { margin-top: 0.75rem; background: #ffffff; border: 1px solid var(--jek-line); border-radius: 2px; box-shadow: var(--jek-shadow); }
   .rt-examples > .rt-example-grid + .rt-exdrop { margin-top: 2rem; }
   .rt-exdrop > summary { display: flex; align-items: center; gap: 0.75rem; padding: 0.95rem 1.15rem; cursor: pointer; list-style: none; user-select: none; }
   .rt-exdrop > summary::-webkit-details-marker { display: none; }
-  .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 6px; }
+  .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-exdrop-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: #7a5a44; }   /* the page's sand, deepened to read on white */
   .rt-exdrop-count { font-size: 0.8125rem; color: var(--jek-ink-soft); }
-  .rt-beta { display: inline-block; margin-left: 0.55rem; padding: 0.12rem 0.5rem; border-radius: 4px; background: var(--jek-orange); color: #ffffff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 0.15em; }
+  .rt-beta { display: inline-block; margin-left: 0.55rem; padding: 0.12rem 0.5rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 0.15em; }
   .rt-exdrop > summary::after { content: '\25BE'; font-size: 0.95rem; color: #7a5a44; transition: transform 0.2s ease; }
   .rt-exdrop[open] > summary::after { transform: rotate(180deg); }
   .rt-exdrop > summary:hover .rt-exdrop-title { color: #5e4332; }
@@ -140,15 +140,8 @@
   .rt-tall p, .rt-tall li { font-size: 0.9rem; line-height: 1.5; margin: 0.25rem 0; }
   .rt-tall ul { margin: 0 0 0.3rem; padding-left: 1.2rem; }
 
-  /* The program's look on its own page: crisp, near-square corners and hairline borders, no
-     soft shadows or lifting cards; the page's colours and layout stay as they are */
-  main.main-content { --jek-radius: 2px; --jek-shadow: none; }
-  main.main-content :is(.gallery-frame, .buy-button, .quote-button, .rt-pro-button, .rt-feature a.rt-pro-button,
-    .rt-example, .rt-exdrop, .rt-exdrop > summary, .rt-video figure, .rt-shot, .rt-beta, .dropdown, .tech-section) { border-radius: 2px; }
-  main.main-content .dropdown-panel-inner a { border-radius: 0 2px 2px 0; }
-  main.main-content .pip { border-radius: 1px; }
-  main.main-content .rt-example:hover { transform: none; }
-  main.main-content .rt-pro-button:hover, main.main-content .buy-button:hover { transform: none; }
+  /* example cards stay put on hover, as the site's cards do */
+  .rt-example:hover { transform: none; }
 </style>
 </head>
 

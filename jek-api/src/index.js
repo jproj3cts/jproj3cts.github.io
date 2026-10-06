@@ -10,6 +10,7 @@ import { callback, start, unlink } from './auth.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
 import * as I from './institutions.js';
+import * as P from './parts.js';
 import { verify as verifyAcademic } from './academic.js';
 import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
@@ -90,6 +91,15 @@ const router = new Router()
   .on('POST', '/v1/benches/:b/versions/:v/restore', async (req, env, ctx, { b, v }) =>
     json(await B.restore(env, await requireUser(req, env, ctx), b, v)),
   )
+  // My parts
+  .on('GET', '/v1/workspaces/:w/parts', async (req, env, ctx, { w }) => json(await P.list(env, await requireUser(req, env, ctx), w)))
+  .on('POST', '/v1/workspaces/:w/parts', async (req, env, ctx, { w }) => json(await P.create(req, env, await requireUser(req, env, ctx), w), 201))
+  .on('GET', '/v1/parts/:p', async (req, env, ctx, { p }) => json(await P.get(env, await requireUser(req, env, ctx), p)))
+  .on('PATCH', '/v1/parts/:p', async (req, env, ctx, { p }) => json(await P.patch(req, env, await requireUser(req, env, ctx), p)))
+  .on('DELETE', '/v1/parts/:p', async (req, env, ctx, { p }) => {
+    await P.remove(env, await requireUser(req, env, ctx), p);
+    return json({ ok: true });
+  })
   // folders
   .on('GET', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) => json(await B.folders(env, await requireUser(req, env, ctx), w)))
   .on('POST', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) =>

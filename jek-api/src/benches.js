@@ -69,7 +69,7 @@ async function benchAccess(env, user, benchId, { bin = false } = {}) {
   return { bench: row, role: row.role, active: await activeFor(env, user, row), kind: row.kind };
 }
 
-function canWrite(a, { plan = true } = {}) {
+export function canWrite(a, { plan = true } = {}) {
   // a university's licence is not a place for benches
   if (a.kind === 'institution') throw new ApiError(403, 'forbidden', 'Benches cannot be saved to a university licence.');
   if (!WRITERS.has(a.role)) throw new ApiError(403, 'forbidden', 'Your role in this workspace cannot change benches.');
@@ -93,7 +93,7 @@ const meta = (b) => ({
 
 // ---------- input ----------
 
-async function readJson(req) {
+export async function readJson(req) {
   const len = Number(req.headers.get('Content-Length') || 0);
   if (len > MAX_BENCH + 64 * 1024) throw new ApiError(413, 'too_large', 'A bench can be at most 2 MB.');
   try {
@@ -120,7 +120,7 @@ function benchContent(body) {
   return c;
 }
 
-function cleanName(v, fallback) {
+export function cleanName(v, fallback) {
   const s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 120) : '';
   if (s) return s;
   if (fallback !== undefined) return fallback;
@@ -139,14 +139,15 @@ async function folderIn(env, ws, folderId) {
 export async function usage(env, ws) {
   const r = await env.DB.prepare(
     `SELECT (SELECT COALESCE(SUM(size_bytes), 0) FROM benches WHERE workspace_id = ?1)
-          + (SELECT COALESCE(SUM(v.size_bytes), 0) FROM bench_versions v JOIN benches b ON b.id = v.bench_id WHERE b.workspace_id = ?1) AS n`,
+          + (SELECT COALESCE(SUM(v.size_bytes), 0) FROM bench_versions v JOIN benches b ON b.id = v.bench_id WHERE b.workspace_id = ?1)
+          + (SELECT COALESCE(SUM(size_bytes), 0) FROM parts WHERE workspace_id = ?1) AS n`,
   )
     .bind(ws)
     .first();
   return r.n;
 }
 
-async function checkQuota(env, ws, kind, adding) {
+export async function checkQuota(env, ws, kind, adding) {
   const limit = QUOTA[kind] || QUOTA.personal;
   if ((await usage(env, ws)) + adding > limit) {
     throw new ApiError(413, 'quota', `This workspace has used its ${limit / 1024 ** 3} GB of cloud storage.`);

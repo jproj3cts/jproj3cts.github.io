@@ -267,7 +267,7 @@
   .rt-opt-del { text-align: right; margin-top: 0.4rem; }
   .rt-menu .sep { height: 1px; margin: 0.25rem 0.3rem; background: var(--jek-line); }
   .rt-menu button .k { float: right; margin-left: 1.5rem; color: var(--jek-ink-soft); font-size: 0.78rem; }
-  .rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; }
+  .rt-menu.rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; z-index: 65; }   /* over the picker and the rail's flyout, whose parts it can act on */
   .rt-btn[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-stage canvas.rt-minimap { position: absolute; right: 0.6rem; bottom: 1.9rem; width: 180px; height: 120px; border: 1px solid rgba(255,255,255,0.22);
     border-radius: 2px; background: rgba(12,16,18,0.72); cursor: pointer; touch-action: none; display: block; z-index: 3; }
@@ -935,6 +935,16 @@
   .rt-ptile.pic:hover, .rt-ptile.pic:focus-visible { border-color: #3a9d5d; }
   .rt-ptile.elec:hover, .rt-ptile.elec:focus-visible { border-color: #c08a12; }
   .rt-pnone { margin: 1rem 0; color: var(--jek-ink-soft); font-size: 0.875rem; }
+  .rt-ptab.mine { margin-left: auto; color: #111; } .rt-ptab.mine.on { border-color: #111; }
+  .rt-ptile.mine { position: relative; }
+  .rt-ptile.mine img { background: var(--rt-bench); }
+  .rt-ptile.mine > span:not(.rt-pmore) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .rt-pmore { position: absolute; top: 1px; right: 2px; padding: 0 0.25rem; font-size: 0.9rem; line-height: 1.1; color: var(--jek-ink-soft); border-radius: 2px; }
+  .rt-pmore:hover { background: var(--jek-line); color: var(--jek-ink); }
+  .rt-pkeeprow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin: 0.6rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
+  .rt-pkeeprow .rt-btn { color: #fff; background: #111; border-color: #111; font-size: 0.8rem; }
+  .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
+  .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #ffd36b; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
   /* the parts rail, down the bench's left edge below its tabs */
   .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -1284,7 +1294,7 @@
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders on a page of their own. The simulator itself stays free.</p>
+    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The simulator itself stays free.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
@@ -19292,6 +19302,7 @@ canvas.addEventListener('contextmenu', e => {
     { label: 'Cut', key: 'Ctrl+X', fn: () => { clipMem = clipOf(list); try { navigator.clipboard.writeText(JSON.stringify(clipMem)); } catch (err) { /* kept here */ } removeEls(list); } },
     paste,
     { label: 'Delete', key: 'Del', fn: () => removeEls(list) }, '-',
+    ...(accountsOn() ? [{ label: n > 1 ? '★ Save ' + n + ' to My parts…' : '★ Save to My parts…', fn: () => saveToMine(list) }, '-'] : []),
     { label: 'Rotate 90\u00b0 anticlockwise', key: 'R', fn: () => rotateEls(list, 90) },
     { label: 'Rotate 90\u00b0 clockwise', key: 'Shift+R', fn: () => rotateEls(list, -90) },
     { label: 'Turn round (180\u00b0)', fn: () => rotateEls(list, 180) },
@@ -20893,10 +20904,13 @@ function partTile(p, onAdd, where) {
 /* ---------- the picker ---------- */
 const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
 document.querySelector('.rt-wrap').append(picker);
+// the right-click menu beside it, so it can open over the picker's own parts (Rename, Delete)
+document.querySelector('.rt-wrap').append(document.getElementById('ctxMenu'));
 let pickTab = palette;
 function pickerShown(on) {
   if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab)) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
+  if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   const r = document.getElementById('btnAddPart').getBoundingClientRect();
   picker.style.top = Math.round(r.bottom + 4) + 'px';
   picker.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - Math.min(660, window.innerWidth - 16) - 8))) + 'px';
@@ -20913,7 +20927,14 @@ function fillPicker(q) {
     if (t) {
       // every palette's parts whose name has each word typed
       const words = t.split(/\s+/), hits = palettesOn().flatMap(pal => partsOf(pal)).filter(p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w)));
-      body.append(hits.length ? h('div', { class: 'rt-pgrid' }, ...hits.map(p => partTile(p, add, true))) : h('p', { class: 'rt-pnone' }, 'No part matches “' + search.value.trim() + '”.'));
+      const mine = mineOn() && MINE.list ? MINE.list.filter(p => words.every(w => (p.name + ' ' + p.summary).toLowerCase().includes(w))) : [];
+      if (mine.length) body.append(h('h4', null, 'My parts'), h('div', { class: 'rt-pgrid' }, ...mine.map(p => mineTile(p, e => { if (!e.shiftKey) pickerShown(false); }))), hits.length ? h('h4', null, 'Parts') : null);
+      if (hits.length) body.append(h('div', { class: 'rt-pgrid' }, ...hits.map(p => partTile(p, add, true))));
+      else if (!mine.length) body.append(h('p', { class: 'rt-pnone' }, 'No part matches “' + search.value.trim() + '”.'));
+      return;
+    }
+    if (pickTab === 'mine') {
+      body.append(...mineBody(e => { if (!e.shiftKey) pickerShown(false); }));
       return;
     }
     const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
@@ -20922,7 +20943,7 @@ function fillPicker(q) {
   };
   search.addEventListener('input', show);
   search.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { const b = body.querySelector('[data-add]'); if (b) add(b.dataset.add, e); }
+    if (e.key === 'Enter') { const b = body.querySelector('[data-add], [data-mine]'); if (b && b.dataset.mine) { const p = MINE.list.find(q => q.id === b.dataset.mine); if (p) { placeMine(p); if (!e.shiftKey) pickerShown(false); } } else if (b) add(b.dataset.add, e); }
     if (e.key === 'Escape') { pickerShown(false); document.getElementById('btnAddPart').focus(); }
     e.stopPropagation();
   });
@@ -20930,14 +20951,15 @@ function fillPicker(q) {
     const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
     return b;
-  }));
+  }), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
+    onclick: e => { e.stopPropagation(); pickTab = 'mine'; search.value = ''; fillPicker(''); } }, '★ My parts') : null);
   picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
     h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
   show();
   search.focus();
 }
 document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
-document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target)) pickerShown(false); });
+document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('#ctxMenu')) pickerShown(false); });
 document.addEventListener('keydown', e => {
   if (EMBED || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
   if (e.key === 'a' || e.key === 'A' || e.key === '/') { e.preventDefault(); pickerShown(true); }
@@ -20956,7 +20978,8 @@ function flyShown(btn, g) {
   if (!btn || flyFor === btn) { flyout.hidden = true; flyFor = null; rail.querySelectorAll('.on').forEach(b => b.classList.remove('on')); return; }
   flyFor = btn;
   rail.querySelectorAll('.rt-rgroup').forEach(b => b.classList.toggle('on', b === btn));
-  flyout.replaceChildren(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, (key, e) => { addPart(key); if (!e.shiftKey) flyShown(null); }))));
+  if (g.mine) flyout.replaceChildren(h('h4', null, 'My parts'), ...mineBody(e => { if (!e.shiftKey) flyShown(null); }));
+  else flyout.replaceChildren(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, (key, e) => { addPart(key); if (!e.shiftKey) flyShown(null); }))));
   const sr = stage.getBoundingClientRect(), br = btn.getBoundingClientRect();
   flyout.hidden = false;
   flyout.style.top = Math.max(4, Math.min(br.top - sr.top, sr.height - flyout.offsetHeight - 8)) + 'px';
@@ -20982,9 +21005,15 @@ function fillRail() {
   });
   const more = h('button', { type: 'button', class: 'rt-rgroup rt-rall', title: 'All parts, with a search (A)', 'aria-label': 'All parts' }, '+');
   more.addEventListener('click', e => { e.stopPropagation(); pickTab = palette; pickerShown(true); });
-  rail.replaceChildren(pals, ...groups, more);
+  // My parts, for the signed in
+  let star = null;
+  if (mineOn()) {
+    star = h('button', { type: 'button', class: 'rt-rgroup rt-rall rt-rmine', title: 'My parts: the parts you have kept', 'aria-label': 'My parts' }, '★');
+    star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
+  }
+  rail.replaceChildren(pals, ...groups, ...[star, more].filter(Boolean));
 }
-document.addEventListener('click', e => { if (!flyout.hidden && !flyout.contains(e.target)) flyShown(null); });
+document.addEventListener('click', e => { if (!flyout.hidden && !flyout.contains(e.target) && !e.target.closest('#ctxMenu')) flyShown(null); });
 document.getElementById('btnRailToggle').addEventListener('click', () => {
   railOn = !railOn;
   try { localStorage.setItem(RAIL_KEY, railOn ? '1' : '0'); } catch (err) { /* not kept: fine */ }
@@ -21004,8 +21033,138 @@ function layoutPalette() {
 layoutPalette();
 /* a part dragged from the picker or the rail onto the bench lands where it is dropped */
 stage.addEventListener('dragover', e => { if (e.dataTransfer.types.includes(PART_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
-stage.addEventListener('drop', e => { const k = e.dataTransfer.getData(PART_DRAG); if (k) { e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null); addPart(k, [e.clientX, e.clientY]); } }, true);
+stage.addEventListener('drop', e => {
+  const k = e.dataTransfer.getData(PART_DRAG);
+  if (!k) return;
+  e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null);
+  if (k.startsWith('mine:')) { const p = (MINE.list || []).find(q => 'mine:' + q.id === k); if (p) placeMine(p, [e.clientX, e.clientY]); }
+  else addPart(k, [e.clientX, e.clientY]);
+}, true);
 document.querySelector('.rt-toolbar').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) addElement(b.dataset.add); });
+/* ---------- My parts (JEKrayPro) ----------
+   Parts and assemblies kept in the account, to use on any bench and any computer: one element
+   or several, with the fibres between them, as copy and paste carries them. Kept from the
+   right-click menu (Save to My parts) or the picker's My parts tab, and offered there, in the
+   picker's search, and behind the rail's star; clicked to add, or dragged onto the bench. */
+const MINE = { list: null, ws: null, active: false, busy: null, content: new Map() };
+function mineOn() { try { return cloudOn(); } catch (err) { return false; } }   // a declaration: the rail asks before the account code below has run
+function loadMine(force) {
+  if (!mineOn()) { MINE.list = null; return Promise.resolve(null); }
+  const ws = personalWs().id;
+  if (MINE.list && MINE.ws === ws && !force) return Promise.resolve(MINE.list);
+  if (MINE.busy && !force) return MINE.busy;
+  MINE.busy = api('/v1/workspaces/' + ws + '/parts')
+    .then(r => { Object.assign(MINE, { list: r.parts, ws, active: !!r.active }); return r.parts; })
+    .catch(() => MINE.list || [])
+    .finally(() => { MINE.busy = null; });
+  return MINE.busy;
+}
+function mineChanged() {
+  if (MINE.list) MINE.list.sort((a, b) => a.name.localeCompare(b.name));
+  if (!picker.hidden) fillPicker(picker.querySelector('.rt-psearch') ? picker.querySelector('.rt-psearch').value : '');
+  fillRail();
+}
+const palOf = el => el.type === 'fcomp' ? 'fibre' : el.type === 'elec' ? 'elec' : el.type === 'pic' ? 'pic' : 'free';
+// a picture of the elements together, as the bench draws them, for the library
+function clipIcon(list, N = 64) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = N * 2;
+  const c = cv.getContext('2d');
+  c.setTransform(2, 0, 0, 2, 0, 0); c.fillStyle = getCss('--rt-bench'); c.fillRect(0, 0, N, N);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const e of list) {
+    const r = Math.max(halfSize(e), e.type === 'fcomp' || e.type === 'elec' || e.type === 'pic' ? 9 : 0, e.type === 'source' ? 14 : 0, 4);
+    x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r); y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r);
+  }
+  const keep = { ctx, W, H, DPR, view: project.view, sel: selectedId, extra: extraSel, exporting };
+  try {
+    ctx = c; W = N; H = N; DPR = 2; selectedId = null; extraSel = new Set(); exporting = true;
+    project.view = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale: N * 0.86 / Math.max(x1 - x0, y1 - y0, 1) };
+    for (const e of list) draw(e);
+    const url = cv.toDataURL('image/png');
+    return url.length <= 24000 ? url : null;
+  } catch (err) { return null; }
+  finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; selectedId = keep.sel; extraSel = keep.extra; exporting = keep.exporting; requestRender(); }
+}
+async function saveToMine(list) {
+  if (!list.length) return;
+  if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
+  const mine = account.workspaces.find(w => w.id === personalWs().id);
+  if (!(mine && mine.active)) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
+  const one = list.length === 1;
+  const name = prompt('Name it, to find it again in My parts', one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : ''));
+  if (name === null) return;
+  const icon = clipIcon(list) || clipIcon(list, 40);
+  try {
+    const p = await api('/v1/workspaces/' + personalWs().id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() || undefined, summary: one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content: JSON.stringify(clipOf(list)), icon }) });
+    if (MINE.list) MINE.list.push(p);
+    mineChanged();
+    toast('Kept “' + p.name + '” in My parts: find it under + Add part');
+  } catch (err) {
+    if (err.status === 402) { showSubscribe(); return; }
+    toast('Could not keep it: ' + err.message, true);
+  }
+}
+async function placeMine(p, at) {
+  try {
+    const k = p.id + '@' + p.updated_at;
+    let c = MINE.content.get(k);
+    if (!c) { c = (await api('/v1/parts/' + p.id)).content; MINE.content.set(k, c); }
+    const clip = JSON.parse(c);
+    clip.from = null;                                   // not where it was copied from: never nudged
+    let pt = [V().cx, V().cy];
+    if (at) { const r = canvas.getBoundingClientRect(); pt = [snapVal(wx(at[0] - r.left)), snapVal(wy(at[1] - r.top))]; }
+    if (!pasteClip(clip, pt)) throw new Error('it is empty');
+  } catch (err) { toast('Could not add “' + p.name + '”: ' + err.message, true); }
+}
+function manageMine(p, x, y) {
+  const json = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  showCtxMenu(x, y, [
+    { label: 'Add to the bench', fn: () => placeMine(p) },
+    { label: 'Rename…', off: !MINE.active, fn: async () => {
+      const name = (prompt('Rename the part', p.name) || '').trim();
+      if (!name || name === p.name) return;
+      try { Object.assign(p, await api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, json({ name })))); mineChanged(); }
+      catch (err) { toast(err.status === 402 ? 'Renaming needs JEKrayPro.' : err.message, true); }
+    } },
+    { label: 'Delete…', fn: async () => {
+      if (!confirm('Delete “' + p.name + '” from My parts? Benches it was added to keep their copies.')) return;
+      try { await api('/v1/parts/' + p.id, { method: 'DELETE' }); MINE.list = MINE.list.filter(q => q.id !== p.id); mineChanged(); toast('Deleted “' + p.name + '”'); }
+      catch (err) { toast(err.message, true); }
+    } }]);
+}
+// a kept part's tile: its picture and name; clicked to add, dragged onto the bench, ⋯ or right-click for more
+function mineTile(p, after) {
+  const img = h('img', { alt: '', src: p.icon || '', width: '48', height: '48' });
+  const more = h('span', { class: 'rt-pmore', role: 'button', tabindex: '-1', 'aria-label': 'More for ' + p.name, title: 'Rename or delete' }, '⋯');
+  const b = h('button', { type: 'button', class: 'rt-ptile mine ' + p.palette, 'data-mine': p.id, title: p.name + ' (' + p.summary + ')', draggable: 'true' },
+    img, h('span', null, p.name, h('small', null, p.summary)), more);
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    if (e.target === more) { const r = more.getBoundingClientRect(); manageMine(p, r.left, r.bottom + 2); return; }
+    placeMine(p); if (after) after(e);
+  });
+  b.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); manageMine(p, e.clientX, e.clientY); });
+  b.addEventListener('dragstart', e => { e.dataTransfer.setData(PART_DRAG, 'mine:' + p.id); e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setDragImage(img, 24, 24); });
+  return b;
+}
+// the My parts tab of the picker, or the rail's flyout
+function mineBody(after) {
+  if (MINE.list === null) { loadMine().then(() => mineChanged()); return [h('p', { class: 'rt-pnone' }, 'Loading your parts…')]; }
+  const sel = selection();
+  const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
+    sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
+  const out = [h('div', { class: 'rt-pkeeprow' }, keep, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
+  if (!MINE.list.length) {
+    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
+    return out;
+  }
+  for (const pal of ['free', 'fibre', 'elec', 'pic']) {
+    const ps = MINE.list.filter(p => p.palette === pal);
+    if (ps.length) out.push(h('h4', null, PALETTE_NAMES[pal]), h('div', { class: 'rt-pgrid' }, ...ps.map(p => mineTile(p, after))));
+  }
+  return out;
+}
 /* the menus: File (by the bench's name), View, Sweeps and Help */
 for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
   const btn = document.getElementById(bId), menu = document.getElementById(mId);
@@ -21867,6 +22026,8 @@ function closeHome() {
 }
 function cloudMenuShown() {
   const on = cloudOn();
+  if (!on || (MINE.ws && personalWs() && MINE.ws !== personalWs().id)) { MINE.list = null; MINE.ws = null; }
+  fillRail();
   for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
   document.getElementById('btnCloudFork').hidden = !on || !cloud;
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
@@ -21941,7 +22102,8 @@ function cloudMenuShown() {
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
-  ['Since 1.0', '29 September \u2013 6 October 2026', [
+  ['Since 1.0', '29 September \u2013 7 October 2026', [
+    '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it.',
     '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
     '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',

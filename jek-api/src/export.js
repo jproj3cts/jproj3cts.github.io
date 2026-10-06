@@ -1,6 +1,6 @@
 // GET /v1/me/export: everything we hold about the person, as a zip — their
-// account as JSON, and the current version of every bench in every workspace
-// they belong to, in its folders. Works with or without a plan.
+// account as JSON, the current version of every bench in every workspace
+// they belong to, in its folders, and their saved parts. Works with or without a plan.
 
 import { me } from './users.js';
 import { zip } from './zip.js';
@@ -31,6 +31,16 @@ export async function exportAll(env, user) {
       .bind(w.id)
       .all();
     const taken = new Set();
+    // My parts, each as a .jekpart file (a part as the app copies it, with its name)
+    const { results: parts } = await env.DB.prepare('SELECT name, summary, content FROM parts WHERE workspace_id = ? ORDER BY name')
+      .bind(w.id)
+      .all();
+    for (const p of parts) {
+      let name = `${top}/My parts/${safe(p.name)}.jekpart`;
+      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${top}/My parts/${safe(p.name)} (${i}).jekpart`;
+      taken.add(name.toLowerCase());
+      files.push({ name, data: JSON.stringify({ ...JSON.parse(p.content), name: p.name, summary: p.summary }) });
+    }
     for (const b of benches) {
       const dir = [top, path(b.folder_id)].filter(Boolean).join('/');
       let name = `${dir}/${safe(b.name)}.jekray`;

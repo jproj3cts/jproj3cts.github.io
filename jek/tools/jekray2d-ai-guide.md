@@ -514,6 +514,33 @@ An optical chopper: a slotted wheel across the beam, open for the first part of 
 | duty | `50` | % of each cycle open. |
 | phase | `0` | degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0). |
 
+### "draw": Drawing
+
+A drawing for figures: a rectangle, an ellipse or a path of Bézier curves, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.
+
+**angle:** turns the drawing about its x, y.
+
+| field | default | meaning |
+|---|---|---|
+| shape | `"rect"` | "rect", "ellipse" or "path". |
+| fill | `"none"` | "#rrggbb", or "none". |
+| fillOpacity | `1` | 0 to 1. |
+| stroke | `"#e8edf0"` | "#rrggbb", or "none". |
+| strokeOpacity | `1` | 0 to 1. |
+| strokeWidth | `0.5` | mm. |
+| dash | `"solid"` | "solid", "dash", "long", "dot" or "dashdot". |
+| cap | `"butt"` | "butt", "round" or "square". |
+| join | `"miter"` | "miter", "round" or "bevel". |
+| opacity | `1` | 0 to 1: the whole drawing. |
+| layer | `"under"` | "under" the beams and parts, or "over" them. |
+| w | `20` | mm, a rectangle’s width. |
+| h | `12` | mm, a rectangle’s height. |
+| r | `0` | mm, a rectangle’s corner radius. |
+| rx | (none) | mm, an ellipse’s radius along x. |
+| ry | (none) | mm, an ellipse’s radius along y. |
+| nodes | (none) | a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged. |
+| closed | (none) | true joins a path’s last node to its first. |
+
 ## Fibre components ("type": "fcomp")
 
 Fibre components sit on the bench like any element (x, y, angle, name, id) and are joined by fibres from port to port. Give "kind" and its parameters; each port takes one fibre. At angle 0 the ports on the left are inputs and those on the right outputs, numbered from 0 in the order listed.

@@ -902,7 +902,6 @@
     .rt-barlink { display: none; }
     .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray" */
   }
-  @media (max-width: 1280px) { #btnMeasure { display: none; } }   /* Measure stays in the View menu, M */
   @media (max-width: 1240px) {
     #btnExamples, #btnShare { display: none; }
     .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: flex; }
@@ -912,7 +911,7 @@
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
   @media (max-width: 600px) {
-    #btnExamples, #btnShare, #btnMeasure, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
+    #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
     .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
@@ -973,6 +972,16 @@
   .rt-rpal.free { border-color: var(--jek-orange); } .rt-rpal.fibre { border-color: var(--jek-red); } .rt-rpal.pic { border-color: #3a9d5d; } .rt-rpal.elec { border-color: #c08a12; }
   .rt-rpal.on.free { background: var(--jek-orange); color: #fff; } .rt-rpal.on.fibre { background: var(--jek-red); color: #fff; }
   .rt-rpal.on.pic { background: #3a9d5d; color: #fff; } .rt-rpal.on.elec { background: #c08a12; color: #fff; }
+  .rt-rpal.draw { border-color: #8b6ee0; } .rt-rpal.on.draw { background: #8b6ee0; color: #fff; }
+  .rt-rtool { color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; }
+  .rt-rtool.on { border-color: #8b6ee0; background: rgba(139,110,224,0.3); color: #fff; }
+  .rt-dicon { display: inline-flex; pointer-events: none; }
+  .rt-ptile.draw .rt-dicon { width: 48px; height: 48px; align-items: center; justify-content: center; color: #e8edf0; background: var(--rt-bench); }
+  .rt-ptab.draw.on { border-color: #8b6ee0; }
+  .rt-drawhint { position: absolute; left: 50%; top: 2.5rem; transform: translateX(-50%); z-index: 4; max-width: min(46rem, calc(100% - 9rem)); padding: 0.3rem 0.7rem;
+    font: 500 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: #f4efe9; border-left: 3px solid #8b6ee0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); pointer-events: none; }
+  .rt-drawhint[hidden] { display: none; }
+  #bench.drawing, #bench.drawing.over { cursor: crosshair; }
   .rt-rgroup { flex: none; width: 42px; height: 42px; padding: 2px; background: none; border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
   .rt-rgroup img { display: block; width: 36px; height: 36px; border-radius: 2px; pointer-events: none; }
   .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: rgba(255,255,255,0.65); }
@@ -1046,13 +1055,12 @@
           <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
           <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
         </div>
-        <button class="rt-btn rt-mbar" id="btnMeasure" type="button" aria-pressed="false" title="Measure distances, angles and optical paths (M)">Measure</button>
         <div class="rt-more">
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
-            <button type="button" role="menuitem" data-icon="ruler" data-click="btnMeasure">Measure<span class="k">M</span></button>
+            <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
@@ -1123,6 +1131,7 @@
         <div class="rt-measurebar" id="measureBar" hidden>
           <button type="button" data-mtool="ruler" class="on">Ruler</button><button type="button" data-mtool="angle">Angle</button><button type="button" data-mtool="clear" title="Remove every measurement on this tab (Delete removes the last one; Ctrl+Z brings them back)">Clear</button><button type="button" data-mtool="done">Done</button>
         </div>
+        <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
         <div class="rt-drop">Drop a .zmx or .jekray file</div>
@@ -2689,9 +2698,9 @@ const deg = Math.PI / 180;
 const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
   cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
   grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
-  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper' };
+  crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper', draw: 'Drawing' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window' };
-const typeLabel = el => el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -3091,6 +3100,7 @@ function normElementBase(e) {
       if (e.kind === 'pd') base.material = DETECTOR_MATERIALS[e.material] ? e.material : 'custom';
       return base;
     }
+    case 'draw': return normDraw(e, base);
     case 'pic': return PIC.norm(e, base);                                                    // PIC hook
     case 'elec': return ELEC.norm(e, base);                                                  // ELEC hook
     case 'chopper': return ELEC.normChopper(e, base);                                        // ELEC hook
@@ -5661,6 +5671,7 @@ function drawRaysOn(ctx, rays) {
 }
 
 function halfSize(el) {
+  if (el.type === 'draw') return drawHalf(el);
   if (el.type === 'fcomp') return fcH(el) / 2 + 1;
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
@@ -5693,7 +5704,7 @@ function drawLabels() {
   ctx.font = '11px ' + getCss('--jek-sans');
   ctx.textAlign = 'center';
   for (const el of project.elements) {
-    if (!onTab(el)) continue;
+    if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     const r = halfSize(el) * V().scale;
     const a = el.angle * deg;
@@ -5755,7 +5766,7 @@ function drawSelection() {
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, elementExtentPx(el), 0, Math.PI * 2); ctx.stroke();
+  if (el.type !== 'draw') { ctx.beginPath(); ctx.arc(cx, cy, elementExtentPx(el), 0, Math.PI * 2); ctx.stroke(); }     // a drawing has its box
   ctx.setLineDash([]);
   ctx.fillStyle = getCss('--jek-cyan');
   ctx.strokeStyle = '#fff';
@@ -5814,8 +5825,9 @@ function renderAll(stale) {
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
     mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
+  for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
-  for (const el of els) if (el.type !== 'source') draw(el);
+  for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
   drawRays(stale);
   if (!stale) {
     closeupOn = drawCloseup();
@@ -5823,6 +5835,7 @@ function renderAll(stale) {
     drawBeams(fieldShown);
   }
   for (const el of els) if (el.type === 'source') draw(el);
+  for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
   drawLabels();
   drawMeasures();
   updateEmpty();
@@ -5832,7 +5845,7 @@ function renderAll(stale) {
     ctx.fillRect(x0, y0, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0));
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0)); ctx.restore();
   }
-  if (!exporting) { drawMinimap(); drawSelection(); }
+  if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
   drawScaleBar();
   if (exporting && !thumbing) drawCredit();
 }
@@ -6414,6 +6427,7 @@ function draw(el) {
 }
 function drawBody(el) {
   const sel = el.id === selectedId || extraSel.has(el.id);
+  if (el.type === 'draw') return drawDrawing(el, sel);
   if (el.type === 'chopper') return ELEC.drawChopper(el, sel);                                // ELEC hook
   if (el.type === 'grating') return drawGrating(el, sel);
   if (el.type === 'aom' || el.type === 'eom') return drawModulator(el, sel);
@@ -6444,6 +6458,487 @@ function drawBody(el) {
 }
 
 /* ==========================================================================
+   Drawings: rectangles, ellipses and paths drawn on the bench for figures, with the tools
+   of the Draw palette (select, node, rectangle, ellipse, pen; as Inkscape's). They are
+   elements like any other, selected, moved, turned, copied, saved and exported with the
+   bench, but no light meets them: they have no surfaces, under the light or over it.
+   ========================================================================== */
+const DRAW_SHAPES = { rect: 'Rectangle', ellipse: 'Ellipse', path: 'Path' };
+const DRAW_DASH = { solid: [], dash: [4, 2], dot: [1, 1.5], dashdot: [4, 1.5, 1, 1.5], long: [8, 3] };   // in stroke widths
+const DRAW_STYLE_KEYS = ['fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'dash', 'cap', 'join', 'opacity', 'layer'];
+const hexColour = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+function normDraw(e, base) {
+  const shape = DRAW_SHAPES[e.shape] ? e.shape : 'rect';
+  const o = Object.assign(base, {
+    shape,
+    fill: hexColour(e.fill) ? e.fill.toLowerCase() : 'none',                 // a colour, or "none"
+    fillOpacity: clamp(num(e.fillOpacity, 1), 0, 1),
+    stroke: e.stroke === 'none' ? 'none' : hexColour(e.stroke) ? e.stroke.toLowerCase() : '#e8edf0',
+    strokeOpacity: clamp(num(e.strokeOpacity, 1), 0, 1),
+    strokeWidth: clamp(num(e.strokeWidth, 0.5), 0, 100),                   // mm, so it scales with the bench
+    dash: DRAW_DASH[e.dash] ? e.dash : 'solid',
+    cap: ['butt', 'round', 'square'].includes(e.cap) ? e.cap : 'butt',
+    join: ['miter', 'round', 'bevel'].includes(e.join) ? e.join : 'miter',
+    opacity: clamp(num(e.opacity, 1), 0, 1),
+    layer: e.layer === 'over' ? 'over' : 'under',                          // drawn under the light, or over it
+  });
+  if (shape === 'rect') {
+    o.w = Math.max(0.01, num(e.w, 20)); o.h = Math.max(0.01, num(e.h, 12));
+    o.r = clamp(num(e.r, 0), 0, Math.min(o.w, o.h) / 2);                 // corner radius
+  } else if (shape === 'ellipse') {
+    o.rx = Math.max(0.01, num(e.rx, 10)); o.ry = Math.max(0.01, num(e.ry, 10));
+  } else {
+    // nodes in the drawing's own frame; h1 and h2 the handles into and out of each, from it
+    const hd = v => Array.isArray(v) && v.length === 2 && isFinite(v[0]) && isFinite(v[1]) ? [+v[0], +v[1]] : null;
+    o.nodes = (Array.isArray(e.nodes) ? e.nodes : []).slice(0, 4000).filter(n => n && isFinite(n.x) && isFinite(n.y))
+      .map(n => Object.assign({ x: +n.x, y: +n.y, h1: hd(n.h1), h2: hd(n.h2) }, n.smooth === true ? { smooth: true } : {}));
+    if (o.nodes.length < 2) o.nodes = [{ x: -10, y: 0, h1: null, h2: null }, { x: 10, y: 0, h1: null, h2: null }];
+    o.closed = e.closed === true;
+  }
+  return o;
+}
+/* its outline as cubic Béziers in its own frame: a start and [c1, c2, end] for each piece */
+function drawSegs(el) {
+  const K = 0.5522847498;
+  if (el.shape === 'ellipse') {
+    const a = el.rx, b = el.ry;
+    return { p0: [a, 0], closed: true, segs: [[[a, K * b], [K * a, b], [0, b]], [[-K * a, b], [-a, K * b], [-a, 0]],
+      [[-a, -K * b], [-K * a, -b], [0, -b]], [[K * a, -b], [a, -K * b], [a, 0]]] };
+  }
+  if (el.shape === 'rect') {
+    const w = el.w / 2, hh = el.h / 2, r = Math.min(el.r, w, hh), k = r * K, segs = [];
+    const line = (a, b) => segs.push([a, b, b]);
+    let at = [-w + r, -hh];
+    const to = p => { line(at, p); at = p; };
+    const arc = (c1, c2, p) => { if (r > 0) segs.push([c1, c2, p]); at = p; };
+    to([w - r, -hh]); arc([w - r + k, -hh], [w, -hh + r - k], [w, -hh + r]);
+    to([w, hh - r]); arc([w, hh - r + k], [w - r + k, hh], [w - r, hh]);
+    to([-w + r, hh]); arc([-w + r - k, hh], [-w, hh - r + k], [-w, hh - r]);
+    to([-w, -hh + r]); arc([-w, -hh + r - k], [-w + r - k, -hh], [-w + r, -hh]);
+    return { p0: [-w + r, -hh], closed: true, segs };
+  }
+  const N = el.nodes, segs = [], add = (a, b) => segs.push([[a.x + (a.h2 ? a.h2[0] : 0), a.y + (a.h2 ? a.h2[1] : 0)], [b.x + (b.h1 ? b.h1[0] : 0), b.y + (b.h1 ? b.h1[1] : 0)], [b.x, b.y]]);
+  for (let i = 1; i < N.length; i++) add(N[i - 1], N[i]);
+  if (el.closed && N.length > 2) add(N[N.length - 1], N[0]);
+  return { p0: [N[0].x, N[0].y], closed: !!el.closed && N.length > 2, segs };
+}
+const bez4 = (a, b, c, d, t) => { const u = 1 - t; return [u * u * u * a[0] + 3 * u * u * t * b[0] + 3 * u * t * t * c[0] + t * t * t * d[0], u * u * u * a[1] + 3 * u * u * t * b[1] + 3 * u * t * t * c[1] + t * t * t * d[1]]; };
+/* the outline as points, in its own frame: for hits and extents */
+function drawPoly(el, n = 16) {
+  const g = drawSegs(el), out = [g.p0];
+  let at = g.p0;
+  for (const [c1, c2, p] of g.segs) {
+    const straight = c1[0] === at[0] && c1[1] === at[1] && c2[0] === p[0] && c2[1] === p[1];
+    if (straight) out.push(p); else for (let i = 1; i <= n; i++) out.push(bez4(at, c1, c2, p, i / n));
+    at = p;
+  }
+  return out;
+}
+function drawBox(el) {
+  const P = drawPoly(el, 8);
+  return [Math.min(...P.map(p => p[0])), Math.min(...P.map(p => p[1])), Math.max(...P.map(p => p[0])), Math.max(...P.map(p => p[1]))];
+}
+const drawHalf = el => Math.max(0.5, ...drawPoly(el, 8).map(p => Math.hypot(p[0], p[1]))) + el.strokeWidth / 2;
+function drawTrace(c, el) {
+  const f = frame(el), P = p => { const [x, y] = toWorld(f, p[0], p[1]); return [sx(x), sy(y)]; };
+  const g = drawSegs(el), a = P(g.p0);
+  c.beginPath(); c.moveTo(a[0], a[1]);
+  for (const [c1, c2, p] of g.segs) { const A = P(c1), B = P(c2), C = P(p); c.bezierCurveTo(A[0], A[1], B[0], B[1], C[0], C[1]); }
+  if (g.closed) c.closePath();
+}
+const rgbaHex = (hex, a) => 'rgba(' + parseInt(hex.slice(1, 3), 16) + ',' + parseInt(hex.slice(3, 5), 16) + ',' + parseInt(hex.slice(5, 7), 16) + ',' + (+a.toFixed(3)) + ')';
+function drawDrawing(el, sel) {
+  ctx.save();
+  drawTrace(ctx, el);
+  if (el.fill !== 'none' && el.fillOpacity * el.opacity > 0) { ctx.fillStyle = rgbaHex(el.fill, el.fillOpacity * el.opacity); ctx.fill(); }
+  if (el.stroke !== 'none' && el.strokeWidth > 0 && el.strokeOpacity * el.opacity > 0) {
+    const lw = Math.max(0.5, el.strokeWidth * V().scale);
+    ctx.strokeStyle = rgbaHex(el.stroke, el.strokeOpacity * el.opacity); ctx.lineWidth = lw;
+    ctx.lineCap = el.cap; ctx.lineJoin = el.join; ctx.setLineDash(DRAW_DASH[el.dash].map(v => v * lw));
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.restore();
+  if (sel && !exporting) {                       // its box, dashed, as Inkscape marks what is selected
+    const [x0, y0, x1, y1] = drawBox(el), f = frame(el), m = 3 / V().scale;
+    pathLocal(f, [[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]], true);
+    ctx.save(); ctx.strokeStyle = selInk(0.8); ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.restore();
+  }
+}
+function hitDrawing(el, lx, ly, tol) {
+  const P = drawPoly(el, 16), t = tol + el.strokeWidth / 2;
+  if (el.fill !== 'none' && inPolygon(P, lx, ly, t)) return true;
+  if (el.stroke === 'none' && el.fill !== 'none') return false;
+  const closed = el.shape !== 'path' || (el.closed && el.nodes.length > 2);
+  for (let i = 1; i < P.length + (closed ? 1 : 0); i++) {
+    const a = P[i - 1], b = P[i % P.length], ex = b[0] - a[0], ey = b[1] - a[1], L2 = ex * ex + ey * ey || 1;
+    const u = clamp(((lx - a[0]) * ex + (ly - a[1]) * ey) / L2, 0, 1);
+    if (Math.hypot(lx - a[0] - u * ex, ly - a[1] - u * ey) <= t) return true;
+  }
+  return false;
+}
+
+/* ---------- the tools ---------- */
+const DRAW_TOOLS = [
+  ['select', 'Select', 'S', 'Select and move: click a drawing or a part, drag it to move it, drag on the bench for a box.',
+    '<path d="M6 3v16l4.2-4.1 2.9 6.4 2.6-1.2-2.9-6.2H18Z" fill="currentColor"/>'],
+  ['node', 'Node tool', 'N', 'Node tool: drag a node or a handle. Double-click a path to add a node, a node to make it smooth or a corner; Delete removes the node picked.',
+    '<path d="M4 18C7 6 15 6 19 16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5l7 2" stroke="currentColor" stroke-width="1"/><rect x="2" y="16" width="4" height="4" fill="currentColor"/><rect x="17" y="14" width="4" height="4" fill="currentColor"/><circle cx="8" cy="5" r="1.8" fill="currentColor"/><circle cx="15" cy="7" r="1.8" fill="currentColor"/>'],
+  ['rect', 'Rectangle', 'F4', 'Rectangle: drag to draw one. Ctrl: a square. Shift: from its middle. Round its corners with the node tool or its panel.',
+    '<rect x="3.5" y="6" width="17" height="12" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
+  ['ellipse', 'Ellipse', 'E', 'Ellipse: drag to draw one. Ctrl: a circle. Shift: from its middle.',
+    '<ellipse cx="12" cy="12" rx="8.5" ry="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
+  ['pen', 'Pen', 'B', 'Pen: click for a corner, drag for a curve. Click the first node to close the path; Enter, a double-click or a right-click ends it, Backspace takes the last node off, Escape drops it.',
+    '<path d="M4 20l1.2-5.2L16 4l4 4L9.2 18.8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 20l5-5" stroke="currentColor" stroke-width="1.2"/><circle cx="9.7" cy="14.3" r="1.3" fill="currentColor"/>'],
+];
+let penEnded = 0, drawTool = 'select', penDraft = null, penCursor = null, drawNodeSel = null;    // drawNodeSel: { id, i } a path's picked node
+const drawIcon = k => { const s = document.createElement('span'); s.className = 'rt-dicon'; s.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' + DRAW_TOOLS.find(t => t[0] === k)[4] + '</svg>'; return s; };
+const DRAW_STYLE_KEY = 'jek-raytracer-drawstyle';
+/* the style a new drawing takes: the last one set, as in Inkscape */
+function drawStyleNow() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(DRAW_STYLE_KEY) || '{}') || {}; } catch (err) { s = {}; }
+  if (!s.stroke) s.stroke = benchLight() ? '#1b2328' : '#e8edf0';
+  return s;
+}
+function keepDrawStyle(el) {
+  const s = {}; for (const k of DRAW_STYLE_KEYS) s[k] = el[k];
+  try { localStorage.setItem(DRAW_STYLE_KEY, JSON.stringify(s)); } catch (err) { /* not kept: fine */ }
+}
+function setDrawTool(t) {
+  if (penDraft && t !== 'pen') finishPen(false);
+  drawTool = t;
+  if (t !== 'select' && palette !== 'draw') setPalette('draw');
+  if (t !== 'node') drawNodeSel = null;
+  canvas.classList.toggle('drawing', t === 'rect' || t === 'ellipse' || t === 'pen');
+  drawToolsShown();
+  requestRender();
+}
+function drawToolsShown() {
+  rail.querySelectorAll('[data-dtool]').forEach(b => { const on = b.dataset.dtool === drawTool; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  const bar = document.getElementById('drawHint');
+  if (!bar) return;
+  bar.hidden = palette !== 'draw' || EMBED;
+  const T = DRAW_TOOLS.find(t => t[0] === drawTool);
+  bar.textContent = T[3];
+}
+/* a new drawing from what the tool made, in world mm, on this tab, and selected */
+function addDrawing(props) {
+  checkpoint();
+  const el = normElement(Object.assign({ type: 'draw', name: nextName(DRAW_SHAPES[props.shape]), angle: 0 }, drawStyleNow(), props));
+  el.bench = project.tab;
+  project.elements.push(el);
+  selectOne(el.id);
+  changed(true);
+  return el;
+}
+function finishPen(keep = true) {
+  const d = penDraft;
+  penDraft = null; penCursor = null;
+  if (!keep || !d || d.nodes.length < 2) { requestRender(); return; }
+  const xs = d.nodes.map(n => n.x), ys = d.nodes.map(n => n.y), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  addDrawing({ shape: 'path', x: +cx.toFixed(4), y: +cy.toFixed(4), closed: !!d.closed && d.nodes.length > 2,
+    nodes: d.nodes.map(n => ({ x: +(n.x - cx).toFixed(4), y: +(n.y - cy).toFixed(4), h1: n.h1, h2: n.h2, smooth: n.smooth })) });
+}
+/* the grips the node tool offers on a drawing: where they are on screen */
+function drawGrips(el) {
+  const f = frame(el), S = p => { const [x, y] = toWorld(f, p[0], p[1]); return [sx(x), sy(y)]; }, out = [];
+  if (el.shape === 'rect') {
+    for (const [gx, gy] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) out.push({ k: 'corner', gx, gy, at: S([gx * el.w / 2, gy * el.h / 2]) });
+    const rx = Math.max(el.r, Math.min(el.w / 2, 10 / V().scale));            // clear of the corner, even when square
+    out.push({ k: 'radius', at: S([el.w / 2 - rx, el.h / 2]), round: true });
+  } else if (el.shape === 'ellipse') {
+    out.push({ k: 'rx', at: S([el.rx, 0]) }, { k: 'ry', at: S([0, el.ry]) });
+  } else {
+    el.nodes.forEach((n, i) => {
+      for (const hk of ['h1', 'h2']) if (n[hk]) out.push({ k: hk, i, round: true, at: S([n.x + n[hk][0], n.y + n[hk][1]]), from: S([n.x, n.y]) });
+    });
+    el.nodes.forEach((n, i) => out.push({ k: 'node', i, at: S([n.x, n.y]), smooth: !!n.smooth }));
+  }
+  return out;
+}
+function drawGripAt(el, px, py) {
+  const G = drawGrips(el);
+  for (let i = G.length - 1; i >= 0; i--) if (Math.hypot(px - G[i].at[0], py - G[i].at[1]) <= 7) return G[i];
+  return null;
+}
+const nodeDrawing = () => { const el = selected(); return drawTool === 'node' && el && el.type === 'draw' && !extraSel.size && onTab(el) && !el.locked ? el : null; };
+/* the pointer pressed with a drawing tool: true if the tool took it */
+function drawDown(px, py, e) {
+  if (drawTool === 'rect' || drawTool === 'ellipse') {
+    drag = { mode: 'drawshape', kind: drawTool, px0: px, py0: py, cur: null };
+    return true;
+  }
+  if (drawTool === 'pen') {
+    const x = snapVal(wx(px), e), y = snapVal(wy(py), e), now = performance.now();
+    if (!penDraft) penDraft = { nodes: [], t: 0 };
+    const N = penDraft.nodes, last = N[N.length - 1];
+    // a second click where the last one was: the path is done
+    if (last && now - penDraft.t < 400 && Math.hypot(sx(last.x) - px, sy(last.y) - py) < 5) { finishPen(); return true; }
+    if (N.length >= 2 && Math.hypot(sx(N[0].x) - px, sy(N[0].y) - py) < 8) { penDraft.closed = true; finishPen(); return true; }
+    N.push({ x, y, h1: null, h2: null });
+    penDraft.t = now;
+    drag = { mode: 'pen', px0: px, py0: py, started: false };
+    requestRender();
+    return true;
+  }
+  const el = nodeDrawing();
+  if (el) {
+    const g = drawGripAt(el, px, py);
+    if (g) {
+      if (g.k === 'node' || g.k === 'h1' || g.k === 'h2') { drawNodeSel = { id: el.id, i: g.i }; renderPanel(); }
+      drag = { mode: 'dnode', el, g, started: false, px0: px, py0: py };
+      requestRender();
+      return true;
+    }
+    drawNodeSel = null;
+  }
+  return false;
+}
+function drawMove(px, py, e) {
+  if (drag.mode === 'drawshape') { drag.cur = [px, py]; drag.sq = e.ctrlKey || e.metaKey; drag.mid = e.shiftKey; requestRender(); return; }
+  if (drag.mode === 'pen') {
+    // dragged: the node gets handles, symmetric, along the drag (a smooth node)
+    if (!drag.started && Math.hypot(px - drag.px0, py - drag.py0) < 3) return;
+    drag.started = true;
+    const n = penDraft.nodes[penDraft.nodes.length - 1], dx = wx(px) - n.x, dy = wy(py) - n.y;
+    n.h2 = [dx, dy]; n.h1 = [-dx, -dy]; n.smooth = true;
+    requestRender();
+    return;
+  }
+  // the node tool: a grip dragged
+  const { el, g } = drag;
+  if (!drag.started) { if (Math.hypot(px - drag.px0, py - drag.py0) < 2) return; checkpoint(); drag.started = true; }
+  const f = frame(el), [lx, ly] = toLocal(f, snapVal(wx(px), e), snapVal(wy(py), e));
+  if (g.k === 'corner') {
+    const ox = -g.gx * el.w / 2, oy = -g.gy * el.h / 2;                     // the corner across from it stays put
+    const nw = Math.max(0.01, Math.abs(lx - ox)), nh = Math.max(0.01, Math.abs(ly - oy));
+    const cx = ox + Math.sign(lx - ox || g.gx) * nw / 2, cy = oy + Math.sign(ly - oy || g.gy) * nh / 2;
+    const [wx2, wy2] = toWorld(f, cx, cy);
+    if (Math.sign(lx - ox || g.gx) !== g.gx) g.gx = -g.gx;
+    if (Math.sign(ly - oy || g.gy) !== g.gy) g.gy = -g.gy;
+    el.w = +nw.toFixed(4); el.h = +nh.toFixed(4); el.x = +wx2.toFixed(4); el.y = +wy2.toFixed(4);
+    el.r = Math.min(el.r, el.w / 2, el.h / 2);
+  } else if (g.k === 'radius') el.r = +clamp(el.w / 2 - lx, 0, Math.min(el.w, el.h) / 2).toFixed(4);
+  else if (g.k === 'rx') { el.rx = Math.max(0.01, +Math.abs(lx).toFixed(4)); if (e.ctrlKey || e.metaKey) el.ry = el.rx; }
+  else if (g.k === 'ry') { el.ry = Math.max(0.01, +Math.abs(ly).toFixed(4)); if (e.ctrlKey || e.metaKey) el.rx = el.ry; }
+  else {
+    const n = el.nodes[g.i];
+    if (g.k === 'node') { n.x = +lx.toFixed(4); n.y = +ly.toFixed(4); }
+    else {
+      const o = g.k === 'h1' ? 'h2' : 'h1', d = [+(lx - n.x).toFixed(4), +(ly - n.y).toFixed(4)];
+      n[g.k] = d;
+      // a smooth node keeps its handles in line, each its own length
+      if (n.smooth && n[o]) { const L = Math.hypot(...n[o]), M = Math.hypot(...d) || 1; n[o] = [-d[0] / M * L, -d[1] / M * L]; }
+    }
+  }
+  syncPanel(); requestRender();
+}
+function drawUp(e) {
+  const d = drag;
+  drag = null; canvas.classList.remove('dragging');
+  if (d.mode === 'pen') { requestRender(); return; }
+  if (d.mode === 'dnode') { if (d.started) changed(); else requestRender(); return; }
+  // a rectangle or an ellipse: a click (no drag) picks what is there instead, as Inkscape's tools do
+  if (!d.cur || Math.hypot(d.cur[0] - d.px0, d.cur[1] - d.py0) < 3) {
+    const hit = hitTest(d.px0, d.py0);
+    selectOne(hit ? hit.id : null); selFibreId = null; renderPanel(); requestRender();
+    return;
+  }
+  const b = shapeBox(d, { shiftKey: false });
+  addDrawing(d.kind === 'rect' ? { shape: 'rect', x: b.cx, y: b.cy, w: b.w, h: b.h } : { shape: 'ellipse', x: b.cx, y: b.cy, rx: b.w / 2, ry: b.h / 2 });
+}
+/* the box a rectangle or ellipse drag spans, in world mm: Ctrl square, Shift from its middle */
+function shapeBox(d, e) {
+  const ax = snapVal(wx(d.px0), e), ay = snapVal(wy(d.py0), e);
+  let bx = snapVal(wx(d.cur[0]), e), by = snapVal(wy(d.cur[1]), e);
+  if (d.sq) { const s = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); bx = ax + Math.sign(bx - ax || 1) * s; by = ay + Math.sign(by - ay || 1) * s; }
+  if (d.mid) return { cx: ax, cy: ay, w: Math.max(0.01, 2 * Math.abs(bx - ax)), h: Math.max(0.01, 2 * Math.abs(by - ay)) };
+  return { cx: +((ax + bx) / 2).toFixed(4), cy: +((ay + by) / 2).toFixed(4), w: Math.max(0.01, Math.abs(bx - ax)), h: Math.max(0.01, Math.abs(by - ay)) };
+}
+/* what a tool shows as it works: the shape being dragged out, the pen's path so far, the node tool's grips */
+function drawToolOverlay() {
+  ctx.save();
+  const ink = getCss('--jek-cyan');
+  if (drag && drag.mode === 'drawshape' && drag.cur) {
+    const b = shapeBox(drag, { shiftKey: false }), st = drawStyleNow();
+    const ghost = normDraw(Object.assign({}, st, drag.kind === 'rect' ? { shape: 'rect', w: b.w, h: b.h } : { shape: 'ellipse', rx: b.w / 2, ry: b.h / 2 }), { type: 'draw', x: b.cx, y: b.cy, angle: 0 });
+    drawDrawing(ghost, false);
+    drawTrace(ctx, ghost); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (penDraft && penDraft.nodes.length) {
+    const N = penDraft.nodes;
+    if (N.length > 1) {
+      const ghost = normDraw(Object.assign({}, drawStyleNow(), { shape: 'path', nodes: N, closed: false }), { type: 'draw', x: 0, y: 0, angle: 0 });
+      drawDrawing(ghost, false);
+    }
+    // the next piece, to the pointer
+    const last = N[N.length - 1];
+    if (penCursor && !(drag && drag.mode === 'pen')) {
+      ctx.beginPath(); ctx.moveTo(sx(last.x), sy(last.y));
+      if (last.h2) ctx.quadraticCurveTo(sx(last.x + last.h2[0]), sy(last.y + last.h2[1]), penCursor[0], penCursor[1]); else ctx.lineTo(penCursor[0], penCursor[1]);
+      ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    for (const n of N) {
+      for (const hk of ['h1', 'h2']) if (n[hk]) {
+        ctx.beginPath(); ctx.moveTo(sx(n.x), sy(n.y)); ctx.lineTo(sx(n.x + n[hk][0]), sy(n.y + n[hk][1])); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx(n.x + n[hk][0]), sy(n.y + n[hk][1]), 3, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+      }
+    }
+    N.forEach((n, i) => { const r = i === 0 && N.length >= 2 ? 5 : 3.5; ctx.fillStyle = i === 0 && N.length >= 2 ? '#ffd36b' : ink; ctx.fillRect(sx(n.x) - r, sy(n.y) - r, 2 * r, 2 * r); });
+  }
+  const el = nodeDrawing();
+  if (el) {
+    for (const g of drawGrips(el)) {
+      if (g.from) { ctx.beginPath(); ctx.moveTo(g.from[0], g.from[1]); ctx.lineTo(g.at[0], g.at[1]); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke(); }
+      const picked = g.k === 'node' && drawNodeSel && drawNodeSel.id === el.id && drawNodeSel.i === g.i;
+      ctx.fillStyle = picked ? '#ffd36b' : g.k === 'radius' ? '#fff' : ink; ctx.strokeStyle = '#11181c'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (g.round) ctx.arc(g.at[0], g.at[1], 4, 0, Math.PI * 2);
+      else if (g.smooth) { ctx.moveTo(g.at[0], g.at[1] - 5.5); ctx.lineTo(g.at[0] + 5.5, g.at[1]); ctx.lineTo(g.at[0], g.at[1] + 5.5); ctx.lineTo(g.at[0] - 5.5, g.at[1]); ctx.closePath(); }   // a smooth node a diamond, as Inkscape's
+      else ctx.rect(g.at[0] - 4.5, g.at[1] - 4.5, 9, 9);
+      ctx.fill(); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+/* a node given handles along the line through its neighbours, a third of the way to each */
+function smoothNode(el, i) {
+  const N = el.nodes, n = N[i], a = N[i - 1] || (el.closed ? N[N.length - 1] : n), b = N[i + 1] || (el.closed ? N[0] : n);
+  let tx = b.x - a.x, ty = b.y - a.y; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+  const d1 = Math.hypot(n.x - a.x, n.y - a.y) / 3, d2 = Math.hypot(b.x - n.x, b.y - n.y) / 3;
+  n.h1 = [-tx * d1, -ty * d1]; n.h2 = [tx * d2, ty * d2]; n.smooth = true;
+}
+/* the node tool's double-click: on a node, smooth it or make it a corner; on the path, a node there */
+function drawDblClick(px, py) {
+  const el = nodeDrawing();
+  if (!el || el.shape !== 'path') return false;
+  const g = drawGripAt(el, px, py);
+  if (g && g.k === 'node') {
+    checkpoint();
+    const N = el.nodes, n = N[g.i];
+    if (n.h1 || n.h2) { n.h1 = null; n.h2 = null; delete n.smooth; }
+    else smoothNode(el, g.i);
+    drawNodeSel = { id: el.id, i: g.i };
+    changed(true);
+    return true;
+  }
+  // nearest point on the outline: split the piece there (de Casteljau), the shape unchanged
+  const f = frame(el), [lx, ly] = toLocal(f, wx(px), wy(py)), G = drawSegs(el), tol = 6 / V().scale;
+  let best = null, at = G.p0;
+  G.segs.forEach(([c1, c2, p], k) => {
+    for (let i = 0; i <= 40; i++) { const q = bez4(at, c1, c2, p, i / 40), d = Math.hypot(q[0] - lx, q[1] - ly); if (!best || d < best.d) best = { d, k, t: i / 40 }; }
+    at = p;
+  });
+  if (!best || best.d > tol + el.strokeWidth / 2 || best.t <= 0 || best.t >= 1) return false;
+  checkpoint();
+  const N = el.nodes, i0 = best.k, i1 = (best.k + 1) % N.length, A = N[i0], B = N[i1], t = best.t;
+  const P0 = [A.x, A.y], P1 = [A.x + (A.h2 ? A.h2[0] : 0), A.y + (A.h2 ? A.h2[1] : 0)], P2 = [B.x + (B.h1 ? B.h1[0] : 0), B.y + (B.h1 ? B.h1[1] : 0)], P3 = [B.x, B.y];
+  const L = (p, q) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  const a = L(P0, P1), b = L(P1, P2), c = L(P2, P3), d = L(a, b), e2 = L(b, c), m = L(d, e2);
+  const curved = !!(A.h2 || B.h1);
+  if (curved) { A.h2 = [a[0] - A.x, a[1] - A.y]; B.h1 = [c[0] - B.x, c[1] - B.y]; }
+  const n = { x: +m[0].toFixed(4), y: +m[1].toFixed(4), h1: curved ? [d[0] - m[0], d[1] - m[1]] : null, h2: curved ? [e2[0] - m[0], e2[1] - m[1]] : null };
+  if (curved) n.smooth = true;
+  N.splice(i0 + 1, 0, n);
+  drawNodeSel = { id: el.id, i: i0 + 1 };
+  changed(true);
+  return true;
+}
+/* keys for drawing: the tools, as Inkscape's; the pen's Enter, Backspace and Escape; Delete on a node */
+function drawKey(e) {
+  if (penDraft) {
+    if (e.key === 'Enter') { e.preventDefault(); finishPen(); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); finishPen(false); return true; }
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); penDraft.nodes.pop(); if (!penDraft.nodes.length) finishPen(false); requestRender(); return true; }
+  }
+  const el = nodeDrawing();
+  if (el && el.shape === 'path' && drawNodeSel && drawNodeSel.id === el.id && (e.key === 'Delete' || e.key === 'Backspace')) {
+    e.preventDefault();
+    if (el.nodes.length <= 2) { toast('A path keeps two nodes at least: delete the path itself with the select tool'); return true; }
+    checkpoint(); el.nodes.splice(drawNodeSel.i, 1); if (el.nodes.length < 3) el.closed = false; drawNodeSel = null; changed(true);
+    return true;
+  }
+  if (e.key === 'Escape' && drawTool !== 'select' && palette === 'draw') { setDrawTool('select'); return true; }
+  const k = { s: 'select', n: 'node', e: 'ellipse', b: 'pen', F1: 'select', F2: 'node', F4: 'rect', F5: 'ellipse' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (!k || e.shiftKey || (e.key.startsWith('F') && e.key.length > 1 && palette !== 'draw')) return false;
+  e.preventDefault();
+  setDrawTool(k);
+  return true;
+}
+
+/* ---------- its panel: the shape, and Fill and stroke ---------- */
+function drawPanel(el) {
+  const st = vs(el);
+  if (!st.drawTab) st.drawTab = 'shape';
+  panel.append(h('div', { class: 'rt-tabs' }, ...[['shape', DRAW_SHAPES[el.shape]], ['paint', 'Fill and stroke']].map(([k, t]) =>
+    h('button', { class: 'rt-tab' + (st.drawTab === k ? ' on' : ''), type: 'button', onclick: () => { st.drawTab = k; renderPanel(); } }, t))));
+  const rows = h('div', { class: 'rt-rows' });
+  // a number field of the drawing's own; style ones are kept as the style the next drawing takes
+  const numF = (label, get, set, opts = {}) => {
+    const id = 'rtf' + (++fid);
+    return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), numInput(id, get, v => { set(v); if (opts.style) keepDrawStyle(el); }));
+  };
+  const pct = (label, key) => numF(label + ' (%)', () => +(el[key] * 100).toFixed(1), v => { el[key] = clamp(v, 0, 100) / 100; }, { style: true });
+  if (st.drawTab === 'shape') {
+    if (el.shape === 'rect') rows.append(
+      numF('Width (mm)', () => el.w, v => { if (v > 0) { el.w = v; el.r = Math.min(el.r, el.w / 2, el.h / 2); } }),
+      numF('Height (mm)', () => el.h, v => { if (v > 0) { el.h = v; el.r = Math.min(el.r, el.w / 2, el.h / 2); } }),
+      numF('Corner radius (mm)', () => el.r, v => { el.r = clamp(v, 0, Math.min(el.w, el.h) / 2); }));
+    else if (el.shape === 'ellipse') rows.append(
+      numF('Radius x (mm)', () => el.rx, v => { if (v > 0) el.rx = v; }),
+      numF('Radius y (mm)', () => el.ry, v => { if (v > 0) el.ry = v; }));
+    else {
+      const cl = h('input', { type: 'checkbox' });
+      cl.checked = el.closed;
+      cl.disabled = el.nodes.length < 3;
+      cl.addEventListener('change', () => { checkpoint(); el.closed = cl.checked; changed(false); });
+      rows.append(h('label', { class: 'rt-check wide' }, cl, 'Closed path'));
+      const ni = drawNodeSel && drawNodeSel.id === el.id ? drawNodeSel.i : -1, n = el.nodes[ni];
+      if (n) rows.append(
+        numF('Node ' + (ni + 1) + ' x (mm)', () => n.x, v => { n.x = v; }),
+        numF('Node ' + (ni + 1) + ' y (mm)', () => n.y, v => { n.y = v; }),
+        selectField('Node ' + (ni + 1), [['corner', 'Corner'], ['smooth', 'Smooth'], ['straight', 'Straight (no handles)']],
+          () => n.h1 || n.h2 ? (n.smooth ? 'smooth' : 'corner') : 'straight',
+          v => {
+            if (v === 'straight') { n.h1 = null; n.h2 = null; delete n.smooth; return; }
+            if (!n.h1 && !n.h2) smoothNode(el, ni);
+            if (v === 'smooth') n.smooth = true; else delete n.smooth;
+          }, { wide: true }));
+      rows.append(h('p', { class: 'rt-hint wide' }, el.nodes.length + ' nodes. ' + (n ? '' : 'Pick a node with the node tool (N) to set it here. ') + 'With the node tool, double-click the path to add a node.'));
+    }
+    rows.append(selectField('Layer', [['under', 'Under the light'], ['over', 'Over the light']], () => el.layer, v => { el.layer = v; keepDrawStyle(el); }, { wide: true }));
+    panel.append(rows, h('p', { class: 'rt-hint' }, 'A drawing is for figures: the light goes through it as if it were not there. It is saved, copied and exported with the bench.'));
+    return;
+  }
+  // Fill and stroke, as Inkscape's dialog: the fill's paint, the stroke's paint, the stroke's style
+  const paint = (title, key, opKey) => {
+    const col = h('input', { type: 'color', 'aria-label': title + ' colour' });
+    col.addEventListener('input', () => { beginEdit(); el[key] = col.value; st['last' + key] = col.value; keepDrawStyle(el); changed(false); });
+    col.addEventListener('change', endEdit);
+    bindSync(col, () => { col.value = el[key] === 'none' ? (st['last' + key] || '#7fdcff') : el[key]; });
+    const r = h('div', { class: 'rt-rows' },
+      selectField(title, [['none', 'None'], ['flat', 'Flat colour']], () => el[key] === 'none' ? 'none' : 'flat', v => {
+        if (v === 'none') { if (el[key] !== 'none') st['last' + key] = el[key]; el[key] = 'none'; }
+        else el[key] = st['last' + key] || (key === 'fill' ? '#7fdcff' : (benchLight() ? '#1b2328' : '#e8edf0'));
+        keepDrawStyle(el);
+      }));
+    if (el[key] !== 'none') r.append(h('div', { class: 'rt-f' }, h('label', null, 'Colour'), col), pct('Opacity', opKey));
+    return r;
+  };
+  panel.append(h('h3', null, 'Fill'), paint('Fill', 'fill', 'fillOpacity'), h('h3', null, 'Stroke paint'), paint('Stroke', 'stroke', 'strokeOpacity'));
+  if (el.stroke !== 'none') {
+    const sr = h('div', { class: 'rt-rows' },
+      numF('Width (mm)', () => el.strokeWidth, v => { el.strokeWidth = clamp(v, 0, 100); }, { style: true }),
+      selectField('Dashes', [['solid', 'Solid'], ['dash', 'Dashed'], ['long', 'Long dashes'], ['dot', 'Dotted'], ['dashdot', 'Dash-dot']], () => el.dash, v => { el.dash = v; keepDrawStyle(el); }),
+      selectField('Cap', [['butt', 'Butt'], ['round', 'Round'], ['square', 'Square']], () => el.cap, v => { el.cap = v; keepDrawStyle(el); }),
+      selectField('Join', [['miter', 'Mitre'], ['round', 'Round'], ['bevel', 'Bevel']], () => el.join, v => { el.join = v; keepDrawStyle(el); }));
+    panel.append(h('h3', null, 'Stroke style'), sr);
+  }
+  panel.append(h('div', { class: 'rt-rows' }, pct('Opacity, the whole drawing', 'opacity')),
+    h('p', { class: 'rt-hint' }, 'The next drawing takes the style set here.'));
+}
+
+/* ==========================================================================
    Hit testing and pointer interaction
    ========================================================================== */
 
@@ -6452,10 +6947,13 @@ function hitTest(px, py) {
   const x = wx(px), y = wy(py);
   const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
     filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, pic: 1, aom: 1, eom: 1, chopper: 1, elec: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3 };
-  const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
+  // a drawing over the light is met first, one under it last
+  const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : order[e.type];
+  const els = project.elements.filter(onTab).sort((a, b) => rank(a) - rank(b));
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
+    if (el.type === 'draw') { if (hitDrawing(el, lx, ly, tol)) return el; continue; }
     if (el.type === 'source') {
       const { L, hw } = srcBody(el);
       if (lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol) return el;
@@ -6550,11 +7048,13 @@ canvas.addEventListener('pointerdown', e => {
     return;
   }
   hideCtxMenu();
+  if (e.button === 2 && penDraft) { finishPen(); penEnded = performance.now(); return; }   // the pen's right-click ends its path
   if (e.button === 2) return;                          // the right button opens the menu instead
   // the middle button, Space held, or a finger on empty bench: pan
   const panNow = e.button === 1 || spaceDown;
   if (panNow) { e.preventDefault(); drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true }; canvas.classList.add('dragging'); return; }
   if (measureMode) { measureDown(px, py, e); return; }
+  if (drawTool !== 'select' && !EMBED && e.button === 0 && drawDown(px, py, e)) return;
   const sel = selected();
   if (sel && !extraSel.size && onTab(sel)) {
     const [hx, hy] = handlePos(sel);
@@ -6618,6 +7118,8 @@ canvas.addEventListener('pointermove', e => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { px, py });
 
   if (!drag && measureMode && measureDraft && measureDraft.type === 'angle') { measureMove(px, py, e); return; }
+  if (!drag && penDraft) { penCursor = [px, py]; requestRender(); return; }
+  if (drag && (drag.mode === 'drawshape' || drag.mode === 'pen' || drag.mode === 'dnode')) { drawMove(px, py, e); return; }
   if (!drag) {
     const sel = selected();
     let cls = '';
@@ -6698,6 +7200,7 @@ function endPointer(e) {
   if (!drag) return;
   setTimeout(() => { if (!midDrag()) fwPump(); }, 0);    // what the drag held back
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
+  if (drag.mode === 'drawshape' || drag.mode === 'pen' || drag.mode === 'dnode') { drawUp(e); return; }
   if (drag.mode === 'grip' || drag.mode === 'bend') {
     const moved = drag.mode === 'grip' && drag.started;
     drag = null; canvas.classList.remove('dragging');
@@ -6764,6 +7267,7 @@ function endPointer(e) {
 canvas.addEventListener('pointerup', endPointer);
 /* on the selected fibre: double-click a node to take it out, the curve to put one in */
 canvas.addEventListener('dblclick', e => {
+  if (drawTool === 'node') { const r = canvas.getBoundingClientRect(); if (drawDblClick(e.clientX - r.left, e.clientY - r.top)) return; }
   const F = selFibre();
   if (!F) return;
   const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top;
@@ -6801,6 +7305,7 @@ document.addEventListener('keydown', e => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(onTab)); return; }
+  if (!mod && !e.altKey && !EMBED && drawKey(e)) return;
   if (!mod && e.key === ' ') { e.preventDefault(); if (!spaceDown) { spaceDown = true; canvas.classList.add('dragging'); } return; }
   if (!mod && (e.key === 'z' || e.key === 'Z')) { zoomToSelection(); return; }
   if (!mod && (e.key === 'm' || e.key === 'M')) { setMeasure(!measureMode); return; }
@@ -11345,12 +11850,12 @@ function renderPanelBody(el) {
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true }),
-    param('X (mm)', el, 'x'),
-    param('Y (mm)', el, 'y'),
+    param('X (mm)', el, 'x', { noSweep: el.type === 'draw' }),
+    param('Y (mm)', el, 'y', { noSweep: el.type === 'draw' }),
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
       faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)', cell: 'Orientation (\u00b0)', nlc: 'Orientation (\u00b0)',
-      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', pic: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true }),
+      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', pic: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)', draw: 'Rotation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true, noSweep: el.type === 'draw' }),
   );
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
@@ -11381,7 +11886,8 @@ function renderPanelBody(el) {
   if (el.type === 'elec') ELEC.panelFor(el);                                                  // ELEC hook
   if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
   if (el.type === 'chopper') ELEC.chopperPanel(el);                                           // ELEC hook
-  if (el.type !== 'elec') ELEC.opticPanel(el);                                 // ELEC hook
+  if (el.type === 'draw') drawPanel(el);
+  if (el.type !== 'elec' && el.type !== 'draw') ELEC.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -14080,7 +14586,7 @@ function renderOverview() {
       if (multi) list.append(h('li', { class: 'tabhead' }, b.name + (b === curBench() ? ' (on show)' : '')));
       for (const el of mine) {
         list.append(h('li', null, h('button', { onclick: () => selectEl(el) },
-          h('span', { class: 'swatch', style: 'background:' + (col[el.type] || el.colour) }),
+          h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
           el.name, h('span', { class: 't' }, typeLabel(el)))));
       }
     }
@@ -19395,6 +19901,7 @@ function showCtxMenu(x, y, items) {
 }
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
+  if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
   const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
   const hit = hitTest(px, py), fh = hit ? null : fibreAtPx(px, py);
   const paste = { label: 'Paste here', key: 'Ctrl+V', off: !clipMem, fn: () => pasteClip(clipMem, at) };
@@ -20051,6 +20558,7 @@ function exportScreen(el) {
    ========================================================================== */
 const AI_GUIDE_EXAMPLES = ['michelson', 'fabry-perot', 'pdh-lock', 'split-laser'];
 const AI_ANGLE = {
+  draw: 'turns the drawing about its x, y.',
   source: 'the direction the light leaves in (0 = travelling +x).',
   mirror: 'the direction its reflecting face points (its normal, towards the light it reflects).',
   screen: 'the direction its face points: towards the light it records.',
@@ -20077,6 +20585,7 @@ const AI_ANGLE = {
   eom: 'its normal: 0 for a beam travelling ±x.',
 };
 const AI_WHAT = {
+  draw: 'A drawing for figures: a rectangle, an ellipse or a path of Bézier curves, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.',
   source: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
   mirror: 'A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.',
   lens: 'A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.',
@@ -20104,6 +20613,12 @@ const AI_WHAT = {
 };
 /* each field: its meaning, units and limits, as the tool reads them */
 const AI_FIELDS = {
+  draw: { shape: '"rect", "ellipse" or "path".', fill: '"#rrggbb", or "none".', fillOpacity: '0 to 1.', stroke: '"#rrggbb", or "none".', strokeOpacity: '0 to 1.',
+    strokeWidth: 'mm.', dash: '"solid", "dash", "long", "dot" or "dashdot".', cap: '"butt", "round" or "square".', join: '"miter", "round" or "bevel".', opacity: '0 to 1: the whole drawing.',
+    layer: '"under" the beams and parts, or "over" them.', w: 'mm, a rectangle’s width.', h: 'mm, a rectangle’s height.', r: 'mm, a rectangle’s corner radius.',
+    rx: 'mm, an ellipse’s radius along x.', ry: 'mm, an ellipse’s radius along y.',
+    nodes: 'a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged.',
+    closed: 'true joins a path’s last node to its first.' },
   source: {
     wavelength: 'nm, 100 to 20000.', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
@@ -20177,6 +20692,7 @@ function aiFieldsOf(type) {
   const d = aiDefaults(type), keys = Object.keys(d).filter(k => !AI_SKIP.has(k));
   if (type === 'source' && !keys.includes('fibre')) keys.push('fibre');
   if (type === 'lens' && !keys.includes('cyl')) keys.push('cyl');
+  if (type === 'draw') keys.push('rx', 'ry', 'nodes', 'closed');
   if (type === 'detector' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
   return keys;
 }
@@ -20994,12 +21510,12 @@ const PALETTES = {
   pic: PIC.PALETTE,                                                                          // PIC hook
 };
 let palette = 'free';
-try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec') palette = pv; } catch (err) { /* private window: free space */ }
+try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'draw') palette = pv; } catch (err) { /* private window: free space */ }
 /* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', pic: 'Photonic' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', elec: 'Elec', pic: 'Chip' };
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', pic: 'Photonic', draw: 'Draw' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', elec: 'Elec', pic: 'Chip', draw: 'Draw' };
 const PART_GROUPS = {
   free: [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']], ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'cylinder', 'axicon']],
     ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']], ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -21077,7 +21593,7 @@ document.querySelector('.rt-wrap').append(document.getElementById('ctxMenu'));
 let pickTab = palette;
 function pickerShown(on) {
   if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && pickTab !== 'draw' && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   const r = document.getElementById('btnAddPart').getBoundingClientRect();
   picker.style.top = Math.round(r.bottom + 4) + 'px';
@@ -21105,6 +21621,13 @@ function fillPicker(q) {
       body.append(...mineBody(e => { if (!e.shiftKey) pickerShown(false); }));
       return;
     }
+    if (pickTab === 'draw') {
+      body.append(h('h4', null, 'Drawing tools'), h('div', { class: 'rt-pgrid' }, ...DRAW_TOOLS.map(([k, name, key, tip]) =>
+        h('button', { type: 'button', class: 'rt-ptile draw', 'data-dtool': k, title: tip, onclick: e => { e.stopPropagation(); setDrawTool(k); pickerShown(false); } },
+          drawIcon(k), h('span', null, name, h('small', null, key))))),
+        h('p', { class: 'rt-pnone' }, 'Rectangles, ellipses and paths for figures: boxes round a part of the setup, arrows, outlines of a mount or a chamber. The light goes through them as if they were not there. Pick a drawing and its panel sets its shape, and its fill and stroke.'));
+      return;
+    }
     const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
     if (rec.length) body.append(h('h4', null, 'Recent'), h('div', { class: 'rt-pgrid' }, ...rec.map(p => partTile(p, add, p.pal !== pickTab))));
     for (const g of partGroups(pickTab)) body.append(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, add))));
@@ -21119,10 +21642,11 @@ function fillPicker(q) {
     const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
     return b;
-  }), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
+  }), h('button', { type: 'button', role: 'tab', class: 'rt-ptab draw' + (pickTab === 'draw' ? ' on' : ''), 'aria-selected': pickTab === 'draw' ? 'true' : 'false',
+    onclick: e => { e.stopPropagation(); pickTab = 'draw'; search.value = ''; fillPicker(''); } }, 'Draw'), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
     onclick: e => { e.stopPropagation(); pickTab = 'mine'; search.value = ''; fillPicker(''); } }, '★ My parts') : null);
   picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
-    h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
+    pickTab === 'draw' ? null : h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
   show();
   search.focus();
 }
@@ -21161,12 +21685,17 @@ function fillRail() {
   stage.classList.toggle('rail', railOn);
   if (!railOn) return;
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
-  const pals = h('div', { class: 'rt-rpals' }, ...palettesOn().map(pal => {
+  const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), 'draw'].map(pal => {
     const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_SHORT[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
     return b;
   }));
-  const groups = partGroups(palette).map(g => {
+  // the Draw palette: its tools instead of groups of parts
+  const groups = palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
+    const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
+    b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); setDrawTool(k); });
+    return b;
+  }) : partGroups(palette).map(g => {
     const b = h('button', { type: 'button', class: 'rt-rgroup ' + palette, title: g.name, 'aria-label': g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '36', height: '36' }));
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(b, g); });
     return b;
@@ -21180,6 +21709,7 @@ function fillRail() {
     star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
   }
   rail.replaceChildren(pals, ...groups, ...[star, more].filter(Boolean));
+  drawToolsShown();
 }
 document.addEventListener('click', e => { if (!flyout.hidden && !flyout.contains(e.target) && !e.target.closest('#ctxMenu')) flyShown(null); });
 document.getElementById('btnHoles').addEventListener('click', () => {
@@ -21195,6 +21725,7 @@ document.getElementById('btnRailToggle').addEventListener('click', () => {
 });
 function setPalette(pal) {
   palette = pal;
+  if (pal !== 'draw' && drawTool !== 'select') setDrawTool('select');
   try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
   fillRail();
 }
@@ -22356,6 +22887,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    '<b>Draw</b>, a palette of its own on the rail and in + Add part: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
     '<b>Export layout (current view)</b> (File menu): a PNG, SVG or PDF of just what is on screen, as you have it framed. Export layout now gives the whole tab, framed to fit, whatever part of it you are looking at.',
     '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; parts, beams and fibres look the same on any colour, and on a light one the words are drawn dark. And View \u203a Grid holes, to leave the holes off for a figure.',
     'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',
@@ -23284,7 +23816,7 @@ function adoptTrace(out) {
 /* A bench whose trace can be done wholly in the worker: one with nothing that carries state
    from trace to trace on this page (fibre networks, lasers, vapour cells, crystals) */
 const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', 'prism', 'cube', 'crystal', 'waveplate', 'polariser', 'grating',
-  'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link']);
+  'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link', 'draw']);
 const fullOffload = () => lastTraceMs > TRACE_FULL_MS && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
 /* Brings the trace up to date, or has it brought up to date in the background; true while
    what is drawn comes from the background (the full trace is behind the bench) */

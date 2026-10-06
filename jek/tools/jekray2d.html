@@ -5228,11 +5228,11 @@ function requestRender() {
 }
 
 /* ---------- The bench's colour ----------
-   The bench is drawn dark, as an anodised breadboard, with the light glowing on it. A colour
-   of your own (View › Bench colour, kept in the project) is used as it is when it is dark;
-   a light one (paper, white, for figures) is made from the dark bench: the whole picture is
-   turned light keeping its hues (mirrors and labels go dark, beams keep their colour), then
-   tinted with the colour chosen. Exports (PNG, SVG, PDF) come out the same. */
+   The bench is the dark anodised breadboard, or a colour of your own (View › Bench colour,
+   kept in the project). Parts, beams and fibres are drawn the same on any colour; on a light
+   one the words (names, the scale, captions) are drawn dark to be read, and the light is
+   drawn stronger, laid on rather than glowing, so beams stand out as they do on the dark.
+   Exports (PNG, SVG, PDF) come out the same. */
 const BENCH_DEFAULT = '#1f2529';
 const BENCH_COLOURS = [['Breadboard', '#1f2529'], ['Black', '#000000'], ['Navy', '#0f1b2d'], ['Paper', '#f7f3ec'], ['White', '#ffffff']];
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
@@ -5243,41 +5243,29 @@ function benchLight(bg = benchBg()) {
   const [r, g, b] = hexRgb(bg).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.25;
 }
-// a colour as the light bench shows it: lightness turned over, hue kept (as the canvas's
-// invert(1) hue-rotate(180deg)), then tinted with the bench's colour
-const LIGHT_M = [[-0.574, 1.43, 0.144], [0.426, 0.43, 0.144], [0.426, 1.43, -0.856]];
-function lightColour(c, bg) {
-  const i = [1 - c.r / 255, 1 - c.g / 255, 1 - c.b / 255];
-  const v = LIGHT_M.map(row => Math.min(1, Math.max(0, row[0] * i[0] + row[1] * i[1] + row[2] * i[2])));
-  return { r: v[0] * bg[0], g: v[1] * bg[1], b: v[2] * bg[2], a: c.a };
-}
-let lightCanvas = null;
-// while the light is drawn over a light bench: it darkens the paper (multiply) rather than
-// adding to the dark (lighter), so each beam shows in its own colour
+// while a light bench is drawn
 let lightLayer = false;
-const glowOp = () => lightLayer ? 'multiply' : 'lighter';
-function lightPass() {
-  const c = ctx.canvas;
-  if (!c || !('filter' in ctx)) return;
-  lightCanvas = lightCanvas || document.createElement('canvas');
-  if (lightCanvas.width !== c.width || lightCanvas.height !== c.height) { lightCanvas.width = c.width; lightCanvas.height = c.height; }
-  const g = lightCanvas.getContext('2d');
-  g.globalCompositeOperation = 'copy'; g.drawImage(c, 0, 0);
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalCompositeOperation = 'copy'; ctx.filter = 'invert(1) hue-rotate(180deg)'; ctx.drawImage(lightCanvas, 0, 0);
-  ctx.filter = 'none'; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = benchBg(); ctx.fillRect(0, 0, c.width, c.height);
-  ctx.restore();
+// the light laid on (over a light bench) rather than glowing (over the dark), and stronger
+const glowOp = () => lightLayer ? 'source-over' : 'lighter';
+const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
+// the words on a light bench: light greys go dark, light colours deeper; a colour stays its hue
+const inkMemo = new Map();
+function textInk(style) {
+  if (typeof style !== 'string') return style;
+  if (inkMemo.has(style)) return inkMemo.get(style);
+  const c = cssColour(style), hi = Math.max(c.r, c.g, c.b), lo = Math.min(c.r, c.g, c.b);
+  let out = style;
+  if (hi - lo < 48 && hi > 120) out = 'rgba(' + [255 - c.r, 255 - c.g, 255 - c.b].map(v => Math.round(v * 0.85)).join(',') + ',' + Math.min(1, c.a * 1.25) + ')';
+  else if (hi > 150) out = 'rgba(' + [c.r, c.g, c.b].map(v => Math.round(v * 0.58)).join(',') + ',' + Math.min(1, c.a * 1.2) + ')';
+  inkMemo.set(style, out);
+  return out;
 }
-// the same, for a drawing recorded for SVG or PDF: the bench, parts and words mapped colour by
-// colour; the light (drawn last, as on the canvas) kept as it was drawn
-function lightRecording(rec) {
-  const bg = hexRgb(benchBg());
-  for (const o of rec.ops) {
-    if (o.raw) continue;
-    if (o.fill) o.fill = lightColour(o.fill, bg);
-    if (o.stroke) o.stroke = lightColour(o.stroke, bg);
-  }
-  return rec;
+function inkedText(t, x, y, w) {
+  const keep = this.fillStyle;
+  this.fillStyle = textInk(keep);
+  const proto = Object.getPrototypeOf(this);
+  if (w === undefined) proto.fillText.call(this, t, x, y); else proto.fillText.call(this, t, x, y, w);
+  this.fillStyle = keep;
 }
 // the View menu's colours and holes, and the bench's own background, as the project has them
 function benchStyleShown() {
@@ -5297,13 +5285,13 @@ function benchStyleShown() {
       h('span', { class: 'rt-swatch', style: 'background:' + c }), name, c === bg ? h('span', { class: 'k' }, '✓') : null)),
     h('label', { class: 'rt-swatchrow', role: 'menuitemradio', 'aria-checked': known ? 'false' : 'true' },
       h('span', { class: 'rt-swatch', style: 'background:' + bg }), 'Your own…', custom, known ? null : h('span', { class: 'k' }, '✓')),
-    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. On a light colour, the bench and its parts are drawn light, with dark lines and words; beams and fibres always keep their own colours.'));
+    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. Parts, beams and fibres are drawn the same on any colour; on a light one, the words are drawn dark.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
   stage.style.background = bg;
 }
 function drawBench() {
   const light = benchLight();
-  ctx.fillStyle = light ? '#000000' : benchBg();
+  ctx.fillStyle = benchBg();
   ctx.fillRect(0, 0, W, H);
   if (!benchHoles()) return;
   // 25 mm hole grid, like an M6 breadboard; finer grid when zoomed in
@@ -5313,7 +5301,7 @@ function drawBench() {
   const px = pitch * V().scale;
   if (px > 6) {
     if (px > 90) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+      ctx.strokeStyle = light ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.035)';
       ctx.lineWidth = 1;
       const sub = px > 400 ? niceStep(40 / V().scale) : 5;
       ctx.beginPath();
@@ -5321,7 +5309,7 @@ function drawBench() {
       for (let y = Math.floor(wy(H) / sub) * sub; y <= y1; y += sub) { const Y = Math.round(sy(y)) + 0.5; ctx.moveTo(0, Y); ctx.lineTo(W, Y); }
       ctx.stroke();
     }
-    ctx.fillStyle = light || benchBg() === BENCH_DEFAULT ? getCss('--rt-hole') : 'rgba(255,255,255,0.11)';
+    ctx.fillStyle = benchBg() === BENCH_DEFAULT ? getCss('--rt-hole') : light ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.11)';
     const r = Math.min(5, Math.max(1, 3 * V().scale));
     for (let x = x0; x <= x1; x += pitch) {
       for (let y = y0; y <= y1; y += pitch) {
@@ -5549,10 +5537,10 @@ function drawBeams(fieldShown) {
     for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
     ctx.closePath();
     ctx.fillStyle = seg.colour;
-    ctx.globalAlpha = outline ? 0 : 0.16;
+    ctx.globalAlpha = outline ? 0 : glowA(0.16);
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
-    ctx.globalAlpha = outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55;
+    ctx.globalAlpha = glowA(outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55);
     ctx.setLineDash(outline ? [3, 4] : []);
     ctx.strokeStyle = seg.colour;
     ctx.lineWidth = 1;
@@ -5629,7 +5617,7 @@ function drawRaysOn(ctx, rays) {
   const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
   const lo = -CLIP_M, hiX = W + CLIP_M, hiY = H + CLIP_M;
   for (const g of groups.values()) {
-    ctx.globalAlpha = g.alpha;
+    ctx.globalAlpha = glowA(g.alpha);
     ctx.strokeStyle = g.colour;
     ctx.beginPath();
     for (const r of g.rays) {
@@ -5770,7 +5758,7 @@ function drawScaleBar() {
   const mm = niceStep(90 / V().scale);
   const px = mm * V().scale;
   const x = 14 + (stage.classList.contains('rail') && !exporting ? 52 : 0), y = H - 16;     // clear of the parts rail
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.strokeStyle = lightLayer ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';           // dark with its words on a light bench
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
@@ -5798,27 +5786,25 @@ function render() {
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // a light bench: the parts as ever, the words dark, the light stronger (see benchLight)
+  lightLayer = benchLight();
+  if (lightLayer) ctx.fillText = inkedText;
+  try { renderAll(stale); } finally { if (ctx.fillText === inkedText) delete ctx.fillText; lightLayer = false; }
+  updateReadouts();
+}
+function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
     mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
-  // the light: rays, the diffracted field and the beams' outlines
-  const drawLight = () => {
-    drawRays(stale);
-    if (!stale) {
-      closeupOn = drawCloseup();
-      const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
-      drawBeams(fieldShown);
-    }
-  };
-  // on a light bench, the light and the fibres are drawn last, over the bench made light, in
-  // their own colours: only the bench, the parts and the words are turned light
-  const light = benchLight();
-  if (!light) {
-    drawFibres();
-    for (const el of els) if (el.type !== 'source') draw(el);
-    drawLight();
-  } else for (const el of els) if (el.type !== 'source') draw(el);
+  drawFibres();
+  for (const el of els) if (el.type !== 'source') draw(el);
+  drawRays(stale);
+  if (!stale) {
+    closeupOn = drawCloseup();
+    const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
+    drawBeams(fieldShown);
+  }
   for (const el of els) if (el.type === 'source') draw(el);
   drawLabels();
   drawMeasures();
@@ -5832,12 +5818,6 @@ function render() {
   if (!exporting) { drawMinimap(); drawSelection(); }
   drawScaleBar();
   if (exporting && !thumbing) drawCredit();
-  if (light) {
-    if (ctx.canvas) lightPass();            // the canvas; a recording for SVG or PDF is mapped as it is written
-    lightLayer = true;
-    try { drawFibres(); drawLight(); } finally { lightLayer = false; }
-  }
-  updateReadouts();
 }
 /* on an exported picture: where it was made */
 let thumbing = false;                 // drawing My benches' picture of the bench: no credit line
@@ -17662,7 +17642,7 @@ function drawPop() {
     if (!D || b.bench !== project.tab) continue;
     const nx = -b.dy, ny = b.dx;
     ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
-    ctx.globalAlpha = 0.95 * D.alpha;
+    ctx.globalAlpha = glowA(0.95 * D.alpha);
     const ts = D.ts;
     for (let c = 0; c < ts.length; c++) {
       const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0];
@@ -19774,7 +19754,7 @@ class VecCtx {
   clip() { /* nothing on the bench clips */ }
   style() {
     const op = this.globalCompositeOperation;
-    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null, raw: lightLayer };
+    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null };
   }
   fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
   stroke() {
@@ -19802,7 +19782,7 @@ class VecCtx {
   drawImage(img, ...a) {
     if (!this.layer) {
       const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
-      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer ? 'multiply' : 'screen', alpha: 1, raw: lightLayer });
+      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer ? null : 'screen', alpha: 1 });
     }
     const g = this.layer.getContext('2d'), M = this.M;
     g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
@@ -19964,11 +19944,11 @@ async function exportLayout(kind) {
   try {
     if (kind === 'svg') {
       const name = base + '.svg';
-      downloadFile(name, new Blob([layoutSvg(benchLight() ? lightRecording(recordLayout()) : recordLayout())], { type: 'image/svg+xml' }));
+      downloadFile(name, new Blob([layoutSvg(recordLayout())], { type: 'image/svg+xml' }));
       toast('Saved ' + name);
     } else if (kind === 'pdf') {
       const name = base + '.pdf';
-      downloadFile(name, await layoutPdf(benchLight() ? lightRecording(recordLayout()) : recordLayout()));
+      downloadFile(name, await layoutPdf(recordLayout()));
       toast('Saved ' + name);
     } else {
       const name = base + '.png';
@@ -22344,7 +22324,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; on a light bench, parts and labels are drawn dark, and beams and fibres keep their own colours. And View \u203a Grid holes, to leave the holes off for a figure.',
+    '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; parts, beams and fibres look the same on any colour, and on a light one the words are drawn dark. And View \u203a Grid holes, to leave the holes off for a figure.',
     'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',
     '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it. Its tab also imports .zmx files (one or a whole folder\u2019s worth) straight into it, named by part number.',
     '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',

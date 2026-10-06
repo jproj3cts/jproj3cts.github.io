@@ -943,6 +943,7 @@
   .rt-pmore:hover { background: var(--jek-line); color: var(--jek-ink); }
   .rt-pkeeprow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin: 0.6rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-pkeeprow .rt-btn { color: #fff; background: #111; border-color: #111; font-size: 0.8rem; }
+  .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: #fff; border-color: var(--jek-line-2); }
   .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
   .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #ffd36b; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
@@ -1329,11 +1330,11 @@
   </details>
 
   <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
-  <input type="file" id="fileZmx" accept=".zmx,.ZMX" hidden>
+  <input type="file" id="fileZmx" accept=".zmx,.ZMX" multiple hidden>
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 
   <dialog class="rt-dialog" id="zmxDialog">
-    <h2>Import a lens file (.zmx)</h2>
+    <h2 id="zmxTitle">Import a lens file (.zmx)</h2>
     <ol>
       <li>Open the Thorlabs product page for the lens, mirror, beam splitter or prism and find its part number in the table.</li>
       <li>Click the document icon next to the part number and download the .zmx file. If it arrives as a .zip, extract it first.</li>
@@ -1343,7 +1344,7 @@
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
-    <p>The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
+    <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>
     <div class="rt-actions">
@@ -20753,30 +20754,65 @@ function zmxToElement(Z, fileName, mode) {
   return Object.assign(pos, { type: 'lens', angle: 0, diameter, surfaces, gaps, materials });
 }
 
-function importZmx(file) {
+/* a .zmx file read into a part: Z (the parsed file, with its warnings) and the element */
+function zmxElement(file, mode) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const Z = parseZmx(decodeZmx(r.result), file.name);
+        resolve({ Z, el: normElement(zmxToElement(Z, file.name, mode)) });
+      } catch (err) { reject(err); }
+    };
+    r.onerror = () => reject(new Error('Could not read ' + file.name));
+    r.readAsArrayBuffer(file);
+  });
+}
+// onto the bench (the first file), or, from My parts, each file into My parts
+let zmxToMine = false;
+async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
   const mode = dlg.open ? document.getElementById('zmxAs').value : 'auto';
-  const r = new FileReader();
-  r.onload = () => {
+  files = files instanceof File ? [files] : [...files];
+  if (zmxToMine) { await zmxIntoMine(files, mode); return; }
+  try {
+    const { Z, el } = await zmxElement(files[0], mode);
+    checkpoint();
+    el.bench = project.tab;
+    project.elements.push(el);
+    selectOne(el.id);
+    changed(true);
+    if (dlg.open) dlg.close();
+    const w = [...Z.warnings];
+    toast('Imported ' + el.name + ' (' + typeLabel(el).toLowerCase() + ')' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
+  } catch (err) {
+    if (dlg.open) { errBox.textContent = err.message; errBox.hidden = false; }
+    else toast(err.message, true);
+  }
+}
+// each file kept in My parts, named as the file names it (its part number), with its picture
+async function zmxIntoMine(files, mode) {
+  const errBox = document.getElementById('zmxError'), dlg = document.getElementById('zmxDialog');
+  const done = [], bad = [];
+  errBox.hidden = true;
+  for (const f of files) {
     try {
-      const Z = parseZmx(decodeZmx(r.result), file.name);
-      const props = zmxToElement(Z, file.name, mode);
-      checkpoint();
-      const el = normElement(props);
-      el.bench = project.tab;
-      project.elements.push(el);
-      selectOne(el.id);
-      changed(true);
-      if (dlg.open) dlg.close();
-      const w = [...Z.warnings];
-      toast('Imported ' + el.name + ' (' + typeLabel(el).toLowerCase() + ')' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
+      const { Z, el } = await zmxElement(f, mode);
+      el.x = 0; el.y = 0; el.bench = project.tab;
+      const p = await api('/v1/workspaces/' + personalWs().id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: el.name, summary: typeLabel(el), palette: 'free', content: JSON.stringify(clipOf([el])), icon: clipIcon([el]) || clipIcon([el], 40) }) });
+      if (MINE.list) MINE.list.push(p);
+      done.push(p.name + (Z.warnings.length ? ' (' + Z.warnings.join('; ') + ')' : ''));
     } catch (err) {
-      if (dlg.open) { errBox.textContent = err.message; errBox.hidden = false; }
-      else toast(err.message, true);
+      if (err.status === 402) { dlg.close(); showSubscribe(); return; }
+      bad.push(f.name + ': ' + err.message);
     }
-  };
-  r.readAsArrayBuffer(file);
+  }
+  mineChanged();
+  if (bad.length) { errBox.textContent = (done.length ? 'Kept ' + done.length + '. ' : '') + 'Not kept: ' + bad.join('; '); errBox.hidden = false; return; }
+  dlg.close();
+  toast(done.length === 1 ? 'Kept ' + done[0] + ' in My parts' : 'Kept ' + done.length + ' parts in My parts');
 }
 
 /* ==========================================================================
@@ -21154,7 +21190,9 @@ function mineBody(after) {
   const sel = selection();
   const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
-  const out = [h('div', { class: 'rt-pkeeprow' }, keep, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
+  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
+    onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
+  const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
     out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
     return out;
@@ -22103,7 +22141,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it.',
+    '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it. Its tab also imports .zmx files (one or a whole folder\u2019s worth) straight into it, named by part number.',
     '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
     '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
@@ -22480,17 +22518,26 @@ function updateEmpty() {
 }
 document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileJekray').click());
 document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
-document.getElementById('btnImport').addEventListener('click', () => {
+// the same dialog, onto the bench (File > Import a lens) or into My parts (its tab's button)
+function openZmx(toMine) {
+  zmxToMine = toMine;
+  document.getElementById('zmxTitle').textContent = toMine ? 'Import lens files (.zmx) into My parts' : 'Import a lens file (.zmx)';
+  document.getElementById('zmxWhere').textContent = toMine
+    ? 'Choose one file or several: each is kept in My parts, named by its part number, ready to add to any bench. Light travels left to right through it, as in the file.'
+    : 'The part is placed at the centre of the view with light travelling left to right, as in the file.';
+  document.getElementById('zmxChoose').textContent = toMine ? 'Choose .zmx files' : 'Choose .zmx file';
   document.getElementById('zmxError').hidden = true;
   document.getElementById('zmxDialog').showModal();
-});
+}
+document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
 {
   const sel = document.getElementById('zmxAs');
   for (const [v, t] of Object.entries(IMPORT_AS)) sel.append(h('option', { value: v }, t));
 }
 document.getElementById('zmxCancel').addEventListener('click', () => document.getElementById('zmxDialog').close());
 document.getElementById('zmxChoose').addEventListener('click', () => document.getElementById('fileZmx').click());
-document.getElementById('fileZmx').addEventListener('change', e => { const f = e.target.files[0]; if (f) importZmx(f); e.target.value = ''; });
+document.getElementById('fileZmx').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importZmx(fs); e.target.value = ''; });
+document.getElementById('zmxDialog').addEventListener('close', () => { zmxToMine = false; });
 {
   const dlg = document.getElementById('matDialog');
   const paste = document.getElementById('matPaste'), nameIn = document.getElementById('matName');

@@ -1109,6 +1109,8 @@
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
             </div>
             <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
+            <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
+            <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
             <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
@@ -3289,6 +3291,7 @@ function serialize() {
     fibres: project.fibres || [],
     measures: project.measures || [],
     notes: project.notes || '',
+    ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
 }
@@ -3324,6 +3327,7 @@ function loadProject(data) {
   p.fibres = normFibres(data.fibres, p.elements);
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
+  if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
   // the bench's colour and its holes (View › Bench colour)
   const st = data.style && typeof data.style === 'object' ? data.style : {};
   p.style = {};
@@ -5746,6 +5750,16 @@ function handlePos(el) {
   return [sx(el.x) + Math.cos(a) * r, sy(el.y) - Math.sin(a) * r];
 }
 
+/* parts' names, in mm on the bench: set once, from how they looked at the zoom the bench was first
+   drawn at (11 px), and kept with it; View > Larger or Smaller names changes it */
+function labelMm() {
+  if (!(project.labelMm > 0)) project.labelMm = +(11 / V().scale).toPrecision(3);
+  return project.labelMm;
+}
+function labelSize(f) {
+  project.labelMm = +(labelMm() * f).toPrecision(3);
+  scheduleSave(); requestRender();
+}
 function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
@@ -5757,26 +5771,28 @@ function drawLabels() {
     const a = el.angle * deg;
     // place the label below the element, whichever way it's rotated
     const ex = Math.abs(Math.sin(a)) * r, ey = Math.abs(Math.cos(a)) * r;
-    let X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6) + 14 + (el.type === 'lens' ? 4 : 0);
+    // its size on the bench, in mm, as everything drawn there: a figure looks the same at any zoom
+    const k = el.label ? el.label.s : 1, fs = labelMm() * V().scale * k, u = fs / 11;
+    let X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6 * u) + 14 * u + (el.type === 'lens' ? 4 * u : 0);
     // moved or scaled with the select tool: where it was put, at its size
-    const k = el.label ? el.label.s : 1;
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
-    ctx.font = (k === 1 ? 11 : +(11 * k).toFixed(2)) + 'px ' + sans;
-    if (!exporting) { const w = ctx.measureText(el.name).width; labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * k, w, h: 13 * k, ax: X, ay: Y }); }
+    ctx.font = +fs.toFixed(3) + 'px ' + sans;
+    if (!exporting) { const w = ctx.measureText(el.name).width; labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y }); }
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
+    if (fs < 2) continue;                                                  // too small to read at this zoom
     ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     if (ex >= 0) ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     if (el.type === 'fcomp' && el.kind === 'thru') {
       const P = thruPartner(el);
       ctx.fillStyle = P ? FIBRE_COLOUR : 'rgba(232,111,166,0.55)';
-      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13 * k);
+      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13 * u);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
     }
     if (el.type === 'link') {                 // where it leads
       const P = linkPartner(el);
       ctx.fillStyle = P ? '#7fdcff' : 'rgba(127,220,255,0.55)';
-      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13 * k);
+      ctx.fillText(P ? '\u21c4 ' + (P.bench === el.bench ? P.name : benchName(P.bench)) : '\u201c' + el.pair + '\u201d has no partner', X, Y + 13 * u);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
     }
   }
@@ -22335,6 +22351,8 @@ document.getElementById('btnHoles').addEventListener('click', () => {
   benchStyleShown(); scheduleSave(); requestRender();
 });
 benchStyleShown();
+document.getElementById('btnNamesUp').addEventListener('click', () => labelSize(1.25));
+document.getElementById('btnNamesDown').addEventListener('click', () => labelSize(0.8));
 document.getElementById('btnRailToggle').addEventListener('click', () => {
   railOn = !railOn;
   try { localStorage.setItem(RAIL_KEY, railOn ? '1' : '0'); } catch (err) { /* not kept: fine */ }
@@ -23508,7 +23526,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored. In Draw, parts stay put: clicks and boxes pick drawings only, and a part\u2019s name can still be picked, moved and scaled.',
+    'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored. Parts\u2019 names are now sized on the bench, so a figure looks the same at any zoom (View \u203a Larger names, Smaller names). In Draw, parts stay put: clicks and boxes pick drawings only, and a part\u2019s name can still be picked, moved and scaled.',
     'More for figures: a <b>Text</b> tool (T) that writes on the bench and retypes a part\u2019s name where you click it; the select tool <b>moves and scales part names</b> (drag a name, then its corner) and scales drawings by their eight handles; <b>Flip</b> horizontal and vertical (H, V); and <b>Group</b> and <b>Ungroup</b> on the right-click menu (Ctrl+G, Ctrl+Shift+G): a group is picked and moved as one, Ctrl+click picks one of it. A drawing\u2019s panel is laid out as Inkscape\u2019s, with icons: paint, colour with swatches, opacity, then width, dashes, join and cap.',
     '<b>Draw</b>, a palette of its own on the parts rail down the bench\u2019s left: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
     '<b>Export layout (current view)</b> (File menu): a PNG, SVG or PDF of just what is on screen, as you have it framed. Export layout now gives the whole tab, framed to fit, whatever part of it you are looking at.',

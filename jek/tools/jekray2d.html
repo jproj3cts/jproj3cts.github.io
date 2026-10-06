@@ -5808,7 +5808,7 @@ function drawSelection() {
   }
   const el = selected();
   if (!el || !onTab(el)) return;
-  if (el.type === 'draw') return;            // its dashed box, and its handles with the select tool
+  if (el.type === 'draw' || partsLocked()) return;            // a drawing's dashed box and handles; in Draw a part shows by its name's box
   if (extraSel.size || el.locked) {
     ctx.strokeStyle = selInk(0.7); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), elementExtentPx(el), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
@@ -6697,7 +6697,7 @@ function hitDrawing(el, lx, ly, tol) {
 
 /* ---------- the tools ---------- */
 const DRAW_TOOLS = [
-  ['select', 'Select', 'S', 'Select and move: click a drawing or a part, drag it to move it, drag on the bench for a box.',
+  ['select', 'Select', 'S', 'Select and move drawings: click one, drag it to move it, drag on the bench for a box. Parts stay put in Draw; drag a part\u2019s name to move it.',
     '<path d="M6 3v16l4.2-4.1 2.9 6.4 2.6-1.2-2.9-6.2H18Z" fill="currentColor"/>'],
   ['node', 'Node tool', 'N', 'Node tool: drag a node or a handle. Double-click a path to add a node, a node to make it smooth or a corner; Delete removes the node picked.',
     '<path d="M4 18C7 6 15 6 19 16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5l7 2" stroke="currentColor" stroke-width="1"/><rect x="2" y="16" width="4" height="4" fill="currentColor"/><rect x="17" y="14" width="4" height="4" fill="currentColor"/><circle cx="8" cy="5" r="1.8" fill="currentColor"/><circle cx="15" cy="7" r="1.8" fill="currentColor"/>'],
@@ -6710,6 +6710,7 @@ const DRAW_TOOLS = [
   ['pen', 'Pen', 'B', 'Pen: click for a corner, drag for a curve. Click the first node to close the path; Enter, a double-click or a right-click ends it, Backspace takes the last node off, Escape drops it.',
     '<path d="M4 20l1.2-5.2L16 4l4 4L9.2 18.8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 20l5-5" stroke="currentColor" stroke-width="1.2"/><circle cx="9.7" cy="14.3" r="1.3" fill="currentColor"/>'],
 ];
+const partsLocked = () => palette === 'draw';
 const DRAW_DRAGS = new Set(['drawshape', 'pen', 'dnode', 'dscale', 'label']);
 let penEnded = 0, textEdit = null, labelSelId = null, drawTool = 'select', penDraft = null, penCursor = null, drawNodeSel = null;    // drawNodeSel: { id, i } a path's picked node
 const drawIcon = k => { const s = document.createElement('span'); s.className = 'rt-dicon'; s.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' + DRAW_TOOLS.find(t => t[0] === k)[4] + '</svg>'; return s; };
@@ -6796,7 +6797,9 @@ function drawDown(px, py, e) {
     if (g) { drag = { mode: 'dscale', el, g, orig: JSON.parse(JSON.stringify(el)), started: false, px0: px, py0: py }; return true; }
     const lab = labelAt(px, py);
     if (lab && (lab.k === 'scale' || !hitTest(px, py))) {
-      if (selectedId !== lab.el.id || extraSel.size) { selectOne(lab.el.id); selFibreId = null; renderPanel(); }
+      // in Draw just the name is picked, not its part; elsewhere the part with it
+      if (partsLocked()) { if (selectedId || extraSel.size || selFibreId) { selectOne(null); selFibreId = null; renderPanel(); } }
+      else if (selectedId !== lab.el.id || extraSel.size) { selectOne(lab.el.id); selFibreId = null; renderPanel(); }
       labelSelId = lab.el.id;
       const B = labelBoxes.get(lab.el.id), L = lab.el.label || { dx: wx(B.ax) - lab.el.x, dy: wy(B.ay) - lab.el.y, s: 1 };
       drag = { mode: 'label', el: lab.el, k: lab.k, start: Object.assign({}, L), ax: B.ax, ay: B.ay, px0: px, py0: py, started: false };
@@ -6808,7 +6811,7 @@ function drawDown(px, py, e) {
   }
   if (drawTool === 'text') {
     const lab = labelAt(px, py);
-    if (lab) { selectOne(lab.el.id); renderPanel(); editText(lab.el, 'name'); return true; }
+    if (lab) { if (!partsLocked()) { selectOne(lab.el.id); renderPanel(); } editText(lab.el, 'name'); return true; }
     const hit = hitTest(px, py);
     if (hit && hit.type === 'draw' && hit.shape === 'text') { selectOne(hit.id); renderPanel(); editText(hit, 'text'); return true; }
     if (textEdit) { closeTextEdit(); return true; }            // a click away finishes the one being typed
@@ -6982,7 +6985,7 @@ function drawToolOverlay() {
     const [x0, y0, x1, y1] = drawBox(se), [X, Y] = toWorld(frame(se), (x0 + x1) / 2, (y0 + y1) / 2);
     ctx.strokeStyle = '#ffd36b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx(X) - 6, sy(Y)); ctx.lineTo(sx(X) + 6, sy(Y)); ctx.moveTo(sx(X), sy(Y) - 6); ctx.lineTo(sx(X), sy(Y) + 6); ctx.stroke();
   }
-  const LB = labelSelId && labelSelId === selectedId && !extraSel.size && drawTool === 'select' && labelBoxes.get(labelSelId);
+  const LB = labelSelId && (labelSelId === selectedId || (partsLocked() && !selectedId)) && !extraSel.size && drawTool === 'select' && labelBoxes.get(labelSelId);
   if (LB) {
     ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.strokeRect(LB.x - 2.5, LB.y - 2.5, LB.w + 5, LB.h + 5); ctx.setLineDash([]);
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#11181c'; ctx.beginPath(); ctx.rect(LB.x + LB.w - 4, LB.y + LB.h - 4, 8, 8); ctx.fill(); ctx.stroke();
@@ -7543,7 +7546,8 @@ function hitTest(px, py) {
   // a drawing over the light is met first, one under it last
   const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : order[e.type];
   const at = new Map(project.elements.map((e, i) => [e, i]));
-  const els = project.elements.filter(onTab).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
+  // in the Draw palette only drawings are picked on the bench (a part by its name, for moving that)
+  const els = project.elements.filter(e => onTab(e) && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
@@ -7650,7 +7654,7 @@ canvas.addEventListener('pointerdown', e => {
   if (measureMode) { measureDown(px, py, e); return; }
   if (!EMBED && e.button === 0 && drawDown(px, py, e)) return;
   const sel = selected();
-  if (sel && !extraSel.size && onTab(sel) && sel.type !== 'draw') {
+  if (sel && !extraSel.size && onTab(sel) && sel.type !== 'draw' && !partsLocked()) {
     const [hx, hy] = handlePos(sel);
     if (Math.hypot(px - hx, py - hy) < 11 && !sel.locked) {
       drag = { mode: 'rotate', el: sel, started: false };
@@ -7658,13 +7662,13 @@ canvas.addEventListener('pointerdown', e => {
     }
   }
   // the selected fibre's nodes and handles
-  const SF = selFibre();
+  const SF = partsLocked() ? null : selFibre();
   if (SF) {
     const g = fibreGrip(SF, px, py);
     if (g) { drag = { mode: 'grip', F: SF, g, started: false, px0: px, py0: py }; return; }
   }
   // a port: draw a fibre from it, or take up the end of the one already there
-  const port = portAt(px, py);
+  const port = partsLocked() ? null : portAt(px, py);
   if (port) {
     // ELEC hook: an electrical output feeds any number of wires, so a drag from it always draws a new one
     const F = ELEC.dirOf(port) === 'out' || ELEC.dirOf(port) === 'io' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
@@ -7672,7 +7676,7 @@ canvas.addEventListener('pointerdown', e => {
     return;
   }
   const hit = hitTest(px, py);
-  const fh = hit ? null : fibreAtPx(px, py);
+  const fh = hit || partsLocked() ? null : fibreAtPx(px, py);
   if (fh) {
     // the selected fibre's curve: pulled, it gives up a node there to drag
     if (fh === SF) { drag = { mode: 'bend', F: SF, px0: px, py0: py, started: false }; return; }
@@ -7682,7 +7686,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (hit) {
     selFibreId = null;
-    const mates = groupOf(hit);                        // a group is picked whole
+    const mates = groupOf(hit).filter(m => !partsLocked() || m.type === 'draw');     // a group is picked whole (in Draw, its drawings)
     // Shift or Ctrl: in or out of the selection; Ctrl on a group that is the selection: just that one of it
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       const cur = selection();
@@ -7725,9 +7729,9 @@ canvas.addEventListener('pointermove', e => {
   if (!drag) {
     const sel = selected();
     let cls = '';
-    if (sel && !extraSel.size && !sel.locked && sel.type !== 'draw') { const [hx, hy] = handlePos(sel); if (Math.hypot(px - hx, py - hy) < 11) cls = 'rotate'; }
+    if (sel && !extraSel.size && !sel.locked && sel.type !== 'draw' && !partsLocked()) { const [hx, hy] = handlePos(sel); if (Math.hypot(px - hx, py - hy) < 11) cls = 'rotate'; }
     const sd = scaleDrawing();
-    if (!cls && (hitTest(px, py) || labelAt(px, py) || (sd && scaleGrips(sd).some(q => Math.hypot(px - q.at[0], py - q.at[1]) <= 7)) || portAt(px, py) || (selFibre() && (fibreGrip(selFibre(), px, py) || fibreAtPx(px, py) === selFibre())))) cls = 'over';
+    if (!cls && (hitTest(px, py) || labelAt(px, py) || (sd && scaleGrips(sd).some(q => Math.hypot(px - q.at[0], py - q.at[1]) <= 7)) || (!partsLocked() && (portAt(px, py) || (selFibre() && (fibreGrip(selFibre(), px, py) || fibreAtPx(px, py) === selFibre())))))) cls = 'over';
     canvas.classList.toggle('rotate', cls === 'rotate');
     canvas.classList.toggle('over', cls === 'over');
     return;
@@ -7854,7 +7858,7 @@ function endPointer(e) {
     drag = null; canvas.classList.remove('dragging');
     if (!d.cur) { if (selectedId || selFibreId || extraSel.size) { selectOne(null); selFibreId = null; renderPanel(); } requestRender(); return; }
     const X0 = wx(Math.min(d.px0, d.cur[0])), X1 = wx(Math.max(d.px0, d.cur[0])), Y0 = wy(Math.max(d.py0, d.cur[1])), Y1 = wy(Math.min(d.py0, d.cur[1]));
-    const inside = [...new Set(project.elements.filter(el => onTab(el) && el.x >= X0 && el.x <= X1 && el.y >= Y0 && el.y <= Y1).flatMap(groupOf))];
+    const inside = [...new Set(project.elements.filter(el => onTab(el) && (!partsLocked() || el.type === 'draw') && el.x >= X0 && el.x <= X1 && el.y >= Y0 && el.y <= Y1).flatMap(groupOf))].filter(el => !partsLocked() || el.type === 'draw');
     const cur = d.add ? selection() : [];
     setSelection([...cur, ...inside.filter(el => !cur.includes(el))]);
     return;
@@ -7908,7 +7912,7 @@ document.addEventListener('keydown', e => {
   if (typing) return;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-  if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(onTab)); return; }
+  if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw'))); return; }
   if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); if (palette !== 'draw') setPalette('draw'); alignShown(!alignBox || alignBox.hidden); return; }
   if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); if (e.shiftKey) ungroupEls(selection()); else groupEls(selection()); return; }
   if (!mod && !e.altKey && !EMBED && drawKey(e)) return;
@@ -20513,7 +20517,7 @@ canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
   if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
   const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
-  const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit ? null : fibreAtPx(px, py);
+  const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);
   const paste = { label: 'Paste here', key: 'Ctrl+V', off: !clipMem, fn: () => pasteClip(clipMem, at) };
   if (fh) {
     selFibreId = fh.id; selectOne(null); renderPanel(); requestRender();
@@ -22337,6 +22341,10 @@ document.getElementById('btnRailToggle').addEventListener('click', () => {
   fillRail(); requestRender();
 });
 function setPalette(pal) {
+  if (pal === 'draw' && palette !== 'draw' && typeof selection === 'function') {
+    const keep = selection().filter(e => e.type === 'draw');
+    if (keep.length !== selection().length || selFibreId) { selFibreId = null; palette = pal; setSelection(keep); }
+  }
   palette = pal;
   if (pal !== 'draw' && drawTool !== 'select') setDrawTool('select');
   try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
@@ -23500,7 +23508,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored.',
+    'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored. In Draw, parts stay put: clicks and boxes pick drawings only, and a part\u2019s name can still be picked, moved and scaled.',
     'More for figures: a <b>Text</b> tool (T) that writes on the bench and retypes a part\u2019s name where you click it; the select tool <b>moves and scales part names</b> (drag a name, then its corner) and scales drawings by their eight handles; <b>Flip</b> horizontal and vertical (H, V); and <b>Group</b> and <b>Ungroup</b> on the right-click menu (Ctrl+G, Ctrl+Shift+G): a group is picked and moved as one, Ctrl+click picks one of it. A drawing\u2019s panel is laid out as Inkscape\u2019s, with icons: paint, colour with swatches, opacity, then width, dashes, join and cap.',
     '<b>Draw</b>, a palette of its own on the parts rail down the bench\u2019s left: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
     '<b>Export layout (current view)</b> (File menu): a PNG, SVG or PDF of just what is on screen, as you have it framed. Export layout now gives the whole tab, framed to fit, whatever part of it you are looking at.',

@@ -516,14 +516,14 @@ An optical chopper: a slotted wheel across the beam, open for the first part of 
 
 ### "draw": Drawing
 
-A drawing for figures: a rectangle, an ellipse or a path of Bézier curves, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.
+A drawing for figures: a rectangle, an ellipse, a path of Bézier curves or a text, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.
 
 **angle:** turns the drawing about its x, y.
 
 | field | default | meaning |
 |---|---|---|
-| shape | `"rect"` | "rect", "ellipse" or "path". |
-| fill | `"none"` | "#rrggbb", or "none". |
+| shape | `"rect"` | "rect", "ellipse", "path" or "text". |
+| fill | `"none"` | "#rrggbb", or "none" (a text’s colour). |
 | fillOpacity | `1` | 0 to 1. |
 | stroke | `"#e8edf0"` | "#rrggbb", or "none". |
 | strokeOpacity | `1` | 0 to 1. |
@@ -540,6 +540,12 @@ A drawing for figures: a rectangle, an ellipse or a path of Bézier curves, fill
 | ry | (none) | mm, an ellipse’s radius along y. |
 | nodes | (none) | a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged. |
 | closed | (none) | true joins a path’s last node to its first. |
+| text | (none) | a text’s words; \n starts a new line. x, y is where its first line starts, is centred or ends (align), on its baseline. |
+| size | (none) | mm, a text’s font size. |
+| font | (none) | "sans", "serif" or "mono". |
+| bold | (none) | true for bold text. |
+| italic | (none) | true for italic text. |
+| align | (none) | "left", "center" or "right". |
 
 ## Fibre components ("type": "fcomp")
 

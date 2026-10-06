@@ -27,6 +27,8 @@ const routes = (A) => [
   ['PATCH', `/v1/benches/${A.bench}`, { name: 'renamed' }],
   ['DELETE', `/v1/benches/${A.bench}`],
   ['POST', `/v1/benches/${A.bench}/undelete`],
+  ['POST', `/v1/benches/${A.bench}/fork`, {}],
+  ['POST', `/v1/benches/${A.bench}/fork`, { version: 1 }],
   ['GET', `/v1/benches/${A.bench}/versions`],
   ['GET', `/v1/benches/${A.bench}/versions/1`],
   ['POST', `/v1/benches/${A.bench}/versions/1/restore`],

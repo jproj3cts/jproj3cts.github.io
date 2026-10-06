@@ -79,6 +79,7 @@ const router = new Router()
     await B.remove(env, await requireUser(req, env, ctx), b);
     return json({ ok: true });
   })
+  .on('POST', '/v1/benches/:b/fork', async (req, env, ctx, { b }) => json(await B.fork(req, env, await requireUser(req, env, ctx), b), 201))
   .on('POST', '/v1/benches/:b/undelete', async (req, env, ctx, { b }) => json(await B.undelete(env, await requireUser(req, env, ctx), b)))
   .on('PUT', '/v1/benches/:b/thumb', async (req, env, ctx, { b }) => json(await B.putThumb(req, env, await requireUser(req, env, ctx), b)))
   .on('GET', '/v1/benches/:b/thumb', async (req, env, ctx, { b }) => B.getThumb(env, await requireUser(req, env, ctx), b))

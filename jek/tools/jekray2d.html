@@ -573,23 +573,113 @@
   .rt-snaps .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-snaps .what small { color: var(--jek-ink-soft); }
   .rt-snaps p { margin: 0.8rem !important; }
-  /* My benches: the bar, where we are, the rows' actions */
-  .rt-cloudbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
-  .rt-cloudbar input[type=search] { flex: 1 1 12rem; min-width: 0; padding: 0.4rem 0.55rem; font: inherit; font-size: 0.85rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-paper, #fff); color: inherit; }
-  .rt-cloudbar select, .rt-cloudlist select { padding: 0.35rem; font: inherit; font-size: 0.85rem; max-width: 100%; }
-  .rt-cloudbar .rt-btn[aria-pressed="true"] { background: var(--jek-well); }
-  .rt-cloudcrumbs { margin: 0 0 0.5rem !important; font-size: 0.85rem; color: var(--jek-ink-soft); }
-  .rt-cloudnote { margin: 0 0 0.6rem !important; padding: 0.45rem 0.7rem; font-size: 0.85rem; background: var(--jek-well); border-left: 3px solid var(--jek-cyan); }
-  .rt-cloudlist > div { flex-wrap: wrap; }
-  .rt-cloudlist .when { min-width: 6.5rem; }
-  .rt-cloudlist .what { flex: 1 1 12rem; }
-  .rt-cloudlist .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.75rem; font-size: 0.8rem; }
-  .rt-cloudlist .folder .when { color: var(--jek-ink-soft); font-style: italic; }
-  .rt-cloudlist .here { background: var(--jek-well); }
-  .rt-cloudlist .thumb { flex: none; width: 7.2rem; height: 4.5rem; border-radius: 2px; background: var(--rt-bench); object-fit: cover; display: block; }
-  .rt-cloudlist span.thumb { opacity: 0.35; }
-  .rt-cloudfoot { justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-  .rt-cloudfoot #cloudFoot { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--jek-ink-soft); }
+  /* My benches: a page over the tool, with places down the left and the benches as cards */
+  .rt-home { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; }
+  .rt-home .ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .rt-home[hidden], .rt-home [hidden] { display: none !important; }
+  .rt-homebtn { display: inline-grid; place-items: center; flex: none; }
+  .rt-homebtn .ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+  .rt-hhead { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
+  .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
+  .rt-hmark b { background: #111; color: #fff; padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
+  .rt-hback { flex: none; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-hhead input[type=search] { flex: 1 1 14rem; max-width: 26rem; min-width: 0; margin-left: auto; padding: 0.42rem 0.6rem; font: inherit; font-size: 0.875rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-paper, #fff); color: inherit; }
+  .rt-hhead #homeNew { flex: none; }
+  .rt-hbody { flex: 1; display: flex; min-height: 0; }
+  .rt-hrail { flex: none; width: 15rem; overflow-y: auto; padding: 0.75rem 0.5rem; background: var(--jek-panel); border-right: 1px solid var(--jek-line); display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.875rem; }
+  .rt-hrail h2 { margin: 0.9rem 0.6rem 0.3rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--jek-ink-soft); }
+  .rt-hrail h2:first-child { margin-top: 0.2rem; }
+  .rt-hrail button { display: flex; align-items: center; gap: 0.45rem; width: 100%; padding: 0.38rem 0.6rem; font: inherit; text-align: left; color: inherit; background: none; border: 0; border-radius: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-hrail button:hover { background: var(--jek-well); }
+  .rt-hrail button[aria-current="true"] { background: var(--jek-well); font-weight: 600; box-shadow: inset 3px 0 0 var(--jek-cyan); }
+  .rt-hrail .rt-hfoot { margin-top: auto; padding: 0.9rem 0.6rem 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); display: flex; flex-direction: column; gap: 0.35rem; }
+  .rt-hmeter { height: 4px; background: var(--jek-well); border-radius: 2px; overflow: hidden; }
+  .rt-hmeter span { display: block; height: 100%; background: var(--jek-cyan); }
+  .rt-hmain { flex: 1; min-width: 0; overflow-y: auto; padding: 0.9rem 1.2rem 2rem; }
+  .rt-hbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin-bottom: 0.8rem; }
+  .rt-hcrumbs { margin: 0 !important; flex: 1 1 14rem; min-width: 0; font-size: 1rem; font-weight: 600; }
+  .rt-hcrumbs .rt-link { font-weight: 600; }
+  .rt-htools { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; font-size: 0.85rem; }
+  .rt-htools select { padding: 0.32rem; font: inherit; font-size: 0.85rem; }
+  .rt-cloudnote { margin: 0 0 0.8rem !important; padding: 0.45rem 0.7rem; font-size: 0.85rem; background: var(--jek-well); border-left: 3px solid var(--jek-cyan); }
+  .rt-hlist p.rt-hempty { margin: 2rem 0; color: var(--jek-ink-soft); font-size: 0.9rem; }
+  .rt-hlist h3 { margin: 1.2rem 0 0.5rem; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jek-ink-soft); }
+  .rt-hlist h3:first-child { margin-top: 0; }
+  /* cards */
+  .rt-hgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr)); gap: 1rem; }
+  .rt-hcard { position: relative; display: flex; flex-direction: column; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; overflow: hidden; transition: box-shadow 0.15s, border-color 0.15s; }
+  .rt-hcard:hover, .rt-hcard:focus-within { border-color: var(--jek-line-2, var(--jek-ink-soft)); box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+  .rt-hcard.here { border-color: var(--jek-cyan); box-shadow: 0 0 0 1px var(--jek-cyan); }
+  .rt-hcard.flash { animation: rt-flash 1.4s ease-out; }
+  .rt-hcard > .rt-hopen { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+  .rt-hcard .thumb { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: cover; background: var(--rt-bench); }
+  .rt-hcard span.thumb { opacity: 0.35; }
+  .rt-hcard .rt-hinfo { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.55rem 2.4rem 0.6rem 0.7rem; min-width: 0; }
+  .rt-hcard .rt-hinfo b { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-hcard .rt-hinfo small { font-size: 0.76rem; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
+  .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
+  .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+  .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }
+  .rt-hcard.folder { flex-direction: row; align-items: center; }
+  .rt-hcard.folder > .rt-hopen { flex: 1; display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 2.4rem 0.75rem 0.8rem; min-width: 0; font-weight: 600; font-size: 0.9rem; }
+  .rt-hcard.folder > .rt-hopen span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-hcard.folder .ic { width: 20px; height: 20px; color: var(--jek-ink-soft); }
+  .rt-hcard.folder .rt-hmore { top: 50%; bottom: auto; transform: translateY(-50%); }
+  .rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem; margin-bottom: 0.4rem; }
+  /* the list view: the same cards, as rows */
+  .rt-hlist.rows .rt-hgrid { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--jek-line); border-radius: 3px; }
+  .rt-hlist.rows .rt-hcard { flex-direction: row; align-items: center; border: 0; border-radius: 0; }
+  .rt-hlist.rows .rt-hcard + .rt-hcard { border-top: 1px solid var(--jek-line); }
+  .rt-hlist.rows .rt-hcard:hover { box-shadow: none; background: var(--jek-well); }
+  .rt-hlist.rows .rt-hcard > .rt-hopen { flex: none; }
+  .rt-hlist.rows .rt-hcard .thumb { width: 5.6rem; margin: 0.35rem 0 0.35rem 0.5rem; border-radius: 2px; }
+  .rt-hlist.rows .rt-hcard .rt-hinfo { flex: 1; flex-direction: row; align-items: baseline; gap: 1rem; }
+  .rt-hlist.rows .rt-hcard .rt-hinfo b { flex: 1 1 12rem; }
+  .rt-hlist.rows .rt-hcard .rt-hmore { top: 50%; bottom: auto; transform: translateY(-50%); }
+  .rt-hlist.rows .rt-hcard.folder > .rt-hopen { flex: 1; }
+  /* a card's menu */
+  .rt-hmenu { position: fixed; z-index: 75; min-width: 12rem; padding: 4px; display: flex; flex-direction: column; background: var(--jek-panel); border: 1px solid var(--jek-line-2, var(--jek-line)); border-radius: 2px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); }
+  .rt-hmenu button { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.65rem; font: inherit; font-size: 0.875rem; text-align: left; color: inherit; background: none; border: 0; border-radius: 2px; cursor: pointer; }
+  .rt-hmenu button:hover, .rt-hmenu button:focus-visible { background: var(--jek-well); outline: none; }
+  .rt-hmenu button.danger { color: var(--jek-red); }
+  .rt-hmenu .sep { height: 1px; margin: 4px 2px; background: var(--jek-line); }
+  .rt-hmenu select { margin: 0.2rem 0.4rem 0.4rem; padding: 0.3rem; font: inherit; font-size: 0.85rem; }
+  /* a bench's history */
+  .rt-hhist { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1.4rem; align-items: start; }
+  .rt-hhist .rt-hside { display: flex; flex-direction: column; gap: 0.6rem; }
+  .rt-hhist .rt-hside img, .rt-hhist .rt-hside span.thumb { width: 100%; aspect-ratio: 8 / 5; object-fit: cover; background: var(--rt-bench); border-radius: 3px; display: block; }
+  .rt-hhist .rt-hside .rt-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; }
+  .rt-hhist .rt-hside p { margin: 0; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .rt-hhist .rt-hside ul { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; }
+  .rt-hhist .rt-hside h4 { margin: 0.4rem 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jek-ink-soft); }
+  .rt-hvers { border: 1px solid var(--jek-line); border-radius: 3px; }
+  .rt-hvers > div { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.9rem; padding: 0.55rem 0.8rem; font-size: 0.875rem; }
+  .rt-hvers > div + div { border-top: 1px solid var(--jek-line); }
+  .rt-hvers .when { min-width: 8rem; color: var(--jek-ink-soft); font-variant-numeric: tabular-nums; }
+  .rt-hvers .what { flex: 1 1 12rem; min-width: 0; }
+  .rt-hvers .what small { color: var(--jek-ink-soft); }
+  .rt-hvers .acts { display: flex; flex-wrap: wrap; gap: 0.15rem 0.9rem; font-size: 0.82rem; }
+  .rt-home .rt-toast { position: fixed; top: 4rem; z-index: 80; }
+  @media (max-width: 760px) {
+    .rt-hhead { flex-wrap: wrap; padding: 0.5rem 16px; gap: 0.5rem; }
+    .rt-hhead h1 { order: -1; flex: 1 1 100%; font-size: 0.95rem; }
+    .rt-hhead input[type=search] { order: 3; flex: 1 1 100%; max-width: none; margin: 0; }
+    .rt-hback { max-width: 60%; }
+    .rt-hhead #homeNew { margin-left: auto; }
+    .rt-hbody { flex-direction: column; }
+    .rt-hrail { width: auto; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 0.4rem 16px; border-right: 0; border-bottom: 1px solid var(--jek-line); }
+    .rt-hrail h2, .rt-hrail .rt-hfoot { display: none; }
+    .rt-hrail button { width: auto; flex: none; }
+    .rt-hrail button[aria-current="true"] { box-shadow: inset 0 -3px 0 var(--jek-cyan); }
+    .rt-hmain { padding: 0.8rem 16px 2rem; }
+    .rt-hgrid { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.6rem; }
+    .rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+    .rt-hhist { grid-template-columns: 1fr; }
+    .rt-hlist.rows .rt-hcard .rt-hinfo { flex-direction: column; gap: 0.1rem; }
+    .rt-hlist.rows .rt-hcard .rt-hinfo b { flex: none; }
+  }
   .rt-ccacts { flex-wrap: wrap; }
   /* Subscribe */
   .rt-subtabs { display: inline-flex; gap: 0; margin-bottom: 0.8rem; }
@@ -883,6 +973,7 @@
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray2D controls">
       <div class="rt-row rt-bar">
         <div class="rt-more rt-file">
+          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
           <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
@@ -894,6 +985,7 @@
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
@@ -1145,14 +1237,27 @@
     <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
   </dialog>
 
-  <dialog class="rt-dialog rt-wide" id="cloudDialog" aria-labelledby="cloudTitle">
-    <h2 id="cloudTitle">My benches</h2>
-    <div class="rt-cloudbar" id="cloudBar"></div>
-    <p class="rt-cloudcrumbs" id="cloudCrumbs"></p>
-    <p class="rt-cloudnote" id="cloudNote" hidden></p>
-    <div class="rt-snaps rt-cloudlist" id="cloudList"></div>
-    <div class="rt-actions rt-cloudfoot"><span id="cloudFoot"></span><button class="rt-btn primary" id="cloudClose">Close</button></div>
-  </dialog>
+  <!-- My benches: a page of its own over the tool, as a CAD system's documents page -->
+  <section class="rt-home" id="home" hidden aria-labelledby="homeTitle">
+    <header class="rt-hhead">
+      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)">&larr; <span id="homeBackName">Back to the bench</span></button>
+      <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
+      <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
+      <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
+    </header>
+    <div class="rt-hbody">
+      <nav class="rt-hrail" id="homeRail" aria-label="Places"></nav>
+      <div class="rt-hmain" id="homeMain">
+        <div class="rt-hbar">
+          <p class="rt-hcrumbs" id="homeCrumbs"></p>
+          <span class="rt-htools" id="homeTools"></span>
+        </div>
+        <p class="rt-cloudnote" id="homeNote" hidden></p>
+        <div id="homeList" class="rt-hlist"></div>
+      </div>
+    </div>
+    <div class="rt-toast" id="homeToast" role="status"></div>
+  </section>
 
   <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
     <h2 id="uniTitle">University licence</h2>
@@ -1170,7 +1275,7 @@
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, and organise them in folders. The simulator itself stays free.</p>
+    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders on a page of their own. The simulator itself stays free.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
@@ -19446,7 +19551,7 @@ function setStatus(t) {
 }
 let toastTimer = null;
 function toast(msg, bad) {
-  const t = document.getElementById('toast');
+  const t = document.getElementById(document.getElementById('home').hidden ? 'toast' : 'homeToast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');
@@ -20952,6 +21057,7 @@ const MENU_ICONS = {
   signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11',
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7',
   trash: 'M2.5 4H13.5 M6 4V2.5H10V4 M3.5 4L4.5 14H11.5L12.5 4 M6.5 6.5V11.5 M9.5 6.5V11.5',
+  fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
 // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
@@ -21278,6 +21384,7 @@ function cloudKeep() {
 function cloudLink(link) {
   cloud = link; clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
+  document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
 }
 function cloudSay(text) {
   cloudNote = text;
@@ -21425,8 +21532,16 @@ function cloudConflict(theirs) {
   document.getElementById('ccMine').onclick = () => { done(); cloudPush({ over: theirs, checkpoint: true }); };
   if (!dlg.open) dlg.showModal();
 }
-/* ---------- My benches ---------- */
-const cloudPlace = { ws: null, folder: null, q: '', bin: false, history: null };
+/* ---------- My benches ----------
+   A page of its own over the tool, as a CAD system's documents page: places down the left
+   (each workspace, Recent, its folders, the bin), the benches as cards with their pictures,
+   or as rows. A card's ⋯ menu opens, forks, renames, moves and deletes; a bench's history
+   opens a copy of any version, forks from it, or restores it. Opened from the File menu, the
+   bar's My benches button, or #benches; Esc or Back returns to the bench. */
+const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null };
+const HOME_KEY = 'jek-home-view';
+const homeView = { sort: 'changed', rows: false };
+try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
 const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
 const whenAgo = t => {
   const d = new Date(t), s = (Date.now() - t) / 1000;
@@ -21435,112 +21550,309 @@ const whenAgo = t => {
   const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return new Date().toDateString() === d.toDateString() ? 'today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + hm;
 };
-async function fillCloud() {
-  const dlg = document.getElementById('cloudDialog'), box = document.getElementById('cloudList'), bar = document.getElementById('cloudBar');
-  const crumbs = document.getElementById('cloudCrumbs'), foot = document.getElementById('cloudFoot'), note = document.getElementById('cloudNote');
-  if (!account) { dlg.close(); return; }
-  if (!cloudPlace.ws || !account.workspaces.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = personalWs().id;
-  const ws = cloudPlace.ws, wsInfo = account.workspaces.find(w => w.id === ws);
-  const link = (label, fn, cls) => h('button', { type: 'button', class: 'rt-link' + (cls ? ' ' + cls : ''), onclick: fn }, label);
-  const busy = async (fn, ok) => { try { await fn(); if (ok) toast(ok); } catch (err) { toast(err.message, true); } if (dlg.open) fillCloud(); };
-  const json = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  box.replaceChildren(h('p', null, 'Loading…'));
-  // the bar: workspace, search, new folder, bin
-  const search = h('input', { type: 'search', placeholder: 'Search by name', value: cloudPlace.q, 'aria-label': 'Search benches' });
-  let searchT = null;
-  search.addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(() => { cloudPlace.q = search.value.trim(); fillCloud().then(() => { const s = bar.querySelector('input[type=search]'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }); }, 250); });
-  const wsSel = account.workspaces.length > 1 ? h('select', { 'aria-label': 'Workspace', onchange: e => { Object.assign(cloudPlace, { ws: e.target.value, folder: null, history: null }); fillCloud(); } },
-    ...account.workspaces.map(w => { const o = h('option', { value: w.id }, w.kind === 'personal' ? 'My benches' : w.name); o.selected = w.id === ws; return o; })) : null;
-  bar.replaceChildren(...[wsSel, search,
-    cloudPlace.history || cloudPlace.bin ? null : h('button', { type: 'button', class: 'rt-btn', onclick: () => {
-      const name = (prompt('Name of the new folder') || '').trim();
-      if (name) busy(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, json({ name, parent_id: cloudPlace.folder }))));
-    } }, 'New folder'),
-    h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': cloudPlace.bin ? 'true' : 'false', onclick: () => { Object.assign(cloudPlace, { bin: !cloudPlace.bin, history: null }); fillCloud(); } }, cloudPlace.bin ? 'Back to benches' : 'Bin')].filter(Boolean));
+const HOME_ICONS = {
+  folder: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z', recent: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5V8L10.5 9.5',
+  fork: MENU_ICONS.fork,
+  list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
+  bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
+  history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
+  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6',
+};
+const homeIcon = name => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', HOME_ICONS[name] || ''); svg.append(p);
+  return svg;
+};
+const homeOpen = () => !document.getElementById('home').hidden;
+const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+let homeSeq = 0;
+/* a card's menu: [label, icon, fn, cls] items, 'sep', or an element */
+let homeMenu = null;
+function closeHomeMenu() {
+  if (!homeMenu) return;
+  const { el, btn } = homeMenu; homeMenu = null;
+  el.remove(); btn.setAttribute('aria-expanded', 'false');
+}
+function openHomeMenu(btn, items) {
+  if (homeMenu && homeMenu.btn === btn) { closeHomeMenu(); return; }
+  closeHomeMenu();
+  const el = h('div', { class: 'rt-hmenu', role: 'menu' }, ...items.filter(Boolean).map(it => it === 'sep' ? h('div', { class: 'sep' }) : it instanceof Node ? it
+    : h('button', { type: 'button', role: 'menuitem', class: it[3] || null, onclick: () => { closeHomeMenu(); it[2](); } }, homeIcon(it[1]), it[0])));
+  document.getElementById('home').append(el);
+  const r = btn.getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight;
+  el.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  el.style.top = (r.bottom + 4 + hh > innerHeight - 8 ? Math.max(8, r.top - 4 - hh) : r.bottom + 4) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  homeMenu = { el, btn };
+  const first = el.querySelector('button, select'); if (first) first.focus();
+}
+document.addEventListener('pointerdown', e => { if (homeMenu && !homeMenu.el.contains(e.target) && e.target !== homeMenu.btn) closeHomeMenu(); }, true);
+const homeSay = (fn, ok) => async () => {
+  try { const out = await fn(); if (ok) toast(typeof ok === 'function' ? ok(out) : ok); }
+  catch (err) { toast(err.status === 402 ? 'That needs JEKrayPro.' : err.message, true); }
+  if (homeOpen()) fillHome();
+};
+// open a cloud bench on the bench, leaving this page
+async function homeOpenBench(id, version) {
+  try {
+    if (cloud && cloud.dirty && cloud.id !== id) await cloudPush({ quiet: true });
+    await cloudOpen(id, version);
+    closeHome();
+  } catch (err) { toast(err.message, true); }
+}
+// a fork: of the bench as it is now, or of one of its versions; named first
+function homeFork(b, version, after) {
+  const name = prompt('Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'));
+  if (name === null) return;
+  homeSay(async () => {
+    const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name.trim() || undefined }, version ? { version } : {}))));
+    if (after) after(f); else cloudPlace.flash = f.id;
+    return f;
+  }, f => 'Forked as “' + f.name + '”')();
+}
+async function fillHome() {
+  const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
+  const crumbs = document.getElementById('homeCrumbs'), tools = document.getElementById('homeTools'), note = document.getElementById('homeNote');
+  if (!account) { closeHome(); return; }
+  const places = account.workspaces.filter(w => w.kind !== 'institution');
+  if (!cloudPlace.ws || !places.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = personalWs().id;
+  const ws = cloudPlace.ws, wsInfo = places.find(w => w.id === ws), P = cloudPlace;
+  const top = wsInfo && wsInfo.kind !== 'personal' ? wsInfo.name : 'My benches';
+  const seq = ++homeSeq;
+  if (!box.children.length) box.replaceChildren(h('p', { class: 'rt-hempty' }, 'Loading…'));
+  box.setAttribute('aria-busy', 'true');
   let folders = [], data;
   try {
     [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
-      cloudPlace.history ? api('/v1/benches/' + cloudPlace.history.id + '/versions')
-        : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(cloudPlace.bin ? { bin: '1' } : cloudPlace.q ? { q: cloudPlace.q } : { folder: cloudPlace.folder || '' }))]);
+      P.view === 'history' ? api('/v1/benches/' + P.history.id + '/versions')
+        : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(P.view === 'bin' ? { bin: '1' } : P.q ? { q: P.q } : P.view === 'recent' ? {} : { folder: P.folder || '' }))]);
   } catch (err) {
-    box.replaceChildren(h('p', null, err.status === 401 ? 'You are signed out. Sign in again from the top right.' : 'Could not reach your benches: ' + err.message));
+    if (seq !== homeSeq) return;
+    box.removeAttribute('aria-busy');
+    if (err.status === 404 && P.view === 'history') { Object.assign(P, { view: 'folder', history: null }); toast('That bench is not available to you', true); fillHome(); return; }
+    box.replaceChildren(h('p', { class: 'rt-hempty' }, err.status === 401 ? 'You are signed out. Sign in again from the bench, top right.' : 'Could not reach your benches: ' + err.message));
     if (err.status === 401) { account = null; fillAccount(); }
     return;
   }
+  if (seq !== homeSeq) return;
+  box.removeAttribute('aria-busy');
   const byId = new Map(folders.map(f => [f.id, f]));
-  if (cloudPlace.folder && !byId.has(cloudPlace.folder)) cloudPlace.folder = null;
+  if (P.folder && !byId.has(P.folder)) P.folder = null;
+  const go = (view, folder = null) => () => { closeHomeMenu(); Object.assign(P, { view, folder, q: '', history: null }); document.getElementById('homeSearch').value = ''; fillHome(); document.getElementById('homeMain').scrollTop = 0; };
+  const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
+  // the rail: workspaces, then this one's places and folders
+  const here = (view, folder) => !P.q && P.view === view && (view !== 'folder' || P.folder === folder);
+  const railBtn = (label, icon, on, fn, depth = 0) => h('button', { type: 'button', 'aria-current': on ? 'true' : 'false', onclick: fn, title: label, style: depth ? 'padding-left:' + (0.6 + depth * 0.9) + 'rem' : null }, homeIcon(icon), h('span', null, label));
+  const tree = [];
+  const walk = (parent, depth) => { for (const f of folders.filter(f => (f.parent_id || null) === parent).sort((a, b) => a.name.localeCompare(b.name))) { tree.push(railBtn(f.name, 'folder', here('folder', f.id), go('folder', f.id), depth)); walk(f.id, depth + 1); } };
+  walk(null, 1);
+  const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
+  if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
+  rail.replaceChildren(...[
+    places.length > 1 ? h('h2', null, 'Workspaces') : null,
+    ...(places.length > 1 ? places.map(w => railBtn(w.kind === 'personal' ? 'My benches' : w.name, w.kind === 'personal' ? 'bench' : 'folder', w.id === ws, () => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); })) : []),
+    h('h2', null, places.length > 1 ? top : 'Benches'),
+    railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
+    railBtn('Recent', 'recent', here('recent'), go('recent')),
+    ...tree,
+    railBtn('Bin', 'trash', here('bin'), go('bin')),
+    h('div', { class: 'rt-hfoot' },
+      used ? h('span', null, kb(used.bytes) + ' of ' + kb(used.quota) + ' used') : null,
+      used ? h('div', { class: 'rt-hmeter', role: 'progressbar', 'aria-label': 'Cloud storage used', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(100 * used.bytes / used.quota)) },
+        h('span', { style: 'width:' + Math.min(100, Math.max(1, 100 * used.bytes / used.quota)).toFixed(1) + '%' })) : null,
+      h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download everything (.zip)'),
+      h('span', null, 'Signed in as ' + (account.user.name || account.user.email || 'you')))].filter(Boolean));
   // where we are
-  const top = wsInfo && wsInfo.kind !== 'personal' ? wsInfo.name : 'My benches';
-  const trail = [];
-  for (let f = byId.get(cloudPlace.folder); f; f = byId.get(f.parent_id)) trail.unshift(f);
-  const go = folder => () => { Object.assign(cloudPlace, { folder, q: '', bin: false, history: null }); fillCloud(); };
-  crumbs.replaceChildren(link(top, go(null)), ...trail.flatMap(f => [' › ', link(f.name, go(f.id))]),
-    cloudPlace.bin ? ' › Bin' : '', cloudPlace.history ? [' › History of “', cloudPlace.history.name, '”'].join('') : '', cloudPlace.q && !cloudPlace.bin ? ' › Search: “' + cloudPlace.q + '”' : '');
-  const writer = !!data.role ? ['owner', 'admin', 'editor'].includes(data.role) : true;
-  const active = data.active !== undefined ? data.active : (wsInfo && wsInfo.active);
-  note.hidden = !!active;
-  note.textContent = 'Saving to the cloud needs JEKrayPro. Benches here can still be opened, and downloaded below.';
-  const rows = [];
-  if (cloudPlace.history) {
-    const b = cloudPlace.history;
-    for (const v of data.versions) rows.push(h('div', null,
+  const link = (label, fn) => h('button', { type: 'button', class: 'rt-link', onclick: fn }, label);
+  const sep = ' › ';
+  if (P.view === 'history') {
+    const b = data.bench;
+    crumbs.replaceChildren(link(top, go('folder', null)), ...pathOf(b.folder_id).flatMap(f => [sep, link(f.name, go('folder', f.id))]), sep, b.name);
+  } else crumbs.replaceChildren(...(P.q ? [link(top, go('folder', null)), sep, 'Search: “' + P.q + '”']
+    : P.view === 'bin' ? [link(top, go('folder', null)), sep, 'Bin'] : P.view === 'recent' ? [link(top, go('folder', null)), sep, 'Recent']
+    : pathOf(P.folder).length ? [link(top, go('folder', null)), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : link(f.name, go('folder', f.id))])] : [top]));
+  document.getElementById('homeWhere').textContent = top;
+  const writer = data.role ? ['owner', 'admin', 'editor'].includes(data.role) : wsInfo ? ['owner', 'admin', 'editor'].includes(wsInfo.role || 'owner') : true;
+  const active = data.active !== undefined ? data.active : !!(wsInfo && wsInfo.active);
+  const can = writer && active;
+  note.hidden = active || P.view === 'history';
+  note.replaceChildren('Saving, forking and organising need JEKrayPro. Benches here can still be opened and downloaded. ', link('Subscribe', () => { closeHome(); showSubscribe(); }));
+  // the tools: sort, grid or rows, a new folder
+  const keepView = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeView)); } catch (err) { /* this visit only */ } };
+  const listing = P.view !== 'history' && P.view !== 'bin';
+  const sortSel = listing ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; keepView(); fillHome(); } },
+    ...[['changed', 'Last changed'], ['name', 'Name'], ['size', 'Size']].map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
+  tools.replaceChildren(...[sortSel,
+    P.view !== 'history' ? h('button', { type: 'button', class: 'rt-btn', title: homeView.rows ? 'Show as cards' : 'Show as a list', 'aria-label': homeView.rows ? 'Show as cards' : 'Show as a list',
+      onclick: () => { homeView.rows = !homeView.rows; keepView(); fillHome(); } }, homeIcon(homeView.rows ? 'grid' : 'list')) : null,
+    P.view === 'folder' && !P.q && can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => {
+      const name = (prompt('Name of the new folder') || '').trim();
+      if (name) homeSay(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, jsonBody({ name, parent_id: P.folder }))))();
+    } }, homeIcon('folder'), ' New folder') : null].filter(Boolean));
+  for (const b of tools.querySelectorAll('.rt-btn')) b.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem';
+  box.classList.toggle('rows', homeView.rows && P.view !== 'history');
+  // the history of one bench: where it came from, its forks, its versions
+  if (P.view === 'history') {
+    const b = data.bench, mine = cloud && cloud.id === b.id;
+    const origin = data.forked_from;
+    const side = h('div', { class: 'rt-hside' },
+      b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
+      h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
+      h('div', { class: 'rt-actions' },
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id) }, 'Open'),
+        can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, 'Fork') : null),
+      origin ? h('h4', null, 'Forked from') : null,
+      origin ? h('p', null, link('“' + origin.name + '”', () => { Object.assign(P, { view: 'history', history: { id: origin.id, name: origin.name } }); fillHome(); }), ', version ' + origin.version) : null,
+      data.forks.length ? h('h4', null, data.forks.length === 1 ? '1 fork' : data.forks.length + ' forks') : null,
+      data.forks.length ? h('ul', null, ...data.forks.map(f => h('li', null, link(f.name, () => { Object.assign(P, { view: 'history', history: { id: f.id, name: f.name } }); fillHome(); }), ' ', h('small', null, 'from version ' + f.version)))) : null);
+    const rows = data.versions.map(v => h('div', null,
       h('span', { class: 'when' }, whenAgo(v.created_at)),
       h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
-      h('span', { class: 'acts' }, link('Open a copy', () => busy(async () => { dlg.close(); await cloudOpen(b.id, v.version); })),
-        writer && active ? link('Restore', () => busy(async () => {
+      h('span', { class: 'acts' },
+        link('Open a copy', () => homeOpenBench(b.id, v.version)),
+        can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
+        can && v.version !== b.version ? link('Restore', homeSay(async () => {
           await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
-          if (cloud && cloud.id === b.id) { dlg.close(); await cloudOpen(b.id); }
+          if (cloud && cloud.id === b.id) await cloudOpen(b.id);
         }, 'Restored version ' + v.version)) : null)));
-    if (!rows.length) rows.push(h('p', null, 'No versions kept yet.'));
-  } else {
-    if (!cloudPlace.bin && !cloudPlace.q) for (const f of folders.filter(f => (f.parent_id || null) === cloudPlace.folder)) rows.push(h('div', { class: 'folder' },
-      h('span', { class: 'when' }, 'Folder'),
-      h('span', { class: 'what' }, link(f.name, go(f.id))),
-      writer ? h('span', { class: 'acts' },
-        link('Rename', () => { const name = (prompt('Rename the folder', f.name) || '').trim(); if (name && name !== f.name) busy(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, json({ name })))); }),
-        link('Delete', () => busy(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'))) : null));
-    for (const b of data.benches) {
-      const mine = cloud && cloud.id === b.id;
-      const move = () => {
-        const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
-          ...folders.map(f => { const path = []; for (let x = f; x; x = byId.get(x.parent_id)) path.unshift(x.name); const o = h('option', { value: f.id }, path.join(' › ')); o.selected = f.id === b.folder_id; return o; }));
-        sel.addEventListener('change', () => busy(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, json({ folder_id: sel.value || null }))), 'Moved'));
-        acts.replaceChildren(sel); sel.focus();
-      };
-      const acts = h('span', { class: 'acts' }, ...(cloudPlace.bin
-        ? [writer ? link('Restore', () => busy(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')) : null]
-        : [link('Open', () => busy(async () => { dlg.close(); if (cloud && cloud.dirty && cloud.id !== b.id) await cloudPush({ quiet: true }); await cloudOpen(b.id); })),
-          link('History', () => { cloudPlace.history = { id: b.id, name: b.name }; fillCloud(); }),
-          writer && active ? link('Rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) busy(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, json({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } }); }) : null,
-          writer && active && folders.length ? link('Move', move) : null,
-          writer && active ? link('Duplicate', () => busy(async () => { const full = await api('/v1/benches/' + b.id); await api('/v1/workspaces/' + ws + '/benches', Object.assign({ method: 'POST' }, json({ name: b.name + ' (copy)', folder_id: b.folder_id, content: full.content }))); }, 'Duplicated')) : null,
-          writer ? link('Delete', () => busy(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days')) : null]).filter(Boolean));
-      rows.push(h('div', { class: mine ? 'here' : null },
-        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
-        h('span', { class: 'when' }, whenAgo(cloudPlace.bin ? b.deleted_at : b.updated_at)),
-        h('span', { class: 'what', title: b.name }, b.name, ' ', h('small', null, [mine ? 'open here' : null, cloudPlace.bin ? 'deleted' : b.updated_by && b.updated_by.name, kb(b.size_bytes), cloudPlace.q && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null].filter(Boolean).join(' · '))),
-        acts));
-    }
-    if (!rows.length) rows.push(h('p', null, cloudPlace.bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
-      : cloudPlace.q ? 'No bench matches “' + cloudPlace.q + '”.' : cloudPlace.folder ? 'This folder is empty.' : 'No benches yet. Use Save to cloud in the File menu to put this one here.'));
+    box.replaceChildren(h('div', { class: 'rt-hhist' }, side, h('div', null,
+      h('h3', null, 'Kept versions'),
+      rows.length ? h('div', { class: 'rt-hvers' }, ...rows) : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'),
+      h('p', { class: 'rt-subsmall' }, 'A version is kept on Save to cloud, every 10 minutes or so while you work, and before a restore: the last 50, then one a day for 90 days.'))));
+    return;
   }
-  box.replaceChildren(...rows);
-  foot.replaceChildren(data.usage ? h('span', null, kb(data.usage.bytes) + ' of ' + kb(data.usage.quota) + ' used') : '',
-    h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download everything (.zip)'));
+  // folders, then benches, as cards
+  const bin = P.view === 'bin';
+  const folderCards = P.view === 'folder' && !P.q ? folders.filter(f => (f.parent_id || null) === P.folder).sort((a, b) => a.name.localeCompare(b.name)).map(f => {
+    const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + f.name, title: 'More' }, '⋯');
+    more.addEventListener('click', () => openHomeMenu(more, [
+      ['Open', 'open', go('folder', f.id)],
+      can ? ['Rename', 'rename', () => { const name = (prompt('Rename the folder', f.name) || '').trim(); if (name && name !== f.name) homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))))(); }] : null,
+      writer ? 'sep' : null,
+      writer ? ['Delete', 'trash', homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'), 'danger'] : null]));
+    return h('div', { class: 'rt-hcard folder' }, h('button', { type: 'button', class: 'rt-hopen', onclick: go('folder', f.id) }, homeIcon('folder'), h('span', null, f.name)), writer ? more : null);
+  }) : [];
+  let benches = data.benches.slice();
+  if (!bin) {
+    const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.updated_at - a.updated_at);
+    benches.sort(P.view === 'recent' ? (a, b) => b.updated_at - a.updated_at : by);
+    if (P.view === 'recent') benches = benches.slice(0, 24);
+  }
+  const team = wsInfo && wsInfo.kind !== 'personal';
+  const benchCards = benches.map(b => {
+    const mine = cloud && cloud.id === b.id;
+    const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
+    const moveTo = () => {
+      const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
+        ...folders.map(f => { const o = h('option', { value: f.id }, pathOf(f.id).map(x => x.name).join(' › ')); o.selected = f.id === b.folder_id; return o; }));
+      sel.addEventListener('change', () => { closeHomeMenu(); homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: sel.value || null }))), 'Moved')(); });
+      openHomeMenu(more, [h('div', { class: 'rt-menunote' }, 'Move “' + b.name + '” to'), sel]);
+    };
+    more.addEventListener('click', () => openHomeMenu(more, bin ? [
+      writer ? ['Restore', 'restore', homeSay(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')] : null,
+      ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }]] : [
+      ['Open', 'open', () => homeOpenBench(b.id)],
+      ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
+      can ? ['Fork…', 'fork', () => homeFork(b)] : null,
+      'sep',
+      can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) homeSay(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } })(); }] : null,
+      can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
+      writer ? ['Delete', 'trash', homeSay(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null]));
+    const where = (P.q || P.view === 'recent') && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null;
+    return h('div', { class: 'rt-hcard' + (mine ? ' here' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id },
+      h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”', onclick: bin ? () => more.click() : () => homeOpenBench(b.id) },
+        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' })),
+      h('div', { class: 'rt-hinfo' },
+        h('b', { title: b.name }, b.name),
+        h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
+        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null),
+      more);
+  });
+  P.flash = null;
+  const out = [];
+  if (folderCards.length) out.push(benchCards.length ? h('h3', null, 'Folders') : null, h('div', { class: 'rt-hgrid folders' }, ...folderCards));
+  if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
+  if (!out.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
+    : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
+    : 'No benches yet. Use Save to cloud in the File menu to put the bench you are working on here, or New bench to start one.'));
+  box.replaceChildren(...out.filter(Boolean));
+}
+function openHome(push = true) {
+  if (!cloudOn()) { toast(accountsOn() ? 'Sign in, top right, to see your benches' : 'Cloud benches are not available here', true); return; }
+  const home = document.getElementById('home');
+  Object.assign(cloudPlace, { q: '' });
+  if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });
+  document.getElementById('homeSearch').value = '';
+  document.getElementById('homeBackName').textContent = project.name ? 'Back to “' + project.name + '”' : 'Back to the bench';
+  home.hidden = false;
+  document.documentElement.style.overflow = 'hidden';
+  if (push && location.hash !== '#benches') window.history.pushState(null, '', location.pathname + location.search + '#benches');
+  fillHome();
+  (matchMedia('(pointer: fine)').matches ? document.getElementById('homeSearch') : document.getElementById('homeBack')).focus();
+}
+function closeHome() {
+  const home = document.getElementById('home');
+  if (home.hidden) return;
+  closeHomeMenu();
+  home.hidden = true;
+  document.documentElement.style.overflow = '';
+  if (location.hash === '#benches') window.history.replaceState(null, '', location.pathname + location.search);
+  requestRender();
 }
 function cloudMenuShown() {
   const on = cloudOn();
   for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
+  document.getElementById('btnCloudFork').hidden = !on || !cloud;
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
+  if (!on) closeHome();
 }
 {
   try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) cloud = v; } catch (err) { /* none */ }
   document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
-  document.getElementById('btnCloudList').addEventListener('click', () => {
-    Object.assign(cloudPlace, { history: null, bin: false, q: '' });
-    document.getElementById('cloudDialog').showModal(); fillCloud();
+  document.getElementById('btnCloudList').addEventListener('click', () => openHome());
+  document.getElementById('btnHome').addEventListener('click', () => openHome());
+  // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
+  document.getElementById('btnCloudFork').addEventListener('click', async () => {
+    if (!cloud) return;
+    const link = cloud, name = prompt('Name of the fork', (project.name || link.name) + ' (fork)');
+    if (name === null) return;
+    if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
+    try {
+      const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined })));
+      cloudOpening = true;
+      try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { cloudOpening = false; }
+      cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
+      toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
+    } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
   });
-  document.getElementById('cloudClose').addEventListener('click', () => document.getElementById('cloudDialog').close());
+  document.getElementById('homeBack').addEventListener('click', closeHome);
+  document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
+  const search = document.getElementById('homeSearch');
+  let searchT = null;
+  search.addEventListener('input', () => {
+    clearTimeout(searchT);
+    searchT = setTimeout(() => { Object.assign(cloudPlace, { q: search.value.trim(), history: null }); if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') cloudPlace.view = 'folder'; fillHome(); }, 250);
+  });
+  // while the page is up, the bench's keys, copy and paste stay with the page
+  const home = document.getElementById('home');
+  for (const t of ['keydown', 'keyup', 'copy', 'cut', 'paste']) {
+    home.addEventListener(t, e => e.stopPropagation());
+    window.addEventListener(t, e => {
+      if (!homeOpen()) return;
+      if (t === 'keydown' && e.key === 'Escape') {
+        e.preventDefault();
+        if (homeMenu) { const b = homeMenu.btn; closeHomeMenu(); b.focus(); } else closeHome();
+        e.stopPropagation(); return;
+      }
+      if (!home.contains(e.target)) e.stopPropagation();
+    }, true);
+  }
+  home.addEventListener('scroll', closeHomeMenu, true);
+  window.addEventListener('resize', closeHomeMenu);
+  // Back in the browser leaves the page as well
+  window.addEventListener('popstate', () => { if (homeOpen() && location.hash !== '#benches') closeHome(); });
   document.getElementById('subClose').addEventListener('click', () => document.getElementById('subDialog').close());
 }
 {
@@ -21565,7 +21877,8 @@ function cloudMenuShown() {
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
-  ['Since 1.0', '29 September \u2013 5 October 2026', [
+  ['Since 1.0', '29 September \u2013 6 October 2026', [
+    '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a fork remembers where it came from, and a bench lists its forks. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
     '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',
     'The diffracted field is worked out <b>in the background again</b>, so the page no longer stalls while it runs. A field that would take a long time says so first, and offers what would lighten it: fewer grid points, a higher power floor, or not following weak reflections. Beams past a mask are drawn at their full width, and a trap\u2019s screen no longer splits a retroreflected beam. A beam wider than a lens no longer multiplies: light at a lens\u2019s ground edge stops there, and light that went round it stops at a smaller stop. The optimiser reads a Gaussian beam\u2019s size and collimation with the ray fan hidden. A tight focus is drawn as it is, into the trap and out of it, without the gap, the streak and the sudden block.',
     '<b>Electronics</b>, now a standard part of the tool (no longer experimental): a palette of its own, in yellow, of sources, amplifiers and a TIA, filters, an attenuator, a mixer, a summing junction, a bias tee, a comparator and nodes, read by an <b>oscilloscope</b> (Normal and Roll, each channel\u2019s scale set or automatic), a <b>spectrum analyser</b>, a <b>lock-in amplifier</b> and a <b>DAQ</b> (sampling, aliasing, quantisation). Wired to the light: photodetectors and the chopper feed them; they drive lasers\u2019 power and frequency, AOMs, EOMs and fibre stretchers. A lock-in absorption example.',
@@ -22792,13 +23105,23 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
-  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three)
+  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three),
+  // and #benches opens My benches
   const helpLink = () => {
-    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro';
-    if (location.hash !== '#examples' && !pro && !(tr && TOURS[tr[1]])) return false;
+    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
+    if (benches && homeOpen()) return true;
+    if (location.hash !== '#examples' && !pro && !benches && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
-    setTimeout(() => { if (tr) startTour(tr[1]); else if (pro) proLink(); else openGallery(); }, 0);
+    setTimeout(async () => {
+      if (tr) startTour(tr[1]); else if (pro) proLink();
+      else if (benches) {
+        await accountLoaded;
+        if (account) openHome();
+        else if (accountsOn()) { const btn = document.getElementById('btnAcct'); if (btn && document.getElementById('acctMenu').hidden) btn.click(); toast('Sign in to see your benches'); }
+      }
+      else openGallery();
+    }, 0);
     return true;
   };
   if (!TEST_MODE && !EMBED) helpLink();

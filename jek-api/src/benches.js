@@ -55,7 +55,7 @@ async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
             b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by, b.thumb_key,
-            w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
+            b.forked_from, b.forked_version, b.forked_name, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
        JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?
@@ -88,6 +88,7 @@ const meta = (b) => ({
   updated_by: b.updated_by ? { id: b.updated_by, name: b.updated_by_name } : null,
   deleted_at: b.deleted_at,
   thumb: thumbPath(b.id, b.thumb_key),
+  forked_from: b.forked_from ? { id: b.forked_from, version: b.forked_version, name: b.forked_name } : null,
 });
 
 // ---------- input ----------
@@ -208,7 +209,8 @@ export async function list(req, env, user, wsId) {
   const q = (url.searchParams.get('q') || '').trim();
   const folder = url.searchParams.get('folder');
   let sql = `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
-                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, b.thumb_key
+                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, b.thumb_key,
+                    b.forked_from, b.forked_version, b.forked_name
                FROM benches b LEFT JOIN users u ON u.id = b.updated_by
               WHERE b.workspace_id = ? AND b.deleted_at IS ${bin ? 'NOT NULL' : 'NULL'}`;
   const args = [a.ws];
@@ -341,7 +343,7 @@ export async function undelete(env, user, benchId) {
   return meta(bench);
 }
 
-// GET /v1/benches/:b/versions
+// GET /v1/benches/:b/versions: the bench, where it was forked from, its forks, and its kept versions
 export async function versions(env, user, benchId) {
   const { bench } = await benchAccess(env, user, benchId, { bin: true });
   const { results } = await env.DB.prepare(
@@ -352,6 +354,9 @@ export async function versions(env, user, benchId) {
     .bind(bench.id)
     .all();
   return {
+    bench: meta(bench),
+    forked_from: meta(bench).forked_from,
+    forks: await forksOf(env, user, bench.id),
     versions: results.map((v) => ({
       version: v.version,
       size_bytes: v.size_bytes,
@@ -401,6 +406,65 @@ export async function restore(env, user, benchId, v) {
   await cutVersion(env, b.workspace_id, b.id, next, old, user.id, `Restored from version ${Number(v)}`);
   await audit(env, b.workspace_id, user.id, 'bench.restore', `${b.id}@${Number(v)}`);
   return { id: b.id, version: next, updated_at: t, size_bytes: bytes(old) };
+}
+
+// ---------- forks ----------
+//
+// A fork is a new bench made from another's current state or one of its
+// versions, that remembers where it came from (its parent only, as in git).
+// The original is untouched. Reading the original is all it takes; the fork
+// goes where the caller may save.
+
+// POST /v1/benches/:b/fork  {version?, name?, workspace_id?, folder_id?}
+export async function fork(req, env, user, benchId) {
+  const src = (await benchAccess(env, user, benchId)).bench;
+  const body = await readJson(req);
+  const ws = body.workspace_id || src.workspace_id;
+  const a = await workspaceAccess(env, user, ws);
+  canWrite(a);
+  const v = body.version === undefined || body.version === null ? null : Number(body.version);
+  if (v !== null && !(Number.isInteger(v) && v >= 1)) throw new ApiError(400, 'bad_request', 'version must be a version number.');
+  let content;
+  if (v === null) content = (await env.DB.prepare('SELECT head_json FROM benches WHERE id = ?').bind(src.id).first()).head_json;
+  else content = await versionContent(env, src.id, v);
+  const from = v || src.head_version;
+  const folder = body.folder_id === undefined && a.ws === src.workspace_id ? src.folder_id : await folderIn(env, a.ws, body.folder_id);
+  const name = cleanName(body.name, cleanName(`${src.name} (fork)`));
+  await checkQuota(env, a.ws, a.kind, 2 * bytes(content));
+  const id = newId();
+  const t = now();
+  await env.DB.prepare(
+    `INSERT INTO benches (id, workspace_id, folder_id, name, head_json, head_version, size_bytes,
+                          created_at, created_by, updated_at, updated_by, forked_from, forked_version, forked_name)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, a.ws, folder, name, content, bytes(content), t, user.id, t, user.id, src.id, from, src.name)
+    .run();
+  await cutVersion(env, a.ws, id, 1, content, user.id, `Forked from “${src.name}”, version ${from}`);
+  // the original's picture, when the fork is of how it is now
+  if (v === null && src.thumb_key) {
+    const obj = await env.BENCHES.get(src.thumb_key);
+    if (obj) {
+      const key = `w/${a.ws}/b/${id}/t/${newId()}`;
+      await env.BENCHES.put(key, await obj.arrayBuffer(), { httpMetadata: obj.httpMetadata });
+      await env.DB.prepare('UPDATE benches SET thumb_key = ? WHERE id = ?').bind(key, id).run();
+    }
+  }
+  await audit(env, a.ws, user.id, 'bench.fork', `${id}<${src.id}@${from}`);
+  return meta((await benchAccess(env, user, id)).bench);
+}
+
+// The forks of a bench that the caller can see (in workspaces they belong to).
+async function forksOf(env, user, benchId) {
+  const { results } = await env.DB.prepare(
+    `SELECT b.id, b.workspace_id, b.name, b.forked_version, b.updated_at
+       FROM benches b JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?
+      WHERE b.forked_from = ? AND b.deleted_at IS NULL
+      ORDER BY b.created_at DESC LIMIT 100`,
+  )
+    .bind(user.id, benchId)
+    .all();
+  return results.map((f) => ({ id: f.id, workspace_id: f.workspace_id, name: f.name, version: f.forked_version, updated_at: f.updated_at }));
 }
 
 // ---------- thumbnails ----------

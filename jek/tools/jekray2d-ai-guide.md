@@ -546,6 +546,7 @@ A drawing for figures: a rectangle, an ellipse, a path of Bézier curves or a te
 | bold | (none) | true for bold text. |
 | italic | (none) | true for italic text. |
 | align | (none) | "left", "center" or "right". |
+| m | (none) | optional [a, b, c, d]: a skew (or scale) on the shape before its angle, x′ = a x + c y, y′ = b x + d y; left out, none. |
 
 ## Fibre components ("type": "fcomp")
 

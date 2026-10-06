@@ -996,6 +996,11 @@ form#searchForm {
 
 .pip:hover { background: rgba(0, 0, 0, 0.4); }
 .pip.active { background: var(--jek-cyan); transform: scale(1.25); }
+/* a product page's dots in its category's colour, as its buttons (Photonics orange,
+   Electronics red, Lab Accessories blue) */
+.product-wrap:has(.product-actions.accent-orange) .pip.active { background: #f47742; }
+.product-wrap:has(.product-actions.accent-red) .pip.active { background: #db3550; }
+.product-wrap:has(.product-actions.accent-blue) .pip.active { background: #0092b2; }
 
 .pip:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 

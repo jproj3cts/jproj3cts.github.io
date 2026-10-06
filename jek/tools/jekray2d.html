@@ -1030,6 +1030,13 @@
                 <button type="button" role="menuitem" data-export="pdf" data-icon="pdf">PDF (vector)</button>
               </div>
             </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout (current view)
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf">PDF (vector)</button>
+              </div>
+            </div>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
@@ -19959,8 +19966,11 @@ async function layoutPdf(rec) {
   put('trailer\n<</Size ' + count + '/Root 1 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
   return new Blob(parts, { type: 'application/pdf' });
 }
-async function exportLayout(kind) {
+/* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
+async function exportLayout(kind, view) {
   const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');
+  const keep = Object.assign({}, V());
+  if (!view) fitView();                                         // put back as soon as it is drawn
   try {
     if (kind === 'svg') {
       const name = base + '.svg';
@@ -19983,6 +19993,8 @@ async function exportLayout(kind) {
   } catch (err) {
     exporting = false;
     toast('The layout could not be exported: ' + err.message, true);
+  } finally {
+    if (!view) { Object.assign(V(), keep); requestRender(); }
   }
 }
 
@@ -22344,6 +22356,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    '<b>Export layout (current view)</b> (File menu): a PNG, SVG or PDF of just what is on screen, as you have it framed. Export layout now gives the whole tab, framed to fit, whatever part of it you are looking at.',
     '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; parts, beams and fibres look the same on any colour, and on a light one the words are drawn dark. And View \u203a Grid holes, to leave the holes off for a figure.',
     'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',
     '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it. Its tab also imports .zmx files (one or a whole folder\u2019s worth) straight into it, named by part number.',
@@ -22803,7 +22816,7 @@ document.querySelectorAll('[data-demo]:not([role=menuitem])').forEach(btn => btn
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 document.getElementById('btnFit').addEventListener('click', fitView);
-document.getElementById('fileMenu').addEventListener('click', e => { const b = e.target.closest('[data-export]'); if (b) exportLayout(b.dataset.export); });
+document.getElementById('fileMenu').addEventListener('click', e => { const b = e.target.closest('[data-export]'); if (b) exportLayout(b.dataset.export, !!b.dataset.view); });
 document.getElementById('btnPlayAll').addEventListener('click', playAll);
 document.getElementById('btnPauseAll').addEventListener('click', pauseAll);
 document.getElementById('btnSync').addEventListener('click', syncPhases);

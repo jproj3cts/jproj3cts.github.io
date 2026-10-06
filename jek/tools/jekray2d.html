@@ -5252,6 +5252,10 @@ function lightColour(c, bg) {
   return { r: v[0] * bg[0], g: v[1] * bg[1], b: v[2] * bg[2], a: c.a };
 }
 let lightCanvas = null;
+// while the light is drawn over a light bench: it darkens the paper (multiply) rather than
+// adding to the dark (lighter), so each beam shows in its own colour
+let lightLayer = false;
+const glowOp = () => lightLayer ? 'multiply' : 'lighter';
 function lightPass() {
   const c = ctx.canvas;
   if (!c || !('filter' in ctx)) return;
@@ -5264,20 +5268,14 @@ function lightPass() {
   ctx.filter = 'none'; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = benchBg(); ctx.fillRect(0, 0, c.width, c.height);
   ctx.restore();
 }
-// the same, for a drawing recorded for SVG or PDF: each colour, the blends, and the field's glow
+// the same, for a drawing recorded for SVG or PDF: the bench, parts and words mapped colour by
+// colour; the light (drawn last, as on the canvas) kept as it was drawn
 function lightRecording(rec) {
   const bg = hexRgb(benchBg());
   for (const o of rec.ops) {
+    if (o.raw) continue;
     if (o.fill) o.fill = lightColour(o.fill, bg);
     if (o.stroke) o.stroke = lightColour(o.stroke, bg);
-    if (o.blend) o.blend = 'multiply';
-  }
-  if (rec.layer) {
-    const L = rec.layer, a = document.createElement('canvas'), b = document.createElement('canvas');
-    a.width = b.width = L.width; a.height = b.height = L.height;
-    const ga = a.getContext('2d'); ga.fillStyle = '#000'; ga.fillRect(0, 0, a.width, a.height); ga.drawImage(L, 0, 0);
-    const gb = b.getContext('2d'); gb.filter = 'invert(1) hue-rotate(180deg)'; gb.drawImage(a, 0, 0);
-    rec.layer = b;
   }
   return rec;
 }
@@ -5299,7 +5297,7 @@ function benchStyleShown() {
       h('span', { class: 'rt-swatch', style: 'background:' + c }), name, c === bg ? h('span', { class: 'k' }, '✓') : null)),
     h('label', { class: 'rt-swatchrow', role: 'menuitemradio', 'aria-checked': known ? 'false' : 'true' },
       h('span', { class: 'rt-swatch', style: 'background:' + bg }), 'Your own…', custom, known ? null : h('span', { class: 'k' }, '✓')),
-    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. On a light colour, the bench is drawn light: mirrors and labels go dark, beams keep their colour.'));
+    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. On a light colour, the bench and its parts are drawn light, with dark lines and words; beams and fibres always keep their own colours.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
   stage.style.background = bg;
 }
@@ -5576,13 +5574,13 @@ const RAY_CHUNK = 30000;              // segments drawn into the layer per frame
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
     const v0 = rayLayer.view, k = V().scale / v0.scale;
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = glowOp();
     ctx.setTransform(DPR * k, 0, 0, DPR * k, DPR * (W / 2 * (1 - k) + (v0.cx - V().cx) * V().scale), DPR * (H / 2 * (1 - k) - (v0.cy - V().cy) * V().scale));
     ctx.drawImage(rayLayer.cv, 0, 0, rayLayer.cv.width / DPR, rayLayer.cv.height / DPR);
     ctx.restore();
@@ -5609,13 +5607,13 @@ function drawRays(stale) {
   }
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.drawImage(rayLayer.cv, 0, 0);
   ctx.restore();
 }
 function drawRaysOn(ctx, rays) {
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.lineWidth = 1.2;
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
@@ -5804,14 +5802,23 @@ function render() {
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
     mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
-  drawFibres();
-  for (const el of els) if (el.type !== 'source') draw(el);
-  drawRays(stale);
-  if (!stale) {
-    closeupOn = drawCloseup();
-    const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
-    drawBeams(fieldShown);
-  }
+  // the light: rays, the diffracted field and the beams' outlines
+  const drawLight = () => {
+    drawRays(stale);
+    if (!stale) {
+      closeupOn = drawCloseup();
+      const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
+      drawBeams(fieldShown);
+    }
+  };
+  // on a light bench, the light and the fibres are drawn last, over the bench made light, in
+  // their own colours: only the bench, the parts and the words are turned light
+  const light = benchLight();
+  if (!light) {
+    drawFibres();
+    for (const el of els) if (el.type !== 'source') draw(el);
+    drawLight();
+  } else for (const el of els) if (el.type !== 'source') draw(el);
   for (const el of els) if (el.type === 'source') draw(el);
   drawLabels();
   drawMeasures();
@@ -5825,7 +5832,11 @@ function render() {
   if (!exporting) { drawMinimap(); drawSelection(); }
   drawScaleBar();
   if (exporting && !thumbing) drawCredit();
-  if (benchLight() && ctx.canvas) lightPass();          // the canvas; not a recording for SVG or PDF
+  if (light) {
+    if (ctx.canvas) lightPass();            // the canvas; a recording for SVG or PDF is mapped as it is written
+    lightLayer = true;
+    try { drawFibres(); drawLight(); } finally { lightLayer = false; }
+  }
   updateReadouts();
 }
 /* on an exported picture: where it was made */
@@ -17216,13 +17227,13 @@ function drawCloseup() {
   if (!closeState.img) return false;
   const v0 = closeState.view, k = s / v0.s;
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(closeState.img, W / 2 + (v0.cx - V().cx) * s - v0.W / 2 * k, H / 2 - (v0.cy - V().cy) * s - v0.H / 2 * k,
     closeState.img.width * closeState.step * k, closeState.img.height * closeState.step * k);
   ctx.restore();
   const inf = closeState.info;
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillStyle = lightLayer ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.75)';
   ctx.font = '11px ' + getCss('--jek-mono');
   ctx.textAlign = 'left';
   ctx.fillText('Close-up: the field on each pixel' + (inf.beams ? ', ' + inf.beams + ' beam' + (inf.beams === 1 ? '' : 's') : ', no beam here') +
@@ -17644,7 +17655,7 @@ function drawPop() {
   if (!R) return new Set();
   const s = V().scale;
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.imageSmoothingEnabled = true;
   for (const sg of R.segs) {
     const D = sg.draw, b = sg.b;
@@ -19762,7 +19773,8 @@ class VecCtx {
   }
   clip() { /* nothing on the bench clips */ }
   style() {
-    return { alpha: this.globalAlpha, blend: this.globalCompositeOperation === 'lighter' || this.globalCompositeOperation === 'screen' ? 'screen' : null };
+    const op = this.globalCompositeOperation;
+    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null, raw: lightLayer };
   }
   fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
   stroke() {
@@ -19790,11 +19802,11 @@ class VecCtx {
   drawImage(img, ...a) {
     if (!this.layer) {
       const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
-      this.layer = c; this.ops.push({ k: 'layer', blend: 'screen', alpha: 1 });
+      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer ? 'multiply' : 'screen', alpha: 1, raw: lightLayer });
     }
     const g = this.layer.getContext('2d'), M = this.M;
     g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
-    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : 'lighter';
+    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
     g.imageSmoothingEnabled = this.imageSmoothingEnabled;
     g.drawImage(img, ...a);
   }
@@ -22332,7 +22344,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; on a light bench, mirrors and labels are drawn dark and beams keep their colour. And View \u203a Grid holes, to leave the holes off for a figure.',
+    '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; on a light bench, parts and labels are drawn dark, and beams and fibres keep their own colours. And View \u203a Grid holes, to leave the holes off for a figure.',
     'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',
     '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it. Its tab also imports .zmx files (one or a whole folder\u2019s worth) straight into it, named by part number.',
     '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',

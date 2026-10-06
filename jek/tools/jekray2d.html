@@ -5248,6 +5248,8 @@ let lightLayer = false;
 // the light laid on (over a light bench) rather than glowing (over the dark), and stronger
 const glowOp = () => lightLayer ? 'source-over' : 'lighter';
 const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
+// what is selected is picked out in white on the dark bench, and in near-black on a light one
+const selInk = (a = 1) => lightLayer ? (a === 1 ? '#1b2328' : 'rgba(27,35,40,' + a + ')') : (a === 1 ? '#ffffff' : 'rgba(255,255,255,' + a + ')');
 // a part's dark body takes the bench's own colour on a light bench, as it sits on the dark one
 const bodyFill = c => lightLayer ? benchBg() : c;
 // mirrors' metal, a darker grey on a light bench so it shows
@@ -5395,7 +5397,7 @@ function drawLens(el, sel) {
     pathLocal(f, pts, true);
     ctx.fillStyle = 'rgba(115,185,202,0.16)';
     ctx.fill();
-    ctx.strokeStyle = sel ? '#ffffff' : glass;
+    ctx.strokeStyle = sel ? selInk() : glass;
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
   }
@@ -5420,7 +5422,7 @@ function drawMirror(el, sel) {
   }
   ctx.stroke();
   pathLocal(f, pts);
-  ctx.strokeStyle = sel ? '#ffffff' : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
+  ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
   ctx.lineWidth = sel ? 3.5 : 3;
   ctx.lineCap = 'round';
   ctx.stroke();
@@ -5432,7 +5434,7 @@ function drawScreen(el, sel) {
   const [surf] = elementSurfaces(el);
   const L = surf.semi;
   pathLocal(f, surfPoints(surf, 48, false, f));
-  ctx.strokeStyle = sel ? '#ffffff' : getCss('--rt-screen');
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
   ctx.lineWidth = sel ? 4 : 3.5;
   ctx.stroke();
   // ticks on the detecting face
@@ -5490,7 +5492,7 @@ function drawSource(el, sel) {
   pathLocal(f, body, true);
   ctx.fillStyle = bodyFill('#2b2622');
   ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : getCss('--rt-source');
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-source');
   ctx.lineWidth = sel ? 2 : 1.5;
   ctx.stroke();
   // emitter face in the ray colour
@@ -5726,19 +5728,19 @@ function setSelection(list) {
 function drawSelection() {
   // the rest of a group: a dashed ring each
   for (const e of selection()) if (e.id !== selectedId) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = selInk(0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.arc(sx(e.x), sy(e.y), elementExtentPx(e), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   }
   const el = selected();
   if (!el || !onTab(el)) return;
   if (extraSel.size || el.locked) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = selInk(0.7); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), elementExtentPx(el), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     return;                              // a group turns from its panel or the menu, not a handle; a locked one not at all
   }
   const [hx, hy] = handlePos(el);
   const cx = sx(el.x), cy = sy(el.y);
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.strokeStyle = selInk(0.45);
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke();
@@ -5748,7 +5750,7 @@ function drawSelection() {
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(hx, hy, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = selInk();
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
@@ -5839,7 +5841,7 @@ function drawBlock(el, sel) {
   pathLocal(f, V, true);
   ctx.fillStyle = 'rgba(115,185,202,0.16)';
   ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : getCss('--rt-glass');
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-glass');
   ctx.lineWidth = sel ? 2 : 1.4;
   ctx.stroke();
   if (el.type === 'cube') {
@@ -5852,7 +5854,7 @@ function drawBlock(el, sel) {
 }
 function drawStop(el, sel) {
   const f = frame(el), blades = stopBlades(el), b = el.outer / 2;
-  ctx.strokeStyle = sel ? '#ffffff' : '#9aa4ab';
+  ctx.strokeStyle = sel ? selInk() : '#9aa4ab';
   ctx.lineWidth = sel ? 5 : 4;
   ctx.lineCap = 'butt';
   for (const [lo, hi] of blades) { pathLocal(f, [[0, lo], [0, hi]]); ctx.stroke(); }
@@ -5869,7 +5871,7 @@ function drawMask(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale;
   pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
   ctx.fillStyle = 'rgba(216,179,90,0.16)'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#d8b35a'; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#d8b35a'; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
   // its amplitude along it, as a trace beside the plate
   const fn = maskFns(el).fn, n = 64, pts = [];
   for (let i = 0; i <= n; i++) { const u = -L + 2 * L * i / n; pts.push([-(3 + 6 * Math.min(1, Math.max(0, fn(u, 0, 633e-6)[0]))) * k, u]); }
@@ -5881,7 +5883,7 @@ function drawJones(el, sel) {
   pathLocal(f, [[-0.6 * k * 2, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
   ctx.fillStyle = el.type === 'polariser' ? 'rgba(157,107,255,0.22)' : 'rgba(115,185,202,0.18)';
   ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : (el.type === 'polariser' ? '#b79bff' : '#73b9ca');
+  ctx.strokeStyle = sel ? selInk() : (el.type === 'polariser' ? '#b79bff' : '#73b9ca');
   ctx.lineWidth = sel ? 2.5 : 1.6;
   ctx.stroke();
   // a badge showing where the axis sits in the polarisation plane
@@ -6046,7 +6048,7 @@ const FSYM = (() => {
     if (!G) return false;
     const c = ctx;
     c.save(); c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
-    c.strokeStyle = sel ? '#ffffff' : FIBRE_COLOUR; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    c.strokeStyle = sel ? selInk() : FIBRE_COLOUR; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
     G.draw(c, el);
     c.restore();
     if (G.val && s > 2.5) {
@@ -6064,7 +6066,7 @@ function drawFcomp(el, sel) {
   const laser = el.kind === 'laser';
   pathLocal(f, roundRect(w, hh, 1.6), true);
   ctx.fillStyle = laser ? 'rgba(0,0,0,0.35)' : '#2b373d'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
   const tag = typeof K.tag === 'function' ? K.tag(el) : K.tag, fs = clamp(2.6 * s, 7, 14);
   if (fs * tag.length * 0.62 < FC_W * s) {
     ctx.save(); ctx.fillStyle = laser ? wavelengthColour(el.wavelength) : 'rgba(255,255,255,0.8)'; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
@@ -6276,7 +6278,7 @@ function drawLink(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, P = linkPartner(el);
   const col = P ? '#7fdcff' : 'rgba(127,220,255,0.45)';
   pathLocal(f, [[0, -L], [0, L]]);
-  ctx.setLineDash([6, 4]); ctx.strokeStyle = sel ? '#ffffff' : col; ctx.lineWidth = sel ? 3 : 2.2; ctx.stroke(); ctx.setLineDash([]);
+  ctx.setLineDash([6, 4]); ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 3 : 2.2; ctx.stroke(); ctx.setLineDash([]);
   // end caps
   ctx.beginPath();
   for (const y of [-L, L]) { const [ax, ay] = toWorld(f, -4 * k, y), [bx, by] = toWorld(f, 4 * k, y); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); }
@@ -6301,17 +6303,17 @@ function drawCell(el, sel) {
   const f = frame(el), L = el.length / 2, H = el.cellLen / 2, k = 1 / V().scale;
   pathLocal(f, [[-H, -L], [H, -L], [H, L], [-H, L]], true);
   ctx.fillStyle = 'rgba(199,155,255,0.13)'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#c79bff'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#c79bff'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   for (const x of [-H, H]) { pathLocal(f, [[x - 1.2 * k, -L], [x + 1.2 * k, -L], [x + 1.2 * k, L], [x - 1.2 * k, L]], true); ctx.fillStyle = 'rgba(115,185,202,0.35)'; ctx.fill(); }
   // the stem where the metal sits
   pathLocal(f, [[-2.5, L], [2.5, L], [2.5, L + Math.min(8, L * 0.5)], [-2.5, L + Math.min(8, L * 0.5)]], true);
-  ctx.strokeStyle = sel ? '#ffffff' : '#c79bff'; ctx.lineWidth = 1.1; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#c79bff'; ctx.lineWidth = 1.1; ctx.stroke();
 }
 function drawNlc(el, sel) {
   const f = frame(el), L = el.length / 2, H = el.nlLen / 2;
   pathLocal(f, [[-H, -L], [H, -L], [H, L], [-H, L]], true);
   ctx.fillStyle = 'rgba(120,200,160,0.16)'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#78c8a0'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#78c8a0'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   // the poling: a few stripes across
   const n = Math.max(3, Math.min(24, Math.round(el.nlLen / 2)));
   ctx.beginPath();
@@ -6322,7 +6324,7 @@ function drawPlate(el, sel, stroke, fill, half) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
   ctx.fillStyle = fill; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : stroke; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : stroke; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
   return { f, L, k };
 }
 /* an arrow along the element's axis above it: the direction of a Faraday rotator's field */
@@ -6341,18 +6343,18 @@ function drawGrating(el, sel) {
   const back = refl ? -Math.max(2, 6 * k) : -1.2 * k;
   pathLocal(f, [[back, -L], [0, -L], [0, L], [back, L]], true);
   ctx.fillStyle = refl ? 'rgba(216,222,227,0.14)' : 'rgba(115,185,202,0.14)'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
   // grooves on the working face
   const n = Math.max(4, Math.min(60, Math.round(2 * L * V().scale / 5))), pts = [];
   for (let i = 0; i <= n; i++) { const y = -L + 2 * L * i / n; pts.push([0, y]); if (i < n) pts.push([2.5 * k, y + 2 * L / n * 0.8]); }
   pathLocal(f, pts);
-  ctx.strokeStyle = sel ? '#ffffff' : '#c9a6ff'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#c9a6ff'; ctx.lineWidth = 1.2; ctx.stroke();
 }
 function drawFibre(el, sel) {
   const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = Math.max(8, 30 * k);
   pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
   ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   // the jacketed fibre leaving the back of the ferrule
   pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
@@ -6368,7 +6370,7 @@ function drawDetector(el, sel) {
   for (let i = 0; i <= 32; i++) { const a = Math.PI / 2 + Math.PI * i / 32; pts.push([H * Math.cos(a), H * Math.sin(a)]); }
   pathLocal(f, pts, true);
   ctx.fillStyle = bodyFill('#2b3338'); ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#9aa4ab'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  ctx.strokeStyle = sel ? selInk() : '#9aa4ab'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   pathLocal(f, [[0, -L], [0, L]]);
   ctx.strokeStyle = '#7ee0a1'; ctx.lineWidth = 3.5; ctx.stroke();
   const hits = lastTrace.screens[el.id] || [];
@@ -6379,8 +6381,8 @@ function drawCrystal(el, sel) {
   const f = frame(el), G = crystalGeom(el), k = 1 / V().scale;
   pathLocal(f, G.outline, true);
   ctx.fillStyle = 'rgba(183,155,255,0.13)'; ctx.fill();
-  ctx.strokeStyle = sel ? '#ffffff' : '#b79bff'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
-  ctx.lineWidth = 1.2; ctx.strokeStyle = sel ? '#ffffff' : '#b79bff';
+  ctx.strokeStyle = sel ? selInk() : '#b79bff'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = sel ? selInk() : '#b79bff';
   if (G.cut) { pathLocal(f, G.cut); ctx.stroke(); }
   if (G.gap) for (const g of G.gap) { pathLocal(f, [[g[0], g[1]], [g[2], g[3]]]); ctx.stroke(); }
   // the optic axis, where it lies in the bench plane
@@ -8625,7 +8627,7 @@ const PIC = (() => {
   function draw(el, sel) {
     const s = V().scale, c = ctx, ports = portList(el), names = KINDS[el.kind].names, M = PMAP[el.kind];
     c.save(); c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
-    c.strokeStyle = sel ? '#ffffff' : GREEN; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    c.strokeStyle = sel ? selInk() : GREEN; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
     PSYM[el.kind](sheet(c, M));
     c.restore();
     if (PVAL[el.kind] && s > 2.5) {
@@ -9063,7 +9065,7 @@ const ELEC = (() => {
     const c = ctx;
     c.save();
     c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
-    c.strokeStyle = sel ? '#ffffff' : YELLOW; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
+    c.strokeStyle = sel ? selInk() : YELLOW; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
     // the leads, from each port in to the symbol
     for (const P of ports) { const v = -P.y; line(c, P.x, v, P.x < 0 ? -G.L(v) : G.R(v), v); }
     FLIP = Math.cos(el.angle * deg) < -1e-6;
@@ -9093,7 +9095,7 @@ const ELEC = (() => {
   function drawNode(el, sel) {
     const s = V().scale, X = sx(el.x), Y = sy(el.y), r = clamp(NODE_R * s, 7, 12);
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = bodyFill(DARK); ctx.fill(); ctx.strokeStyle = sel ? '#ffffff' : YELLOW; ctx.lineWidth = sel ? 2.4 : 1.6; ctx.stroke();
+    ctx.fillStyle = bodyFill(DARK); ctx.fill(); ctx.strokeStyle = sel ? selInk() : YELLOW; ctx.lineWidth = sel ? 2.4 : 1.6; ctx.stroke();
     ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); ctx.fillStyle = YELLOW; ctx.fill();
   }
 
@@ -9790,9 +9792,9 @@ const ELEC = (() => {
     const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 1.2 * k;
     pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
     ctx.fillStyle = 'rgba(200,205,210,0.18)'; ctx.fill();
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = sel ? '#ffffff' : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke(); ctx.setLineDash([]);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke(); ctx.setLineDash([]);
     pathLocal(f, [[-2.5, -L - CHOP_HUB], [2.5, -L - CHOP_HUB], [2.5, -L - 0.6], [-2.5, -L - 0.6]], true);
-    ctx.fillStyle = bodyFill('#2b3338'); ctx.fill(); ctx.strokeStyle = sel ? '#ffffff' : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+    ctx.fillStyle = bodyFill('#2b3338'); ctx.fill(); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
   }
   const hitChopper = (el, lx, ly, tol) => Math.abs(lx) <= 2.5 + tol && ly >= -(el.length / 2 + CHOP_HUB) - tol && ly <= el.length / 2 + tol;
   const chopSurfaces = el => el._closed ? [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'absorb' })] : [];
@@ -19458,7 +19460,7 @@ function drawMinimap() {
   g.stroke();
   for (const e of els) {
     const r = Math.max(halfSize(e), 1.5 / k), a = e.angle * deg, sel = e.id === selectedId || extraSel.has(e.id);
-    g.strokeStyle = sel ? '#ffffff' : e.type === 'source' ? (e.colour || '#ff6040') : 'rgba(210,225,232,0.85)'; g.lineWidth = sel ? 2 : 1.5;
+    g.strokeStyle = sel ? selInk() : e.type === 'source' ? (e.colour || '#ff6040') : 'rgba(210,225,232,0.85)'; g.lineWidth = sel ? 2 : 1.5;
     g.beginPath(); g.moveTo(MX(e.x - Math.sin(a) * r), MY(e.y + Math.cos(a) * r)); g.lineTo(MX(e.x + Math.sin(a) * r), MY(e.y - Math.cos(a) * r)); g.stroke();
   }
   g.strokeStyle = 'rgba(127,220,255,0.95)'; g.lineWidth = 1.2;

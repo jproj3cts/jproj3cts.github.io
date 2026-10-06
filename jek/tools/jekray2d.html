@@ -976,8 +976,6 @@
   .rt-rtool { color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; }
   .rt-rtool.on { border-color: #8b6ee0; background: rgba(139,110,224,0.3); color: #fff; }
   .rt-dicon { display: inline-flex; pointer-events: none; }
-  .rt-ptile.draw .rt-dicon { width: 48px; height: 48px; align-items: center; justify-content: center; color: #e8edf0; background: var(--rt-bench); }
-  .rt-ptab.draw.on { border-color: #8b6ee0; }
   .rt-drawhint { position: absolute; left: 50%; top: 2.5rem; transform: translateX(-50%); z-index: 4; max-width: min(46rem, calc(100% - 9rem)); padding: 0.3rem 0.7rem;
     font: 500 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: #f4efe9; border-left: 3px solid #8b6ee0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); pointer-events: none; }
   .rt-drawhint[hidden] { display: none; }
@@ -21593,7 +21591,7 @@ document.querySelector('.rt-wrap').append(document.getElementById('ctxMenu'));
 let pickTab = palette;
 function pickerShown(on) {
   if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && pickTab !== 'draw' && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   const r = document.getElementById('btnAddPart').getBoundingClientRect();
   picker.style.top = Math.round(r.bottom + 4) + 'px';
@@ -21621,13 +21619,6 @@ function fillPicker(q) {
       body.append(...mineBody(e => { if (!e.shiftKey) pickerShown(false); }));
       return;
     }
-    if (pickTab === 'draw') {
-      body.append(h('h4', null, 'Drawing tools'), h('div', { class: 'rt-pgrid' }, ...DRAW_TOOLS.map(([k, name, key, tip]) =>
-        h('button', { type: 'button', class: 'rt-ptile draw', 'data-dtool': k, title: tip, onclick: e => { e.stopPropagation(); setDrawTool(k); pickerShown(false); } },
-          drawIcon(k), h('span', null, name, h('small', null, key))))),
-        h('p', { class: 'rt-pnone' }, 'Rectangles, ellipses and paths for figures: boxes round a part of the setup, arrows, outlines of a mount or a chamber. The light goes through them as if they were not there. Pick a drawing and its panel sets its shape, and its fill and stroke.'));
-      return;
-    }
     const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
     if (rec.length) body.append(h('h4', null, 'Recent'), h('div', { class: 'rt-pgrid' }, ...rec.map(p => partTile(p, add, p.pal !== pickTab))));
     for (const g of partGroups(pickTab)) body.append(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, add))));
@@ -21642,11 +21633,10 @@ function fillPicker(q) {
     const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
     return b;
-  }), h('button', { type: 'button', role: 'tab', class: 'rt-ptab draw' + (pickTab === 'draw' ? ' on' : ''), 'aria-selected': pickTab === 'draw' ? 'true' : 'false',
-    onclick: e => { e.stopPropagation(); pickTab = 'draw'; search.value = ''; fillPicker(''); } }, 'Draw'), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
+  }), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
     onclick: e => { e.stopPropagation(); pickTab = 'mine'; search.value = ''; fillPicker(''); } }, '★ My parts') : null);
   picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
-    pickTab === 'draw' ? null : h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
+    h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
   show();
   search.focus();
 }
@@ -22887,7 +22877,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    '<b>Draw</b>, a palette of its own on the rail and in + Add part: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
+    '<b>Draw</b>, a palette of its own on the parts rail down the bench\u2019s left: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
     '<b>Export layout (current view)</b> (File menu): a PNG, SVG or PDF of just what is on screen, as you have it framed. Export layout now gives the whole tab, framed to fit, whatever part of it you are looking at.',
     '<b>Bench colour</b> (View \u203a Bench colour): the dark breadboard, black, navy, paper, white or a colour of your own, kept with the bench and used for exported pictures; parts, beams and fibres look the same on any colour, and on a light one the words are drawn dark. And View \u203a Grid holes, to leave the holes off for a figure.',
     'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',

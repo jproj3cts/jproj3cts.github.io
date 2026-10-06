@@ -790,11 +790,11 @@
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
 
-  /* The tool fills the window below the site's bar, edge to edge: the title sits in the toolbar,
-     and nothing separates the toolbar, the bench and the panels but a hairline. Its height is
-     the window's less the bar's (--rt-top, measured); the panels scroll within it. */
+  /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray2D logo
+     at the left of the toolbar leads back to its product page, and nothing separates the
+     toolbar, the bench and the panels but a hairline. The panels scroll within it. */
   .main-content.rt-app { padding: 0; }
-  .rt-app .rt-wrap { max-width: none; width: 100%; display: flex; flex-direction: column; height: calc(100vh - var(--rt-top, 72px)); min-height: 520px; }
+  .rt-app .rt-wrap { max-width: none; width: 100%; display: flex; flex-direction: column; height: 100vh; height: 100dvh; min-height: 520px; }
   .rt-app .rt-toolbar { margin-bottom: 0; border-radius: 0; box-shadow: none; border-width: 0 0 1px; flex: none; }
   .rt-app .rt-grid { flex: 1; min-height: 0; gap: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
@@ -803,7 +803,7 @@
   .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
   .rt-panel .rt-about p { max-width: none; }
   .rt-panel .rt-about summary { width: auto; }
-  /* the page does not scroll: the tool is the whole window below the site's bar (on a wide screen) */
+  /* the page does not scroll: the tool is the whole window (on a wide screen) */
   @media (min-width: 961px) {
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
@@ -825,8 +825,11 @@
   .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
   .rt-file { display: flex; align-items: center; gap: 0.1rem; }
   .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
-  .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.6rem; font-size: 1.15rem; }
-  .rt-bar .rt-title::after { width: 52px; margin-top: 0.22rem; }
+  .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.35rem 0 0.1rem; font-size: 1.1rem; }
+  .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
+  .rt-title a { color: inherit; text-decoration: none; }
+  .rt-title a:hover { color: var(--jek-cyan-dark); }
+  .rt-title a:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 3px; border-radius: 2px; }
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
   /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
@@ -849,11 +852,11 @@
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
   .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
-  .rt-imenu > button, .rt-imenu > .rt-sub { display: flex; align-items: center; gap: 0.55rem; width: 100%; box-sizing: border-box; padding: 0.3rem 0.9rem 0.3rem 0.6rem;
+  .rt-imenu > button, .rt-imenu > .rt-sub, .rt-imenu > a { display: flex; text-decoration: none; align-items: center; gap: 0.55rem; width: 100%; box-sizing: border-box; padding: 0.3rem 0.9rem 0.3rem 0.6rem;
     font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); background: none; border: 0; border-radius: 0; text-align: left; cursor: pointer; white-space: nowrap; }
   .rt-imenu .ic { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.75; }
   .rt-menu.rt-imenu button .k { float: none; margin-left: auto; padding-left: 1.5rem; font: 0.75rem var(--jek-mono); color: var(--jek-ink-soft); }
-  .rt-imenu > button:hover, .rt-imenu > button:focus-visible, .rt-imenu > .rt-sub:hover, .rt-imenu > .rt-sub:focus-within { background: var(--jek-cyan); color: #fff; outline: none; }
+  .rt-imenu > a:hover, .rt-imenu > a:focus-visible, .rt-imenu > button:hover, .rt-imenu > button:focus-visible, .rt-imenu > .rt-sub:hover, .rt-imenu > .rt-sub:focus-within { background: var(--jek-cyan); color: #fff; outline: none; }
   .rt-menu.rt-imenu > button:hover .k, .rt-menu.rt-imenu > button:focus-visible .k { color: rgba(255,255,255,0.85); }
   .rt-imenu > button:hover .ic, .rt-imenu > .rt-sub:hover > .ic { opacity: 1; }
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
@@ -874,19 +877,22 @@
   .rt-barlink:hover { color: var(--jek-ink); }
   .rt-barlink .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
   /* on a desktop the bar stays one row, giving way as the window narrows: the bench's name first,
-     then the title, then Cite and Report a bug's words (their icons stay), then they and Examples go
-     to the Help and File menus */
+     then Cite and Report a bug's words (their icons stay), then they and Save's ".jekray" go, then
+     Examples and Share go to the File menu; the JEKray2D logo always stays */
   @media (min-width: 961px) {
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 15rem; min-width: 8rem; width: auto; }
   }
-  @media (max-width: 1500px) { .rt-bar .rt-title { display: none; } }
   @media (max-width: 1440px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
+  @media (max-width: 1280px) {
+    .rt-barlink { display: none; }
+    .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray" */
+  }
   @media (max-width: 1100px) {
-    .rt-barlink, #btnExamples { display: none; }
-    .rt-menu button.rt-narrow[data-click="btnExamples"] { display: flex; }
+    #btnExamples, #btnShare { display: none; }
+    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: flex; }
   }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
@@ -948,13 +954,11 @@
   .rt-stage.rail .rt-welcome { left: calc(52px + 0.8rem); }
   body.rt-embed .rt-rail, body.rt-embed .rt-flyout, body.rt-embed .rt-picker { display: none !important; }
   @media (max-width: 960px) {
-    .rt-bar .rt-title { display: none; }
     .rt-file .rt-name { width: 9rem; flex-basis: 9rem; }
     .rt-app .rt-wrap { height: auto; min-height: 0; }
     .rt-app .rt-grid { grid-template-rows: none; }
     .rt-app .rt-stage { height: 62vh; min-height: 360px; }
     .rt-app .rt-panel { border-width: 1px 0 0; }
-    .rt-title { flex-basis: 100%; order: -1; }
     .rt-grid { grid-template-columns: minmax(0, 1fr); }
     .rt-stage { height: 62vh; min-height: 360px; }
     .rt-panel { max-height: none; }
@@ -965,31 +969,12 @@
 </head>
 <body>
 
-<div class="top-container">
-  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
-  <div class="bar bar4"></div><div class="bar bar5"></div>
-  <div class="bar6">
-    <a href="/jek/products.html">Products</a> |
-    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
-    <span class="nav-drop" data-nav-drop>
-      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
-      <span class="nav-drop-menu">
-        <a href="/jek/calculators/">Calculators</a>
-        <a href="/jek/tools/jekray2d.html">JEKray2D</a>
-      </span>
-    </span> |
-    <a href="/jek/bio.html">Bio</a> |
-    <a href="/jek/contact.html">Contact</a>
-    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
-  </div>
-  <div class="text-overlay">JEK Systems</div>
-</div>
-
 <main class="main-content rt-app">
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray2D controls">
       <div class="rt-row rt-bar">
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekray2d/" title="About JEKray2D: its product page">JEKray2D</a></h1>
         <div class="rt-more rt-file">
           <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
@@ -1018,7 +1003,6 @@
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
         </div>
-        <h1 class="rt-title">JEKray2D</h1>
         <button class="rt-btn rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)">+ Add part</button>
         <div class="rt-group rt-tight">
           <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
@@ -1072,7 +1056,11 @@
               <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
               <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
               <div class="sep"></div>
-              <span class="rt-menunote">JEKray2D <span id="appVersion"></span></span>
+              <a role="menuitem" href="/jek/products/design-software/jekray2d/" data-icon="info">About JEKray2D</a>
+              <a role="menuitem" href="jekray2d-licence.html" data-icon="pdf">Licence</a>
+              <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
+              <div class="sep"></div>
+              <span class="rt-menunote">JEKray2D <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
             </div>
             <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
           </div>
@@ -1352,17 +1340,6 @@
   </dialog>
 </main>
 
-<footer>
-  <a href="/jek/">
-    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
-  </a>
-  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems &middot; <a href="/jek/tools/jekray2d-licence.html">Licence</a></span>
-  <div class="bar6">
-    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
-    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
-    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
-  </div>
-</footer>
 
 <script>
 (() => {
@@ -5191,14 +5168,8 @@ function resize() {
   requestRender();
 }
 new ResizeObserver(resize).observe(stage);
-/* the tool's height: the window's, less the site's bar above it; the page itself does not scroll */
+/* the tool is the whole window; the page itself does not scroll */
 document.documentElement.classList.add('rt-noscroll');
-{
-  const top = document.querySelector('.top-container');
-  const fitTop = () => document.documentElement.style.setProperty('--rt-top', (top ? top.getBoundingClientRect().height : 0) + 'px');
-  fitTop();
-  if (top) new ResizeObserver(fitTop).observe(top);
-}
 
 const V = () => project.view;
 const sx = x => W / 2 + (x - V().cx) * V().scale;
@@ -21075,6 +21046,7 @@ const MENU_ICONS = {
   signout: 'M6.5 2.5H2.5V13.5H6.5 M6 8H14 M11 5L14 8L11 11',
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7',
   trash: 'M2.5 4H13.5 M6 4V2.5H10V4 M3.5 4L4.5 14H11.5L12.5 4 M6.5 6.5V11.5 M9.5 6.5V11.5',
+  info: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 7V11.5 M8 4.6V4.7', home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5',
   fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
@@ -23227,7 +23199,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
 })();
 </script>
 
-<script src="/jek/assets/js/cart.js"></script>
 
 </body>
 </html>

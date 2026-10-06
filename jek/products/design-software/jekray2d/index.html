@@ -139,6 +139,16 @@
   .dropdown.open .dropdown-panel.rt-tall { max-height: 900px; }
   .rt-tall p, .rt-tall li { font-size: 0.9rem; line-height: 1.5; margin: 0.25rem 0; }
   .rt-tall ul { margin: 0 0 0.3rem; padding-left: 1.2rem; }
+
+  /* The program's look on its own page: crisp, near-square corners and hairline borders, no
+     soft shadows or lifting cards; the page's colours and layout stay as they are */
+  main.main-content { --jek-radius: 2px; --jek-shadow: none; }
+  main.main-content :is(.gallery-frame, .buy-button, .quote-button, .rt-pro-button, .rt-feature a.rt-pro-button,
+    .rt-example, .rt-exdrop, .rt-exdrop > summary, .rt-video figure, .rt-shot, .rt-beta, .dropdown, .tech-section) { border-radius: 2px; }
+  main.main-content .dropdown-panel-inner a { border-radius: 0 2px 2px 0; }
+  main.main-content .pip { border-radius: 1px; }
+  main.main-content .rt-example:hover { transform: none; }
+  main.main-content .rt-pro-button:hover, main.main-content .buy-button:hover { transform: none; }
 </style>
 </head>
 

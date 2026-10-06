@@ -22628,8 +22628,9 @@ document.getElementById('newCancel').addEventListener('click', () => newDlg.clos
 document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); });
 const nameInput = document.getElementById('projName');
 /* the name's box is as wide as the name (within limits), so as much of it as the bar has room
-   for can be read: sized on every change, however the value is set */
-{
+   for can be read: sized on every change, however the value is set (on the page only: the
+   field worker runs this code too, with no page) */
+if (!IN_WORKER) {
   const cv = document.createElement('canvas').getContext('2d');
   const fit = () => {
     const cs = getComputedStyle(nameInput);

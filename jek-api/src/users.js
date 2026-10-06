@@ -65,11 +65,11 @@ export async function me(env, user) {
     ).bind(user.id),
   ]);
   const t = now();
-  const ac = await env.DB.prepare('SELECT academic_until, academic_via FROM users WHERE id = ?').bind(user.id).first();
+  const ac = await env.DB.prepare('SELECT academic_until, academic_via, academic_email FROM users WHERE id = ?').bind(user.id).first();
   const licence = await useLicence(env, user, t);
   return {
     user,
-    academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via } : null,
+    academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via, email: ac.academic_email || null } : null,
     licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,
     // ORCID sign-in is ending (src/orcid.js): when, for someone who has it
     orcid_ends: orcidLegacy(env, t) && ids.results.some((i) => i.provider === 'orcid') ? orcidLegacyUntil(env) : null,

@@ -21,6 +21,7 @@ export default defineConfig(async () => {
             STRIPE_SECRET_KEY: 'rk_test_x',
             STRIPE_WEBHOOK_SECRET: 'whsec_test',
             ORCID_LEGACY_UNTIL: '2099-01-01T00:00:00Z',
+            RESEND_API_KEY: 're_test_key',
             OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
           },
         },

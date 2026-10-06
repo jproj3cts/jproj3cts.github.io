@@ -28,6 +28,11 @@ ORCID_LEGACY_UNTIL = "2026-10-31T23:59:59Z"
 # Application (client) ID; its secret with `npx wrangler secret put MICROSOFT_CLIENT_SECRET`.
 # Empty: Microsoft sign-in is not offered.
 MICROSOFT_CLIENT_ID = "cd167344-4d1b-407d-8d8c-f00e52ddce2c"
+# Email (src/mail.js): codes that prove a university address, sent through
+# Resend from the jeksys.net domain verified there. The key, its own for this
+# API, with `npx wrangler secret put RESEND_API_KEY`; without it, no email is sent.
+MAIL_FROM = "JEKray2D <jekray2d@jeksys.net>"
+SUPPORT_EMAIL = "support@jeksys.net"
 
 # Accounts, sessions, workspaces and bench heads.
 [[d1_databases]]

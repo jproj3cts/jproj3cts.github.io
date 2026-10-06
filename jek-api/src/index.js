@@ -11,7 +11,7 @@ import * as B from './benches.js';
 import { exportAll } from './export.js';
 import * as I from './institutions.js';
 import * as P from './parts.js';
-import { verify as verifyAcademic } from './academic.js';
+import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { me } from './users.js';
@@ -25,6 +25,8 @@ async function purgeExpired(env) {
   const t = Date.now();
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(t),
+    env.DB.prepare('DELETE FROM email_codes WHERE expires_at <= ?').bind(t),
+    env.DB.prepare('DELETE FROM email_sends WHERE at <= ?').bind(t - 24 * 60 * 60 * 1000),
     env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(t),
   ]);
 }
@@ -126,6 +128,8 @@ const router = new Router()
   .on('POST', '/v1/institutions/:id/remove', async (req, env, ctx, { id }) => json(await I.adminRemove(req, env, await requireUser(req, env, ctx), id)))
   .on('POST', '/v1/institutions/:id/restore', async (req, env, ctx, { id }) => json(await I.adminRestore(req, env, await requireUser(req, env, ctx), id)))
   .on('POST', '/v1/me/academic', async (req, env, ctx) => json(await verifyAcademic(env, await requireUser(req, env, ctx))))
+  .on('POST', '/v1/me/academic/email', async (req, env, ctx) => json(await sendCode(req, env, await requireUser(req, env, ctx))))
+  .on('POST', '/v1/me/academic/code', async (req, env, ctx) => json(await checkCode(req, env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/workspaces/:w/billing/checkout', async (req, env, ctx, { w }) =>
     json(await checkout(req, env, await requireUser(req, env, ctx), w)),
   )

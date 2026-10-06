@@ -4,8 +4,9 @@
 // An institution is a workspace of kind 'institution' owned by the 'system'
 // user; its subscription is the licence. A person is covered while the
 // licence counts and either
-//   - their verified email is at one of its domains (or a subdomain of one),
-//     checked afresh each time, or
+//   - their verified email (the one they sign in with, or a university address
+//     they proved with a code, for the year that lasts) is at one of its
+//     domains (or a subdomain of one), checked afresh each time, or
 //   - they signed in with Microsoft from one of its Entra tenants, or
 //   - one of its administrators invited their verified email address, or
 //   - their public ORCID record shows a current affiliation with one of its
@@ -97,7 +98,10 @@ export async function licenceFor(env, user, t = now()) {
     `SELECT t.workspace_id, 'Microsoft account' AS detail FROM identities i
        JOIN institution_tenants t ON t.tenant = substr(i.subject, 1, instr(i.subject, ':') - 1)
       WHERE i.user_id = ? AND i.provider = 'microsoft'`, [user.id]);
-  const ds = domainsOf(user.email);
+  // the address they sign in with, and a university address proved with a code (while that lasts)
+  const ac = await env.DB.prepare('SELECT academic_email, academic_until FROM users WHERE id = ?').bind(user.id).first();
+  const emails = [user.email, ac && ac.academic_until > t ? ac.academic_email : null].filter(Boolean).map((e) => String(e).toLowerCase());
+  const ds = [...new Set(emails.flatMap(domainsOf))];
   if (ds.length) {
     const { results } = await env.DB.prepare(
       `SELECT w.id AS workspace_id, w.name, d.domain AS detail, ${SUB_COLS}, l.removed_at
@@ -111,8 +115,8 @@ export async function licenceFor(env, user, t = now()) {
     for (const r of results) if (!r.removed_at) found.push({ ...r, via: 'email' });
   }
   // invited by the university's administrators
-  if (user.email) {
-    await live('invite', "SELECT workspace_id, 'invited' AS detail FROM institution_invites WHERE email = ?", [String(user.email).toLowerCase()]);
+  for (const e of new Set(emails)) {
+    await live('invite', "SELECT workspace_id, 'invited' AS detail FROM institution_invites WHERE email = ?", [e]);
   }
   // a current affiliation found on ORCID, for a year (while ORCID is on: src/orcid.js)
   const { results: kept } = !orcidOn(env) ? { results: [] } : await env.DB.prepare(
@@ -469,7 +473,7 @@ export async function opsRemove(req, env, id) {
 // Takes everyone with this verified email off an institution's licence (and
 // any invitation of it); the number of accounts.
 async function removeByEmail(env, id, email) {
-  const { results } = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL').bind(email).all();
+  const { results } = await env.DB.prepare('SELECT id FROM users WHERE (lower(email) = ?1 OR academic_email = ?1) AND deleted_at IS NULL').bind(email).all();
   const t = now();
   await env.DB.batch([
     env.DB.prepare('DELETE FROM institution_invites WHERE workspace_id = ? AND email = ?').bind(id, email),
@@ -560,7 +564,7 @@ export async function adminInvite(req, env, user, id) {
       .bind(id, email, user.id, now()),
     // inviting someone undoes their removal
     env.DB.prepare(
-      'UPDATE licences SET removed_at = NULL WHERE workspace_id = ? AND user_id IN (SELECT id FROM users WHERE lower(email) = ?)',
+      'UPDATE licences SET removed_at = NULL WHERE workspace_id = ?1 AND user_id IN (SELECT id FROM users WHERE lower(email) = ?2 OR academic_email = ?2)',
     ).bind(id, email),
   ]);
   return adminGet(env, user, id);
@@ -586,7 +590,7 @@ export async function adminRestore(req, env, user, id) {
   await adminOf(env, user, id);
   const email = emailOf(await readBody(req));
   await env.DB.prepare(
-    'UPDATE licences SET removed_at = NULL WHERE workspace_id = ? AND user_id IN (SELECT id FROM users WHERE lower(email) = ?)',
+    'UPDATE licences SET removed_at = NULL WHERE workspace_id = ?1 AND user_id IN (SELECT id FROM users WHERE lower(email) = ?2 OR academic_email = ?2)',
   )
     .bind(id, email)
     .run();

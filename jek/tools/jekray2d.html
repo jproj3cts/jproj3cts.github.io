@@ -718,6 +718,13 @@
   .rt-subcard .rt-btn:disabled { opacity: 0.45; cursor: default; }
   .rt-subok { color: #1c7c3c; }
   .rt-subcheck { color: var(--jek-ink-soft); }
+  .rt-subcheck p { margin: 0 0 0.45rem !important; }
+  .rt-subform { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.35rem 0 0.5rem; font-size: 0.82rem; }
+  .rt-subrow { display: flex; gap: 0.35rem; }
+  .rt-subinput { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; font: inherit; font-size: 0.85rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-subinput:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-subcode { flex: 0 1 8rem; font-family: var(--jek-mono); letter-spacing: 0.2em; }
+  .rt-subform .rt-error { margin: 0 !important; font-size: 0.8rem; }
   .rt-subsmall { font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
@@ -21323,6 +21330,7 @@ function planText(w) {
 }
 const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: (cur || 'gbp').toUpperCase(), minimumFractionDigits: pence % 100 ? 2 : 0 }).format(pence / 100);
 let subInterval = 'month';
+const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 async function showSubscribe() {
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
@@ -21349,9 +21357,45 @@ async function showSubscribe() {
     try { const r = await api('/v1/me/academic', { method: 'POST' }); account.academic = r; toast('Academic price confirmed'); }
     catch (err) { toast(err.message, true); }
     showSubscribe();
-  } }, 'Check that I qualify');
-  const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + ac.via + ')') : h('p', { class: 'rt-subcheck' }, 'For current students and staff of a university or similar. ', check,
-    ': we look for a university email on your Google or Microsoft sign-in. No university address? Email support@jeksys.net and we will check by hand.');
+  } }, 'Check my sign-in');
+  // or a university address, proved by a 6-digit code emailed to it (which a university's licence counts too)
+  const post = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const acForm = () => {
+    const email = h('input', { type: 'email', class: 'rt-subinput', placeholder: 'you@university.ac.uk', 'aria-label': 'Your university email address', autocomplete: 'email', value: acCheck.email || '' });
+    const err = h('p', { class: 'rt-error', hidden: '' });
+    const fail = e => { err.textContent = e.message; err.hidden = false; };
+    if (!acCheck.sent) {
+      const go = h('button', { type: 'submit', class: 'rt-btn' }, 'Send a code');
+      return h('form', { class: 'rt-subform', onsubmit: async e => {
+        e.preventDefault(); go.disabled = true; go.textContent = 'Sending…'; err.hidden = true;
+        try { const r = await post('/v1/me/academic/email', { email: email.value }); Object.assign(acCheck, { email: r.email, sent: true }); showSubscribe(); }
+        catch (e2) { fail(e2); go.disabled = false; go.textContent = 'Send a code'; }
+      } }, h('label', null, 'Or confirm your university email address:'), h('span', { class: 'rt-subrow' }, email, go), err);
+    }
+    const code = h('input', { type: 'text', class: 'rt-subinput rt-subcode', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '7', placeholder: '123456', 'aria-label': 'The 6-digit code' });
+    const go = h('button', { type: 'submit', class: 'rt-btn primary' }, 'Confirm');
+    setTimeout(() => code.focus(), 0);
+    return h('form', { class: 'rt-subform', onsubmit: async e => {
+      e.preventDefault(); go.disabled = true; go.textContent = 'Checking…'; err.hidden = true;
+      try {
+        const r = await post('/v1/me/academic/code', { code: code.value });
+        Object.assign(acCheck, { email: '', sent: false });
+        await loadAccount();
+        if (account.licence) { dlg.close(); toast('Confirmed: you have JEKrayPro through ' + account.licence.name); return; }
+        account.academic = account.academic || r; toast('Academic price confirmed'); showSubscribe();
+      } catch (e2) {
+        if (/expired|too_many_tries|no_code/.test(e2.code || '')) acCheck.sent = false;
+        fail(e2); go.disabled = false; go.textContent = 'Confirm';
+        if (!acCheck.sent) setTimeout(showSubscribe, 1800);
+      }
+    } }, h('label', null, 'We have emailed a 6-digit code to ', h('b', null, acCheck.email), '. Type it here (it lasts 15 minutes):'),
+      h('span', { class: 'rt-subrow' }, code, go),
+      h('span', { class: 'rt-subsmall' }, 'Not there? Look in junk mail, or ', h('button', { type: 'button', class: 'rt-link', onclick: () => { acCheck.sent = false; showSubscribe(); } }, 'use another address or send again'), '.'), err);
+  };
+  const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + (ac.email || ac.via) + ')') : h('div', { class: 'rt-subcheck' },
+    h('p', null, 'For current students and staff of a university or similar. ', check, ' to use the university address you sign in with.'),
+    acForm(),
+    h('p', { class: 'rt-subsmall' }, 'No university address? Email support@jeksys.net and we will check by hand.'));
   const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     uni.disabled = true; uni.textContent = 'Checking…';
     try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKrayPro through ' + account.licence.name); return; }
@@ -21359,7 +21403,7 @@ async function showSubscribe() {
     uni.disabled = false; uni.textContent = 'Check for a university licence';
   } }, 'Check for a university licence');
   const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKrayPro for everyone? ', uni,
-    ': with your university Google or Microsoft account it shows on its own, or ask your university\u2019s licence administrator to invite you.');
+    ': with your university Google or Microsoft account it shows on its own; or confirm your university email address under Academic below, or ask your university\u2019s licence administrator to invite you.');
   box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
     card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device.'),
     card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
@@ -22185,6 +22229,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    'The <b>academic price</b> (and a university\u2019s licence) with any sign-in: confirm your university email address with a 6-digit code we email to it, in the JEKrayPro box.',
     '<b>My parts</b>, with JEKrayPro: keep a part set up as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly with its fibres, from the right-click menu, and it is in + Add part \u203a My parts, the search and the rail\u2019s \u2605 on every bench and any computer. Click to add it, or drag it where you want it. Its tab also imports .zmx files (one or a whole folder\u2019s worth) straight into it, named by part number.',
     '<b>My benches is a page of its own</b> (the grid button by the bench\u2019s name, or File \u203a My benches): your cloud benches as cards with their pictures, or as a list, with folders down the side, Recent, search, sorting and the bin. And <b>forks</b>: fork a bench, or any version in its history, to try something without touching the original; a bench\u2019s history is drawn as a graph, its versions on one line and each fork branching off from the version it was made from. File \u203a Fork this bench carries on in a fork of the one you are working on. Both with JEKrayPro.',
     '<b>JEKray2D is in open beta</b>, and so is <b>JEKrayPro</b>: sign in with Google or Microsoft (university or work) from the top right, and your benches save to the cloud as you work, with their history, folders, a bin and a picture of each, on any computer. Subscriptions, the academic price and university licences are open. The tool itself stays free, with or without an account.',

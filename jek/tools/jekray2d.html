@@ -5250,8 +5250,12 @@ const glowOp = () => lightLayer ? 'source-over' : 'lighter';
 const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
 // what is selected is picked out in white on the dark bench, and in near-black on a light one
 const selInk = (a = 1) => lightLayer ? (a === 1 ? '#1b2328' : 'rgba(27,35,40,' + a + ')') : (a === 1 ? '#ffffff' : 'rgba(255,255,255,' + a + ')');
-// a part's dark body takes the bench's own colour on a light bench, as it sits on the dark one
-const bodyFill = c => lightLayer ? benchBg() : c;
+// while the bench itself is drawn (not a part's icon in the picker, on the standard dark tile)
+let inBench = false;
+// a part's dark body, and an open port, take the bench's own colour on any bench colour but the
+// standard breadboard, where they keep their own (an open port is the breadboard's colour anyway)
+const bodyFill = c => inBench && benchBg() !== BENCH_DEFAULT ? benchBg() : c;
+const portFill = () => inBench ? benchBg() : '#1b2327';
 // mirrors' metal, a darker grey on a light bench so it shows
 const metal = (a = 1) => lightLayer ? 'rgba(98,109,117,' + a + ')' : 'rgba(216,222,227,' + a + ')';
 // the words on a light bench: light greys go dark, light colours deeper; a colour stays its hue
@@ -5793,9 +5797,9 @@ function render() {
   const stale = traceLater();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // a light bench: the parts as ever, the words dark, the light stronger (see benchLight)
-  lightLayer = benchLight();
+  lightLayer = benchLight(); inBench = true;
   if (lightLayer) ctx.fillText = inkedText;
-  try { renderAll(stale); } finally { if (ctx.fillText === inkedText) delete ctx.fillText; lightLayer = false; }
+  try { renderAll(stale); } finally { if (ctx.fillText === inkedText) delete ctx.fillText; lightLayer = false; inBench = false; }
   updateReadouts();
 }
 function renderAll(stale) {
@@ -6065,7 +6069,7 @@ function drawFcomp(el, sel) {
   const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = fcH(el) / 2, s = V().scale;
   const laser = el.kind === 'laser';
   pathLocal(f, roundRect(w, hh, 1.6), true);
-  ctx.fillStyle = laser ? 'rgba(0,0,0,0.35)' : '#2b373d'; ctx.fill();
+  ctx.fillStyle = bodyFill(laser ? 'rgba(0,0,0,0.35)' : '#2b373d'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
   const tag = typeof K.tag === 'function' ? K.tag(el) : K.tag, fs = clamp(2.6 * s, 7, 14);
   if (fs * tag.length * 0.62 < FC_W * s) {
@@ -6089,7 +6093,7 @@ function drawPorts(el) {
     if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = on ? FIBRE_COLOUR : '#1b2327'; ctx.fill();
+    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
     ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
     if (ps.length > 1 && s > 3) {                  // named when it has company: other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
@@ -8638,7 +8642,7 @@ const PIC = (() => {
     ports.forEach((P, i) => {
       const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? GREEN : FIBRE_COLOUR;
       c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-      c.fillStyle = on ? col : '#1b2327'; c.fill(); c.strokeStyle = col; c.lineWidth = 1.4; c.stroke();
+      c.fillStyle = on ? col : portFill(); c.fill(); c.strokeStyle = col; c.lineWidth = 1.4; c.stroke();
       if (ports.length > 1 && s > 3) {
         c.save(); c.fillStyle = '#bfe8cc'; c.font = '9px ' + getCss('--jek-mono'); c.textAlign = Q.dx > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
         c.fillText(names[i], X + Q.dx * (r + 3), Y - 3); c.restore();
@@ -9079,7 +9083,7 @@ const ELEC = (() => {
     ports.forEach((P, i) => {
       const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
       c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-      c.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; c.fill(); c.strokeStyle = YELLOW; c.lineWidth = 1.4; c.stroke();
+      c.fillStyle = on || P.elec === 'out' ? YELLOW : portFill(); c.fill(); c.strokeStyle = YELLOW; c.lineWidth = 1.4; c.stroke();
       if (named(P, i) && s > 2.2) {
         // the name just outside the port, away from the part, upright whatever the part's angle
         c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
@@ -9776,7 +9780,7 @@ const ELEC = (() => {
     X.forEach((P, k) => {
       const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
       ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
-      ctx.fillStyle = on || P.elec === 'out' ? YELLOW : '#1b2327'; ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.fillStyle = on || P.elec === 'out' ? YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
       // its name beside it, outside the part, upright
       if (V().scale > 2.2) {
         ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
@@ -19579,7 +19583,7 @@ function drawMeasures() {
   ctx.font = '11px ' + getCss('--jek-mono'); ctx.lineWidth = 1.4;
   const label = (x, y, lines) => {
     const w = Math.max(...lines.map(t => ctx.measureText(t).width)) + 10, hh = 14 * lines.length + 6;
-    ctx.fillStyle = 'rgba(12,16,18,0.82)'; ctx.fillRect(x, y, w, hh);
+    ctx.fillStyle = lightLayer ? 'rgba(255,253,248,0.9)' : 'rgba(12,16,18,0.82)'; ctx.fillRect(x, y, w, hh);   // a light card, with dark words, on a light bench
     ctx.fillStyle = '#ffe28a'; ctx.textAlign = 'left';
     lines.forEach((t, i) => ctx.fillText(t, x + 5, y + 14 + 14 * i));
   };

@@ -19723,7 +19723,17 @@ class VecCtx {
   setLineDash(d) { this.dash = (d || []).slice(); }
   getLineDash() { return this.dash.slice(); }
   pt(x, y) { const M = this.M; return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; }
-  scale() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
+  // how much the current transform scales lengths (for line widths and text)
+  unit() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
+  // the canvas's own transforms, which the fibre, electronics and chip parts' symbols use
+  transform(a, b, c, d, e, f) {
+    const M = this.M;
+    this.M = [M[0] * a + M[2] * b, M[1] * a + M[3] * b, M[0] * c + M[2] * d, M[1] * c + M[3] * d, M[0] * e + M[2] * f + M[4], M[1] * e + M[3] * f + M[5]];
+  }
+  translate(x, y) { this.transform(1, 0, 0, 1, x, y); }
+  rotate(t) { const c = Math.cos(t), s = Math.sin(t); this.transform(c, s, -s, c, 0, 0); }
+  scale(x, y) { this.transform(x, 0, 0, y === undefined ? x : y, 0, 0); }
+  getTransform() { const M = this.M; return { a: M[0], b: M[1], c: M[2], d: M[3], e: M[4], f: M[5] }; }
   beginPath() { this.path = []; }
   moveTo(x, y) { this.path.push(['M', ...this.pt(x, y)]); this.start = this.path[this.path.length - 1].slice(1); }
   lineTo(x, y) { if (!this.path.length) return this.moveTo(x, y); this.path.push(['L', ...this.pt(x, y)]); }
@@ -19763,7 +19773,7 @@ class VecCtx {
   fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
   stroke() {
     if (!this.path.length) return;
-    const s = this.scale();
+    const s = this.unit();
     this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), stroke: cssColour(this.strokeStyle), lw: this.lineWidth * s,
       dash: this.dash.map(v => v * s), cap: this.lineCap, join: this.lineJoin }, this.style()));
   }
@@ -19777,7 +19787,7 @@ class VecCtx {
     const f = this.meas.font, size = +(f.match(/([\d.]+)px/) || [0, 10])[1], w = this.meas.measureText(t).width;
     const al = this.textAlign, dx = al === 'center' ? -w / 2 : al === 'right' || al === 'end' ? -w : 0;
     const bl = this.textBaseline, dy = bl === 'middle' ? 0.35 * size : bl === 'top' || bl === 'hanging' ? 0.8 * size : bl === 'bottom' || bl === 'ideographic' ? -0.22 * size : 0;
-    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.scale();
+    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.unit();
     this.ops.push(Object.assign({ k: 'text', t, x: ox, y: oy, w: w * sc, size: size * sc, rot: Math.atan2(M[1], M[0]),
       mono: /mono|courier|consol/i.test(f), bold: /\b(bold|[6-9]00)\b/.test(f), family: (f.match(/[\d.]+px\s+(.*)$/) || [0, 'sans-serif'])[1],
       fill: cssColour(this.fillStyle) }, this.style()));
@@ -19898,7 +19908,7 @@ async function layoutPdf(rec) {
       C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
         [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
     } else if (o.k === 'layer') {
-      C.push('q /' + gs(1, 1, o.blend || 'screen') + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
+      C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
     }
   }
   // the pieces, each an object; byte offsets for the cross-reference table

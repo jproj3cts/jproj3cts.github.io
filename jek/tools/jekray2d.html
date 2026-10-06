@@ -615,6 +615,8 @@
   .rt-hcard.flash { animation: rt-flash 1.4s ease-out; }
   .rt-hcard > .rt-hopen { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: inherit; font: inherit; }
   .rt-hcard .thumb { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: cover; background: var(--rt-bench); }
+  .rt-hcard .thumb.icon { object-fit: contain; padding: 0.5rem 0; box-sizing: border-box; }
+  .rt-pkeeprow .rt-pmanage { margin-left: auto; font-size: 0.8rem; }
   .rt-hcard span.thumb { display: grid; place-items: center; font-size: 0.78rem; color: #9aa6ad; }
   .rt-hcard .rt-hinfo { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.55rem 2.4rem 0.6rem 0.7rem; min-width: 0; }
   .rt-hcard .rt-hinfo b { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -21097,6 +21099,7 @@ function loadMine(force) {
 }
 function mineChanged() {
   if (MINE.list) MINE.list.sort((a, b) => a.name.localeCompare(b.name));
+  if (!document.getElementById('home').hidden && cloudPlace.view === 'parts') fillHome();
   if (!picker.hidden) fillPicker(picker.querySelector('.rt-psearch') ? picker.querySelector('.rt-psearch').value : '');
   fillRail();
 }
@@ -21192,7 +21195,8 @@ function mineBody(after) {
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
   const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
     onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
-  const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
+  const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
+  const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
     out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
     return out;
@@ -21746,7 +21750,7 @@ const HOME_ICONS = {
   list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
   bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
   history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
-  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6',
+  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star,
 };
 const homeIcon = name => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -21817,6 +21821,7 @@ async function fillHome() {
   try {
     [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
       P.view === 'history' ? api('/v1/benches/' + P.history.id + '/versions')
+        : P.view === 'parts' ? api('/v1/workspaces/' + ws + '/parts')
         : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(P.view === 'bin' ? { bin: '1' } : P.q ? { q: P.q } : P.view === 'recent' ? {} : { folder: P.folder || '' }))]);
   } catch (err) {
     if (seq !== homeSeq) return;
@@ -21834,6 +21839,8 @@ async function fillHome() {
   const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
   // the rail: workspaces, then this one's places and folders
   const here = (view, folder) => !P.q && P.view === view && (view !== 'folder' || P.folder === folder);
+  // My parts, kept up to date for the picker and the rail too (they show the personal workspace's)
+  if (P.view === 'parts' && personalWs() && ws === personalWs().id) Object.assign(MINE, { list: data.parts.slice(), ws, active: !!data.active });
   const railBtn = (label, icon, on, fn, depth = 0) => h('button', { type: 'button', 'aria-current': on ? 'true' : 'false', onclick: fn, title: label, style: depth ? 'padding-left:' + (0.6 + depth * 0.9) + 'rem' : null }, homeIcon(icon), h('span', null, label));
   const tree = [];
   const walk = (parent, depth) => { for (const f of folders.filter(f => (f.parent_id || null) === parent).sort((a, b) => a.name.localeCompare(b.name))) { tree.push(railBtn(f.name, 'folder', here('folder', f.id), go('folder', f.id), depth)); walk(f.id, depth + 1); } };
@@ -21846,6 +21853,7 @@ async function fillHome() {
     h('h2', null, places.length > 1 ? top : 'Benches'),
     railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
     railBtn('Recent', 'recent', here('recent'), go('recent')),
+    railBtn('My parts', 'star', P.view === 'parts', go('parts')),
     ...tree,
     railBtn('Bin', 'trash', here('bin'), go('bin')),
     h('div', { class: 'rt-hfoot' },
@@ -21877,6 +21885,8 @@ async function fillHome() {
   tools.replaceChildren(...[sortSel,
     P.view !== 'history' ? h('button', { type: 'button', class: 'rt-btn', title: homeView.rows ? 'Show as cards' : 'Show as a list', 'aria-label': homeView.rows ? 'Show as cards' : 'Show as a list',
       onclick: () => { homeView.rows = !homeView.rows; keepView(); fillHome(); } }, homeIcon(homeView.rows ? 'grid' : 'list')) : null,
+    P.view === 'parts' ? h('button', { type: 'button', class: 'rt-btn', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
+      onclick: () => { if (!can) { closeHome(); showSubscribe(); return; } openZmx(true); } }, homeIcon('open'), ' Import .zmx files…') : null,
     P.view === 'folder' && !P.q && can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => {
       const name = (prompt('Name of the new folder') || '').trim();
       if (name) homeSay(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, jsonBody({ name, parent_id: P.folder }))))();
@@ -21975,6 +21985,35 @@ async function fillHome() {
     if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
     return;
   }
+  // My parts: the parts kept, as cards with their pictures, to add to the bench, rename or delete
+  if (P.view === 'parts') {
+    const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => a.name.localeCompare(b.name));
+    const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = data.parts.filter(p => words.every(w => (p.name + ' ' + p.summary + ' ' + PALETTE_NAMES[p.palette]).toLowerCase().includes(w))).sort(by);
+    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My parts: “' + P.q + '”' : 'My parts');
+    const cards = list.map(p => {
+      const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
+      const add = () => { closeHome(); placeMine(p); };
+      more.addEventListener('click', () => openHomeMenu(more, [
+        ['Add to the bench', 'open', add],
+        'sep',
+        can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
+        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from My parts? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
+      return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
+        h('button', { type: 'button', class: 'rt-hopen', title: 'Add “' + p.name + '” to the bench', onclick: add },
+          p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
+        h('div', { class: 'rt-hinfo' },
+          h('b', { title: p.name }, p.name),
+          h('small', null, [p.summary, PALETTE_NAMES[p.palette], kb(p.size_bytes)].join(' · ')),
+          h('small', null, 'Kept ' + whenAgo(p.created_at))),
+        more);
+    });
+    box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
+      : [h('p', { class: 'rt-hempty' }, P.q ? 'No part matches “' + P.q + '”.'
+        : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files with Import .zmx files above. They are then on every bench, under + Add part › My parts and the rail’s ★.')]),
+      h('p', { class: 'rt-subsmall' }, 'Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'));
+    return;
+  }
   // folders, then benches, as cards
   const bin = P.view === 'bin';
   const folderCards = P.view === 'folder' && !P.q ? folders.filter(f => (f.parent_id || null) === P.folder).sort((a, b) => a.name.localeCompare(b.name)).map(f => {
@@ -22044,6 +22083,9 @@ function openHome(push = true) {
   const home = document.getElementById('home');
   Object.assign(cloudPlace, { q: '' });
   if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });
+  // My parts opens from the picker's link; otherwise the page opens on the benches
+  if (cloudPlace.view === 'parts' && !cloudPlace.toParts) cloudPlace.view = 'folder';
+  cloudPlace.toParts = false;
   document.getElementById('homeSearch').value = '';
   home.hidden = false;
   homeInert(true);

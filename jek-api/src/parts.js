@@ -6,7 +6,7 @@
 // reading benches does not; keeping a new one, renaming and deleting need the
 // rights that saving a bench needs.
 
-import { canWrite, checkQuota, cleanName, readJson, workspaceAccess } from './benches.js';
+import { canWrite, checkQuota, cleanName, QUOTA, readJson, usage, workspaceAccess } from './benches.js';
 import { ApiError, newId, now } from './util.js';
 
 export const MAX_PART = 256 * 1024;
@@ -65,7 +65,7 @@ export async function list(env, user, wsId) {
   )
     .bind(a.ws)
     .all();
-  return { parts: results.map(meta), role: a.role, active: a.active };
+  return { parts: results.map(meta), role: a.role, active: a.active, usage: { bytes: await usage(env, a.ws), quota: QUOTA[a.kind] || QUOTA.personal } };
 }
 
 // POST /v1/workspaces/:w/parts  {name, summary?, palette?, content, icon?}

@@ -32,6 +32,7 @@ describe('My parts', () => {
     await save(s, { name: 'P', content: clip(3) });
     const u = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches`, { token: s.token }))).body.usage.bytes;
     expect(u).toBe(new TextEncoder().encode(clip(3)).length);
+    expect((await lib(s)).usage).toEqual({ bytes: u, quota: 1024 ** 3 });
   });
 
   it('refuses what is not a part, a picture that is not a small PNG, and anything over 256 KB', async () => {

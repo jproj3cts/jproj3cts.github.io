@@ -78,7 +78,6 @@
 .dx-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--jek-ink-soft); }
 .dx-crumbs a { color: var(--jek-cyan-dark); text-decoration: none; }
 .dx-crumbs a:hover { text-decoration: underline; }
-.dx-crumbs .dx-edit { margin-left: auto; color: var(--jek-ink-soft); }
 .dx-body { max-width: 48rem; text-align: left; line-height: 1.65; font-size: 1rem; color: var(--jek-ink); }
 .dx-body h1 { margin: 0.8rem 0 0.4rem; font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.2rem); line-height: 1.15; letter-spacing: -0.01em; }
 .dx-body h1::after { content: ""; display: block; width: 3rem; height: 4px; margin-top: 0.7rem; background: var(--dx-accent); }
@@ -174,7 +173,6 @@
   .dx-nav.open { display: block; }
   .dx-results { right: 0; }
   .dx-main { padding: 0.8rem 1rem 2rem; }
-  .dx-crumbs .dx-edit { display: none; }
   .dx-pager { grid-template-columns: 1fr; }
   .dx-pager .next { grid-column: 1; }
 }

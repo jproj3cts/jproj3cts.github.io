@@ -63,4 +63,4 @@ Yes. Give it the [guide for AI assistants](/jek/tools/jekray2d-ai-guide.md), ask
 
 ### I found something wrong.
 
-Please tell us at [support@jeksys.net](mailto:support@jeksys.net), or use **Help › Report a bug**. If it is in these pages, **Edit this page** at the top of each one opens it on GitHub.
+Please tell us at [support@jeksys.net](mailto:support@jeksys.net), or use **Help › Report a bug**. The same goes for anything wrong or unclear in these pages.

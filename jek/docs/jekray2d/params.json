@@ -1,0 +1,4 @@
+---
+layout: null
+---
+{{ site.data.jekray2d_params | jsonify }}

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% if page.url == "/jek/docs/jekray2d/" %}JEKray2D documentation{% else %}{{ page.title }} | JEKray2D documentation{% endif %} | JEK Systems</title>
+{%- if page.description %}
+<meta name="description" content="{{ page.description | escape }}">
+{%- endif %}
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<link rel="stylesheet" href="/jek/assets/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="/jek/assets/css/docs.css">
+<script defer src="/jek/assets/vendor/katex/katex.min.js"></script>
+<script defer src="/jek/assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="/jek/assets/js/docs.js"></script>
+</head>
+<body class="dx-page">
+
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <div class="text-overlay">JEK Systems</div>
+  </div>
+
+{%- comment -%} The contents, flattened in reading order, for Previous / Next and the breadcrumbs {%- endcomment -%}
+{%- assign flat = "" | split: "" -%}
+{%- for s in site.data.jekray2d_docs -%}
+  {%- assign flat = flat | push: s -%}
+  {%- for c in s.pages -%}{%- assign flat = flat | push: c -%}{%- endfor -%}
+{%- endfor -%}
+{%- assign here = -1 -%}
+{%- for it in flat -%}{%- if it.url == page.url -%}{%- assign here = forloop.index0 -%}{%- endif -%}{%- endfor -%}
+{%- assign section = nil -%}
+{%- for s in site.data.jekray2d_docs -%}
+  {%- if s.url == page.url -%}{%- assign section = s -%}{%- endif -%}
+  {%- for c in s.pages -%}{%- if c.url == page.url -%}{%- assign section = s -%}{%- endif -%}{%- endfor -%}
+{%- endfor -%}
+
+  <div class="dx-shell{% if section.cat %} dx-cat-{{ section.cat }}{% endif %}">
+    <button type="button" class="dx-navbtn" aria-controls="dxNav" aria-expanded="false">Contents</button>
+    <nav class="dx-nav" id="dxNav" aria-label="Documentation contents">
+      <a class="dx-brand" href="/jek/docs/jekray2d/"><span>JEKray2D</span> documentation</a>
+      <div class="dx-search">
+        <input type="search" id="dxSearch" placeholder="Search the docs" aria-label="Search the documentation" autocomplete="off">
+        <div class="dx-results" id="dxResults" hidden></div>
+      </div>
+      <ul class="dx-tree">
+      {%- for s in site.data.jekray2d_docs %}
+        <li class="{% if s.url == page.url %}on{% endif %}{% if section.url == s.url %} open{% endif %}{% if s.cat %} dx-cat-{{ s.cat }}{% endif %}">
+          <a href="{{ s.url }}"{% if s.url == page.url %} aria-current="page"{% endif %}>{{ s.title }}</a>
+          {%- if s.pages %}
+          <ul>
+            {%- for c in s.pages %}
+            <li class="{% if c.url == page.url %}on{% endif %}"><a href="{{ c.url }}"{% if c.url == page.url %} aria-current="page"{% endif %}>{{ c.title }}</a></li>
+            {%- endfor %}
+          </ul>
+          {%- endif %}
+        </li>
+      {%- endfor %}
+      </ul>
+      <div class="dx-navfoot">
+        <a href="/jek/tools/jekray2d.html">Open JEKray2D</a>
+        <a href="/jek/tools/jekray2d-validation.html">Validation</a>
+        <a href="/jek/tools/jekray2d-ai-guide.md">File format (AI guide)</a>
+      </div>
+    </nav>
+
+    <main class="dx-main" id="dxMain">
+      <div class="dx-crumbs">
+        <a href="/jek/docs/jekray2d/">Docs</a>
+        {%- if section and section.url != page.url %} <span>›</span> <a href="{{ section.url }}">{{ section.title }}</a>{% endif %}
+        {%- if page.url != "/jek/docs/jekray2d/" %} <span>›</span> <span aria-current="page">{{ page.title }}</span>{% endif %}
+        <a class="dx-edit" href="https://github.com/jproj3cts/jproj3cts.github.io/edit/main/{{ page.path }}" rel="noopener">Edit this page</a>
+      </div>
+      <article class="dx-body">
+        <h1>{{ page.title }}</h1>
+        {%- if page.element %}
+        <p class="dx-tags"><span class="dx-tag">{{ page.element.palette }}</span>{% if page.element.type %} <code>"type": "{{ page.element.type }}"</code>{% endif %}{% if page.element.kind %} <code>"kind": "{{ page.element.kind }}"</code>{% endif %}</p>
+        {%- endif %}
+        {{ content }}
+      </article>
+      <nav class="dx-pager" aria-label="Previous and next pages">
+        {%- if here > 0 %}{% assign p = here | minus: 1 %}{% assign prev = flat[p] %}
+        <a class="prev" href="{{ prev.url }}"><small>Previous</small>{{ prev.title }}</a>
+        {%- else %}<span></span>{% endif %}
+        {%- assign n = here | plus: 1 %}{% assign next = flat[n] %}
+        {%- if here >= 0 and next %}
+        <a class="next" href="{{ next.url }}"><small>Next</small>{{ next.title }}</a>
+        {%- endif %}
+      </nav>
+      <p class="dx-foot">JEKray2D documentation, for file format version {{ site.data.jekray2d_params.version }}. Something wrong or unclear? <a href="mailto:support@jeksys.net">support@jeksys.net</a>, or edit the page on GitHub.</p>
+    </main>
+
+    <aside class="dx-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ul id="dxToc"></ul>
+    </aside>
+  </div>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script src="/jek/assets/js/cart.js"></script>
+</body>
+</html>

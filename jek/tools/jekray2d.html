@@ -1152,6 +1152,7 @@
               <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
               <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
               <div class="sep"></div>
+              <a role="menuitem" href="/jek/docs/jekray2d/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
               <a role="menuitem" href="/jek/products/design-software/jekray2d/" data-icon="info">About JEKray2D</a>
               <a role="menuitem" href="jekray2d-licence.html" data-icon="pdf">Licence</a>
               <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
@@ -21393,6 +21394,30 @@ function aiReference() {
     '**Coatings** ("coat", on lens surfaces, cubes and prisms): {"mode": "bare"} (Fresnel), {"mode": "ar", "R": 0.5} (% reflected), {"mode": "custom", "R": %}, {"mode": "band", "R": %, "lo": nm, "hi": nm} (coated over a band, bare outside), {"mode": "stack", "design": nm, "layers": [{"n": 1.38, "d": nm}, …]}.', '');
   return L.join('\n');
 }
+/* The parameter tables of the online documentation (jek/docs/jekray2d), as data: every element
+   type's fields with their defaults and meanings, every fibre component's, electronic part's
+   and chip part's settings, from the same tables as the AI guide, so the documentation's
+   tables cannot drift from what the tool reads (the suite compares them with the published copy) */
+function docsParams() {
+  const cell = v => v === undefined ? null : JSON.stringify(v).length > 48 ? '(see meaning)' : JSON.stringify(v);
+  const free = {};
+  for (const t of Object.keys(TYPE_LABEL)) {
+    const d = aiDefaults(t), F = AI_FIELDS[t] || {};
+    free[t] = { label: TYPE_LABEL[t], what: AI_WHAT[t] || '', angle: AI_ANGLE[t] || '',
+      fields: aiFieldsOf(t).map(k => ({ k, def: k === 'surfaces' ? 'two flat surfaces' : k === 'materials' ? '[{"glass":"N-BK7"}]' : cell(d[k]), meaning: F[k] || '' })) };
+  }
+  const fibre = {};
+  for (const k of FC_ORDER) {
+    const K = FC[k];
+    fibre[k] = { label: K.label, ports: K.names.slice(), fields: K.params.map(([p, label, def]) => ({ k: p, def: JSON.stringify(def), meaning: label })) };
+  }
+  const elec = {};
+  for (const [k, K] of Object.entries(ELEC.KINDS)) elec[k] = { label: K.label, ins: K.ins.slice(), outs: K.outs.slice(),
+    fields: K.params.map(([p, label, def, opts]) => ({ k: p, def: JSON.stringify(def), meaning: label + (opts ? ': ' + opts.map(([v, t]) => JSON.stringify(v) + ' (' + t + ')').join(', ') : '') })) };
+  const pic = {};
+  for (const [k, K] of Object.entries(PIC.KINDS)) pic[k] = { label: K.label, ports: K.names.slice(), fields: K.params.map(([p, label, def]) => ({ k: p, def: JSON.stringify(def), meaning: label })) };
+  return { version: VERSION, free, fibre, elec, pic };
+}
 /* an example as short as it can be: only what differs from the defaults, readable ids */
 function aiCompact(data) {
   const d = JSON.parse(JSON.stringify(data)), ids = new Map(), used = new Set();
@@ -22537,6 +22562,7 @@ for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.get
 /* the menus' icons: small line drawings on a 16 px square, in the text's colour, as a drawing
    program's menus have them; and a tick for an option that is on */
 const MENU_ICONS = {
+  book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z',
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5',
   paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', history: 'M8 2.5A5.5 5.5 0 1 1 2.6 7 M2.5 3V7H6.5 M8 5V8.5L10.5 10',
   save: 'M2.5 2.5H11.5L13.5 4.5V13.5H2.5Z M5 2.5V6H10.5V2.5 M5 13.5V9.5H11V13.5', import: 'M8 1.5V10 M4.5 6.5L8 10L11.5 6.5 M2.5 10.5V14H13.5V10.5',
@@ -23526,6 +23552,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    'The <b>documentation</b> (Help \u203a Documentation): how each model works, with its equations and limits: free space, fibre, electronics and photonic chips, element by element, with an FAQ.',
     'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored. Parts\u2019 names are now sized on the bench, so a figure looks the same at any zoom (View \u203a Larger names, Smaller names). In Draw, parts stay put: clicks and boxes pick drawings only, and a part\u2019s name can still be picked, moved and scaled.',
     'More for figures: a <b>Text</b> tool (T) that writes on the bench and retypes a part\u2019s name where you click it; the select tool <b>moves and scales part names</b> (drag a name, then its corner) and scales drawings by their eight handles; <b>Flip</b> horizontal and vertical (H, V); and <b>Group</b> and <b>Ungroup</b> on the right-click menu (Ctrl+G, Ctrl+Shift+G): a group is picked and moved as one, Ctrl+click picks one of it. A drawing\u2019s panel is laid out as Inkscape\u2019s, with icons: paint, colour with swatches, opacity, then width, dashes, join and cap.',
     '<b>Draw</b>, a palette of its own on the parts rail down the bench\u2019s left: select, node tool, rectangle, ellipse and pen, as in Inkscape (S, N, F4, E, B), for boxes, arrows and outlines on your figures. Pick a drawing and its panel sets its shape, and its fill and stroke (colour, opacity, width, dashes, caps and joins); the next one takes the same style. Drawings sit under the light or over it, and the light goes through them as if they were not there. And Measure has moved off the bar: it is in the View menu, and on M.',
@@ -24674,6 +24701,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     layoutSvg() { return layoutSvg(recordLayout()); },
     // a project as someone else wrote it: what opening it changed, as plain text
     aiGuideText,
+    docsParams,
     // a bench through a link and back (plain encoding, so it runs without waiting): what came out
     shareRoundTrip() { const h = 'j' + b64u(new TextEncoder().encode(JSON.stringify(shareData()))), before = JSON.stringify(Object.assign(serialize(), { saved: '' }));
       const d = JSON.parse(new TextDecoder().decode(unb64u(h.slice(1)))); openProjectData(d, 'test'); const after = JSON.stringify(Object.assign(serialize(), { saved: '' }));

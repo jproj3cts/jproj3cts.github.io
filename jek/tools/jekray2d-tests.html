@@ -3539,6 +3539,19 @@ const TESTS = [
     run: J => J.aiFieldCoverage().length,
   },
   {
+    name: 'The documentation’s parameter tables are the tool’s own',
+    why: 'the tables the online documentation shows (params.json, built from _data/jekray2d_params.json) against the ones the tool reads today',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x.status === 200 ? x.responseText : null; };
+      // the built site has the copy the docs use; a plain checkout serves the data file itself
+      let txt = get('/jek/docs/jekray2d/params.json');
+      if (!txt || txt.trim().startsWith('---')) txt = get('/_data/jekray2d_params.json');
+      let d = null; try { d = JSON.parse(txt); } catch (e) { return 0; }
+      return JSON.stringify(d) === JSON.stringify(J.docsParams()) ? 1 : 0;
+    },
+  },
+  {
     name: 'The published guide is the one the tool writes today',
     why: 'jekray2d-ai-guide.md, as served, against the guide generated now from the tool’s tables and examples',
     want: 1, tol: 0, unit: '',

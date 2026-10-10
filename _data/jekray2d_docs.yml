@@ -1,0 +1,30 @@
+# The JEKray2D documentation's contents: the sidebar, the breadcrumbs and Previous / Next all
+# follow this order. A page is listed once; "pages" nests under its section.
+- title: Introduction
+  url: /jek/docs/jekray2d/
+- title: Getting started
+  url: /jek/docs/jekray2d/getting-started/
+- title: Concepts
+  url: /jek/docs/jekray2d/concepts/
+- title: Free-space optics
+  url: /jek/docs/jekray2d/free-space/
+  cat: free
+  pages:
+    - title: Mirror
+      url: /jek/docs/jekray2d/free-space/mirror/
+    - title: Lens
+      url: /jek/docs/jekray2d/free-space/lens/
+- title: Fibre optics
+  url: /jek/docs/jekray2d/fibre/
+  cat: fibre
+  pages:
+    - title: 2×2 coupler
+      url: /jek/docs/jekray2d/fibre/coupler/
+- title: Electronics
+  url: /jek/docs/jekray2d/electronics/
+  cat: elec
+- title: Photonic chips
+  url: /jek/docs/jekray2d/chips/
+  cat: pic
+- title: FAQ
+  url: /jek/docs/jekray2d/faq/

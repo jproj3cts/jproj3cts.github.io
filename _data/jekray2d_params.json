@@ -1,0 +1,2490 @@
+{
+ "version": 1,
+ "free": {
+  "source": {
+   "label": "Source",
+   "what": "A light source: a fan of rays and, with \"gauss\": true, a Gaussian beam whose diffracted field can be shown.",
+   "angle": "the direction the light leaves in (0 = travelling +x).",
+   "fields": [
+    {
+     "k": "wavelength",
+     "def": "633",
+     "meaning": "nm, 100 to 20000."
+    },
+    {
+     "k": "width",
+     "def": "4",
+     "meaning": "mm: the full width of the ray fan (follows the beam when gauss is true)."
+    },
+    {
+     "k": "divergence",
+     "def": "0",
+     "meaning": "degrees, full angle of the fan; negative converges."
+    },
+    {
+     "k": "gauss",
+     "def": "false",
+     "meaning": "true for a Gaussian beam: then set w0 and z0."
+    },
+    {
+     "k": "w0",
+     "def": "0.35",
+     "meaning": "mm: the 1/e² waist radius."
+    },
+    {
+     "k": "z0",
+     "def": "0",
+     "meaning": "mm: how far ahead of the source the waist is (negative: behind it)."
+    },
+    {
+     "k": "beamView",
+     "def": "\"envelope\"",
+     "meaning": "\"envelope\" (outline of the beam) or \"field\" (the diffracted field, computed by physical optics)."
+    },
+    {
+     "k": "beamScale",
+     "def": "\"lin\"",
+     "meaning": "\"lin\" or \"log\" for the field view."
+    },
+    {
+     "k": "popN",
+     "def": "256",
+     "meaning": "grid points for the field: 128, 256, 512 or 1024."
+    },
+    {
+     "k": "popModel",
+     "def": "\"auto\"",
+     "meaning": "\"auto\" (round when it can be) or \"2d\"."
+    },
+    {
+     "k": "traceRays",
+     "def": "true",
+     "meaning": "false hides the ray fan."
+    },
+    {
+     "k": "pol",
+     "def": "\"unpolarised\"",
+     "meaning": "\"unpolarised\", \"s\" (out of the bench plane), \"p\" (in the plane) or \"linear\" (then polAngle)."
+    },
+    {
+     "k": "polAngle",
+     "def": "45",
+     "meaning": "degrees from p, for pol \"linear\"."
+    },
+    {
+     "k": "lines",
+     "def": "[]",
+     "meaning": "extra wavelengths in nm, up to 12."
+    },
+    {
+     "k": "rays",
+     "def": "11",
+     "meaning": "number of rays in the fan, 1 to 501 (use 1 to 11 with gauss)."
+    },
+    {
+     "k": "power",
+     "def": "1",
+     "meaning": "mW."
+    },
+    {
+     "k": "coh",
+     "def": "0",
+     "meaning": "coherence length in mm, with cmode \"line\"; 0 for a single frequency."
+    },
+    {
+     "k": "splitFrom",
+     "def": "null",
+     "meaning": "id of another source this one is split from (same laser, so they interfere); null for a laser of its own."
+    },
+    {
+     "k": "splitPhase",
+     "def": "0",
+     "meaning": "degrees of phase against the source it is split from."
+    },
+    {
+     "k": "splitPath",
+     "def": "0",
+     "meaning": "mm of extra fibre before this launch, against the other."
+    },
+    {
+     "k": "lineshape",
+     "def": "\"lorentz\"",
+     "meaning": "\"lorentz\" or \"gauss\": the laser line’s shape, with coh."
+    },
+    {
+     "k": "cmode",
+     "def": "\"single\"",
+     "meaning": "\"single\" (one frequency: every path interferes), \"line\" (a line of its own, from coh and lineshape) or \"broad\" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere)."
+    },
+    {
+     "k": "bw",
+     "def": "40",
+     "meaning": "bandwidth in nm (FWHM), with cmode \"broad\": the coherence length is wavelength² / bw."
+    },
+    {
+     "k": "m2",
+     "def": "1",
+     "meaning": "beam quality M² ≥ 1."
+    },
+    {
+     "k": "tem",
+     "def": "\"gauss\"",
+     "meaning": "\"gauss\" (TEM00), \"hg\" (a Hermite–Gauss mode HG_mn) or \"lg\" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2."
+    },
+    {
+     "k": "hm",
+     "def": "1",
+     "meaning": "HG m: nodes across the beam in the bench plane, 0–10."
+    },
+    {
+     "k": "hn",
+     "def": "0",
+     "meaning": "HG n: nodes out of the bench plane, 0–10."
+    },
+    {
+     "k": "lp",
+     "def": "0",
+     "meaning": "LG p: radial order (rings), 0–10."
+    },
+    {
+     "k": "ll",
+     "def": "1",
+     "meaning": "LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it."
+    },
+    {
+     "k": "tau",
+     "def": "0",
+     "meaning": "fs: a mode-locked laser’s pulse duration (intensity FWHM at its transform limit); 0 for a continuous laser. Its bandwidth then sets coh."
+    },
+    {
+     "k": "pshape",
+     "def": "\"sech2\"",
+     "meaning": "\"sech2\" or \"gauss\": the pulse’s shape."
+    },
+    {
+     "k": "rep",
+     "def": "80",
+     "meaning": "MHz: the repetition rate (power is the average power)."
+    },
+    {
+     "k": "gdd0",
+     "def": "0",
+     "meaning": "fs²: the chirp the pulse leaves the laser with (0 at its transform limit)."
+    },
+    {
+     "k": "fibre",
+     "def": null,
+     "meaning": "optional {\"core\": µm, \"na\": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself."
+    }
+   ]
+  },
+  "mirror": {
+   "label": "Mirror",
+   "what": "A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.",
+   "angle": "the direction its reflecting face points (its normal, towards the light it reflects).",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm: the mirror’s width across the bench."
+    },
+    {
+     "k": "reflect",
+     "def": "100",
+     "meaning": "% reflected, 0 to 100 (the rest is transmitted)."
+    },
+    {
+     "k": "offset",
+     "def": "0",
+     "meaning": "mm: an off-axis segment of the parent surface, this far from its vertex."
+    },
+    {
+     "k": "k",
+     "def": "0",
+     "meaning": "conic constant (0 sphere, −1 paraboloid)."
+    },
+    {
+     "k": "R",
+     "def": "null",
+     "meaning": "mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex."
+    },
+    {
+     "k": "gdd",
+     "def": "0",
+     "meaning": "fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror."
+    },
+    {
+     "k": "mapScale",
+     "def": "\"lin\"",
+     "meaning": "\"lin\" or \"log\": the irradiance map of the light arriving (its Diffraction tab, as a screen’s)."
+    },
+    {
+     "k": "vectorFocus",
+     "def": "\"auto\"",
+     "meaning": "\"auto\", \"on\" or \"off\": the vector focus model for steep beams arriving."
+    },
+    {
+     "k": "mtfFreq",
+     "def": "50",
+     "meaning": "lp/mm at which its Diffraction tab quotes the MTF."
+    }
+   ]
+  },
+  "lens": {
+   "label": "Lens",
+   "what": "A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.",
+   "angle": "the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.",
+   "fields": [
+    {
+     "k": "diameter",
+     "def": "25.4",
+     "meaning": "mm."
+    },
+    {
+     "k": "surfaces",
+     "def": "two flat surfaces",
+     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
+    },
+    {
+     "k": "gaps",
+     "def": "[3]",
+     "meaning": "mm: centre thicknesses between successive surfaces (one fewer than surfaces)."
+    },
+    {
+     "k": "materials",
+     "def": "[{\"glass\":\"N-BK7\"}]",
+     "meaning": "one material per gap, e.g. {\"glass\": \"N-BK7\"}."
+    },
+    {
+     "k": "cyl",
+     "def": null,
+     "meaning": "optional: \"plane\" for a cylindrical lens with power in the bench plane, \"out\" for power out of it."
+    }
+   ]
+  },
+  "screen": {
+   "label": "Screen",
+   "what": "A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.",
+   "angle": "the direction its face points: towards the light it records.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm: the width of its face."
+    },
+    {
+     "k": "R",
+     "def": "null",
+     "meaning": "mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat."
+    },
+    {
+     "k": "binWidth",
+     "def": "0",
+     "meaning": "mm for the binned intensity; 0 chooses."
+    },
+    {
+     "k": "binInterp",
+     "def": "true",
+     "meaning": "true interpolates the rays into the bins."
+    },
+    {
+     "k": "mapScale",
+     "def": "\"lin\"",
+     "meaning": "\"lin\" or \"log\" irradiance map."
+    },
+    {
+     "k": "vectorFocus",
+     "def": "\"auto\"",
+     "meaning": "\"auto\", \"on\" or \"off\": the vector focus model for steep beams."
+    },
+    {
+     "k": "trap",
+     "def": "\"none\"",
+     "meaning": "\"none\", an atom (\"Rb87\", \"Rb85\", \"Cs133\", \"K39\", \"Na23\") or \"sphere\" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region."
+    },
+    {
+     "k": "trapF",
+     "def": "\"avg\"",
+     "meaning": "for atoms, the ground hyperfine level they are in: \"avg\" (the centroid), \"lo\" or \"hi\" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres)."
+    },
+    {
+     "k": "trapMat",
+     "def": "\"Fused silica\"",
+     "meaning": "the sphere’s glass (\"Fused silica\", \"Polystyrene\" and so on)."
+    },
+    {
+     "k": "trapR",
+     "def": "100",
+     "meaning": "the sphere’s radius, nm."
+    },
+    {
+     "k": "trapRho",
+     "def": "2200",
+     "meaning": "its density, kg/m³."
+    },
+    {
+     "k": "trapMed",
+     "def": "\"bench\"",
+     "meaning": "\"bench\" (the index where the light is: put the focus in a block of \"Water\" for a liquid), \"vacuum\" or \"air\" (with trapP)."
+    },
+    {
+     "k": "trapP",
+     "def": "1013.25",
+     "meaning": "air pressure, mbar: sets the gas damping and quality factors."
+    },
+    {
+     "k": "trapT",
+     "def": "295",
+     "meaning": "temperature (K): the depth in kT and the gas."
+    },
+    {
+     "k": "mtfFreq",
+     "def": "50",
+     "meaning": "lp/mm at which the MTF is quoted."
+    },
+    {
+     "k": "abSrc",
+     "def": "\"\"",
+     "meaning": "the id of the fan source the Aberrations tab sweeps across the field (\"\" for the first reaching the screen)."
+    },
+    {
+     "k": "abAng",
+     "def": "2",
+     "meaning": "its largest field angle, degrees, for a collimated source."
+    },
+    {
+     "k": "abH",
+     "def": "1",
+     "meaning": "its largest object height, mm, for a diverging source (a point object)."
+    },
+    {
+     "k": "abN",
+     "def": "7",
+     "meaning": "fields across, 3 to 21."
+    },
+    {
+     "k": "abRays",
+     "def": "61",
+     "meaning": "rays in each field’s fan, odd, 11 to 401."
+    }
+   ]
+  },
+  "stop": {
+   "label": "Stop",
+   "what": "An aperture: iris, slit, double slit, slit comb, knife edge or beam block.",
+   "angle": "its normal: 0 for a beam travelling ±x (the blades then lie along y).",
+   "fields": [
+    {
+     "k": "aperture",
+     "def": "5",
+     "meaning": "mm: the opening (an iris’s diameter, a slit’s width)."
+    },
+    {
+     "k": "outer",
+     "def": "25.4",
+     "meaning": "mm: the outer size (a beam block’s diameter)."
+    },
+    {
+     "k": "shape",
+     "def": "\"round\"",
+     "meaning": "one of the stop shapes below."
+    },
+    {
+     "k": "sep",
+     "def": "0.5",
+     "meaning": "mm: a double slit’s centre-to-centre separation."
+    },
+    {
+     "k": "pitch",
+     "def": "0.2",
+     "meaning": "mm: a slit comb’s pitch."
+    },
+    {
+     "k": "count",
+     "def": "5",
+     "meaning": "a comb’s number of slits, 2 to 400."
+    },
+    {
+     "k": "offset",
+     "def": "0",
+     "meaning": "mm: the opening’s centre along the stop."
+    },
+    {
+     "k": "height",
+     "def": "0",
+     "meaning": "mm: a slit’s height out of the plane (0 unlimited)."
+    },
+    {
+     "k": "side",
+     "def": "1",
+     "meaning": "1 or −1: which side a knife edge covers."
+    }
+   ]
+  },
+  "cube": {
+   "label": "Beam splitter cube",
+   "what": "A beam-splitter cube: non-polarising (\"npbs\", reflect %) or polarising (\"pbs\", reflectS/reflectP %).",
+   "angle": "turns its internal diagonal. At 0 the diagonal runs like \"/\": light travelling +x reflects to +y, travelling −x reflects to −y, and it transmits straight on. At 90 the diagonal is \"\\\": +x reflects to −y.",
+   "fields": [
+    {
+     "k": "size",
+     "def": "12.7",
+     "meaning": "mm edge length."
+    },
+    {
+     "k": "mode",
+     "def": "\"npbs\"",
+     "meaning": "\"npbs\" or \"pbs\"."
+    },
+    {
+     "k": "reflect",
+     "def": "50",
+     "meaning": "% reflected, for \"npbs\"."
+    },
+    {
+     "k": "reflectS",
+     "def": "99",
+     "meaning": "% of s reflected, for \"pbs\"."
+    },
+    {
+     "k": "reflectP",
+     "def": "1",
+     "meaning": "% of p reflected, for \"pbs\"."
+    },
+    {
+     "k": "material",
+     "def": "{\"glass\":\"N-BK7\",\"abs\":0}",
+     "meaning": "e.g. {\"glass\": \"N-BK7\"}."
+    },
+    {
+     "k": "coat",
+     "def": "{\"mode\":\"bare\",\"R\":4}",
+     "meaning": "coating on its outer faces (see Coatings)."
+    }
+   ]
+  },
+  "prism": {
+   "label": "Prism",
+   "what": "A glass prism or window.",
+   "angle": "rotates the prism about its centre; check the result on the bench.",
+   "fields": [
+    {
+     "k": "shape",
+     "def": "\"right\"",
+     "meaning": "one of the prism shapes below."
+    },
+    {
+     "k": "size",
+     "def": "20",
+     "meaning": "mm."
+    },
+    {
+     "k": "thickness",
+     "def": "5",
+     "meaning": "mm (for a window)."
+    },
+    {
+     "k": "material",
+     "def": "{\"glass\":\"N-BK7\",\"abs\":0}",
+     "meaning": "e.g. {\"glass\": \"N-BK7\"}."
+    },
+    {
+     "k": "coat",
+     "def": "{\"mode\":\"bare\",\"R\":4}",
+     "meaning": "coating on its faces."
+    }
+   ]
+  },
+  "waveplate": {
+   "label": "Waveplate",
+   "what": "A waveplate (retardance in waves).",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25.4",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "retard",
+     "def": "0.25",
+     "meaning": "retardance in waves (0.25 quarter-wave, 0.5 half-wave, or any value)."
+    },
+    {
+     "k": "axis",
+     "def": "45",
+     "meaning": "degrees: the fast axis from p."
+    }
+   ]
+  },
+  "polariser": {
+   "label": "Polariser",
+   "what": "A linear polariser.",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25.4",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "axis",
+     "def": "0",
+     "meaning": "degrees: the transmission axis from p (0 passes p, 90 passes s)."
+    }
+   ]
+  },
+  "mask": {
+   "label": "Mask",
+   "what": "A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25.4",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "amp",
+     "def": "\"1\"",
+     "meaning": "amplitude transmission as a formula in x (mm along the mask), y (mm out of the plane), r, theta, lambda (mm) and pi; e.g. \"1\" or \"circ(r/2)\"."
+    },
+    {
+     "k": "delay",
+     "def": "\"0\"",
+     "meaning": "delay in waves as a formula in the same variables. An ideal lens of focal length f mm: \"-(sqrt(r^2+f^2)-f)/lambda\" (write f as a number)."
+    },
+    {
+     "k": "preset",
+     "def": "\"custom\"",
+     "meaning": "leave \"custom\"."
+    }
+   ]
+  },
+  "grating": {
+   "label": "Grating",
+   "what": "A diffraction grating, reflecting or transmitting.",
+   "angle": "the direction its ruled face points (like a mirror for mode \"reflect\").",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm."
+    },
+    {
+     "k": "lpmm",
+     "def": "600",
+     "meaning": "lines per mm."
+    },
+    {
+     "k": "mode",
+     "def": "\"reflect\"",
+     "meaning": "\"reflect\" or \"transmit\"."
+    },
+    {
+     "k": "blaze",
+     "def": "500",
+     "meaning": "nm blaze wavelength."
+    },
+    {
+     "k": "eff",
+     "def": "80",
+     "meaning": "% into the first order at the blaze."
+    }
+   ]
+  },
+  "fibre": {
+   "label": "Fibre",
+   "what": "A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.",
+   "angle": "the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "2.5",
+     "meaning": "mm: the ferrule face width."
+    },
+    {
+     "k": "core",
+     "def": "4.4",
+     "meaning": "µm core diameter (mode field set from core and NA)."
+    },
+    {
+     "k": "na",
+     "def": "0.12",
+     "meaning": "numerical aperture."
+    },
+    {
+     "k": "emitView",
+     "def": "\"envelope\"",
+     "meaning": "\"envelope\" or \"field\": how the light it sends out is shown."
+    },
+    {
+     "k": "emitRays",
+     "def": "5",
+     "meaning": "rays in the fan it sends out, 0 to 51."
+    },
+    {
+     "k": "mm",
+     "def": "false",
+     "meaning": "true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA."
+    }
+   ]
+  },
+  "detector": {
+   "label": "Photodetector",
+   "what": "A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output.",
+   "angle": "the direction its face points: towards the light.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "3.6",
+     "meaning": "mm: the active area’s diameter."
+    },
+    {
+     "k": "material",
+     "def": "\"si\"",
+     "meaning": "one of the detector materials below."
+    },
+    {
+     "k": "resp",
+     "def": "0.5",
+     "meaning": "A/W, used when material is \"custom\"."
+    },
+    {
+     "k": "gain",
+     "def": "10000",
+     "meaning": "V/A transimpedance."
+    },
+    {
+     "k": "bandwidth",
+     "def": "1000000",
+     "meaning": "Hz."
+    },
+    {
+     "k": "dark",
+     "def": "1",
+     "meaning": "nA dark current."
+    },
+    {
+     "k": "ampNoise",
+     "def": "2",
+     "meaning": "pA/√Hz input noise."
+    },
+    {
+     "k": "vmax",
+     "def": "10",
+     "meaning": "V output limit."
+    },
+    {
+     "k": "demodF",
+     "def": "0",
+     "meaning": "MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal."
+    },
+    {
+     "k": "demodPhase",
+     "def": "0",
+     "meaning": "degrees: the mixer’s phase."
+    }
+   ]
+  },
+  "faraday": {
+   "label": "Faraday rotator",
+   "what": "A Faraday rotator (non-reciprocal).",
+   "angle": "its normal, and the direction of its magnetic field: the sense of rotation depends on the direction of travel against it.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "5",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "rotation",
+     "def": "45",
+     "meaning": "degrees of rotation."
+    }
+   ]
+  },
+  "isolator": {
+   "label": "Optical isolator",
+   "what": "An optical isolator (polariser, 45° Faraday rotator, polariser).",
+   "angle": "its forward direction: light travelling along the angle passes, light travelling against it is blocked.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "5",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "axis",
+     "def": "0",
+     "meaning": "degrees: the input polariser from p."
+    },
+    {
+     "k": "extinction",
+     "def": "40",
+     "meaning": "dB, 0 to 80."
+    }
+   ]
+  },
+  "crystal": {
+   "label": "Crystal",
+   "what": "A birefringent crystal: beam displacer, Wollaston prism or Glan–Taylor polariser.",
+   "angle": "the direction of its entrance face’s normal (0 for light travelling ±x).",
+   "fields": [
+    {
+     "k": "shape",
+     "def": "\"displacer\"",
+     "meaning": "one of the crystal shapes below."
+    },
+    {
+     "k": "crystal",
+     "def": "\"calcite\"",
+     "meaning": "one of the crystals below."
+    },
+    {
+     "k": "size",
+     "def": "10",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "length",
+     "def": "10",
+     "meaning": "mm length along the beam."
+    },
+    {
+     "k": "axisAngle",
+     "def": "45",
+     "meaning": "degrees: the optic axis from the normal, for a displacer."
+    },
+    {
+     "k": "wedge",
+     "def": "30",
+     "meaning": "degrees: the wedge angle, for Wollaston and Glan–Taylor."
+    }
+   ]
+  },
+  "filter": {
+   "label": "Filter",
+   "what": "A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "ftype",
+     "def": "\"longpass\"",
+     "meaning": "one of the filter types below."
+    },
+    {
+     "k": "edge",
+     "def": "600",
+     "meaning": "nm: the edge of a long- or short-pass."
+    },
+    {
+     "k": "slope",
+     "def": "10",
+     "meaning": "nm: the 10–90% width of the edge."
+    },
+    {
+     "k": "centre",
+     "def": "550",
+     "meaning": "nm: a band-pass centre."
+    },
+    {
+     "k": "fwhm",
+     "def": "10",
+     "meaning": "nm: a band-pass width."
+    },
+    {
+     "k": "od",
+     "def": "1",
+     "meaning": "optical density of an \"nd\" filter: it transmits 10^−od."
+    },
+    {
+     "k": "tmax",
+     "def": "95",
+     "meaning": "% peak transmission."
+    },
+    {
+     "k": "reflect",
+     "def": "false",
+     "meaning": "true: what it rejects is reflected (a dichroic) rather than absorbed."
+    }
+   ]
+  },
+  "gain": {
+   "label": "Gain medium",
+   "what": "A thin gain medium with a Lorentzian gain line that saturates: in a cavity above threshold the laser settles at its output power and the output leaves each partly transmitting mirror as a beam.",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "6",
+     "meaning": "mm along the beam."
+    },
+    {
+     "k": "g0",
+     "def": "1.2",
+     "meaning": "small-signal single-pass power gain at the line centre (×); the pump sets it."
+    },
+    {
+     "k": "isat",
+     "def": "2.9",
+     "meaning": "kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam."
+    },
+    {
+     "k": "centre",
+     "def": "1064",
+     "meaning": "nm line centre."
+    },
+    {
+     "k": "fwhm",
+     "def": "30",
+     "meaning": "nm line width."
+    }
+   ]
+  },
+  "cell": {
+   "label": "Vapour cell",
+   "what": "An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light’s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source’s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).",
+   "angle": "its axis: 0 for a beam travelling ±x (the cell lies along x).",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm: the window diameter."
+    },
+    {
+     "k": "cellLen",
+     "def": "75",
+     "meaning": "mm along the beam (75 is usual)."
+    },
+    {
+     "k": "atom",
+     "def": "\"Rb\"",
+     "meaning": "\"Rb\" (natural), \"Rb85\", \"Rb87\", \"Cs\" or \"K\"."
+    },
+    {
+     "k": "line",
+     "def": "\"D2\"",
+     "meaning": "\"D2\" or \"D1\"."
+    },
+    {
+     "k": "temp",
+     "def": "25",
+     "meaning": "°C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60)."
+    },
+    {
+     "k": "bField",
+     "def": "0",
+     "meaning": "gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none."
+    }
+   ]
+  },
+  "nlc": {
+   "label": "Nonlinear crystal",
+   "what": "A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the frequency of light polarised along its z axis: the second harmonic leaves as a beam of its own, from Boyd and Kleinman’s theory for the focusing, the poling period and the temperature, and the fundamental leaves depleted. Put a lens before it so the beam focuses in its middle.",
+   "angle": "its axis: 0 for a beam travelling ±x (the crystal lies along x).",
+   "fields": [
+    {
+     "k": "length",
+     "def": "3",
+     "meaning": "mm: the aperture across the beam."
+    },
+    {
+     "k": "nlLen",
+     "def": "20",
+     "meaning": "mm along the beam (10 to 50 is usual)."
+    },
+    {
+     "k": "material",
+     "def": "\"ppln\"",
+     "meaning": "\"ppln\" (MgO:PPLN, d_eff 14 pm/V) or \"ppktp\" (d_eff 9.5 pm/V)."
+    },
+    {
+     "k": "period",
+     "def": "0",
+     "meaning": "poling period, µm; 0 (the default) picks the best period for the beam through it."
+    },
+    {
+     "k": "temp",
+     "def": "40",
+     "meaning": "°C: tunes the phase matching (PPLN is usually run hot, 40 to 200)."
+    },
+    {
+     "k": "axis",
+     "def": "\"s\"",
+     "meaning": "\"s\" (z axis out of the bench plane: s light converts) or \"p\"."
+    },
+    {
+     "k": "faces",
+     "def": "\"ar\"",
+     "meaning": "\"ar\" (end faces anti-reflection coated, 0.1%; the default) or \"bare\"."
+    }
+   ]
+  },
+  "link": {
+   "label": "Link plane",
+   "what": "One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.",
+   "angle": "its normal. Light crossing one plane of a pair leaves its partner (on another tab) the same way relative to that plane.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "25",
+     "meaning": "mm width."
+    },
+    {
+     "k": "pair",
+     "def": "\"Link 1\"",
+     "meaning": "the pair’s name: exactly two link planes share it, one on each tab."
+    }
+   ]
+  },
+  "aom": {
+   "label": "Acousto-optic modulator",
+   "what": "A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.",
+   "angle": "its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "4",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "rf",
+     "def": "80",
+     "meaning": "MHz drive: the order is shifted by this."
+    },
+    {
+     "k": "v",
+     "def": "4200",
+     "meaning": "m/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear)."
+    },
+    {
+     "k": "eff",
+     "def": "80",
+     "meaning": "% into the order."
+    },
+    {
+     "k": "order",
+     "def": "1",
+     "meaning": "+1 or −1."
+    }
+   ]
+  },
+  "eom": {
+   "label": "Electro-optic modulator",
+   "what": "A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.",
+   "angle": "its normal: 0 for a beam travelling ±x.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "4",
+     "meaning": "mm aperture."
+    },
+    {
+     "k": "fm",
+     "def": "20",
+     "meaning": "MHz drive."
+    },
+    {
+     "k": "beta",
+     "def": "1.08",
+     "meaning": "modulation depth in radians."
+    },
+    {
+     "k": "emode",
+     "def": "\"phase\"",
+     "meaning": "\"phase\" (sidebands) or \"amplitude\"."
+    },
+    {
+     "k": "bias",
+     "def": "90",
+     "meaning": "degrees, for \"amplitude\"."
+    },
+    {
+     "k": "loss",
+     "def": "0",
+     "meaning": "dB insertion loss."
+    }
+   ]
+  },
+  "chopper": {
+   "label": "Optical chopper",
+   "what": "An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open).",
+   "angle": "its blade’s normal: 0 (or 180) across a beam travelling along x, as a stop.",
+   "fields": [
+    {
+     "k": "length",
+     "def": "10",
+     "meaning": "mm aperture across the beam."
+    },
+    {
+     "k": "f",
+     "def": "1000",
+     "meaning": "Hz, the chopping frequency."
+    },
+    {
+     "k": "duty",
+     "def": "50",
+     "meaning": "% of each cycle open."
+    },
+    {
+     "k": "phase",
+     "def": "0",
+     "meaning": "degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0)."
+    }
+   ]
+  },
+  "draw": {
+   "label": "Drawing",
+   "what": "A drawing for figures: a rectangle, an ellipse, a path of Bézier curves or a text, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.",
+   "angle": "turns the drawing about its x, y.",
+   "fields": [
+    {
+     "k": "shape",
+     "def": "\"rect\"",
+     "meaning": "\"rect\", \"ellipse\", \"path\" or \"text\"."
+    },
+    {
+     "k": "fill",
+     "def": "\"none\"",
+     "meaning": "\"#rrggbb\", or \"none\" (a text’s colour)."
+    },
+    {
+     "k": "fillOpacity",
+     "def": "1",
+     "meaning": "0 to 1."
+    },
+    {
+     "k": "stroke",
+     "def": "\"#e8edf0\"",
+     "meaning": "\"#rrggbb\", or \"none\"."
+    },
+    {
+     "k": "strokeOpacity",
+     "def": "1",
+     "meaning": "0 to 1."
+    },
+    {
+     "k": "strokeWidth",
+     "def": "0.5",
+     "meaning": "mm."
+    },
+    {
+     "k": "dash",
+     "def": "\"solid\"",
+     "meaning": "\"solid\", \"dash\", \"long\", \"dot\" or \"dashdot\"."
+    },
+    {
+     "k": "cap",
+     "def": "\"butt\"",
+     "meaning": "\"butt\", \"round\" or \"square\"."
+    },
+    {
+     "k": "join",
+     "def": "\"miter\"",
+     "meaning": "\"miter\", \"round\" or \"bevel\"."
+    },
+    {
+     "k": "opacity",
+     "def": "1",
+     "meaning": "0 to 1: the whole drawing."
+    },
+    {
+     "k": "layer",
+     "def": "\"under\"",
+     "meaning": "\"under\" the beams and parts, or \"over\" them."
+    },
+    {
+     "k": "w",
+     "def": "20",
+     "meaning": "mm, a rectangle’s width."
+    },
+    {
+     "k": "h",
+     "def": "12",
+     "meaning": "mm, a rectangle’s height."
+    },
+    {
+     "k": "r",
+     "def": "0",
+     "meaning": "mm, a rectangle’s corner radius."
+    },
+    {
+     "k": "rx",
+     "def": null,
+     "meaning": "mm, an ellipse’s radius along x."
+    },
+    {
+     "k": "ry",
+     "def": null,
+     "meaning": "mm, an ellipse’s radius along y."
+    },
+    {
+     "k": "nodes",
+     "def": null,
+     "meaning": "a path’s nodes, [{\"x\": mm, \"y\": mm, \"h1\": [dx, dy] or null, \"h2\": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). \"smooth\": true keeps a node’s handles in line when one is dragged."
+    },
+    {
+     "k": "closed",
+     "def": null,
+     "meaning": "true joins a path’s last node to its first."
+    },
+    {
+     "k": "text",
+     "def": null,
+     "meaning": "a text’s words; \\n starts a new line. x, y is where its first line starts, is centred or ends (align), on its baseline."
+    },
+    {
+     "k": "size",
+     "def": null,
+     "meaning": "mm, a text’s font size."
+    },
+    {
+     "k": "font",
+     "def": null,
+     "meaning": "\"sans\", \"serif\" or \"mono\"."
+    },
+    {
+     "k": "bold",
+     "def": null,
+     "meaning": "true for bold text."
+    },
+    {
+     "k": "italic",
+     "def": null,
+     "meaning": "true for italic text."
+    },
+    {
+     "k": "align",
+     "def": null,
+     "meaning": "\"left\", \"center\" or \"right\"."
+    },
+    {
+     "k": "m",
+     "def": null,
+     "meaning": "optional [a, b, c, d]: a skew (or scale) on the shape before its angle, x′ = a x + c y, y′ = b x + d y; left out, none."
+    }
+   ]
+  }
+ },
+ "fibre": {
+  "laser": {
+   "label": "Fibre laser",
+   "ports": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "wavelength",
+     "def": "1550",
+     "meaning": "Wavelength (nm)"
+    },
+    {
+     "k": "power",
+     "def": "1",
+     "meaning": "Power (mW)"
+    },
+    {
+     "k": "coh",
+     "def": "0",
+     "meaning": "Coherence length (mm)"
+    },
+    {
+     "k": "polAngle",
+     "def": "0",
+     "meaning": "Polarisation angle from s (°), for pol \"linear\""
+    },
+    {
+     "k": "tau",
+     "def": "0",
+     "meaning": "Pulse duration (fs; 0: continuous)"
+    },
+    {
+     "k": "rep",
+     "def": "80",
+     "meaning": "Repetition rate (MHz)"
+    },
+    {
+     "k": "gdd0",
+     "def": "0",
+     "meaning": "Chirp at the laser (fs²)"
+    }
+   ]
+  },
+  "coupler": {
+   "label": "2×2 coupler",
+   "ports": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ],
+   "fields": [
+    {
+     "k": "ratio",
+     "def": "50",
+     "meaning": "Coupled across (%)"
+    },
+    {
+     "k": "loss",
+     "def": "0",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "split": {
+   "label": "Splitter",
+   "ports": [
+    "common",
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "ways",
+     "def": "2",
+     "meaning": "Branches"
+    },
+    {
+     "k": "loss",
+     "def": "0.2",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "star": {
+   "label": "Star coupler",
+   "ports": [
+    "in 1",
+    "in 2",
+    "out 1",
+    "out 2"
+   ],
+   "fields": [
+    {
+     "k": "ins",
+     "def": "2",
+     "meaning": "Inputs"
+    },
+    {
+     "k": "outs",
+     "def": "4",
+     "meaning": "Outputs"
+    },
+    {
+     "k": "loss",
+     "def": "0.3",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "pbs": {
+   "label": "Polarisation beam splitter",
+   "ports": [
+    "common",
+    "along",
+    "across"
+   ],
+   "fields": [
+    {
+     "k": "axis",
+     "def": "0",
+     "meaning": "Axis (° from s)"
+    },
+    {
+     "k": "extinction",
+     "def": "25",
+     "meaning": "Extinction (dB)"
+    },
+    {
+     "k": "loss",
+     "def": "0.5",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "depol": {
+   "label": "Depolariser",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "dgd",
+     "def": "5",
+     "meaning": "Delay between axes (ps)"
+    },
+    {
+     "k": "loss",
+     "def": "0.3",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "fmir": {
+   "label": "Fibre mirror",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "rmax",
+     "def": "50",
+     "meaning": "Reflectance (%)"
+    },
+    {
+     "k": "loss",
+     "def": "0",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "switch": {
+   "label": "Optical switch",
+   "ports": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ],
+   "fields": [
+    {
+     "k": "cross",
+     "def": "0",
+     "meaning": "State (0 bar, 1 cross)"
+    },
+    {
+     "k": "loss",
+     "def": "0.8",
+     "meaning": "Insertion loss (dB)"
+    },
+    {
+     "k": "xt",
+     "def": "50",
+     "meaning": "Crosstalk (dB)"
+    }
+   ]
+  },
+  "delay": {
+   "label": "Variable delay line",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "delay",
+     "def": "0",
+     "meaning": "Delay (ps)"
+    },
+    {
+     "k": "loss",
+     "def": "1",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "stretch": {
+   "label": "Fibre stretcher",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "phase",
+     "def": "0",
+     "meaning": "Phase (°)"
+    },
+    {
+     "k": "vpi",
+     "def": "2",
+     "meaning": "Vπ (V)"
+    },
+    {
+     "k": "loss",
+     "def": "0.1",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "tbf": {
+   "label": "Tunable filter",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "centre",
+     "def": "1550",
+     "meaning": "Centre (nm)"
+    },
+    {
+     "k": "fwhm",
+     "def": "1",
+     "meaning": "Width (nm)"
+    },
+    {
+     "k": "loss",
+     "def": "1",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "osa": {
+   "label": "Optical spectrum analyser",
+   "ports": [
+    "in"
+   ],
+   "fields": [
+    {
+     "k": "rbw",
+     "def": "0.1",
+     "meaning": "Resolution (nm)"
+    },
+    {
+     "k": "wmin",
+     "def": "0",
+     "meaning": "From (nm; 0: auto)"
+    },
+    {
+     "k": "wmax",
+     "def": "0",
+     "meaning": "To (nm; 0: auto)"
+    },
+    {
+     "k": "ref",
+     "def": "10",
+     "meaning": "Top (dBm)"
+    },
+    {
+     "k": "dbdiv",
+     "def": "10",
+     "meaning": "dB per division"
+    }
+   ]
+  },
+  "wdm": {
+   "label": "WDM",
+   "ports": [
+    "common",
+    "pass",
+    "rest"
+   ],
+   "fields": [
+    {
+     "k": "centre",
+     "def": "1550",
+     "meaning": "Pass band centre (nm)"
+    },
+    {
+     "k": "fwhm",
+     "def": "20",
+     "meaning": "Pass band width (nm)"
+    },
+    {
+     "k": "loss",
+     "def": "0.3",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "circ": {
+   "label": "Circulator",
+   "ports": [
+    "1",
+    "2",
+    "3"
+   ],
+   "fields": [
+    {
+     "k": "loss",
+     "def": "0.8",
+     "meaning": "Insertion loss (dB)"
+    },
+    {
+     "k": "iso",
+     "def": "40",
+     "meaning": "Isolation (dB)"
+    }
+   ]
+  },
+  "iso": {
+   "label": "Isolator",
+   "ports": [
+    "in",
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "loss",
+     "def": "0.5",
+     "meaning": "Insertion loss (dB)"
+    },
+    {
+     "k": "iso",
+     "def": "40",
+     "meaning": "Isolation (dB)"
+    }
+   ]
+  },
+  "voa": {
+   "label": "Attenuator",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "att",
+     "def": "3",
+     "meaning": "Attenuation (dB)"
+    }
+   ]
+  },
+  "pc": {
+   "label": "Polarisation controller",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "a1",
+     "def": "0",
+     "meaning": "Paddle 1, λ/4 (°)"
+    },
+    {
+     "k": "a2",
+     "def": "0",
+     "meaning": "Paddle 2, λ/2 (°)"
+    },
+    {
+     "k": "a3",
+     "def": "0",
+     "meaning": "Paddle 3, λ/4 (°)"
+    }
+   ]
+  },
+  "pol": {
+   "label": "In-line polariser",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "axis",
+     "def": "0",
+     "meaning": "Axis (° from s)"
+    },
+    {
+     "k": "extinction",
+     "def": "30",
+     "meaning": "Extinction (dB)"
+    },
+    {
+     "k": "loss",
+     "def": "0.5",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "fm": {
+   "label": "Faraday mirror",
+   "ports": [
+    "in"
+   ],
+   "fields": [
+    {
+     "k": "rmax",
+     "def": "99",
+     "meaning": "Reflectance (%)"
+    },
+    {
+     "k": "loss",
+     "def": "0",
+     "meaning": "Extra loss (dB)"
+    }
+   ]
+  },
+  "fbg": {
+   "label": "Fibre Bragg grating",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "centre",
+     "def": "1550",
+     "meaning": "Bragg wavelength (nm)"
+    },
+    {
+     "k": "fwhm",
+     "def": "0.5",
+     "meaning": "Bandwidth (nm)"
+    },
+    {
+     "k": "rmax",
+     "def": "90",
+     "meaning": "Peak reflectance (%)"
+    }
+   ]
+  },
+  "term": {
+   "label": "Terminator",
+   "ports": [
+    "in"
+   ],
+   "fields": [
+    {
+     "k": "rl",
+     "def": "60",
+     "meaning": "Return loss (dB)"
+    }
+   ]
+  },
+  "pd": {
+   "label": "Fibre photodetector",
+   "ports": [
+    "in"
+   ],
+   "fields": [
+    {
+     "k": "resp",
+     "def": "1",
+     "meaning": "Responsivity (A/W)"
+    },
+    {
+     "k": "gain",
+     "def": "10000",
+     "meaning": "Gain (V/A)"
+    },
+    {
+     "k": "vmax",
+     "def": "10",
+     "meaning": "Output limit (V)"
+    },
+    {
+     "k": "bandwidth",
+     "def": "1000000000",
+     "meaning": "Bandwidth (Hz)"
+    },
+    {
+     "k": "dark",
+     "def": "1",
+     "meaning": "Dark (nA)"
+    },
+    {
+     "k": "ampNoise",
+     "def": "2",
+     "meaning": "Noise (pA/√Hz)"
+    },
+    {
+     "k": "demodF",
+     "def": "0",
+     "meaning": "Demod. at (MHz)"
+    },
+    {
+     "k": "demodPhase",
+     "def": "0",
+     "meaning": "Demod. phase (°)"
+    }
+   ]
+  },
+  "thru": {
+   "label": "Feedthrough",
+   "ports": [
+    "port"
+   ],
+   "fields": []
+  },
+  "aom": {
+   "label": "Fibre AOM",
+   "ports": [
+    "in",
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "rf",
+     "def": "80",
+     "meaning": "Drive (MHz)"
+    },
+    {
+     "k": "order",
+     "def": "1",
+     "meaning": "Order (+1 or −1)"
+    },
+    {
+     "k": "loss",
+     "def": "2.5",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "eom": {
+   "label": "Fibre EOM",
+   "ports": [
+    "in",
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "fm",
+     "def": "1000",
+     "meaning": "Drive (MHz)"
+    },
+    {
+     "k": "beta",
+     "def": "1.08",
+     "meaning": "Depth β (rad)"
+    },
+    {
+     "k": "bias",
+     "def": "90",
+     "meaning": "Bias (°, amplitude mode)"
+    },
+    {
+     "k": "loss",
+     "def": "3",
+     "meaning": "Insertion loss (dB)"
+    }
+   ]
+  },
+  "amp": {
+   "label": "Fibre amplifier",
+   "ports": [
+    "in",
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "g0",
+     "def": "20",
+     "meaning": "Small-signal gain (dB)"
+    },
+    {
+     "k": "psat",
+     "def": "17",
+     "meaning": "Saturated output (dBm)"
+    },
+    {
+     "k": "nf",
+     "def": "5",
+     "meaning": "Noise figure (dB)"
+    },
+    {
+     "k": "centre",
+     "def": "1545",
+     "meaning": "Band centre (nm)"
+    },
+    {
+     "k": "bw",
+     "def": "35",
+     "meaning": "Band width (nm)"
+    },
+    {
+     "k": "iso",
+     "def": "40",
+     "meaning": "Isolation backwards (dB)"
+    }
+   ]
+  }
+ },
+ "elec": {
+  "dc": {
+   "label": "DC source",
+   "ins": [],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "v",
+     "def": "1",
+     "meaning": "Voltage (V)"
+    }
+   ]
+  },
+  "sig": {
+   "label": "Signal generator",
+   "ins": [],
+   "outs": [
+    "out",
+    "sync"
+   ],
+   "fields": [
+    {
+     "k": "wave",
+     "def": "\"sine\"",
+     "meaning": "Waveform: \"sine\" (Sine), \"square\" (Square), \"triangle\" (Triangle), \"pulse\" (Pulse)"
+    },
+    {
+     "k": "f",
+     "def": "1000",
+     "meaning": "Frequency (Hz)"
+    },
+    {
+     "k": "amp",
+     "def": "1",
+     "meaning": "Amplitude (V)"
+    },
+    {
+     "k": "offset",
+     "def": "0",
+     "meaning": "Offset (V)"
+    },
+    {
+     "k": "phase",
+     "def": "0",
+     "meaning": "Phase (°)"
+    },
+    {
+     "k": "duty",
+     "def": "50",
+     "meaning": "Duty (%)"
+    }
+   ]
+  },
+  "noise": {
+   "label": "Noise source",
+   "ins": [],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "psd",
+     "def": "100",
+     "meaning": "Density (nV/√Hz)"
+    },
+    {
+     "k": "bw",
+     "def": "1000000",
+     "meaning": "Bandwidth (Hz)"
+    }
+   ]
+  },
+  "amp": {
+   "label": "Amplifier",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "gain",
+     "def": "10",
+     "meaning": "Gain (V/V)"
+    },
+    {
+     "k": "bw",
+     "def": "1000000",
+     "meaning": "Bandwidth (Hz)"
+    },
+    {
+     "k": "en",
+     "def": "5",
+     "meaning": "Input noise (nV/√Hz)"
+    },
+    {
+     "k": "vmax",
+     "def": "10",
+     "meaning": "Output limit (V)"
+    }
+   ]
+  },
+  "tia": {
+   "label": "Transimpedance amplifier",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "gain",
+     "def": "100000",
+     "meaning": "Gain (V/A)"
+    },
+    {
+     "k": "bw",
+     "def": "100000",
+     "meaning": "Bandwidth (Hz)"
+    },
+    {
+     "k": "inoise",
+     "def": "1",
+     "meaning": "Input noise (pA/√Hz)"
+    },
+    {
+     "k": "vmax",
+     "def": "10",
+     "meaning": "Output limit (V)"
+    }
+   ]
+  },
+  "lpf": {
+   "label": "Low-pass filter",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "fc",
+     "def": "10000",
+     "meaning": "Corner (Hz)"
+    },
+    {
+     "k": "order",
+     "def": "1",
+     "meaning": "Order: 1 (1), 2 (2), 3 (3), 4 (4)"
+    }
+   ]
+  },
+  "hpf": {
+   "label": "High-pass filter",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "fc",
+     "def": "100",
+     "meaning": "Corner (Hz)"
+    },
+    {
+     "k": "order",
+     "def": "1",
+     "meaning": "Order: 1 (1), 2 (2), 3 (3), 4 (4)"
+    }
+   ]
+  },
+  "bpf": {
+   "label": "Band-pass filter",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "f0",
+     "def": "1000",
+     "meaning": "Centre (Hz)"
+    },
+    {
+     "k": "bw",
+     "def": "100",
+     "meaning": "Bandwidth (Hz)"
+    },
+    {
+     "k": "order",
+     "def": "1",
+     "meaning": "Order: 1 (1), 2 (2), 3 (3), 4 (4)"
+    }
+   ]
+  },
+  "att": {
+   "label": "Attenuator",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "db",
+     "def": "10",
+     "meaning": "Attenuation (dB)"
+    }
+   ]
+  },
+  "biastee": {
+   "label": "Bias tee",
+   "ins": [
+    "rf",
+    "dc"
+   ],
+   "outs": [
+    "rf+dc"
+   ],
+   "fields": [
+    {
+     "k": "fc",
+     "def": "10000",
+     "meaning": "Corner (Hz)"
+    }
+   ]
+  },
+  "comp": {
+   "label": "Comparator",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "thr",
+     "def": "0",
+     "meaning": "Threshold (V)"
+    },
+    {
+     "k": "vhi",
+     "def": "5",
+     "meaning": "Output high (V)"
+    },
+    {
+     "k": "vlo",
+     "def": "0",
+     "meaning": "Output low (V)"
+    }
+   ]
+  },
+  "mixer": {
+   "label": "Mixer",
+   "ins": [
+    "a",
+    "b"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "k",
+     "def": "1",
+     "meaning": "Gain (1/V)"
+    }
+   ]
+  },
+  "sum": {
+   "label": "Summing junction",
+   "ins": [
+    "a",
+    "b"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "ga",
+     "def": "1",
+     "meaning": "Gain, a"
+    },
+    {
+     "k": "gb",
+     "def": "1",
+     "meaning": "Gain, b"
+    }
+   ]
+  },
+  "node": {
+   "label": "Node",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": []
+  },
+  "scope": {
+   "label": "Oscilloscope",
+   "ins": [
+    "ch1",
+    "ch2"
+   ],
+   "outs": [],
+   "fields": [
+    {
+     "k": "mode",
+     "def": "\"normal\"",
+     "meaning": "Mode: \"normal\" (Normal), \"roll\" (Roll)"
+    },
+    {
+     "k": "span",
+     "def": "0.005",
+     "meaning": "Time span (s; 0: auto)"
+    },
+    {
+     "k": "v1div",
+     "def": "0",
+     "meaning": "Ch1 per division (0: auto)"
+    },
+    {
+     "k": "v1off",
+     "def": "0",
+     "meaning": "Ch1 offset"
+    },
+    {
+     "k": "v2div",
+     "def": "0",
+     "meaning": "Ch2 per division (0: auto)"
+    },
+    {
+     "k": "v2off",
+     "def": "0",
+     "meaning": "Ch2 offset"
+    }
+   ]
+  },
+  "spec": {
+   "label": "Spectrum analyser",
+   "ins": [
+    "in"
+   ],
+   "outs": [],
+   "fields": [
+    {
+     "k": "scale",
+     "def": "\"log\"",
+     "meaning": "Frequency axis: \"log\" (Log), \"linear\" (Linear)"
+    },
+    {
+     "k": "rbw",
+     "def": "10",
+     "meaning": "Resolution bandwidth (Hz)"
+    },
+    {
+     "k": "fmin",
+     "def": "10",
+     "meaning": "From (Hz; 0: auto)"
+    },
+    {
+     "k": "fmax",
+     "def": "1000000",
+     "meaning": "To (Hz; 0: auto)"
+    },
+    {
+     "k": "dbdiv",
+     "def": "0",
+     "meaning": "dB per division (0: auto)"
+    },
+    {
+     "k": "ref",
+     "def": "0",
+     "meaning": "Top (dB)"
+    }
+   ]
+  },
+  "lockin": {
+   "label": "Lock-in amplifier",
+   "ins": [
+    "signal",
+    "ref"
+   ],
+   "outs": [
+    "x",
+    "y"
+   ],
+   "fields": [
+    {
+     "k": "harm",
+     "def": "1",
+     "meaning": "Harmonic"
+    },
+    {
+     "k": "phase",
+     "def": "0",
+     "meaning": "Phase (°)"
+    },
+    {
+     "k": "tau",
+     "def": "0.1",
+     "meaning": "Time constant (s)"
+    },
+    {
+     "k": "slope",
+     "def": "2",
+     "meaning": "Slope: 1 (6 dB/oct), 2 (12 dB/oct), 3 (18 dB/oct), 4 (24 dB/oct)"
+    }
+   ]
+  },
+  "daq": {
+   "label": "DAQ (ADC)",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": [
+    {
+     "k": "rate",
+     "def": "10000",
+     "meaning": "Sample rate (S/s)"
+    },
+    {
+     "k": "bits",
+     "def": "16",
+     "meaning": "Bits"
+    },
+    {
+     "k": "range",
+     "def": "10",
+     "meaning": "Range, ± (V)"
+    }
+   ]
+  }
+ },
+ "pic": {
+  "gc": {
+   "label": "Grating coupler",
+   "ports": [
+    "chip",
+    "fibre"
+   ],
+   "fields": [
+    {
+     "k": "centre",
+     "def": "1550",
+     "meaning": "Centre (nm)"
+    },
+    {
+     "k": "peak",
+     "def": "-3",
+     "meaning": "Peak (dB)"
+    },
+    {
+     "k": "bw",
+     "def": "30",
+     "meaning": "1 dB band (nm)"
+    },
+    {
+     "k": "polAngle",
+     "def": "0",
+     "meaning": "Fibre pol. (° from s)"
+    }
+   ]
+  },
+  "dc": {
+   "label": "Directional coupler",
+   "ports": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ],
+   "fields": [
+    {
+     "k": "kappa",
+     "def": "50",
+     "meaning": "Coupling (%)"
+    },
+    {
+     "k": "dkappa",
+     "def": "0",
+     "meaning": "Change (%/nm)"
+    },
+    {
+     "k": "loss",
+     "def": "0",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "mmi12": {
+   "label": "1×2 MMI",
+   "ports": [
+    "in",
+    "out 1",
+    "out 2"
+   ],
+   "fields": [
+    {
+     "k": "loss",
+     "def": "0.2",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "mmi22": {
+   "label": "2×2 MMI",
+   "ports": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ],
+   "fields": [
+    {
+     "k": "loss",
+     "def": "0.2",
+     "meaning": "Excess loss (dB)"
+    }
+   ]
+  },
+  "ring": {
+   "label": "Ring, all-pass",
+   "ports": [
+    "in",
+    "through"
+   ],
+   "fields": [
+    {
+     "k": "radius",
+     "def": "10",
+     "meaning": "Radius (µm)"
+    },
+    {
+     "k": "kappa1",
+     "def": "10",
+     "meaning": "Coupling (%)"
+    },
+    {
+     "k": "neff",
+     "def": "2.44",
+     "meaning": "n_eff at 1550 nm"
+    },
+    {
+     "k": "ng",
+     "def": "4.2",
+     "meaning": "Group index"
+    },
+    {
+     "k": "loss",
+     "def": "2",
+     "meaning": "Loss (dB/cm)"
+    }
+   ]
+  },
+  "ringad": {
+   "label": "Ring, add-drop",
+   "ports": [
+    "in",
+    "through",
+    "add",
+    "drop"
+   ],
+   "fields": [
+    {
+     "k": "radius",
+     "def": "10",
+     "meaning": "Radius (µm)"
+    },
+    {
+     "k": "kappa1",
+     "def": "10",
+     "meaning": "Coupling, in (%)"
+    },
+    {
+     "k": "kappa2",
+     "def": "10",
+     "meaning": "Coupling, drop (%)"
+    },
+    {
+     "k": "neff",
+     "def": "2.44",
+     "meaning": "n_eff at 1550 nm"
+    },
+    {
+     "k": "ng",
+     "def": "4.2",
+     "meaning": "Group index"
+    },
+    {
+     "k": "loss",
+     "def": "2",
+     "meaning": "Loss (dB/cm)"
+    }
+   ]
+  },
+  "ps": {
+   "label": "Phase shifter",
+   "ports": [
+    "1",
+    "2"
+   ],
+   "fields": [
+    {
+     "k": "phase",
+     "def": "0",
+     "meaning": "Phase (°)"
+    },
+    {
+     "k": "len",
+     "def": "100",
+     "meaning": "Length (µm)"
+    },
+    {
+     "k": "neff",
+     "def": "2.44",
+     "meaning": "n_eff at 1550 nm"
+    },
+    {
+     "k": "ng",
+     "def": "4.2",
+     "meaning": "Group index"
+    },
+    {
+     "k": "loss",
+     "def": "2",
+     "meaning": "Loss (dB/cm)"
+    }
+   ]
+  },
+  "pd": {
+   "label": "On-chip photodiode",
+   "ports": [
+    "in"
+   ],
+   "fields": [
+    {
+     "k": "resp",
+     "def": "1",
+     "meaning": "Responsivity (A/W)"
+    },
+    {
+     "k": "gain",
+     "def": "10000",
+     "meaning": "Gain (V/A)"
+    },
+    {
+     "k": "vmax",
+     "def": "10",
+     "meaning": "Output limit (V)"
+    },
+    {
+     "k": "bandwidth",
+     "def": "1000000000",
+     "meaning": "Bandwidth (Hz)"
+    },
+    {
+     "k": "demodF",
+     "def": "0",
+     "meaning": "Demod. at (MHz)"
+    },
+    {
+     "k": "demodPhase",
+     "def": "0",
+     "meaning": "Demod. phase (°)"
+    }
+   ]
+  }
+ }
+}

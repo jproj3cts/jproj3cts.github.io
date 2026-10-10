@@ -825,7 +825,7 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 
 Electronic parts sit on the bench like fibre components (x, y, angle, name, id) and are joined by wires: entries in "fibres" with "wire": true, from an output to an input, "a" the output’s end and "b" the input’s. An output may feed several inputs; an input takes one wire. A part’s ports are numbered from 0, its inputs first, then its outputs. Each signal is worked out in steady state: DC, tones and noise.
 
-Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output.
+Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output; on a photonic chip (experimental), a "pic" "pd" its output after its input, and a "pic" "ps" its drive after its two ports (π of phase per "vpi" volts, 5 by default).
 
 ### kind "dc": DC source
 

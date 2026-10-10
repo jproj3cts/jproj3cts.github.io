@@ -14,7 +14,7 @@ Photonic chips are an experimental feature. Switch them on under **Help › Expe
 
 ## Ports
 
-One port, **in**, on the chip.
+One optical port, **in**, on the chip, and an electrical output, **out**.
 
 ## The model
 
@@ -26,9 +26,15 @@ $$
 
 up to its output limit, with beat notes passed through a single pole of its bandwidth. Paths of one laser add as fields, weighted by its coherence; different lasers add as powers and beat. Its noise is shot noise and the gain resistor's Johnson noise. Set a demodulation frequency and phase and its output is mixed down, as for any photodetector (see [Photodetector: demodulation](/jek/docs/jekray2d/free-space/detector/#demodulation)).
 
+### Electrical output
+
+Its **out** port carries what it reads to the [electronics](/jek/docs/jekray2d/electronics/): the amplifier's output in volts, or, set as a bare photodiode, its photocurrent in amps, for a [transimpedance amplifier](/jek/docs/jekray2d/electronics/tia/). Drives on the bench, a laser's modulation or a phase shifter's drive, move it as the light follows them.
+
 ## Settings
 
 {% include jekray2d_params.html group="pic" key="pd" %}
+
+Also *diode*: true for a bare photodiode, its output a current.
 
 ## Readouts
 
@@ -38,7 +44,6 @@ The optical power, photocurrent and output (held at its limit, and flagged, when
 
 <div class="dx-warn" markdown="1">
 - Its responsivity is fixed, not taken from a material's curve.
-- It has no electrical output to wire to the electronics: read it on its own panel.
 - No dark current or amplifier input noise.
 </div>
 

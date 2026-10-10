@@ -9550,7 +9550,8 @@ const PIC = (() => {
       S: (el, lam) => ringS(el, lam, true) },
     ps: { label: 'Phase shifter', tag: 'φ', wg: true, ports: [[-1, 0], [1, 0]], names: ['1', '2'],
       params: [['phase', 'Phase (°)', 0], ['len', 'Length (µm)', 100], ...WG_PARAMS],
-      S: (el, lam) => { const t = cm(wgT(wgOf(el), el.len, lam), cexp(-el.phase * Math.PI / 180)), S = cmat(2); cput(S, 2, 0, 1, t[0], t[1]); cput(S, 2, 1, 0, t[0], t[1]); return S; } },
+      // ELEC hook: a drive _v (volts, set only while the electronics trace it) adds a phase pi v / V_pi
+      S: (el, lam) => { const t = cm(wgT(wgOf(el), el.len, lam), cexp(-el.phase * Math.PI / 180 - Math.PI * (el._v || 0) / Math.max(1e-6, num(el.vpi, 5)))), S = cmat(2); cput(S, 2, 0, 1, t[0], t[1]); cput(S, 2, 1, 0, t[0], t[1]); return S; } },
     pd: { label: 'On-chip photodiode', tag: 'PD', sink: true, ports: [[-1, 0]], names: ['in'],
       params: [['resp', 'Responsivity (A/W)', 1], ['gain', 'Gain (V/A)', 1e4], ['vmax', 'Output limit (V)', 10], ['bandwidth', 'Bandwidth (Hz)', 1e9],
         ['demodF', 'Demod. at (MHz)', 0], ['demodPhase', 'Demod. phase (°)', 0]],
@@ -9816,8 +9817,8 @@ const PIC = (() => {
       mmi22: 'A 50:50 coupler made as a multimode section: as a directional coupler at 50%, with its own excess loss.',
       ring: 'A ring beside one bus waveguide: dips in its through port at every resonance, as deep as the coupling matches the ring’s loss (critical coupling).',
       ringad: 'A ring between two bus waveguides: at resonance the light goes to the drop port; off it, straight through. Light put in at the add port goes to the drop port off resonance and to the through port on it.',
-      ps: 'A section of waveguide with a phase you set (a heater or an electro-optic section): give the phase a sweep to tune a Mach–Zehnder or a ring.',
-      pd: 'Absorbs what reaches it and reads it as the fibre photodiodes do: DC, beat notes, the mixer.',
+      ps: 'A section of waveguide with a phase you set (a heater or an electro-optic section): give the phase a sweep to tune a Mach–Zehnder or a ring, or wire a signal to its drive input (π of phase per Vπ volts on top of the phase set).',
+      pd: 'Absorbs what reaches it and reads it as the fibre photodiodes do: DC, beat notes, the mixer. Its out port carries what it reads to the electronics.',
     };
     panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
     panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'));
@@ -9956,7 +9957,7 @@ const PIC = (() => {
     const rows = portRows(el), K = KINDS[el.kind];
     if (el.kind === 'pd') {
       const net = lastTrace.net, mw = net ? netPower(net.pd.get(el.id), net.keys) : 0, mA = mw * el.resp, Vo = mA * 1e-3 * el.gain;
-      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ['Output', (+Math.min(Vo, el.vmax).toPrecision(4)) + ' V' + (Vo > el.vmax ? ', at its limit' : '')]);
+      rows.unshift(['Optical power', fmtMw(mw)], ['Photocurrent', (+mA.toPrecision(4)) + ' mA'], ...(el.diode ? [] : [['Output', (+Math.min(Vo, el.vmax).toPrecision(4)) + ' V' + (Vo > el.vmax ? ', at its limit' : '')]]));
     }
     if (el.kind === 'ring' || el.kind === 'ringad') {
       const { L, fsr, a, t1, F, fw } = ringLine(el);
@@ -10714,12 +10715,16 @@ const ELEC = (() => {
         const n = { pd: ['out', 'out'], aom: ['in', 'rf'], eom: ['in', 'mod'], stretch: ['in', 'drive'] }[el.kind];
         return n ? [{ x: 0, y: FC_H / 2, dx: 0, dy: 1, elec: n[0], name: n[1] }] : [];
       }
+      case 'pic': {                                            // PIC hook: an on-chip photodiode's output, a phase shifter's drive
+        const n = { pd: ['out', 'out'], ps: ['in', 'drive'] }[el.kind];
+        return n ? [{ x: 0, y: FC_H / 2, dx: 0, dy: 1, elec: n[0], name: n[1] }] : [];
+      }
     }
     return [];
   }
   /* the settings an optical part keeps for the electronics, saved only when set */
   function normExtra(e, o) {
-    if ((o.type === 'detector' || (o.type === 'fcomp' && o.kind === 'pd')) && e.diode === true) o.diode = true;   // no amplifier: a current out
+    if ((o.type === 'detector' || ((o.type === 'fcomp' || o.type === 'pic') && o.kind === 'pd')) && e.diode === true) o.diode = true;   // no amplifier: a current out
     if (o.type === 'detector' && e.fieldSample === true) o.fieldSample = true;
     if (isLaser(o) && e.ext === true) o.ext = true;            // under external control: its mod and fm inputs
     for (const k of ['modk', 'fmk', 'vsat', 'vpi']) if (e[k] !== undefined && e[k] !== null && isFinite(e[k])) o[k] = +e[k];
@@ -10745,7 +10750,7 @@ const ELEC = (() => {
     else if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
     else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
     else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
-    else if (el.type === 'eom' || (el.type === 'fcomp' && (el.kind === 'eom' || el.kind === 'stretch'))) el._v = v;
+    else if (el.type === 'eom' || (el.type === 'fcomp' && (el.kind === 'eom' || el.kind === 'stretch')) || (el.type === 'pic' && el.kind === 'ps')) el._v = v;
     else if (el.type === 'chopper') el._closed = !(v > 0.5);
   }
   /* trace the bench with something changed, read it, and put everything back as it was */
@@ -10759,10 +10764,11 @@ const ELEC = (() => {
       statsCache.clear(); diffCache.clear(); binCache.clear();
     }
   }
-  const isDet = el => el.type === 'detector' || (el.type === 'fcomp' && el.kind === 'pd');
+  const isDet = el => el.type === 'detector' || ((el.type === 'fcomp' || el.type === 'pic') && el.kind === 'pd');
   /* the light on a photodiode, mW, as the bench is traced now */
   function readDet(el) {
     if (el.type === 'fcomp') return pdNetMw(el);
+    if (el.type === 'pic') return lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0;
     if (el.fieldSample && !fieldHeld()) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
     return detectorReading(el).mw;
   }
@@ -10995,7 +11001,7 @@ const ELEC = (() => {
       rows.append(param({ modk: 'Modulation (% per V)', vsat: 'RF in for full efficiency (V)', vpi: 'Vπ (V)' }[key], el, key, { wide: true }));
       what = { modk: 'Its mod input sets the power: P = P₀ (1 + m v), never below zero.',
         vsat: 'Its rf input sets the RF level: the diffracted share is the efficiency set times sin²(π v / 2 V_full), so 0 V diffracts nothing.',
-        vpi: el.emode === 'amplitude' ? 'Its mod input adds to the bias: v = Vπ moves it 180°.' : 'Its mod input adds a phase of π v / Vπ to the light through it (seen where it interferes).' }[key];
+        vpi: el.emode === 'amplitude' ? 'Its mod input adds to the bias: v = Vπ moves it 180°.' : 'Its ' + ((X.find(P => P.elec === 'in') || {}).name || 'mod') + ' input adds a phase of π v / Vπ to the light through it (seen where it interferes).' }[key];
     }
     panel.append(rows);
     panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, what + ' Slow drives are worked out quasi-statically: the bench is traced again across the drive’s swing.'));
@@ -11010,7 +11016,7 @@ const ELEC = (() => {
       const p = pkey(el.id, base + k), F = wires.filter(G => pkey(...G.a) === p || pkey(...G.b) === p);
       if (!F.length) return;
       const ends = F.map(G => { const o = pkey(...G.a) === p ? G.b : G.a, E = getEl(o[0]); return E ? E.name + ' ' + portName(E, o[1]) : '?'; });
-      rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
+      rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port', drive: 'Drive in port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
       if (P.elec === 'out' && isDet(el)) rows.push(...describe(solve().out.get(p) || zero()));
     });
     for (const w of solve().warn.get(el.id) || []) rows.push(['Note', w]);
@@ -11579,7 +11585,7 @@ function pdSignal(el) {
 function pdSignalAll(el) {
   const S = pdSignal(el), E = ELEC.detSignal(el);
   if (!E) return S;
-  const fibre = el.type === 'fcomp', rd = fibre ? null : detectorReading(el);
+  const fibre = el.type === 'fcomp' || el.type === 'pic', rd = fibre ? null : detectorReading(el);           // PIC hook: an on-chip photodiode reads as a fibre one
   const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), k = R * 1e-3 * (el.diode ? 1 : el.gain);   // output per mW
   const tones = E.tones.map(t => { const V = Math.hypot(t.re, t.im); return { f: t.f, V, phV: Math.atan2(t.im, t.re), amp: k > 0 ? V / k : 0, incoh: false }; })
     .concat(S.tones.filter(t => t.incoh)).sort((a, b) => a.f - b.f);
@@ -13772,8 +13778,9 @@ function portPower(el, p) {
 }
 function portRows(el) {
   const rows = [];
-  portsOf(el).forEach((_, i) => {
-    const F = (project.fibres || []).find(G => pkey(...G.a) === pkey(el.id, i) || pkey(...G.b) === pkey(el.id, i));
+  portsOf(el).forEach((P0, i) => {
+    if (P0.elec) return;                                   // ELEC hook: the electrical ports' wires are listed with the electronics' readout
+    const F = (project.fibres || []).find(G => !G.wire && (pkey(...G.a) === pkey(el.id, i) || pkey(...G.b) === pkey(el.id, i)));
     const other = F ? (pkey(...F.a) === pkey(el.id, i) ? F.b : F.a) : null, oe = other && getEl(other[0]);
     const P = portPower(el, i);
     rows.push(['Port ' + portName(el, i), (oe ? '\u2192 ' + oe.name + (portsOf(oe).length > 1 ? ' ' + portName(oe, other[1]) : '') : 'open') +
@@ -21374,7 +21381,7 @@ function aiReference() {
   }
   L.push('## Electronics ("type": "elec")', '',
     'Electronic parts sit on the bench like fibre components (x, y, angle, name, id) and are joined by wires: entries in "fibres" with "wire": true, from an output to an input, "a" the output\u2019s end and "b" the input\u2019s. An output may feed several inputs; an input takes one wire. A part\u2019s ports are numbered from 0, its inputs first, then its outputs. Each signal is worked out in steady state: DC, tones and noise.',
-    '', 'Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output.', '');
+    '', 'Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output; on a photonic chip (experimental), a "pic" "pd" its output after its input, and a "pic" "ps" its drive after its two ports (\u03c0 of phase per "vpi" volts, 5 by default).', '');
   for (const [k, K] of Object.entries(ELEC.KINDS)) {
     const ports = k === 'node' ? '0 = the node (one wire in, any number out)' : [...K.ins.map((n, i) => i + ' = ' + n + ' (in)'), ...K.outs.map((n, j) => (K.ins.length + j) + ' = ' + n + ' (out)')].join(', ');
     L.push('### kind "' + k + '": ' + K.label, '', '**ports:** ' + ports, '');
@@ -23553,6 +23560,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    'On photonic chips, <b>electrical connections</b>: an on-chip photodiode now has an <b>out</b> port to the electronics (a voltage through its amplifier, or its current as a bare photodiode), and a phase shifter a <b>drive</b> input, \u03c0 of phase for V\u03c0 volts on top of the phase set, so a chip\u2019s Mach\u2013Zehnder or ring can be modulated, swept or locked from the electronics.',
     'A fix: light going back through a <b>fibre AOM</b> is now shifted the same way again, so a double pass (an AOM before a Faraday mirror) shifts by twice the drive, as a real one and the free-space AOM do. It was shifted back to where it started.',
     'The <b>documentation</b> (Help \u203a Documentation): how each model works, with its equations and limits: free space, fibre, electronics and photonic chips, element by element, with an FAQ.',
     'In the Draw palette, a <b>bar along the top of the bench</b>: flip (H, V), rotate, raise to top, raise, lower and lower to bottom (Home, Page Up, Page Down, End), and <b>Align and distribute</b> (Ctrl+Shift+A) for drawings and parts by their boxes. Click a picked drawing again and its handles <b>rotate</b> (corners) and <b>skew</b> (sides) it, as Inkscape\u2019s. Ctrl keeps the pen, and a node dragged with the node tool, to 15\u00b0 steps from the point it joins. Flip is for drawings: parts are not mirrored. Parts\u2019 names are now sized on the bench, so a figure looks the same at any zoom (View \u203a Larger names, Smaller names). In Draw, parts stay put: clicks and boxes pick drawings only, and a part\u2019s name can still be picked, moved and scaled.',

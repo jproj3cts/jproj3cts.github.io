@@ -91,6 +91,7 @@ Optical parts carry electrical ports too:
 - a photodetector's output;
 - a laser's modulation and frequency inputs;
 - an AOM's RF level input and an EOM's modulation input;
+- a fibre stretcher's and an on-chip phase shifter's drive inputs, and the fibre and on-chip photodiodes' outputs;
 - an optical chopper's reference output.
 
 ### Photodiodes

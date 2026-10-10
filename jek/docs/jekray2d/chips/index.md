@@ -80,7 +80,7 @@ A chip's spectrum between two ports is solved across a band, and the lines in it
 <div class="dx-warn" markdown="1">
 - TE only, one mode, near 1550 nm: dispersion is first order in the effective index.
 - Compact models describe each part by its ports. Field profiles inside the chip, mode mismatch at junctions, and bend loss beyond the waveguide's own loss are not modelled.
-- No thermal or carrier effects: a phase shifter's phase is set directly.
+- No thermal or carrier effects: a phase shifter's phase is set, or driven by the electronics, directly.
 </div>
 
 ## Elements

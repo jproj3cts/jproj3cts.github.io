@@ -22,7 +22,7 @@ $$
 
 with no tones and no noise. Like every signal, it is worked out in the steady state (see [Electronics: signals](/jek/docs/jekray2d/electronics/#signals)).
 
-Wired to a laser's **mod** input it scales the laser's power, $$P = P_0(1 + m V_0)$$; to its **fm** input it tunes the laser's frequency; to an EOM, a fibre EOM or a fibre stretcher it adds a phase or moves the bias. As a parameter it can be swept, to step the light through its response.
+Wired to a laser's **mod** input it scales the laser's power, $$P = P_0(1 + m V_0)$$; to its **fm** input it tunes the laser's frequency; to an EOM, a fibre EOM, a fibre stretcher or a chip's phase shifter it adds a phase or moves the bias. As a parameter it can be swept, to step the light through its response.
 
 ## Settings
 

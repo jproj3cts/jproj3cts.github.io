@@ -4754,6 +4754,26 @@ const TESTS = [
     },
   },
   {
+    name: 'A chip’s phase shifter takes a drive, and its photodiode reads out',
+    why: 'a Mach–Zehnder on a chip, its heater wired to the electronics (Vπ 5 V) and its dark port onto an on-chip photodiode wired out as a bare diode: 2.5 V from a DC source gives half of what 5 V does and 0 V nothing; a 1 kHz sine of 0.5 V about 2.5 V gives a fundamental of 2J₁(π/10) of the DC: the largest relative error (the drive read through a spline through 17 levels)',
+    want: 0, tol: 1e-4, unit: '',
+    run: J => {
+      const els = drive => [{ type: 'fcomp', kind: 'laser', id: 'L', name: 'L', x: -80, y: 0, power: 1 }, { type: 'pic', kind: 'gc', id: 'G', name: 'G', x: -50, y: 0, angle: 180 },
+        { type: 'pic', kind: 'dc', id: 'D1', name: 'D1', x: -25, y: 0 }, { type: 'pic', kind: 'ps', id: 'P', name: 'P', x: 0, y: 8, len: 100, loss: 0 },
+        { type: 'pic', kind: 'ps', id: 'Q', name: 'Q', x: 0, y: -8, len: 100, loss: 0 }, { type: 'pic', kind: 'dc', id: 'D2', name: 'D2', x: 25, y: 0 },
+        { type: 'pic', kind: 'pd', id: 'PD', name: 'PD', x: 50, y: 0, diode: true }, drive, elecPart('scope', 'SC', { x: 90 })];
+      const fib = [{ a: ['L', 0], b: ['G', 1], len: 1, loss: 0 }, { a: ['G', 0], b: ['D1', 0], wg: { len: 20, loss: 0 } }, { a: ['D1', 2], b: ['P', 0], wg: { len: 20, loss: 0 } },
+        { a: ['D1', 3], b: ['Q', 0], wg: { len: 20, loss: 0 } }, { a: ['P', 1], b: ['D2', 0], wg: { len: 20, loss: 0 } }, { a: ['Q', 1], b: ['D2', 1], wg: { len: 20, loss: 0 } },
+        { a: ['D2', 2], b: ['PD', 0], wg: { len: 20, loss: 0 } }];
+      const read = drive => elecRun(J, els(drive), [], () => J.elec.signal('PD', 0), [['V', 0, 'P', 2], ['PD', 1, 'SC', 0]], fib);
+      const at = v => read(elecPart('dc', 'V', { v, y: 40 })), full = at(5), half = at(2.5), none = at(0);
+      const S = read(elecPart('sig', 'V', { amp: 0.5, offset: 2.5, f: 1000, y: 40 })), F = (S.tones.find(t => Math.abs(t.f - 1000) < 1e-3) || { amp: 0 }).amp;
+      const J1 = x => { let s = 0, t = x / 2; for (let k = 0; k < 30; k++) { s += t; t *= -(x * x / 4) / ((k + 1) * (k + 2)); } return s; };
+      if (!full || !(full.dc > 0) || full.unit !== 'A') return NaN;
+      return Math.max(Math.abs(half.dc / full.dc - 0.5), Math.abs(none.dc / full.dc), Math.abs(F / S.dc / (2 * J1(Math.PI / 10)) - 1));
+    },
+  },
+  {
     name: 'and the light follows each drive by its own law',
     why: 'a laser’s power by 100%/V from a 0.5 V sine: a swing of half its DC; a fibre AOM’s output with 0.5 ± 0.25 V on its RF input: η = sin²(πv/2), so a fundamental of J₁(π/4) of the full power; an EOM in amplitude mode at 90° bias, Vπ 5 V, 1 V sine: a fundamental of 2J₁(π/5) of its DC: the largest relative error (the AOM and EOM read through a spline through 17 levels traced across the drive’s swing)',
     want: 0, tol: 1e-4, unit: '',

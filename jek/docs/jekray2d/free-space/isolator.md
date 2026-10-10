@@ -47,4 +47,4 @@ for an extinction of $$X$$ dB, so the isolation is finite, as in a real one.
 ## Related
 
 - [Faraday rotator](/jek/docs/jekray2d/free-space/faraday/).
-- The fibre isolator, the same idea in a fibre network.
+- The [fibre isolator](/jek/docs/jekray2d/fibre/isolator/), the same idea in a fibre network.

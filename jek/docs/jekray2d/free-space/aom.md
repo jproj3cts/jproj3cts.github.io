@@ -51,3 +51,4 @@ The AOM's RF level is also an electrical input. Wired to a signal from the [elec
 - [EOM](/jek/docs/jekray2d/free-space/eom/), for phase and amplitude modulation without deflection.
 - [Photodetector](/jek/docs/jekray2d/free-space/detector/), which reads the beat notes.
 - [Grating](/jek/docs/jekray2d/free-space/grating/).
+- [Fibre AOM](/jek/docs/jekray2d/fibre/aom/), the fibre-coupled one.

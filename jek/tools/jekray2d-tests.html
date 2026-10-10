@@ -3386,6 +3386,17 @@ const TESTS = [
     },
   },
   {
+    name: 'A double pass through a fibre AOM shifts by twice its drive',
+    why: 'a fibre Michelson with an 80 MHz AOM before one Faraday mirror: the light comes back through it shifted again, so the return beats at 160 MHz (and not at all at 0 or 80 MHz), as through a free-space double-pass AOM',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('aom', 'A', { rf: 80, loss: 0 }), fc('fm', 'M1', { rmax: 100 }), fc('fm', 'M2', { rmax: 100 }), fc('pd', 'P')],
+        [['L', 0, 'C', 0], ['C', 2, 'A', 0], ['A', 1, 'M1', 0], ['C', 3, 'M2', 0], ['C', 1, 'P', 0]]));
+      const T = J.pdSignal('P').tones, at = f => T.find(q => Math.abs(q.f - f) < 1);
+      return at(1.6e8) && at(1.6e8).amp > 0.1 && !at(8e7) && T.length === 1 ? 0 : 1;
+    },
+  },
+  {
     name: 'Pure phase modulation makes no beat on a photodiode',
     why: 'the sidebands\u2019 beats with the carrier cancel in pairs: an EOM alone, \u03b2 = 1, leaves the power steady (to the rounding of phases some 10\u2077 radians long)',
     want: 0, tol: 1e-8, unit: ' mW',

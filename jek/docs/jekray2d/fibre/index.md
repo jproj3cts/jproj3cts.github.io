@@ -2,7 +2,7 @@
 layout: docs
 title: Fibre optics
 permalink: /jek/docs/jekray2d/fibre/
-description: How JEKray2D solves single-mode fibre networks path by path, with phase, delay, polarisation, coherence, amplifiers and the coupling between fibre and free space.
+description: "How JEKray2D solves single-mode fibre networks path by path, with phase, delay, polarisation, coherence, amplifiers and the coupling between fibre and free space."
 ---
 
 <p class="dx-lead">Fibre components sit on the bench as boxes with ports, and fibres join port to port. The network is solved by following the light along every path, keeping each wave's phase, polarisation and delay, so interference, rings, reflections and a laser's coherence come out exactly.</p>
@@ -121,7 +121,63 @@ Light the network sends to a tip leaves it into free space as a source *split fr
 
 ## Elements
 
+### Sources
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/laser/"><b>Fibre laser</b><small>A laser into fibre: polarisation, linewidth or band, pulses, modulation inputs; and the fibre-coupled LED.</small></a></li>
+</ul>
+
+### Splitting and routing
+
 <ul class="dx-cards">
   <li><a class="fibre" href="/jek/docs/jekray2d/fibre/coupler/"><b>2×2 coupler</b><small>A fused coupler: any split ratio, with the quarter-wave on the light crossing over.</small></a></li>
-  <li><span class="soon fibre"><b>More to come</b><small>Laser, splitter, circulator, isolator, WDM, Bragg grating, amplifier, photodetector and the rest.</small></span></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/splitter/"><b>Splitter and combiner</b><small>1 × N or N × 1, each branch 1/N, in phase.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/star/"><b>Star coupler</b><small>M × N, a corner of a discrete Fourier transform.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/switch/"><b>Optical switch</b><small>Bar or cross, with crosstalk.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/circulator/"><b>Circulator</b><small>1 to 2, 2 to 3, and isolation backwards.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/isolator/"><b>Isolator</b><small>One way only.</small></a></li>
+</ul>
+
+### Polarisation
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/polarisation-controller/"><b>Polarisation controller</b><small>Three paddles: any state in to any state out.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/polariser/"><b>In-line polariser</b><small>Along its axis through, the crossed one to its extinction.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/pbs/"><b>Polarisation beam splitter</b><small>Along and across to two ports; backwards a combiner.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/depolariser/"><b>Depolariser</b><small>A Lyot depolariser for broadband light.</small></a></li>
+</ul>
+
+### Filters and spectra
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/wdm/"><b>WDM</b><small>A flat-topped band to one port, the rest to the other.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/bragg-grating/"><b>Fibre Bragg grating</b><small>A narrow band reflected, the rest passed.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/tunable-filter/"><b>Tunable filter</b><small>A Gaussian pass band.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/attenuator/"><b>Attenuator</b><small>A set loss, both ways.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/delay/"><b>Variable delay line</b><small>A delay, its path and its phase.</small></a></li>
+</ul>
+
+### Amplifiers and modulators
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/amplifier/"><b>Fibre amplifier</b><small>EDFA or SOA: gain, saturation and ASE.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/aom/"><b>Fibre AOM</b><small>A frequency shift by the drive, set by an RF level.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/eom/"><b>Fibre EOM</b><small>Phase sidebands or Mach–Zehnder amplitude modulation.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/stretcher/"><b>Fibre stretcher</b><small>A piezo phase, driven by a voltage.</small></a></li>
+</ul>
+
+### Detection
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/photodetector/"><b>Fibre photodetector</b><small>Single, balanced or a bare diode: beat notes, noise with ASE, demodulation.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/osa/"><b>Optical spectrum analyser</b><small>The spectrum through a resolution bandwidth.</small></a></li>
+</ul>
+
+### Ends and links
+
+<ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/mirror/"><b>Fibre mirror</b><small>A partly reflecting mirror in the fibre.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/faraday-mirror/"><b>Faraday mirror</b><small>Back orthogonal, whatever the fibre did.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/terminator/"><b>Terminator</b><small>Absorbs, sending back its return loss.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray2d/fibre/feedthrough/"><b>Feedthrough</b><small>A fibre from one tab to another.</small></a></li>
 </ul>

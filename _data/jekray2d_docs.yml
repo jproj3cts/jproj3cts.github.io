@@ -62,8 +62,58 @@
   url: /jek/docs/jekray2d/fibre/
   cat: fibre
   pages:
+    - title: Fibre laser
+      url: /jek/docs/jekray2d/fibre/laser/
     - title: 2×2 coupler
       url: /jek/docs/jekray2d/fibre/coupler/
+    - title: Splitter and combiner
+      url: /jek/docs/jekray2d/fibre/splitter/
+    - title: Star coupler
+      url: /jek/docs/jekray2d/fibre/star/
+    - title: Optical switch
+      url: /jek/docs/jekray2d/fibre/switch/
+    - title: Circulator
+      url: /jek/docs/jekray2d/fibre/circulator/
+    - title: Isolator
+      url: /jek/docs/jekray2d/fibre/isolator/
+    - title: Polarisation controller
+      url: /jek/docs/jekray2d/fibre/polarisation-controller/
+    - title: In-line polariser
+      url: /jek/docs/jekray2d/fibre/polariser/
+    - title: Polarisation beam splitter
+      url: /jek/docs/jekray2d/fibre/pbs/
+    - title: Depolariser
+      url: /jek/docs/jekray2d/fibre/depolariser/
+    - title: WDM
+      url: /jek/docs/jekray2d/fibre/wdm/
+    - title: Fibre Bragg grating
+      url: /jek/docs/jekray2d/fibre/bragg-grating/
+    - title: Tunable filter
+      url: /jek/docs/jekray2d/fibre/tunable-filter/
+    - title: Attenuator
+      url: /jek/docs/jekray2d/fibre/attenuator/
+    - title: Variable delay line
+      url: /jek/docs/jekray2d/fibre/delay/
+    - title: Fibre amplifier
+      url: /jek/docs/jekray2d/fibre/amplifier/
+    - title: Fibre AOM
+      url: /jek/docs/jekray2d/fibre/aom/
+    - title: Fibre EOM
+      url: /jek/docs/jekray2d/fibre/eom/
+    - title: Fibre stretcher
+      url: /jek/docs/jekray2d/fibre/stretcher/
+    - title: Fibre photodetector
+      url: /jek/docs/jekray2d/fibre/photodetector/
+    - title: Optical spectrum analyser
+      url: /jek/docs/jekray2d/fibre/osa/
+    - title: Fibre mirror
+      url: /jek/docs/jekray2d/fibre/mirror/
+    - title: Faraday mirror
+      url: /jek/docs/jekray2d/fibre/faraday-mirror/
+    - title: Terminator
+      url: /jek/docs/jekray2d/fibre/terminator/
+    - title: Feedthrough
+      url: /jek/docs/jekray2d/fibre/feedthrough/
 - title: Electronics
   url: /jek/docs/jekray2d/electronics/
   cat: elec

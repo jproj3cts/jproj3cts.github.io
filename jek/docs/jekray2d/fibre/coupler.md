@@ -2,7 +2,7 @@
 layout: docs
 title: 2×2 coupler
 permalink: /jek/docs/jekray2d/fibre/coupler/
-description: The JEKray2D fused fibre coupler, its scattering matrix, and why the light crossing over picks up a quarter-wave.
+description: "The JEKray2D fused fibre coupler, its scattering matrix, and why the light crossing over picks up a quarter-wave."
 element: { palette: Fibre, type: fcomp, kind: coupler }
 ---
 
@@ -53,4 +53,5 @@ The coupler scatters every wave that reaches it, with that wave's own phase and 
 ## Related
 
 - [Fibre optics](/jek/docs/jekray2d/fibre/), for how the network is solved.
-- The splitter (1 × N) and star coupler (M × N) are the same idea with more ports.
+- The [splitter](/jek/docs/jekray2d/fibre/splitter/) (1 × N) and [star coupler](/jek/docs/jekray2d/fibre/star/) (M × N) are the same idea with more ports.
+- [WDM](/jek/docs/jekray2d/fibre/wdm/), for a coupler that separates wavelengths.

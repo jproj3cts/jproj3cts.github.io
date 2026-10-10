@@ -31,5 +31,5 @@ A pair name is shared by exactly two planes. A plane whose name no other plane s
 
 ## Related
 
-- The fibre feedthrough, which does the same for a fibre network.
+- The [fibre feedthrough](/jek/docs/jekray2d/fibre/feedthrough/), which does the same for a fibre network.
 - [Concepts: tabs and link planes](/jek/docs/jekray2d/concepts/#tabs-and-link-planes).

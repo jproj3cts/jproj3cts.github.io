@@ -81,3 +81,4 @@ The diode's output is also an electrical port, which can be wired to the [electr
 - [Electronics: where light meets the electronics](/jek/docs/jekray2d/electronics/#where-light-meets-the-electronics).
 - [EOM](/jek/docs/jekray2d/free-space/eom/), for Pound–Drever–Hall locking.
 - [Screen](/jek/docs/jekray2d/free-space/screen/), for the profile of the light rather than its total power.
+- [Fibre photodetector](/jek/docs/jekray2d/fibre/photodetector/), the fibre-coupled one, with balanced detection and noise from amplifier ASE.

@@ -53,3 +53,4 @@ The EOM's modulation is also an electrical input. Wired to the [electronics](/je
 
 - [AOM](/jek/docs/jekray2d/free-space/aom/), a frequency shifter.
 - [Photodetector](/jek/docs/jekray2d/free-space/detector/).
+- [Fibre EOM](/jek/docs/jekray2d/fibre/eom/), the fibre-coupled one.

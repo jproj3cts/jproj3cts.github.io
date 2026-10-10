@@ -119,3 +119,48 @@ The light is worked out *quasi-statically*: the electronics are far slower than 
 - Feedback loops (a PID round a laser lock, say) are not solved.
 - Noise reaching one block by two paths is taken as uncorrelated.
 </div>
+
+## Elements
+
+### Sources
+
+<ul class="dx-cards">
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/dc-source/"><b>DC source</b><small>A steady voltage.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/signal-generator/"><b>Signal generator</b><small>Sine, square, triangle or pulse, and a TTL sync.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/noise-source/"><b>Noise source</b><small>White noise up to a bandwidth.</small></a></li>
+</ul>
+
+### Amplifiers
+
+<ul class="dx-cards">
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/amplifier/"><b>Amplifier</b><small>A gain, a pole, input noise and a limit.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/tia/"><b>Transimpedance amplifier</b><small>A photocurrent into a voltage, with its Johnson noise.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/attenuator/"><b>Attenuator</b><small>A set loss in dB.</small></a></li>
+</ul>
+
+### Filters
+
+<ul class="dx-cards">
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/low-pass/"><b>Low-pass filter</b><small>Butterworth, order 1 to 4.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/high-pass/"><b>High-pass filter</b><small>Butterworth, blocking DC.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/band-pass/"><b>Band-pass filter</b><small>A Butterworth band about a centre.</small></a></li>
+</ul>
+
+### Signal handling
+
+<ul class="dx-cards">
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/mixer/"><b>Mixer</b><small>A product, with the noise moved by the tones.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/summing-junction/"><b>Summing junction</b><small>Two inputs, a gain on each.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/bias-tee/"><b>Bias tee</b><small>RF and DC into one output.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/comparator/"><b>Comparator</b><small>Two levels either side of a threshold.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/node/"><b>Node</b><small>A junction to route and fan out wires.</small></a></li>
+</ul>
+
+### Instruments
+
+<ul class="dx-cards">
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/oscilloscope/"><b>Oscilloscope</b><small>Two channels, Normal and Roll.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/spectrum-analyser/"><b>Spectrum analyser</b><small>Tones in dBV over the noise in a resolution bandwidth.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/lock-in/"><b>Lock-in amplifier</b><small>X and Y at a reference, its noise and settling.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/daq/"><b>DAQ (ADC)</b><small>Sampling, aliases and quantisation.</small></a></li>
+</ul>

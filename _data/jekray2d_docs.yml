@@ -117,6 +117,43 @@
 - title: Electronics
   url: /jek/docs/jekray2d/electronics/
   cat: elec
+  pages:
+    - title: DC source
+      url: /jek/docs/jekray2d/electronics/dc-source/
+    - title: Signal generator
+      url: /jek/docs/jekray2d/electronics/signal-generator/
+    - title: Noise source
+      url: /jek/docs/jekray2d/electronics/noise-source/
+    - title: Amplifier
+      url: /jek/docs/jekray2d/electronics/amplifier/
+    - title: Transimpedance amplifier
+      url: /jek/docs/jekray2d/electronics/tia/
+    - title: Attenuator
+      url: /jek/docs/jekray2d/electronics/attenuator/
+    - title: Low-pass filter
+      url: /jek/docs/jekray2d/electronics/low-pass/
+    - title: High-pass filter
+      url: /jek/docs/jekray2d/electronics/high-pass/
+    - title: Band-pass filter
+      url: /jek/docs/jekray2d/electronics/band-pass/
+    - title: Mixer
+      url: /jek/docs/jekray2d/electronics/mixer/
+    - title: Summing junction
+      url: /jek/docs/jekray2d/electronics/summing-junction/
+    - title: Bias tee
+      url: /jek/docs/jekray2d/electronics/bias-tee/
+    - title: Comparator
+      url: /jek/docs/jekray2d/electronics/comparator/
+    - title: Node
+      url: /jek/docs/jekray2d/electronics/node/
+    - title: Oscilloscope
+      url: /jek/docs/jekray2d/electronics/oscilloscope/
+    - title: Spectrum analyser
+      url: /jek/docs/jekray2d/electronics/spectrum-analyser/
+    - title: Lock-in amplifier
+      url: /jek/docs/jekray2d/electronics/lock-in/
+    - title: DAQ (ADC)
+      url: /jek/docs/jekray2d/electronics/daq/
 - title: Photonic chips
   url: /jek/docs/jekray2d/chips/
   cat: pic

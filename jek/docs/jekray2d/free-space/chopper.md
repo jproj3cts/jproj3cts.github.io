@@ -37,3 +37,4 @@ The phase matters only against something else on the same clock, such as another
 
 - [Electronics: the lock-in amplifier](/jek/docs/jekray2d/electronics/#the-lock-in-amplifier).
 - [Photodetector](/jek/docs/jekray2d/free-space/detector/).
+- [Lock-in amplifier](/jek/docs/jekray2d/electronics/lock-in/), the block itself.

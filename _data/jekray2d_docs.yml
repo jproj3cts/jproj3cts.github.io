@@ -157,5 +157,22 @@
 - title: Photonic chips
   url: /jek/docs/jekray2d/chips/
   cat: pic
+  pages:
+    - title: Grating coupler
+      url: /jek/docs/jekray2d/chips/grating-coupler/
+    - title: Directional coupler
+      url: /jek/docs/jekray2d/chips/directional-coupler/
+    - title: 1×2 MMI
+      url: /jek/docs/jekray2d/chips/mmi-1x2/
+    - title: 2×2 MMI
+      url: /jek/docs/jekray2d/chips/mmi-2x2/
+    - title: Ring, all-pass
+      url: /jek/docs/jekray2d/chips/ring/
+    - title: Ring, add-drop
+      url: /jek/docs/jekray2d/chips/ring-add-drop/
+    - title: Phase shifter
+      url: /jek/docs/jekray2d/chips/phase-shifter/
+    - title: On-chip photodiode
+      url: /jek/docs/jekray2d/chips/photodiode/
 - title: FAQ
   url: /jek/docs/jekray2d/faq/

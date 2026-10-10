@@ -82,3 +82,28 @@ A chip's spectrum between two ports is solved across a band, and the lines in it
 - Compact models describe each part by its ports. Field profiles inside the chip, mode mismatch at junctions, and bend loss beyond the waveguide's own loss are not modelled.
 - No thermal or carrier effects: a phase shifter's phase is set directly.
 </div>
+
+## Elements
+
+### Couplers
+
+<ul class="dx-cards">
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/grating-coupler/"><b>Grating coupler</b><small>Fibre to chip: one polarisation, a band about its centre.</small></a></li>
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/directional-coupler/"><b>Directional coupler</b><small>Any split, changing with wavelength.</small></a></li>
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/mmi-1x2/"><b>1×2 MMI</b><small>Equal and in phase; a combiner backwards.</small></a></li>
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/mmi-2x2/"><b>2×2 MMI</b><small>A 50:50 coupler.</small></a></li>
+</ul>
+
+### Rings
+
+<ul class="dx-cards">
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/ring/"><b>Ring, all-pass</b><small>Dips at each resonance; critical coupling.</small></a></li>
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/ring-add-drop/"><b>Ring, add-drop</b><small>Each resonance to the drop port.</small></a></li>
+</ul>
+
+### Control and detection
+
+<ul class="dx-cards">
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/phase-shifter/"><b>Phase shifter</b><small>A phase you set, on a length of waveguide.</small></a></li>
+  <li><a class="pic" href="/jek/docs/jekray2d/chips/photodiode/"><b>On-chip photodiode</b><small>Reads what reaches it, as a fibre photodiode does.</small></a></li>
+</ul>

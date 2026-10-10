@@ -823,7 +823,7 @@
     {
      "k": "length",
      "def": "6",
-     "meaning": "mm along the beam."
+     "meaning": "mm: its aperture across the beam (it is a thin sheet)."
     },
     {
      "k": "g0",

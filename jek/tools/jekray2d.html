@@ -21319,7 +21319,7 @@ const AI_FIELDS = {
   filter: { length: 'mm aperture.', ftype: 'one of the filter types below.', edge: 'nm: the edge of a long- or short-pass.', slope: 'nm: the 10–90% width of the edge.',
     centre: 'nm: a band-pass centre.', fwhm: 'nm: a band-pass width.', od: 'optical density of an "nd" filter: it transmits 10^−od.', tmax: '% peak transmission.',
     reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.' },
-  gain: { length: 'mm along the beam.', g0: 'small-signal single-pass power gain at the line centre (×); the pump sets it.', centre: 'nm line centre.', fwhm: 'nm line width.',
+  gain: { length: 'mm: its aperture across the beam (it is a thin sheet).', g0: 'small-signal single-pass power gain at the line centre (×); the pump sets it.', centre: 'nm line centre.', fwhm: 'nm line width.',
     isat: 'kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam.' },
   link: { length: 'mm width.', pair: 'the pair’s name: exactly two link planes share it, one on each tab.' },
   chopper: { length: 'mm aperture across the beam.', f: 'Hz, the chopping frequency.', duty: '% of each cycle open.', phase: 'degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0).' },

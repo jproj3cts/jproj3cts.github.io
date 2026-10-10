@@ -70,7 +70,7 @@ The group index $$n_g = n - \lambda\,\mathrm{d}n/\mathrm{d}\lambda$$ sets group 
 
 ### Polarisation along a ray
 
-Each ray carries a Jones vector $$(E_s, E_p)$$. Every surface multiplies it by its coefficients, and thin polarisation elements by their matrices. A waveplate of retardance $$\Gamma$$ waves with its fast axis at $$\theta$$ is
+Each ray carries a Jones vector. Every surface multiplies it by its coefficients, and thin polarisation elements by their matrices. Written in the basis $$(E_p, E_s)$$, a waveplate of retardance $$\Gamma$$ waves with its fast axis at $$\theta$$ from p is
 
 $$
 J(\theta, \Gamma) = \begin{pmatrix} \cos^2\theta + e^{i2\pi\Gamma}\sin^2\theta & \left(1 - e^{i2\pi\Gamma}\right)\cos\theta\sin\theta \\ \left(1 - e^{i2\pi\Gamma}\right)\cos\theta\sin\theta & \sin^2\theta + e^{i2\pi\Gamma}\cos^2\theta \end{pmatrix},
@@ -228,8 +228,56 @@ The pulse that arrives is the spectrum with that phase, transformed to time. Its
 
 ## Elements
 
+### Sources and detectors
+
+<ul class="dx-cards">
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/source/"><b>Source</b><small>A ray fan and a Gaussian beam: coherence, M², higher-order modes, pulses, fibre launch.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/detector/"><b>Photodetector</b><small>A photodiode and amplifier: DC, beat notes, noise and demodulation.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/screen/"><b>Screen</b><small>Spots, profiles, PSF and MTF, aberrations, pulses and optical traps.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/fibre-tip/"><b>Fibre tip</b><small>Into a fibre by mode overlap, and back out as a beam.</small></a></li>
+</ul>
+
+### Mirrors and lenses
+
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray2d/free-space/mirror/"><b>Mirror</b><small>Plane, spherical or conic; partly transmitting; chirped.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray2d/free-space/lens/"><b>Lens</b><small>Any number of surfaces in real glass: singlets, doublets, aspheres, cylinders, axicons.</small></a></li>
-  <li><span class="soon free"><b>More to come</b><small>Source, beam splitter, prism, waveplate, polariser, stop, mask, screen, grating and the rest.</small></span></li>
+</ul>
+
+### Splitting and polarisation
+
+<ul class="dx-cards">
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/cube/"><b>Beam splitter</b><small>Non-polarising or polarising, with a coated diagonal.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/waveplate/"><b>Waveplate</b><small>A retarder of any retardance and fast axis.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/polariser/"><b>Polariser</b><small>An ideal linear polariser.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/crystal/"><b>Crystal</b><small>Beam displacer, Wollaston prism or Glan–Taylor polariser.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/faraday/"><b>Faraday rotator</b><small>A non-reciprocal rotator.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/isolator/"><b>Isolator</b><small>Polariser, 45° rotator, polariser.</small></a></li>
+</ul>
+
+### Shaping and filtering
+
+<ul class="dx-cards">
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/stop/"><b>Stop</b><small>Iris, slit, double slit, comb, knife edge or beam block.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/mask/"><b>Mask</b><small>Any amplitude and delay as a formula: SLM patterns, vortex plates, ideal lenses.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/filter/"><b>Filter</b><small>Long-pass, short-pass, band-pass, ND, or a dichroic.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/grating/"><b>Grating</b><small>Reflecting or transmitting, each order a branch.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/prism/"><b>Prism</b><small>Right-angle, equilateral, or a window.</small></a></li>
+</ul>
+
+### Active and atomic
+
+<ul class="dx-cards">
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/gain/"><b>Gain medium</b><small>A saturable gain sheet that makes a cavity lase.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/cell/"><b>Vapour cell</b><small>Rb, Cs or K: absorption, saturation, Zeeman.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/nlc/"><b>Nonlinear crystal</b><small>Second-harmonic generation in PPLN or PPKTP.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/aom/"><b>AOM</b><small>A Bragg cell: deflection and a frequency shift.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/eom/"><b>EOM</b><small>Phase sidebands, or amplitude modulation.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/chopper/"><b>Optical chopper</b><small>A slotted wheel, with a reference for a lock-in.</small></a></li>
+</ul>
+
+### Tabs
+
+<ul class="dx-cards">
+  <li><a class="free" href="/jek/docs/jekray2d/free-space/link/"><b>Link plane</b><small>Joins two tabs: one plane seen from two benches.</small></a></li>
 </ul>

@@ -10,10 +10,54 @@
   url: /jek/docs/jekray2d/free-space/
   cat: free
   pages:
+    - title: Source
+      url: /jek/docs/jekray2d/free-space/source/
+    - title: Photodetector
+      url: /jek/docs/jekray2d/free-space/detector/
+    - title: Screen
+      url: /jek/docs/jekray2d/free-space/screen/
+    - title: Fibre tip
+      url: /jek/docs/jekray2d/free-space/fibre-tip/
     - title: Mirror
       url: /jek/docs/jekray2d/free-space/mirror/
     - title: Lens
       url: /jek/docs/jekray2d/free-space/lens/
+    - title: Beam splitter
+      url: /jek/docs/jekray2d/free-space/cube/
+    - title: Waveplate
+      url: /jek/docs/jekray2d/free-space/waveplate/
+    - title: Polariser
+      url: /jek/docs/jekray2d/free-space/polariser/
+    - title: Crystal
+      url: /jek/docs/jekray2d/free-space/crystal/
+    - title: Faraday rotator
+      url: /jek/docs/jekray2d/free-space/faraday/
+    - title: Isolator
+      url: /jek/docs/jekray2d/free-space/isolator/
+    - title: Stop
+      url: /jek/docs/jekray2d/free-space/stop/
+    - title: Mask
+      url: /jek/docs/jekray2d/free-space/mask/
+    - title: Filter
+      url: /jek/docs/jekray2d/free-space/filter/
+    - title: Grating
+      url: /jek/docs/jekray2d/free-space/grating/
+    - title: Prism
+      url: /jek/docs/jekray2d/free-space/prism/
+    - title: Gain medium
+      url: /jek/docs/jekray2d/free-space/gain/
+    - title: Vapour cell
+      url: /jek/docs/jekray2d/free-space/cell/
+    - title: Nonlinear crystal
+      url: /jek/docs/jekray2d/free-space/nlc/
+    - title: AOM
+      url: /jek/docs/jekray2d/free-space/aom/
+    - title: EOM
+      url: /jek/docs/jekray2d/free-space/eom/
+    - title: Optical chopper
+      url: /jek/docs/jekray2d/free-space/chopper/
+    - title: Link plane
+      url: /jek/docs/jekray2d/free-space/link/
 - title: Fibre optics
   url: /jek/docs/jekray2d/fibre/
   cat: fibre

@@ -424,7 +424,7 @@ A thin gain medium with a Lorentzian gain line that saturates: in a cavity above
 
 | field | default | meaning |
 |---|---|---|
-| length | `6` | mm along the beam. |
+| length | `6` | mm: its aperture across the beam (it is a thin sheet). |
 | g0 | `1.2` | small-signal single-pass power gain at the line centre (×); the pump sets it. |
 | isat | `2.9` | kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam. |
 | centre | `1064` | nm line centre. |

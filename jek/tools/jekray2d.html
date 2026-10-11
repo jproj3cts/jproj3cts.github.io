@@ -1998,16 +1998,19 @@ function bkBest(xi, mu) {
 /* One beam's harmonic in a crystal: P (W, along the crystal's axis), its wavelength (nm, vacuum)
    and beam parameter q = [z past the waist, zR] (mm, in air) where it crosses the crystal's
    centre. The crystal's period (0: the best for this beam) and temperature. */
-function nlcConvert(el, P, nm, q, nq) {
-  const M = NLC[el.material], T = el.temp, um = nm * 1e-3, L = el.nlLen * 1e-3;
+function nlcConvert(el, P, nm, q, nq, cth) {
+  // light crossing the poled grating at an angle (cth the cosine inside, in the plane or tipped
+  // out of it) goes L / cth through it, and sees its grating vector shortened to K cth
+  cth = cth > 0 && cth < 1 - 1e-12 ? cth : 1;
+  const M = NLC[el.material], T = el.temp, um = nm * 1e-3, L = el.nlLen * 1e-3 / cth;
   const n1 = M.n(um, T), n2 = M.n(um / 2, T), k1 = 2 * Math.PI * n1 / (nm * 1e-9), k2 = 2 * Math.PI * n2 / (nm * 0.5e-9);
   // q where the beam crosses the crystal's middle: inside the crystal already (its faces refract
   // it), or, taken in air, its Rayleigh range and distance to the waist grown by n
   const g = nq > 1.01 ? 1 : n1;
   const b = 2 * g * q[1] * 1e-3, xi = L / b, mu = -2 * g * q[0] * 1e-3 / L;
   let period = el.period, sigma, h;
-  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI / (k2 - 2 * k1 - 2 * sigma / b) * 1e6; }
-  else { sigma = b * (k2 - 2 * k1 - 2 * Math.PI / (period * 1e-6)) / 2; h = bkH(sigma, xi, mu); }
+  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI * cth / (k2 - 2 * k1 - 2 * sigma / b) * 1e6; }
+  else { sigma = b * (k2 - 2 * k1 - 2 * Math.PI * cth / (period * 1e-6)) / 2; h = bkH(sigma, xi, mu); }
   const eta = 16 * Math.PI ** 2 * M.d ** 2 * L * h / (EPS0 * C_SI * (nm * 1e-9) ** 3 * n1 * n2);      // 1/W
   const P2 = P > 0 ? P * Math.tanh(Math.sqrt(eta * P)) ** 2 : 0;
   return { P2, conv: P > 0 ? P2 / P : 0, eta, h, xi, sigma, mu, period, periodPW: nlcPeriod(el.material, nm, T), n1, n2, b };
@@ -2023,11 +2026,17 @@ function nlcSources(hits) {
     const f = frame(el), [lx, ly] = toLocal(f, H.x, H.y), [ldx, ldy] = toLocalDir(f, H.dir[0], H.dir[1]);
     const sg = ldx >= 0 ? 1 : -1, t = (sg * el.nlLen / 2 - lx) / (ldx || 1e-12), n2 = H.n > 1.01 ? NLC[el.material].n(H.nm / 2e3, el.temp) : 1;
     const oy = clamp(n2 * ldy, -0.999999, 0.999999), [ex, ey] = toWorld(f, sg * el.nlLen / 2, ly + t * ldy), [odx, ody] = toWorldDir(f, sg * Math.sqrt(1 - oy * oy), oy);
-    const qz = (H.q[0] + (H.n > 1.01 ? t : 0)) / (H.n > 1.01 ? n2 : 1), zR = H.q[1] / (H.n > 1.01 ? n2 : 1);
+    // out of the plane (a crystal tipped, or met by a beam that rises): from where the fundamental
+    // leaves it, along it, in 3D; its harmonic leaves with it, as a source tipped and raised
+    const E = H.exit, up = E && (el.tip || Math.abs(E.d3[2]) > 1e-12 || Math.abs(E.z - zOf(el)) > 1e-9);
+    const t3 = up ? Math.hypot(E.x - H.x, E.y - H.y, E.z - (H.z === undefined ? E.z : H.z)) : t;
+    const qz = (H.q[0] + (H.n > 1.01 ? t3 : 0)) / (H.n > 1.01 ? n2 : 1), zR = H.q[1] / (H.n > 1.01 ? n2 : 1);
     const off = 1e-3, nm2 = H.nm / 2, w0 = Math.sqrt(nm2 * 1e-6 * zR / Math.PI);
+    const lh = up ? Math.hypot(E.d3[0], E.d3[1]) : 1;
     const v = {
       type: 'source', virtual: true, shg: true, id: 'shg~' + el.id + '~' + k, name: el.name + ' (second harmonic)', bench: H.bench,
-      x: ex + odx * off, y: ey + ody * off, angle: Math.atan2(ody, odx) / deg, wavelength: nm2, lines: [], colourAuto: true, colour: wavelengthColour(nm2),
+      ...(up ? { z: E.z + E.d3[2] * off, tip: Math.atan2(E.d3[2], lh) / deg } : {}),
+      x: up ? E.x + E.d3[0] * off : ex + odx * off, y: up ? E.y + E.d3[1] * off : ey + ody * off, angle: up ? Math.atan2(E.d3[1], E.d3[0]) / deg : Math.atan2(ody, odx) / deg, wavelength: nm2, lines: [], colourAuto: true, colour: wavelengthColour(nm2),
       gauss: true, w0, z0: -qz - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto', beamView: 'envelope', beamScale: 'lin',
       pol: el.axis, polAngle: 0, coh: 0, lineshape: 'lorentz', power: H.r.P2 * 1000, tau: 0, pshape: 'sech2', rep: 80, gdd0: 0,
       // polarised along the crystal's axis, turned with its roll as the light saw it
@@ -2158,7 +2167,8 @@ function cellPlan(el, nu, dir, self, others, qLab) {
 }
 /* the light's field factor through the cell at (u, v) on its centre plane: { amp, ph, od } */
 function evalPlan(plan, u, v) {
-  const N = CELL_SLICES, dx = plan.L / N, dm = dx * 1e-3, S = plan.self;
+  // (each slice's path: longer by 1 / cos for light crossing the cell at an angle, in the plane or tipped out of it)
+  const N = CELL_SLICES, dx = plan.L / N, dm = dx * 1e-3 * (plan.sec || 1), S = plan.self;
   let od = 0, dsp = 0, Trun = 1;
   const IP = new Float64Array(plan.pumps.length);
   for (let k = 0; k < N; k++) {
@@ -2205,14 +2215,16 @@ function cellProfile(el, rec) {
 /* The plan for light of one beam (a record of the last trace, or none) through a cell, with
    the others there as they were: memoised for the trace */
 let cellPlanMemo = new Map();
-function cellPlanFor(el, nu, dir, srcId, qLab) {
+function cellPlanFor(el, nu, dir, srcId, qLab, sec) {
+  sec = sec > 1 + 1e-12 ? sec : 1;            // the light's path through the cell against its length: 1 / cos of its angle to the cell's axis
   const recs = cellPumps.get(el.id) || [];
   const sameDir = r => r.dir[0] * dir[0] + r.dir[1] * dir[1] > 0.9999;
   const self = srcId === undefined ? null : recs.filter(r => r.src === srcId && sameDir(r) && Math.abs(r.nu - nu) < 1).sort((a, b) => b.I - a.I)[0] || null;
-  const key = el.id + '|' + nu + '|' + dir[0].toFixed(9) + ',' + dir[1].toFixed(9) + '|' + (self ? recs.indexOf(self) : -1) + '|' + (qLab || 0);
+  const key = el.id + '|' + nu + '|' + dir[0].toFixed(9) + ',' + dir[1].toFixed(9) + '|' + (self ? recs.indexOf(self) : -1) + '|' + (qLab || 0) + (sec !== 1 ? '|s' + sec.toFixed(12) : '');
   if (cellPlanMemo.has(key)) return cellPlanMemo.get(key);
   const others = recs.filter(r => r !== self).map(r => Object.assign({}, r, { prof: isFinite(r.w) ? cellProfileMemo(el, r) : null }));
   const plan = cellPlan(el, nu, dir, self, others, qLab);
+  if (sec !== 1) plan.sec = sec;
   cellPlanMemo.set(key, plan);
   return plan;
 }
@@ -4793,6 +4805,7 @@ function traceSceneOnce() {
       if (budget <= 0) { truncated = true; break; }
       let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
+      let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
@@ -4983,7 +4996,8 @@ function traceSceneOnce() {
           n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }), din3);
         if (s.kind === 'eom') {
           // each sideband carries on as a branch of its own, n f_m from where it came in
-          const sb = probe || pls ? [[0, [1, 0]]] : eomSidebands(s.el);
+          // (light crossing it at an angle, in the plane or tipped, is modulated over a longer path: beta / cos)
+          const secE = 1 / Math.max(0.05, Math.abs(cosd)), sb = probe || pls ? [[0, [1, 0]]] : eomSidebands(secE > 1 + 1e-12 ? Object.assign(Object.create(s.el), { beta: s.el.beta * secE }) : s.el);
           for (const [n, c] of sb) {
             const nsr = sr * c[0] - si * c[1], nsi = sr * c[1] + si * c[0], npr = pr * c[0] - pi * c[1], npi = pr * c[1] + pi * c[0];
             const f2 = fo + n * s.el.fm * 1e6;
@@ -5134,7 +5148,8 @@ function traceSceneOnce() {
           const er = pr * ac + sr * as, ei = pi * ac + si * as;          // the field along the axis
           if (isQ && w > 0 && !src.shg) {
             const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3, share = (er * er + ei * ei) / w;
-            nlcHits.push({ id: s.el.id, k, src: src.id, nm, fo, P: Pw * share, q: [qr, qi], n: nCur, x: px, y: py, dir: [dx, dy], bench: bn, phiR });
+            nlcHits.push({ id: s.el.id, k, src: src.id, nm, fo, P: Pw * share, q: [qr, qi], n: nCur, x: px, y: py, dir: [dx, dy], bench: bn, phiR, cth: Math.abs(cosd) });
+            if (anyZ) { nlcHits[nlcHits.length - 1].z = zh; nlcPend = { H: nlcHits[nlcHits.length - 1], el: s.el.id }; }
           }
           const c = src.shg ? 0 : nlcConv.get(k) || 0, f = Math.sqrt(Math.max(0, 1 - c)), g = 1 - f;
           pr -= g * er * ac; pi -= g * ei * ac; sr -= g * er * as; si -= g * ei * as;
@@ -5151,19 +5166,19 @@ function traceSceneOnce() {
           // cellPlan). A beam's reference ray notes where it crosses, how wide, which way and
           // how intense, for the next pass; it takes the beam's mean transmission and the
           // phase on its axis, and hands the field the rest, point by point, as a mask would.
-          const nu = C_SI * 1e9 / nm + (fo || 0), ldir = [ldx, ldy];
+          const nu = C_SI * 1e9 / nm + (fo || 0), ldir = [ldx, ldy], sec = 1 / Math.max(0.05, Math.abs(cosd));
           let bw = 0, Iw = 0;
           if (isQ && w > 0) {
             // a higher-order mode: the Gaussian it is built on, and its Hermite-Gauss sum for the shape
             const hm = isHigherMode(src), comps = hm ? srcModes(src)[0].c : null;
             bw = beamAt(qr, qi, nCur, nm, hm ? 1 : m2Env(src)).w;
             const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3;
-            if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps, circ: circShares(pr, pi, sr, si, (par ? -1 : 1) * Math.sign(ldx || 1)) }); }
+            if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, sec, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps, circ: circShares(pr, pi, sr, si, (par ? -1 : 1) * Math.sign(ldx || 1)) }); }
           }
           if (cellPolar(s.el)) {
             // the two hands of circular light about the field, each through its own lines: the
             // cell turns and sorts polarisation (Faraday rotation, circular dichroism)
-            const py = (par ? -1 : 1) * Math.sign(ldx || 1), plans = [1, -1].map(q => cellPlanFor(s.el, nu, ldir, src.id, q));
+            const py = (par ? -1 : 1) * Math.sign(ldx || 1), plans = [1, -1].map(q => cellPlanFor(s.el, nu, ldir, src.id, q, sec));
             const hand = pl => {
               const c0 = evalPlan(pl, ly, 0);
               if (!isQ || !pl.varies) return { c0, T: c0.amp * c0.amp };
@@ -5196,7 +5211,7 @@ function traceSceneOnce() {
             last = s;
             continue;
           }
-          const plan = cellPlanFor(s.el, nu, ldir, src.id);
+          const plan = cellPlanFor(s.el, nu, ldir, src.id, undefined, sec);
           let cr, ci;
           if (isQ) {
             const c0 = evalPlan(plan, ly, 0);
@@ -5573,6 +5588,8 @@ function traceSceneOnce() {
         if (ldz) { const l = Math.hypot(ldx, ldy, ldz); [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l); uz = ldz / l; }
         else { const l = Math.hypot(ldx, ldy); [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l); if (anyZ) uz = 0; }
         if (isQ && evt && evt.mode !== 'P') { evt.dOut = [dx, dy]; g3(evt, [dx, dy, uz || 0]); }
+        // a doubling crystal's reference ray out into the air: where and which way, for its harmonic
+        if (nlcPend && s.el && s.el.id === nlcPend.el && nCur < 1.01) { nlcPend.H.exit = { x: px, y: py, z: zh, d3: [dx, dy, uz || 0] }; nlcPend = null; }
         last = s;
       }
       if (bounce >= maxB) limited++;
@@ -5617,7 +5634,7 @@ function traceSceneOnce() {
   const hasGain = project.elements.some(e => e.type === 'gain'), hasCell = project.elements.some(e => e.type === 'cell');
   // Nonlinear crystals: each beam's harmonic from the light that reached it; what that takes
   // from the fundamental is only known now, so if it changed, trace again with it
-  const nlcDone = nlcHits.map(H => Object.assign(H, { r: nlcConvert(getEl(H.id), H.P, H.nm, H.q, H.n) }));
+  const nlcDone = nlcHits.map(H => Object.assign(H, { r: nlcConvert(getEl(H.id), H.P, H.nm, H.q, H.n, H.cth) }));
   lastTrace.nlc = nlcDone;
   if (!gainSatBusy && (hasGain || hasCell || gainSat.size || cellPumps.size || nlcHits.length || nlcConv.size)) {
     let again = false;
@@ -15666,7 +15683,7 @@ function drawNlcTuning(cv, el, hits) {
   // the period held where it is now, the temperature scanned across the acceptance
   const fixed = Object.assign({}, el, { period: H.r.period });
   const span = Math.max(2, Math.min(60, 40 / el.nlLen)), T0 = el.temp - span, T1 = el.temp + span, N = 161, xs = [], ys = [];
-  for (let i = 0; i < N; i++) { const T = T0 + (T1 - T0) * i / (N - 1); xs.push(T); ys.push(nlcConvert(Object.assign(fixed, { temp: T }), H.P, H.nm, H.q, H.n).P2 * 1e3); }
+  for (let i = 0; i < N; i++) { const T = T0 + (T1 - T0) * i / (N - 1); xs.push(T); ys.push(nlcConvert(Object.assign(fixed, { temp: T }), H.P, H.nm, H.q, H.n, H.cth).P2 * 1e3); }
   plotCsv(cv, el.name + ' temperature tuning', ['temperature_C', 'harmonic_mW'], () => xs.map((x, i) => [x, ys[i]]));
   const top = Math.max(...ys) || 1, yr = [0, top * 1.05];
   const A = plotArea(g, w, hgt, yr, { kind: 'plain', title: 'harmonic, mW' });
@@ -22463,10 +22480,10 @@ function updateReadoutsIn(container, el) {
       const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
       if (cellPolar(el)) {
         // each hand of circular light on its own
-        const [P, M] = [1, -1].map(q => evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, q), b.ly, 0));
+        const [P, M] = [1, -1].map(q => evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, q, b.sec), b.ly, 0));
         rows.push([nm, at + 'on its axis, ' + (100 * P.amp ** 2).toPrecision(3) + '% of \u03c3+ light through and ' + (100 * M.amp ** 2).toPrecision(3) + '% of \u03c3\u2212, the hands ' + (+((P.ph - M.ph) / deg).toPrecision(3)) + '\u00b0 apart in phase (a linear polarisation turned by half that); ' + tail]);
       } else {
-        const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src), b.ly, 0);
+        const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, undefined, b.sec), b.ly, 0);
         rows.push([nm, at + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + tail]);
       }
     });
@@ -25749,6 +25766,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'Parts met at an angle, turned or (in the experimental 3D view) tipped: a <b>vapour cell</b> absorbs over the longer path through it, an <b>EOM</b> modulates over it (\u03b2 / cos \u03b8), and a <b>doubling crystal</b> sees its poling at the angle; tipped, its harmonic leaves with the light, raised as a tipped plate raises it.',
     '<b>Misaligned cavities</b>: a mirror turned or (in the experimental 3D view) tipped, or a beam sent in off the axis, now walks the field round the cavity as a real one does, so it transmits only the share of the light in its mode. The cavity\u2019s panel gives its axis across and up from the input beam, mode matching with the offset and tilt both ways, and how far each mirror walks the axis per \u00b5rad. Tips and rolls are kept to a millionth of a degree.',
     'In the experimental 3D view, <b>move and turn a part along all six axes</b>: click it for three double-ended arrows out of both sides of it (Jek orange along x, chip green along y, Jek blue up), and click it again for three rings crossing round it as Onshape\u2019s do, each the colour of the axis it turns about (blue turns it to face another way, green tips it, orange rolls it about its own axis; Shift for 15\u00b0 steps, Alt a tenth as fast). A third click brings the arrows back.',
     'With the experimental 3D view, <b>crystals turn their optic axis</b> with their tip and roll: a rolled beam displacer walks its beam off along the roll, a Wollaston prism rolled 45\u00b0 splits p light into two equal beams on the diagonal, and the extraordinary index and walk-off follow the light\u2019s own angle to the turned axis. A <b>rolled doubling crystal</b> converts the light along its turned axis, and its harmonic leaves polarised along it.',

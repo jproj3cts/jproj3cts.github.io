@@ -5258,6 +5258,51 @@ const TESTS = [
     },
   },  { group: 'Heights' },
   {
+    name: 'Light crossing a vapour cell at an angle, turned or tipped, goes further through the vapour',
+    why: 'a weak probe on the Rb87 F = 2 \u2192 3 line through a 40 \u00b0C cell, the cell turned 30\u00b0 in the plane and tipped 30\u00b0 out of it: its optical depth grows by 1 / cos 30\u00b0 = 1.155 either way (largest relative error)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const lam = 299792458e9 / J.atomLines('Rb87', 'D2').find(a => a.Fg === 2 && a.Fe === 3).nu;
+      const T = o => { J.load({ format: 'jekray', version: 1, minPower: 1e-6, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: lam, rays: 1, width: 1, pol: 's', power: 1e-6 },
+        { type: 'cell', id: 'C', name: 'C', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: 40, ...o },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 200 }] }); J.trace(); const h = J.lastTrace().screens.Sc[0]; return h ? h.w : NaN; };
+      const od0 = -Math.log(T({})), want = 1 / Math.cos(Math.PI / 6);
+      return Math.max(Math.abs(-Math.log(T({ angle: 30 })) / od0 / want - 1), Math.abs(-Math.log(T({ tip: 30 })) / od0 / want - 1));
+    },
+  },
+  {
+    name: 'An EOM tipped modulates over the longer path through it',
+    why: 'a phase modulator of \u03b2 = 0.4 tipped 60\u00b0: the light crosses it twice as far, so its carrier and first sidebands are J\u2080(0.8)\u00b2 and J\u2081(0.8)\u00b2 (largest difference)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, minPower: 1e-9, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol: 's', power: 1 },
+        { type: 'eom', id: 'E', name: 'E', x: 0, y: 0, angle: 0, fm: 20, beta: 0.4, tip: 60 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 400 }] }); J.trace();
+      const W = J.lastTrace().screens.Sc.map(h => h.w).sort((a, b) => b - a), j0 = 0.846287352750480, j1 = 0.368842046094113;
+      return W.length >= 3 ? Math.max(Math.abs(W[0] - j0 * j0), Math.abs(W[1] - j1 * j1), Math.abs(W[2] - j1 * j1)) : NaN;
+    },
+  },
+  {
+    name: 'A tipped doubling crystal sends its harmonic on with the light, raised as a tipped plate raises it',
+    why: '1560 nm into 50 mm of MgO:PPLN tipped 0.3\u00b0: both the light and its harmonic leave raised by L\u03b8(1 \u2212 1/n) = 0.14 mm, and with the best period chosen for the beam the harmonic is as strong as untipped; at the untipped period, quasi-phase-matching being forgiving of angle, within 0.1% (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const n1 = J.nlcIndex('ppln', 1560, 40), zR = 50 / 2.84 / (2 * n1), w0 = Math.sqrt(1.56e-3 * zR / Math.PI);
+      const run = o => { J.load({ format: 'jekray', version: 1, minPower: 1e-6, elements: [
+        { type: 'source', id: 'L', name: 'L', x: -50, y: 0, angle: 0, wavelength: 1560, gauss: true, w0, z0: 25 + 25 / n1, width: 2 * w0, rays: 1, pol: 's', power: 1000 },
+        { type: 'nlc', id: 'X', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: 40, ...o },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 150, y: 0, angle: 180, length: 100 }] }); J.trace();
+        const n = J.nlc('X')[0], H = J.lastTrace().screens.Sc;
+        return { P2: n.r.P2, period: n.r.period, f: H.filter(h => h.nm > 1000).map(h => h.z || 0), s: H.filter(h => h.nm < 1000).map(h => h.z || 0) }; };
+      const A = run({}), B = run({ tip: 0.3 }), C = run({ tip: 0.3, period: A.period }), th = 0.3 * Math.PI / 180;
+      const lift = 50 * Math.sin(th) * (1 - Math.cos(th) / Math.sqrt(n1 * n1 - Math.sin(th) ** 2));
+      const ok = B.f.length && B.s.length && B.f.concat(B.s).every(z => Math.abs(z - lift) < 2e-3) && Math.abs(B.P2 / A.P2 - 1) < 1e-4 && C.P2 < B.P2 && Math.abs(C.P2 / A.P2 - 1) < 1e-3;
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A tipped mirror moves the cavity\u2019s axis up',
     why: 'the curved mirror tipped up 1 mrad, out of the bench plane: the axis runs through its centre of curvature square to the flat mirror, R\u03b1 = 0.5 mm above the input beam, and none across (largest relative error)',
     want: 0, tol: 2e-4, unit: '',

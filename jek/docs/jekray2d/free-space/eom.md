@@ -30,6 +30,10 @@ $$
 
 which expands the same way into sidebands of amplitude $$J_n(\beta/2)$$. At a bias of 90° it is at quadrature, where the power follows the drive most linearly.
 
+### At an angle
+
+Light crossing the modulator at an angle $$\theta$$, turned in the bench plane or (with the experimental 3D view) tipped out of it, is modulated over a path $$1/\cos\theta$$ longer, so its modulation depth is $$\beta/\cos\theta$$.
+
 ### Beat notes and locking
 
 Sidebands at different offsets make no steady fringes with each other, but they beat on a photodiode at multiples of $$f_m$$. Put a cavity after the EOM and a photodiode on the reflected light, demodulated at $$f_m$$ (see [Photodetector: demodulation](/jek/docs/jekray2d/free-space/detector/#demodulation)). Each sideband meets the cavity at its own detuning, and the demodulated signal is the Pound–Drever–Hall error signal.

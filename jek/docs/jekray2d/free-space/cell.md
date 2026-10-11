@@ -35,6 +35,10 @@ The cell is worked out slice by slice along its length, and point by point acros
 
   power broadened (a Lorentzian), and smeared by the atoms moving across the pump (a Gaussian, so together a Voigt). Head on, that gives the Lamb dip and the crossovers. Side by side, it gives a broad dip with no sub-Doppler feature. The hole's depth follows the other beam's intensity where the light is in that slice, so beams crossing at an angle meet over part of the cell only.
 
+### At an angle
+
+Light crossing the cell at an angle $$\theta$$ to its axis, the cell turned in the bench plane or (with the experimental 3D view) tipped out of it, goes $$L/\cos\theta$$ through the vapour, so each slice's absorption and dispersion count for $$1/\cos\theta$$ more.
+
 ### A magnetic field
 
 A field $$B$$ along the cell's axis splits each line into its Zeeman components. Each level's hyperfine and Zeeman Hamiltonian,

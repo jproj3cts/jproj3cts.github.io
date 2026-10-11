@@ -12028,9 +12028,10 @@ const V3D = (() => {
   /* ---------- the renderer, its scene, camera and view cube ---------- */
   function renderer() {
     if (R) return R;
-    const gl = new T.WebGLRenderer({ canvas: D.cv, antialias: true, preserveDrawingBuffer: true });
+    const gl = new T.WebGLRenderer({ canvas: D.cv, antialias: true });   // (a picture of it is taken straight after drawing it: see png)
     gl.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     gl.shadowMap.enabled = true; gl.shadowMap.type = T.PCFSoftShadowMap;
+    gl.shadowMap.autoUpdate = false;                      // shadows are drawn again only when the scene is (see build), not as the view turns
     gl.autoClear = false;
     const scene = new T.Scene();
     const pm = new T.PMREMGenerator(gl);
@@ -12134,6 +12135,12 @@ const V3D = (() => {
   /* models taken down: their geometry and pictures freed. Their materials are left to be collected
      rather than disposed: disposing the last material of a kind frees its compiled shader, which the
      next build (each step of a drag) would then compile again, the slowest thing the view does */
+  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
+  /* what a part's model is made from: everything but where it is, how it is turned and its name, so a
+     part moved or turned keeps its model and is only put in its new place (a screen showing its
+     pattern on its face is made again each time, its picture changing with the light) */
+  const POSE = new Set(['x', 'y', 'z', 'angle', 'tip', 'roll', 'name', 'label', 'sweeps', 'hide3d', 'locked', 'group']);
+  const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o); };
   const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
@@ -12369,25 +12376,39 @@ const V3D = (() => {
   /* ---------- the scene, from the bench ---------- */
   function build() {
     const G = R.groups;
-    for (const g of [G.board, G.parts, G.light, G.names, G.sel]) disposeAll(g);
-    R.boardBelow = false;                                  // (a new board is opaque: draw fades it again if need be)
+    for (const g of [G.light, G.sel]) disposeAll(g);
+    // the parts and their names are taken down but kept: one whose model is unchanged goes back up
+    for (const g of [G.parts, G.names]) for (const o of [...g.children]) g.remove(o);
+    const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
     const els = project.elements.filter(e => e.bench === project.tab && FREE.has(e.type) && e.type !== 'draw' && !e.hide3d), box = new T.Box3();
     for (const el of els) {
+      const k = shapeKey(el), c = parts.get(el.id);
       let p = null;
-      try { p = part(el); } catch (e) { p = null; }
+      if (c && k !== null && c.k === k) p = c.obj;
+      else {
+        if (c) { disposeObj(c.obj); parts.delete(el.id); }
+        try { p = part(el); } catch (e) { p = null; }
+        if (p) parts.set(el.id, { k, obj: p });
+      }
       if (!p) continue;
+      used.add(el.id);
       p.position.set(el.x, el.y, zOf(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; });
       G.parts.add(p);
       if (names) {
         const P = el.type === 'link' ? linkPartner(el) : null;
-        const sp = label(el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), el.type === 'link' ? '#7fdcff' : null);
+        const text = el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), lk = el.id + '|' + text + '|' + R.h;
+        let sp = labels.get(lk);
+        if (!sp) { sp = label(text, el.type === 'link' ? '#7fdcff' : null); labels.set(lk, sp); }
+        usedL.add(lk);
         p.updateMatrixWorld(true);
         const b = new T.Box3().setFromObject(p);
         sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : zOf(el) + 10) + 4); sp.userData.id = el.id;
         G.names.add(sp);
       }
     }
+    for (const [id, c] of parts) if (!used.has(id)) { disposeObj(c.obj); parts.delete(id); }
+    for (const [lk, sp] of labels) if (!usedL.has(lk)) { disposeObj(sp); sp.material.map && sp.material.map.dispose(); labels.delete(lk); }
     G.parts.updateMatrixWorld(true);
     if (G.parts.children.length) box.setFromObject(G.parts);
     R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
@@ -12402,6 +12423,7 @@ const V3D = (() => {
     const sc = R.sun.shadow.camera; sc.left = -rad * 1.2; sc.right = rad * 1.2; sc.top = rad * 1.2; sc.bottom = -rad * 1.2; sc.near = 1; sc.far = 6 * rad; sc.updateProjectionMatrix();
     R.content = box;
     R.selKey = null;
+    R.gl.shadowMap.needsUpdate = true;
   }
   /* the light: rays as lines, Gaussian beams as tubes as wide as the beam both ways */
   /* a stretch from (x0, y0) to (x1, y1) cut to the board: [t0, t1] of it, or null */
@@ -12498,6 +12520,11 @@ const V3D = (() => {
     const b = box.isEmpty() ? new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 0)) : box, mg = 75;
     const x0 = Math.floor((b.min.x - mg) / PITCH) * PITCH - PITCH / 2, x1 = Math.ceil((b.max.x + mg) / PITCH) * PITCH + PITCH / 2;
     const y0 = Math.floor((b.min.y - mg) / PITCH) * PITCH - PITCH / 2, y1 = Math.ceil((b.max.y + mg) / PITCH) * PITCH + PITCH / 2;
+    // made again only when its size or look changes, which it does a hole's pitch at a time
+    const bk = [x0, x1, y0, y1, benchBg(), benchHoles()].join();
+    if (bk === R.boardKey && R.groups.board.children.length) return;
+    R.boardKey = bk; R.boardBelow = false;               // (a new board is opaque: draw fades it again if need be)
+    disposeAll(R.groups.board);
     const bg = benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: 0.7, metalness: 0.25 });
     let top = side;
     if (benchHoles()) {

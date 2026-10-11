@@ -51,7 +51,7 @@ The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows 
 | Drag an arrow or a ring: move or turn it | Drag an arrow or a ring: move or turn it |
 | Right-click: the bench's menu | Right-click: the bench's menu |
 
-Choose between them with the **Mouse** menu on the 3D view's bar. On a touch screen, one finger turns, two pan and pinch to zoom. **F** fits the view to the parts, **Z** zooms to the selection, and **Shift+1** to **Shift+7** give the front, back, left, right, top, bottom and isometric views. Click a face, edge or corner of the view cube to look from there. **PNG** saves the view as a picture.
+Choose between them with the **Mouse** menu on the 3D view's bar. On a touch screen, one finger turns, two pan and pinch to zoom. **F** fits the view to the parts, **Z** zooms to the selection, and **Shift+1** to **Shift+7** give the front, back, left, right, top, bottom and isometric views. Click a face, edge or corner of the view cube to look from there. **PNG** saves the view as a picture. The eye beside each part in the Bench panel's list hides it in the 3D view, to see past a housing or a mount; the light still meets it as before.
 
 **Arranging parts in 3D.** Drag a part to slide it across the table: it snaps to the grid as on the 2D bench, and a selection of several moves together. Right-click a part, or the bench, for the same menu as in 2D: duplicate, copy and paste, rotate, lock, move to another tab and the rest. A part added from **+ Add part** lands where the view is looking, and one dragged from the parts rail lands where it is dropped. Undo and redo work as ever.
 

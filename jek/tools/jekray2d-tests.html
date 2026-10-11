@@ -5236,6 +5236,27 @@ const TESTS = [
     },
   },
   {
+    name: 'A part hidden in 3D by its eye still acts on the light',
+    why: 'the Michelson in 3D: the eye beside Fixed mirror in the bench list closes and fades, the 3D view draws one part fewer, the bench is not traced again, the light drawn in 3D is the same, and the choice is saved and undone (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const V = J.view3d, doc = document.getElementById('rig').contentDocument;
+      try {
+        await V.set(true); J.select(null);
+        const s0 = V.stats(), n0 = J.traceInfo().count;
+        const li = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
+        li.querySelector('.rt-eye').click();
+        const eye = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror')).querySelector('.rt-eye');
+        const s1 = V.stats(), n1 = J.traceInfo().count;
+        const saved = J.serialize().elements.find(e => e.name === 'Fixed mirror').hide3d === true;
+        V.undo();
+        const s2 = V.stats();
+        return eye.classList.contains('off') && s1.parts === s0.parts - 1 && n1 === n0 && s1.rays === s0.rays && s1.beams === s0.beams && saved && s2.parts === s0.parts ? 1 : 0;
+      } finally { await V.set(false); }
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

@@ -533,6 +533,11 @@
   .rt-list button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-list .swatch { width: 0.7rem; height: 0.7rem; border-radius: 2px; flex: none; }
   .rt-list .t { margin-left: auto; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-list li.has-eye { display: flex; gap: 0.25rem; align-items: stretch; }
+  .rt-list li.has-eye > button:first-child { flex: 1; min-width: 0; }
+  .rt-list .rt-eye { flex: none; width: 2rem; justify-content: center; padding: 0; color: var(--jek-ink); }
+  .rt-list .rt-eye.off { color: var(--jek-ink-soft); opacity: 0.45; }
+  .rt-list .rt-eye svg { display: block; }
 
   .rt-keys { font-size: 0.8125rem; color: var(--jek-ink-soft); margin: 0; padding-left: 1.1rem; }
   .rt-keys li { margin-bottom: 0.2rem; }
@@ -2973,6 +2978,7 @@ function normElementBase(e) {
     bench: typeof e.bench === 'string' ? e.bench : null,     // the tab it is on (ensureBenches fills it in)
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
+  if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
   if (isFinite(e.z) && e.z !== null && +e.z !== 75) base.z = clamp(+e.z, 0, 2000);
   // a free-space part tipped up (+) or down out of the bench plane, degrees (see setTip)
@@ -4576,7 +4582,7 @@ function sourceLines(src) {
 let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
 const traceKeyNow = () => loadGen + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
-  JSON.stringify(project.elements.filter(e => e.type !== 'elec')) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
+  JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   const key = traceKeyNow();
@@ -12094,7 +12100,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey();
+    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join();
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
@@ -12360,7 +12366,7 @@ const V3D = (() => {
     const G = R.groups;
     for (const g of [G.board, G.parts, G.light, G.names, G.sel]) disposeAll(g);
     R.boardBelow = false;                                  // (a new board is opaque: draw fades it again if need be)
-    const els = project.elements.filter(e => e.bench === project.tab && FREE.has(e.type) && e.type !== 'draw'), box = new T.Box3();
+    const els = project.elements.filter(e => e.bench === project.tab && FREE.has(e.type) && e.type !== 'draw' && !e.hide3d), box = new T.Box3();
     for (const el of els) {
       let p = null;
       try { p = part(el); } catch (e) { p = null; }
@@ -17215,6 +17221,8 @@ function drawCavityScan(cv, c, pseudo) {
 
 let benchTab = 'bench';
 let aboutNode = null;
+const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
+const EYE_SHUT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 10s3.6 5 10 5 10-5 10-5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 13.2 3.4 15.6M9.2 14.7l-.8 2.7M14.8 14.7l.8 2.7M19 13.2l1.6 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 function renderOverview() {
   const title = h('h2', null, h('span', { style: 'flex:1' }, 'Bench'));
   pinTitle(title, BENCH_PIN, () => { selectOne(null); renderPanel(); requestRender(); });
@@ -17242,9 +17250,15 @@ function renderOverview() {
       const mine = project.elements.filter(e => e.bench === b.id);
       if (multi) list.append(h('li', { class: 'tabhead' }, b.name + (b === curBench() ? ' (on show)' : '')));
       for (const el of mine) {
-        list.append(h('li', null, h('button', { onclick: () => selectEl(el) },
+        // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
+        const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
+          title: el.hide3d ? 'Hidden in the 3D view (the light still meets it): show it' : 'Hide it in the 3D view (the light still meets it)',
+          'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' in the 3D view',
+          onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
+        if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
+        list.append(h('li', { class: eye ? 'has-eye' : null }, h('button', { onclick: () => selectEl(el) },
           h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
-          el.name, h('span', { class: 't' }, typeLabel(el)))));
+          el.name, h('span', { class: 't' }, typeLabel(el))), ...(eye ? [eye] : [])));
       }
     }
     panel.append(list);
@@ -20351,8 +20365,8 @@ const popSources = () => lightOf().beams === 'field' ? allSources().filter(e => 
    worked out again: the tracer's description of the surface leaves out what only the field
    sees (a mask's formula, a coating), so the element's own settings go in with it */
 const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
-/* the element as the field sees it: how it is swept is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
-const evElementKey = ev => { const e = evElement(ev); if (!e || !e.sweeps) return e; const { sweeps, ...rest } = e; return rest; };
+/* the element as the field sees it: how it is swept (or whether the 3D view draws it) is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
+const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d)) return e; const { sweeps, hide3d, ...rest } = e; return rest; };
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
@@ -26199,6 +26213,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'An <b>eye</b> beside each part in the Bench panel\u2019s list hides it in the 3D view (click it again to show it): handy to see past a housing, a mount or a big optic. The light still meets the part exactly as before, and the choice is saved with the bench.',
     '<b>Light</b> is now set for the whole bench, in the Bench panel (click an empty part of the bench): the rays on or off, and the Gaussian beams as their outline, their diffracted field (linear or log) or not at all. Benches saved with a field view on a source open with it on.',
     'A part\u2019s height is now its <b>z</b>, and <b>z, Tip and Roll can be swept</b> like any other number. Panels line their boxes up side by side, and rays leaving a fibre\u2019s end (a tip, or a fibre-coupled laser) now spread as its beam does, at the mode\u2019s angle.',
     '<b>Sweeps that render the field</b> play every step in turn, waiting for one to be drawn before the next, so a fast sweep stays smooth rather than skipping; a sweep\u2019s rate can be changed once it is rendered without rendering it again; and the render says about how long it has left.',

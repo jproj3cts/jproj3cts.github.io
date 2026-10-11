@@ -5244,6 +5244,98 @@ const TESTS = [
         return onPart && /^Duplicate/.test(onPart[0]) && onBench && /^Paste here/.test(onBench[0]) && Math.hypot(e.x - t[0], e.y - t[1]) < 25 ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
+  },  { group: 'Heights' },
+  {
+    name: 'A lens raised off the beam turns it up as a lens moved across turns it sideways',
+    why: 'a round lens (f ≈ 100 mm) 2 mm above a level beam: the beam leaves rising at the same angle as it leaves turned in the bench plane when the lens is moved 2 mm across instead (exact in the plane, paraxial out of it: relative difference)',
+    want: 0, tol: 2e-3, unit: '',
+    run: J => {
+      const bench = (y, z) => ({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1 },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y, angle: 0, diameter: 25.4, z, surfaces: [{ R: 51.5 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 300, y: 0, angle: 180, length: 80 }] });
+      J.load(bench(0, 77)); J.trace();
+      const up = J.lastTrace().beams.filter(b => !b.fan && b.endEl === 'Sc')[0];
+      J.load(bench(2, 75)); J.trace();
+      const side = J.lastTrace().beams.filter(b => !b.fan && b.endEl === 'Sc')[0];
+      if (!up || !side) return NaN;
+      const across = Math.atan2(side.dy, side.dx), rise = Math.atan(up.uz);
+      return Math.abs(rise / across - 1);
+    },
+  },
+  {
+    name: 'A concave mirror raised off the beam turns it by its sagittal power',
+    why: 'a mirror of R = 200 mm set 1 mm above a level beam: at normal incidence the light comes back rising at 2h/R = 0.01; folding it through 90° (45° incidence) at 2h cos 45°/R, Coddington’s sagittal power (largest relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const slope = ang => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0.0001, angle: 0, gauss: true, w0: 0.3, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1 },
+        { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: ang, length: 25, R: 200, z: 76 }] });
+        J.trace(); const seg = J.lastTrace().beams.filter(b => !b.fan && b.parent >= 0)[0]; return seg ? seg.uz : NaN; };
+      return Math.max(Math.abs(slope(180) / 0.01 - 1), Math.abs(slope(135) / (0.01 * Math.SQRT1_2) - 1));
+    },
+  },
+  {
+    name: 'A part above or below the beam is missed',
+    why: 'a 25 mm fold mirror at 45° in a level beam: at the beam’s height every ray turns up the bench; 35 mm higher, every ray passes under it to the screen beyond (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const fold = z => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 3, width: 1, power: 1 },
+        { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 135, length: 25, z },
+        { type: 'screen', id: 'Up', name: 'Up', x: 0, y: 60, angle: -90, length: 20 }, { type: 'screen', id: 'On', name: 'On', x: 60, y: 0, angle: 180, length: 20 }] });
+        J.trace(); const T = J.lastTrace(); return [T.screens.Up.length, T.screens.On.length]; };
+      const a = fold(75), b = fold(110);
+      return a[0] > 0 && a[1] === 0 && b[0] === 0 && b[1] > 0 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A photodiode raised off a beam reads what one moved across does',
+    why: 'a 1 mm photodiode in a Gaussian beam of 0.5 mm waist, its centre 0.3 mm off the beam: above it, and beside it in the bench plane, the same power (relative difference)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const pd = (y, z) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1 },
+        { type: 'detector', id: 'D', name: 'D', x: 0, y, angle: 180, length: 1, z }] }); J.trace(); return J.detector('D').mw; };
+      const up = pd(0, 75.3), side = pd(0.3, 75), centre = pd(0, 75);
+      return up < centre ? Math.abs(up / side - 1) : NaN;
+    },
+  },
+  {
+    name: 'A height is kept with the bench, and a link plane carries the light to its partner’s height',
+    why: 'a lens saved at 80 mm opens at 80 mm (and one at the beam height has no height of its own); a level beam through a link plane at 75 mm leaves its partner, at 80 mm on another tab, at 80 mm (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, benches: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1, bench: 'a' },
+        { type: 'link', id: 'L1', name: 'L1', x: 0, y: 0, angle: 180, length: 20, pair: 'P', bench: 'a' },
+        { type: 'link', id: 'L2', name: 'L2', x: 0, y: 0, angle: 180, length: 20, pair: 'P', bench: 'b', z: 80 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 20, bench: 'b', z: 80 },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 40, angle: 0, diameter: 10, z: 80, surfaces: [{ R: 50 }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }], bench: 'a' },
+        { type: 'lens', id: 'Lm', name: 'Lm', x: 0, y: 60, angle: 0, diameter: 10, z: 75, surfaces: [{ R: 50 }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }], bench: 'a' }] });
+      J.trace();
+      const seg = J.lastTrace().beams.filter(b => !b.fan && b.bench === 'b' && b.endEl === 'Sc')[0];
+      return J.byName('Ln').z === 80 && J.byName('Lm').z === undefined && seg && Math.abs(seg.z0 - 80) < 1e-9 && J.lastTrace().screens.Sc.length > 0 ? 1 : 0;
+    },
+  },
+  {
+    name: 'In 3D a part is raised by the arrow over it',
+    why: 'the Michelson’s fixed mirror selected in 3D: its arrow dragged 60 px up the screen raises it by a whole number of 0.5 mm steps, and Ctrl+Z puts it back at the beam height (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('iso');
+        J.select('Fixed mirror');
+        const a = J.view3d.liftScreen(), P = J.view3d.pointer;
+        if (!a || J.view3d.handleAt(a.x, a.y) !== 'lift') return NaN;
+        if (!a) return NaN;
+        P('pointerdown', a.x, a.y); for (let i = 1; i <= 6; i++) P('pointermove', a.x, a.y - 10 * i); P('pointerup', a.x, a.y - 60, { buttons: 0 });
+        const z = J.byName('Fixed mirror').z;
+        J.view3d.undo();
+        return z > 75 && Math.abs(z * 2 - Math.round(z * 2)) < 1e-9 && J.byName('Fixed mirror').z === undefined ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
   },
 ];
 

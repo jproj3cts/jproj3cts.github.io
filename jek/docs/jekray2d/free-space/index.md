@@ -217,10 +217,31 @@ $$
 
 The pulse that arrives is the spectrum with that phase, transformed to time. Its duration, group delay, GDD and TOD are read out, along with its spatial chirp and pulse-front tilt. So prism and grating compressors, stretchers and delay lines need no formulas: they come out of the geometry.
 
+## Heights
+
+Every part sits at the beam height, 75 mm above the breadboard, unless it is given a height of its own (the 3D view's arrow, or **Height** in its panel, while the 3D view is turned on as an experimental feature). The trace stays exact in the bench plane. Out of it, each ray carries its height $$z$$ and its slope $$u = \mathrm dz/\mathrm ds$$, paraxially, along its path.
+
+**Missing a part.** A part takes only the light that lands inside its aperture once the height is counted: inside a circle of its semi-aperture $$a$$ for a lens, a mirror or a plate, at a point $$y$$ across it and $$h = z - z_\text{part}$$ above its centre,
+
+$$
+y^2 + h^2 \le a^2,
+$$
+
+and inside a band as tall as it is wide for a screen, a cube or a block. Light passing above or below a part goes on as if it were not there.
+
+**Turning out of the plane.** A curved surface met off its centre turns the light up or down by its sagittal power, Coddington's relation:
+
+$$
+n' u' = n u - h\, c_s \left(n' \cos\theta' - n \cos\theta\right),
+$$
+
+with $$c_s$$ the sagittal curvature where the light meets the surface ($$\mathrm d\,\text{sag}/\mathrm dy$$ over $$y$$, for a surface of revolution), and $$\theta$$, $$\theta'$$ the angles in and out in the bench plane. A mirror is the same with $$n' = -n$$. A flat surface leaves $$n u$$ unchanged; a mask kicks the slope by the gradient of its delay $$D$$ across, $$\lambda\, \partial D/\partial z$$. So a lens set 2 mm high bends a level beam up by 2 mm over its focal length, as on a real bench, and a photodiode or fibre tip off the beam's height reads, or couples, only what overlaps it. A link plane carries the light to the same place against its partner, at the partner's height.
+
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- Everything is in the plane: no skew rays, and no tilts out of the plane.
+- The bench is a plane with heights: no skew rays, and parts are not tilted out of the plane. The light's height and slope out of it are followed paraxially.
+- A cavity's mode, the diffracted field and a screen's views take the beam as centred out of the plane; an iris's opening is not narrowed by a beam passing above or below its centre.
 - The round field assumes a figure of revolution about the axis. Off-axis and tilted cases use the 2D field, which is paraxial in free space and slower.
 - Rays and fields agree at the beam's centre by construction. Far from it, the Gaussian beam's paraxial model and the exact rays can differ, as they should.
 - Light from separate sources never interferes. Two paths of one launch interfere as far as the source's coherence allows.

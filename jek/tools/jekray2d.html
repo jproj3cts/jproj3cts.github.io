@@ -169,6 +169,9 @@
   .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
   .rt-v3dbar .rt-btn.off { opacity: 0.55; }
   .rt-v3dbar select { font: 0.75rem var(--jek-sans); padding: 0.2rem; border-radius: var(--jek-radius); }
+  .rt-stage.rt-flying { position: fixed; inset: 0; z-index: 1000; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
+  .rt-stage.rt-flying > :not(.rt-v3d):not(.rt-flyhint) { display: none !important; }
+  .rt-flyhint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 32px); font: 0.78rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.9); background: rgba(10,13,16,0.6); padding: 4px 10px; border-radius: 4px; pointer-events: none; text-align: center; }
   .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.78); background: rgba(10,13,16,0.55); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
   .rt-v3dhint[hidden] { display: none; }
   .rt-v3dhint.faded { opacity: 0; transition: opacity 0.6s ease 1.5s; }
@@ -11945,14 +11948,19 @@ const V3D = (() => {
     mouse.value = ctrl;
     mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
     const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true },
+    const flyBtn = btn('Fly', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land (experimental)', () => flyStart());
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn,
       btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), btn('Iso', 'Isometric (Shift+7)', () => view('iso')),
       btn('Top', 'From above (Shift+5)', () => view('top')), btn('Front', 'From the front (Shift+1)', () => view('front')),
       btn('Right', 'From the right (Shift+4)', () => view('right')), nm, mouse, btn('PNG', 'Save this view as a picture', png));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
-    stage.append(sw, bar, hint);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse };
+    const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
+    stage.append(sw, bar, hint, flyHint);
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, flyBtn, flyHint };
     hintText();
+    // flying, the mouse turns the view and the wheel sets the speed: the canvas's own handlers stand aside
+    cv.addEventListener('pointerdown', e => { if (!fly) return; e.stopImmediatePropagation(); e.preventDefault(); if (document.pointerLockElement !== cv) flyLock(); }, true);
+    cv.addEventListener('wheel', e => { if (!fly) return; e.stopImmediatePropagation(); e.preventDefault(); fly.speed = clamp(fly.speed * Math.exp(-e.deltaY * 0.0015), 5, 20000); flyHintText(); }, { capture: true, passive: false });
     events();
     document.addEventListener('keydown', keys, true);
     const it = document.getElementById('btnView3d');
@@ -11982,6 +11990,8 @@ const V3D = (() => {
     if (mi) mi.hidden = !there;
     D.stage.classList.toggle('v3d', on);
     D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
+    D.flyBtn.hidden = !flyOk();
+    if (fly && !on) flyStop();
     D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
     D.b2.setAttribute('aria-pressed', String(!on)); D.b3.setAttribute('aria-pressed', String(on));
     D.b3.disabled = !ok && !on;
@@ -12880,7 +12890,101 @@ const V3D = (() => {
     }, 'image/png');
   }
 
-  function reset() { st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
+  /* ---------- fly (experimental): the bench full screen, flown through ----------
+     W A S D (or the arrows) move the way the camera looks and across it, E and Q (or Space and
+     Ctrl) straight up and down, Shift four times as fast; the mouse turns the view, as far as
+     straight up or down; the wheel sets the speed. The pointer is held to the canvas while
+     flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
+  let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
+  const flyOk = () => { try { return exp('fly'); } catch (e) { return false; } };
+  const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
+    KeyE: 'u', Space: 'u', KeyQ: 'd', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+  // which way it looks: th down from straight up, as aim() has it, round the heading h
+  const flyDir = () => new T.Vector3(-Math.sin(fly.th) * Math.cos(fly.h), -Math.sin(fly.th) * Math.sin(fly.h), -Math.cos(fly.th));
+  function flyLook() {
+    R.camera.quaternion.setFromEuler(new T.Euler(fly.th, 0, fly.h + Math.PI / 2, 'ZYX')); R.camera.updateMatrixWorld();
+    R.heading = fly.h;
+    R.target.copy(R.camera.position).add(flyDir().multiplyScalar(fly.dist));
+  }
+  function flyHintText() {
+    if (!fly) return;
+    const locked = document.pointerLockElement === D.cv;
+    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 E / Q: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
+      (fly.speed >= 1000 ? +(fly.speed / 1000).toPrecision(2) + ' m' : Math.round(fly.speed) + ' mm') + '/s) \u00b7 Esc: land';
+  }
+  function flyLock() { try { const q = D.cv.requestPointerLock && D.cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) { /* no pointer lock: drag to look */ } }
+  function flyStart() {
+    if (fly || !R || !active() || !flyOk()) return;
+    R.anim = null;
+    const d = R.camera.position.clone().sub(R.target), r = d.length() || 100;
+    aim();
+    fly = { keys: new Set(), h: R.heading, th: Math.acos(clamp(d.z / r, -1, 1)), dist: r, speed: clamp(r * 0.5, 20, 5000), last: null, raf: 0, fs: false };
+    D.stage.classList.add('rt-flying');
+    D.flyHint.hidden = false;
+    flyHintText();
+    window.addEventListener('keydown', flyKey, true); window.addEventListener('keyup', flyKey, true);
+    document.addEventListener('mousemove', flyMouse);
+    document.addEventListener('pointerlockchange', flyHintText);
+    document.addEventListener('fullscreenchange', flyFull);
+    window.addEventListener('blur', flyBlur);
+    try { const q = D.stage.requestFullscreen && D.stage.requestFullscreen(); if (q && q.then) q.then(() => { if (fly) fly.fs = true; }, () => {}); } catch (e) { /* the page itself fills the window */ }
+    flyLock();
+    fly.raf = requestAnimationFrame(flyStep);
+    requestRender();
+  }
+  function flyStop() {
+    if (!fly) return;
+    cancelAnimationFrame(fly.raf);
+    window.removeEventListener('keydown', flyKey, true); window.removeEventListener('keyup', flyKey, true);
+    document.removeEventListener('mousemove', flyMouse);
+    document.removeEventListener('pointerlockchange', flyHintText);
+    document.removeEventListener('fullscreenchange', flyFull);
+    window.removeEventListener('blur', flyBlur);
+    flyLook();
+    fly = null;
+    D.stage.classList.remove('rt-flying');
+    D.flyHint.hidden = true;
+    if (document.pointerLockElement === D.cv) try { document.exitPointerLock(); } catch (e) { /* gone already */ }
+    if (document.fullscreenElement === D.stage) { const q = document.exitFullscreen(); if (q && q.catch) q.catch(() => {}); }
+    aim(); keepCam(); requestRender();
+  }
+  // full screen left (Esc, which the browser keeps for itself there): landed
+  function flyFull() { if (!fly) return; if (document.fullscreenElement === D.stage) fly.fs = true; else if (fly.fs) flyStop(); requestRender(); }
+  function flyBlur() { if (fly) fly.keys.clear(); }
+  function flyKey(e) {
+    if (!fly) return;
+    if (e.code === 'Escape' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.type === 'keydown') flyStop(); return; }
+    const k = FLY_KEYS[e.code];
+    if (!k || e.metaKey || e.altKey) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === 'keydown') fly.keys.add(k); else fly.keys.delete(k);
+  }
+  function flyMouse(e) {
+    if (!fly || !(document.pointerLockElement === D.cv || (e.buttons && e.target === D.cv))) return;
+    flyTurn(e.movementX || 0, e.movementY || 0);
+  }
+  function flyTurn(dx, dy) {
+    fly.h -= dx * 0.0022;
+    fly.th = clamp(fly.th - dy * 0.0022, 0.02, Math.PI - 0.02);
+    flyLook(); need();
+  }
+  function flyStep(t) {
+    if (!fly) return;
+    const dt = fly.last === null ? 0 : Math.min(0.1, (t - fly.last) / 1000);
+    fly.last = t;
+    const K = fly.keys, f = flyDir(), right = new T.Vector3(-Math.sin(fly.h), Math.cos(fly.h), 0);
+    const m = new T.Vector3()
+      .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
+      .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
+      .addScaledVector(new T.Vector3(0, 0, 1), (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
+    if (m.lengthSq() > 0 && dt > 0) {
+      R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
+      flyLook(); need();
+    }
+    fly.raf = requestAnimationFrame(flyStep);
+  }
+
+  function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint,
     free: el => FREE.has(el.type) && el.type !== 'draw',
@@ -12937,6 +13041,11 @@ const V3D = (() => {
         D.cv.dispatchEvent(new PointerEvent(type, opts));
       },
       undo: () => undo(),
+      // flying: start or land, hold a key down or let it go (by its code), turn by mouse pixels
+      fly(on) { if (on) flyStart(); else flyStop(); return !!fly; },
+      flying: () => !!fly,
+      flyKey(code, down) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code === 'Escape' ? 'Escape' : '', bubbles: true, cancelable: true })); },
+      flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
       // where on the canvas a part's centre is drawn, css px
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, zOf(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
@@ -24651,6 +24760,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, Fly (on its bar) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
@@ -26089,8 +26199,12 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    '<b>Light</b> is now set for the whole bench, in the Bench panel (click an empty part of the bench): the rays on or off, and the Gaussian beams as their outline, their diffracted field (linear or log) or not at all. Benches saved with a field view on a source open with it on.',
+    'A part\u2019s height is now its <b>z</b>, and <b>z, Tip and Roll can be swept</b> like any other number. Panels line their boxes up side by side, and rays leaving a fibre\u2019s end (a tip, or a fibre-coupled laser) now spread as its beam does, at the mode\u2019s angle.',
+    '<b>Sweeps that render the field</b> play every step in turn, waiting for one to be drawn before the next, so a fast sweep stays smooth rather than skipping; a sweep\u2019s rate can be changed once it is rendered without rendering it again; and the render says about how long it has left.',
+    'The <b>3D view</b> turns smoothly over and under the bench (the board fades seen from below), and a tab with fibre, electronic or chip parts opens in 3D too, those parts left out. Experimental: <b>Fly</b>, on the 3D view\u2019s bar, fills the screen with the bench to fly through it with W A S D and the mouse; Esc lands.',
     '<b>STL objects</b>: bring in any shape from CAD as a .stl file (Open \u25be \u2192 Import an object, or drop it on the bench), a mount, a post, a housing, a baffle, and place and turn it in 3D as any part. It is opaque: every ray that meets it stops there, met against its triangles exactly.',
-    'The <b>3D view</b> is now part of the tool, no longer experimental: the <b>2D / 3D</b> switch at the bench\u2019s top right (or <b>View \u2192 3D view</b>) shows any tab of free-space parts in three dimensions, and every free-space part has its <b>Height</b>, <b>Tip</b> and <b>Roll</b> in its panel. Everything below that says \u201cin the 3D view\u201d is there for everyone.',
+    'The <b>3D view</b> is now part of the tool, no longer experimental: the <b>2D / 3D</b> switch at the bench\u2019s top right (or <b>View \u2192 3D view</b>) shows any tab of free-space parts in three dimensions, and every free-space part has its <b>z</b> (height), <b>Tip</b> and <b>Roll</b> in its panel. Everything below that says \u201cin the 3D view\u201d is there for everyone.',
     'Parts met at an angle, turned or (in the 3D view) tipped: a <b>vapour cell</b> absorbs over the longer path through it, an <b>EOM</b> modulates over it (\u03b2 / cos \u03b8), and a <b>doubling crystal</b> sees its poling at the angle; tipped, its harmonic leaves with the light, raised as a tipped plate raises it.',
     '<b>Misaligned cavities</b>: a mirror turned or (in the 3D view) tipped, or a beam sent in off the axis, now walks the field round the cavity as a real one does, so it transmits only the share of the light in its mode. The cavity\u2019s panel gives its axis across and up from the input beam, mode matching with the offset and tilt both ways, and how far each mirror walks the axis per \u00b5rad. Tips and rolls are kept to a millionth of a degree.',
     'In the 3D view, <b>move and turn a part along all six axes</b>: click it for three double-ended arrows out of both sides of it (Jek orange along x, chip green along y, Jek blue up), and click it again for three rings crossing round it, each the colour of the axis it turns about (blue turns it to face another way, green tips it, orange rolls it about its own axis; Shift for 15\u00b0 steps, Alt a tenth as fast). A third click brings the arrows back.',

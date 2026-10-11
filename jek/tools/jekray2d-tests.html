@@ -5212,6 +5212,30 @@ const TESTS = [
     },
   },
   {
+    name: 'Fly mode (experimental) flies the way the view looks',
+    why: 'the Michelson in 3D: Fly is not offered with experimental features off; with them on, holding W moves the camera straight along the way it looks, the mouse turns it, and Esc lands (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const V = J.view3d, wait = ms => new Promise(r => setTimeout(r, ms));
+      try {
+        J.experimental(false); await V.set(true);
+        const offered = V.fly(true);
+        J.experimental(true);
+        if (!V.fly(true)) return 0;
+        const c0 = V.camera(), look = c0.t.map((v, i) => v - c0.p[i]), L = Math.hypot(...look);
+        V.flyKey('KeyW', true); await wait(400); V.flyKey('KeyW', false);
+        const c1 = V.camera(), mv = c1.p.map((v, i) => v - c0.p[i]), M = Math.hypot(...mv);
+        const along = M > 1 && mv.reduce((a, v, i) => a + v * look[i], 0) / (M * L) > 0.999;
+        V.flyTurn(200, 0);
+        const c2 = V.camera(), l2 = c2.t.map((v, i) => v - c2.p[i]);
+        const turned = Math.abs(Math.atan2(l2[1], l2[0]) - Math.atan2(look[1], look[0])) > 0.2;
+        V.flyKey('Escape', true);
+        return !offered && along && turned && !V.flying() ? 1 : 0;
+      } finally { V.fly(false); J.experimental(false); await V.set(false); }
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

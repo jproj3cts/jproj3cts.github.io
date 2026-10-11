@@ -352,11 +352,11 @@ function richardsWolf(w, f, Hc) {
 
 /* A plano-concave cavity: a flat input coupler, a concave end mirror (R 500 mm) 250 mm on,
    the input beam's waist on the flat mirror; screens behind each mirror */
-const fpBench = o => { o = Object.assign({ R1: 99, R2: 99.9, Rc: 500, L: 250, w0: 0.22444, N: 256, model: 'auto', tilt: 0 }, o || {});
+const fpBench = o => { o = Object.assign({ R1: 99, R2: 99.9, Rc: 500, L: 250, w0: 0.22444, N: 256, model: 'auto', tilt: 0, tip: 0, tip1: 0 }, o || {});
   return bench('fp', [
     src({ name: 'Laser', x: -50, width: 0.5, rays: 1, gauss: true, w0: o.w0, z0: 50, pol: 's', popN: o.N, popModel: o.model }),
-    { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: o.R1 },
-    { type: 'mirror', name: 'M2', x: o.L, y: 0, angle: 180 + o.tilt * 180 / Math.PI, length: 25, reflect: o.R2, R: o.Rc },
+    { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: o.R1, ...(o.tip1 ? { tip: o.tip1 * 180 / Math.PI } : {}) },
+    { type: 'mirror', name: 'M2', x: o.L, y: 0, angle: 180 + o.tilt * 180 / Math.PI, length: 25, reflect: o.R2, R: o.Rc, ...(o.tip ? { tip: o.tip * 180 / Math.PI } : {}) },
     screen({ name: 'Trans', x: o.L + 50, angle: 180, length: 20 }),
     screen({ name: 'Refl', x: -20, angle: 0, length: 20 }),
   ], { maxBounces: 40, minPower: 0.001 }); };
@@ -5257,6 +5257,47 @@ const TESTS = [
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },  { group: 'Heights' },
+  {
+    name: 'A tipped mirror moves the cavity\u2019s axis up',
+    why: 'the curved mirror tipped up 1 mrad, out of the bench plane: the axis runs through its centre of curvature square to the flat mirror, R\u03b1 = 0.5 mm above the input beam, and none across (largest relative error)',
+    want: 0, tol: 2e-4, unit: '',
+    run: J => { J.load(fpBench({ tip: 1e-3 })); const a = J.cavities()[0].axis; return a && a.v !== undefined ? Math.max(Math.abs(a.v / 0.5 - 1), Math.abs(a.h) / 0.5) : NaN; },
+  },
+  {
+    name: 'How far each mirror walks the axis, per µrad, is how far it moves when tipped',
+    why: 'the cavity\u2019s alignment sensitivities (the axis\u2019s shift at the loop\u2019s start for each mirror turned or tipped, from its 4\u00d74 round trip) against the axis found with each mirror really tipped 0.1 mrad, for a 250 mm cavity with a 1 m mirror; and turned and tipped alike, the mirrors being round (largest relative difference)',
+    want: 0, tol: 2e-3, unit: '',
+    run: J => {
+      J.load(fpBench({ Rc: 1000 })); const S = J.cavities()[0].sens;
+      if (!S || S.length !== 2) return NaN;
+      let worst = 0;
+      for (const [name, o] of [['M1', { tip1: 1e-4 }], ['M2', { tip: 1e-4 }]]) {
+        J.load(fpBench(Object.assign({ Rc: 1000 }, o))); const a = J.cavities()[0].axis, q = S.find(z => z.name === name);
+        worst = Math.max(worst, Math.abs(Math.hypot(a.h, a.v) / (q.tip * 1e-4) - 1), Math.abs(q.turn / q.tip - 1));
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'Mode matching into a cavity with a tipped mirror',
+    why: 'a 250 mm cavity with a 1 m mirror, the input beam matched to its waist on the flat mirror (w\u2080 = 0.295 mm), the curved mirror tipped 0.15 mrad: the axis sits R\u03b1 = 0.15 mm above the beam and parallel to it, so e^{\u2212(R\u03b1/w\u2080)\u00b2} = 0.773 of the light is in the mode (relative error)',
+    want: 0, tol: 2e-3, unit: '',
+    run: J => {
+      const w0 = Math.sqrt(633e-6 * Math.sqrt(250 * 750) / Math.PI);
+      J.load(fpBench({ Rc: 1000, w0, tip: 1.5e-4 }));
+      const m = J.cavities()[0].match; return m ? Math.abs(m.total / Math.exp(-((0.15 / w0) ** 2)) - 1) : NaN;
+    },
+  },
+  {
+    name: 'A cavity misaligned across or up transmits the share of the light in its mode',
+    why: 'the same cavity locked to its strongest line, its field walked each round trip by its misalignment: tipped 0.15 mrad and turned 0.15 mrad in the plane transmit alike, and against the aligned cavity e^{\u2212(R\u03b1/w\u2080)\u00b2} = 0.773 as much (the rest is in modes off resonance; the 2D field\u2019s grid of 256 samples gets within 1%, 512 within 0.3%) (largest relative error)',
+    want: 0, tol: 0.015, unit: '',
+    run: J => {
+      const w0 = Math.sqrt(633e-6 * Math.sqrt(250 * 750) / Math.PI), T = o => { J.load(fpBench(Object.assign({ Rc: 1000, w0 }, o))); return J.diffraction('Trans').power; };
+      const T0 = T({ model: '2d' }), Tt = T({ tip: 1.5e-4 }), Tc = T({ tilt: 1.5e-4 }), eta = Math.exp(-((0.15 / w0) ** 2));
+      return Math.max(Math.abs(Tt / T0 / eta - 1), Math.abs(Tt / Tc - 1) * 10);
+    },
+  },
   {
     name: 'A lens raised off the beam turns it up as a lens moved across turns it sideways',
     why: 'a round lens (f ≈ 100 mm) 2 mm above a level beam: the beam leaves rising at the same angle as it leaves turned in the bench plane when the lens is moved 2 mm across instead, both traced exactly (relative difference)',

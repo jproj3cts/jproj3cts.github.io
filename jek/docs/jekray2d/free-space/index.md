@@ -221,6 +221,20 @@ at round-trip detuning $$\delta$$. That is solved in a Krylov space built from $
 
 A laser with a line of its own drives the cavity with its line, and the circulating power is averaged over it.
 
+### Misaligned cavities
+
+A mirror turned in the bench plane or tipped out of it, or a beam sent in off the cavity's axis, leaves the reference ray missing itself after one round trip: it comes back offset by $$\boldsymbol\delta$$ in position and slope, across the beam and up it. The cavity's own axis is the ray that does close, the fixed point of the round trip with its $$4\times4$$ matrix $$M$$ (in position and reduced slope, both ways):
+
+$$
+\mathbf v = (1 - M)^{-1}\,\boldsymbol\delta.
+$$
+
+For a flat mirror and a concave one of radius $$R$$, the curved one tipped by $$\alpha$$ moves the axis $$R\alpha$$ up, parallel to the beam: it runs through the mirror's centre of curvature, square to the flat one. The cavity's panel gives the axis's offset and tilt from the input beam, across and up, and how far it moves at the loop's start for each mirror turned or tipped by 1 µrad, from the same matrix: a mirror turned by $$\epsilon$$ kicks the light leaving it by $$2\epsilon$$, and that kick, carried round the rest of the loop, moves the axis by $$(1 - M)^{-1}$$ times it.
+
+Mode matching counts the offset and the tilt between the input beam and the cavity's mode on its own axis, both ways. For two beams of the same waist $$w_0$$ offset by $$a$$ and parallel, the share of the light in the mode is $$e^{-a^2/w_0^2}$$.
+
+The field engine follows the misalignment too. Each round trip it carries the field on along the reference ray, then moves and tilts it by the ray's own miss $$\boldsymbol\delta$$ back into the first pass's frame (moved by the Fourier shift theorem, so nothing is lost to resampling), so the light walks round the loop as it does in a real cavity and settles on its axis. That takes the full two-dimensional field, which a misaligned cavity always uses. Locked to its strongest line, it transmits the share of the light in that line's mode; the rest is in modes off resonance. The grid sets how close it gets: for the cavity above, misaligned by $$a = 0.5\,w_0$$, 256 samples come within 1% and 512 within 0.3%.
+
 ### Gain
 
 A gain medium in a loop makes a laser. Its small-signal gain against the round-trip loss says whether it lases. Above threshold, each gain sheet saturates as a homogeneous medium does with every pass at once (Rigrod 1965):

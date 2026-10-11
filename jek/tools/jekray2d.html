@@ -2950,9 +2950,9 @@ function normElementBase(e) {
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
   if (isFinite(e.z) && e.z !== null && +e.z !== 75) base.z = clamp(+e.z, 0, 2000);
   // a free-space part tipped up (+) or down out of the bench plane, degrees (see setTip)
-  if (isFinite(e.tip) && e.tip !== null && +e.tip !== 0 && tippable(base)) base.tip = clamp(+(+e.tip).toFixed(4), -90, 90);
+  if (isFinite(e.tip) && e.tip !== null && +e.tip !== 0 && tippable(base)) base.tip = clamp(+(+e.tip).toFixed(6), -90, 90);
   // and rolled about its own axis (the way it faces, or its optical axis), degrees (see setRoll)
-  if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(4), -180, 180);
+  if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(6), -180, 180);
   if (typeof e.group === 'string' && e.group) base.group = e.group.slice(0, 40);     // one of a group, picked and moved together
   // its name moved off its usual place (mm from the part) or made bigger or smaller
   if (e.label && isFinite(e.label.dx) && isFinite(e.label.dy)) base.label = { dx: +e.label.dx, dy: +e.label.dy, s: clamp(num(e.label.s, 1), 0.4, 8) };
@@ -4448,8 +4448,8 @@ const anyHeights = () => project.elements.some(e => (e.z !== undefined && e.z !=
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 const tippable = el => V3D.free(el) && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
-function setRoll(el, v) { if (!isFinite(v)) return; v = ((+v + 180) % 360 + 360) % 360 - 180; if (Math.abs(v) < 1e-9) delete el.roll; else el.roll = +v.toFixed(4); }
-function setTip(el, v) { if (!isFinite(v)) return; v = clamp(+v, -90, 90); if (Math.abs(v) < 1e-9) delete el.tip; else el.tip = +v.toFixed(4); }
+function setRoll(el, v) { if (!isFinite(v)) return; v = ((+v + 180) % 360 + 360) % 360 - 180; if (Math.abs(v) < 1e-9) delete el.roll; else el.roll = +v.toFixed(6); }
+function setTip(el, v) { if (!isFinite(v)) return; v = clamp(+v, -90, 90); if (Math.abs(v) < 1e-9) delete el.tip; else el.tip = +v.toFixed(6); }
 // a part's aperture out of the plane: round about its centre (a lens, a mirror, a plate), or a
 // square band as tall as it is wide (a screen, a cube, a block)
 const Z_SQUARE = new Set(['screen', 'link', 'cube', 'prism', 'crystal', 'grating', 'aom', 'eom', 'nlc', 'stop', 'chopper']);
@@ -16691,7 +16691,18 @@ function cavityCard(c) {
     if (c.gouy.x !== null) rows.push(['Round-trip Gouy phase', (c.gouy.x * 180 / Math.PI).toFixed(2) + '\u00b0' + (c.gouy.y !== null && Math.abs(c.gouy.y - c.gouy.x) > 1e-9 ? ', ' + (c.gouy.y * 180 / Math.PI).toFixed(2) + '\u00b0' : '')]);
     if (c.tms.x !== null) rows.push(['Transverse mode spacing', fmtHz(c.tms.x) + (c.tms.y !== null && Math.abs(c.tms.y - c.tms.x) > 1 ? ', ' + fmtHz(c.tms.y) : '')]);
     if (c.match) rows.push(['Mode matching', (100 * c.match.total).toPrecision(4) + '%']);
-    if (c.axis && c.axis.miss > 1e-9) rows.push(['Cavity axis from the input beam', fmtLen(Math.abs(c.axis.h)) + ', ' + (1e3 * Math.abs(c.axis.t)).toPrecision(3) + ' mrad']);
+    // how far the axis walks, at the first mirror, for a µrad on each mirror's knobs (mm per rad is µm per mrad)
+    if (c.sens && c.sens.length && c.stability.x === 'stable' && c.stability.y === 'stable') for (const q of c.sens)
+      rows.push([q.name + ' turned, tipped 1 µrad: axis at ' + c.names[0] + ' moves', (q.turn * 1e-3).toPrecision(3) + ', ' + (q.tip * 1e-3).toPrecision(3) + ' µm']);
+    if (c.axis && c.axis.miss > 1e-9) {
+      // across the beam, and, where a part is tipped out of the plane, up it too
+      const up = Math.abs(c.axis.v || 0) > 1e-9 || Math.abs(c.axis.tv || 0) > 1e-12, n = c.segs && c.segs[0] ? c.segs[0].n : 1;
+      if (!up) rows.push(['Cavity axis from the input beam', fmtLen(Math.abs(c.axis.h)) + ', ' + (1e3 * Math.abs(c.axis.t)).toPrecision(3) + ' mrad']);
+      else {
+        const parts = []; if (Math.abs(c.axis.h) > 1e-6) parts.push(fmtLen(Math.abs(c.axis.h)) + ' across'); if (Math.abs(c.axis.v) > 1e-6) parts.push(fmtLen(Math.abs(c.axis.v)) + (c.axis.v >= 0 ? ' up' : ' down'));
+        rows.push(['Cavity axis from the input beam', (parts.join(', ') || '0 mm') + ', ' + (1e3 * Math.hypot(c.axis.t, c.axis.tv) / n).toPrecision(3) + ' mrad']);
+      }
+    }
     if (P) {
       const scale = S.eng === '2d' ? 1 : (() => { const J = c.segs[0].J; return J.reduce((a, v) => a + v * v, 0); })();
       const off = -P.dLock * c.fsr / (2 * Math.PI), src = getEl(c.segs[0].src);
@@ -17892,6 +17903,38 @@ function QOverlap(Q1, Q2, lam0) {
   const dG = ccDet(G);
   return Math.sqrt(Math.max(0, d2(A(P1)) * d2(A(P2)))) / Math.hypot(dG[0], dG[1]);
 }
+/* A small real linear system A x = b, by elimination with partial pivoting; null if singular */
+function solveLin(A0, b0) {
+  const n = b0.length, A = A0.map((r, i) => r.concat([b0[i]]));
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let i = c + 1; i < n; i++) if (Math.abs(A[i][c]) > Math.abs(A[p][c])) p = i;
+    if (!(Math.abs(A[p][c]) > 1e-14)) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let i = 0; i < n; i++) if (i !== c) { const f = A[i][c] / A[c][c]; for (let j = c; j <= n; j++) A[i][j] -= f * A[c][j]; }
+  }
+  return A.map((r, i) => r[n] / r[i]);
+}
+/* The power coupling of two beams given as Q's at one plane, the first (a loop's mode) sitting
+   off the second by a (mm, across and up) and tilted against it by t (radians): the overlap of
+   the two fields, summed on a grid wide enough for both */
+function QOverlapOff(Q1, Q2, a, t, lam0) {
+  const k = 2 * Math.PI / lam0, P1 = ccInv(Q1), P2 = ccInv(Q2);
+  // e^{-ik r.P r / 2}: its log amplitude and its phase (Im P = -2 / k w^2 along an axis)
+  const u = (P, x, y) => [0.5 * k * (P[0][1] * x * x + (P[1][1] + P[2][1]) * x * y + P[3][1] * y * y), -0.5 * k * (P[0][0] * x * x + (P[1][0] + P[2][0]) * x * y + P[3][0] * y * y)];
+  const wOf = P => Math.sqrt(2 / (k * Math.max(1e-30, Math.min(Math.abs(P[0][1]), Math.abs(P[3][1])))));
+  const w = Math.max(wOf(P1), wOf(P2)), L = 5 * w + Math.hypot(a[0], a[1]), N = 160, d = 2 * L / N;
+  let sr = 0, si = 0, n1 = 0, n2 = 0;
+  for (let j = 0; j < N; j++) {
+    const y = -L + (j + 0.5) * d;
+    for (let i = 0; i < N; i++) {
+      const x = -L + (i + 0.5) * d, [g1, p1] = u(P1, x - a[0], y - a[1]), [g2, p2] = u(P2, x, y);
+      // (the first tilted by t, its light going as e^{-ikz}: e^{-ik t.r} on it)
+      const A1 = Math.exp(g1), A2 = Math.exp(g2), ph = p2 - p1 + k * (t[0] * x + t[1] * y);
+      sr += A1 * A2 * Math.cos(ph); si += A1 * A2 * Math.sin(ph); n1 += A1 * A1; n2 += A2 * A2;
+    }
+  }
+  return (sr * sr + si * si) / (n1 * n2);
+}
 /* The self-consistent q of a round-trip matrix, or null if the loop is not stable */
 function cavEigenQ(m) {
   const [A, B, C, D] = m, h = 0.5 * (A + D);
@@ -18006,6 +18049,34 @@ function cavAnalyse(path, s, p, beams) {
     const a = 1 - Mx[0], b = -Mx[1], cc = -Mx[2], d = 1 - Mx[3], det = a * d - b * cc;
     if (Math.abs(det) > 1e-12) axis = { h: (d * dh - b * dt) / det, t: (-cc * dh + a * dt) / det, miss: Math.hypot(dh, dt) };
   }
+  // out of the plane (a part tipped or rolled): the closed axis from the 4x4 round trip, across
+  // and up the beam (v is up), from the pilot's miss both ways
+  if (E4 && next) {
+    const m = cavMiss(B[0], next), n0 = B[0].n, d = [m.dx, m.dy, n0 * m.tx, n0 * m.ty];
+    const A = E4.M.map((r, i) => r.map((v, j) => (i === j ? 1 : 0) - v)), v = solveLin(A, d);
+    if (v) axis = { h: v[0], v: v[1], t: v[2], tv: v[3], miss: Math.hypot(d[0], d[1], d[2], d[3]) };
+  } else if (axis) Object.assign(axis, { v: 0, tv: 0 });
+  // alignment: how far the closed axis moves, at the loop's start, as each mirror in it is turned
+  // across or tipped up. Either kicks the light leaving it by twice the angle; carried round the
+  // rest of the loop, d, the axis moves by (1 - M)^-1 d
+  const sens = [];
+  {
+    const E = mats.map(m => ev4(m)), F = B.map(b => free4((b.len3 || b.len) / b.n));
+    let Mr = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+    for (let j = 0; j < p; j++) { Mr = mul4(F[j], Mr); Mr = mul4(E[(j + 1) % p], Mr); }
+    const I_M = Mr.map((r, i) => r.map((v, j) => (i === j ? 1 : 0) - v));
+    for (let e = 0; e < p; e++) {
+      const ev = evs[e], el = ev && getEl(ev.el);
+      if (!el || el.type !== 'mirror') continue;
+      // the rest of the loop after this event: the steps after the one that ends at it
+      const jAt = (e - 1 + p) % p;
+      let Rest = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+      for (let j = jAt + 1; j < p; j++) { Rest = mul4(F[j], Rest); Rest = mul4(E[(j + 1) % p], Rest); }
+      const n = B[(jAt + 1) % p].n, kick = i => { const k = [0, 0, 0, 0]; k[i] = 2 * n; const d = Rest.map(r => r[0] * k[0] + r[1] * k[1] + r[2] * k[2] + r[3] * k[3]); return solveLin(I_M, d); };
+      const a = kick(2), b = kick(3);
+      if (a && b) sens.push({ name: el.name, turn: Math.hypot(a[0], a[1]), tip: Math.hypot(b[0], b[1]) });
+    }
+  }
   // the Gaussian mode in each plane, and along the loop
   const qx = cavEigenQ(Mx), qy = cavEigenQ(My);
   const wOf = q => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
@@ -18052,7 +18123,8 @@ function cavAnalyse(path, s, p, beams) {
       const b = path[j], m = cavEventABCD(path[j + 1].ev, lam0);
       Qi = m ? QThroughEvent(m, QFree(Qi, (b.len3 || b.len) / b.n)) : null;
     }
-    if (Qi) { const eta = QOverlap(E4.Q, Qi, lam0); match = { x: null, y: null, total: eta }; }
+    // the input rides the pilot; the loop's mode sits on its closed axis, off it both ways
+    if (Qi) { const eta = axis && axis.miss > 1e-9 ? QOverlapOff(E4.Q, Qi, [axis.h, axis.v], [axis.t / B[0].n, axis.tv / B[0].n], lam0) : QOverlap(E4.Q, Qi, lam0); match = { x: null, y: null, total: eta }; }
   } else if (!E4 && qx && qy && entry) {
     const root = path[0], q0 = [root.qr / root.n, root.qi / root.n];
     let ix = q0, iy = q0;
@@ -18083,7 +18155,7 @@ function cavAnalyse(path, s, p, beams) {
     kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, M4: E4 ? E4.M : null,
     stability: E4 ? (E4.s ? { x: Math.abs(E4.s[0]) < 2 ? 'stable' : 'unstable', y: Math.abs(E4.s[1]) < 2 ? 'stable' : 'unstable', hx: E4.s[0] / 2, hy: E4.s[1] / 2, turned: true }
       : { x: 'unstable', y: 'unstable', hx: NaN, hy: NaN, turned: true }) : { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
-    Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin,
+    Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin, sens,
     gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx: E4 && E4.stable ? along[0] && along[0].qx : qx, qy: E4 && E4.stable ? along[0] && along[0].qy : qy, Q: E4 && E4.stable ? E4.Q : null, along, waists }, axis, match, lam0, segs: B,
   };
 }
@@ -18149,6 +18221,57 @@ function cavReref(G, F) {
   for (let i = 0; i < R.length; i++) { const ph = ref(G, r[i]) - ref(F, r[i]), c = Math.cos(ph), s = Math.sin(ph), a = R[i]; R[i] = a * c - I[i] * s; I[i] = a * s + I[i] * c; }
   return Object.assign(out, { re: R, im: I, z: F.z, zR: F.zR, sphere: F.sphere });
 }
+/* How far a loop's pilot misses itself after one round trip: the start of its next pass (B1)
+   against its first (B0), across and up the beam (the 2D field's own axes, see beamAxes) and
+   in slope, in mm. A misaligned loop's axis is not its pilot's: each round trip the light
+   comes back that far off, which is how a tilted or tipped mirror walks the field. */
+function cavMiss(B0, B1) {
+  if (!B0 || !B1) return null;
+  const dir = b => { const d = b.d3 || [b.dx, b.dy, b.uz || 0], l = Math.hypot(d[0], d[1], d[2]); return [d[0] / l, d[1] / l, d[2] / l]; };
+  const d0 = dir(B0), d1 = dir(B1), [ex, ey] = beamAxes(d0);
+  const D = [B1.x0 - B0.x0, B1.y0 - B0.y0, (B1.z0 || 0) - (B0.z0 || 0)];
+  // back along the ray to the first pass's plane, square to it
+  const t = vdot3(D, d0), P = [D[0] - t * d1[0], D[1] - t * d1[1], D[2] - t * d1[2]];
+  const m = { dx: vdot3(P, ex), dy: vdot3(P, ey), tx: vdot3(d1, ex), ty: vdot3(d1, ey) };
+  m.size = Math.hypot(m.dx, m.dy) + 1e3 * Math.hypot(m.tx, m.ty);
+  return m;
+}
+/* A 2D field moved across its grid by (dx, dy) and tilted by (tx, ty), its light going as
+   e^{-ikz}: the field the next pass brings, put back into the first pass's frame */
+function cavShift(G, m) {
+  const N = G.N, k = 2 * Math.PI * G.n / G.lam0, out = Object.assign({}, G);
+  const ref = (st, x) => popInside(st.z, st.zR) ? 0 : -k * x * x / (2 * st.z);
+  // moved by the Fourier shift theorem, exact for a field well inside its grid (interpolating
+  // instead loses a little each round trip, which a cavity of high finesse adds up)
+  const sx = m.dx / G.ax.d, sy = m.dy / G.ay.d;
+  const ramp = s0 => { const c = new Float64Array(N), sn = new Float64Array(N); for (let q = 0; q < N; q++) { const f = q < N / 2 ? q : q === N / 2 ? 0 : q - N, a = -2 * Math.PI * f * s0 / N; c[q] = Math.cos(a) / N; sn[q] = Math.sin(a) / N; } if (s0 !== Math.round(s0)) { c[N / 2] = Math.cos(Math.PI * s0) / N; sn[N / 2] = 0; } else { c[N / 2] = Math.cos(Math.PI * s0) / N; sn[N / 2] = 0; } return [c, sn]; };
+  const [cx0, sx0] = ramp(sx), [cy0, sy0] = ramp(sy), lr = new Float64Array(N), li = new Float64Array(N);
+  const line = (R, I, at, stride, c, sn) => {
+    for (let q = 0; q < N; q++) { lr[q] = R[at + q * stride]; li[q] = I[at + q * stride]; }
+    fft(lr, li, -1);
+    for (let q = 0; q < N; q++) { const a = lr[q], b = li[q]; lr[q] = a * c[q] - b * sn[q]; li[q] = a * sn[q] + b * c[q]; }
+    fft(lr, li, 1);
+    for (let q = 0; q < N; q++) { R[at + q * stride] = lr[q]; I[at + q * stride] = li[q]; }
+  };
+  for (const [kr, ki] of fieldComps(G)) {
+    const R = new Float64Array(G[kr]), I = new Float64Array(G[ki]);
+    if (sx) for (let j = 0; j < N; j++) line(R, I, j * N, 1, cx0, sx0);
+    if (sy) for (let i = 0; i < N; i++) line(R, I, i, N, cy0, sy0);
+    for (let j = 0; j < N; j++) {
+      const y = (j - N / 2) * G.ay.d, ys = y - m.dy;
+      for (let i = 0; i < N; i++) {
+        const o = j * N + i; if (R[o] === 0 && I[o] === 0) continue;
+        // the stored field is the light less its reference curvature: moved, that is taken back
+        // off where it came from and put on where it lands; then the tilt about where it lands
+        const x = (i - N / 2) * G.ax.d, xs = x - m.dx;
+        const ph = ref(G.ax, xs) - ref(G.ax, x) + ref(G.ay, ys) - ref(G.ay, y) - k * (m.tx * xs + m.ty * ys), c = Math.cos(ph), sn = Math.sin(ph), a = R[o];
+        R[o] = a * c - I[o] * sn; I[o] = a * sn + I[o] * c;
+      }
+    }
+    out[kr] = R; out[ki] = I;
+  }
+  return out;
+}
 /* v -= c q, in place (v's own arrays: v is always a fresh round trip's output) */
 function cavSubInPlace(v, c, q) {
   for (const [kr, ki] of (v.ax ? fieldComps(v) : [['re', 'im']])) {
@@ -18170,6 +18293,7 @@ function* cavRoundTrip(ctx, F) {
     yield;
   }
   cur = cavReref(cur, F);
+  if (ctx.miss) cur = cavShift(cur, ctx.miss);
   const g = ctx.gamma ? [ctx.gamma[0] * (ctx.norm || 1), ctx.gamma[1] * (ctx.norm || 1)] : ctx.norm && ctx.norm !== 1 ? [ctx.norm, 0] : null;
   return g ? cavLin(cur, [[g, cur]]) : cur;
 }
@@ -18220,7 +18344,9 @@ function* cavSteady(inst, beams, b, decision0, eng) {
     const t = [(J0[0] * Jr[0] + J0[1] * Jr[1] + J0[2] * Jr[2] + J0[3] * Jr[3]) / n0, (J0[0] * Jr[1] - J0[1] * Jr[0] + J0[2] * Jr[3] - J0[3] * Jr[2]) / n0];
     gamma = [t[0], -t[1]];
   }
-  const ctx = { eng, steps, gamma };
+  // a loop whose pilot misses itself: the field walks with it each round trip (only the 2D field can)
+  const miss = eng === '2d' ? cavMiss(beams[path[s]], beams[path[s + p]]) : null;
+  const ctx = { eng, steps, gamma, miss: miss && miss.size > 1e-9 ? miss : null };
   // a first round trip settles every surface's grid
   const gSave = ctx.gamma; ctx.gamma = null;
   const Tb = yield* cavRoundTrip(ctx, b);
@@ -18241,7 +18367,8 @@ function* cavSteady(inst, beams, b, decision0, eng) {
   const beta = norm(b);
   if (!(beta > 0)) return null;
   const Q = [cavLin(b, [[[1 / beta, 0], b]])], H = [];
-  const mMax = eng === '2d' ? 20 : 40;
+  // (a misaligned loop's light is spread over several of its modes: it needs more of them)
+  const mMax = eng === '2d' ? (ctx.miss ? 40 : 20) : 40;
   let m = 0;
   for (let k = 0; k < mMax; k++) {
     let v = yield* cavRoundTrip(ctx, Q[k]);
@@ -19928,6 +20055,11 @@ function* popRunGen(beams, srcs, opts = {}) {
     if (!popRoundEv(b.ev)) { if (!why.has(b.src)) why.set(b.src, new Set()); why.get(b.src).add(b.ev.el); }
   });
   // a beam of M^2 above 1 is a sum of Hermite-Gauss modes, which are not round; so is a higher-order mode
+  // and a loop whose pilot misses itself (a mirror tilted or tipped off its axis) walks the light off it
+  if (!opts.noCavity) for (const L of cavLoops(beams)) {
+    const B0 = beams[L.path[L.s]], m = cavMiss(B0, beams[L.path[L.s + L.p]]);
+    if (B0 && bySrc.has(B0.src) && m && m.size > 1e-9) { if (!why.has(B0.src)) why.set(B0.src, new Set()); why.get(B0.src).add(B0.ev && B0.ev.el); }
+  }
   const engine = new Map(srcs.map(e => [e.id, (e.popModel === '2d' || why.has(e.id) || m2Of(e) > 1 || isHigherMode(e)) ? '2d' : 'round']));
   const segs = [], notes = { clipped: new Set(), steep: new Set(), coarse: new Set(), why, engine };
   // one root per launch, or per mode of a launch for a beam of M^2 above 1: the modes add as
@@ -25617,6 +25749,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    '<b>Misaligned cavities</b>: a mirror turned or (in the experimental 3D view) tipped, or a beam sent in off the axis, now walks the field round the cavity as a real one does, so it transmits only the share of the light in its mode. The cavity\u2019s panel gives its axis across and up from the input beam, mode matching with the offset and tilt both ways, and how far each mirror walks the axis per \u00b5rad. Tips and rolls are kept to a millionth of a degree.',
     'In the experimental 3D view, <b>move and turn a part along all six axes</b>: click it for three double-ended arrows out of both sides of it (Jek orange along x, chip green along y, Jek blue up), and click it again for three rings crossing round it as Onshape\u2019s do, each the colour of the axis it turns about (blue turns it to face another way, green tips it, orange rolls it about its own axis; Shift for 15\u00b0 steps, Alt a tenth as fast). A third click brings the arrows back.',
     'With the experimental 3D view, <b>crystals turn their optic axis</b> with their tip and roll: a rolled beam displacer walks its beam off along the roll, a Wollaston prism rolled 45\u00b0 splits p light into two equal beams on the diagonal, and the extraordinary index and walk-off follow the light\u2019s own angle to the turned axis. A <b>rolled doubling crystal</b> converts the light along its turned axis, and its harmonic leaves polarised along it.',
     'With the experimental 3D view, a <b>rolled grating</b> sends its orders round with its grooves (rolled 90\u00b0, up and down instead of across), and a <b>rolled waveplate, polariser or isolator</b> turns its axis with it, so one rolled with a rolled source stays aligned to it. An AI-written bench may now put parts one over the other, such as a periscope\u2019s two mirrors, at different heights.',
@@ -26838,7 +26971,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       fwhm: (() => { const s = v.res.scan, n = s.length; let k = 0; for (let i = 1; i < n; i++) if (s[i] > s[k]) k = i; const half = 0.5 * v.res.Plock; let a = v.res.dLock, b = v.res.dLock; const f = d => v.res.at(d).P; let lo = a, hi = a + 0.5; for (let it = 0; it < 60; it++) { const mid = 0.5 * (lo + hi); if (f(mid) > half) lo = mid; else hi = mid; } return 2 * (lo - v.res.dLock) / (2 * Math.PI); })() } : { id: k }); },
     cavities() { return findCavities().map(c => ({ name: c.name, kind: c.kind, names: c.names, p: c.p, Lopt: c.Lopt, fsr: c.fsr, rho: c.rho, finesse: c.finesse, linewidth: c.linewidth,
       buildup: c.buildup, Tin: c.Tin, stability: c.stability, gouy: c.gouy, tms: c.tms, waists: c.mode.waists, along: c.mode.along.map(a => ({ name: a.name, wx: a.wx, wy: a.wy })),
-      axis: c.axis, match: c.match, Mx: c.Mx, My: c.My, M4: c.M4, Q: c.mode.Q, angles: c.mode.along.map(a => a.angle) })); },
+      axis: c.axis, match: c.match, sens: c.sens, Mx: c.Mx, My: c.My, M4: c.M4, Q: c.mode.Q, angles: c.mode.along.map(a => a.angle) })); },
     vfPupilOf(name) {
       const el = this.byName(name), R = popRun(lastTrace.beams, allSources());
       const sg = R.segs.find(s2 => s2.b.endEl === el.id); if (!sg) return null;

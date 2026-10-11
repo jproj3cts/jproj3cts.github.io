@@ -122,6 +122,26 @@ in each direction, which makes the beam's $$M^2$$ exactly the one set.
 
 A source can instead launch a Hermite–Gauss mode $$\mathrm{HG}_{mn}$$ or a Laguerre–Gauss mode $$\mathrm{LG}_{pl}$$. Either is carried as a *coherent* sum of Hermite–Gauss modes, each with its own Gouy phase $$(m + n + 1)\arctan(z/z_R)$$, so a cylindrical-lens mode converter turns LG into HG as it does in the lab.
 
+### Beams through turned optics
+
+A part tipped or rolled out of the plane (a cylinder at $$30°$$, a curved mirror tipped and turned) couples the beam's two axes, and the beam is no longer two $$q$$'s, one across and one up. It is then carried as a complex symmetric $$2\times2$$ matrix $$Q$$ (Arnaud's general astigmatic beam), its field
+
+$$
+E \propto \frac{1}{\sqrt{\det Q}}\,\exp\!\left(-\frac{ik}{2}\,\mathbf r^{\mathsf T} Q^{-1}\,\mathbf r\right)
+$$
+
+over $$\mathbf r = (x, y)$$ in the beam's own axes. Each part's $$4\times4$$ ray matrix comes from rays traced through its real surface in 3D, through its tip and roll, with the cross terms kept: a thin part takes $$Q \to (A\,Q)(C\,Q + D)^{-1}$$, with $$D = A^{-\mathsf T}$$, and free space adds $$L/n$$ to its diagonal. With every part upright, $$Q$$ is diagonal and the beam is the two $$q$$'s as before. A photodiode or fibre tip rebuilds the field from $$Q$$, and the 3D view draws its ellipse, turned as it is.
+
+Higher-order modes ride in the beam's own principal frame, each axis's Gouy phase gathered over every stretch of free space (which is what turns one mode into another). Each part is taken as a stretch along its own axes, a turn or mirror, and a lens. Where a part with axes of its own meets a beam that is round, or lined up with it already, the Hermite–Gauss sum is turned into the part's frame: exactly, order by order, after the Gouy phase so far is folded into it. A part that turns or mirrors the image carries the frame with it. So an $$\mathrm{HG}_{10}$$ beam through a converter rolled $$45°$$ leaves as $$\mathrm{LG}_{01}$$, and a Dove prism rolled $$\rho$$ turns a mode by $$2\rho$$. A beam twisted by parts at odd angles to each other has no such frame: its arrival is marked, and a photodiode or fibre tip says its modes are only roughly placed.
+
+A cavity whose parts turn the beam's axes is solved from its $$4\times4$$ round trip $$M$$. Its eigenvalues come in pairs $$\lambda, 1/\lambda$$; with $$s = \lambda + 1/\lambda$$,
+
+$$
+s^2 - \operatorname{tr}(M)\,s + b - 2 = 0, \qquad b = \tfrac12\left(\operatorname{tr}(M)^2 - \operatorname{tr}(M^2)\right),
+$$
+
+and the loop is stable when both $$s$$ lie in $$(-2, 2)$$: $$\lambda = e^{\pm i\theta}$$, $$\theta$$ each axis's round-trip Gouy phase. The mode is $$Q = X\,Y^{-1}$$ from an eigenvector $$[X; Y]$$ of each pair, taken so the beam is confined. Its widths along its own axes, its waists, its turn and its mode matching follow from $$Q$$.
+
 ## The diffracted field
 
 The diffracted field is worked out by *physical optics propagation*: a sampled field travels along each branch of the beam tree, with a pilot Gaussian beam (the branch's own $$q$$) travelling alongside to carry the fast-varying part analytically.
@@ -271,7 +291,7 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- Parts sit at heights and can be tipped and rolled, but are placed on the bench plane. The Gaussian beam's matrices and the diffracted field do not yet see a roll: a cylinder rolled to 45° (a mode converter) is traced right by the rays, but its beam is not. A tipped lens has no edge for light to meet between its faces. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane (the beam's size carries on up a vertical leg, but the diffracted field is not propagated along one).
+- Parts sit at heights and can be tipped and rolled, but are placed on the bench plane. The Gaussian beam follows tips and rolls (see [beams through turned optics](#beams-through-turned-optics)); the diffracted field does not yet. A tipped lens has no edge for light to meet between its faces. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane (the beam's size carries on up a vertical leg, but the diffracted field is not propagated along one).
 - A cavity's mode, the diffracted field and a screen's views take the beam as centred out of the plane (a photodiode's and a fibre tip's Gaussian readings do not); an iris's opening is not narrowed by a beam passing above or below its centre.
 - The round field assumes a figure of revolution about the axis. Off-axis and tilted cases use the 2D field, which is paraxial in free space and slower.
 - Rays and fields agree at the beam's centre by construction. Far from it, the Gaussian beam's paraxial model and the exact rays can differ, as they should.

@@ -16480,17 +16480,19 @@ function cavityCard(c) {
       ['Input coupler lets in', c.Tin !== null ? (100 * c.Tin).toPrecision(3) + '%' : 'n/a'],
       ['Build-up on resonance', c.buildup !== null ? String(+c.buildup.toPrecision(4)) + '\u00d7' : 'n/a'],
       ['Stability', c.stability.x === c.stability.y && Math.abs(c.stability.hx - c.stability.hy) < 1e-9 ? c.stability.x + ', m = ' + (+c.stability.hx.toFixed(4))
+        : c.stability.turned ? c.stability.x + ' along one axis (m = ' + (+c.stability.hx.toFixed(4)) + '), ' + c.stability.y + ' along the other (m = ' + (+c.stability.hy.toFixed(4)) + '); its axes turned out of the plane'
         : c.stability.x + ' in the plane, ' + c.stability.y + ' out of it'],
     ];
     {
       // one line for a waist the two planes share, two where they differ
-      const wx = c.mode.waists.filter(wv => wv.plane === 'x'), wy = c.mode.waists.filter(wv => wv.plane === 'y');
+      const [pa, pb] = c.mode.waists.some(wv => wv.plane === 'a') ? ['a', 'b'] : ['x', 'y'];
+      const wx = c.mode.waists.filter(wv => wv.plane === pa), wy = c.mode.waists.filter(wv => wv.plane === pb);
       const where = wv => wv.at < 1e-6 ? 'on ' + wv.after : fmtLen(wv.at) + ' past ' + wv.after;
       const alike = wx.length === wy.length && wx.every((a, i) => Math.abs(a.w0 - wy[i].w0) < 1e-6 * a.w0 && Math.abs(a.at - wy[i].at) < 1e-6);
       if (alike) for (const wv of wx) rows.push(['Waist', fmtLen(wv.w0) + ', ' + where(wv)]);
-      else for (const wv of c.mode.waists) rows.push(['Waist ' + (wv.plane === 'x' ? 'in the plane' : 'out of it'), fmtLen(wv.w0) + ', ' + where(wv)]);
+      else for (const wv of c.mode.waists) rows.push(['Waist ' + ({ x: 'in the plane', y: 'out of it', a: 'along one axis', b: 'along the other' })[wv.plane], fmtLen(wv.w0) + ', ' + where(wv)]);
     }
-    for (const a of c.mode.along) rows.push(['Mode on ' + a.name, fmtLen(a.wx) + (Math.abs(a.wx - a.wy) > 1e-6 * a.wx ? ' \u00d7 ' + fmtLen(a.wy) : '')]);
+    for (const a of c.mode.along) rows.push(['Mode on ' + a.name, fmtLen(a.wx) + (Math.abs(a.wx - a.wy) > 1e-6 * a.wx ? ' \u00d7 ' + fmtLen(a.wy) + (a.Q && Math.abs(Math.sin(2 * a.angle)) > 1e-6 ? ', turned ' + (a.angle / deg).toFixed(1) + '\u00b0' : '') : '')]);
     if (c.gouy.x !== null) rows.push(['Round-trip Gouy phase', (c.gouy.x * 180 / Math.PI).toFixed(2) + '\u00b0' + (c.gouy.y !== null && Math.abs(c.gouy.y - c.gouy.x) > 1e-9 ? ', ' + (c.gouy.y * 180 / Math.PI).toFixed(2) + '\u00b0' : '')]);
     if (c.tms.x !== null) rows.push(['Transverse mode spacing', fmtHz(c.tms.x) + (c.tms.y !== null && Math.abs(c.tms.y - c.tms.x) > 1 ? ', ' + fmtHz(c.tms.y) : '')]);
     if (c.match) rows.push(['Mode matching', (100 * c.match.total).toPrecision(4) + '%']);
@@ -17633,6 +17635,68 @@ function beamQM(B, i, lam0, comps, th0) {
 }
 /* q through a reduced matrix: q is reduced too (the physical q over the index) */
 const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q[1], dr = m[2] * q[0] + m[3], di = m[2] * q[1], den = dr * dr + di * di; return [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den]; };
+/* ---------- A cavity whose parts turn the beam's axes ----------
+   Its round trip is a 4x4 ray matrix M (symplectic): its eigenvalues come in pairs l, 1/l, so
+   with s = l + 1/l they solve s^2 - tr(M) s + (b - 2) = 0, b = (tr(M)^2 - tr(M^2)) / 2. The loop is
+   stable when both s are real and inside (-2, 2): l = e^{+-i theta}, theta each axis's round-trip
+   Gouy phase. Its mode is Q = X Y^-1 from one eigenvector of each pair, [X; Y] (heights over
+   reduced slopes), taken so that Im Q is positive: the beam confined */
+const ev4 = m => {
+  const A = m.m4 ? m.m4.A : [[m.x[0], 0], [0, m.y[0]]], C = m.m4 ? m.m4.C : [[m.x[2], 0], [0, m.y[2]]];
+  const d = A[0][0] * A[1][1] - A[0][1] * A[1][0], D = [[A[1][1] / d, -A[1][0] / d], [-A[0][1] / d, A[0][0] / d]];
+  return [[A[0][0], A[0][1], 0, 0], [A[1][0], A[1][1], 0, 0], [C[0][0], C[0][1], D[0][0], D[0][1]], [C[1][0], C[1][1], D[1][0], D[1][1]]];
+};
+const free4 = L => [[1, 0, L, 0], [0, 1, 0, L], [0, 0, 1, 0], [0, 0, 0, 1]];
+const mul4 = (a, b) => a.map((r, i) => [0, 1, 2, 3].map(j => r[0] * b[0][j] + r[1] * b[1][j] + r[2] * b[2][j] + r[3] * b[3][j]));
+function cav4Eigen(M) {
+  const tr = M[0][0] + M[1][1] + M[2][2] + M[3][3], M2 = mul4(M, M), tr2 = M2[0][0] + M2[1][1] + M2[2][2] + M2[3][3];
+  const b = 0.5 * (tr * tr - tr2), disc = tr * tr - 4 * (b - 2);
+  if (!(disc >= -1e-12)) return { stable: false, s: null };
+  const sq = Math.sqrt(Math.max(0, disc)), s = [0.5 * (tr + sq), 0.5 * (tr - sq)];
+  if (!(Math.abs(s[0]) < 2 - 1e-12 && Math.abs(s[1]) < 2 - 1e-12)) return { stable: false, s };
+  // the eigenvectors of l: the null space of M - l I, by elimination with pivoting (one vector,
+  // or two where both axes share l, as in a loop that is round)
+  const nullOf = l => {
+    const N = M.map((r, i) => r.map((v, j) => i === j ? [v - l[0], -l[1]] : [v, 0])), piv = [], scale = Math.max(...M.flat().map(Math.abs), 1);
+    let row = 0;
+    for (let col = 0; col < 4 && row < 4; col++) {
+      let best = row; for (let i = row + 1; i < 4; i++) if (Math.hypot(...N[i][col]) > Math.hypot(...N[best][col])) best = i;
+      if (Math.hypot(...N[best][col]) < 1e-8 * scale) continue;
+      [N[row], N[best]] = [N[best], N[row]];
+      for (let i = 0; i < 4; i++) if (i !== row) { const f = cz.d(N[i][col], N[row][col]); for (let j = 0; j < 4; j++) N[i][j] = cz.s(N[i][j], cz.m(f, N[row][j])); }
+      piv.push(col); row++;
+    }
+    const free = [0, 1, 2, 3].filter(c => !piv.includes(c));
+    return free.map(fc => { const v = [[0, 0], [0, 0], [0, 0], [0, 0]]; v[fc] = [1, 0]; piv.forEach((pc, r) => { v[pc] = cz.r(cz.d(N[r][fc], N[r][pc]), -1); }); return v; });
+  };
+  const lam = si => { const c = si / 2, sn = Math.sqrt(Math.max(0, 1 - c * c)); return [[c, sn], [c, -sn]]; };
+  const tryQ = (v1, v2) => {
+    const X = [v1[0], v2[0], v1[1], v2[1]], Y = [v1[2], v2[2], v1[3], v2[3]], dY = ccDet(Y);
+    if (!(Math.hypot(dY[0], dY[1]) > 1e-300)) return null;
+    const Q = ccMul(X, ccInv(Y)), im = [Q[0][1], 0.5 * (Q[1][1] + Q[2][1]), Q[3][1]];
+    if (!(im[0] > 0 && im[0] * im[2] - im[1] * im[1] > 0)) return null;
+    const sym = cz.r(cz.a(Q[1], Q[2]), 0.5);
+    return { stable: true, s, Q: [Q[0], sym, sym, Q[3]], theta: [Math.acos(s[0] / 2), Math.acos(s[1] / 2)] };
+  };
+  if (Math.abs(s[0] - s[1]) < 1e-7) {
+    // both axes alike: one l with a plane of eigenvectors
+    for (const l of lam(s[0])) { const V = nullOf(l); if (V.length >= 2) { const r = tryQ(V[0], V[1]); if (r) return r; } }
+  }
+  for (const a of lam(s[0])) for (const bq of lam(s[1])) {
+    const V1 = nullOf(a), V2 = nullOf(bq);
+    if (!V1.length || !V2.length) continue;
+    const r = tryQ(V1[0], V2[0]); if (r) return r;
+  }
+  return { stable: false, s };
+}
+// the power coupling of two beams given as Q's at one plane: sqrt(det 2A1 det 2A2) / |det G|
+function QOverlap(Q1, Q2, lam0) {
+  const k = 2 * Math.PI / lam0, P1 = ccInv(Q1), P2 = ccInv(Q2);
+  const A = P => [[-0.5 * k * P[0][1], -0.5 * k * P[1][1]], [-0.5 * k * P[2][1], -0.5 * k * P[3][1]]], d2 = M => 4 * (M[0][0] * M[1][1] - M[0][1] * M[1][0]);
+  const G = [0, 1, 2, 3].map(i => cz.m([0, 0.5 * k], cz.s(P1[i], [P2[i][0], -P2[i][1]])));
+  const dG = ccDet(G);
+  return Math.sqrt(Math.max(0, d2(A(P1)) * d2(A(P2)))) / Math.hypot(dG[0], dG[1]);
+}
 /* The self-consistent q of a round-trip matrix, or null if the loop is not stable */
 function cavEigenQ(m) {
   const [A, B, C, D] = m, h = 0.5 * (A + D);
@@ -17717,7 +17781,15 @@ function cavAnalyse(path, s, p, beams) {
     return M;
   };
   const Mx = plane('x'), My = plane('y');
-  const Lopt = B.reduce((a, b) => a + b.n * b.len, 0), fsr = c0 / (Lopt * 1e-3);
+  // a loop with a part turned out of the plane: its 4x4 round trip (see cav4Eigen)
+  const gen4 = mats.some(m => m.m4) || evs.some(ev => ev && ev.surf && ev.surf.tilt);
+  let E4 = null;
+  if (gen4) {
+    let M = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+    for (let j = 0; j < p; j++) { M = mul4(free4((B[j].len3 || B[j].len) / B[j].n), M); M = mul4(ev4(mats[(j + 1) % p]), M); }
+    E4 = Object.assign(cav4Eigen(M), { M });
+  }
+  const Lopt = B.reduce((a, b) => a + b.n * (b.len3 || b.len), 0), fsr = c0 / (Lopt * 1e-3);
   // the surfaces, in order, and whether it is a standing (linear) or travelling (ring) loop
   const retro = evs.filter(ev => ev && ev.dOut && ev.dIn[0] * ev.dOut[0] + ev.dIn[1] * ev.dOut[1] < -0.999).length;
   const kind = retro >= 2 ? 'linear' : 'ring';
@@ -17756,8 +17828,20 @@ function cavAnalyse(path, s, p, beams) {
       ax = qThrough(mats[(j + 1) % p].x, qThrough(mfree(L, n), ax)); ay = qThrough(mats[(j + 1) % p].y, qThrough(mfree(L, n), ay));
     }
   }
+  if (E4 && E4.stable) {
+    // the mode along the loop from Q: its widths along its own axes, and the q's along them
+    along.length = 0; waists = [];
+    let Q = E4.Q;
+    for (let j = 0; j < p; j++) {
+      const L = B[j].len3 || B[j].len, n = B[j].n, [qa, qb] = QEig(Q), P = ccInv(Q), a = -P[0][1], b2 = -P[1][1], c = -P[3][1];
+      const m1 = 0.5 * (a + c) + Math.hypot(0.5 * (a - c), b2), m2 = 0.5 * (a + c) - Math.hypot(0.5 * (a - c), b2), k = 2 * Math.PI / lam0;
+      along.push({ name: names[j], wx: Math.sqrt(2 / (k * m2)), wy: Math.sqrt(2 / (k * m1)), qx: qa, qy: qb, Q, angle: 0.5 * Math.atan2(2 * b2, a - c), len: L, n, b: B[j] });
+      for (const [q, pl] of [[qa, 'a'], [qb, 'b']]) { const t = -q[0] * n; if (t >= 0 && t <= L) waists.push({ plane: pl, seg: j, at: t, w0: Math.sqrt(lam0 * q[1] / Math.PI), after: names[j] }); }
+      Q = QThroughEvent(mats[(j + 1) % p], QFree(Q, L / n));
+    }
+  } else if (E4) { along.length = 0; waists = []; }
   const gouy = m => { const h = 0.5 * (m[0] + m[3]); return Math.abs(h) <= 1 ? Math.sign(m[1] || 1) * Math.acos(h) : null; };
-  const gx = gouy(Mx), gy = gouy(My);
+  const gx = E4 ? (E4.stable ? E4.theta[0] : null) : gouy(Mx), gy = E4 ? (E4.stable ? E4.theta[1] : null) : gouy(My);
   const tms = g => g === null ? null : ((g / (2 * Math.PI)) % 1 + 1) % 1 * fsr;
   // how the light gets in: the branch into the loop just before it starts repeating
   const entry = s >= 1 ? path[s - 1] : null, before = s >= 2 ? path[s - 2] : null;
@@ -17765,7 +17849,16 @@ function cavAnalyse(path, s, p, beams) {
   const buildup = Tin !== null && rho !== null ? Tin / ((1 - rho) ** 2) : null;
   // mode matching: the input beam carried to the loop by the same matrices, against the mode
   let match = null;
-  if (qx && qy && entry) {
+  if (E4 && E4.stable && entry) {
+    // the input carried to the loop's start by the same matrices, against the mode there
+    const root = path[0], q0 = [root.qr / root.n, root.qi / root.n];
+    let Qi = [q0, [0, 0], [0, 0], q0];
+    for (let j = 0; j < s && Qi; j++) {
+      const b = path[j], m = cavEventABCD(path[j + 1].ev, lam0);
+      Qi = m ? QThroughEvent(m, QFree(Qi, (b.len3 || b.len) / b.n)) : null;
+    }
+    if (Qi) { const eta = QOverlap(E4.Q, Qi, lam0); match = { x: null, y: null, total: eta }; }
+  } else if (!E4 && qx && qy && entry) {
     const root = path[0], q0 = [root.qr / root.n, root.qi / root.n];
     let ix = q0, iy = q0;
     for (let j = 0; j < s; j++) {
@@ -17792,9 +17885,11 @@ function cavAnalyse(path, s, p, beams) {
   }
   const stab = m => { const h = 0.5 * (m[0] + m[3]); return Math.abs(Math.abs(h) - 1) < 1e-9 ? 'marginal' : Math.abs(h) < 1 ? 'stable' : 'unstable'; };
   return {
-    kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, stability: { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
+    kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, M4: E4 ? E4.M : null,
+    stability: E4 ? (E4.s ? { x: Math.abs(E4.s[0]) < 2 ? 'stable' : 'unstable', y: Math.abs(E4.s[1]) < 2 ? 'stable' : 'unstable', hx: E4.s[0] / 2, hy: E4.s[1] / 2, turned: true }
+      : { x: 'unstable', y: 'unstable', hx: NaN, hy: NaN, turned: true }) : { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
     Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin,
-    gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx, qy, along, waists }, axis, match, lam0, segs: B,
+    gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx: E4 && E4.stable ? along[0] && along[0].qx : qx, qy: E4 && E4.stable ? along[0] && along[0].qy : qy, Q: E4 && E4.stable ? E4.Q : null, along, waists }, axis, match, lam0, segs: B,
   };
 }
 
@@ -25260,6 +25355,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'With the experimental 3D view, <b>Gaussian beams through turned optics</b>: a beam through a part tipped or rolled out of the plane is carried as one complex 2\u00d72 matrix (a general astigmatic beam), so its ellipse turns with a rolled cylinder, a photodiode or fibre tip takes it as it is, and the 3D view draws it turned. Higher-order modes go with it: an HG<sub>10</sub> beam through a mode converter rolled 45\u00b0 leaves as an LG<sub>01</sub> vortex, a rolled Dove prism turns a mode by twice its roll, and a beam twisted by parts at odd angles is marked. A cavity with a rolled or tipped part is solved from its 4\u00d74 round trip, its mode\u2019s axes turned with it.',
     'With the experimental 3D view, photodiodes and fibre tips take a beam <b>where and as it lands</b>: above or below their centre, sloped, or on a face tipped or rolled out of the plane, the footprint stretched up the face as it should be. A fibre tip raised or tipped off a beam couples exactly what one moved or turned across it does; a small beam landing well off a large diode\u2019s centre is no longer missed; and moving a fibre tip up or down re-solves its fibre network at once.',
     'With the experimental 3D view, <b>roll</b> any free-space part about its own axis (its Roll): a cylindrical lens at 45\u00b0, a grating with its grooves turned, and a new <b>Dove prism</b> (a prism shape), which turns the image by twice its roll. A rolled source turns its rays and its polarisation with it.',
     'With the experimental 3D view, <b>tip any free-space part</b> out of the plane (a lens, a plate, a cube, a grating, a screen, a source), by its blue knob or its Tip, and <b>periscopes</b>: light sent straight up or down is followed, so two mirrors tipped 45\u00b0 one over the other lift a beam to a new height, turning its polarisation as a real periscope does when it turns the beam too. A tipped plate shifts the beam up as a turned one shifts it across; a tipped lens shows the aberrations of one met at an angle.',
@@ -26476,7 +26572,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       fwhm: (() => { const s = v.res.scan, n = s.length; let k = 0; for (let i = 1; i < n; i++) if (s[i] > s[k]) k = i; const half = 0.5 * v.res.Plock; let a = v.res.dLock, b = v.res.dLock; const f = d => v.res.at(d).P; let lo = a, hi = a + 0.5; for (let it = 0; it < 60; it++) { const mid = 0.5 * (lo + hi); if (f(mid) > half) lo = mid; else hi = mid; } return 2 * (lo - v.res.dLock) / (2 * Math.PI); })() } : { id: k }); },
     cavities() { return findCavities().map(c => ({ name: c.name, kind: c.kind, names: c.names, p: c.p, Lopt: c.Lopt, fsr: c.fsr, rho: c.rho, finesse: c.finesse, linewidth: c.linewidth,
       buildup: c.buildup, Tin: c.Tin, stability: c.stability, gouy: c.gouy, tms: c.tms, waists: c.mode.waists, along: c.mode.along.map(a => ({ name: a.name, wx: a.wx, wy: a.wy })),
-      axis: c.axis, match: c.match, Mx: c.Mx, My: c.My })); },
+      axis: c.axis, match: c.match, Mx: c.Mx, My: c.My, M4: c.M4, Q: c.mode.Q, angles: c.mode.along.map(a => a.angle) })); },
     vfPupilOf(name) {
       const el = this.byName(name), R = popRun(lastTrace.beams, allSources());
       const sg = R.segs.find(s2 => s2.b.endEl === el.id); if (!sg) return null;

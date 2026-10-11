@@ -5719,6 +5719,31 @@ const TESTS = [
     },
   },
   {
+    name: 'A cavity with a rolled cylinder has its mode turned with it',
+    why: 'a linear cavity of two R = 300 mm mirrors with a lens between them, solved by its 4x4 round trip: a round lens given a roll changes nothing; a cylinder rolled 90° gives the mode of one curved out of the plane; rolled 30°, the same widths, waists and Gouy phases with the mode’s axes turned 30° (largest relative difference)',
+    want: 0, tol: 1e-7, unit: '',
+    run: J => {
+      const cav = lens => { J.load({ format: 'jekray', version: 1, maxBounces: 40, minPower: 1e-4, elements: [
+        { type: 'source', id: 'S', name: 'Seed', x: -30, y: 0, angle: 0, gauss: true, w0: 0.2, z0: 30, wavelength: 1064, rays: 1, width: 0.4, power: 1, pol: 's' },
+        { type: 'mirror', id: 'M1', name: 'M1', x: 0, y: 0, angle: 0, length: 12.7, reflect: 99, R: 300 },
+        Object.assign({ type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 100 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] }, lens),
+        { type: 'mirror', id: 'M2', name: 'M2', x: 100, y: 0, angle: 180, length: 12.7, reflect: 99, R: 300 }] }); J.trace(); return J.cavities()[0]; };
+      const rel = (a, b) => Math.abs(a / b - 1);
+      const P = cav({}), R = cav({ roll: 30 }), O = cav({ cyl: 'out' }), C9 = cav({ cyl: 'plane', roll: 90 }), C3 = cav({ cyl: 'plane', roll: 30 });
+      if (![P, R, O, C9, C3].every(c => c && c.along.length)) return NaN;
+      const d = [];
+      P.along.forEach((a, j) => d.push(rel(R.along[j].wx, a.wx), rel(R.along[j].wy, a.wy)));
+      d.push(rel(R.gouy.x, P.gouy.x), rel(R.gouy.y, P.gouy.y));
+      // out of the plane: O's widths across and up; the rolled ones' along their own axes, smaller first
+      O.along.forEach((a, j) => { const lo = Math.min(a.wx, a.wy), hi = Math.max(a.wx, a.wy);
+        for (const c of [C9, C3]) d.push(rel(Math.min(c.along[j].wx, c.along[j].wy), lo), rel(Math.max(c.along[j].wx, c.along[j].wy), hi)); });
+      for (const c of [C9, C3]) d.push(rel(Math.min(c.gouy.x, c.gouy.y), Math.min(O.gouy.x, O.gouy.y)), rel(Math.max(c.gouy.x, c.gouy.y), Math.max(O.gouy.x, O.gouy.y)));
+      // the axes: 30° (the beam's own axes face the other way on the way back: -30°), modulo a quarter turn
+      d.push(...C3.angles.map(a => Math.abs(Math.sin(2 * (Math.abs(a) - Math.PI / 6)))));
+      return Math.max(...d);
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

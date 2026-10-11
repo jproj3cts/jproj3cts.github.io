@@ -35,6 +35,21 @@ The buttons below the palette open groups of parts.
 
 **The bar** along the top holds the File menu (under the bench's name), **+ Add part**, Undo and Redo, and the View, Sweeps and Help menus.
 
+## The 3D view
+
+The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the tab in three dimensions. Every part sits at the beam height, 75 mm above a breadboard, and is made from its own numbers: a lens from its surfaces, a mirror from its curvature. The light is drawn as the trace has it: rays as lines, and Gaussian beams as tubes as wide as the beam is, in the bench plane and out of it.
+
+| Mouse (Onshape, the default) | Trackpad |
+|---|---|
+| Right-drag: turn | Drag: turn |
+| Middle-drag, or Ctrl+right-drag: pan | Shift-drag, right-drag or two-finger scroll: pan |
+| Scroll: zoom about the pointer | Pinch, or Ctrl+scroll: zoom |
+| Click: select (Shift adds) | Click: select (Shift adds) |
+
+Choose between them with the **Mouse** menu on the 3D view's bar. On a touch screen, one finger turns, two pan and pinch to zoom. **F** fits the view to the parts, **Z** zooms to the selection, and **Shift+1** to **Shift+7** give the front, back, left, right, top, bottom and isometric views, as in Onshape. Click a face, edge or corner of the view cube to look from there. **PNG** saves the view as a picture.
+
+The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. For now it is for tabs of free-space parts only. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
+
 ## Settings and sweeps
 
 Every number in a panel can be typed or dragged. Beside most is **Sweep**: it moves the value back and forth over a range, and the bench follows as it plays. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study.

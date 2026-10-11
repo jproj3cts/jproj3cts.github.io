@@ -152,8 +152,26 @@
   }
 
   /* the tabs, one bench each: a white strip on the bench's top-left corner, its end cut at 45 degrees */
+  /* the 3D view: its canvas over the bench, the 2D / 3D switch, its bar and hint */
+  .rt-v3d { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+  .rt-v3d[hidden] { display: none; }
+  .rt-stage.v3d #minimap, .rt-stage.v3d #measureBar, .rt-stage.v3d #drawHint, .rt-stage.v3d #coords { display: none !important; }
+  .rt-v3dswitch { position: absolute; right: 0; top: 0; z-index: 6; display: flex; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+  .rt-v3dswitch button { height: 1.75rem; margin: 0; border: 0; padding: 0 0.8rem; font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; cursor: pointer; }
+  .rt-v3dswitch button:first-child { border-right: 1px solid rgba(0,0,0,0.12); }
+  .rt-v3dswitch button:last-child { border-top-right-radius: var(--jek-radius); }
+  .rt-v3dswitch button:hover { background: #fff; color: var(--jek-ink); }
+  .rt-v3dswitch button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
+  .rt-v3dswitch button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .rt-v3dbar { position: absolute; right: 8px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 5rem); }
+  .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
+  .rt-v3dbar .rt-btn.off { opacity: 0.55; }
+  .rt-v3dbar select { font: 0.75rem var(--jek-sans); padding: 0.2rem; border-radius: var(--jek-radius); }
+  .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.78); background: rgba(10,13,16,0.55); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
+  .rt-v3dhint[hidden] { display: none; }
+  .rt-v3dhint.faded { opacity: 0; transition: opacity 0.6s ease 1.5s; }
   .rt-benchtabs {
-    position: absolute; left: 0; top: 0; max-width: calc(100% - 2rem);
+    position: absolute; left: 0; top: 0; max-width: calc(100% - 7rem);
     display: flex; flex-wrap: nowrap; align-items: stretch; overflow: hidden;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
   }
@@ -1102,6 +1120,7 @@
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
+            <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" title="This tab in three dimensions: free-space parts only, for now">3D view</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <div class="sep"></div>
@@ -1250,7 +1269,7 @@
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
-    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray2d-ai-guide.md" download>the JEKray2D guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Open ▾ → Pasted text</b> or Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -3298,6 +3317,7 @@ function serialize() {
 }
 
 function loadProject(data) {
+  try { V3D.reset(); } catch (e) { /* not set up yet */ }        // another project: back to 2D, its views forgotten
   loadGen++;
   if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
   if (data.format !== FORMAT) throw new Error('This file is not a .jekray project.');
@@ -5884,6 +5904,10 @@ function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  // a tab shown in 3D draws there instead (the 2D bench under it waits)
+  let in3d = false;
+  try { V3D.sync(); in3d = V3D.active(); } catch (e) { in3d = false; }
+  if (in3d) { updateReadouts(); return; }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // a light bench: the parts as ever, the words dark, the light stronger (see benchLight)
   lightLayer = benchLight(); inBench = true;
@@ -11095,6 +11119,741 @@ const ELEC = (() => {
       lockin(name) { const el = project.elements.find(e => e.name === name); const L = el && solve().lock.get(el.id); return L ? Object.assign({}, L, { outX: undefined, outY: undefined }) : null; },
       scope(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const T = drawScope(cv, el); cv.remove(); return T.map(t => t && { v: t.v ? Array.from(t.v) : null, rows: t.rows || null, sd: t.sd, band: t.band, range: t.range }); },
       spectrum(name) { const el = project.elements.find(e => e.name === name), cv = document.createElement('canvas'); document.body.append(cv); const R = drawSpectrum(cv, el); cv.remove(); return R.tones; },
+    },
+  };
+})();
+
+/* ==========================================================================
+   3D view: a tab of free-space parts seen in three dimensions, turned and zoomed as in a CAD
+   program (Onshape's mouse by default: right-drag turns, middle-drag pans, the wheel zooms;
+   or a trackpad's). The bench is the same: every part sits at the beam height above the
+   breadboard, made from its own numbers (a lens from its surfaces, a mirror from its sag), and
+   the light is drawn as the trace has it, rays as lines and Gaussian beams as tubes as wide as
+   they are in the bench plane and out of it. Nothing is worked out here that the trace has
+   not: it is a view. Tabs with fibre, electronic or chip parts stay 2D for now.
+   three.js is fetched from the site the first time a 3D view opens.
+   ========================================================================== */
+const V3D = (() => {
+  const FREE = new Set(['source', 'detector', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
+    'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'draw']);
+  const BEAM_H = 75;                                     // mm: the beam above the breadboard's top
+  const BOARD_T = 12.7, PITCH = 25;
+  const VIEWS = { front: [0, -1, 0], back: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0], top: [0, -1e-4, 1], bottom: [0, -1e-4, -1], iso: [1, -1, 0.85] };
+  let T = null, RoomEnv = null, loading = null;           // three.js, once loaded
+  let D = null, R = null;                                 // the page's parts, and the renderer's
+  const st = new Map();                                   // per tab: { on, cam: { p, t } }
+  let ctrl = (() => { try { return localStorage.getItem('jek-3d-mouse') === 'trackpad' ? 'trackpad' : 'onshape'; } catch (e) { return 'onshape'; } })();
+  let names = true;
+
+  const blockers = id => project.elements.filter(e => e.bench === id && !FREE.has(e.type));
+  const eligible = id => !blockers(id || project.tab).length;
+  const tabState = () => st.get(project.tab) || null;
+  const active = () => !!(tabState() && tabState().on);
+
+  function load() {
+    if (T) return Promise.resolve();
+    if (!loading) {
+      const base = new URL('../assets/vendor/three/', location.href).href;
+      loading = Promise.all([import(base + 'three.module.min.js'), import(base + 'RoomEnvironment.js')])
+        .then(([m, r]) => { T = m; RoomEnv = r.RoomEnvironment; });
+      loading.catch(() => { loading = null; });
+    }
+    return loading;
+  }
+
+  /* ---------- the page: the 2D / 3D switch, the 3D canvas, its bar and hint ---------- */
+  function init() {
+    if (D || typeof document === 'undefined') return;
+    const stage = document.getElementById('stage'), bench = document.getElementById('bench');
+    if (!stage || !bench) return;
+    const cv = h('canvas', { class: 'rt-v3d', tabindex: '0', hidden: true, 'aria-label': '3D view of this tab. Right-drag to turn it, middle-drag to pan, scroll to zoom, click a part to select it.' });
+    bench.after(cv);
+    const b2 = h('button', { type: 'button', class: 'on', 'aria-pressed': 'true', title: 'The bench, from above (2D)', onclick: () => setOn(false) }, '2D');
+    const b3 = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setOn(true) }, '3D');
+    const sw = h('div', { class: 'rt-v3dswitch', role: 'group', 'aria-label': 'View: 2D or 3D' }, b2, b3);
+    const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+    const mouse = h('select', { 'aria-label': 'Mouse', title: 'How the mouse turns and pans the view' },
+      h('option', { value: 'onshape' }, 'Mouse: Onshape'), h('option', { value: 'trackpad' }, 'Mouse: trackpad'));
+    mouse.value = ctrl;
+    mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
+    const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true },
+      btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), btn('Iso', 'Isometric (Shift+7)', () => view('iso')),
+      btn('Top', 'From above (Shift+5)', () => view('top')), btn('Front', 'From the front (Shift+1)', () => view('front')),
+      btn('Right', 'From the right (Shift+4)', () => view('right')), nm, mouse, btn('PNG', 'Save this view as a picture', png));
+    const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
+    stage.append(sw, bar, hint);
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse };
+    hintText();
+    events();
+    document.addEventListener('keydown', keys, true);
+    const it = document.getElementById('btnView3d');
+    if (it) it.addEventListener('click', () => setOn(!active()));
+    const fv = document.getElementById('btnFit');
+    if (fv) fv.addEventListener('click', () => { if (active() && R) fit(null, true); });
+  }
+  function hintText() {
+    if (!D) return;
+    const s = tabState();
+    if (s && s.on && !R) { D.hint.textContent = 'Opening the 3D view…'; return; }
+    const draw = project.elements.some(e => e.bench === project.tab && e.type === 'draw') ? ' · Drawings show in 2D only' : '';
+    const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+    D.mouse.hidden = touch;
+    if (touch) { D.hint.textContent = 'One finger: turn \u00b7 Two fingers: pan, pinch to zoom \u00b7 Tap: select' + draw; return; }
+    D.hint.textContent = (ctrl === 'onshape'
+      ? 'Right-drag: turn · Middle-drag or Ctrl+right-drag: pan · Scroll: zoom · Click: select · F: fit'
+      : 'Drag: turn · Shift-drag or right-drag: pan · Two fingers: pan · Pinch: zoom · F: fit') + draw;
+  }
+  /* the switch's state, and the 3D view shown or hidden, for the tab now showing */
+  function show() {
+    if (!D) return;
+    const on = active(), ok = eligible(project.tab);
+    D.stage.classList.toggle('v3d', on);
+    D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
+    D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
+    D.b2.setAttribute('aria-pressed', String(!on)); D.b3.setAttribute('aria-pressed', String(on));
+    D.b3.disabled = !ok && !on;
+    const bl = blockers(project.tab);
+    D.b3.title = ok ? 'This tab in three dimensions (3D)' : '3D is for tabs of free-space parts only. Move ' +
+      bl.slice(0, 3).map(e => e.name).join(', ') + (bl.length > 3 ? ' and ' + (bl.length - 3) + ' more' : '') + ' to another tab (right-click › Move to tab) to see this one in 3D.';
+    const it = document.getElementById('btnView3d');
+    if (it) { it.setAttribute('aria-checked', String(on)); it.disabled = !ok && !on; }
+    hintText();
+  }
+  async function setOn(on) {
+    init();
+    const id = project.tab;
+    if (on && !eligible(id)) { toast('3D is for tabs of free-space parts only: fibre, electronic and chip parts stay in 2D for now'); show(); return; }
+    st.set(id, Object.assign(st.get(id) || {}, { on }));
+    show();
+    if (on) {
+      D.hint.classList.remove('faded');
+      try { await load(); renderer(); }
+      catch (e) { st.get(id).on = false; show(); toast('The 3D view could not start in this browser (it needs WebGL)', true); return; }
+      if (R) R.key = null;
+      show(); sync();                                     // sized and built now, not at the next frame
+      D.cv.focus({ preventScroll: true });
+    }
+    show(); requestRender();
+  }
+
+  /* ---------- the renderer, its scene, camera and view cube ---------- */
+  function renderer() {
+    if (R) return R;
+    const gl = new T.WebGLRenderer({ canvas: D.cv, antialias: true, preserveDrawingBuffer: true });
+    gl.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    gl.shadowMap.enabled = true; gl.shadowMap.type = T.PCFSoftShadowMap;
+    gl.autoClear = false;
+    const scene = new T.Scene();
+    const pm = new T.PMREMGenerator(gl);
+    // the studio light round it all, its ceiling turned to be up (+z) as the bench's is
+    const room = new RoomEnv(); room.rotation.x = Math.PI / 2; room.updateMatrixWorld(true);
+    scene.environment = pm.fromScene(room, 0.04).texture;
+    const camera = new T.PerspectiveCamera(35, 1, 1, 2e5);
+    camera.up.set(0, 0, 1);
+    const sun = new T.DirectionalLight(0xffffff, 1.6);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005;
+    scene.add(sun, sun.target, new T.HemisphereLight(0xffffff, 0x404850, 0.5));
+    const groups = { board: new T.Group(), parts: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
+    for (const g of Object.values(groups)) scene.add(g);
+    // the view cube: its own small scene, drawn in the top right corner over the bench
+    const cube = new T.Scene(), cubeCam = new T.OrthographicCamera(-0.9, 0.9, 0.9, -0.9, 0.1, 10);
+    const faceTex = label => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      g.fillStyle = '#eef1f3'; g.fillRect(0, 0, 128, 128); g.strokeStyle = '#9aa4ab'; g.lineWidth = 4; g.strokeRect(2, 2, 124, 124);
+      g.fillStyle = '#2b3338'; g.font = '600 26px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, 64, 66);
+      const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t; };
+    // built Y-up and turned so that its +Y face is the top: then every label reads upright
+    const box = new T.Mesh(new T.BoxGeometry(1, 1, 1), ['RIGHT', 'LEFT', 'TOP', 'BOTTOM', 'FRONT', 'BACK'].map(l => new T.MeshBasicMaterial({ map: faceTex(l) })));
+    box.rotation.x = Math.PI / 2;
+    cube.add(box, new T.LineSegments(new T.EdgesGeometry(box.geometry), new T.LineBasicMaterial({ color: 0x55606a })).rotateX(Math.PI / 2));
+    const axes = new T.Group();
+    for (const [d, c] of [[[1, 0, 0], 0xdb3550], [[0, 1, 0], 0x3fa34d], [[0, 0, 1], 0x0092b2]]) {
+      const g = new T.BufferGeometry().setFromPoints([new T.Vector3(-0.5, -0.5, -0.5), new T.Vector3(-0.5 + 0.75 * d[0], -0.5 + 0.75 * d[1], -0.5 + 0.75 * d[2])]);
+      axes.add(new T.Line(g, new T.LineBasicMaterial({ color: c })));
+    }
+    cube.add(axes);
+    R = { gl, scene, camera, sun, groups, cube, cubeCam, box, target: new T.Vector3(), key: null, trace: null, selKey: null, camTab: null, w: 0, h: 0, anim: null, queued: false };
+    return R;
+  }
+  const CUBE_PX = 104, CUBE_M = 8;
+  const cubeRect = () => ({ x: R.w - CUBE_PX - CUBE_M, y: 36, w: CUBE_PX, h: CUBE_PX });     // css px, from the top left
+  function resize() {
+    const w = D.stage.clientWidth, hgt = D.stage.clientHeight;
+    if (!w || !hgt || (w === R.w && hgt === R.h)) return;
+    R.w = w; R.h = hgt;
+    R.gl.setSize(w, hgt, false);
+    R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix();
+    R.key = null;                                         // the names are sized to the canvas
+  }
+  function draw() {
+    if (!R || !active()) return;
+    const { gl, scene, camera } = R;
+    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false);
+    gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear();
+    gl.render(scene, camera);
+    // the view cube, looking the way the camera looks
+    const c = cubeRect(), dir = camera.position.clone().sub(R.target).normalize();
+    R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.up.copy(camera.up); R.cubeCam.lookAt(0, 0, 0);
+    gl.setScissorTest(true); gl.setScissor(c.x, R.h - c.y - c.h, c.w, c.h); gl.setViewport(c.x, R.h - c.y - c.h, c.w, c.h);
+    gl.clearDepth(); gl.render(R.cube, R.cubeCam);
+    gl.setScissorTest(false); gl.setViewport(0, 0, R.w, R.h);
+  }
+  function need() { if (!R || R.queued) return; R.queued = true; requestAnimationFrame(() => { R.queued = false; draw(); }); }
+  const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9ecef' : '#101417'; };
+
+  /* ---------- keeping up with the bench ---------- */
+  function sync() {
+    init();
+    const s = tabState();
+    if (s && s.on && !eligible(project.tab)) { s.on = false; toast('Back to 2D: 3D is for tabs of free-space parts only'); }
+    show();
+    if (!active() || !R) return;
+    resize();
+    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h;
+    if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
+    if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
+    const sk = selection().map(e => e.id).join();
+    if (sk !== R.selKey) { R.selKey = sk; highlight(); }
+    need();
+  }
+  function setCam(p, t) { R.camera.position.fromArray(p); R.target.fromArray(t); R.camera.lookAt(R.target); R.camera.updateMatrixWorld(); }
+  function keepCam() { const s = tabState(); if (s) s.cam = { p: R.camera.position.toArray(), t: R.target.toArray() }; }
+
+  /* ---------- the models ---------- */
+  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) { if (m.map) m.map.dispose(); m.dispose(); } }); } };
+  const col = c => new T.Color(c);
+  const mat = {
+    glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
+    metal: (c = 0xe6eaee, r = 0.12) => new T.MeshStandardMaterial({ color: col(c), metalness: 1, roughness: r, side: T.DoubleSide }),
+    body: (c = 0x262b30) => new T.MeshStandardMaterial({ color: col(c), metalness: 0.35, roughness: 0.55, side: T.DoubleSide }),
+    matte: c => new T.MeshStandardMaterial({ color: col(c), metalness: 0, roughness: 0.8, side: T.DoubleSide }),
+    glow: c => new T.MeshStandardMaterial({ color: col(c), emissive: col(c), emissiveIntensity: 0.7, roughness: 0.4, side: T.DoubleSide }),
+  };
+  const mesh = (g, m) => { const o = new T.Mesh(g, m); o.castShadow = !m.transparent; o.receiveShadow = true; return o; };
+  // a solid of revolution about the part's axis (local x): points [x, r]
+  const lathe = pts => { const g = new T.LatheGeometry(pts.map(([x, r]) => new T.Vector2(Math.max(0, r), x)), 64); g.rotateZ(-Math.PI / 2); return g; };
+  // a disc of thickness t and radius r across the axis, centred at x
+  const disc = (t, r, x = 0) => { const g = new T.CylinderGeometry(r, r, t, 64); g.rotateZ(-Math.PI / 2); g.translate(x, 0, 0); return g; };
+  const boxG = (x0, x1, y0, y1, z0, z1) => { const g = new T.BoxGeometry(x1 - x0, y1 - y0, z1 - z0); g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); return g; };
+  // a 2D outline in the bench plane (local x, y), stood up to a height hz about the beam
+  const upright = (verts, hz) => { const s = new T.Shape(verts.map(([x, y]) => new T.Vector2(x, y))); const g = new T.ExtrudeGeometry(s, { depth: hz, bevelEnabled: false, curveSegments: 24 }); g.translate(0, 0, -hz / 2); return g; };
+  // a shape across the beam (u along local y, v up), as a plate t thick along the axis
+  const ACROSS = () => new T.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1);
+  const plateShape = (shape, t, x = 0) => { const g = new T.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 }); g.translate(0, 0, -t / 2); g.applyMatrix4(ACROSS()); g.translate(x, 0, 0); return g; };
+  const circle = (r, cy = 0, cz = 0) => { const p = new T.Path(); p.absarc(cy, cz, r, 0, 2 * Math.PI, false); return p; };
+  const rectP = (y0, y1, z0, z1) => new T.Path([new T.Vector2(y0, z0), new T.Vector2(y1, z0), new T.Vector2(y1, z1), new T.Vector2(y0, z1)]);
+  const shapeOf = path => { const s = new T.Shape(); s.curves = path.curves; s.currentPoint = path.currentPoint; return s; };
+  /* a surface of revolution's face, x = sag(y, z) over a disc (or a square) of half-size a, closed
+     by a flat back at x = back: three meshes, so the face stays smooth and the rim sharp */
+  function sagSolid(sag, a, back, square, mFace, mRest) {
+    const nr = 14, nt = 64, at = (r, th) => { let c = Math.cos(th), s = Math.sin(th); if (square) { const m = Math.max(Math.abs(c), Math.abs(s)); c /= m; s /= m; } return [r * a * c, r * a * s]; };
+    const geo = (pos, idx) => { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+    const fp = [sag(0, 0), 0, 0], fi = [], F = (i, j) => i === 0 ? 0 : 1 + (i - 1) * nt + (j % nt);
+    for (let i = 1; i <= nr; i++) for (let j = 0; j < nt; j++) { const [y, z] = at(i / nr, 2 * Math.PI * j / nt); fp.push(sag(y, z), y, z); }
+    for (let j = 0; j < nt; j++) fi.push(0, F(1, j), F(1, j + 1));
+    for (let i = 1; i < nr; i++) for (let j = 0; j < nt; j++) fi.push(F(i, j), F(i + 1, j), F(i + 1, j + 1), F(i, j), F(i + 1, j + 1), F(i, j + 1));
+    const bp = [back, 0, 0], bi = [], rp = [], ri = [];
+    for (let j = 0; j < nt; j++) { const [y, z] = at(1, 2 * Math.PI * j / nt); bp.push(back, y, z); rp.push(sag(y, z), y, z, back, y, z); }
+    for (let j = 0; j < nt; j++) { bi.push(0, 1 + (j + 1) % nt, 1 + j); const a1 = 2 * j, a2 = 2 * ((j + 1) % nt); ri.push(a1, a1 + 1, a2 + 1, a1, a2 + 1, a2); }
+    return [mesh(geo(fp, fi), mFace), mesh(geo(bp, bi), mRest), mesh(geo(rp, ri), mRest)];
+  }
+  const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0);
+  /* one part, in its own frame: x along its axis (where it points), y across in the bench
+     plane, z up. Returns a group, or null for a part with nothing to show */
+  function part(el) {
+    const g = new T.Group(), add = (...o) => { for (const x of o) g.add(x); };
+    const L = (el.length || 10) / 2;
+    switch (el.type) {
+      case 'lens': {
+        const ss = lensSurfaces(el);
+        for (let i = 0; i < ss.length - 1; i++) {
+          if (el.materials[i] && el.materials[i].glass === 'AIR') continue;
+          const a = ss[i], b = ss[i + 1], m = mat.glass();
+          if (el.cyl === 'plane') {                         // curved in the bench plane, straight up and down
+            const out = surfPoints(a, 48).concat(surfPoints(b, 48, true));
+            add(mesh(upright(out, 2 * Math.max(a.semi, b.semi)), m));
+          } else if (el.cyl === 'out') {                    // curved up and down, straight across
+            const A = Object.assign({}, a, a.cylS || {}), B = Object.assign({}, b, b.cylS || {});
+            const out = surfPoints(A, 48).concat(surfPoints(B, 48, true));
+            const s = new T.Shape(out.map(([x, z]) => new T.Vector2(x, z))), d = 2 * Math.max(a.semi, b.semi);
+            const geo = new T.ExtrudeGeometry(s, { depth: d, bevelEnabled: false }); geo.translate(0, 0, -d / 2); geo.rotateX(Math.PI / 2);
+            add(mesh(geo, m));
+          } else {
+            const pts = [];
+            for (let k = 0; k <= 32; k++) { const r = a.semi * k / 32; pts.push([a.z + sagFn(a, r), r]); }
+            for (let k = 32; k >= 0; k--) { const r = b.semi * k / 32; pts.push([b.z + sagFn(b, r), r]); }
+            add(mesh(lathe(pts), m));
+          }
+        }
+        return g;
+      }
+      case 'mirror': {
+        const [s] = elementSurfaces(el), sg = sag3(s);
+        let lo = sg(0, 0); for (let j = 0; j < 32; j++) lo = Math.min(lo, sg(s.semi * Math.cos(j * Math.PI / 16), s.semi * Math.sin(j * Math.PI / 16)));
+        const t = Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;
+        add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
+        return g;
+      }
+      case 'screen': {
+        const [s] = elementSurfaces(el), sg = sag3(s);
+        add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, mat.matte(0xffb347), mat.body()));
+        return g;
+      }
+      case 'source': {
+        const { L: len, hw } = srcBody(el);
+        add(mesh(boxG(-len, 0, -hw, hw, -hw, hw), mat.body(0x2b2622)), mesh(disc(0.6, Math.max(0.6, el.width / 2), 0.3), mat.glow(el.colour || '#ff3030')));
+        return g;
+      }
+      case 'detector': {
+        const H = detR(el);
+        add(mesh(disc(H * 1.4, H, -H * 0.7), mat.body(0x2b3338)), mesh(disc(0.4, L, 0.2), mat.glow('#3f9a63')));
+        return g;
+      }
+      case 'fibre': {
+        const r = Math.max(L, 1.25);
+        add(mesh(disc(10, r, -5), mat.metal(0xcfd8dc, 0.3)));
+        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-30, 0, 0);
+        add(mesh(j, mat.matte(FIBRE_COLOUR)), mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
+        return g;
+      }
+      case 'waveplate': case 'polariser': {
+        const pol = el.type === 'polariser';
+        add(mesh(disc(pol ? 2.5 : 1.5, L), mat.glass(pol ? 0xb79bff : 0x73b9ca, pol ? 0.45 : 0.35)));
+        // the axis across the face: p along the bench, s up
+        const a = (el.axis || 0) * deg, bar = boxG(-0.1, 0.1, -L * 0.9, L * 0.9, -0.25, 0.25); bar.rotateX(a); bar.translate(pol ? 1.35 : 0.85, 0, 0);
+        add(mesh(bar, mat.matte(pol ? 0x6b4fd0 : 0x2f7d8f)));
+        return g;
+      }
+      case 'filter': add(mesh(disc(2, L), mat.glass(filterColour(el), 0.5))); return g;
+      case 'mask': add(mesh(disc(1.5, L), mat.glass(0xd8b35a, 0.45))); return g;
+      case 'gain': add(mesh(disc(4, L), mat.glass(0xff6a3d, 0.45))); return g;
+      case 'faraday': case 'isolator': {
+        add(mesh(disc(Math.max(8, L * 1.4), L), mat.metal(0xff9f6b, 0.35)));
+        const cone = new T.ConeGeometry(1.6, 4, 16); cone.rotateZ(-Math.PI / 2); cone.translate(0, 0, L + 3);
+        add(mesh(cone, mat.matte(0xff9f6b)));
+        return g;
+      }
+      case 'stop': {
+        const b = el.outer / 2, o = el.offset || 0, m = mat.metal(0x3a4147, 0.45);
+        if (el.shape === 'round') { const s = shapeOf(circle(b)); s.holes.push(circle(el.aperture / 2, o)); add(mesh(plateShape(s, 1.5), m)); }
+        else if (el.shape === 'disc') add(mesh(plateShape(shapeOf(circle(el.aperture / 2, o)), 1.5), m));
+        else if (el.height > 0) {
+          // a plate with openings where the blades leave a gap, as tall as the slit
+          const s = shapeOf(rectP(-b, b, -b, b)), bl = stopBlades(el).sort((p, q) => p[0] - q[0]), hz = Math.min(b, el.height / 2);
+          let y = -b; for (const [lo, hi] of bl) { if (lo > y + 1e-6) s.holes.push(rectP(y, lo, -hz, hz)); y = Math.max(y, hi); }
+          if (b > y + 1e-6) s.holes.push(rectP(y, b, -hz, hz));
+          add(mesh(plateShape(s, 1.5), m));
+        } else for (const [lo, hi] of stopBlades(el)) add(mesh(boxG(-0.75, 0.75, lo, hi, -b, b), m));
+        return g;
+      }
+      case 'cube': {
+        const a = el.size / 2;
+        add(mesh(boxG(-a, a, -a, a, -a, a), mat.glass()));
+        const p = new T.PlaneGeometry(el.size * Math.SQRT2, el.size); p.rotateX(Math.PI / 2); p.rotateZ(Math.PI / 4);
+        add(mesh(p, Object.assign(mat.metal(0xd8e4ea, 0.1), { transparent: true, opacity: 0.3 + 0.5 * (el.reflect || 50) / 100 })));
+        return g;
+      }
+      case 'prism': add(mesh(upright(polyVerts(el), el.size), mat.glass())); return g;
+      case 'crystal': { const G = crystalGeom(el), hz = 2 * Math.max(...G.outline.map(p => Math.abs(p[1]))); add(mesh(upright(G.outline, hz), mat.glass(0xb79bff, 0.3))); return g; }
+      case 'grating': {
+        const refl = el.mode === 'reflect';
+        add(mesh(boxG(refl ? -6 : -1.5, 0, -L, L, -L, L), refl ? mat.metal(0xb7a2e6, 0.25) : mat.glass(0xc9a6ff, 0.35)));
+        return g;
+      }
+      case 'aom': add(mesh(boxG(-4, 4, -L, L, -L * 0.6, L * 0.6), mat.glass(0x9ad0ff, 0.35)), mesh(boxG(-3, 3, L, L + 3, -L * 0.6, L * 0.6), mat.metal(0x8fb8e0, 0.3))); return g;
+      case 'eom': {
+        const hz = Math.max(1.5, L * 0.5);
+        add(mesh(boxG(-6, 6, -L, L, -hz, hz), mat.glass(0xc6a8ff, 0.35)), mesh(boxG(-6, 6, -L, L, hz, hz + 0.6), mat.metal(0xe8c547, 0.3)), mesh(boxG(-6, 6, -L, L, -hz - 0.6, -hz), mat.metal(0xe8c547, 0.3)));
+        return g;
+      }
+      case 'cell': {
+        const H = el.cellLen / 2, tube = new T.CylinderGeometry(L, L, 2 * H, 48, 1, true); tube.rotateZ(-Math.PI / 2);
+        add(mesh(tube, mat.glass(0xc79bff, 0.28)), mesh(disc(1.2, L, -H), mat.glass(0x73b9ca, 0.4)), mesh(disc(1.2, L, H), mat.glass(0x73b9ca, 0.4)));
+        const stem = new T.CylinderGeometry(2.5, 2.5, Math.min(8, L * 0.5), 24); stem.rotateX(Math.PI / 2); stem.translate(0, 0, L + Math.min(8, L * 0.5) / 2);   // its stem up, where the metal sits
+        add(mesh(stem, mat.glass(0xc79bff, 0.35)));
+        return g;
+      }
+      case 'nlc': { const H = el.nlLen / 2, hz = Math.max(0.5, L * 0.3); add(mesh(boxG(-H, H, -L, L, -hz, hz), mat.glass(0x78c8a0, 0.4))); return g; }
+      case 'link': {
+        const p = new T.PlaneGeometry(2 * L, 2 * L); p.rotateY(Math.PI / 2);
+        add(new T.Mesh(p, new T.MeshBasicMaterial({ color: 0x7fdcff, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false })));
+        add(new T.LineSegments(new T.EdgesGeometry(p), new T.LineDashedMaterial({ color: 0x7fdcff, dashSize: 3, gapSize: 2 })).computeLineDistances());
+        return g;
+      }
+      case 'chopper': {
+        // the wheel across the beam, a gap over the beam (shown open, as on the bench), its motor behind
+        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x2b3338);
+        const s = new T.Shape(); s.moveTo(0, 0);
+        for (let k = 0; k < n; k++) { const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap; s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(0, 0); }
+        const wheel = plateShape(s, 1, 1.5); wheel.translate(0, yc, 0);
+        add(mesh(wheel, m), mesh(plateShape(shapeOf(circle(Rw * 0.3)), 1.2, 1.5).translate(0, yc, 0), m), mesh(disc(10, 6, -4.5).translate(0, yc, 0), mat.body(0x1b1f22)));
+        return g;
+      }
+    }
+    return null;
+  }
+  /* a name, drawn the same size on screen however far away */
+  function label(text, colour) {
+    const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
+    g.font = '600 ' + fs + 'px system-ui, sans-serif';
+    const w = Math.ceil(g.measureText(text).width) + 16;
+    c.width = w; c.height = fs + 14;
+    g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(16,20,23,0.6)'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = colour || '#e8edf0'; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2 + 1);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: t, sizeAttenuation: false, depthTest: false, transparent: true }));
+    const k = 2 * Math.tan(R.camera.fov * deg / 2) / Math.max(1, R.h) * 0.5;      // css px to the sprite's units, at half the canvas's resolution
+    sp.scale.set(c.width * k, c.height * k, 1); sp.center.set(0.5, 0); sp.renderOrder = 10;
+    return sp;
+  }
+
+  /* ---------- the scene, from the bench ---------- */
+  function build() {
+    const G = R.groups;
+    for (const g of [G.board, G.parts, G.light, G.names, G.sel]) disposeAll(g);
+    const els = project.elements.filter(e => e.bench === project.tab && e.type !== 'draw'), box = new T.Box3();
+    for (const el of els) {
+      let p = null;
+      try { p = part(el); } catch (e) { p = null; }
+      if (!p) continue;
+      p.position.set(el.x, el.y, BEAM_H); p.rotation.z = el.angle * deg;
+      p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; });
+      G.parts.add(p);
+      if (names) {
+        const P = el.type === 'link' ? linkPartner(el) : null;
+        const sp = label(el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), el.type === 'link' ? '#7fdcff' : null);
+        p.updateMatrixWorld(true);
+        const b = new T.Box3().setFromObject(p);
+        sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : BEAM_H + 10) + 4); sp.userData.id = el.id;
+        G.names.add(sp);
+      }
+    }
+    G.parts.updateMatrixWorld(true);
+    if (G.parts.children.length) box.setFromObject(G.parts);
+    R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
+    board(box);
+    light(box, R.boardBox);
+    // the sun over the board, its shadow covering it
+    const c = new T.Vector3(), s = new T.Vector3();
+    (box.isEmpty() ? new T.Box3(new T.Vector3(-100, -100, 0), new T.Vector3(100, 100, 100)) : box).getCenter(c).z = 0;
+    (box.isEmpty() ? new T.Vector3(200, 200, 100) : box.getSize(s));
+    const rad = Math.max(150, Math.hypot(s.x, s.y) / 2 + 60);
+    R.sun.position.set(c.x - 0.45 * rad, c.y - 0.75 * rad, 2.2 * rad); R.sun.target.position.copy(c);
+    const sc = R.sun.shadow.camera; sc.left = -rad * 1.2; sc.right = rad * 1.2; sc.top = rad * 1.2; sc.bottom = -rad * 1.2; sc.near = 1; sc.far = 6 * rad; sc.updateProjectionMatrix();
+    R.content = box;
+    R.selKey = null;
+  }
+  /* the light: rays as lines, Gaussian beams as tubes as wide as the beam both ways */
+  /* a stretch from (x0, y0) to (x1, y1) cut to the board: [t0, t1] of it, or null */
+  function cut(x0, y0, x1, y1, bb) {
+    let t0 = 0, t1 = 1;
+    const dx = x1 - x0, dy = y1 - y0;
+    for (const [p, q] of [[-dx, x0 - bb.min.x], [dx, bb.max.x - x0], [-dy, y0 - bb.min.y], [dy, bb.max.y - y0]]) {
+      if (p === 0) { if (q < 0) return null; continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r; } else { if (r < t0) return null; if (r < t1) t1 = r; }
+    }
+    return t1 > t0 ? [t0, t1] : null;
+  }
+  /* the light: rays as lines, Gaussian beams as tubes as wide as the beam both ways, each cut
+     where it leaves the board (light off the table goes on, on the 2D bench) */
+  function light(box, bb) {
+    const G = R.groups.light, add = !benchLight();
+    const blend = add ? T.AdditiveBlending : T.NormalBlending;
+    const groups = new Map();
+    for (const r of lastTrace.rays || []) {
+      if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
+      const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5))), key = r.colour + '|' + lvl;
+      if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, pos: [] });
+      const P = groups.get(key).pos, p = r.pts;
+      for (let i = 2; i < p.length; i += 2) {
+        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, bb);
+        if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], BEAM_H, x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], BEAM_H);
+      }
+    }
+    R.nRays = 0;
+    for (const g of groups.values()) {
+      const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(g.pos, 3));
+      G.add(new T.LineSegments(geo, new T.LineBasicMaterial({ color: col(g.colour), transparent: true, opacity: g.alpha, blending: blend, depthWrite: false })));
+      R.nRays += g.pos.length / 6;
+      geo.computeBoundingBox(); box.union(geo.boundingBox);
+    }
+    // Gaussian beams: in the bench plane as the tracer has them, out of it carried along each
+    // branch by the same matrices the cavities and fibre tips use
+    const B = lastTrace.beams || [], qy = new Map(), m2 = new Map(), done = new Set();
+    const qyAt = i => {
+      if (qy.has(i)) return qy.get(i);
+      const b = B[i];
+      let q;
+      if (b.parent === undefined || b.parent < 0 || !B[b.parent]) q = [b.qr / b.n, b.qi / b.n];
+      else { const p = qyAt(b.parent), pb = B[b.parent], e = p && qThrough(mfree(pb.len, pb.n), p), m = e && cavEventABCD(b.ev, b.nm * 1e-6); q = m ? qThrough(m.y, e) : null; }
+      qy.set(i, q); return q;
+    };
+    R.nBeams = 0;
+    B.forEach((seg, i) => {
+      if (seg.fan || seg.pol || seg.bench !== project.tab || !(seg.len > 0)) return;
+      const src = getEl(seg.src);
+      if (!src) return;
+      if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
+      const [Mx, My] = m2.get(seg.src), q0 = qyAt(i), lam0 = seg.nm * 1e-6;
+      const k = [seg.x0, seg.y0, seg.dx, seg.dy, seg.len, seg.qr, seg.qi].map(v => v.toFixed(3)).join() + seg.colour;
+      if (done.has(k)) return;
+      done.add(k);
+      const c = cut(seg.x0, seg.y0, seg.x0 + seg.dx * seg.len, seg.y0 + seg.dy * seg.len, bb);
+      if (!c) return;
+      const ta = c[0] * seg.len, tb = c[1] * seg.len;
+      const steps = Math.max(8, Math.min(64, Math.round((tb - ta) / 4))), nt = 20, pos = [], idx = [];
+      const nx = -seg.dy, ny = seg.dx;
+      for (let s = 0; s <= steps; s++) {
+        const t = ta + (tb - ta) * s / steps, b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, Mx);
+        const wx = b ? b.w : 0, wy = q0 ? Math.sqrt(My) * qW([q0[0] + t / seg.n, q0[1]], lam0) : wx;
+        const x = seg.x0 + seg.dx * t, y = seg.y0 + seg.dy * t;
+        for (let j = 0; j < nt; j++) { const a = 2 * Math.PI * j / nt, u = Math.cos(a) * wx, v = Math.sin(a) * (isFinite(wy) ? wy : wx); pos.push(x + nx * u, y + ny * u, BEAM_H + v); }
+      }
+      for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
+      const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ color: col(seg.colour), transparent: true, opacity: add ? 0.16 : 0.22, blending: blend, side: T.DoubleSide, depthWrite: false })));
+      R.nBeams++;
+      geo.computeBoundingBox(); box.union(geo.boundingBox);
+    });
+  }
+  /* the breadboard under it all, its holes on the bench's 25 mm grid */
+  function board(box) {
+    // round the parts, with room to spare, out to whole holes
+    const b = box.isEmpty() ? new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 0)) : box, mg = 75;
+    const x0 = Math.floor((b.min.x - mg) / PITCH) * PITCH - PITCH / 2, x1 = Math.ceil((b.max.x + mg) / PITCH) * PITCH + PITCH / 2;
+    const y0 = Math.floor((b.min.y - mg) / PITCH) * PITCH - PITCH / 2, y1 = Math.ceil((b.max.y + mg) / PITCH) * PITCH + PITCH / 2;
+    const bg = benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: 0.7, metalness: 0.25 });
+    let top = side;
+    if (benchHoles()) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 64, 64);
+      const L0 = new T.Color(bg).getHSL({}).l > 0.5;
+      g.fillStyle = L0 ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(32, 32, 8, 0, 2 * Math.PI); g.fill();
+      g.strokeStyle = L0 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)'; g.lineWidth = 1.5; g.stroke();
+      const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping;
+      t.repeat.set((x1 - x0) / PITCH, (y1 - y0) / PITCH); t.anisotropy = 8;
+      top = new T.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: 0.7, metalness: 0.25 });
+    }
+    const m = new T.Mesh(boxG(x0, x1, y0, y1, -BOARD_T, 0), [side, side, side, side, top, side]);
+    m.receiveShadow = true;
+    R.groups.board.add(m);
+    R.boardBox = new T.Box3(new T.Vector3(x0, y0, -BOARD_T), new T.Vector3(x1, y1, 0));
+  }
+  /* the selected parts outlined, as a CAD program does */
+  function highlight() {
+    disposeAll(R.groups.sel);
+    const ids = new Set(selection().map(e => e.id));
+    if (!ids.size) { need(); return; }
+    const m = new T.LineBasicMaterial({ color: 0xff8c42, depthTest: false, transparent: true, opacity: 0.95 });
+    for (const p of R.groups.parts.children) {
+      if (!ids.has(p.userData.id)) continue;
+      p.updateMatrixWorld(true);
+      p.traverse(o => { if (!o.isMesh) return; const e = new T.LineSegments(new T.EdgesGeometry(o.geometry, 30), m); e.applyMatrix4(o.matrixWorld); e.renderOrder = 5; R.groups.sel.add(e); });
+    }
+    need();
+  }
+
+  /* ---------- looking about ---------- */
+  function contentBox() { return R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100)); }
+  function fit(dirName, animate) {
+    if (!R) return;
+    const b = contentBox(), c = b.getCenter(new T.Vector3()), r = Math.max(20, b.getBoundingSphere(new T.Sphere()).radius);
+    const dir = dirName ? new T.Vector3(...VIEWS[dirName]).normalize() : R.camera.position.clone().sub(R.target).normalize();
+    const fov = R.camera.fov * deg / 2, fovH = Math.atan(Math.tan(fov) * R.camera.aspect), dist = r / Math.sin(Math.min(fov, fovH)) * 1.05;
+    go(c.clone().add(dir.multiplyScalar(dist)), c, animate);
+  }
+  function view(name) { fit(name, true); }
+  /* the camera to a new place, turning smoothly about the target there */
+  function go(p, t, animate) {
+    if (!animate) { setCam(p.toArray(), t.toArray()); keepCam(); need(); return; }
+    const p0 = R.camera.position.clone(), t0 = R.target.clone(), d0 = p0.clone().sub(t0), d1 = p.clone().sub(t);
+    const l0 = d0.length(), l1 = d1.length(), q = new T.Quaternion().setFromUnitVectors(d0.clone().normalize(), d1.clone().normalize()), I = new T.Quaternion();
+    const t1 = performance.now(), dur = 320, id = {};
+    R.anim = id;
+    const step = () => {
+      if (R.anim !== id) return;
+      const u = Math.min(1, (performance.now() - t1) / dur), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
+      const tt = t0.clone().lerp(t, e), dd = d0.clone().normalize().applyQuaternion(I.clone().slerp(q, e)).multiplyScalar(l0 + (l1 - l0) * e);
+      R.camera.position.copy(tt).add(dd); R.target.copy(tt); R.camera.lookAt(R.target); draw();
+      if (u < 1) requestAnimationFrame(step); else { R.anim = null; keepCam(); }
+    };
+    step();
+  }
+  let rc0 = null;
+  const ray = { get: () => rc0 || (rc0 = new T.Raycaster()) };
+  function ndc(e) { const b = D.cv.getBoundingClientRect(); return { x: (e.clientX - b.left) / b.width * 2 - 1, y: -(e.clientY - b.top) / b.height * 2 + 1, px: e.clientX - b.left, py: e.clientY - b.top }; }
+  /* what is under a point on the canvas: the nearest part, else the beam plane, else the board */
+  function pick(e, partsOnly) {
+    const n = ndc(e), rc = ray.get(); rc.setFromCamera(n, R.camera);
+    const hit = rc.intersectObjects(R.groups.parts.children, true)[0];
+    if (hit || partsOnly) return hit || null;
+    const b = rc.intersectObjects(R.groups.board.children, true)[0];
+    if (b) return b;
+    const p = new T.Vector3(); return rc.ray.intersectPlane(new T.Plane(new T.Vector3(0, 0, 1), -BEAM_H), p) ? { point: p } : null;
+  }
+  function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
+  function cubeClick(e) {
+    const n = ndc(e), c = cubeRect(), rc = ray.get();
+    rc.setFromCamera({ x: (n.px - c.x) / c.w * 2 - 1, y: -(n.py - c.y) / c.h * 2 + 1 }, R.cubeCam);
+    const hit = rc.intersectObject(R.box, false)[0];
+    if (!hit) return;
+    const p = hit.point, s = [p.x, p.y, p.z].map(v => Math.abs(v) > 0.32 ? Math.sign(v) : 0);
+    const dir = new T.Vector3(...s).normalize();
+    if (Math.abs(dir.z) > 0.999) dir.y = -1e-4;
+    const dist = R.camera.position.distanceTo(R.target);
+    go(R.target.clone().add(dir.multiplyScalar(dist)), R.target.clone(), true);
+  }
+  function orbit(dx, dy, pivot) {
+    const cam = R.camera, k = 0.008;
+    const rot = (axis, a) => { const q = new T.Quaternion().setFromAxisAngle(axis, a); for (const v of [cam.position, R.target]) v.sub(pivot).applyQuaternion(q).add(pivot); };
+    rot(new T.Vector3(0, 0, 1), -dx * k);
+    const dir = cam.position.clone().sub(R.target).normalize(), right = new T.Vector3().crossVectors(cam.up, dir).normalize();
+    const pol = Math.acos(clamp(dir.z, -1, 1)), a = clamp(-dy * k, 0.01 - pol, Math.PI - 0.01 - pol);
+    if (right.lengthSq() > 0.5) rot(right, -a);
+    cam.lookAt(R.target); cam.updateMatrixWorld();
+  }
+  function pan(dx, dy, depthAt) {
+    const cam = R.camera, d = depthAt ? cam.position.distanceTo(depthAt) : cam.position.distanceTo(R.target);
+    const k = 2 * d * Math.tan(cam.fov * deg / 2) / R.h, right = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+    const m = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
+    cam.position.add(m); R.target.add(m); cam.updateMatrixWorld();
+  }
+  function zoom(f, at) {
+    const P = at || R.target, cam = R.camera;
+    if (cam.position.distanceTo(P) * f < 5 && f < 1) return;
+    cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld();
+  }
+  function events() {
+    const cv = D.cv, P = new Map();
+    let drag = null;
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+    cv.addEventListener('pointerdown', e => {
+      if (!R) return;
+      cv.focus({ preventScroll: true });
+      R.anim = null;
+      D.hint.classList.add('faded');
+      cv.setPointerCapture(e.pointerId);
+      P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const n = ndc(e);
+      if (e.pointerType !== 'touch' && e.button === 0 && inCube(n)) { drag = { cube: true, x: e.clientX, y: e.clientY, moved: 0 }; return; }
+      let mode = null;
+      if (e.pointerType === 'touch') mode = P.size === 1 ? 'orbit' : 'touch2';
+      else if (ctrl === 'onshape') mode = e.button === 2 ? (e.ctrlKey ? 'pan' : 'orbit') : e.button === 1 ? 'pan' : 'click';
+      else mode = e.button === 0 ? (e.shiftKey ? 'pan' : 'orbit') : e.button === 1 || e.button === 2 ? 'pan' : null;
+      if (e.button === 1) e.preventDefault();
+      const h0 = pick(e);
+      drag = { mode, x: e.clientX, y: e.clientY, moved: 0, pivot: h0 ? h0.point.clone() : R.target.clone(), button: e.button, ev: e };
+      if (mode === 'touch2') { const [a, b] = [...P.values()]; drag.pinch = Math.hypot(a.x - b.x, a.y - b.y); drag.mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!R || !drag || !P.has(e.pointerId)) return;
+      const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
+      P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+      if (drag.cube) return;
+      let mode = drag.mode;
+      if (e.pointerType === 'touch' && P.size >= 2) mode = 'touch2';
+      if (mode === 'orbit') orbit(dx, dy, drag.pivot);
+      else if (mode === 'pan') pan(dx, dy, drag.pivot);
+      else if (mode === 'touch2') {
+        const [a, b] = [...P.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (drag.pinch && d > 0) zoom(drag.pinch / d, drag.pivot);
+        pan(mid.x - drag.mid.x, mid.y - drag.mid.y, drag.pivot);
+        drag.pinch = d; drag.mid = mid;
+      } else return;
+      draw();
+    });
+    const up = e => {
+      if (!P.has(e.pointerId)) return;
+      P.delete(e.pointerId);
+      if (!drag) return;
+      const d = drag;
+      if (P.size) { if (d.mode === 'touch2' && P.size === 1) { d.mode = 'orbit'; } return; }
+      drag = null;
+      if (d.cube) { if (d.moved < 5) cubeClick(e); return; }
+      keepCam();
+      // a click: select what is under it (Shift or Ctrl adds), or nothing
+      const click = d.moved < 5 && (d.mode === 'click' || (ctrl === 'trackpad' && d.button === 0) || e.pointerType === 'touch');
+      if (!click) return;
+      const hit = pick(e, true), id = hit && hit.object ? hit.object.userData.id : null, el = id && getEl(id);
+      if (el && (e.shiftKey || e.ctrlKey || e.metaKey) && e.pointerType !== 'touch') setSelection(selection().some(x => x.id === el.id) ? selection().filter(x => x.id !== el.id) : selection().concat([el]));
+      else { extraSel.clear(); selectOne(el ? el.id : null); }
+      renderPanel(); requestRender();
+    };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', e => {
+      if (!R) return;
+      e.preventDefault(); R.anim = null;
+      const d = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (ctrl === 'trackpad' && !e.ctrlKey) pan(-e.deltaX * d, -e.deltaY * d, null);
+      else { const h0 = pick(e); zoom(Math.exp(e.deltaY * d * (e.ctrlKey ? 0.01 : 0.0015)), h0 ? h0.point : null); }
+      keepCam(); draw();
+    }, { passive: false });
+    window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
+  }
+  /* Onshape's keys: F fits, Shift+1 to 7 the standard views; the 2D view's own keys that mean
+     nothing here (measure, pan with Space) are left alone */
+  function keys(e) {
+    if (!active() || !R) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.code, views = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
+    if (!e.shiftKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); e.stopPropagation(); fit(null, true); return; }
+    if (e.shiftKey && views[k]) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
+    if (!e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.stopPropagation(); zoomSel(); return; }
+    if (e.key === ' ' || e.key === 'm' || e.key === 'M') { e.preventDefault(); e.stopPropagation(); }
+  }
+  function zoomSel() {
+    const ids = new Set(selection().map(e => e.id));
+    if (!ids.size) { fit(null, true); return; }
+    const b = new T.Box3();
+    for (const p of R.groups.parts.children) if (ids.has(p.userData.id)) b.expandByObject(p);
+    if (b.isEmpty()) return;
+    const c = b.getCenter(new T.Vector3()), r = Math.max(15, b.getBoundingSphere(new T.Sphere()).radius) * 1.8;
+    const dir = R.camera.position.clone().sub(R.target).normalize();
+    go(c.clone().add(dir.multiplyScalar(r / Math.sin(R.camera.fov * deg / 2))), c, true);
+  }
+  function png() {
+    if (!R) return;
+    const { gl, scene, camera } = R;
+    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); gl.render(scene, camera);
+    D.cv.toBlob(b => {
+      if (!b) return;
+      const a = h('a', { href: URL.createObjectURL(b), download: (project.name || 'bench').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '-' + benchName(project.tab).replace(/\s+/g, '-') + '-3d.png' });
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      need();
+    }, 'image/png');
+  }
+
+  function reset() { st.clear(); if (R) { R.camTab = null; R.key = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
+  return {
+    init, sync, active, eligible, setOn, view, fit, reset,
+    // for the tests: what the view holds
+    api: {
+      eligible: () => eligible(project.tab),
+      blockers: () => blockers(project.tab).map(e => e.name),
+      set: on => setOn(on),
+      on: () => active(),
+      ready: () => !!R,
+      stats() {
+        if (!R || !active()) return null;
+        sync();
+        const kinds = {}; for (const p of R.groups.parts.children) { const el = getEl(p.userData.id); if (el) kinds[el.type] = (kinds[el.type] || 0) + 1; }
+        let meshes = 0; R.groups.parts.traverse(o => { if (o.isMesh) meshes++; });
+        const b = contentBox();
+        return { parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
+          box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
+      },
+      camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null,
+      view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
+      // the part a canvas point lands on, the canvas measured in css px from its top left
+      pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },
+      // a part's model's size along the bench's x, y and up, mm
+      partSize(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); if (!p) return null; const s = new T.Box3().setFromObject(p).getSize(new T.Vector3()); return s.toArray(); },
+      // where on the canvas a part's centre is drawn, css px
+      screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, BEAM_H).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };
 })();
@@ -23560,6 +24319,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
+    'A <b>3D view</b>: the 2D / 3D switch at the bench\u2019s top right (or View \u203a 3D view) shows a tab of free-space parts in three dimensions, each part made from its own numbers at the beam height over a breadboard, the rays and Gaussian beams as the trace has them. Turn, pan and zoom as in Onshape (right-drag, middle-drag, scroll), or as on a trackpad; a view cube and the standard views (Shift+1 to 7, F to fit); click a part to select it and edit it as ever. Save the view as a PNG.',
     'On photonic chips, <b>electrical connections</b>: an on-chip photodiode now has an <b>out</b> port to the electronics (a voltage through its amplifier, or its current as a bare photodiode), and a phase shifter a <b>drive</b> input, \u03c0 of phase for V\u03c0 volts on top of the phase set, so a chip\u2019s Mach\u2013Zehnder or ring can be modulated, swept or locked from the electronics.',
     'A fix: light going back through a <b>fibre AOM</b> is now shifted the same way again, so a double pass (an AOM before a Faraday mirror) shifts by twice the drive, as a real one and the free-space AOM do. It was shifted back to where it started.',
     'The <b>documentation</b> (Help \u203a Documentation): how each model works, with its equations and limits: free space, fibre, electronics and photonic chips, element by element, with an FAQ.',
@@ -24584,6 +25344,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // Hook for the regression suite. Reading only; it drives a throwaway copy of
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray2D = {
+    view3d: V3D.api,
     load(data) { loadProject(data); selectOne(null); history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     trace() { lastTraceKey = null; traceScene(); },
     traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n }; },

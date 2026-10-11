@@ -26,9 +26,8 @@ JEKray2D brings four kinds of model together on one bench, joined where light an
 
 ## What it does not model
 
-JEKray2D places its parts on a bench. Each sits by x and y, at a height of its own, tipped and rolled as it is set; the light is followed in three dimensions through all of it, and the 3D view shows it (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). Some consequences:
+Every free-space part is placed freely in space: its x and y on the bench, its height above it (0 to 2 m), and its facing, tip and roll, all six degrees of freedom. The light is followed in three dimensions through all of it, and the 3D view shows it (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). What is left out:
 
-- A part cannot be placed freely in space: a beam sent up into a vertical microscope goes up a periscope, but the microscope above it is best unfolded back onto a bench of its own.
 - Fibre, electronic and chip parts lie in the plane, on tabs of their own; only free-space tabs open in 3D.
 - Aberrations across a field of view are worked out in the tangential section.
 - There are no mechanics and no heating: mounts, forces on optics and thermal lensing are not modelled. Optical forces on atoms and small particles in a trap are the exception.

@@ -12,7 +12,7 @@ Read all of it before writing a file. The parts that matter most are **Coordinat
 - Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.
 - A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.
 
-What it cannot do: place parts freely in 3D. Parts are placed by x and y on the bench, but each can sit at its own height and be tipped and rolled (below), and light is followed out of the plane: up a periscope, along a raised beam, through a part rolled about it. So a periscope or a beam raised to another height is built as it is. A setup with long runs off the table, such as a beam sent up into a vertical microscope, is best unfolded into the plane after its periscope; say how you did it in the project's notes. There are no mechanics (no forces on particles, no thermal effects).
+It works in 3D: every free-space part is placed freely in space, by its x and y, its height "z" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (they keep to tabs of their own), or model mechanics (no forces on particles, no thermal effects).
 
 ## How to work
 
@@ -384,6 +384,18 @@ An optical isolator (polariser, 45° Faraday rotator, polariser).
 | length | `5` | mm aperture. |
 | axis | `0` | degrees: the input polariser from p. |
 | extinction | `40` | dB, 0 to 80. |
+
+### "stl": STL object
+
+An STL object: an opaque shape brought in from a .stl file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray2D when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open ▾ → Import an object (.stl), or drop the file on the bench.
+
+**angle:** the way the object’s own +x (as in its file) points; its tip and roll turn it as any part’s.
+
+| field | default | meaning |
+|---|---|---|
+| mesh | `null` | its triangles, written by the tool when a .stl file is imported: leave it out. |
+| units | `"mm"` | the file’s units: "mm", "cm", "m", "in", or "other" with "scale". |
+| scale | `1` | mm per unit of the file, with "units": "other". |
 
 ### "crystal": Crystal
 

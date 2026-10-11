@@ -55,6 +55,8 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 
 **Arranging parts in 3D.** Drag a part to slide it across the table: it snaps to the grid as on the 2D bench, and a selection of several moves together. Right-click a part, or the bench, for the same menu as in 2D: duplicate, copy and paste, rotate, lock, move to another tab and the rest. A part added from **+ Add part** lands where the view is looking, and one dragged from the parts rail lands where it is dropped. Undo and redo work as ever.
 
+**Objects from CAD.** Mounts, posts, housings and baffles come in as .stl files: **Open ▾ → Import an object (.stl)**, or drop the file on the bench. Each is an opaque [STL object](/jek/docs/jekray2d/free-space/stl/), placed and turned as any part, that stops the light that meets it.
+
 **Moving a part along x, y and up.** Click a part and three double-ended arrows appear, out of both sides of it: orange along the bench's x, green along its y, blue straight up. Drag either end of an arrow to move the part along it alone, snapped to the grid (up in 0.5 mm steps, Shift: 0.1 mm), or type it in **X**, **Y** and **Height** in its panel. The light follows a part's height: a part above or below the beam is missed, and a lens or curved mirror met off its centre turns the beam up or down (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). On the 2D bench, a part not at the beam height shows by how much under its name.
 
 **Turning a part about its three axes.** Click the part again and the arrows give way to three rings of one size round it, square to each other and crossing as Onshape's do, each the colour of the axis it turns about:

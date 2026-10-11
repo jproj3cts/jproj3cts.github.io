@@ -58,6 +58,8 @@
       url: /jek/docs/jekray2d/free-space/chopper/
     - title: Link plane
       url: /jek/docs/jekray2d/free-space/link/
+    - title: STL object
+      url: /jek/docs/jekray2d/free-space/stl/
 - title: Fibre optics
   url: /jek/docs/jekray2d/fibre/
   cat: fibre

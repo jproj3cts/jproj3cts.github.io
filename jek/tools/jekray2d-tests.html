@@ -5277,6 +5277,44 @@ const TESTS = [
         return onPart && /^Duplicate/.test(onPart[0]) && onBench && /^Paste here/.test(onBench[0]) && Math.hypot(e.x - t[0], e.y - t[1]) < 25 ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
+  },  { group: 'STL objects' },
+  {
+    name: 'An STL file is read as text or as binary alike, centred and resting on the breadboard',
+    why: 'a 20 mm cube written as a text .stl and as a binary one: 12 triangles each, 20 \u00d7 20 \u00d7 20 mm, its centre 10 mm up so its base sits on the table, under the 75 mm beam (five rays all pass); and a file that is neither is refused (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const C = stlCube(), A = stlBench(J, C.ascii), B = stlBench(J, C.bin);
+      let refused = false; try { J.stl('this is not an stl file', 'x.stl'); } catch (e) { refused = true; }
+      return [A, B].every(r => r.tris === 12 && r.size.join() === '20,20,20' && r.z === 10 && r.hits.length === 5) && refused ? 1 : 0;
+    },
+  },
+  {
+    name: 'An STL object stops the rays that meet it, in 3D, however it is turned',
+    why: 'the 20 mm cube in a fan of rays at \u00b10, 7.5 and 15 mm: raised to the beam it stops the three within \u00b110 mm; turned 45\u00b0 it still lets \u00b115 mm by (its half-diagonal is 14.1 mm); lifted 2 mm clear of the beam it stops none, and tipped 45\u00b0 there its lower edge drops 4.1 mm, 2.1 mm into the beam, and stops the middle three again (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const C = stlCube(), hits = o => stlBench(J, C.ascii, o).hits.join();
+      return hits({ z: 75 }) === '-15,15' && hits({ z: 75, angle: 45 }) === '-15,15' && hits({ z: 87 }) === '-15,-7.5,0,7.5,15' && hits({ z: 87, tip: 45 }) === '-15,15' ? 1 : 0;
+    },
+  },
+  {
+    name: 'An STL object is kept with the bench, ends a Gaussian beam, and is drawn in 3D from its triangles',
+    why: 'the cube at the beam\u2019s height in a Gaussian beam: saved and opened again it is the same, with no line in the import report; the field reaching the screen behind it has no power; and the 3D view builds it as one mesh of its 12 triangles (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const C = stlCube();
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol: 's', gauss: true, w0: 1, z0: 0 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 60 }] });
+      const n = J.stl(C.ascii, 'cube.stl', 0, 0); J.setParam(n, 'z', 75);
+      const saved = JSON.stringify(J.project()), notes = J.importText(saved), el = J.byName(n);
+      const same = el && el.type === 'stl' && el.mesh.n === 12 && (el.z === undefined || el.z === 75);
+      J.trace(); const d = J.diffraction('Sc'), dark = !d || !(d.power > 1e-9);
+      try {
+        await J.view3d.set(true); const st = J.view3d.stats();
+        return same && !notes.length && dark && st && st.kinds.stl === 1 ? 1 : 0;
+      } finally { await J.view3d.set(false); }
+    },
   },  { group: 'Heights' },
   {
     name: 'Light crossing a vapour cell at an angle, turned or tipped, goes further through the vapour',
@@ -6151,6 +6189,24 @@ const TESTS = [
 
 /* ---------- Lasers, cells and fibre benches ---------- */
 const rigJ = () => document.getElementById('rig').contentWindow.JEKray2D;
+/* a 20 mm cube as a text and as a binary .stl (the binary as an array of byte values) */
+function stlCube() {
+  const V = [[0,0,0],[20,0,0],[20,20,0],[0,20,0],[0,0,20],[20,0,20],[20,20,20],[0,20,20]], F = [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]];
+  const ascii = 'solid cube\n' + F.map(f => ' facet normal 0 0 0\n  outer loop\n' + f.map(i => '   vertex ' + V[i].join(' ')).join('\n') + '\n  endloop\n endfacet').join('\n') + '\nendsolid cube\n';
+  const bin = new ArrayBuffer(84 + 50 * F.length), dv = new DataView(bin); dv.setUint32(80, F.length, true);
+  F.forEach((f, i) => f.forEach((vi, k) => V[vi].forEach((c, j) => dv.setFloat32(84 + 50 * i + 12 + 12 * k + 4 * j, c, true))));
+  return { ascii, bin: Array.from(new Uint8Array(bin)) };
+}
+/* five rays across 30 mm onto a screen, an STL object at the origin set as o says: what lands */
+function stlBench(J, src, o) {
+  J.load({ format: 'jekray', version: 1, elements: [
+    { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 30, pol: 's' },
+    { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 100 }] });
+  const n = J.stl(src, 'cube.stl', 0, 0);
+  for (const [k, v] of Object.entries(o || {})) J.setParam(n, k, v);
+  J.trace(); const el = J.byName(n);
+  return { z: el.z, size: el.mesh.size, tris: el.mesh.n, hits: J.lastTrace().screens.Sc.map(h => +h.y.toFixed(2)).sort((a, b) => a - b) };
+}
 const getDemo = k => { const x = new XMLHttpRequest(); x.open('GET', 'demos/' + k + '.jekray', false); x.send(); return x.responseText; };
 const rigrodOut = (Psat, R1, R2, G0) => Math.max(0, Psat * (1 - R2) * Math.sqrt(R1) / ((Math.sqrt(R1) + Math.sqrt(R2)) * (1 - Math.sqrt(R1 * R2))) * (Math.log(G0) + Math.log(Math.sqrt(R1 * R2))));
 function laserBench(g0, oc) {

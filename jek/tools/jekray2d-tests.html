@@ -5145,18 +5145,14 @@ const TESTS = [
     },
   },
   {
-    name: 'and a tab with fibre, electronic or chip parts stays 2D',
-    why: 'the fibre Michelson (fibre parts on its tab): the 3D view is refused, and says which parts keep it 2D (1 when it does)',
+    name: 'and a tab with fibre, electronic or chip parts opens in 3D too, those parts left out',
+    why: 'the fibre Michelson (fibre parts on its tab): the 3D view opens, and only its free-space parts are drawn (1 when it does)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('fibre-michelson')));
-      const bl = J.view3d.blockers();
-      J.experimental(true);
-      await J.view3d.set(true);
-      const on = J.view3d.on();
-      if (on) await J.view3d.set(false);
-      J.experimental(false);
-      return !J.view3d.eligible() && bl.length > 0 && !on ? 1 : 0;
+      const bl = J.view3d.blockers(), free = J.project().elements.filter(e => e.bench === J.project().tab && !bl.includes(e.name) && e.type !== 'draw').length;
+      try { await J.view3d.set(true); const st = J.view3d.stats(); return J.view3d.on() && bl.length > 0 && st && st.parts === free ? 1 : 0; }
+      finally { await J.view3d.set(false); }
     },
   },
   {

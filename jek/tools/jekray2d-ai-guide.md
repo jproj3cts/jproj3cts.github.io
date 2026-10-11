@@ -12,7 +12,7 @@ Read all of it before writing a file. The parts that matter most are **Coordinat
 - Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.
 - A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.
 
-It works in 3D: every free-space part is placed freely in space, by its x and y, its height "z" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (they keep to tabs of their own), or model mechanics (no forces on particles, no thermal effects).
+It works in 3D: every free-space part is placed freely in space, by its x and y, its height "z" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).
 
 ## How to work
 
@@ -51,6 +51,7 @@ A `.jekray` file is one JSON object:
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
 | view | optional: {"cx", "cy", "scale"}. Leave it out and the tool fits the view |
 | style | optional: the bench's look, {"bg": a colour "#rrggbb" (dark as it is; light, such as "#ffffff" for a figure, drawn light with dark lines), "holes": false to hide the grid holes}. Leave it out for the dark breadboard |
+| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "beams": "envelope" (the default), "field" (the diffracted field) or "none", "scale": "lin" or "log" for the field}. Leave it out for rays and envelopes |
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
@@ -88,7 +89,7 @@ Signs:
 
 - **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {"type": "lens", "diameter": 25.4, "surfaces": [{"R": 51.5}, {"R": null}], "gaps": [3.6], "materials": [{"glass": "N-BK7"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.
 - **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {"type": "mask", "name": "Objective, f 3 mm, NA 0.8", "length": 2 × f × tan(asin(NA)), "delay": "-(sqrt(r^2+9)-3)/lambda"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.
-- **Gaussian laser:** {"type": "source", "gauss": true, "w0": waist radius mm, "z0": mm to the waist, "wavelength": nm, "power": mW, "pol": "s", "rays": 1, "width": 2 × w0, "beamView": "field"}. Use "beamView": "field" to see the diffracted beam, and a few rays (1 to 5) with gauss.
+- **Gaussian laser:** {"type": "source", "gauss": true, "w0": waist radius mm, "z0": mm to the waist, "wavelength": nm, "power": mW, "pol": "s", "rays": 1, "width": 2 × w0}. To see the diffracted beam, give the file "light": {"beams": "field"} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.
 - **Collimated launch from a fibre:** a fibre tip ("fibre") joined to a fibre network, facing a lens one focal length away.
 - **Two beams from one laser:** give the second source "splitFrom": the first's id. They then interfere, with "splitPhase" (degrees) and "splitPath" (mm of extra fibre) between them, and fringes wash out over the laser's "coh".
 - **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.
@@ -140,8 +141,6 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
 | w0 | `0.35` | mm: the 1/e² waist radius. |
 | z0 | `0` | mm: how far ahead of the source the waist is (negative: behind it). |
-| beamView | `"envelope"` | "envelope" (outline of the beam) or "field" (the diffracted field, computed by physical optics). |
-| beamScale | `"lin"` | "lin" or "log" for the field view. |
 | popN | `256` | grid points for the field: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d". |
 | traceRays | `true` | false hides the ray fan. |
@@ -339,7 +338,6 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | length | `2.5` | mm: the ferrule face width. |
 | core | `4.4` | µm core diameter (mode field set from core and NA). |
 | na | `0.12` | numerical aperture. |
-| emitView | `"envelope"` | "envelope" or "field": how the light it sends out is shown. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
 | mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
 

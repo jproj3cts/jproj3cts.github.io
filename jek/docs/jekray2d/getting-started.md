@@ -67,11 +67,13 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 
 Drag a ring round, by its dot or anywhere on it (the dot sits an eighth of a turn from where the part is turned to, clear of where the rings cross, and moves round with it): Shift turns in 15° steps, and Alt a tenth as fast, for fine alignment. Click the part a third time for its arrows again. Two mirrors tipped against each other walk a beam up and leave it level, as on a real bench; two tipped 45°, one over the other, make a periscope. A tipped source sends its light up at that angle. A tipped or rolled part shows by how much under its name on the 2D bench.
 
-The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. It is for tabs of free-space parts. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
+The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. Any tab opens in 3D: its free-space parts are drawn there, while fibre, electronic and chip parts show in 2D only (their light leaves and reaches the free-space parts as ever). Drawings show in 2D only.
 
 ## Settings and sweeps
 
 Every number in a panel can be typed or dragged. Beside most is **Sweep**: it moves the value back and forth over a range, and the bench follows as it plays. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study.
+
+How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): the rays on or off, and the Gaussian beams as their outline, as their diffracted field (linear or log), or not at all.
 
 ## Saving and sharing
 

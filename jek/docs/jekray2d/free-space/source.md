@@ -43,7 +43,7 @@ $$
 
 for a waist of radius $$w_0$$ (at $$1/e^2$$) a distance $$z_0$$ ahead of the source. The fan and the beam describe the same light, so they are kept in step: the fan's width is the beam's diameter at the source, and its divergence the beam's wavefront there. Change one and the other follows.
 
-The beam is what carries the diffracted field, interference, coupling into fibres and cavity modes (see [Free-space optics: Gaussian beams](/jek/docs/jekray2d/free-space/#gaussian-beams)). Its field on the bench can be shown as its outline (**Envelope**) or as the diffracted field itself (**Field**), worked out on a grid of 128 to 1024 points.
+The beam is what carries the diffracted field, interference, coupling into fibres and cavity modes (see [Free-space optics: Gaussian beams](/jek/docs/jekray2d/free-space/#gaussian-beams)). How beams are shown is set for the whole bench, under **Light** in the Bench panel: as their outline (**Envelope**), as the diffracted field itself (**Field**, on a linear or log scale), or not at all. The same section turns the rays on or off. The field is worked out on a grid of 128 to 1024 points, set per source.
 
 ### Beam quality
 

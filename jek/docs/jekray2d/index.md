@@ -28,7 +28,7 @@ JEKray2D brings four kinds of model together on one bench, joined where light an
 
 Every free-space part is placed freely in space: its x and y on the bench, its height above it (0 to 2 m), and its facing, tip and roll, all six degrees of freedom. The light is followed in three dimensions through all of it, and the 3D view shows it (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). What is left out:
 
-- Fibre, electronic and chip parts lie in the plane, on tabs of their own; only free-space tabs open in 3D.
+- Fibre, electronic and chip parts lie in the plane: the 3D view leaves them out.
 - Aberrations across a field of view are worked out in the tangential section.
 - There are no mechanics and no heating: mounts, forces on optics and thermal lensing are not modelled. Optical forces on atoms and small particles in a trap are the exception.
 

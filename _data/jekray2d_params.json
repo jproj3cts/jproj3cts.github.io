@@ -37,16 +37,6 @@
      "meaning": "mm: how far ahead of the source the waist is (negative: behind it)."
     },
     {
-     "k": "beamView",
-     "def": "\"envelope\"",
-     "meaning": "\"envelope\" (outline of the beam) or \"field\" (the diffracted field, computed by physical optics)."
-    },
-    {
-     "k": "beamScale",
-     "def": "\"lin\"",
-     "meaning": "\"lin\" or \"log\" for the field view."
-    },
-    {
      "k": "popN",
      "def": "256",
      "meaning": "grid points for the field: 128, 256, 512 or 1024."
@@ -612,11 +602,6 @@
      "k": "na",
      "def": "0.12",
      "meaning": "numerical aperture."
-    },
-    {
-     "k": "emitView",
-     "def": "\"envelope\"",
-     "meaning": "\"envelope\" or \"field\": how the light it sends out is shown."
     },
     {
      "k": "emitRays",

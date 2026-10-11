@@ -5247,8 +5247,8 @@ const TESTS = [
   },  { group: 'Heights' },
   {
     name: 'A lens raised off the beam turns it up as a lens moved across turns it sideways',
-    why: 'a round lens (f ≈ 100 mm) 2 mm above a level beam: the beam leaves rising at the same angle as it leaves turned in the bench plane when the lens is moved 2 mm across instead (exact in the plane, paraxial out of it: relative difference)',
-    want: 0, tol: 2e-3, unit: '',
+    why: 'a round lens (f ≈ 100 mm) 2 mm above a level beam: the beam leaves rising at the same angle as it leaves turned in the bench plane when the lens is moved 2 mm across instead, both traced exactly (relative difference)',
+    want: 0, tol: 1e-9, unit: '',
     run: J => {
       const bench = (y, z) => ({ format: 'jekray', version: 1, elements: [
         { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1 },
@@ -5264,15 +5264,24 @@ const TESTS = [
     },
   },
   {
-    name: 'A concave mirror raised off the beam turns it by its sagittal power',
-    why: 'a mirror of R = 200 mm set 1 mm above a level beam: at normal incidence the light comes back rising at 2h/R = 0.01; folding it through 90° (45° incidence) at 2h cos 45°/R, Coddington’s sagittal power (largest relative error)',
-    want: 0, tol: 1e-6, unit: '',
+    name: 'A concave mirror raised off the beam reflects the light as the sphere does in 3D',
+    why: 'a mirror of R = 200 mm set 1 mm above a level beam, square on and turned to fold it through 90°: the slope the light leaves with, against the sphere met and reflected from as vectors here (largest relative error)',
+    want: 0, tol: 1e-9, unit: '',
     run: J => {
       const slope = ang => { J.load({ format: 'jekray', version: 1, elements: [
         { type: 'source', id: 'S', name: 'S', x: -60, y: 0.0001, angle: 0, gauss: true, w0: 0.3, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1 },
         { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: ang, length: 25, R: 200, z: 76 }] });
         J.trace(); const seg = J.lastTrace().beams.filter(b => !b.fan && b.parent >= 0)[0]; return seg ? seg.uz : NaN; };
-      return Math.max(Math.abs(slope(180) / 0.01 - 1), Math.abs(slope(135) / (0.01 * Math.SQRT1_2) - 1));
+      // the sphere: its centre 200 mm along the mirror's axis from its vertex (1 mm above the beam)
+      const exact = ang => {
+        const a = ang * Math.PI / 180, C = [200 * Math.cos(a), 200 * Math.sin(a), 1], P0 = [-60, 0.0001, 0], D = [1, 0, 0];
+        const q = P0.map((v, i) => v - C[i]), bq = q[0], cq = q[0] ** 2 + q[1] ** 2 + q[2] ** 2 - 200 * 200;
+        const t = -bq + Math.sqrt(bq * bq - cq);                      // the near side, where the vertex is
+        const P = P0.map((v, i) => v + t * D[i]), N = P.map((v, i) => (C[i] - v) / 200), dn = D[0] * N[0];
+        const R = D.map((v, i) => v - 2 * dn * N[i]);
+        return R[2] / Math.hypot(R[0], R[1]);
+      };
+      return Math.max(Math.abs(slope(180) / exact(180) - 1), Math.abs(slope(135) / exact(135) - 1));
     },
   },
   {
@@ -5288,22 +5297,63 @@ const TESTS = [
     },
   },
   {
-    name: 'Rays up and down a lens focus where rays across it do, to first order',
-    why: 'a thin cross of rays (0.2 mm across and up) through a plano-convex lens: the rays up and down cross the axis at the same distance as the rays across, which are traced exactly (relative difference)',
-    want: 0, tol: 1e-4, unit: '',
+    name: 'A round lens images a hexapolar pupil into a round spot, out of the plane as in it',
+    why: 'hexapolar rings 12 mm across through a plano-convex lens, its spherical aberration large: every ray of a ring lands the same distance from the axis on a screen near focus, up and down as across (largest spread within a ring against the spot, which first order out of the plane would not hold)',
+    want: 0, tol: 1e-9, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [
-        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 3, width: 0.2, pol: 's', pattern: 'cross' },
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 9, width: 12, pol: 's', pattern: 'hex' },
         { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
-        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 20 }] });
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 95, y: 0, angle: 180, length: 30 }] });
       J.trace();
       const H = J.lastTrace().screens.Sc.filter(t => !t.chief);
-      // how far past the screen each crosses the axis (still converging there)
-      const across = H.filter(t => Math.abs(t.y) > 1e-6 && !t.z).map(t => 60 + Math.abs(t.y / Math.tan(Math.asin(t.dly))));
-      const up = H.filter(t => t.z && Math.abs(t.z) > 1e-9).map(t => 60 + Math.abs(t.z / t.dz));
-      if (!across.length || !up.length) return NaN;
-      const a = across.reduce((x, y) => x + y, 0) / across.length, u = up.reduce((x, y) => x + y, 0) / up.length;
-      return Math.abs(u / a - 1);
+      if (H.length !== 61) return NaN;
+      // ring k of the pattern: rays 1..6, 7..18, 19..36, 37..60
+      const ring = k => k === 0 ? 0 : Math.ceil((Math.sqrt(1 + 4 * k / 3) - 1) / 2);
+      const by = new Map();
+      for (const t of H) { const r = Math.hypot(t.y, t.z || 0), g = ring(t.k); if (!by.has(g)) by.set(g, []); by.get(g).push(r); }
+      let spread = 0, size = 0;
+      for (const rs of by.values()) { spread = Math.max(spread, Math.max(...rs) - Math.min(...rs)); size = Math.max(size, ...rs); }
+      return by.size === 5 && size > 0.05 ? spread / size : NaN;
+    },
+  },
+  {
+    name: 'Off the plane each surface takes s and p from its own plane of incidence',
+    why: 'a cross of rays through a steep bare lens: a ray high up the lens, polarised across the bench, is s to the lens there, so it loses what a ray as far across, polarised up, loses (both s), and the other way round (both p); as the lens is round, the two must match (largest relative difference in power at the screen)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const hits = pol => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -30, y: 0, angle: 0, wavelength: 633, rays: 3, width: 16, pol, pattern: 'cross' },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 25 }, { R: -25 }], gaps: [10], materials: [{ glass: 'N-SF11' }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 8, y: 0, angle: 180, length: 40 }] });
+        J.trace(); const H = J.lastTrace().screens.Sc.filter(t => !t.chief);
+        return { up: H.find(t => t.z > 1), across: H.find(t => t.y > 1 && !(Math.abs(t.z || 0) > 1e-9)) }; };
+      const S = hits('s'), P = hits('p');
+      if (!S.up || !S.across || !P.up || !P.across) return NaN;
+      // a real difference between s and p, so the check means something
+      if (Math.abs(S.across.w / P.across.w - 1) < 1e-3) return NaN;
+      return Math.max(Math.abs(P.up.w / S.across.w - 1), Math.abs(S.up.w / P.across.w - 1));
+    },
+  },
+  {
+    name: 'A cylinder curved out of the plane does up and down what one curved in it does across',
+    why: 'a cross of rays 10 mm wide through a plano-convex cylinder, once curved in the bench plane and once out of it: the rays it bends land where the other’s did, turned through 90°, and the others go straight on (largest difference, mm)',
+    want: 0, tol: 1e-9, unit: 'mm',
+    run: J => {
+      const hits = cyl => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -30, y: 0, angle: 0, wavelength: 633, rays: 5, width: 10, pol: 's', pattern: 'cross' },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, cyl, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 40, y: 0, angle: 180, length: 30 }] });
+        J.trace(); return J.lastTrace().screens.Sc.filter(t => !t.chief).map(t => [t.y, t.z || 0]); };
+      const A = hits('plane'), B = hits('out');
+      if (A.length !== 9 || B.length !== 9) return NaN;
+      const key = v => v.map(x => x.toFixed(6)).join(',');
+      // turned through 90°: (y, z) in one is (z, y) in the other, up to the order of the rays
+      const sa = A.map(([y, z]) => [Math.abs(y), Math.abs(z)]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const sb = B.map(([y, z]) => [Math.abs(z), Math.abs(y)]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      // the bent ones converge: inside 5 mm at the screen; the straight ones stay at 2.5 and 5
+      if (!sa.some(([y]) => y > 1e-6 && y < 2)) return NaN;
+      return Math.max(...sa.map((v, i) => Math.max(Math.abs(v[0] - sb[i][0]), Math.abs(v[1] - sb[i][1]))));
     },
   },
   {

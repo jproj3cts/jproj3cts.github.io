@@ -4376,13 +4376,13 @@ function traceSceneRaw() {
   try { traceSceneOnce(); } finally { traceDepth--; }
 }
 /* ---------- Heights: each part's optical centre above the breadboard ----------
-   A part may sit higher or lower than the beam height (75 mm, the default). The trace stays
-   exact in the bench plane; out of it each ray carries its height z and its slope u (dz/ds),
-   paraxially. A part takes only the light that lands inside its aperture, round or square,
-   once its height is counted; a curved surface met off its centre turns the light out of the
-   plane by its sagittal power (Coddington's relation: n'u' = nu - h c_s (n' cos θ' - n cos θ));
-   a mask's delay kicks it by its gradient across. With every part at the beam height none of
-   this runs, and the bench traces exactly as it did. */
+   A part may sit higher or lower than the beam height (75 mm, the default). Each ray carries
+   its height z and its slope u (dz/ds), and is traced exactly in 3D (see intersect3): a part
+   takes only the light that lands inside its aperture, round or square, once its height is
+   counted; a curved surface is met where the ray reaches it, and bends the light by its normal
+   there in 3D, s and p taken from its own plane of incidence; a mask's delay bends it by its
+   gradient both ways, a grating keeps its rise across the grooves. With every part at the beam
+   height and every source a line none of this runs, and the bench traces exactly as it did. */
 const BEAM_Z = 75;
 /* A source's rays across its beam: [t across in the bench plane, s up out of it], each from -0.5
    to 0.5 of its width (and of its divergence, for a point source). A line, as ever, n across;
@@ -4431,28 +4431,123 @@ function zInside(s, yy, h) {
   if (Z_SQUARE.has(el.type)) return Math.abs(h) <= zHalf(el, s.semi) + 1e-9;
   return yy * yy + h * h <= s.semi * s.semi * (1 + 1e-12) + 1e-12;
 }
-/* what a surface does to the slope out of the plane, kept until the light leaving is known:
-   h off the part's centre, the sagittal curvature there, the surface's axis, the light coming in */
-function zPending(s, px, py, dx, dy, n, z, u, lam) {
-  const el = s.el, h = z - zOf(el);
-  let cs = 0, g = 0;
-  if (h !== 0 && (s.kind === 'refract' || s.kind === 'mirror' || s.kind === 'screen')) {
-    const [, ly] = toLocal(s.f, px, py);
-    if (s.cylS) { const S = s.cylS; cs = S.c + 2 * (S.a2 || 0); }        // a cylinder curved out of the plane
-    else if (s.cyl === 'plane' || s.flat) cs = 0;                        // straight up and down
-    else { const yy = ly + (s.y0 || 0); cs = Math.abs(yy) > 1e-9 ? rawDsag(s, yy) / yy : s.c + 2 * (s.a2 || 0); }
-  }
-  if (s.maskFn && h !== 0) {
-    // a mask's delay (waves) bends the light by its gradient across: lambda dD/dv
-    const [, ly] = toLocal(s.f, px, py), hh = 1e-4, d = (s.maskFn(ly, h + hh, lam)[1] - s.maskFn(ly, h - hh, lam)[1]) / (2 * hh);
-    if (isFinite(d)) g = lam * d;
-  }
-  if (!cs && !g && !u) return null;
-  return { h, cs, g, ax: s.f.c, ay: s.f.s, dx, dy, n, u };
+/* Out of the plane the trace is as exact as in it. A ray carries its in-plane direction (unit),
+   its height z and its slope u = dz/ds along the bench, so its 3D direction is (dx, dy, u) over
+   sqrt(1 + u^2). A surface that is a plane in the bench (a flat, a cube's face, a cylinder
+   curved in the plane) stands straight up, so where a ray meets it is found in the plane alone;
+   a curved one (a lens's or a mirror's face, turned about its axis, or a cylinder curved out
+   of the plane) is met where the ray reaches it in 3D, its normal taken there in 3D, and the
+   light bent by Snell's law and the law of reflection as vectors. */
+const zCurved = s => !!s.cylS || (!s.flat && s.cyl !== 'plane');
+function cylOut(s) {
+  if (!s._co) { const S = s.cylS; Object.defineProperty(s, '_co', { value: { c: S.c || 0, k: S.k || 0, a2: S.a2 || 0, A: S.A || [], odd: S.odd }, enumerable: false }); }
+  return s._co;
 }
-function zApply(p, dx, dy, n2) {
-  const P = p.cs * (n2 * (dx * p.ax + dy * p.ay) - p.n * (p.dx * p.ax + p.dy * p.ay));
-  return (p.n * (p.u + p.g) - p.h * P) / n2;
+// the sag of a surface at y across and h up from its centre: a surface of revolution about its
+// axis (an off-axis segment's parent's axis), or a cylinder's profile up and down
+function sag3(s, y, h) {
+  if (s.cylS) return rawSag(cylOut(s), h);
+  if (s.y0) return rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0;
+  return rawSag(s, Math.hypot(y, h));
+}
+// its unit normal there, towards local +x
+function normal3(s, y, h) {
+  let nx = 1, ny = 0, nz = 0;
+  if (s.cylS) nz = -rawDsag(cylOut(s), h);
+  else {
+    const Y = y + (s.y0 || 0), r = Math.hypot(Y, h);
+    if (r > 1e-12) { const m = rawDsag(s, r) / r; ny = -m * Y; nz = -m * h; }
+  }
+  const l = Math.hypot(nx, ny, nz);
+  return [nx / l, ny / l, nz / l];
+}
+// where a ray from (px, py) at h0 up, along (dx, dy) in the plane rising u per unit, first meets
+// a curved surface: t along the plane, as intersectSurf gives it
+function intersect3(s, px, py, h0, dx, dy, u, tmin) {
+  px -= s.z;
+  let xmin = s.xmin - s.z, xmax = s.xmax - s.z;
+  if (s.cylS) {
+    if (!s._cx) {
+      let lo = 0, hi = 0;
+      for (let i = 0; i <= 64; i++) { const v = rawSag(cylOut(s), s.semi * (i / 32 - 1)); if (v < lo) lo = v; if (v > hi) hi = v; }
+      Object.defineProperty(s, '_cx', { value: [lo - 1e-9, hi + 1e-9], enumerable: false });
+    }
+    [xmin, xmax] = s._cx;
+  }
+  let t0 = tmin, t1 = Infinity;
+  const slab = (p, d, lo, hi) => {
+    if (Math.abs(d) < 1e-15) return p >= lo && p <= hi;
+    let a = (lo - p) / d, b = (hi - p) / d;
+    if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    return true;
+  };
+  if (!slab(px, dx, xmin, xmax) || !slab(py, dy, -s.semi, s.semi) || !slab(h0, u, -s.semi, s.semi) || !(t0 <= t1)) return null;
+  if (s.conicOnly && !s.cylS) {
+    // closed form: c(y² + h² + (1+k)x²) − 2x = 0, keeping the branch through the vertex
+    const q = 1 + s.k, c = s.c;
+    const A = c * (dy * dy + u * u + q * dx * dx);
+    const B = 2 * c * (py * dy + h0 * u + q * px * dx) - 2 * dx;
+    const C = c * (py * py + h0 * h0 + q * px * px) - 2 * px;
+    let r1, r2;
+    if (Math.abs(A) < 1e-14) { if (Math.abs(B) < 1e-15) return null; r1 = r2 = -C / B; }
+    else {
+      const disc = B * B - 4 * A * C;
+      if (disc < 0) return null;
+      const sq = Math.sqrt(disc), qq = -0.5 * (B + (B >= 0 ? sq : -sq));
+      r1 = qq / A; r2 = qq !== 0 ? C / qq : r1;
+      if (r1 > r2) [r1, r2] = [r2, r1];
+    }
+    for (const t of [r1, r2]) {
+      if (t < tmin || t < t0 - 1e-9 || t > t1 + 1e-9) continue;
+      const y = py + t * dy;
+      if (Math.abs(y) > s.semi) continue;
+      if (Math.abs(px + t * dx - sag3(s, y, h0 + t * u)) < 1e-6 * (1 + Math.abs(px))) return t;
+    }
+    return null;
+  }
+  // otherwise bracket the first root of x(t) − sag(y(t), h(t)), then Illinois
+  const f = t => px + t * dx - sag3(s, py + t * dy, h0 + t * u);
+  const N = 24, step = (t1 - t0) / N;
+  let ta = t0, fa = f(ta);
+  for (let i = 1; i <= N; i++) {
+    const tb = t0 + i * step, fb = f(tb);
+    if (fa === 0) return ta;
+    if (fa * fb <= 0) {
+      let lo = ta, hi = tb, flo = fa, fhi = fb, side = 0, t = tb;
+      for (let it = 0; it < 60; it++) {
+        t = (lo * fhi - hi * flo) / (fhi - flo);
+        const ft = f(t);
+        if (Math.abs(ft) < 1e-13 || hi - lo < 1e-13) break;
+        if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
+        else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
+      }
+      return Math.abs(py + t * dy) <= s.semi + 1e-9 ? t : null;
+    }
+    ta = tb; fa = fb;
+  }
+  return null;
+}
+/* A ray's polarisation frame: s across it as near straight up as it can be, p = ±(d × s), the
+   sign turning over at each reflection (the parity convention the trace keeps throughout). In
+   the bench plane s is straight up, so nothing below changes there. Off it, a surface's own s
+   (along n × d, across its plane of incidence) is turned from the ray's, so the amplitudes are
+   turned into the surface's frame for its Fresnel coefficients and back out of it after. */
+function polFrame(d, sig) {
+  let sx = -d[2] * d[0], sy = -d[2] * d[1], sz = 1 - d[2] * d[2];
+  const l = Math.hypot(sx, sy, sz);
+  if (l < 1e-12) { sx = 1; sy = 0; sz = 0; } else { sx /= l; sy /= l; sz /= l; }
+  return [[sx, sy, sz], [sig * (d[1] * sz - d[2] * sy), sig * (d[2] * sx - d[0] * sz), sig * (d[0] * sy - d[1] * sx)]];
+}
+const vdot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+// amplitudes [sr, si, pr, pi] in one frame into another about the same ray: c = s.s', n = p.s'
+const turnJ = (J, c, n) => [c * J[0] + n * J[2], c * J[1] + n * J[3], -n * J[0] + c * J[2], -n * J[1] + c * J[3]];
+// from a surface's s (sLoc) and the ray's direction d with sign sig, into the ray's own frame
+function fromSurfFrame(J, sLoc, d, sig) {
+  const l = Math.hypot(d[0], d[1], d[2]), u = [d[0] / l, d[1] / l, d[2] / l];
+  const [S] = polFrame(u, sig);
+  const pl = [sig * (u[1] * sLoc[2] - u[2] * sLoc[1]), sig * (u[2] * sLoc[0] - u[0] * sLoc[2]), sig * (u[0] * sLoc[1] - u[1] * sLoc[0])];
+  return turnJ(J, vdot3(sLoc, S), vdot3(pl, S));
 }
 function traceSceneOnce() {
   ensureBenches(project);
@@ -4597,7 +4692,7 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, zp } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
@@ -4611,21 +4706,16 @@ function traceSceneOnce() {
       let ws = sr * sr + si * si, wp = pr * pr + pi * pi;
       let w = ws + wp;
       const pts = [px, py];
-      // heights (see zOf): where the ray is out of the plane, and its slope there; a branch
-      // starts with what the surface it left does to that slope, now its direction is known
-      let zpMain = null, zpNow = null;
+      // heights (see zOf): where the ray is out of the plane, and its slope there
       if (zh === undefined) { zh = zOf(src); uz = 0; }
-      if (zp) { uz = zApply(zp, dx, dy, nCur); zp = null; }
       if (anyZ) {
         const hid = (k2, v) => Object.defineProperty(pts, k2, { value: v, writable: true, enumerable: false });
         hid('zs', [zh]); hid('zNext', undefined);
         hid('push', function (x, y) { this.zs[this.length >> 1] = this.zNext !== undefined ? this.zNext : zh; this.zNext = undefined; return Array.prototype.push.call(this, x, y); });
       }
-      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; o.zp = zpNow; } stack.push(o); };
+      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; } stack.push(o); };
       for (; bounce < maxB; bounce++) {
         if (--budget < 0) { truncated = true; break; }
-        if (zpMain) { uz = zApply(zpMain, dx, dy, nCur); zpMain = null; }
-        zpNow = null;
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
@@ -4638,7 +4728,10 @@ function traceSceneOnce() {
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
           const forced = forceEl && s.el.id === forceEl && splittable(s);
-          let tt = intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+          // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
+          const h3 = anyZ && !forced && zCurved(s) ? zh - zOf(s.el) : 0;
+          let tt = h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, s === last ? 1e-4 : EPS)
+            : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
           // out of the plane: light passing above or below the part misses it
           if (anyZ && tt !== null && !forced && s.kind !== 'iris') { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
           if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = false; }
@@ -4682,12 +4775,14 @@ function traceSceneOnce() {
         px += dx * best; py += dy * best;
         if (anyZ) zh += uz * best;
         if (probe && hit.kind !== 'screen') probeLast = { px, py, dx, dy };   // the last optic it met
-        opl += nCur * best; gpl += gCur * best;
+        // the path in 3D: longer than along the bench by sqrt(1 + u^2) for a ray rising
+        const L3 = uz ? best * Math.sqrt(1 + uz * uz) : best;
+        opl += nCur * L3; gpl += gCur * L3;
         if (aCur > 0) {                       // Beer-Lambert over the path just travelled
-          const a = Math.exp(-0.5 * aCur * best);
+          const a = Math.exp(-0.5 * aCur * L3);
           sr *= a; si *= a; pr *= a; pi *= a;
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
-          absorbed += (1 - Math.exp(-aCur * best)) * (ws + wp) / Math.max(1e-30, Math.exp(-aCur * best));
+          absorbed += (1 - Math.exp(-aCur * L3)) * (ws + wp) / Math.max(1e-30, Math.exp(-aCur * L3));
         }
         if (chief) qr += best;         // free space just adds the distance to q
         pts.push(px, py);
@@ -4753,14 +4848,16 @@ function traceSceneOnce() {
         if (hole && s.kind !== 'iris' && s.kind !== 'mirror' && !(s.el && s.el.type === 'screen' && !s.el.absorb)) hole = 0;
         // leaving a walk-off crystal: its faces refract the wave normal, not the energy
         if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
-        if (anyZ) { zpNow = zPending(s, px, py, dx, dy, nCur, zh, uz, nm * 1e-6); zpMain = zpNow; }
         const [lx, ly] = toLocal(s.f, px, py);
-        let [ldx, ldy] = toLocalDir(s.f, dx, dy);
-        // surface normal pointing towards local +x
-        const m = dsagFn(s, ly);
-        let nx = 1, ny = -m;
-        const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
-        const cosd = ldx * nx + ldy * ny;
+        let [ldx, ldy] = toLocalDir(s.f, dx, dy), ldz = 0;
+        // out of the plane: the ray's 3D direction, and where it is against the part's centre
+        const hS = anyZ ? zh - zOf(s.el) : 0;
+        if (uz) { const zn = 1 / Math.sqrt(1 + uz * uz); ldx *= zn; ldy *= zn; ldz = uz * zn; }
+        // surface normal pointing towards local +x (in 3D where the ray is off a curved part's centre)
+        let nx = 1, ny, nz = 0;
+        if (hS && zCurved(s)) [nx, ny, nz] = normal3(s, ly, hS);
+        else { ny = -dsagFn(s, ly); const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl; }
+        const cosd = ldx * nx + ldy * ny + ldz * nz;
         if (s.kind === 'absorb') { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
         const withSurf = ev => Object.defineProperty(ev, 'surf', { value: s, enumerable: false, configurable: true });
         const passEv = () => withSurf({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A: 1, C: 0, D: 1,
@@ -4785,7 +4882,7 @@ function traceSceneOnce() {
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
           if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
           [px, py] = toWorld(P.s.f, lx, ly);
-          [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
+          { const l = ldz ? Math.hypot(ldx, ldy) : 1; [dx, dy] = toWorldDir(P.s.f, ldx / l, ldy / l); }
           bn = P.el.bench;
           if (anyZ) zh += zOf(P.el) - zOf(s.el);              // the same place against the partner, at its height
           pts.length = 0; pts.push(px, py);
@@ -4815,7 +4912,7 @@ function traceSceneOnce() {
           // the delay's slope in the plane, as a grating or a lens would bend them; the
           // beam's pilot takes the lens its curvature makes.
           const lam = nm * 1e-6, hh = 1e-4;
-          const f0 = s.maskFn(ly, 0, lam), fp = s.maskFn(ly + hh, 0, lam), fm = s.maskFn(ly - hh, 0, lam);
+          const f0 = s.maskFn(ly, hS, lam), fp = s.maskFn(ly + hh, hS, lam), fm = s.maskFn(ly - hh, hS, lam);
           // a jump across the tiny step is an edge in the phase (a binary grating's step), a line
           // of no width that bends nothing: only a smooth delay has a slope and a curvature. A
           // jump of whole waves is no jump at all (a blazed grating's or a kinoform's reset, as an
@@ -4829,6 +4926,12 @@ function traceSceneOnce() {
           // on a vortex's core (a fork hologram's, where the reference ray usually crosses it)
           // the slope is the mean of those just round it: the vortex's cancel, the carrier's stay
           if (!smooth) slope = maskMeanSlope(s.maskFn, ly, lam) * lam;
+          // and up and down by its slope that way, off the plane (a smooth delay's only)
+          let slopeV = 0;
+          if (anyZ) {
+            const fu = s.maskFn(ly, hS + hh, lam), fd = s.maskFn(ly, hS - hh, lam), du = wrap(fu[1] - f0[1]), dd = wrap(f0[1] - fd[1]);
+            if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
+          }
           if (isQ) {
             // in a medium the delay's curvature bends the light by 1/n of it, as the rays' slope
             // does: a mask inside water or glass focuses at its focal length there
@@ -4844,7 +4947,12 @@ function traceSceneOnce() {
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
           opl += f0[1] * lam;
           if (w < floorOf(fo) && !chief) { dropped++; break; }
-          if (slope !== 0) {
+          if (ldz || slopeV) {
+            const ty = ldy + slope / nCur, tz = ldz + slopeV / nCur, r = 1 - ty * ty - tz * tz;
+            if (r <= 0) break;                             // bent past grazing: it does not propagate
+            const tx = (ldx < 0 ? -1 : 1) * Math.sqrt(r), l = Math.hypot(tx, ty);
+            [dx, dy] = toWorldDir(s.f, tx / l, ty / l); uz = tz / l;
+          } else if (slope !== 0) {
             const ty = ldy + slope / nCur;
             if (Math.abs(ty) >= 1) break;                  // bent past grazing: it does not propagate
             const tx = (ldx < 0 ? -1 : 1) * Math.sqrt(1 - ty * ty);
@@ -5020,8 +5128,11 @@ function traceSceneOnce() {
             if (!probe && w * o.eff < floorOf(fo + (o.df || 0))) { dropped++; continue; }
             // each order leaves along the grating equation, n sin(out) = n sin(in) + m lambda G,
             // reflected back across the normal or carried on through it
-            const tx = (refl ? -sx0 : sx0) * Math.sqrt(1 - o.ty * o.ty);
-            const [odx, ody] = toWorldDir(s.f, tx, o.ty);
+            // off the plane the light keeps its rise across the grooves (conical diffraction)
+            const r = 1 - o.ty * o.ty - ldz * ldz;
+            if (r <= 0) continue;
+            const tx = (refl ? -sx0 : sx0) * Math.sqrt(r), lo = ldz ? Math.hypot(tx, o.ty) : 1;
+            const [odx, ody] = toWorldDir(s.f, tx / lo, o.ty / lo);
             const a = (refl ? -1 : 1) * Math.sqrt(probe ? 1 : o.eff);
             // the beam is stretched across by cos(out)/cos(in) in the bench plane
             const A = Math.abs(tx) / (cIn || 1);
@@ -5033,7 +5144,7 @@ function traceSceneOnce() {
             push({ qShare, px, py, dx: odx, dy: ody, sr: sr * a, si: si * a, pr: pr * a, pi: pi * a, bn, fo: f2,
               bounce: bounce + 1, last: s, opl: opl + gph, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: refl ? par ^ 1 : par,
               qr: chief ? qr * A * A : qr, qi: chief ? qi * A * A : qi, bid, evt: ev, fam: famAt(fam, f2), k, path: path + 'g' + o.m + '.' + bounce,
-              probe, probeH, tag, wk: 0 });
+              probe, probeH, tag, wk: 0, ...(anyZ ? { zh, uz: ldz / lo } : {}) });
           }
           if (probe) probeLast = { px, py, dx, dy };
           break;                                                     // this ray ends here; its orders carry on
@@ -5055,6 +5166,26 @@ function traceSceneOnce() {
           if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
           else if (!probe && !fan) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
         }
+        // Off the plane, a surface's plane of incidence is tilted from the ray's frame (see
+        // polFrame): the amplitudes are turned into its s and p for what follows, and each ray
+        // leaving is turned back into its own frame. A crystal's faces keep the ray's frame.
+        let sLoc = null;
+        if ((ldz || nz) && !probe && (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'refract' || s.kind === 'split')
+          && !(s.front && s.front.bire) && !(s.back && s.back.bire)) {
+          const d = [ldx, ldy, ldz], sig = par ? -1 : 1, [S, P] = polFrame(d, sig);
+          let a = [ny * ldz - nz * ldy, nz * ldx - nx * ldz, nx * ldy - ny * ldx];
+          const la = Math.hypot(a[0], a[1], a[2]);
+          if (la > 1e-12) {
+            a = a.map(v => v / la);
+            if (vdot3(a, S) < 0) a = a.map(v => -v);
+            const c = vdot3(S, a), n = vdot3(P, a);
+            if (c < 1 - 1e-15) {
+              sLoc = a;
+              [sr, si, pr, pi] = turnJ([sr, si, pr, pi], c, n);
+              ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
+            }
+          }
+        }
         // part of the power leaves on a reflected branch, traced later from the stack
         // Split the field between a reflected branch and what carries on.
         // s is the component out of the plane, p the one in it; in 2D they never mix
@@ -5069,8 +5200,12 @@ function traceSceneOnce() {
           if (chief) { /* the beam follows the reflected branch too */ }
           if (wr > 0 && !probe) {
             if (wr >= floorOf(fo) && (ghosts || s.kind !== 'refract' || Rs > 0.2 || Rp > 0.2)) {
-              const [wdx, wdy] = toWorldDir(s.f, ldx - 2 * cosd * nx, ldy - 2 * cosd * ny);
-              push({ qShare, px, py, dx: wdx, dy: wdy, sr: brs, si: bsi, pr: bpr, pi: bpi, bn, fo,
+              const rx = ldx - 2 * cosd * nx, ry = ldy - 2 * cosd * ny, rz = ldz - 2 * cosd * nz, rl = ldz || nz ? Math.hypot(rx, ry) : 1;
+              const [wdx, wdy] = toWorldDir(s.f, rx / rl, ry / rl);
+              // off the plane: back out of the surface's polarisation frame into the reflected ray's
+              let Jb = [brs, bsi, bpr, bpi];
+              if (sLoc) Jb = fromSurfFrame(Jb, sLoc, [rx, ry, rz], par ? 1 : -1);
+              push({ qShare, px, py, dx: wdx, dy: wdy, sr: Jb[0], si: Jb[1], pr: Jb[2], pi: Jb[3], bn, fo, ...(anyZ ? { zh, uz: rz / rl } : {}),
                 bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid,
                 // a weak reflection, followed only because ghosts are on: marked, for the field's cost
@@ -5126,7 +5261,7 @@ function traceSceneOnce() {
           // a probe is a measuring ray, not light: it follows whichever arm is stronger
           if (Rm >= 0.5) {
             if (cosd >= 0) break;
-            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
+            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
           }
         } else if (s.kind === 'mirror' || s.kind === 'filter') {
@@ -5139,7 +5274,7 @@ function traceSceneOnce() {
           const a = cosd >= 0 ? Math.sqrt(R) : -Math.sqrt(R);
           if (R >= 1) {
             if (cosd >= 0 && s.kind === 'mirror') break;           // back of a full mirror absorbs
-            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;
+            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
             opl += reflExtra;
             sr = -sr; si = -si; pr = -pr; pi = -pi;
@@ -5174,8 +5309,8 @@ function traceSceneOnce() {
           }
           const n1 = nOf(goingBack ? s.front : s.back, tag);
           const n2 = nOf(goingBack ? s.back : s.front, tag);
-          const tnx = goingBack ? nx : -nx, tny = goingBack ? ny : -ny;   // normal along the ray
-          const ci = ldx * tnx + ldy * tny;
+          const tnx = goingBack ? nx : -nx, tny = goingBack ? ny : -ny, tnz = goingBack ? nz : -nz;   // normal along the ray
+          const ci = ldx * tnx + ldy * tny + ldz * tnz;
           const eta = n1 / n2;
           const k = 1 - eta * eta * (1 - ci * ci);
           let rsr = 0, rsi = 0, rpr = 0, rpi = 0, total = false;
@@ -5217,10 +5352,10 @@ function traceSceneOnce() {
             rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
           }
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
-            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny;      // the probe takes the stronger arm
+            ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm
             wentR = true;
           } else if (total) {
-            ldx -= 2 * ci * tnx; ldy -= 2 * ci * tny;
+            ldx -= 2 * ci * tnx; ldy -= 2 * ci * tny; ldz -= 2 * ci * tnz;
             wentR = true;
             const nsr = sr * rsr - si * rsi, nsi = sr * rsi + si * rsr;
             const npr = pr * rpr - pi * rpi, npi = pr * rpi + pi * rpr;
@@ -5228,7 +5363,7 @@ function traceSceneOnce() {
           } else {
             if (rsr || rsi || rpr || rpi) branch(rsr, rsi, rpr, rpi);
             const q = eta * ci - Math.sqrt(k);
-            ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny;
+            ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny; ldz = eta * ldz - q * tnz;
             nCur = n2;               // the ray is now travelling in the second medium
             gCur = ngOf(goingBack ? s.back : s.front, tag);
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
@@ -5237,15 +5372,18 @@ function traceSceneOnce() {
             else if (mNow.walk && tag === mNow.ePol) {
               // the extraordinary ray's energy leaves its wave normal by the walk-off angle
               wk = walkOff(mNow, nm);
-              const l0 = Math.hypot(ldx, ldy), c = Math.cos(wk), sn = Math.sin(wk);
-              [ldx, ldy] = [(ldx * c - ldy * sn) / l0, (ldx * sn + ldy * c) / l0];
+              const l0 = ldz ? Math.hypot(ldx, ldy, ldz) : Math.hypot(ldx, ldy), c = Math.cos(wk), sn = Math.sin(wk);
+              [ldx, ldy] = [(ldx * c - ldy * sn) / l0, (ldx * sn + ldy * c) / l0]; ldz /= l0;
             }
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
         if (wentR) par ^= 1;
         if (w < floorOf(fo) && !chief) { dropped++; break; }
+        if (sLoc) [sr, si, pr, pi] = fromSurfFrame([sr, si, pr, pi], sLoc, [ldx, ldy, ldz], par ? -1 : 1);
         const l = Math.hypot(ldx, ldy);
+        if (ldz) { if (l < 1e-9) break; uz = ldz / l; }         // straight up or down: off the bench
+        else if (anyZ) uz = 0;
         [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l);
         if (isQ && evt && evt.mode !== 'P') evt.dOut = [dx, dy];
         last = s;
@@ -13610,7 +13748,7 @@ function sourcePanel(el) {
   if (exp('v3d') || el.pattern) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
     const pn = h('p', { class: 'note', style: 'margin-top:0.3rem' });
-    bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways. Out of the plane each ray is followed paraxially: its height and slope. Screens show where they land on a spot diagram (Rays tab).'; });
+    bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways, each traced exactly in 3D. Screens show where they land on a spot diagram (Rays tab).'; });
     panel.append(pn);
   }
   else if (!el.gauss) {
@@ -14601,7 +14739,7 @@ function drawRayPlot(cv, note, el) {
   updateSyncButtons();
   note.textContent = yl + ' against ' + xl + ', ' + pts.length + ' rays' +
     (st.mixed && vs(el).rayView !== 'power' ? ', one wavelength only' : '') + '.' +
-    (vs(el).rayView === 'spot' ? (all.some(t => t.z) ? ' Across is traced exactly; up and down is followed to first order (paraxially), so use it for alignment, footprints and clipping, and the in-plane plots and the Aberrations tab for aberrations.'
+    (vs(el).rayView === 'spot' ? (all.some(t => t.z) ? ' Every ray is traced exactly in 3D, up and down as across, so the spot shows the aberrations as they are.'
       : ' Every ray lands at the beam height: give a source a pattern across the beam (a cross, a grid or hexapolar rings, with the 3D view on) to spread them up and down.') : '');
 }
 
@@ -24611,9 +24749,10 @@ function cloudMenuShown() {
 /* ---------- Version, what's new, citing ---------- */
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
-  ['Since 1.0', '29 September \u2013 7 October 2026', [
-    'With the experimental 3D view, <b>rays across the whole beam</b>: a source\u2019s rays as a line (as ever), a cross, a grid or hexapolar rings, up and down the beam as well as across it, followed out of the plane to first order; a screen\u2019s Rays tab has a spot diagram, across against up.',
-    'In the experimental 3D view, <b>heights</b>: drag the arrow over a part to raise or lower it, or type its Height. The light follows, out of the plane: a part above or below the beam is missed, a lens or curved mirror met off its centre turns the beam up or down (by its sagittal power), and a photodiode or fibre tip off the beam\u2019s height takes only what overlaps it. A part not at the beam height shows by how much under its name on the 2D bench. A bench with every part at the beam height traces exactly as before.',
+  ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'With the experimental 3D view, <b>rays traced exactly in 3D</b>: a ray off a lens\u2019s or mirror\u2019s centre, or rising, meets the real surface where it reaches it and bends by its normal there, by Snell\u2019s law and the law of reflection as vectors; Fresnel losses and coatings take s and p from each surface\u2019s own plane of incidence; a cylinder curved out of the plane focuses up and down; a grating sends light arriving at a rise out on its cone; a mask bends light by its delay\u2019s slope both ways. A bench with every part at the beam height traces exactly as before.',
+    'With the experimental 3D view, <b>rays across the whole beam</b>: a source\u2019s rays as a line (as ever), a cross, a grid or hexapolar rings, up and down the beam as well as across it; a screen\u2019s Rays tab has a spot diagram, across against up.',
+    'In the experimental 3D view, <b>heights</b>: drag the arrow over a part to raise or lower it, or type its Height. The light follows, out of the plane: a part above or below the beam is missed, a lens or curved mirror met off its centre turns the beam up or down, and a photodiode or fibre tip off the beam\u2019s height takes only what overlaps it. A part not at the beam height shows by how much under its name on the 2D bench. A bench with every part at the beam height traces exactly as before.',
     'In the experimental 3D view, <b>arrange the bench</b>: drag a part across the table (snapped to the grid, the selection together), turn one by the ring round it (Shift for 15\u00b0 steps), right-click for the bench\u2019s menu, and parts added or dropped land where you are looking.',
     'An experimental <b>3D view</b> (turn it on under Help \u203a Experimental features): the 2D / 3D switch at the bench\u2019s top right (or View \u203a 3D view) shows a tab of free-space parts in three dimensions, each part made from its own numbers at the beam height over a breadboard, the rays and Gaussian beams as the trace has them. Turn, pan and zoom as in Onshape (right-drag, middle-drag, scroll), or as on a trackpad; a view cube and the standard views (Shift+1 to 7, F to fit); click a part to select it and edit it as ever. Save the view as a PNG.',
     'On photonic chips, <b>electrical connections</b>: an on-chip photodiode now has an <b>out</b> port to the electronics (a voltage through its amplifier, or its current as a bare photodiode), and a phase shifter a <b>drive</b> input, \u03c0 of phase for V\u03c0 volts on top of the phase set, so a chip\u2019s Mach\u2013Zehnder or ring can be modulated, swept or locked from the electronics.',

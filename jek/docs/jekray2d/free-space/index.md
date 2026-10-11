@@ -219,7 +219,13 @@ The pulse that arrives is the spectrum with that phase, transformed to time. Its
 
 ## Heights
 
-Every part sits at the beam height, 75 mm above the breadboard, unless it is given a height of its own (the 3D view's arrow, or **Height** in its panel, while the 3D view is turned on as an experimental feature). The trace stays exact in the bench plane. Out of it, each ray carries its height $$z$$ and its slope $$u = \mathrm dz/\mathrm ds$$, paraxially, along its path.
+Every part sits at the beam height, 75 mm above the breadboard, unless it is given a height of its own (the 3D view's arrow, or **Height** in its panel, while the 3D view is turned on as an experimental feature). Each ray then carries its height $$z$$ and its slope $$u = \mathrm dz/\mathrm ds$$ along the bench, so its direction in 3D is
+
+$$
+\hat d = \frac{(d_x, d_y, u)}{\sqrt{1 + u^2}},
+$$
+
+and it is traced exactly in three dimensions.
 
 **Missing a part.** A part takes only the light that lands inside its aperture once the height is counted: inside a circle of its semi-aperture $$a$$ for a lens, a mirror or a plate, at a point $$y$$ across it and $$h = z - z_\text{part}$$ above its centre,
 
@@ -229,18 +235,31 @@ $$
 
 and inside a band as tall as it is wide for a screen, a cube or a block. Light passing above or below a part goes on as if it were not there.
 
-**Turning out of the plane.** A curved surface met off its centre turns the light up or down by its sagittal power, Coddington's relation:
+**Meeting a surface.** A surface that is flat, or curved only in the bench plane (a cube's face, a prism, a cylinder with its power in the plane), stands straight up, so a ray meets it where its path in the plane does. A lens's or mirror's face is a figure of revolution about its axis, so off its centre its sag is that at the radius
 
 $$
-n' u' = n u - h\, c_s \left(n' \cos\theta' - n \cos\theta\right),
+x = \text{sag}\!\left(\sqrt{(y + y_0)^2 + h^2}\right),
 $$
 
-with $$c_s$$ the sagittal curvature where the light meets the surface ($$\mathrm d\,\text{sag}/\mathrm dy$$ over $$y$$, for a surface of revolution), and $$\theta$$, $$\theta'$$ the angles in and out in the bench plane. A mirror is the same with $$n' = -n$$. A flat surface leaves $$n u$$ unchanged; a mask kicks the slope by the gradient of its delay $$D$$ across, $$\lambda\, \partial D/\partial z$$. So a lens set 2 mm high bends a level beam up by 2 mm over its focal length, as on a real bench, and a photodiode or fibre tip off the beam's height reads, or couples, only what overlaps it. A link plane carries the light to the same place against its partner, at the partner's height.
+with $$y_0$$ an off-axis segment's offset from its parent's axis. A cylinder curved out of the plane has $$x = \text{sag}(h)$$. The ray is followed to where it meets that surface in 3D (in closed form for a conic, by iterating otherwise), and its normal $$\hat n$$ there is taken in 3D too.
+
+**Bending.** Snell's law and the law of reflection, as vectors:
+
+$$
+\hat d_\text{r} = \hat d - 2(\hat d\cdot\hat n)\,\hat n, \qquad
+\hat d_\text{t} = \eta\,\hat d + \left(\eta\cos\theta_i - \cos\theta_t\right)\hat n,
+$$
+
+with $$\eta = n_1/n_2$$, $$\cos\theta_i = -\hat d\cdot\hat n$$ and $$\cos\theta_t = \sqrt{1 - \eta^2(1-\cos^2\theta_i)}$$. A grating keeps the component along its grooves (straight up), so light arriving at a rise leaves on a cone; a mask bends the light by the gradient of its delay both ways.
+
+**Polarisation.** A ray's $$s$$ direction is the one across it nearest straight up, so in the bench plane $$s$$ is out of the plane as ever. Off it, a surface's plane of incidence is tilted, and its own $$s$$ lies along $$\hat n\times\hat d$$. The ray's amplitudes are turned into that frame for the surface's Fresnel coefficients or coating, and each ray leaving is turned back into its own frame. So a ray high on a lens, polarised across the bench, is $$s$$ to the lens there, as it should be.
+
+So a lens set 2 mm high bends a level beam up as one moved 2 mm across bends it sideways, aberrations included, and a photodiode or fibre tip off the beam's height reads, or couples, only what overlaps it. A link plane carries the light to the same place against its partner, at the partner's height. With every part at the beam height and every source a line, none of this runs, and the bench traces exactly as it did.
 
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- The bench is a plane with heights: no skew rays, and parts are not tilted out of the plane. The light's height and slope out of it are followed paraxially.
+- Parts sit at heights but are not yet tilted out of the plane. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane.
 - A cavity's mode, the diffracted field and a screen's views take the beam as centred out of the plane; an iris's opening is not narrowed by a beam passing above or below its centre.
 - The round field assumes a figure of revolution about the axis. Off-axis and tilted cases use the 2D field, which is paraxial in free space and slower.
 - Rays and fields agree at the beam's centre by construction. Far from it, the Gaussian beam's paraxial model and the exact rays can differ, as they should.

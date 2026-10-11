@@ -5744,6 +5744,53 @@ const TESTS = [
     },
   },
   {
+    name: 'A screen’s diffracted field lands where the beam does, out of the plane too',
+    why: 'the diffraction map on a screen against the Gaussian beam rebuilt there, point by point (relative RMS of the normalised maps): a lens raised 0.5 mm off the beam, a screen tipped 20°, a periscope 100 mm up, a beam through thin cylinders rolled 30°, an HG10 beam through a periscope that turns it (its image turned a quarter) and through a Dove prism rolled 22.5° (each well under a per cent; level and upright, the same comparison gives 0.1 %)',
+    want: 0, tol: 0.01, unit: '',
+    run: J => {
+      const cmp = els => { J.load({ format: 'jekray', version: 1, elements: els }); J.trace();
+        const D = J.diffraction('Sc'); if (!D || !D.map) return NaN;
+        const M = D.map, n = M.n, A = [], B = [];
+        for (let j = 0; j < n; j += 2) for (let i = 0; i < n; i += 2) { const u = M.u0 + (i + 0.5) / n * (M.u1 - M.u0), v = M.v0 + (j + 0.5) / n * (M.v1 - M.v0); A.push(M.v[j * n + i]); B.push(J.arrivalE('Sc', u, v).reduce((s, x) => s + x * x, 0)); }
+        const sa = A.reduce((s, x) => s + x, 0), sb = B.reduce((s, x) => s + x, 0); let num = 0, den = 0;
+        for (let k = 0; k < A.length; k++) { num += (A[k] / sa - B[k] / sb) ** 2; den += (B[k] / sb) ** 2; }
+        return Math.sqrt(num / den); };
+      const G = { type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, gauss: true, w0: 0.3, z0: 0, wavelength: 633, rays: 1, width: 0.6, power: 1, pol: 's', beamView: 'field', popN: 256 };
+      const lens = o => Object.assign({ type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] }, o);
+      const scr = o => Object.assign({ type: 'screen', id: 'Sc', name: 'Sc', x: 90, y: 0, angle: 180, length: 20 }, o);
+      const f = 50, d = f * Math.SQRT2, zR = (1 + Math.SQRT1_2) * f, w0 = Math.sqrt(zR * 633e-6 / Math.PI);
+      return Math.max(
+        cmp([G, lens({ z: 75.5 }), scr({})]),
+        cmp([G, lens({}), scr({ tip: 20 })]),
+        cmp([Object.assign({}, G, { x: -60 }), { type: 'mirror', id: 'M1', name: 'M1', x: 0, y: 0, angle: 180, length: 25.4, tip: 45 },
+          { type: 'mirror', id: 'M2', name: 'M2', x: 0, y: 0, angle: 0, length: 25.4, tip: -45, z: 175 }, scr({ x: 100, z: 175 })]),
+        cmp([Object.assign({}, G, { w0, z0: 100 + d / 2, width: 2 * w0, tem: 'hg', hm: 1, hn: 0 }),
+          { type: 'mask', id: 'L1', name: 'L1', x: 0, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)', roll: 30 },
+          { type: 'mask', id: 'L2', name: 'L2', x: d, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)', roll: 30 }, scr({ x: 300, length: 40 })]),
+        // an HG10 beam through a periscope that turns the beam (its image turned a quarter), and a Dove prism rolled 22.5°
+        cmp([Object.assign({}, G, { x: -60, tem: 'hg', hm: 1, hn: 0, w0: 0.5, width: 1 }), { type: 'mirror', id: 'M1', name: 'M1', x: 0, y: 0, angle: 180, length: 25.4, tip: 45 },
+          { type: 'mirror', id: 'M2', name: 'M2', x: 0, y: 0, angle: 90, length: 25.4, tip: -45, z: 175 }, scr({ x: 0, y: 100, angle: -90, z: 175 })]),
+        cmp([Object.assign({}, G, { x: -80, tem: 'hg', hm: 1, hn: 0, w0: 1, width: 2, z0: 80 }), { type: 'prism', id: 'D', name: 'D', x: 0, y: 0, angle: 0, shape: 'dove', size: 25, material: { glass: 'N-BK7' }, roll: 22.5 }, scr({ x: 80, length: 60 })]));
+    },
+  },
+  {
+    name: 'An iris raised off the beam clips it as one moved across does',
+    why: 'a 0.6 mm iris 0.2 mm above a Gaussian beam of 0.3 mm waist, and the same iris 0.2 mm across it in the bench plane: the diffracted field passes the same power, and the screen’s map is the same turned through 90° (largest relative difference)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const map = iris => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, gauss: true, w0: 0.3, z0: 0, wavelength: 633, rays: 1, width: 0.6, power: 1, pol: 's', beamView: 'field', popN: 256 },
+        Object.assign({ type: 'stop', id: 'I', name: 'I', x: 0, y: 0, angle: 0, shape: 'round', aperture: 0.6, outer: 25 }, iris),
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 100, y: 0, angle: 180, length: 20 }] }); J.trace(); return J.diffraction('Sc'); };
+      const A = map({ y: 0.2 }), B = map({ z: 75.2 }), C = map({});
+      if (!A || !B || !C || !(A.power < 0.9 * C.power)) return NaN;
+      const at = (M, u, v) => { const n = M.n, i = Math.floor((u - M.u0) / (M.u1 - M.u0) * n), j = Math.floor((v - M.v0) / (M.v1 - M.v0) * n); return i < 0 || j < 0 || i >= n || j >= n ? 0 : M.v[j * n + i]; };
+      const R = 0.45 * (A.map.u1 - A.map.u0); let num = 0, den = 0;
+      for (let a = 0; a < 40; a++) for (let c = 0; c < 40; c++) { const u = -R + 2 * R * a / 39, v = -R + 2 * R * c / 39, x = at(A.map, u, v), y = at(B.map, v, -u); num += (x - y) ** 2; den += x * x; }
+      return Math.max(Math.abs(B.power / A.power - 1), Math.sqrt(num / den));
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -5633,6 +5633,37 @@ const TESTS = [
     },
   },
   {
+    name: 'A rolled cylinder’s ray matrix turns with it',
+    why: 'a plano-convex cylinder rolled 90° has the ray matrix of one curved out of the plane; rolled 45°, its power splits half and half between the axes with the cross terms of a lens at 45°, C = −(P/2)[[1, 1], [1, 1]] (largest difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const mats = o => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, width: 1, power: 1, pol: 's' },
+        Object.assign({ type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] }, o)] }); J.trace();
+        const B = J.lastTrace().beams; const i = B.findIndex(b => !b.fan && b.ev && b.ev.mode === 'T' && b.ev.kind === 'refract'); return J.eventABCD(i); };
+      const out = mats({ cyl: 'out' }), r90 = mats({ cyl: 'plane', roll: 90 }), r45 = mats({ cyl: 'plane', roll: 45 }), P = -out.y[2];
+      if (!(P > 0.01) || !r45.m4) return NaN;
+      const d = [Math.abs(r90.y[2] - out.y[2]), Math.abs(r90.x[2]), ...r45.m4.C.flat().map(v => Math.abs(v + P / 2))];
+      return Math.max(...d) / P;
+    },
+  },
+  {
+    name: 'A beam turned by a rolled cylinder couples to a round fibre whatever the roll',
+    why: 'a Gaussian beam through a cylinder rolled 0°, 30°, 45° and 90°, then focused onto a single-mode fibre: its ellipse turns, the round mode does not care, so the coupling is the same; a photodiode reads the same too (largest relative difference)',
+    want: 0, tol: 1e-5, unit: '',
+    run: J => {
+      const run = (roll, what) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 1064, rays: 1, width: 1, power: 1, pol: 's' },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, cyl: 'plane', roll, surfaces: [{ R: 103 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        { type: 'lens', id: 'L2', name: 'L2', x: 20, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 20 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        what === 'pd' ? { type: 'detector', id: 'D', name: 'D', x: 50, y: 0, angle: 180, length: 10 } : { type: 'fibre', id: 'D', name: 'D', x: 58, y: 0, angle: 180, length: 2, core: 6, na: 0.12 }] });
+        J.trace(); return what === 'pd' ? J.detector('D').mw : J.metric('D', 'couple'); };
+      const f = [0, 30, 45, 90].map(r => run(r, 'fibre')), d = [0, 45].map(r => run(r, 'pd'));
+      if (!(f[0] > 0.5)) return NaN;
+      return Math.max(...f.map(v => Math.abs(v / f[0] - 1)), Math.abs(d[1] / d[0] - 1));
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -3687,6 +3687,17 @@ function curvAt(s, y) {
   return d2 / Math.pow(1 + d1 * d1, 1.5);
 }
 
+/* A surface's curvature in the bench plane, for the beam's pilot in it: a cylinder rolled about
+   its axis keeps cos^2 of its power there (one curved out of the plane, sin^2) */
+function kapIn(s, y) {
+  let k = s.c ? curvAt(s, y) : 0;
+  if (s.tilt && s.roll) {
+    const c2 = Math.cos(s.roll) ** 2;
+    if (s.cylS) k = (s.cylS.c || 0) * (1 - c2) + 2 * (s.cylS.a2 || 0) * (1 - c2);
+    else if (s.cyl === 'plane') k *= c2;
+  }
+  return k;
+}
 /* Build a traced surface description in an element's local frame */
 function makeSurf(el, z, c, k, a2, A, semi, extra) {
   const s = Object.assign({ el, z, c, k, a2, A, semi, y0: 0 }, extra);
@@ -4930,6 +4941,16 @@ function traceSceneOnce() {
         if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
         const [lx, ly] = toLocal(s.f, px, py);
         let [ldx, ldy] = toLocalDir(s.f, dx, dy), ldz = 0;
+        // the beam's way in and its height here, for the beam's models out of the plane (see popScreen)
+        const din3 = [dx, dy, uz || 0], hz3 = zh;
+        const g3 = (ev, out3) => {
+          if (!ev || !anyZ) return ev;
+          ev.din3 = din3; ev.dout3 = out3; ev.hz = hz3;
+          const unit = d => { const l = Math.hypot(d[0], d[1]); return l > 1e-9 ? [d[0] / l, d[1] / l] : null; };
+          if (din3[2]) ev.dIn = unit(din3) || ev.dIn;
+          if (out3[2]) ev.dOut = unit(out3) || ev.dOut;
+          return ev;
+        };
         // out of the plane: the ray's 3D direction, and where it is against the part's centre
         const hS = anyZ ? zh - zOf(s.el) : 0;
         ldz = uz || 0;                         // (dx, dy, uz) is the ray's direction, a unit vector in 3D
@@ -5219,6 +5240,7 @@ function traceSceneOnce() {
             const A = Math.abs(tx) / (cIn || 1);
             const ev = isQ ? withSurf({ el: el.id, kind: 'grating', semi: s.semi, ly, cth: cIn || 1, A, C: 0, D: 1 / A,
               n1: nCur, n2: nCur, mode: refl ? 'R' : 'T', order: o.m, hx: px, hy: py, dIn: [dx, dy], dOut: [odx, ody] }) : null;
+            g3(ev, [odx, ody, ldz / lo]);
             const f2 = fo + (o.df || 0);
             // the phase across the grooves that makes the order: m waves a line, as a path
             const gph = (o.m || 0) * nm * 1e-6 * linesPerMm(el) * ly;
@@ -5290,7 +5312,7 @@ function traceSceneOnce() {
                 bounce: bounce + 1, last: s, opl: opl + reflExtra, nCur, aCur, gpl, gCur, id, chief, fan, pol, par: par ^ 1,
                 qr: qRf ? qRf[0] : qr, qi: qRf ? qRf[1] : qi, bid,
                 // a weak reflection, followed only because ghosts are on: marked, for the field's cost
-                evt: evR ? Object.assign(evR, { dOut: [wdx, wdy] }, s.kind === 'refract' && Rs <= 0.2 && Rp <= 0.2 ? { ghost: true } : null) : evR,
+                evt: evR ? g3(Object.assign(evR, { dOut: [wdx, wdy] }, s.kind === 'refract' && Rs <= 0.2 && Rp <= 0.2 ? { ghost: true } : null), [wdx, wdy, ldz || nz ? rz / rl : 0]) : evR,
                 fam, k, path: path + 'r' + bounce, tag, wk: 0,
                 // light that went round an element keeps its hole off a plane mirror
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
@@ -5317,7 +5339,7 @@ function traceSceneOnce() {
             return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter') && cosd >= 0,
               n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
           };
-          const kap = s.c ? curvAt(s, ly) : 0;
+          const kap = kapIn(s, ly);
           const cth = Math.abs(cosd) || 1;
           const rf = abcd(1, -2 * (cosd < 0 ? kap : -kap) / cth, 1, nCur, 'R');   // a concave face focuses what it reflects
           let tr = abcd(1, 0, 1, nCur, 'T');
@@ -5381,7 +5403,7 @@ function traceSceneOnce() {
             const n1t = nOf(goingBack ? s.front : s.back, tag), n2t = nOf(mInto, tag), ci0 = Math.abs(cosd);
             const k0 = 1 - (n1t / n2t) ** 2 * (1 - ci0 * ci0);
             if (k0 > 0) {
-              const ct0 = Math.sqrt(k0), kp = (s.c ? curvAt(s, ly) : 0) * (goingBack ? 1 : -1);
+              const ct0 = Math.sqrt(k0), kp = kapIn(s, ly) * (goingBack ? 1 : -1);
               const A = ct0 / ci0, C = (n1t * ci0 - n2t * ct0) * kp / (n2t * ci0 * ct0), D = n1t * ci0 / (n2t * ct0);
               const dr = C * qr + D, di = C * qi, den = dr * dr + di * di;
               qT = [(A * qr * dr + A * qi * di) / den, (A * qi * dr - A * qr * di) / den];
@@ -5464,7 +5486,7 @@ function traceSceneOnce() {
         if (sLoc) [sr, si, pr, pi] = fromSurfFrame([sr, si, pr, pi], sLoc, [ldx, ldy, ldz], par ? -1 : 1, fxL);
         if (ldz) { const l = Math.hypot(ldx, ldy, ldz); [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l); uz = ldz / l; }
         else { const l = Math.hypot(ldx, ldy); [dx, dy] = toWorldDir(s.f, ldx / l, ldy / l); if (anyZ) uz = 0; }
-        if (isQ && evt && evt.mode !== 'P') evt.dOut = [dx, dy];
+        if (isQ && evt && evt.mode !== 'P') { evt.dOut = [dx, dy]; g3(evt, [dx, dy, uz || 0]); }
         last = s;
       }
       if (bounce >= maxB) limited++;
@@ -8896,7 +8918,9 @@ function faceArrivals(el) {
     // of the power, and the parts do not add as whole Gaussians (the diffracted field has their shapes)
     const jj = b.J.reduce((a2, v) => a2 + v * v, 0), share = jj > 0 ? b.w / jj : 1;
     const split = share < 0.999;
-    const A = { b, src, lam0, qx, qy: qy || qx, u0, v0, vs, ldx, ldy, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
+    // a beam whose axes were turned on its way: its whole Q (see beamQ)
+    const QG = beamQ(B, i, lam0);
+    const A = { b, src, lam0, qx, qy: qy || qx, ...(QG ? { Q: QG } : {}), u0, v0, vs, ldx, ldy, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
@@ -8911,7 +8935,8 @@ const qW = (q, lam0) => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1
 function arrivalWindow(arr, a) {
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
   for (const A of arr) {
-    const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0), c = A.v0 || 0;
+    let wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0), c = A.v0 || 0;
+    if (A.Q) { const P = ccInv(A.Q), m = Math.min(-P[0][1], -P[3][1]) - Math.abs(P[1][1]), w = Math.sqrt(A.lam0 / Math.PI / Math.max(1e-30, m)); wx = w / (Math.abs(A.ldx) || 1); wy = w; }
     u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v0 = Math.min(v0, c - 4 * wy); v1 = Math.max(v1, c + 4 * wy);
   }
   return [Math.max(u0, -a), Math.min(u1, a), Math.max(v0, -a), Math.min(v1, a)];
@@ -8923,6 +8948,15 @@ function arrivalField(A, u, v0) {
   // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
   const k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
   const du = u - A.u0, dv = v0 - (A.v0 || 0), xb = du * A.ldx, v = A.vs ? hx * dv - ez * A.ldy * du : dv, cT = (Math.abs(A.ldx) || 1) * hx;
+  if (A.Q && !A.comps) {
+    // a beam with its axes turned (see beamQ): exp(-i k r.P.r / 2), P = Q^-1, normalised over the face
+    const P = ccInv(A.Q), a = P[0][0] * xb * xb + 2 * P[1][0] * xb * v + P[3][0] * v * v, bI = P[0][1] * xb * xb + 2 * P[1][1] * xb * v + P[3][1] * v * v;
+    const dI = P[0][1] * P[3][1] - P[1][1] * P[1][1], [l1, l2] = QEig(A.Q);
+    const ph = -0.5 * k * a - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * (Math.atan2(l1[1], l1[0]) + Math.atan2(l2[1], l2[0]));
+    const amp0 = Math.sqrt(k / Math.PI) * Math.pow(Math.max(0, dI), 0.25) * Math.exp(0.5 * k * bI) * Math.sqrt(cT);
+    const c = amp0 * Math.cos(ph), sn = amp0 * Math.sin(ph), J = A.J;
+    return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
+  }
   const iq = q => { const d = q[0] * q[0] + q[1] * q[1]; return [q[0] / d, -q[1] / d]; };
   const ix = iq(A.qx), iy = iq(A.qy);
   const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0);
@@ -11963,7 +11997,7 @@ const V3D = (() => {
       const b = B[i];
       let q;
       if (b.parent === undefined || b.parent < 0 || !B[b.parent]) q = [b.qr / b.n, b.qi / b.n];
-      else { const p = qyAt(b.parent), pb = B[b.parent], e = p && qThrough(mfree(pb.len, pb.n), p), m = e && cavEventABCD(b.ev, b.nm * 1e-6); q = m ? qThrough(m.y, e) : null; }
+      else { const p = qyAt(b.parent), pb = B[b.parent], e = p && qThrough(mfree(pb.len3 || pb.len, pb.n), p), m = e && cavEventABCD(b.ev, b.nm * 1e-6); q = m ? qThrough(m.y, e) : null; }
       qy.set(i, q); return q;
     };
     R.nBeams = 0;
@@ -11973,6 +12007,8 @@ const V3D = (() => {
       if (!src) return;
       if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
       const [Mx, My] = m2.get(seg.src), q0 = qyAt(i), lam0 = seg.nm * 1e-6;
+      // a beam with its axes turned: its ellipse from its whole Q along the segment (see beamQ)
+      const QG = beamQ(B.map((b2, j) => j === i ? Object.assign({}, b2, { len: 0, len3: 0 }) : b2), i, lam0);
       const k = [seg.x0, seg.y0, seg.dx, seg.dy, seg.len, seg.qr, seg.qi].map(v => v.toFixed(3)).join() + seg.colour;
       if (done.has(k)) return;
       done.add(k);
@@ -11989,6 +12025,14 @@ const V3D = (() => {
         const t = ta + (tb - ta) * s / steps, b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, Mx);
         const wx = b ? b.w : 0, wy = q0 ? Math.sqrt(My) * qW([q0[0] + t / seg.n, q0[1]], lam0) : wx;
         const x = seg.x0 + e[0] * t, y = seg.y0 + e[1] * t, zc = seg.z0 !== undefined ? seg.z0 + e[2] * t : BEAM_H;
+        if (QG) {
+          // the 1/e^2 ellipse of exp(k r.Im(P).r): its axes and their turn, from -Im P
+          const P = ccInv(QFree(QG, t / seg.n)), a = -P[0][1], b2 = -P[1][1], c = -P[3][1], k = 2 * Math.PI / lam0;
+          const th = 0.5 * Math.atan2(2 * b2, a - c), m1 = 0.5 * (a + c) + Math.hypot(0.5 * (a - c), b2), m2v = 0.5 * (a + c) - Math.hypot(0.5 * (a - c), b2);
+          const W1 = Math.sqrt(Mx) * Math.sqrt(2 / (k * Math.max(1e-30, m1))), W2 = Math.sqrt(My) * Math.sqrt(2 / (k * Math.max(1e-30, m2v))), ct = Math.cos(th), st = Math.sin(th);
+          for (let j = 0; j < nt; j++) { const a2 = 2 * Math.PI * j / nt, p1 = Math.cos(a2) * W1, p2 = Math.sin(a2) * W2, u = p1 * ct - p2 * st, v = p1 * st + p2 * ct; pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
+          continue;
+        }
         for (let j = 0; j < nt; j++) { const a = 2 * Math.PI * j / nt, u = Math.cos(a) * wx, v = Math.sin(a) * (isFinite(wy) ? wy : wx); pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
@@ -17369,15 +17413,76 @@ function cavEventABCD(ev, lam0) {
   }
   const tr = popScreen(ev, 0, 0, lam0), dO = ev.dOut || ev.dIn, exo = [-dO[1], dO[0]], n2 = ev.n2;
   const hh = 1e-4 * Math.max(1e-3, Math.min(ev.semi || 1, 1));
-  const slope = r => { const along = r[14] * dO[0] + r[15] * dO[1]; return [(r[14] * exo[0] + r[15] * exo[1]) / along, r[16] / along]; };
+  // off the plane, the beam's own axes about its 3D way out (see beamAxes)
+  const g3 = ev.dout3 && ev.dout3[2] ? (() => { const d = ev.dout3, l = Math.hypot(d[0], d[1], d[2]), u = [d[0] / l, d[1] / l, d[2] / l]; return [u, ...beamAxes(u)]; })() : null;
+  const slope = g3 ? r => { const [u, a, b] = g3, along = r[14] * u[0] + r[15] * u[1] + r[16] * u[2]; return [(r[14] * a[0] + r[15] * a[1] + r[16] * a[2]) / along, (r[14] * b[0] + r[15] * b[1] + r[16] * b[2]) / along]; }
+    : r => { const along = r[14] * dO[0] + r[15] * dO[1]; return [(r[14] * exo[0] + r[15] * exo[1]) / along, r[16] / along]; };
   const px = tr(hh, 0), mx = tr(-hh, 0), py = tr(0, hh), my = tr(0, -hh);
   if (!px[4] || !mx[4] || !py[4] || !my[4]) return null;
   const Ax = (px[1] - mx[1]) / (2 * hh), Ay = (py[2] - my[2]) / (2 * hh);
   const Cx = n2 * (slope(px)[0] - slope(mx)[0]) / (2 * hh), Cy = n2 * (slope(py)[1] - slope(my)[1]) / (2 * hh);
-  return { x: [Ax, 0, Cx, 1 / Ax], y: [Ay, 0, Cy, 1 / Ay] };
+  // what one axis does to the other: a part rolled or tipped turns the beam's axes
+  const Axy = (py[1] - my[1]) / (2 * hh), Ayx = (px[2] - mx[2]) / (2 * hh);
+  const Cxy = n2 * (slope(py)[0] - slope(my)[0]) / (2 * hh), Cyx = n2 * (slope(px)[1] - slope(mx)[1]) / (2 * hh);
+  const out = { x: [Ax, 0, Cx, 1 / Ax], y: [Ay, 0, Cy, 1 / Ay] };
+  const sc = Math.abs(Ax) + Math.abs(Ay) + 1e-300, cc = Math.abs(Cx) + Math.abs(Cy) + 1e-9;
+  if (Math.abs(Axy) + Math.abs(Ayx) > 1e-9 * sc || Math.abs(Cxy) + Math.abs(Cyx) > 1e-7 * cc) out.m4 = { A: [[Ax, Axy], [Ayx, Ay]], C: [[Cx, Cxy], [Cyx, Cy]] };
+  return out;
 }
 const mmul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3]];
 const mfree = (L, n) => [1, L / n, 0, 1];
+/* ---------- A Gaussian beam with its axes turned (general astigmatism) ----------
+   Where a part couples the beam's two axes (a cylinder rolled, a curved mirror tipped and
+   turned), the beam is no longer two q's, one across and one up: it is a complex symmetric
+   2x2 matrix Q (Arnaud), its field exp(-i k r.Q^-1.r / 2) / sqrt(det Q) over r = (x, y) in the
+   beam's own axes (x across, y up; see beamAxes). A part's 4x4 ray matrix [A 0; C D] (D = A^-T,
+   thin) takes it to (A Q)(C Q + D)^-1, and free space adds L/n to its diagonal. Q diagonal is
+   the two q's as ever. Complex numbers are [re, im]; a 2x2 complex matrix is [a, b, c, d]. */
+const cz = { m: (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], a: (a, b) => [a[0] + b[0], a[1] + b[1]], s: (a, b) => [a[0] - b[0], a[1] - b[1]],
+  d: (a, b) => { const q = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / q, (a[1] * b[0] - a[0] * b[1]) / q]; },
+  r: (a, k) => [a[0] * k, a[1] * k], sqrt: a => { const r = Math.hypot(a[0], a[1]), re = Math.sqrt(Math.max(0, (r + a[0]) / 2)), im = Math.sqrt(Math.max(0, (r - a[0]) / 2)); return [re, a[1] < 0 ? -im : im]; } };
+// a real 2x2 [[a, b], [c, d]] times a complex 2x2
+const rcMul = (R, M) => [cz.a(cz.r(M[0], R[0][0]), cz.r(M[2], R[0][1])), cz.a(cz.r(M[1], R[0][0]), cz.r(M[3], R[0][1])),
+  cz.a(cz.r(M[0], R[1][0]), cz.r(M[2], R[1][1])), cz.a(cz.r(M[1], R[1][0]), cz.r(M[3], R[1][1]))];
+const ccMul = (P, M) => [cz.a(cz.m(P[0], M[0]), cz.m(P[1], M[2])), cz.a(cz.m(P[0], M[1]), cz.m(P[1], M[3])), cz.a(cz.m(P[2], M[0]), cz.m(P[3], M[2])), cz.a(cz.m(P[2], M[1]), cz.m(P[3], M[3]))];
+const ccInv = M => { const det = cz.s(cz.m(M[0], M[3]), cz.m(M[1], M[2])); return [cz.d(M[3], det), cz.r(cz.d(M[1], det), -1), cz.r(cz.d(M[2], det), -1), cz.d(M[0], det)]; };
+const ccDet = M => cz.s(cz.m(M[0], M[3]), cz.m(M[1], M[2]));
+// through one event's matrices: its 4x4 blocks when it couples the axes, else its two planes
+function QThroughEvent(m, Q) {
+  const A = m.m4 ? m.m4.A : [[m.x[0], 0], [0, m.y[0]]], C = m.m4 ? m.m4.C : [[m.x[2], 0], [0, m.y[2]]];
+  const dA = A[0][0] * A[1][1] - A[0][1] * A[1][0], D = [[A[1][1] / dA, -A[1][0] / dA], [-A[0][1] / dA, A[0][0] / dA]];   // A^-T
+  const num = rcMul(A, Q), den = rcMul(C, Q);
+  for (let i = 0; i < 4; i++) den[i] = cz.a(den[i], [[D[0][0], D[0][1], D[1][0], D[1][1]][i], 0]);
+  const out = ccMul(num, ccInv(den));
+  const sym = cz.r(cz.a(out[1], out[2]), 0.5); out[1] = sym; out[2] = sym;          // symmetric, as it must be
+  return out;
+}
+const QFree = (Q, L) => [cz.a(Q[0], [L, 0]), Q[1], Q[2], cz.a(Q[3], [L, 0])];
+// its two eigenvalues: the q's along its own axes, where it has any (each with a positive imaginary part)
+function QEig(Q) {
+  const tr = cz.a(Q[0], Q[3]), det = ccDet(Q), disc = cz.sqrt(cz.s(cz.m(tr, tr), cz.r(det, 4)));
+  return [cz.r(cz.a(tr, disc), 0.5), cz.r(cz.s(tr, disc), 0.5)];
+}
+/* A beam's Q at the end of segment i, from its source through every event on its way, when
+   one of them couples the axes; null when none does (the two q's then serve, as ever) */
+function beamQ(B, i, lam0) {
+  const chain = [];
+  for (let j = i; j >= 0; j = B[j].parent) chain.push(j);
+  chain.reverse();
+  const r0 = B[chain[0]], q0 = [r0.qr / r0.n, r0.qi / r0.n];
+  let Q = [q0, [0, 0], [0, 0], q0], gen = false;
+  for (let c = 0; c < chain.length; c++) {
+    const bb = B[chain[c]];
+    if (c > 0) {
+      const m = cavEventABCD(bb.ev, lam0); if (!m) return null;
+      // a part turned out of the plane, or the beam off it: the tracer's own q in the plane does not see it
+      if (m.m4 || (bb.ev && bb.ev.surf && bb.ev.surf.tilt) || (bb.ev && bb.ev.dout3 && bb.ev.dout3[2])) gen = true;
+      Q = QThroughEvent(m, Q);
+    }
+    Q = QFree(Q, (bb.len3 || bb.len) / bb.n);
+  }
+  return gen ? Q : null;
+}
 /* q through a reduced matrix: q is reduced too (the physical q over the index) */
 const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q[1], dr = m[2] * q[0] + m[3], di = m[2] * q[1], den = dr * dr + di * di; return [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den]; };
 /* The self-consistent q of a round-trip matrix, or null if the loop is not stable */
@@ -18264,8 +18369,110 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
    and end on the plane square to the outgoing beam. Their optical path between the two
    planes is the phase the surface adds; the aperture comes from where they land.
    x is in the bench plane (to the left of the beam), y is out of it. */
+/* A beam's own axes square to its way d (a 3D unit vector): y as near straight up as it can
+   be, x = y × d (to its left); straight up or down, y is taken along the bench's x */
+function beamAxes(d) {
+  let w = [-d[2] * d[0], -d[2] * d[1], d[0] * d[0] + d[1] * d[1]];
+  if (Math.hypot(d[0], d[1]) <= 1e-9) { const k = d[0]; w = [1 - k * d[0], -k * d[1], -k * d[2]]; }
+  const l = Math.hypot(w[0], w[1], w[2]), ey = [w[0] / l, w[1] / l, w[2] / l];
+  return [[ey[1] * d[2] - ey[2] * d[1], ey[2] * d[0] - ey[0] * d[2], ey[0] * d[1] - ey[1] * d[0]], ey];
+}
+/* A surface's own frame, for a point (or, with point false, a direction) in the world: x along
+   its axis from its vertex, y across, z up; through its part's tip and roll and its face's frame */
+function surfLocal(s, X, Y, Z, point) {
+  if (!s.tilt) {
+    const f = s.f, ox = point ? X - f.ox : X, oy = point ? Y - f.oy : Y;
+    return [ox * f.c + oy * f.s - (point ? s.z : 0), -ox * f.s + oy * f.c, point ? Z - zOf(s.el) : Z];
+  }
+  const f = s.ef, ox = point ? X - f.ox : X, oy = point ? Y - f.oy : Y;
+  const ex = ox * f.c + oy * f.s, ey = -ox * f.s + oy * f.c, h = point ? Z - zOf(s.el) : Z;
+  const [qx, qz0] = tipFrame(s, ex, h), [qy, qz] = rollFrame(s, ey, qz0), [fx, fy] = faceFrame(s, qx, qy, point);
+  return [fx - (point ? s.z : 0), fy, qz];
+}
+// and a direction in it back out to the world
+function surfWorld(s, a, b, c) {
+  if (!s.tilt) { const f = s.f; return [a * f.c - b * f.s, a * f.s + b * f.c, c]; }
+  const L = s.lf, la = L ? L.a : 0, cl = Math.cos(la), sl = Math.sin(la);
+  [a, b] = [a * cl - b * sl, a * sl + b * cl];
+  if (s.roll) { const cr = Math.cos(s.roll), sr = Math.sin(s.roll); [b, c] = [b * cr - c * sr, b * sr + c * cr]; }
+  const ct = Math.cos(s.tip), st = Math.sin(s.tip);
+  [a, c] = [a * ct - c * st, a * st + c * ct];
+  const f = s.ef; return [a * f.c - b * f.s, a * f.s + b * f.c, c];
+}
+function popScreen3(ev, invRx, invRy, lam0) {
+  const s = ev.surf;
+  const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
+  const fn = s.maskFn || (s.kind === 'grating' ? (u, v) => [1, (ev.order || 0) * linesPerMm(s.el) * u] : null);
+  const D0 = fn && isFinite(ev.ly) ? fn(ev.ly, 0, lam0)[1] : 0;
+  const un = d => { const l = Math.hypot(d[0], d[1], d[2]); return [d[0] / l, d[1] / l, d[2] / l]; };
+  const di = un(ev.din3 || [ev.dIn[0], ev.dIn[1], 0]), dO = un(ev.dout3 || [(ev.dOut || ev.dIn)[0], (ev.dOut || ev.dIn)[1], 0]);
+  const [exi, eyi] = beamAxes(di), [exo, eyo] = beamAxes(dO);
+  const H = [ev.hx, ev.hy, ev.hz !== undefined ? ev.hz : zOf(s.el)];
+  const y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
+  const n1 = ev.n1, n2 = ev.mode === 'T' ? ev.n2 : ev.n1;
+  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
+  const flat = s.flat, cyl = s.cyl, cs = s.cylS;
+  let sS = 0, sY = 0, sZ = 0;
+  const sagAt = (u, lz) => {
+    if (cyl === 'out') { sS = rawSag(cs, lz); sY = 0; sZ = rawDsag(cs, lz); return; }
+    if (cyl === 'plane') { if (flat) { sS = 0; sY = 0; sZ = 0; } else { sS = rawSag(s, u) - sag0; sY = rawDsag(s, u); sZ = 0; } return; }
+    const rho = Math.sqrt(u * u + lz * lz);
+    if (flat) { sS = 0; sY = 0; sZ = 0; return; }
+    const Sp = rawDsag(s, rho);
+    sS = rawSag(s, rho) - sag0; sY = rho > 0 ? Sp * u / rho : 0; sZ = rho > 0 ? Sp * lz / rho : 0;
+  };
+  return function trace(x, y) {
+    const X = H[0] + x * exi[0] + y * eyi[0], Y = H[1] + x * exi[1] + y * eyi[1], Z = H[2] + x * exi[2] + y * eyi[2];
+    let dx = di[0] + x * invRx * exi[0] + y * invRy * eyi[0], dy = di[1] + x * invRx * exi[1] + y * invRy * eyi[1], dz = di[2] + x * invRx * exi[2] + y * invRy * eyi[2];
+    const dl = Math.sqrt(dx * dx + dy * dy + dz * dz); dx /= dl; dy /= dl; dz /= dl;
+    const [px, py, pz] = surfLocal(s, X, Y, Z, true), [ldx, ldy, ldz] = surfLocal(s, dx, dy, dz, false);
+    let t = 0, ly = py, lz = pz, ok = true;
+    for (let it = 0; it < 40; it++) {
+      ly = py + t * ldy; lz = pz + t * ldz;
+      sagAt(ly + y0, lz);
+      const g = px + t * ldx - sS, gp = ldx - (sY * ldy + sZ * ldz);
+      if (!(Math.abs(gp) > 1e-12)) { ok = false; break; }
+      const dt = -g / gp;
+      t += dt;
+      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) break;
+      if (it === 39) ok = false;
+    }
+    if (!isFinite(t)) return [0, 0, 0, -1, false];
+    ly = py + t * ldy; lz = pz + t * ldz;
+    sagAt(ly + y0, lz);
+    let ex = ldx, ey = ldy, ez = ldz, nx = 1, ny = -sY, nz = -sZ;
+    { const nl = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= nl; ny /= nl; nz /= nl; }
+    if (bend === 'grating') {
+      ey = ldy + (ev.order || 0) * lam0 * linesPerMm(s.el) / n1; ez = ldz;
+      const kk = 1 - ey * ey - ez * ez;
+      if (kk < 0) ok = false;
+      ex = (s.el.mode === 'reflect' ? -1 : 1) * (ldx < 0 ? -1 : 1) * Math.sqrt(Math.max(0, kk));
+    } else if (bend !== 'pass') {
+      let c = -(ldx * nx + ldy * ny + ldz * nz);
+      if (c < 0) { nx = -nx; ny = -ny; nz = -nz; c = -c; }
+      if (bend === 'reflect') { ex = ldx + 2 * c * nx; ey = ldy + 2 * c * ny; ez = ldz + 2 * c * nz; }
+      else {
+        const eta = n1 / n2, k = 1 - eta * eta * (1 - c * c);
+        if (k < 0) ok = false;
+        const m = eta * c - Math.sqrt(Math.max(0, k));
+        ex = eta * ldx + m * nx; ey = eta * ldy + m * ny; ez = eta * ldz + m * nz;
+      }
+    }
+    const [wx, wy, wz] = surfWorld(s, ex, ey, ez), [Nx, Ny, Nz] = surfWorld(s, nx, ny, nz);
+    const Px = X + t * dx, Py = Y + t * dy, Pz = Z + t * dz;
+    const den = wx * dO[0] + wy * dO[1] + wz * dO[2];
+    const t2 = ((H[0] - Px) * dO[0] + (H[1] - Py) * dO[1] + (H[2] - Pz) * dO[2]) / (den || 1e-30);
+    const Ex = Px + t2 * wx - H[0], Ey = Py + t2 * wy - H[1], Ez = Pz + t2 * wz - H[2];
+    let opl = n1 * t + n2 * t2, amp = 1;
+    if (fn) { const [A, D] = fn(ly, lz, lam0); amp = A; opl += (D - D0) * lam0; }
+    return [opl, Ex * exo[0] + Ey * exo[1] + Ez * exo[2], Ex * eyo[0] + Ey * eyo[1] + Ez * eyo[2], edge(ly, lz), ok, amp, ly, lz,
+      dx, dy, dz, Nx, Ny, Nz, wx, wy, wz];
+  };
+}
 function popScreen(ev, invRx, invRy, lam0) {
   const s = ev.surf;
+  // off the plane (a part tipped or rolled, met above or below its centre, or a beam rising): in 3D
+  if (s.tilt || (ev.hz !== undefined && Math.abs(ev.hz - zOf(s.el)) > 1e-12) || (ev.din3 && ev.din3[2]) || (ev.dout3 && ev.dout3[2])) return popScreen3(ev, invRx, invRy, lam0);
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
   // a grating is a phase ramp of m waves per line across it, which is what turns the
   // light into its order: the mask machinery carries it
@@ -25948,6 +26155,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     portScreen(id, i) { const Q = portWorld(getEl(id), i); return [sx(Q.x), sy(Q.y)]; },
     fibrePoint(id, k, t) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[k], t)); },
     fibreMid(id) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[Math.floor((segs.length - 1) / 2)], segs.length % 2 ? 0.5 : 1)); },
+    // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
+    eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
     arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el) }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },

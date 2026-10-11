@@ -5289,6 +5289,20 @@ const TESTS = [
     },
   },
   {
+    name: 'A fibre tip sends its rays out in a pattern across the beam, as a source does',
+    why: 'the split-laser example: both launches with 7 rays as hexapolar rings instead of a line, the rays traced, against the line (ratio; 37 rays a ring set against 7, through the same optics)',
+    want: 37 / 7, tol: 0.02, unit: '',
+    run: J => {
+      J.load(JSON.parse(getDemo('split-laser')));
+      const tips = J.project().elements.filter(e => e.type === 'fibre');
+      for (const t of tips) t.emitRays = 7;
+      J.trace(); const n0 = J.traceInfo().rays;
+      for (const t of tips) t.emitPattern = 'hex';
+      J.trace(); const n1 = J.traceInfo().rays;
+      return n1 / n0;
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

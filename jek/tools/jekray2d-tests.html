@@ -3608,6 +3608,17 @@ const TESTS = [
       fibres: [{ a: ['FL', 0], b: ['PD', 0] }] })).length,
   },
   {
+    name: 'Parts one over the other are not two in one place',
+    why: 'a periscope (two mirrors at the same x and y, 100 mm apart in height) gives no line; the same two mirrors at one height give one',
+    want: 1, tol: 0, unit: ' lines',
+    run: J => {
+      const n = z2 => J.importText(JSON.stringify({ elements: [
+        { type: 'mirror', name: 'Lower', x: 0, y: 0, angle: 180, tip: 45 },
+        { type: 'mirror', name: 'Upper', x: 0, y: 0, angle: 0, tip: -45, ...(z2 !== undefined ? { z: z2 } : {}) }] })).length;
+      return n(175) === 0 ? n() : NaN;
+    },
+  },
+  {
     name: 'Pasted text is read the way an assistant writes it',
     why: 'a sentence, a fenced block, comments and trailing commas round a two-element project: both elements, joined fibre intact',
     want: 2, tol: 0, unit: ' elements',
@@ -5590,6 +5601,54 @@ const TESTS = [
       const H = J.lastTrace().screens.Sc, zs = H.map(h => h.z).sort((a, b) => a - b);
       return H.length === 3 && H.every(h => Math.abs(h.y) < 1e-12 && Math.abs(h.sr) < 1e-12 && Math.abs(Math.abs(h.pr) - 1) < 1e-12)
         && Math.abs(zs[0] + 2) < 1e-12 && Math.abs(zs[1]) < 1e-12 && Math.abs(zs[2] - 2) < 1e-12 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A grating rolled a quarter turn sends its orders up and down, not across',
+    why: 'a 600 line/mm grating in a 633 nm beam, orders −2 to 2: rolled 90°, its grooves lie flat, and each order lands as far up (or down) the screen as it landed across when level (largest difference, mm)',
+    want: 0, tol: 1e-9, unit: 'mm',
+    run: J => {
+      const hits = roll => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol: 's' },
+        { type: 'grating', id: 'G', name: 'G', x: 0, y: 0, angle: 0, length: 25, mode: 'transmit', lines: 600, ...(roll ? { roll } : {}) },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 50, y: 0, angle: 180, length: 200 }] }); J.trace();
+        return J.lastTrace().screens.Sc.map(h => [h.y, h.z || 0]); };
+      const A = hits(0), B = hits(90);
+      if (A.length !== 5 || B.length !== 5 || A.some(h => h[1] !== 0) || B.some(h => Math.abs(h[0]) > 1e-9)) return NaN;
+      const a = A.map(h => h[0]).sort((u, v) => u - v), b = B.map(h => -h[1]).sort((u, v) => u - v);
+      return Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+    },
+  },
+  {
+    name: 'A polariser rolled with a rolled source passes all of it, either way through',
+    why: 'a source polarised across (p) rolled 30°, through a polariser along p: level, it passes cos² 30° of the light; rolled the same way about the bench’s +x, all of it, and from the far side (the source turned round) the polariser rolled the other way (light passed, as a share, whichever is furthest from what it should be)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const pass = (back, roll) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: back ? 60 : -60, y: 0, angle: back ? 180 : 0, wavelength: 633, rays: 1, width: 1, pol: 'p', roll: 30 },
+        { type: 'polariser', id: 'P', name: 'P', x: 0, y: 0, angle: 0, length: 12, axis: 0, ...(roll ? { roll } : {}) },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: back ? -50 : 50, y: 0, angle: back ? 0 : 180, length: 20 }] }); J.trace();
+        const h = J.lastTrace().screens.Sc[0]; return h ? h.sr * h.sr + h.pr * h.pr : 0; };
+      return Math.max(Math.abs(pass(false, 0) - 0.75), Math.abs(pass(false, 30) - 1), Math.abs(pass(true, -30) - 1));
+    },
+  },
+  {
+    name: 'A waveplate rolled about the beam acts as one with its axis turned',
+    why: 'a half-wave plate with its axis at 22.5°, 10° and 60°, rolled −22.5°, 35° and −15°, against the same plate level with its axis at the axis less the roll, for light in along p and along s (largest difference in the field out)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const out = (axis, roll, pol) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol },
+        { type: 'waveplate', id: 'W', name: 'W', x: 0, y: 0, angle: 0, length: 12, axis, retard: 0.5, ...(roll ? { roll } : {}) },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 50, y: 0, angle: 180, length: 20 }] }); J.trace();
+        const h = J.lastTrace().screens.Sc[0]; return [h.sr, h.si || 0, h.pr, h.pi || 0]; };
+      let worst = 0;
+      for (const [axis, roll] of [[22.5, -22.5], [10, 35], [60, -15]]) for (const pol of ['p', 's']) {
+        const a = out(axis, roll, pol), b = out(axis - roll, 0, pol);
+        worst = Math.max(worst, ...a.map((v, i) => Math.abs(v - b[i])));
+      }
+      if (Math.abs(out(22.5, -22.5, 'p')[0]) < 0.99) return NaN;   // rolled to 45°, p comes out s
+      return worst;
     },
   },
   {

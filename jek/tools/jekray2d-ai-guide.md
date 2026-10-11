@@ -12,12 +12,12 @@ Read all of it before writing a file. The parts that matter most are **Coordinat
 - Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.
 - A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.
 
-What it cannot do: build a bench in true 3D. Parts can sit at different heights and be tipped up or down (below), and light sent straight up or down (a periscope) is followed, but parts are placed on the bench plane, and there are no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.
+What it cannot do: place parts freely in 3D. Parts are placed by x and y on the bench, but each can sit at its own height and be tipped and rolled (below), and light is followed out of the plane: up a periscope, along a raised beam, through a part rolled about it. So a periscope or a beam raised to another height is built as it is. A setup with long runs off the table, such as a beam sent up into a vertical microscope, is best unfolded into the plane after its periscope; say how you did it in the project's notes. There are no mechanics (no forces on particles, no thermal effects).
 
 ## How to work
 
 1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.
-2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; nothing may sit on top of another.
+2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different "z", as in a periscope.
 3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.
 4. **Record your assumptions.** Put in "notes" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.
 5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
@@ -54,7 +54,7 @@ A `.jekray` file is one JSON object:
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
-A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take "roll": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens’s power, a grating’s grooves or a Dove prism’s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
+A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take "roll": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens’s power, a grating’s grooves (rolled 90°, its orders go up and down), a waveplate’s or polariser’s axis (as for an isolator’s polarisers: a roll r acts as "axis" less r, so rolling one with a rolled source keeps them aligned) or a Dove prism’s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
 
 ## Coordinates and angles
 
@@ -114,13 +114,13 @@ Before you answer, check each of these:
 - [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.
 - [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.
 - [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.
-- [ ] No two elements share a position; elements are not inside each other.
+- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in "z".
 - [ ] "notes" records the source, every assumption, anything simplified to fit the plane, and parts to check.
 - [ ] The output is a single valid JSON object: no comments, no trailing commas.
 
 ## The import report
 
-When a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place. The person can copy this report back to you. Fix every item and give the whole corrected file again.
+When a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.
 
 ## Element reference
 

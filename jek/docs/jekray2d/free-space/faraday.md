@@ -20,6 +20,8 @@ with the sign set by the direction of travel against the field, and by the parit
 
 So light that crosses a 45° rotator, reflects from a mirror and crosses back comes back turned by 90°, not by 0° as it would through a waveplate. A reciprocal element can't do that. The rotator is non-reciprocal, as it should be.
 
+A rotation commutes with any other turn about the beam, so rolling a Faraday rotator about its normal changes nothing.
+
 ## Settings
 
 {% include jekray2d_params.html group="free" key="faraday" %}

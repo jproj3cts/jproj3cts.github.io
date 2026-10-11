@@ -49,8 +49,12 @@ The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows 
 | Middle-drag, or Ctrl+right-drag: pan | Shift-drag, right-drag or two-finger scroll: pan |
 | Scroll: zoom about the pointer | Pinch, or Ctrl+scroll: zoom |
 | Click: select (Shift adds) | Click: select (Shift adds) |
+| Drag a part: move it | Drag a part: move it |
+| Right-click: the bench's menu | Right-click: the bench's menu |
 
 Choose between them with the **Mouse** menu on the 3D view's bar. On a touch screen, one finger turns, two pan and pinch to zoom. **F** fits the view to the parts, **Z** zooms to the selection, and **Shift+1** to **Shift+7** give the front, back, left, right, top, bottom and isometric views, as in Onshape. Click a face, edge or corner of the view cube to look from there. **PNG** saves the view as a picture.
+
+**Arranging parts in 3D.** Drag a part to slide it across the table: it snaps to the grid as on the 2D bench, and a selection of several moves together. Select one part and an orange ring appears round it: drag the ring to turn the part, Shift for 15° steps (its knob shows which way the part faces). Right-click a part, or the bench, for the same menu as in 2D: duplicate, copy and paste, rotate, lock, move to another tab and the rest. A part added from **+ Add part** lands where the view is looking, and one dragged from the parts rail lands where it is dropped. Undo and redo work as ever.
 
 The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. For now it is for tabs of free-space parts only. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
 

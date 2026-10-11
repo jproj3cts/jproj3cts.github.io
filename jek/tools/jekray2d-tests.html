@@ -5189,6 +5189,61 @@ const TESTS = [
         return s.rays > 0 && s.box.min[0] >= s.board.min[0] - e && s.box.min[1] >= s.board.min[1] - e && s.box.max[0] <= s.board.max[0] + e && s.box.max[1] <= s.board.max[1] + e ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
+  },  {
+    name: 'In 3D a part is dragged across the table, snapped to the grid, and undone',
+    why: 'the Michelson from above, snapping to 5 mm: the fixed mirror dragged 80 px to the right moves along +x by a whole number of 5 mm steps and not at all in y; Ctrl+Z puts it back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const d = JSON.parse(getDemo('michelson')); d.snap = 5;
+      J.load(d);
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('top');
+        const m = J.byName('Fixed mirror'), x0 = m.x, y0 = m.y, s = J.view3d.screenOf('Fixed mirror'), P = J.view3d.pointer;
+        P('pointerdown', s.x, s.y); for (let i = 1; i <= 8; i++) P('pointermove', s.x + 10 * i, s.y); P('pointerup', s.x + 80, s.y, { buttons: 0 });
+        const x1 = J.byName('Fixed mirror').x, y1 = J.byName('Fixed mirror').y;
+        J.view3d.undo();
+        const back = J.byName('Fixed mirror');
+        return x1 > x0 + 4 && Math.abs(x1 / 5 - Math.round(x1 / 5)) < 1e-9 && y1 === y0 && back.x === x0 && back.y === y0 ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'and turned by its ring, in 15° steps with Shift',
+    why: 'the fixed mirror (facing −90°) selected in 3D from above: its ring’s knob dragged a quarter turn anticlockwise round it, with Shift, leaves it facing 0° (the largest error, degrees)',
+    want: 0, tol: 1e-9, unit: '°',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('top');
+        const s = J.view3d.screenOf('Fixed mirror'), P = J.view3d.pointer;
+        P('pointerdown', s.x, s.y); P('pointerup', s.x, s.y, { buttons: 0 });
+        const k = J.view3d.ringScreen();
+        if (!k) return NaN;
+        const r = Math.hypot(k.x - s.x, k.y - s.y), a0 = Math.atan2(k.y - s.y, k.x - s.x);
+        P('pointerdown', k.x, k.y, { shiftKey: true });
+        for (let i = 1; i <= 12; i++) { const a = a0 - (Math.PI / 2) * i / 12; P('pointermove', s.x + r * Math.cos(a), s.y + r * Math.sin(a), { shiftKey: true }); }
+        P('pointerup', s.x + r * Math.cos(a0 - Math.PI / 2), s.y + r * Math.sin(a0 - Math.PI / 2), { buttons: 0, shiftKey: true });
+        return Math.abs(J.byName('Fixed mirror').angle - 0);
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'In 3D a right-click opens the bench’s menu, and a part added lands in view',
+    why: 'the Michelson in 3D: a right-click (no drag) on the fixed mirror opens its menu (Duplicate first), on empty bench the bench’s (Paste here first); a lens added from the menu lands within 25 mm of where the view looks (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('iso');
+        const s = J.view3d.screenOf('Fixed mirror'), P = J.view3d.pointer, R2 = { button: 2, buttons: 2 };
+        P('pointerdown', s.x, s.y, R2); P('pointerup', s.x, s.y, { button: 2, buttons: 0 });
+        const onPart = J.view3d.menuShown();
+        P('pointerdown', 5, 5, R2); P('pointerup', 5, 5, { button: 2, buttons: 0 });
+        const onBench = J.view3d.menuShown();
+        const t = J.view3d.camera().t, n = J.add('lens'), e = J.byName(n);
+        return onPart && /^Duplicate/.test(onPart[0]) && onBench && /^Paste here/.test(onBench[0]) && Math.hypot(e.x - t[0], e.y - t[1]) < 25 ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
   },
 ];
 

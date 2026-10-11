@@ -2994,7 +2994,7 @@ function normElementBase(e) {
       const M = e.mesh && typeof e.mesh === 'object' && typeof e.mesh.data === 'string' && /^[A-Za-z0-9+/=]*$/.test(e.mesh.data) ? e.mesh : null;
       const units = Object.prototype.hasOwnProperty.call(STL_UNITS, e.units) ? e.units : e.units === 'other' ? 'other' : 'mm';
       return Object.assign(base, {
-        mesh: M ? { data: M.data, n: Math.max(0, num(M.n, 0) | 0), size: Array.isArray(M.size) && M.size.length === 3 ? M.size.map(v => Math.max(0, num(v, 0))) : null, file: String(M.file || '').slice(0, 160) } : null,
+        mesh: M ? stlMeshNorm(M) : null,
         units, scale: units === 'other' ? clamp(num(e.scale, 1), 1e-6, 1e6) : STL_UNITS[units],
         colour: /^#[0-9a-fA-F]{6}$/.test(e.colour) ? e.colour : '#8a8f96',
       });
@@ -3903,20 +3903,79 @@ function parseSTL(src) {
 }
 const b64OfBytes = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 const bytesOfB64 = b => { const s = atob(b), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
-/* the mesh as kept with the bench: centred on its bounding box, its size, in file units */
-function meshEncode(T, file) {
+/* The mesh as kept with the bench: centred on its bounding box, its size, in file units. Kept
+   compact, so a bench with a CAD part in it still fits the cloud's 2 MB and a part My parts'
+   256 KB: corners shared by triangles are kept once (welded), each coordinate a 16-bit step
+   across the object's size (a 65535th of it: 1.5 µm on a 100 mm part), and the triangles as
+   indices into them ('q16'). A mesh of more than `budget` triangles is simplified first, by
+   merging the corners in each cell of a grid made coarser until it fits; an STL object only
+   stops light, so its outline is what matters, and the grid is as fine as the budget allows. */
+const STL_KEEP = 40000;                   // triangles kept with the bench
+function meshEncode(T, file, budget) {
+  budget = budget || STL_KEEP;
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < T.length; i++) { const k = i % 3; if (!isFinite(T[i])) throw new Error('The STL file has a vertex that is not a number.'); if (T[i] < lo[k]) lo[k] = T[i]; if (T[i] > hi[k]) hi[k] = T[i]; }
-  const c = lo.map((v, k) => (v + hi[k]) / 2), C = new Float32Array(T.length);
-  for (let i = 0; i < T.length; i++) C[i] = T[i] - c[i % 3];
-  return { data: b64OfBytes(new Uint8Array(C.buffer)), n: T.length / 9, size: hi.map((v, k) => +(v - lo[k]).toPrecision(9)), file: file || '' };
+  const size = hi.map((v, k) => +(v - lo[k]).toPrecision(9)), S = size.map(v => v > 0 ? v : 1e-9), n0 = T.length / 9;
+  const Q = new Uint16Array(T.length);
+  for (let i = 0; i < T.length; i++) { const k = i % 3; Q[i] = Math.round((T[i] - lo[k]) / S[k] * 65535); }
+  // weld, on a grid of g cells a side (65536: every distinct step), dropping triangles that collapse
+  const weld = g => {
+    const sh = 65536 / g, map = new Map(), sum = [], tris = [], seen = new Set();
+    const vid = o => {
+      const a = Math.floor(Q[o] / sh), b = Math.floor(Q[o + 1] / sh), c = Math.floor(Q[o + 2] / sh), key = (a * g + b) * g + c;
+      let v = map.get(key);
+      if (v === undefined) { v = sum.length / 4; map.set(key, v); sum.push(0, 0, 0, 0); }
+      sum[4 * v] += Q[o]; sum[4 * v + 1] += Q[o + 1]; sum[4 * v + 2] += Q[o + 2]; sum[4 * v + 3]++;
+      return v;
+    };
+    for (let t = 0; t < n0; t++) {
+      const A = vid(9 * t), B = vid(9 * t + 3), C = vid(9 * t + 6);
+      if (A === B || B === C || A === C) continue;
+      const k = [A, B, C].sort((x, y) => x - y).join(',');
+      if (seen.has(k)) continue;
+      seen.add(k); tris.push(A, B, C);
+    }
+    const nv = sum.length / 4, V = new Uint16Array(3 * nv);
+    for (let v = 0; v < nv; v++) for (let k = 0; k < 3; k++) V[3 * v + k] = Math.round(sum[4 * v + k] / sum[4 * v + 3]);
+    return { V, I: tris, nv, n: tris.length / 3 };
+  };
+  let g = 65536, W = weld(g);
+  // the triangles left go roughly as the square of the cells a side: aim for the budget, then close in
+  if (W.n > budget) { const ext = Math.max(...S), mean = Math.sqrt(2 * (S[0] * S[1] + S[1] * S[2] + S[0] * S[2]) / Math.max(1, W.n)); g = Math.max(8, Math.min(4096, Math.floor(ext / mean * Math.sqrt(budget / W.n) * 1.4))); W = weld(g); }
+  while (W.n > budget && g > 8) { g = Math.max(8, Math.floor(g * Math.min(0.9, Math.sqrt(budget / W.n)))); W = weld(g); }
+  const ib = W.nv <= 65536 ? 2 : 4, vb = 6 * W.nv, off = vb + (vb % 4 ? 4 - vb % 4 : 0);
+  const buf = new ArrayBuffer(off + ib * W.I.length);
+  new Uint16Array(buf, 0, 3 * W.nv).set(W.V);
+  (ib === 2 ? new Uint16Array(buf, off, W.I.length) : new Uint32Array(buf, off, W.I.length)).set(W.I);
+  return Object.assign({ enc: 'q16', data: b64OfBytes(new Uint8Array(buf)), n: W.n, nv: W.nv, size, file: file || '' },
+    W.n < n0 && g < 65536 ? { orig: n0, cell: +(Math.max(...S) / g).toPrecision(3) } : {});
+}
+/* a mesh as read from a file: the compact form kept as it is; one saved before it (plain
+   float32 triangles) made compact as it comes in, so the bench is small when saved again */
+function stlMeshNorm(M) {
+  const base = { data: M.data, n: Math.max(0, num(M.n, 0) | 0), size: Array.isArray(M.size) && M.size.length === 3 ? M.size.map(v => Math.max(0, num(v, 0))) : null, file: String(M.file || '').slice(0, 160) };
+  if (M.enc === 'q16') return Object.assign(base, { enc: 'q16', nv: Math.max(0, num(M.nv, 0) | 0) },
+    M.orig > 0 ? { orig: Math.max(0, num(M.orig, 0) | 0), cell: Math.max(0, num(M.cell, 0)) } : {});
+  try { const T = meshTris(base); if (T.length >= 9) return meshEncode(T, base.file); } catch (err) { /* kept as it was */ }
+  return base;
+}
+/* the triangles of a mesh as kept, 9 numbers each, centred */
+function meshTris(M) {
+  const u8 = bytesOfB64(M.data);
+  if (M.enc !== 'q16') return new Float32Array(u8.buffer, 0, Math.floor(u8.length / 4));
+  const nv = M.nv | 0, n = M.n | 0, vb = 6 * nv, off = vb + (vb % 4 ? 4 - vb % 4 : 0), ib = nv <= 65536 ? 2 : 4;
+  if (u8.length < off + ib * 3 * n) return new Float32Array(0);
+  const V = new Uint16Array(u8.buffer, 0, 3 * nv), I = ib === 2 ? new Uint16Array(u8.buffer, off, 3 * n) : new Uint32Array(u8.buffer, off, 3 * n);
+  const S = (M.size || [0, 0, 0]).map(v => v > 0 ? v : 1e-9), T = new Float32Array(9 * n);
+  for (let j = 0; j < 3 * n; j++) { const v = I[j]; if (v >= nv) return new Float32Array(0); for (let k = 0; k < 3; k++) T[3 * j + k] = V[3 * v + k] / 65535 * S[k] - S[k] / 2; }
+  return T;
 }
 /* its triangles and their bounding-volume tree, worked out once a mesh */
 const meshCache = new Map();
 function meshOf(el) {
   const M = el.mesh; if (!M || !M.data) return null;
   const hit = meshCache.get(el.id); if (hit && hit.data === M.data) return hit;
-  const u8 = bytesOfB64(M.data), T = new Float32Array(u8.buffer, 0, Math.floor(u8.length / 4)), n = Math.floor(T.length / 9);
+  const T = meshTris(M), n = Math.floor(T.length / 9);
   // the tree: nodes [lo xyz, hi xyz, first, count (leaf) or -1, left, right], triangles sorted into place
   const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
   const cen = new Float32Array(3 * n);
@@ -14384,7 +14443,11 @@ function stlPanel(el) {
   panel.append(readoutBox('stl'));
   const fi = h('input', { type: 'file', accept: '.stl,.STL', hidden: true });
   fi.addEventListener('change', () => { const f = fi.files[0]; if (f) importStl(f, null, el); fi.value = ''; });
-  panel.append(fi, h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Replace its shape from a .stl file\u2026')));
+  panel.append(fi, h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Replace its shape from a .stl file\u2026'),
+    h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026')));
+  const M = el.mesh;
+  if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
+    ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'));
 }
 function selectField(label, options, get, set, opts = {}) {
@@ -24971,7 +25034,7 @@ function importStl(file, at, el) {
     checkpoint();
     if (el) {
       el.mesh = meshEncode(T, file.name); meshCache.delete(el.id); meshHullCache.delete(el.id);
-      toast('Replaced ' + el.name + '\u2019s shape: ' + el.mesh.n + ' triangles');
+      toast('Replaced ' + el.name + '\u2019s shape: ' + el.mesh.n + ' triangles' + (el.mesh.orig ? ' (simplified from ' + el.mesh.orig + ')' : ''));
     } else {
       let x = V().cx, y = V().cy;
       if (at) { const r = canvas.getBoundingClientRect(), q = V3D.active() ? V3D.tablePoint(at[0], at[1]) : [wx(at[0] - r.left), wy(at[1] - r.top)]; if (q) [x, y] = q; }
@@ -24980,7 +25043,7 @@ function importStl(file, at, el) {
       project.elements.push(el);
       selectOne(el.id);
       const kb = Math.round(el.mesh.data.length / 1024);
-      toast('Brought in ' + el.name + ': ' + el.mesh.n + ' triangles, taken as millimetres, resting on the breadboard' + (kb > 2048 ? ' (' + (kb / 1024).toFixed(1) + ' MB with the bench: a share link to it will be long)' : ''));
+      toast('Brought in ' + el.name + ': ' + el.mesh.n + ' triangles' + (el.mesh.orig ? ' (simplified from ' + el.mesh.orig + ', to detail of ' + el.mesh.cell + ' file units, so it saves with the bench)' : '') + ', taken as millimetres, resting on the breadboard' + (kb > 1024 ? ' (' + (kb / 1024).toFixed(1) + ' MB with the bench: a share link to it will be long)' : ''));
     }
     changed(true);
   };
@@ -25210,6 +25273,20 @@ function clipIcon(list, N = 64) {
   } catch (err) { return null; }
   finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; selectedId = keep.sel; extraSel = keep.extra; exporting = keep.exporting; requestRender(); }
 }
+/* what a part keeps: the parts as copied, an STL object's mesh simplified further if need be
+   to fit a part's 256 KB (the copy only: the one on the bench keeps its detail); null if it cannot */
+const PART_MAX = 250 * 1024;
+function partContent(list) {
+  const C = clipOf(list);
+  let txt = JSON.stringify(C), budget = STL_KEEP;
+  const meshes = (C.elements || []).filter(e => e.type === 'stl' && e.mesh);
+  while (txt.length > PART_MAX && meshes.length && budget > 200) {
+    budget = Math.floor(budget * Math.min(0.8, Math.sqrt(PART_MAX / txt.length)));
+    for (const e of meshes) { const T = meshTris(e.mesh); if (T.length / 9 > budget) e.mesh = meshEncode(T, e.mesh.file, budget); }
+    txt = JSON.stringify(C);
+  }
+  return txt.length <= PART_MAX ? txt : null;
+}
 async function saveToMine(list) {
   if (!list.length) return;
   if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
@@ -25220,8 +25297,10 @@ async function saveToMine(list) {
   if (name === null) return;
   const icon = clipIcon(list) || clipIcon(list, 40);
   try {
+    const content = partContent(list);
+    if (!content) { toast('Too big to keep as a part (a part can be at most 256 KB).', true); return; }
     const p = await api('/v1/workspaces/' + personalWs().id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() || undefined, summary: one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content: JSON.stringify(clipOf(list)), icon }) });
+      body: JSON.stringify({ name: name.trim() || undefined, summary: one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (MINE.list) MINE.list.push(p);
     mineChanged();
     toast('Kept “' + p.name + '” in My parts: find it under + Add part');
@@ -26307,6 +26386,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    '<b>STL objects</b> are kept compactly with the bench, so a CAD part now saves to the cloud too (a mesh of more than 40 000 triangles is simplified as it comes in, to its outline\u2019s detail, and the panel says so); and <b>\u2605 Save to My parts</b> in its panel keeps it in your parts library.',
     'An <b>electrical feedthrough</b> (Elec \u2192 Feedthrough): a pair on two tabs carries signals between them, both ways, as a bulkhead connector does. A photodiode on the optical bench can feed a lock-in on an electronics tab, and a generator there drive a modulator back on the bench.',
     'Fibre tips send their rays out as a line, a cross, a grid or hexapolar rings, as a source does, so in 3D the light leaving a fibre fills its cone. A Gaussian beam wider than a lens now shows the share of it that goes round the rim as faint bands outside it, not as a whole beam passing by.',
     'Moving and turning parts in the <b>3D view</b> is now smooth: each step of a drag no longer compiles the view\u2019s shaders again, which made it stutter.',
@@ -27383,6 +27463,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     view3d: V3D.api,
     load(data) { loadProject(data); selectOne(null); history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     trace() { lastTraceKey = null; traceScene(); },
+    // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
+    partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
     // sweeps: play one (resolving once any rendering of its field is done), pause them all, and
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },

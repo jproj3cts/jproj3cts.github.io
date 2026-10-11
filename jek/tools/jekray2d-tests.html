@@ -5320,6 +5320,24 @@ const TESTS = [
     },
   },
   {
+    name: 'A big STL mesh is kept compactly, so it saves with the bench and as a part',
+    why: 'a 30 mm sphere of 60 000 triangles brought in: simplified to at most 40 000, the bench well under the cloud\u2019s 2 MB, the same after a save and load, still stopping a ray through its middle, and small enough for My parts (256 KB; 1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 0, pol: 's' },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 100 }] });
+      const n = J.stl(stlSphere(15, 150, 200), 'sphere.stl', 0, 0), M = J.byName(n).mesh;
+      J.setParam(n, 'z', 75);                                 // up at the beam
+      const bench = J.serialize(), kb = JSON.stringify(bench).length / 1024;
+      J.load(JSON.parse(JSON.stringify(bench))); J.trace();
+      const M2 = J.byName(n).mesh, blocked = !(J.lastTrace().screens.Sc || []).length, part = J.partSize(n);
+      const ok = M.orig === 60000 && M.n <= 40000 && M.n > 20000 && kb < 1024 && M2.n === M.n && M2.data === M.data && blocked && part > 0 && part <= 250 * 1024;
+      if (!ok) throw new Error(JSON.stringify({ orig: M.orig, n: M.n, kb: Math.round(kb), n2: M2.n, same: M2.data === M.data, blocked, part }));
+      return 1;
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',
@@ -6341,6 +6359,15 @@ function stlCube() {
   const bin = new ArrayBuffer(84 + 50 * F.length), dv = new DataView(bin); dv.setUint32(80, F.length, true);
   F.forEach((f, i) => f.forEach((vi, k) => V[vi].forEach((c, j) => dv.setFloat32(84 + 50 * i + 12 + 12 * k + 4 * j, c, true))));
   return { ascii, bin: Array.from(new Uint8Array(bin)) };
+}
+/* a sphere of radius r as a binary STL: nu x nv quads of latitude and longitude, two triangles each */
+function stlSphere(r, nu, nv) {
+  const P = (i, j) => { const th = Math.PI * i / nu, ph = 2 * Math.PI * j / nv; return [r * Math.sin(th) * Math.cos(ph), r * Math.sin(th) * Math.sin(ph), r * Math.cos(th)]; };
+  const F = [];
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = P(i, j), b = P(i + 1, j), c = P(i + 1, j + 1), d = P(i, j + 1); F.push([a, b, c], [a, c, d]); }
+  const bin = new ArrayBuffer(84 + 50 * F.length), dv = new DataView(bin); dv.setUint32(80, F.length, true);
+  F.forEach((f, i) => f.forEach((v, k) => v.forEach((c, j) => dv.setFloat32(84 + 50 * i + 12 + 12 * k + 4 * j, c, true))));
+  return Array.from(new Uint8Array(bin));
 }
 /* five rays across 30 mm onto a screen, an STL object at the origin set as o says: what lands */
 function stlBench(J, src, o) {

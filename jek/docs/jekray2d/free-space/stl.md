@@ -14,7 +14,9 @@ Choose **Open ▾ → Import an object (.stl)**, or drop the .stl file onto the 
 
 An STL file carries no units. JEKray2D takes them as millimetres, as most CAD exports are; set **Units of the file** to centimetres, metres, inches or any scale if yours are not. The object is centred on its bounding box, and placed and turned as any part: by its x and y, its **Height** (of its centre), and its **Facing**, **Tip** and **Roll**, or with its arrows and rings in the 3D view. **Replace its shape** loads another file into the same place.
 
-The triangles are kept with the bench, so a saved bench or a share link carries the object. A large mesh makes both large: export it as coarsely as its shape allows.
+The triangles are kept with the bench, so a saved bench, a cloud bench or a share link carries the object. They are kept compactly: corners shared by triangles once, and each coordinate as one of 65 536 steps across the object (1.5 µm on a 100 mm part). A mesh of more than 40 000 triangles is simplified as it comes in, by merging the corners that fall in each cell of a grid just coarse enough, so that a bench with a CAD part in it still fits the cloud's 2 MB. The panel says when it was, and to what detail; since the object only stops light, its outline is what matters.
+
+**★ Save to My parts** in its panel keeps it in your parts library (with JEKrayPro), to add to any bench from **+ Add part**. A part can be at most 256 KB, so a large mesh is simplified further for the part, if it must; the object on the bench keeps its detail.
 
 ## The model
 

@@ -12,7 +12,7 @@ element: { palette: Free space, type: detector }
 
 ### The light it takes in
 
-A photodiode takes in $$\lvert E\rvert^2$$ over its active area, a disc of the diameter set. The Gaussian beams that reach it are rebuilt on its face as fields: each beam's $$q$$ in and out of the plane, where it lands, its tilt and its optical path. Beams of one launch add as fields, so a Michelson's output diode sees its fringe, and a beam larger than the diode is clipped. Separate launches add as powers. Ray fans count ray by ray.
+A photodiode takes in $$\lvert E\rvert^2$$ over its active area, a disc of the diameter set. The Gaussian beams that reach it are rebuilt on its face as fields: each beam's $$q$$ in and out of the plane, where it lands, its tilt and its optical path. Beams of one launch add as fields, so a Michelson's output diode sees its fringe, and a beam larger than the diode is clipped. A beam landing above or below the centre, sloped, or on a diode tipped out of the plane is rebuilt where and as it lands (see [heights](/jek/docs/jekray2d/free-space/#heights)). Separate launches add as powers. Ray fans count ray by ray.
 
 A diode can instead be read through its diffracted field, which is slower but right where rays are not: fringes, or a focus smaller than the diode's edges.
 

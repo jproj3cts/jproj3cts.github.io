@@ -8878,10 +8878,20 @@ function faceArrivals(el) {
     }
     const bL = b.len3 || b.len;                    // along the beam: in 3D, for a leg that rises
     const qx = [(b.qr + bL) / b.n, b.qi / b.n];
-    const [, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
+    let [lx, u0] = toLocal(f, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len);
     // out of the plane: where the beam arrives against the face's centre, and its slope (see zOf)
-    const v0 = b.z0 !== undefined ? b.z0 + (b.d3 ? b.d3[2] * b.len3 : (b.uz || 0) * b.len) - zOf(el) : 0, vs = b.uz || 0;
-    const [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
+    let v0 = b.z0 !== undefined ? b.z0 + (b.d3 ? b.d3[2] * b.len3 : (b.uz || 0) * b.len) - zOf(el) : 0, vs = b.uz || 0;
+    let [ldx, ldy] = toLocalDir(f, b.dx, b.dy);
+    if (el.tip || el.roll) {
+      // a face tipped or rolled out of the plane: where the beam lands on it and how it meets it,
+      // in the face's own frame (see intersectTip), across it (u) and up it (v)
+      const F = { tip: (el.tip || 0) * deg, roll: (el.roll || 0) * deg };
+      const D = b.d3 ? [...toLocalDir(f, b.d3[0], b.d3[1]), b.d3[2]] : [ldx, ldy, vs], dl = Math.hypot(D[0], D[1], D[2]);
+      const [, qz0] = tipFrame(F, lx, v0), [ex, ez0] = tipFrame(F, D[0] / dl, D[2] / dl);
+      [u0, v0] = rollFrame(F, u0, qz0);
+      const [ey, ez] = rollFrame(F, D[1] / dl, ez0), hx = Math.hypot(ex, ey);
+      ldx = ex / hx; ldy = ey / hx; vs = ez / hx;
+    }
     // a branch of a beam split at an element's edge: a Gaussian here can only stand for its share
     // of the power, and the parts do not add as whole Gaussians (the diffracted field has their shapes)
     const jj = b.J.reduce((a2, v) => a2 + v * v, 0), share = jj > 0 ? b.w / jj : 1;
@@ -8896,18 +8906,31 @@ function faceArrivals(el) {
   return out;
 }
 const qW = (q, lam0) => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
+/* Where a face's arrivals are worth sampling: four beam radii round each, across (u) and up (v),
+   cut to a disc of radius a. A beam may land above or below the centre (see faceArrivals) */
+function arrivalWindow(arr, a) {
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const A of arr) {
+    const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0), c = A.v0 || 0;
+    u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v0 = Math.min(v0, c - 4 * wy); v1 = Math.max(v1, c + 4 * wy);
+  }
+  return [Math.max(u0, -a), Math.min(u1, a), Math.max(v0, -a), Math.min(v1, a)];
+}
 /* One arrival's s and p field at a point (u along the face, v out of the plane), in power
    per unit face area, in the field's e^{-ikz} convention */
 function arrivalField(A, u, v0) {
-  const k = 2 * Math.PI / A.lam0, xb = (u - A.u0) * A.ldx, cT = Math.abs(A.ldx) || 1;
-  const v = v0 - (A.v0 || 0), tiltV = A.vs ? -k * A.vs * v : 0;      // a beam arriving above or below the centre, and tilted out of the plane
+  // the face's point against the beam's own cross-section: across it level (x), and up it square
+  // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
+  const k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
+  const du = u - A.u0, dv = v0 - (A.v0 || 0), xb = du * A.ldx, v = A.vs ? hx * dv - ez * A.ldy * du : dv, cT = (Math.abs(A.ldx) || 1) * hx;
   const iq = q => { const d = q[0] * q[0] + q[1] * q[1]; return [q[0] / d, -q[1] / d]; };
   const ix = iq(A.qx), iy = iq(A.qy);
   const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0);
   // exp(-i k x^2 / 2q): the real part of 1/q curves it, the imaginary part is the envelope
   const re = -0.5 * k * (-ix[1] * xb * xb - iy[1] * v * v);
   const gx = Math.atan2(A.qx[1], A.qx[0]), gy = Math.atan2(A.qy[1], A.qy[0]);
-  const ph = -0.5 * k * (ix[0] * xb * xb + iy[0] * v * v) - k * (A.opl + (u - A.u0) * A.ldy) - 0.5 * gx - 0.5 * gy + tiltV;
+  // and its phase, by how far along the beam the point is (a tilted arrival's fringes)
+  const ph = -0.5 * k * (ix[0] * xb * xb + iy[0] * v * v) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * gx - 0.5 * gy;
   const amp0 = Math.sqrt(2 / (Math.PI * wx * wy)) * Math.exp(re) * Math.sqrt(cT);
   let c, sn;
   if (!A.comps) { c = amp0 * Math.cos(ph); sn = amp0 * Math.sin(ph); }
@@ -8966,9 +8989,10 @@ function mmShare(el, A) {
     all += p; if (u * u + v * v <= a * a) on += p;
   }
   const th = q => fM * A.lam0 / (Math.PI * Math.sqrt(A.lam0 * q[1] / Math.PI));     // far-field half-angle from q's waist
-  const tilt = Math.atan2(Math.abs(A.ldy), Math.abs(A.ldx));
+  // its tilt to the fibre's axis across, and up (a beam arriving sloped, or a tip tipped)
+  const tilt = Math.atan2(Math.abs(A.ldy), Math.abs(A.ldx)), tiltV = Math.atan(Math.abs(A.vs || 0));
   const ang = (t0, t) => 0.5 * (erfA(Math.SQRT2 * (NA - t) / t0) + erfA(Math.SQRT2 * (NA + t) / t0));
-  return (all > 0 ? on / all : 0) * ang(th(A.qx), tilt) * ang(th(A.qy), 0);
+  return (all > 0 ? on / all : 0) * ang(th(A.qx), tilt) * ang(th(A.qy), tiltV);
 }
 function fibreCoupling(el) {
   if (el.mm) return deviceMemo(el, () => {
@@ -9019,17 +9043,12 @@ function detectorReading(el) {
     if (F) { P = F.mw; I = F.mw * responsivity(el, F.nm || benchNms()[0]); }
     // Gaussian launches: |E|^2 over the active disc, fields added within each launch
     if (!F) for (const G of groupsOf(faceArrivals(el))) {
-      let u0 = Infinity, u1 = -Infinity, v1 = 0;
-      for (const A of G) {
-        const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0);
-        u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v1 = Math.max(v1, 4 * wy);
-      }
-      u0 = Math.max(u0, -a); u1 = Math.min(u1, a); v1 = Math.min(v1, a);
-      if (!(u1 > u0) || !(v1 > 0)) continue;
-      const N = 128, du = (u1 - u0) / N, dv = 2 * v1 / N;
+      const [u0, u1, v0, v1] = arrivalWindow(G, a);
+      if (!(u1 > u0) || !(v1 > v0)) continue;
+      const N = 128, du = (u1 - u0) / N, dv = (v1 - v0) / N;
       let pw = 0;
       for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-        const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv;
+        const u = u0 + (i + 0.5) * du, v = v0 + (j + 0.5) * dv;
         if (u * u + v * v > a * a) continue;
         let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
         for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
@@ -9389,7 +9408,7 @@ function fibreNetCached() {
   const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre' || e.type === 'pic');   // PIC hook
   if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }
   const conn = new Set((project.fibres || []).filter(F => !F.wire).flatMap(F => [F.a[0], F.b[0]]));
-  const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id, A.comps || 0]));
+  const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.v0, A.vs, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id, A.comps || 0]));
   const srcs = project.elements.filter(e => e.type === 'source').map(e => [e.id, e.power, e.coh, e.lineshape]);
   const key = JSON.stringify([fels, project.fibres || [], arr, srcs]);
   if (fibreNetMemo.key !== key) {
@@ -9631,7 +9650,7 @@ function tipSources(net) {
         if (!(P > 1e-12)) return;
         const nm = K.nm, v = {
           type: 'source', virtual: true, id: tipId + '~' + out.length, name: tip.name, bench: tip.bench,
-          x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
+          x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), ...(tip.tip ? { tip: tip.tip } : {}), ...(tip.roll ? { roll: tip.roll } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
           // single mode: the fibre's mode; multimode: a filled core, waist the core's radius
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
           gauss: true, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
@@ -12711,16 +12730,10 @@ function fibrePdParts(el, minus) {
 function freePdTones(el) {
   const arr = faceArrivals(el);
   if (arr.length < 2) return [];
-  const a = el.length / 2;
-  let u0 = Infinity, u1 = -Infinity, v1 = 0;
-  for (const A of arr) {
-    const wx = qW(A.qx, A.lam0) / (Math.abs(A.ldx) || 1), wy = qW(A.qy, A.lam0);
-    u0 = Math.min(u0, A.u0 - 4 * wx); u1 = Math.max(u1, A.u0 + 4 * wx); v1 = Math.max(v1, 4 * wy);
-  }
-  u0 = Math.max(u0, -a); u1 = Math.min(u1, a); v1 = Math.min(v1, a);
-  if (!(u1 > u0) || !(v1 > 0)) return [];
-  const N = 64, du = (u1 - u0) / N, dv = 2 * v1 / N, pts = [];
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const u = u0 + (i + 0.5) * du, v = -v1 + (j + 0.5) * dv; if (u * u + v * v <= a * a) pts.push([u, v]); }
+  const a = el.length / 2, [u0, u1, v0, v1] = arrivalWindow(arr, a);
+  if (!(u1 > u0) || !(v1 > v0)) return [];
+  const N = 64, du = (u1 - u0) / N, dv = (v1 - v0) / N, pts = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const u = u0 + (i + 0.5) * du, v = v0 + (j + 0.5) * dv; if (u * u + v * v <= a * a) pts.push([u, v]); }
   const F = arr.map(A => pts.map(([u, v]) => arrivalField(A, u, v)));
   const key = A => A.coh.replace(/@[^#]*/, ''), root = A => splitRoot(A.src), dA = du * dv;
   const tones = new Map(), add = (f, re, im, incoh) => {
@@ -24889,6 +24902,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'With the experimental 3D view, photodiodes and fibre tips take a beam <b>where and as it lands</b>: above or below their centre, sloped, or on a face tipped or rolled out of the plane, the footprint stretched up the face as it should be. A fibre tip raised or tipped off a beam couples exactly what one moved or turned across it does; a small beam landing well off a large diode\u2019s centre is no longer missed; and moving a fibre tip up or down re-solves its fibre network at once.',
     'With the experimental 3D view, <b>roll</b> any free-space part about its own axis (its Roll): a cylindrical lens at 45\u00b0, a grating with its grooves turned, and a new <b>Dove prism</b> (a prism shape), which turns the image by twice its roll. A rolled source turns its rays and its polarisation with it.',
     'With the experimental 3D view, <b>tip any free-space part</b> out of the plane (a lens, a plate, a cube, a grating, a screen, a source), by its blue knob or its Tip, and <b>periscopes</b>: light sent straight up or down is followed, so two mirrors tipped 45\u00b0 one over the other lift a beam to a new height, turning its polarisation as a real periscope does when it turns the beam too. A tipped plate shifts the beam up as a turned one shifts it across; a tipped lens shows the aberrations of one met at an angle.',
     'With the experimental 3D view, <b>tip a mirror</b> up or down, as the vertical knob of a kinematic mount does: drag the blue knob over a selected mirror (0.02\u00b0 a pixel, Shift 0.002\u00b0) or type its Tip. The light leaves by the tipped normal in 3D, and a tipped fold turns the polarisation as a real one does; two mirrors tipped against each other walk a beam up and leave it level.',

@@ -5593,6 +5593,46 @@ const TESTS = [
     },
   },
   {
+    name: 'A fibre tip raised off a beam couples what one moved across does',
+    why: 'a single-mode fibre tip in a Gaussian beam focused on it, its centre 2 µm off the beam: above it, and beside it in the bench plane, the same share coupled (and raising it after the bench was first worked out changes the reading) (largest relative difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const bench = (y, z) => ({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -20, y: 0, angle: 0, gauss: true, w0: 0.0026, z0: 20, wavelength: 1064, rays: 1, width: 0.01, power: 1, pol: 's' },
+        { type: 'fibre', id: 'F', name: 'F', x: 0, y, angle: 180, length: 2, ...(z ? { z } : {}) }] });
+      J.load(bench(0, 0)); J.trace(); const centre = J.metric('F', 'couple');
+      J.byName('F').z = 75.002; J.trace(); const raisedLive = J.metric('F', 'couple');
+      J.load(bench(0, 75.002)); J.trace(); const up = J.metric('F', 'couple');
+      J.load(bench(0.002, 0)); J.trace(); const side = J.metric('F', 'couple');
+      if (!(centre > 0.5) || !(up < 0.99 * centre)) return NaN;
+      return Math.max(Math.abs(up / side - 1), Math.abs(raisedLive / up - 1));
+    },
+  },
+  {
+    name: 'A fibre tip tipped out of a beam couples what one turned across it does',
+    why: 'the same tip, its axis tipped 2° up out of the beam, and instead turned 2° across it in the bench plane: the same share coupled, well down on square-on (relative difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const c = (angle, tip) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -20, y: 0, angle: 0, gauss: true, w0: 0.0026, z0: 20, wavelength: 1064, rays: 1, width: 0.01, power: 1, pol: 's' },
+        { type: 'fibre', id: 'F', name: 'F', x: 0, y: 0, angle, length: 2, ...(tip ? { tip } : {}) }] }); J.trace(); return J.metric('F', 'couple'); };
+      const square = c(180, 0), up = c(180, 2), across = c(182, 0);
+      return up < 0.95 * square ? Math.abs(up / across - 1) : NaN;
+    },
+  },
+  {
+    name: 'A photodiode reads a small beam that lands well above its centre',
+    why: 'a beam 0.2 mm across on a 10 mm photodiode: landing 3 mm above the centre, it reads all it does landing on the centre (relative difference)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const pd = z => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.1, z0: 0, wavelength: 633, rays: 1, width: 0.2, power: 1 },
+        { type: 'detector', id: 'D', name: 'D', x: 0, y: 0, angle: 180, length: 10, ...(z ? { z } : {}) }] }); J.trace(); return J.detector('D').mw; };
+      const centre = pd(0), up = pd(72);
+      return centre > 0.9 ? Math.abs(up / centre - 1) : NaN;
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

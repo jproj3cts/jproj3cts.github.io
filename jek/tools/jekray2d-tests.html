@@ -5220,7 +5220,7 @@ const TESTS = [
   },
   {
     name: 'and turned by its ring, in 15° steps with Shift',
-    why: 'the fixed mirror (facing −90°) clicked twice in 3D from above, for its rings: its blue ring’s knob dragged a quarter turn anticlockwise round it, with Shift, leaves it facing 0° (the largest error, degrees)',
+    why: 'the fixed mirror (facing −90°) clicked twice in 3D from above, for its rings: its blue ring dragged a quarter turn anticlockwise round it, with Shift, leaves it facing 0° (the largest error, degrees)',
     want: 0, tol: 1e-9, unit: '°',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -5926,7 +5926,7 @@ const TESTS = [
   },
   {
     name: 'In 3D a mirror is tipped by its green ring',
-    why: 'a mirror (facing −x) clicked twice in 3D, seen from the front: its green ring’s knob dragged 30° up round it with Shift tips it by 30°; with Alt, 30° round tips it by 3° (a tenth as fast); the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
+    why: 'a mirror (facing −x) clicked twice in 3D, seen from the front: its green ring dragged 30° further up round it with Shift tips it by 30°; with Alt, 30° round tips it by 3° (a tenth as fast); the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -5942,7 +5942,7 @@ const TESTS = [
           P('pointerdown', k.x, k.y, o); for (let i = 1; i <= 10; i++) P('pointermove', ...at(i), o); P('pointerup', ...at(10), { buttons: 0, ...o });
           return true;
         };
-        // the knob starts on the mirror's left, towards −x, where it faces: up the screen is round it the other way
+        // taken hold of an eighth of a turn up from where it faces (−x, the screen's left): round it, up the screen
         if (!turn(30, { shiftKey: true })) return NaN;
         const tip = J.byName('M').tip;
         J.view3d.undo();
@@ -5955,8 +5955,8 @@ const TESTS = [
     },
   },
   {
-    name: 'In 3D a part is rolled by its red ring',
-    why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its red ring’s knob dragged 45° round it, from across the beam towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
+    name: 'In 3D a part is rolled by its orange ring',
+    why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',
     run: async J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -5995,7 +5995,7 @@ const TESTS = [
   },
   {
     name: 'In 3D a part is moved along x and y by its arrows',
-    why: 'the Michelson’s fixed mirror selected in 3D: its red arrow dragged 40 px along its picture moves it along x only, by whole 1 mm snap steps, its green arrow along y only; Ctrl+Z puts each back (1 when all hold)',
+    why: 'the Michelson’s fixed mirror selected in 3D: its orange arrow dragged 40 px along its picture moves it along x only, by whole 1 mm snap steps, its green arrow along y only; Ctrl+Z puts each back (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));

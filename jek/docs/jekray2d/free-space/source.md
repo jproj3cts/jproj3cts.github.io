@@ -20,6 +20,19 @@ $$
 
 where $$\theta_0$$ is the source's angle. A negative divergence makes a converging fan. Each ray carries an equal share of the source's power. Rays show geometry: where light goes, spots, aberrations and vignetting.
 
+### Rays across the beam
+
+The fan is a line across the source, in the bench plane. With the 3D view turned on (an experimental feature), a source can lay its rays out across the whole beam instead, up and down as well as across, the same width (and divergence) both ways:
+
+| Pattern | Rays, for $$N$$ |
+|---|---|
+| A line | $$N$$ across, as above |
+| A cross | $$N$$ across, and $$N - 1$$ more up and down |
+| A grid | an $$N \times N$$ square grid, trimmed to the round beam |
+| Hexapolar | rings of 6, 12, 18, … about the middle, $$\operatorname{round}((N-1)/2)$$ of them, as a lens design program samples a pupil |
+
+A ray $$s$$ of the width up starts that far above the source's height, with a slope $$\tan(s\,\Theta)$$. Out of the plane it is followed to first order (see [heights](/jek/docs/jekray2d/free-space/#heights)): across stays exact. A screen's **Rays** tab then has a spot diagram, across against up, good for alignment, footprints and clipping; for aberrations, use the in-plane plots and the **Aberrations** tab.
+
 ### The Gaussian beam
 
 With **Propagate a Gaussian beam** on, one more ray, not drawn, goes down the axis carrying the beam parameter

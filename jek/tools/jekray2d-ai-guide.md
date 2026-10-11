@@ -54,7 +54,7 @@ A `.jekray` file is one JSON object:
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
-A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.
+A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
 
 ## Coordinates and angles
 

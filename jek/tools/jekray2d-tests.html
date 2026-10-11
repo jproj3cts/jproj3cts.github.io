@@ -5276,6 +5276,37 @@ const TESTS = [
     },
   },
   {
+    name: 'A source lays its rays out across the beam as its pattern says',
+    why: '9 rays: a line of 9; a cross of 9 across and 8 more up and down; a grid of 9 by 9 trimmed to the round beam (49); hexapolar, 4 rings of 6, 12, 18 and 24 about the middle (61): counted at a screen they all reach (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const count = pattern => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 9, width: 4, pol: 's', ...(pattern ? { pattern } : {}) },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 40, y: 0, angle: 180, length: 20 }] });
+        J.trace(); return J.lastTrace().screens.Sc.filter(t => !t.chief).length; };
+      return count() === 9 && count('cross') === 17 && count('grid') === 49 && count('hex') === 61 ? 1 : 0;
+    },
+  },
+  {
+    name: 'Rays up and down a lens focus where rays across it do, to first order',
+    why: 'a thin cross of rays (0.2 mm across and up) through a plano-convex lens: the rays up and down cross the axis at the same distance as the rays across, which are traced exactly (relative difference)',
+    want: 0, tol: 1e-4, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 3, width: 0.2, pol: 's', pattern: 'cross' },
+        { type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 20 }] });
+      J.trace();
+      const H = J.lastTrace().screens.Sc.filter(t => !t.chief);
+      // how far past the screen each crosses the axis (still converging there)
+      const across = H.filter(t => Math.abs(t.y) > 1e-6 && !t.z).map(t => 60 + Math.abs(t.y / Math.tan(Math.asin(t.dly))));
+      const up = H.filter(t => t.z && Math.abs(t.z) > 1e-9).map(t => 60 + Math.abs(t.z / t.dz));
+      if (!across.length || !up.length) return NaN;
+      const a = across.reduce((x, y) => x + y, 0) / across.length, u = up.reduce((x, y) => x + y, 0) / up.length;
+      return Math.abs(u / a - 1);
+    },
+  },
+  {
     name: 'A part above or below the beam is missed',
     why: 'a 25 mm fold mirror at 45° in a level beam: at the beam’s height every ray turns up the bench; 35 mm higher, every ray passes under it to the screen beyond (1 when both hold)',
     want: 1, tol: 0, unit: '',

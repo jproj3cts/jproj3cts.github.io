@@ -32,7 +32,7 @@ which expands the same way into sidebands of amplitude $$J_n(\beta/2)$$. At a bi
 
 ### At an angle
 
-Light crossing the modulator at an angle $$\theta$$, turned in the bench plane or (with the experimental 3D view) tipped out of it, is modulated over a path $$1/\cos\theta$$ longer, so its modulation depth is $$\beta/\cos\theta$$.
+Light crossing the modulator at an angle $$\theta$$, turned in the bench plane or tipped out of it, is modulated over a path $$1/\cos\theta$$ longer, so its modulation depth is $$\beta/\cos\theta$$.
 
 ### Beat notes and locking
 

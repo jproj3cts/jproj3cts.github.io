@@ -26,7 +26,7 @@ $$
 \eta = \frac{\left\lvert\int E\, M^*\, \mathrm dA\right\rvert^2}{\int \lvert E\rvert^2\, \mathrm dA \int \lvert M\rvert^2\, \mathrm dA}.
 $$
 
-So offset, tilt, a mismatched waist and a wrong focus all cost what they should, out of the plane as in it: a tip raised, tipped or rolled (with the experimental 3D view) takes the beam where and as it lands (see [heights](/jek/docs/jekray2d/free-space/#heights)). For two Gaussians of radii $$w_1$$ and $$w_2$$ meeting on axis at their waists, this is the familiar
+So offset, tilt, a mismatched waist and a wrong focus all cost what they should, out of the plane as in it: a tip raised, tipped or rolled takes the beam where and as it lands (see [heights](/jek/docs/jekray2d/free-space/#heights)). For two Gaussians of radii $$w_1$$ and $$w_2$$ meeting on axis at their waists, this is the familiar
 
 $$
 \eta = \left(\frac{2 w_1 w_2}{w_1^2 + w_2^2}\right)^2.

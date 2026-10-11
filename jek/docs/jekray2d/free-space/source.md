@@ -22,7 +22,7 @@ where $$\theta_0$$ is the source's angle. A negative divergence makes a convergi
 
 ### Rays across the beam
 
-The fan is a line across the source, in the bench plane. With the 3D view turned on (an experimental feature), a source can lay its rays out across the whole beam instead, up and down as well as across, the same width (and divergence) both ways:
+The fan is a line across the source, in the bench plane. A source can lay its rays out across the whole beam instead, up and down as well as across, the same width (and divergence) both ways:
 
 | Pattern | Rays, for $$N$$ |
 |---|---|

@@ -23,7 +23,7 @@ In the prism's own frame, with its size $$a$$:
 
 The prism turns about its centre.
 
-A Dove prism sends light along it in at one end, turns it back up by total internal reflection off its base and out of the other end, so the image leaves upside down across the base. Rolled about the beam by $$\rho$$ (its **Roll**, with the experimental 3D view), it turns the image by $$2\rho$$: a ray that went in at $$\mathbf v$$ from the axis leaves at
+A Dove prism sends light along it in at one end, turns it back up by total internal reflection off its base and out of the other end, so the image leaves upside down across the base. Rolled about the beam by $$\rho$$ (its **Roll**), it turns the image by $$2\rho$$: a ray that went in at $$\mathbf v$$ from the axis leaves at
 
 $$
 \mathbf v' = 2(\mathbf v\cdot\hat m)\,\hat m - \mathbf v, \qquad \hat m = (-\sin\rho,\ \cos\rho),

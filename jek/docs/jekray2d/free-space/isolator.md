@@ -32,7 +32,7 @@ $$
 
 for an extinction of $$X$$ dB, so the isolation is finite, as in a real one.
 
-With the experimental 3D view on, an isolator rolled about its axis by its **Roll** turns both its polarisers with it, as a rolled [polariser](/jek/docs/jekray2d/free-space/polariser/) does. The rotation in between is the same however it is rolled.
+An isolator rolled about its axis by its **Roll** turns both its polarisers with it, as a rolled [polariser](/jek/docs/jekray2d/free-space/polariser/) does. The rotation in between is the same however it is rolled.
 
 ## Settings
 

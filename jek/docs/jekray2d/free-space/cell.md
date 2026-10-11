@@ -37,7 +37,7 @@ The cell is worked out slice by slice along its length, and point by point acros
 
 ### At an angle
 
-Light crossing the cell at an angle $$\theta$$ to its axis, the cell turned in the bench plane or (with the experimental 3D view) tipped out of it, goes $$L/\cos\theta$$ through the vapour, so each slice's absorption and dispersion count for $$1/\cos\theta$$ more.
+Light crossing the cell at an angle $$\theta$$ to its axis, the cell turned in the bench plane or tipped out of it, goes $$L/\cos\theta$$ through the vapour, so each slice's absorption and dispersion count for $$1/\cos\theta$$ more.
 
 ### A magnetic field
 

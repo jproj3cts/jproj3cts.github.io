@@ -20,7 +20,7 @@ $$
 
 An order with $$\lvert\sin\theta_m\rvert \ge 1$$ cannot propagate and carries nothing away. A reflecting grating sends its orders back off its ruled face. A transmitting grating sends them on through it.
 
-With the experimental 3D view on, a grating can be rolled about its normal by its **Roll** $$\rho$$, which turns its grooves. The grating equation then holds along the direction across the turned grooves, and the light's direction along them is kept, so the orders fan out along a line turned by $$\rho$$: rolled $$90°$$, they go up and down instead of across. A tipped grating is met in its own tipped frame the same way.
+A grating can be rolled about its normal by its **Roll** $$\rho$$, which turns its grooves. The grating equation then holds along the direction across the turned grooves, and the light's direction along them is kept, so the orders fan out along a line turned by $$\rho$$: rolled $$90°$$, they go up and down instead of across. A tipped grating is met in its own tipped frame the same way.
 
 ### Power
 

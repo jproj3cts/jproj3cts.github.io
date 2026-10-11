@@ -37,9 +37,7 @@ The buttons below the palette open groups of parts.
 
 ## The 3D view
 
-<div class="dx-note" markdown="1">
-The 3D view is an experimental feature while it is being built. Switch it on under **Help › Experimental features**.
-</div>
+For a first go, take the tour under **Help › Build a periscope in 3D**: it builds a periscope step by step, tipping two mirrors with their rings.
 
 The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the tab in three dimensions. Every part sits at the beam height, 75 mm above a breadboard, and is made from its own numbers: a lens from its surfaces, a mirror from its curvature. The light is drawn as the trace has it: rays as lines, and Gaussian beams as tubes as wide as the beam is, in the bench plane and out of it.
 
@@ -48,9 +46,9 @@ The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows 
 | Right-drag: turn | Drag: turn |
 | Middle-drag, or Ctrl+right-drag: pan | Shift-drag, right-drag or two-finger scroll: pan |
 | Scroll: zoom about the pointer | Pinch, or Ctrl+scroll: zoom |
-| Click: select (Shift adds) | Click: select (Shift adds) |
+| Click: select (Shift adds); again: its rings | Click: select (Shift adds); again: its rings |
 | Drag a part: move it | Drag a part: move it |
-| Drag its arrow: raise or lower it | Drag its arrow: raise or lower it |
+| Drag an arrow or a ring: move or turn it | Drag an arrow or a ring: move or turn it |
 | Right-click: the bench's menu | Right-click: the bench's menu |
 
 Choose between them with the **Mouse** menu on the 3D view's bar. On a touch screen, one finger turns, two pan and pinch to zoom. **F** fits the view to the parts, **Z** zooms to the selection, and **Shift+1** to **Shift+7** give the front, back, left, right, top, bottom and isometric views, as in Onshape. Click a face, edge or corner of the view cube to look from there. **PNG** saves the view as a picture.
@@ -67,7 +65,7 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 
 Drag a ring round, by its dot or anywhere on it (the dot sits an eighth of a turn from where the part is turned to, clear of where the rings cross, and moves round with it): Shift turns in 15° steps, and Alt a tenth as fast, for fine alignment. Click the part a third time for its arrows again. Two mirrors tipped against each other walk a beam up and leave it level, as on a real bench; two tipped 45°, one over the other, make a periscope. A tipped source sends its light up at that angle. A tipped or rolled part shows by how much under its name on the 2D bench.
 
-The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. For now it is for tabs of free-space parts only. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
+The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. It is for tabs of free-space parts. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
 
 ## Settings and sweeps
 

@@ -26,7 +26,7 @@ of its power (Malus's law). Unpolarised light, two launches s and p, keeps half.
 
 The matrix acts on each ray and on each sample of the diffracted field.
 
-With the experimental 3D view on, a polariser rolled about its normal by its **Roll** $$\rho$$ turns its axis with it, as a [waveplate](/jek/docs/jekray2d/free-space/waveplate/) does: at $$\theta$$ rolled $$\rho$$, it acts as one at $$\theta - \rho$$ for light along its normal. Rolled $$90°$$, a polariser along p passes s. One rolled with a rolled source passes all of its light.
+A polariser rolled about its normal by its **Roll** $$\rho$$ turns its axis with it, as a [waveplate](/jek/docs/jekray2d/free-space/waveplate/) does: at $$\theta$$ rolled $$\rho$$, it acts as one at $$\theta - \rho$$ for light along its normal. Rolled $$90°$$, a polariser along p passes s. One rolled with a rolled source passes all of its light.
 
 ## Settings
 

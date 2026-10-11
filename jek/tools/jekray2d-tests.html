@@ -3685,6 +3685,26 @@ const TESTS = [
     },
   },
   {
+    name: 'The periscope tour can be followed to the end, in 3D',
+    why: 'a source, the 3D view, a mirror in the beam tipped 45\u00b0, a second mirror over it tipped \u221245\u00b0, and a screen in the raised beam: each step moves the tour on by itself (steps reached, as a number)',
+    want: 1234567, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, name: 'T', elements: [] });
+      J.tourStart('periscope');
+      const seen = [], step = () => { J.trace(); seen.push(J.tourTick().i); };
+      try {
+        J.add('source'); step();
+        await J.view3d.set(true); step();
+        const m1 = J.add('mirror'); J.tourTick(); step();
+        J.setParam(m1, 'tip', 45); step();
+        const m2 = J.add('mirror'); J.tourTick(); step();
+        J.setParam(m2, 'tip', -45); step();
+        J.add('screen'); J.tourTick(); step();
+      } finally { J.tourEnd(); await J.view3d.set(false); }
+      return +seen.join('');
+    },
+  },
+  {
     name: 'The Michelson tour can be followed to the end',
     why: 'a source, a splitter in the beam, a mirror facing back in each arm, and a screen at the output port that both arms reach (steps reached, as a number)',
     want: 12345, tol: 0, unit: '',
@@ -5140,17 +5160,18 @@ const TESTS = [
     },
   },
   {
-    name: 'The 3D view is an experimental feature: off, it cannot open',
-    why: 'the Michelson with experimental features off: the 2D / 3D switch is hidden and asking for 3D leaves the bench in 2D; on, it opens (1 when both hold)',
+    name: 'The 3D view is there for everyone, experimental features or not',
+    why: 'the Michelson with experimental features off: the 2D / 3D switch shows, and asking for 3D opens it; and a free-space part\u2019s panel offers its Height, Tip and Roll (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
       J.experimental(false);
-      await J.view3d.set(true);
-      const offOn = J.view3d.on(), hiddenOff = !J.view3d.switchShown();
-      J.experimental(true);
-      try { const shownOn = J.view3d.switchShown(); await J.view3d.set(true); return !offOn && hiddenOff && shownOn && J.view3d.on() ? 1 : 0; }
-      finally { await J.view3d.set(false); J.experimental(false); }
+      try {
+        const shown = J.view3d.switchShown(); await J.view3d.set(true); const on = J.view3d.on();
+        J.select('Fixed mirror');
+        const labels = [...document.getElementById('rig').contentDocument.querySelectorAll('#panel label')].map(l => l.textContent);
+        return shown && on && ['Height (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => labels.includes(t)) ? 1 : 0;
+      } finally { await J.view3d.set(false); }
     },
   },
   {

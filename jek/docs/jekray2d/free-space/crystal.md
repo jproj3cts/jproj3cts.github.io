@@ -46,7 +46,7 @@ Two prisms with an air gap cut between them, at an angle between the two critica
 
 ### Tipped and rolled
 
-With the experimental 3D view on, a crystal can be tipped or rolled out of the plane, and its optic axis $$\hat c$$ turns with it. The light entering is then split along the crystal's own two polarisations, not s and p:
+A crystal can be tipped or rolled out of the plane, and its optic axis $$\hat c$$ turns with it. The light entering is then split along the crystal's own two polarisations, not s and p:
 
 - the ordinary one along $$\hat k \times \hat c$$, across the axis and the wave normal $$\hat k$$;
 - the extraordinary one at right angles to it and to $$\hat k$$.

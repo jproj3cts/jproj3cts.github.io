@@ -22,7 +22,7 @@ $$
 
 The matrix acts on each ray, and on each sample of the diffracted field, so a waveplate changes what interferes with what, and how a polarising beam splitter after it divides the light.
 
-With the experimental 3D view on, a waveplate rolled about its normal by its **Roll** $$\rho$$ turns its axis with it. The roll is counted right-handed about the part's normal, the opposite way to $$\theta$$, so for light along its normal a plate at $$\theta$$ rolled $$\rho$$ acts as one at $$\theta - \rho$$. A plate rolled with a rolled source keeps the same angle to its light.
+A waveplate rolled about its normal by its **Roll** $$\rho$$ turns its axis with it. The roll is counted right-handed about the part's normal, the opposite way to $$\theta$$, so for light along its normal a plate at $$\theta$$ rolled $$\rho$$ acts as one at $$\theta - \rho$$. A plate rolled with a rolled source keeps the same angle to its light.
 
 ## Settings
 

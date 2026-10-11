@@ -42,7 +42,7 @@ so a curved mirror used off axis makes a beam astigmatic, as it does in the lab.
 
 ### Tip
 
-A mirror (as any free-space part) can be tipped out of the bench plane by its **Tip** $$\tau$$ (degrees, up positive; shown while the experimental 3D view is on, or when a part has one), as the vertical knob of a kinematic mount tips it. Its normal is then
+A mirror (as any free-space part) can be tipped out of the bench plane by its **Tip** $$\tau$$ (degrees, up positive), as the vertical knob of a kinematic mount tips it. Its normal is then
 
 $$
 \hat n = (\cos\phi\cos\tau,\ \sin\phi\cos\tau,\ \sin\tau),

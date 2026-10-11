@@ -203,6 +203,7 @@
         <ul>
           <li>Nothing to install and no account needed; a two-minute guided tour and 40 examples to start from</li>
           <li>Exact rays through real glass, and diffracted Gaussian beams with interference and polarisation</li>
+          <li>A 3D view: raise, tip and roll any part, and the light follows, periscopes and misaligned cavities included</li>
           <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters, fibre subsystems and the electronics after the detector</li>
           <li>Cavities, lasers, photodiode signals, oscilloscopes, lock-ins and lock error signals</li>
           <li>Aberrations, pulses, broadband light, nonlinear optics, vapour cells and optical traps</li>
@@ -250,7 +251,7 @@
         <p>Add parts from the parts picker, by search or by palette, or from the rail beside the bench, and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
         <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed an optimiser, which varies several values at once against several weighted goals, and a Monte Carlo tolerance study.</p>
         <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play. Or embed it, live, in a web page or course notes, where readers can drag, zoom and play it.</p>
-        <p>New to it? The <a href="/jek/tools/jekray2d.html#tour=focus">guided tour</a> builds a focusing lens and then a Michelson interferometer with you, a step at a time.</p>
+        <p>New to it? The <a href="/jek/tools/jekray2d.html#tour=focus">guided tour</a> builds a focusing lens and then a Michelson interferometer with you, a step at a time, and a third builds a periscope in 3D.</p>
       </div>
     </section>
 
@@ -276,6 +277,18 @@
         <h2>Waves, not just rays</h2>
         <p>The field of each beam is propagated through the system, and every surface acts on it with the phase found by the ray trace. Slits, irises, knife edges, beam blocks and masks, whose amplitude and delay you write as a formula, act on the field as well as on the rays.</p>
         <p>Branches of the same beam add as fields wherever they meet, so double slits, interferometers and standing waves come out as they should. Zoom in below 50 µm to see the field computed on every pixel.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/three-d.png" alt="A periscope in the 3D view: two mirrors tipped 45 degrees lift a laser beam 100 mm, through a cylindrical lens rolled 30 degrees onto a screen" loading="lazy">
+        <figcaption>A periscope and a rolled cylindrical lens, in 3D</figcaption>
+      </figure>
+      <div>
+        <h2>In three dimensions</h2>
+        <p>Switch any bench of free-space parts to 3D and see it on a breadboard, turned and zoomed as in a CAD program. Click a part for arrows to move it along x, y and up, and again for rings to turn, tip and roll it, each one the colour of its axis.</p>
+        <p>The light follows exactly. Rays are traced through real surfaces met off-centre and at an angle, Gaussian beams through turned optics as general astigmatic beams with their higher-order modes, and the diffracted field through all of it. Periscopes turn the polarisation and the image as real ones do, a rolled Dove prism turns the image by twice its roll, and a cavity with a mirror tipped a few microradians walks its light round to its own axis, with the mode matching and alignment sensitivities to show for it.</p>
       </div>
     </section>
 

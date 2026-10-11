@@ -257,7 +257,7 @@ The pulse that arrives is the spectrum with that phase, transformed to time. Its
 
 ## Heights
 
-Every part sits at the beam height, 75 mm above the breadboard, unless it is given a height of its own (the 3D view's blue arrow, or **Height** in its panel, while the 3D view is turned on as an experimental feature). Each ray then carries its height $$z$$ and its slope $$u = \mathrm dz/\mathrm ds$$ along the bench, so its direction in 3D is
+Every part sits at the beam height, 75 mm above the breadboard, unless it is given a height of its own (the 3D view's blue arrow, or **Height** in its panel). Each ray then carries its height $$z$$ and its slope $$u = \mathrm dz/\mathrm ds$$ along the bench, so its direction in 3D is
 
 $$
 \hat d = \frac{(d_x, d_y, u)}{\sqrt{1 + u^2}},

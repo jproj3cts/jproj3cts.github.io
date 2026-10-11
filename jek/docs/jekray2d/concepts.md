@@ -93,7 +93,7 @@ The tracer sends one reference ray down the middle of each Gaussian source. Wher
 
 ## Tabs and link planes
 
-A project can hold several benches, each on a tab. Light keeps to its own bench. Two **link planes** that share a pair name are one plane seen from two benches: light crossing one leaves the other, and beams, fields and cavities carry across. In fibre, two **feedthroughs** do the same.
+A project can hold several benches, each on a tab. Light keeps to its own bench. Two **link planes** that share a pair name are one plane seen from two benches: light crossing one leaves the other, and beams, fields and cavities carry across. In fibre, two **feedthroughs** do the same, and two **electrical feedthroughs** carry signals between tabs.
 
 ## Sweeps
 

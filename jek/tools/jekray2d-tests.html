@@ -5303,6 +5303,23 @@ const TESTS = [
     },
   },
   {
+    name: 'An electrical feedthrough carries a signal to its partner on another tab, both ways',
+    why: '1 V DC into a feedthrough on tab 1, its partner on tab 2 into a 10\u00d7 amplifier; and a 1 kHz sine of 0.5 V into the tab-2 one, out of the tab-1 one: the amplifier\u2019s DC (V) and the tone out on tab 1 (V), as 10 and 0.5 (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, name: 'thru', benches: [{ id: 'b1', name: 'Lab' }, { id: 'b2', name: 'Rack' }], tab: 'b1', elements: [
+        { type: 'elec', kind: 'dc', id: 'V', name: 'DC', x: -30, y: 0, v: 1, bench: 'b1' },
+        { type: 'elec', kind: 'thru', id: 'T1', name: 'Bulkhead A', x: 0, y: 0, pair: 'BNC 1', bench: 'b1' },
+        { type: 'elec', kind: 'thru', id: 'T2', name: 'Bulkhead B', x: 0, y: 0, pair: 'BNC 1', bench: 'b2' },
+        { type: 'elec', kind: 'amp', id: 'A', name: 'Amp', x: 30, y: 0, gain: 10, bw: 1e6, bench: 'b2' },
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Gen', x: -30, y: 20, f: 1000, amp: 0.5, bench: 'b2' }],
+        fibres: [{ a: ['V', 0], b: ['T1', 0], wire: true }, { a: ['T2', 1], b: ['A', 0], wire: true }, { a: ['G', 0], b: ['T2', 0], wire: true }] });
+      const a = J.elec.signal('Amp', 0), back = J.elec.signal('Bulkhead A', 0), tone = back && back.tones.find(x => Math.abs(x.f - 1000) < 1e-6);
+      const amp = tone ? Math.hypot(tone.re !== undefined ? tone.re : tone.amp, tone.im || 0) : 0;
+      return a && Math.abs(a.dc - 10) < 1e-6 && Math.abs((tone && (tone.amp !== undefined ? tone.amp : amp)) - 0.5) < 1e-6 ? 1 : 0;
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

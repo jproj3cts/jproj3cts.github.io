@@ -156,6 +156,8 @@
       url: /jek/docs/jekray2d/electronics/lock-in/
     - title: DAQ (ADC)
       url: /jek/docs/jekray2d/electronics/daq/
+    - title: Electrical feedthrough
+      url: /jek/docs/jekray2d/electronics/feedthrough/
 - title: Photonic chips
   url: /jek/docs/jekray2d/chips/
   cat: pic

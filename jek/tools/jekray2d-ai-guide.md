@@ -1003,6 +1003,10 @@ Optical parts have electrical ports after their fibre ports: a "detector" (free 
 | tau | `0.1` | Time constant (s) |
 | slope | `2` | Slope: 1 (6 dB/oct), 2 (12 dB/oct), 3 (18 dB/oct), 4 (24 dB/oct) |
 
+### kind "thru": Electrical feedthrough
+
+**ports:** 0 = in (in), 1 = out (out)
+
 ### kind "daq": DAQ (ADC)
 
 **ports:** 0 = in (in), 1 = out (out)

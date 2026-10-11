@@ -164,4 +164,5 @@ The light is worked out *quasi-statically*: the electronics are far slower than 
   <li><a class="elec" href="/jek/docs/jekray2d/electronics/spectrum-analyser/"><b>Spectrum analyser</b><small>Tones in dBV over the noise in a resolution bandwidth.</small></a></li>
   <li><a class="elec" href="/jek/docs/jekray2d/electronics/lock-in/"><b>Lock-in amplifier</b><small>X and Y at a reference, its noise and settling.</small></a></li>
   <li><a class="elec" href="/jek/docs/jekray2d/electronics/daq/"><b>DAQ (ADC)</b><small>Sampling, aliases and quantisation.</small></a></li>
+  <li><a class="elec" href="/jek/docs/jekray2d/electronics/feedthrough/"><b>Electrical feedthrough</b><small>Signals carried to another tab.</small></a></li>
 </ul>

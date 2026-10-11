@@ -2232,6 +2232,16 @@
     }
    ]
   },
+  "thru": {
+   "label": "Electrical feedthrough",
+   "ins": [
+    "in"
+   ],
+   "outs": [
+    "out"
+   ],
+   "fields": []
+  },
   "daq": {
    "label": "DAQ (ADC)",
    "ins": [

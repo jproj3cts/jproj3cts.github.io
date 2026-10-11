@@ -32,4 +32,5 @@ It has one setting, its **pair name**, shared by exactly two feedthroughs.
 ## Related
 
 - [Link plane](/jek/docs/jekray2d/free-space/link/), which does the same for free space.
+- [Electrical feedthrough](/jek/docs/jekray2d/electronics/feedthrough/), which does the same for signals.
 - [Concepts: tabs and link planes](/jek/docs/jekray2d/concepts/#tabs-and-link-planes).

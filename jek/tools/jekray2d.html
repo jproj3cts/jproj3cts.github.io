@@ -10890,13 +10890,15 @@ const ELEC = (() => {
     lockin: { label: 'Lock-in amplifier', tag: 'LOCK-IN', ins: ['signal', 'ref'], outs: ['x', 'y'],
       params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
         ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
+    // a bulkhead connector to another tab: what goes in here comes out of its partner's output, and the other way
+    thru: { label: 'Electrical feedthrough', tag: '⇄', ins: ['in'], outs: ['out'], params: [] },
     daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
       params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
   };
   const PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
     ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:att', 'Attenuator'], ['elec:mixer', 'Mixer'],
     ['elec:sum', 'Summing junction'], ['elec:biastee', 'Bias tee'], ['elec:comp', 'Comparator'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
-    ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)']]
+    ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)'], ['elec:thru', 'Feedthrough', 'Electrical feedthrough (to another tab)']]
     .map(([k, l, t]) => [k, l, t || l]);
 
   /* ---------- a part's box and ports ----------
@@ -10919,13 +10921,18 @@ const ELEC = (() => {
     const K = KINDS[e.kind];
     if (!K) return null;
     base.kind = e.kind;
+    if (e.kind === 'thru') base.pair = String(e.pair || 'Feedthrough 1').slice(0, 60);
     for (const [k, , d, opts] of K.params) {
       if (opts) base[k] = opts.some(([v]) => v === e[k]) ? e[k] : d;
       else base[k] = num(e[k], d);
     }
     return base;
   }
-  const make = (kind, x, y) => makeOptic(kind, x, y) || normElement({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 });
+  const make = (kind, x, y) => makeOptic(kind, x, y) || normElement(Object.assign({ type: 'elec', kind, name: nextName(KINDS[kind].label), x, y, angle: 0 }, kind === 'thru' ? { pair: nextPair() } : {}));
+  // feedthroughs pair by name, as the fibre ones and link planes do: a new one takes the first name not in use
+  const thrus = () => project.elements.filter(e => e.type === 'elec' && e.kind === 'thru');
+  const nextPair = () => { const used = new Set(thrus().map(e => e.pair)); let n = 1; while (used.has('Feedthrough ' + n)) n++; return 'Feedthrough ' + n; };
+  function partner(el) { const L = thrus().filter(e => e.pair === el.pair), i = L.indexOf(el); return i === 0 && L.length > 1 ? L[1] : i === 1 ? L[0] : null; }
 
   /* ---------- drawing ---------- */
   /* ---------- the parts as schematic symbols ----------
@@ -10991,6 +10998,12 @@ const ELEC = (() => {
       rect(c, 4.6, 3.6); inner(c, () => { c.beginPath(); c.moveTo(-3.6, 2.4); for (const [u, h] of [[-2, 4], [-0.2, 2.6], [1.6, 1.4]]) { c.lineTo(u, 2.4); c.lineTo(u, 2.4 - h); c.lineTo(u, 2.4); } c.lineTo(3.6, 2.4); c.stroke(); });
     } },
     // samples of a wave, as stems
+    // a bulkhead plate with a coaxial connector through it
+    thru: { L: () => 3, R: () => 3, draw(c) {
+      c.lineWidth *= 2.2; line(c, 0, -4.2, 0, 4.2); c.lineWidth /= 2.2;
+      c.beginPath(); c.arc(0, 0, 2.4, 0, 2 * Math.PI); c.fillStyle = bodyFill(DARK); c.fill(); c.stroke();
+      c.beginPath(); c.arc(0, 0, 0.7, 0, 2 * Math.PI); c.fillStyle = c.strokeStyle; c.fill();
+    } },
     daq: { L: () => 4.6, R: () => 4.6, draw(c) {
       rect(c, 4.6, 3.6);
       inner(c, () => { line(c, -3.6, 0, 3.6, 0);
@@ -11070,12 +11083,36 @@ const ELEC = (() => {
       else box.append(param(label, el, k));
     }
     panel.append(box);
+    if (el.kind === 'thru') thruSection(el);
     const io = el.kind === 'node' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
     panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
       'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.' +
       (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : '')));
     instrumentSection(el);
     panel.append(readoutBox('elec'));
+  }
+  /* a feedthrough's pair: its name, its partner, and a partner made on another tab */
+  function thruSection(el) {
+    panel.append(h('div', { class: 'rt-rows' }, textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true })));
+    const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
+    panel.append(st, acts);
+    let sig = null;
+    bindSync(st, () => {
+      const P = partner(el);
+      st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': what goes into one\u2019s input comes out of the other\u2019s output, both ways, unchanged.'
+        : 'No partner yet: give an electrical feedthrough on another tab the same pair name, or make one below.';
+      const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
+      if (s2 === sig) return;
+      sig = s2; acts.replaceChildren();
+      if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
+      else {
+        const mk = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
+          const c = normElement({ type: 'elec', kind: 'thru', name: nextName('Electrical feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: 0, pair: el.pair, bench: bId });
+          project.elements.push(c); selectEl(c); changed(true); };
+        for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(b.id) }, 'Make its partner on ' + b.name));
+        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(null) }, 'Make its partner on a new tab'));
+      }
+    });
   }
   /* a wire, selected */
   function wirePanel(F) {
@@ -11389,10 +11426,12 @@ const ELEC = (() => {
         case 'daq': { const D = daq(el, In[0], m => note(el, m)); lock.set(el.id, D.info); set(0, D.out); break; }
         case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
         case 'node': out.set(pkey(el.id, 0), In[0]); break;     // its one port carries on what it is given
+        // out of a feedthrough: what goes into its partner on the other tab
+        case 'thru': { const P = partner(el); if (!P) note(el, 'No partner: give a feedthrough on another tab the pair name ' + el.pair); set(0, P ? input(P, 0) : zero()); break; }
         case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
         default: K.outs.forEach((_, j) => set(j, zero()));
       }
-      for (let i = 0; i < nIn; i++) if (K.ins.length && !feed.has(pkey(el.id, i)) && el.kind !== 'scope') note(el, 'Input ' + K.ins[i] + ' is not wired: it reads nothing');
+      for (let i = 0; i < nIn; i++) if (K.ins.length && !feed.has(pkey(el.id, i)) && el.kind !== 'scope' && el.kind !== 'thru') note(el, 'Input ' + K.ins[i] + ' is not wired: it reads nothing');
       state.set(el.id, 2);
     };
     for (const el of els) visit(el);
@@ -24435,10 +24474,10 @@ function checkImport(raw, p, notes) {
   // link planes and feedthroughs pair by name, exactly two to a name
   const pairs = new Map();
   for (const e of p.elements) {
-    const k = e.type === 'link' ? 'link plane ' + e.pair : e.type === 'fcomp' && e.kind === 'thru' ? 'feedthrough ' + e.pair : null;
+    const k = e.type === 'link' ? 'link plane ' + e.pair : e.type === 'fcomp' && e.kind === 'thru' ? 'feedthrough ' + e.pair : e.type === 'elec' && e.kind === 'thru' ? 'electrical feedthrough ' + e.pair : null;
     if (k) pairs.set(k, (pairs.get(k) || []).concat(e.name));
   }
-  for (const [k, list] of pairs) if (list.length !== 2) notes.push('The ' + esc(k.replace(/^(link plane|feedthrough) /, '$1 pair "')) + '" has ' + list.length + ' member' + (list.length === 1 ? '' : 's') + ' (' + list.map(esc).join(', ') + '): it needs exactly two, one on each tab, with the same "pair" name.');
+  for (const [k, list] of pairs) if (list.length !== 2) notes.push('The ' + esc(k.replace(/^(link plane|electrical feedthrough|feedthrough) /, '$1 pair "')) + '" has ' + list.length + ' member' + (list.length === 1 ? '' : 's') + ' (' + list.map(esc).join(', ') + '): it needs exactly two, one on each tab, with the same "pair" name.');
   // two parts on the one spot is nearly always a slip (one over the other, as in a periscope, is not)
   const spot = new Map();
   for (const e of p.elements) {
@@ -26268,6 +26307,8 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'An <b>electrical feedthrough</b> (Elec \u2192 Feedthrough): a pair on two tabs carries signals between them, both ways, as a bulkhead connector does. A photodiode on the optical bench can feed a lock-in on an electronics tab, and a generator there drive a modulator back on the bench.',
+    'Fibre tips send their rays out as a line, a cross, a grid or hexapolar rings, as a source does, so in 3D the light leaving a fibre fills its cone. A Gaussian beam wider than a lens now shows the share of it that goes round the rim as faint bands outside it, not as a whole beam passing by.',
     'Moving and turning parts in the <b>3D view</b> is now smooth: each step of a drag no longer compiles the view\u2019s shaders again, which made it stutter.',
     'An <b>eye</b> beside each part in the Bench panel\u2019s list hides it in the 3D view (click it again to show it): handy to see past a housing, a mount or a big optic. The light still meets the part exactly as before, and the choice is saved with the bench.',
     '<b>Light</b> is now set for the whole bench, in the Bench panel (click an empty part of the bench), as three ticks: the rays, the Gaussian beams\u2019 envelope, and their diffracted field (linear or log), each on or off. Benches saved with a field view on a source open with it on.',

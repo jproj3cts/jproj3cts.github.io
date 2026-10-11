@@ -4624,7 +4624,7 @@ const TESTS = [
     why: 'a lens swept across a beam shown as its field, rendered at 6 steps a cycle, then played twice as fast: the share of its steps that still find their field ready, with no new rendering',
     want: 1, tol: 0, unit: '',
     run: async J => {
-      J.load({ format: 'jekray', version: 1, name: 't', light: { rays: false, beams: 'field', scale: 'lin' }, elements: [
+      J.load({ format: 'jekray', version: 1, name: 't', light: { rays: false, envelope: false, field: true, scale: 'lin' }, elements: [
         { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
         { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
           sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 6 } } }] });

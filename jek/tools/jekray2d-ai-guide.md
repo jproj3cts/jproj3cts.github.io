@@ -51,7 +51,7 @@ A `.jekray` file is one JSON object:
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
 | view | optional: {"cx", "cy", "scale"}. Leave it out and the tool fits the view |
 | style | optional: the bench's look, {"bg": a colour "#rrggbb" (dark as it is; light, such as "#ffffff" for a figure, drawn light with dark lines), "holes": false to hide the grid holes}. Leave it out for the dark breadboard |
-| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "beams": "envelope" (the default), "field" (the diffracted field) or "none", "scale": "lin" or "log" for the field}. Leave it out for rays and envelopes |
+| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "envelope": false to hide the Gaussian beams' outlines, "field": true to show the diffracted field, "scale": "lin" or "log" for the field}. Leave it out for rays and envelopes |
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
@@ -89,7 +89,7 @@ Signs:
 
 - **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {"type": "lens", "diameter": 25.4, "surfaces": [{"R": 51.5}, {"R": null}], "gaps": [3.6], "materials": [{"glass": "N-BK7"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.
 - **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {"type": "mask", "name": "Objective, f 3 mm, NA 0.8", "length": 2 × f × tan(asin(NA)), "delay": "-(sqrt(r^2+9)-3)/lambda"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.
-- **Gaussian laser:** {"type": "source", "gauss": true, "w0": waist radius mm, "z0": mm to the waist, "wavelength": nm, "power": mW, "pol": "s", "rays": 1, "width": 2 × w0}. To see the diffracted beam, give the file "light": {"beams": "field"} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.
+- **Gaussian laser:** {"type": "source", "gauss": true, "w0": waist radius mm, "z0": mm to the waist, "wavelength": nm, "power": mW, "pol": "s", "rays": 1, "width": 2 × w0}. To see the diffracted beam, give the file "light": {"field": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.
 - **Collimated launch from a fibre:** a fibre tip ("fibre") joined to a fibre network, facing a lens one focal length away.
 - **Two beams from one laser:** give the second source "splitFrom": the first's id. They then interfere, with "splitPhase" (degrees) and "splitPath" (mm of extra fibre) between them, and fringes wash out over the laser's "coh".
 - **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.

@@ -73,7 +73,7 @@ The 3D view is a view of the same bench: select a part and its panel opens as us
 
 Every number in a panel can be typed or dragged. Beside most is **Sweep**: it moves the value back and forth over a range, and the bench follows as it plays. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study.
 
-How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): the rays on or off, and the Gaussian beams as their outline, as their diffracted field (linear or log), or not at all.
+How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): three ticks for the rays, the Gaussian beams' envelope and their diffracted field (linear or log), each on or off. With both on, the envelope marks the field's 1/e² edge.
 
 ## Saving and sharing
 

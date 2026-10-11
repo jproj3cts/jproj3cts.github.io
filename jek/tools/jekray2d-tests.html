@@ -5220,7 +5220,7 @@ const TESTS = [
   },
   {
     name: 'and turned by its ring, in 15° steps with Shift',
-    why: 'the fixed mirror (facing −90°) selected in 3D from above: its ring’s knob dragged a quarter turn anticlockwise round it, with Shift, leaves it facing 0° (the largest error, degrees)',
+    why: 'the fixed mirror (facing −90°) clicked twice in 3D from above, for its rings: its blue ring’s knob dragged a quarter turn anticlockwise round it, with Shift, leaves it facing 0° (the largest error, degrees)',
     want: 0, tol: 1e-9, unit: '°',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -5228,8 +5228,9 @@ const TESTS = [
         J.experimental(true); await J.view3d.set(true); J.view3d.view('top');
         const s = J.view3d.screenOf('Fixed mirror'), P = J.view3d.pointer;
         P('pointerdown', s.x, s.y); P('pointerup', s.x, s.y, { buttons: 0 });
+        P('pointerdown', s.x, s.y); P('pointerup', s.x, s.y, { buttons: 0 });
         const k = J.view3d.ringScreen();
-        if (!k) return NaN;
+        if (!k || J.view3d.handleAt(k.x, k.y) !== 'ring') return NaN;
         const r = Math.hypot(k.x - s.x, k.y - s.y), a0 = Math.atan2(k.y - s.y, k.x - s.x);
         P('pointerdown', k.x, k.y, { shiftKey: true });
         for (let i = 1; i <= 12; i++) { const a = a0 - (Math.PI / 2) * i / 12; P('pointermove', s.x + r * Math.cos(a), s.y + r * Math.sin(a), { shiftKey: true }); }
@@ -5924,8 +5925,8 @@ const TESTS = [
     },
   },
   {
-    name: 'In 3D a mirror is tipped by its blue knob',
-    why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
+    name: 'In 3D a mirror is tipped by its green ring',
+    why: 'a mirror (facing −x) clicked twice in 3D, seen from the front: its green ring’s knob dragged 30° up round it with Shift tips it by 30°; with Alt, 30° round tips it by 3° (a tenth as fast); the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -5933,23 +5934,96 @@ const TESTS = [
         { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 25.4 }] });
       try {
         J.experimental(true); await J.view3d.set(true); J.view3d.view('front');
-        J.select('M');
-        const a = J.view3d.tipScreen(), P = J.view3d.pointer;
-        if (!a || J.view3d.handleAt(a.x, a.y) !== 'tip') return NaN;
-        // in the front view the arc runs up the screen at the knob
-        P('pointerdown', a.x, a.y); for (let i = 1; i <= 6; i++) P('pointermove', a.x, a.y - 5 * i); P('pointerup', a.x, a.y - 30, { buttons: 0 });
+        const V = J.view3d, P = V.pointer, c = V.screenOf('M');
+        P('pointerdown', c.x, c.y); P('pointerup', c.x, c.y, { buttons: 0 }); P('pointerdown', c.x, c.y); P('pointerup', c.x, c.y, { buttons: 0 });
+        const turn = (deg, o) => {
+          const k = V.tipScreen(); if (!k || V.handleAt(k.x, k.y) !== 'tip') return false;
+          const r = Math.hypot(k.x - c.x, k.y - c.y), a0 = Math.atan2(k.y - c.y, k.x - c.x), at = i => [c.x + r * Math.cos(a0 + deg * Math.PI / 180 * i / 10), c.y + r * Math.sin(a0 + deg * Math.PI / 180 * i / 10)];
+          P('pointerdown', k.x, k.y, o); for (let i = 1; i <= 10; i++) P('pointermove', ...at(i), o); P('pointerup', ...at(10), { buttons: 0, ...o });
+          return true;
+        };
+        // the knob starts on the mirror's left, towards −x, where it faces: up the screen is round it the other way
+        if (!turn(30, { shiftKey: true })) return NaN;
         const tip = J.byName('M').tip;
         J.view3d.undo();
         const back = J.byName('M').tip;
-        // kept with the bench as written, and none kept at 0
+        if (!turn(30, { altKey: true })) return NaN;
+        const fine = J.byName('M').tip;
         const opened = v => { J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 25.4, tip: v }] }); return J.byName('M').tip; };
-        return Math.abs(tip - 0.6) < 1e-9 && back === undefined && opened(0.6) === 0.6 && opened(0) === undefined ? 1 : 0;
+        return Math.abs(tip - 30) < 1e-9 && back === undefined && Math.abs(fine - 3) < 0.01 && opened(0.6) === 0.6 && opened(0) === undefined ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
-    name: 'In 3D a part is raised by the arrow over it',
-    why: 'the Michelson’s fixed mirror selected in 3D: its arrow dragged 60 px up the screen raises it by a whole number of 0.5 mm steps, and Ctrl+Z puts it back at the beam height (1 when all hold)',
+    name: 'In 3D a part is rolled by its red ring',
+    why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its red ring’s knob dragged 45° round it, from across the beam towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
+    want: 0, tol: 1e-9, unit: '°',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 25.4, cyl: 'plane', surfaces: [{ R: 50 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('right');
+        const V = J.view3d, P = V.pointer, c = V.screenOf('L');
+        P('pointerdown', c.x, c.y); P('pointerup', c.x, c.y, { buttons: 0 }); P('pointerdown', c.x, c.y); P('pointerup', c.x, c.y, { buttons: 0 });
+        const k = V.handleScreen('roll');
+        if (!k || V.handleAt(k.x, k.y) !== 'roll') return NaN;
+        const r = Math.hypot(k.x - c.x, k.y - c.y), a0 = Math.atan2(k.y - c.y, k.x - c.x), o = { shiftKey: true };
+        // the screen's y runs down: towards up is round it the negative way
+        const at = i => [c.x + r * Math.cos(a0 - Math.PI / 4 * i / 10), c.y + r * Math.sin(a0 - Math.PI / 4 * i / 10)];
+        P('pointerdown', k.x, k.y, o); for (let i = 1; i <= 10; i++) P('pointermove', ...at(i), o); P('pointerup', ...at(10), { buttons: 0, ...o });
+        return Math.abs((J.byName('L').roll || 0) - 45);
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'In 3D a click shows a part’s arrows, a second its rings, a third its arrows again',
+    why: 'the Michelson’s fixed mirror clicked in 3D: arrows (x, y and up, each taken hold of where it is drawn), then rings (facing, tip and roll), then arrows; another part clicked starts at its arrows (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('iso');
+        const V = J.view3d, P = V.pointer, click = n => { const c = V.screenOf(n); P('pointerdown', c.x, c.y); P('pointerup', c.x, c.y, { buttons: 0 }); };
+        const held = ks => ks.every(k => { const q = V.handleScreen(k); return q && V.handleAt(q.x, q.y) === k; });
+        click('Fixed mirror'); const m1 = V.gizmo() === 'move' && held(['x', 'y', 'lift']) && !V.handleScreen('ring');
+        click('Fixed mirror'); const m2 = V.gizmo() === 'rotate' && held(['ring', 'tip', 'roll']) && !V.handleScreen('x');
+        click('Fixed mirror'); const m3 = V.gizmo() === 'move';
+        click('Fixed mirror'); click('Moving mirror'); const m4 = V.gizmo() === 'move' && J.sel().join() === 'Moving mirror';
+        return m1 && m2 && m3 && m4 ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'In 3D a part is moved along x and y by its arrows',
+    why: 'the Michelson’s fixed mirror selected in 3D: its red arrow dragged 40 px along its picture moves it along x only, by whole 1 mm snap steps, its green arrow along y only; Ctrl+Z puts each back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true); J.view3d.view('iso');
+        J.select('Fixed mirror');
+        J.project().snap = 1;
+        const V = J.view3d, P = V.pointer, e0 = J.byName('Fixed mirror'), x0 = e0.x, y0 = e0.y, z0 = e0.z, st = 1;
+        const along = k => {
+          const c = V.screenOf('Fixed mirror'), a = V.handleScreen(k); if (!a || V.handleAt(a.x, a.y) !== k) return false;
+          const l = Math.hypot(a.x - c.x, a.y - c.y), ux = (a.x - c.x) / l, uy = (a.y - c.y) / l;
+          P('pointerdown', a.x, a.y); for (let i = 1; i <= 8; i++) P('pointermove', a.x + ux * 5 * i, a.y + uy * 5 * i); P('pointerup', a.x + ux * 40, a.y + uy * 40, { buttons: 0 });
+          return true;
+        };
+        if (!along('x')) return NaN;
+        const e1 = J.byName('Fixed mirror'), okX = e1.x > x0 + 1 && e1.y === y0 && e1.z === z0 && Math.abs(e1.x / st - Math.round(e1.x / st)) < 1e-9;
+        J.view3d.undo();
+        const backX = J.byName('Fixed mirror').x === x0;
+        if (!along('y')) return NaN;
+        const e2 = J.byName('Fixed mirror'), okY = e2.y > y0 + 1 && e2.x === x0 && Math.abs(e2.y / st - Math.round(e2.y / st)) < 1e-9;
+        J.view3d.undo();
+        return okX && backX && okY && J.byName('Fixed mirror').y === y0 ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'In 3D a part is raised by its blue arrow',
+    why: 'the Michelson’s fixed mirror selected in 3D: its blue arrow, up, dragged 60 px up the screen raises it by a whole number of 0.5 mm steps, and Ctrl+Z puts it back at the beam height (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -6204,7 +6278,10 @@ async function runAll() {
   const t0 = performance.now();
   let pass = 0, fail = 0;
 
+  // ?only=text runs just the checks whose names hold it (for working on a few)
+  const only = (new URLSearchParams(location.search).get('only') || '').toLowerCase();
   for (const t of TESTS) {
+    if (only && !t.group && !t.name.toLowerCase().includes(only)) continue;
     if (t.group) {
       const tr = document.createElement('tr');
       tr.className = 'group';

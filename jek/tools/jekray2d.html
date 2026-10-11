@@ -393,10 +393,17 @@
     border-radius: 2px;
   }
   .rt-f select { font-family: var(--jek-sans); cursor: pointer; }
+  /* one height for a typed box and a menu, so side by side they line up */
+  .rt-f > input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .rt-f > select { box-sizing: border-box; height: 2.05rem; }
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-check { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; cursor: pointer; }
   .rt-f .rt-check input { width: auto; flex: none; padding: 0; margin: 0; }   /* a checkbox inside a field, as in a sweep */
+  /* side by side, a field's box sits at the foot of its cell, so a label that wraps to two lines leaves its box level with its neighbour's */
+  .rt-rows > .rt-f > input:first-of-type, .rt-rows > .rt-f > select:first-of-type { margin-top: auto; }
+  /* a checkbox level with the first line of a label that wraps */
+  .rt-check { align-items: flex-start; }
+  .rt-check > input[type=checkbox], .rt-check > input[type=radio] { flex: none; margin: 0.1rem 0 0; }
 
   .rt-readout {
     margin-top: 0.75rem;
@@ -9166,7 +9173,14 @@ function fibreMode(coreUm, na, nm) {
 function applyFibre(src) {
   if (!src.fibre) return;
   src.gauss = true; src.w0 = fibreMode(src.fibre.core, src.fibre.na, src.wavelength).w; src.z0 = 0; src.m2 = 1; src.tem = 'gauss';
-  fanFromGauss(src);
+  fanFromGauss(src); fanFromFibre(src);
+}
+/* Light leaving a fibre's end starts at the mode's waist, a few microns across, so its rays are
+   drawn as they spread in the far field: from the core, out to the beam's 1/e^2 angle,
+   lambda/(pi w0) for one mode (times M^2), the NA for a filled multimode core */
+function fanFromFibre(src, na) {
+  const th = na ? Math.asin(Math.min(na, 0.99)) : Math.atan(src.wavelength * 1e-6 * m2Of(src) / (Math.PI * src.w0));
+  src.divergence = clamp(2 * th / deg, -179, 179);
 }
 /* the same for the field's readouts: where above or below the centre it lands (lz), its slope up the
    face and its way along it; a tipped or rolled face takes its place and its tilt across from it too */
@@ -10019,7 +10033,7 @@ function tipSources(net) {
           // the tracer's amplitudes are the field's, conjugated
           vJ: [c.E[0], -c.E[1], c.E[2], -c.E[3]], vRoot: K.root, vLag: c.dw / P, vKey: famAt(K.key, c.fo), vFo: c.fo, sweeps: {},
         };
-        fanFromGauss(v);
+        fanFromGauss(v); fanFromFibre(v, tip.mm ? tip.na : 0);
         out.push(v);
       });
     }

@@ -5186,6 +5186,16 @@ const TESTS = [
     },
   },
   {
+    name: 'Rays from a fibre\u2019s end spread as its beam does',
+    why: 'a fibre-coupled 1550 nm laser (8.2 \u00b5m core, NA 0.14): the full angle of its ray fan against twice the mode\u2019s far-field angle \u03bb/\u03c0w\u2080 (ratio)',
+    want: 1, tol: 1e-6, unit: '',
+    run: J => {
+      J.importText(JSON.stringify({ format: 'jekray', version: 1, name: 't', elements: [{ type: 'source', id: 'L', name: 'L', x: 0, y: 0, angle: 0, wavelength: 1550, rays: 9, fibre: { core: 8.2, na: 0.14 } }] }));
+      const L = J.byName('L');
+      return L.divergence / (2 * Math.atan(1550e-6 / (Math.PI * L.w0)) * 180 / Math.PI);
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

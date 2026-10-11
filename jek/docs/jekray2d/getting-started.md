@@ -65,7 +65,7 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 - the green ring, upright through the way it faces, tips it up or down about its own across axis, as the vertical knob of a kinematic mount does (its **Tip**);
 - the orange ring, square to the way it faces, rolls it about its own axis, right-handed (its **Roll**): a cylindrical lens at 45°, a Dove prism turning the image, a waveplate's axis.
 
-Drag a ring round: Shift turns in 15° steps, and Alt a tenth as fast, for fine alignment. Click the part a third time for its arrows again. Two mirrors tipped against each other walk a beam up and leave it level, as on a real bench; two tipped 45°, one over the other, make a periscope. A tipped source sends its light up at that angle. A tipped or rolled part shows by how much under its name on the 2D bench.
+Drag a ring round, by its dot or anywhere on it (the dot sits an eighth of a turn from where the part is turned to, clear of where the rings cross, and moves round with it): Shift turns in 15° steps, and Alt a tenth as fast, for fine alignment. Click the part a third time for its arrows again. Two mirrors tipped against each other walk a beam up and leave it level, as on a real bench; two tipped 45°, one over the other, make a periscope. A tipped source sends its light up at that angle. A tipped or rolled part shows by how much under its name on the 2D bench.
 
 The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. For now it is for tabs of free-space parts only. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
 

@@ -5968,7 +5968,7 @@ const TESTS = [
         const k = V.handleScreen('roll');
         if (!k || V.handleAt(k.x, k.y) !== 'roll') return NaN;
         const r = Math.hypot(k.x - c.x, k.y - c.y), a0 = Math.atan2(k.y - c.y, k.x - c.x), o = { shiftKey: true };
-        // the screen's y runs down: towards up is round it the negative way
+        // taken hold of by its dot, an eighth of a turn below across; the screen's y runs down, so towards up is round it the negative way
         const at = i => [c.x + r * Math.cos(a0 - Math.PI / 4 * i / 10), c.y + r * Math.sin(a0 - Math.PI / 4 * i / 10)];
         P('pointerdown', k.x, k.y, o); for (let i = 1; i <= 10; i++) P('pointermove', ...at(i), o); P('pointerup', ...at(10), { buttons: 0, ...o });
         return Math.abs((J.byName('L').roll || 0) - 45);

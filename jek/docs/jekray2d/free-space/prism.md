@@ -2,11 +2,11 @@
 layout: docs
 title: Prism
 permalink: /jek/docs/jekray2d/free-space/prism/
-description: The JEKray2D prism, a right-angle prism, an equilateral prism or a window, in real glass.
+description: The JEKray2D prism, a right-angle prism, an equilateral prism, a window or a Dove prism, in real glass.
 element: { palette: Free space, type: prism }
 ---
 
-<p class="dx-lead">A block of glass with flat faces: a right-angle prism, an equilateral prism or a window. Rays refract at each face by Snell's law in real glass, reflect by Fresnel or total internal reflection, and disperse by the glass's index against wavelength.</p>
+<p class="dx-lead">A block of glass with flat faces: a right-angle prism, an equilateral prism, a window or a Dove prism. Rays refract at each face by Snell's law in real glass, reflect by Fresnel or total internal reflection, and disperse by the glass's index against wavelength.</p>
 
 ## The model
 
@@ -19,8 +19,17 @@ In the prism's own frame, with its size $$a$$:
 | Right-angle prism | an isosceles right triangle, legs $$a$$, the right angle at the lower left |
 | Equilateral prism | an equilateral triangle of side $$a$$, its apex pointing along the prism's angle |
 | Window | a plate of thickness $$t$$ and height $$a$$ |
+| Dove prism | a trapezoid of height $$a$$ and length $$4.224\,a$$ (as catalogue N-BK7 ones are), its base below and its ends cut at $$45°$$ |
 
 The prism turns about its centre.
+
+A Dove prism sends light along it in at one end, turns it back up by total internal reflection off its base and out of the other end, so the image leaves upside down across the base. Rolled about the beam by $$\rho$$ (its **Roll**, with the experimental 3D view), it turns the image by $$2\rho$$: a ray that went in at $$\mathbf v$$ from the axis leaves at
+
+$$
+\mathbf v' = 2(\mathbf v\cdot\hat m)\,\hat m - \mathbf v, \qquad \hat m = (-\sin\rho,\ \cos\rho),
+$$
+
+across and up, a mirror image about a line rolled $$\rho$$ from straight up. Its s and p are taken from each face's own plane of incidence, so it turns the polarisation too, as a real one does.
 
 ### At each face
 

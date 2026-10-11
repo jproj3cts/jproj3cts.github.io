@@ -5542,6 +5542,57 @@ const TESTS = [
     },
   },
   {
+    name: 'A cylinder rolled a quarter turn focuses as one curved out of the plane',
+    why: 'a cross of rays 10 mm wide through a plano-convex cylinder curved in the bench plane and rolled 90° about its axis, and through the same cylinder curved out of the plane: every ray lands in the same place (largest difference, mm)',
+    want: 0, tol: 1e-9, unit: 'mm',
+    run: J => {
+      const hits = o => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -30, y: 0, angle: 0, wavelength: 633, rays: 5, width: 10, pol: 's', pattern: 'cross' },
+        Object.assign({ type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] }, o),
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 40, y: 0, angle: 180, length: 30 }] }); J.trace();
+        return J.lastTrace().screens.Sc.filter(t => !t.chief).map(t => [t.k, t.y, t.z || 0]).sort((a, b) => a[0] - b[0]); };
+      const A = hits({ cyl: 'out' }), B = hits({ cyl: 'plane', roll: 90 });
+      if (A.length !== 9 || B.length !== 9 || !A.some(v => Math.abs(v[2]) > 1e-6 && Math.abs(v[2]) < 2)) return NaN;
+      return Math.max(...A.map((v, i) => Math.max(Math.abs(v[1] - B[i][1]), Math.abs(v[2] - B[i][2]))));
+    },
+  },
+  {
+    name: 'A Dove prism rolled about the beam turns the image by twice as much',
+    why: 'a cross of rays through an N-BK7 Dove prism rolled 30°: each ray leaves, against the middle one, mirrored about a line rolled 30° from straight up, so the image is turned through 60° (unrolled, it is only flipped across) (largest difference, mm)',
+    want: 0, tol: 1e-9, unit: 'mm',
+    run: J => {
+      const hits = roll => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -80, y: 0, angle: 0, wavelength: 633, rays: 3, width: 6, pol: 's', pattern: 'cross' },
+        { type: 'prism', id: 'D', name: 'D', x: 0, y: 0, angle: 0, shape: 'dove', size: 25, material: { glass: 'N-BK7' }, roll },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 80, y: 0, angle: 180, length: 60 }] }); J.trace();
+        return J.lastTrace().screens.Sc.map(t => ({ k: t.k, y: -t.y, z: t.z || 0 })); };       // the screen faces back: its across is the bench's −y
+      let worst = 0;
+      for (const roll of [0, 30]) {
+        const H = hits(roll), c = H.find(h => h.k === 1), r = roll * Math.PI / 180, m = [-Math.sin(r), Math.cos(r)];
+        if (H.length !== 5 || !c) return NaN;
+        // the rays went in at: k 0 and 2 across (∓3 mm), k 3 and 5 up (∓3 mm)
+        const inAt = { 0: [-3, 0], 2: [3, 0], 3: [0, -3], 5: [0, 3] };
+        for (const h of H) { if (!inAt[h.k]) continue; const v = inAt[h.k], d = v[0] * m[0] + v[1] * m[1], e = [2 * d * m[0] - v[0], 2 * d * m[1] - v[1]];
+          worst = Math.max(worst, Math.abs(h.y - c.y - e[0]), Math.abs(h.z - c.z - e[1])); }
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'A source rolled about its beam turns its rays and its polarisation with it',
+    why: 'a line of 3 rays 4 mm wide, polarised up (s), rolled 90°: the rays now run up and down the beam 2 mm apart, at the screen polarised across it (p) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: 0, y: 0, angle: 0, wavelength: 633, rays: 3, width: 4, pol: 's', roll: 90 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 50, y: 0, angle: 180, length: 60 }] });
+      J.trace();
+      const H = J.lastTrace().screens.Sc, zs = H.map(h => h.z).sort((a, b) => a - b);
+      return H.length === 3 && H.every(h => Math.abs(h.y) < 1e-12 && Math.abs(h.sr) < 1e-12 && Math.abs(Math.abs(h.pr) - 1) < 1e-12)
+        && Math.abs(zs[0] + 2) < 1e-12 && Math.abs(zs[1]) < 1e-12 && Math.abs(zs[2] - 2) < 1e-12 ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -54,7 +54,7 @@ A `.jekray` file is one JSON object:
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
-A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
+A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take "roll": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens’s power, a grating’s grooves or a Dove prism’s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
 
 ## Coordinates and angles
 
@@ -1011,7 +1011,7 @@ Optical parts have electrical ports after their fibre ports: a "detector" (free 
 
 **Crystal shapes** ("shape" of a crystal): "displacer" (Beam displacer), "wollaston" (Wollaston prism), "glan" (Glan–Taylor polariser).
 
-**Prism shapes**: "right" (Right-angle prism), "equilateral" (Equilateral prism), "window" (Window).
+**Prism shapes**: "right" (Right-angle prism), "equilateral" (Equilateral prism), "window" (Window), "dove" (Dove prism).
 
 **Stop shapes**: "round" (Iris), "slit" (Slit), "double" (Double slit), "comb" (Slit comb), "knife" (Knife edge), "disc" (Beam block).
 

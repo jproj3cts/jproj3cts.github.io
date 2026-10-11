@@ -5105,12 +5105,12 @@ const TESTS = [
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
       try {
-        await J.view3d.set(true);
+        J.experimental(true); await J.view3d.set(true);
         const s = J.view3d.stats();
         const k = s && s.kinds, ok = s && s.parts === 6 && k.source === 1 && k.cube === 1 && k.mirror === 2 && k.screen === 2 && s.rays > 0 && s.beams > 0 && s.names === 6
           && s.board.min[0] < s.box.min[0] && s.board.min[1] < s.box.min[1] && s.board.max[0] > s.box.max[0] && s.board.max[1] > s.box.max[1] && s.board.max[2] === 0;
         return ok ? 1 : 0;
-      } finally { await J.view3d.set(false); }
+      } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
@@ -5120,10 +5120,26 @@ const TESTS = [
     run: async J => {
       J.load(JSON.parse(getDemo('fibre-michelson')));
       const bl = J.view3d.blockers();
+      J.experimental(true);
       await J.view3d.set(true);
       const on = J.view3d.on();
       if (on) await J.view3d.set(false);
+      J.experimental(false);
       return !J.view3d.eligible() && bl.length > 0 && !on ? 1 : 0;
+    },
+  },
+  {
+    name: 'The 3D view is an experimental feature: off, it cannot open',
+    why: 'the Michelson with experimental features off: the 2D / 3D switch is hidden and asking for 3D leaves the bench in 2D; on, it opens (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      J.experimental(false);
+      await J.view3d.set(true);
+      const offOn = J.view3d.on(), hiddenOff = !J.view3d.switchShown();
+      J.experimental(true);
+      try { const shownOn = J.view3d.switchShown(); await J.view3d.set(true); return !offOn && hiddenOff && shownOn && J.view3d.on() ? 1 : 0; }
+      finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
@@ -5134,7 +5150,7 @@ const TESTS = [
       const demo = JSON.parse(getDemo('plano-convex'));
       J.load(demo);
       try {
-        await J.view3d.set(true);
+        J.experimental(true); await J.view3d.set(true);
         let worst = 0;
         for (const el of demo.elements.filter(e => e.type === 'lens').map(e => J.byName(e.name))) {
           const s = J.view3d.partSize(el.name), d = el.diameter, t = el.gaps.reduce((a, b) => a + b, 0);
@@ -5143,7 +5159,7 @@ const TESTS = [
           worst = Math.max(worst, Math.abs(along - t), Math.abs(across - d), Math.abs(s[2] - d));
         }
         return worst;
-      } finally { await J.view3d.set(false); }
+      } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
@@ -5153,12 +5169,12 @@ const TESTS = [
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
       try {
-        await J.view3d.set(true);
+        J.experimental(true); await J.view3d.set(true);
         const dir = c => { const d = c.p.map((v, i) => v - c.t[i]), n = Math.hypot(...d); return d.map(v => v / n); };
         const top = dir(J.view3d.view('top')), front = dir(J.view3d.view('front')), right = dir(J.view3d.view('right'));
         const iso = J.view3d.view('iso'), at = J.view3d.screenOf('Fixed mirror'), hit = J.view3d.pickAt(at.x, at.y);
         return top[2] > 0.999 && front[1] < -0.999 && right[0] > 0.999 && hit === 'Fixed mirror' && iso ? 1 : 0;
-      } finally { await J.view3d.set(false); }
+      } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
@@ -5168,10 +5184,10 @@ const TESTS = [
     run: async J => {
       J.load(JSON.parse(getDemo('grating-spectrometer')));
       try {
-        await J.view3d.set(true);
+        J.experimental(true); await J.view3d.set(true);
         const s = J.view3d.stats(), e = 1e-6;
         return s.rays > 0 && s.box.min[0] >= s.board.min[0] - e && s.box.min[1] >= s.board.min[1] - e && s.box.max[0] <= s.board.max[0] + e && s.box.max[1] <= s.board.max[1] + e ? 1 : 0;
-      } finally { await J.view3d.set(false); }
+      } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
 ];

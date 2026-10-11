@@ -156,6 +156,8 @@
   .rt-v3d { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
   .rt-v3d[hidden] { display: none; }
   .rt-stage.v3d #minimap, .rt-stage.v3d #measureBar, .rt-stage.v3d #drawHint, .rt-stage.v3d #coords { display: none !important; }
+  .rt-v3dswitch[hidden] { display: none; }
+  .rt-v3dswitch .rt-exp { margin-left: 0.3rem; padding: 0 0.25rem; font-size: 0.55rem; }
   .rt-v3dswitch { position: absolute; right: 0; top: 0; z-index: 6; display: flex; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
   .rt-v3dswitch button { height: 1.75rem; margin: 0; border: 0; padding: 0 0.8rem; font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; cursor: pointer; }
   .rt-v3dswitch button:first-child { border-right: 1px solid rgba(0,0,0,0.12); }
@@ -1120,7 +1122,7 @@
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
-            <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" title="This tab in three dimensions: free-space parts only, for now">3D view</button>
+            <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions: free-space parts only, for now (experimental)">3D view<span class="rt-exp">Experimental</span></button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <div class="sep"></div>
@@ -11148,7 +11150,9 @@ const V3D = (() => {
   const blockers = id => project.elements.filter(e => e.bench === id && !FREE.has(e.type));
   const eligible = id => !blockers(id || project.tab).length;
   const tabState = () => st.get(project.tab) || null;
-  const active = () => !!(tabState() && tabState().on);
+  // an experimental feature: there only while experimental features are on
+  const allowed = () => { try { return exp('v3d'); } catch (e) { return false; } };
+  const active = () => allowed() && !!(tabState() && tabState().on);
 
   function load() {
     if (T) return Promise.resolve();
@@ -11169,7 +11173,7 @@ const V3D = (() => {
     const cv = h('canvas', { class: 'rt-v3d', tabindex: '0', hidden: true, 'aria-label': '3D view of this tab. Right-drag to turn it, middle-drag to pan, scroll to zoom, click a part to select it.' });
     bench.after(cv);
     const b2 = h('button', { type: 'button', class: 'on', 'aria-pressed': 'true', title: 'The bench, from above (2D)', onclick: () => setOn(false) }, '2D');
-    const b3 = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setOn(true) }, '3D');
+    const b3 = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setOn(true) }, '3D', h('span', { class: 'rt-exp' }, 'Exp'));
     const sw = h('div', { class: 'rt-v3dswitch', role: 'group', 'aria-label': 'View: 2D or 3D' }, b2, b3);
     const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
     const mouse = h('select', { 'aria-label': 'Mouse', title: 'How the mouse turns and pans the view' },
@@ -11207,7 +11211,10 @@ const V3D = (() => {
   /* the switch's state, and the 3D view shown or hidden, for the tab now showing */
   function show() {
     if (!D) return;
-    const on = active(), ok = eligible(project.tab);
+    const on = active(), ok = eligible(project.tab), there = allowed();
+    D.sw.hidden = !there;
+    const mi = document.getElementById('btnView3d');
+    if (mi) mi.hidden = !there;
     D.stage.classList.toggle('v3d', on);
     D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
     D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
@@ -11223,6 +11230,7 @@ const V3D = (() => {
   async function setOn(on) {
     init();
     const id = project.tab;
+    if (on && !allowed()) { toast('The 3D view is an experimental feature: turn it on under Help \u203a Experimental features'); show(); return; }
     if (on && !eligible(id)) { toast('3D is for tabs of free-space parts only: fibre, electronic and chip parts stay in 2D for now'); show(); return; }
     st.set(id, Object.assign(st.get(id) || {}, { on }));
     show();
@@ -11837,6 +11845,7 @@ const V3D = (() => {
       set: on => setOn(on),
       on: () => active(),
       ready: () => !!R,
+      switchShown: () => { init(); show(); return !!(D && !D.sw.hidden); },
       stats() {
         if (!R || !active()) return null;
         sync();
@@ -22910,6 +22919,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'v3d', name: '3D view', what: 'a 2D / 3D switch at the bench\u2019s top right: a tab of free-space parts in three dimensions, each part at the beam height over a breadboard, turned and zoomed as in Onshape. A view of the same bench, still being built: parts at their own heights and out-of-plane tilts are to come.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental';
@@ -24319,7 +24329,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 7 October 2026', [
-    'A <b>3D view</b>: the 2D / 3D switch at the bench\u2019s top right (or View \u203a 3D view) shows a tab of free-space parts in three dimensions, each part made from its own numbers at the beam height over a breadboard, the rays and Gaussian beams as the trace has them. Turn, pan and zoom as in Onshape (right-drag, middle-drag, scroll), or as on a trackpad; a view cube and the standard views (Shift+1 to 7, F to fit); click a part to select it and edit it as ever. Save the view as a PNG.',
+    'An experimental <b>3D view</b> (turn it on under Help \u203a Experimental features): the 2D / 3D switch at the bench\u2019s top right (or View \u203a 3D view) shows a tab of free-space parts in three dimensions, each part made from its own numbers at the beam height over a breadboard, the rays and Gaussian beams as the trace has them. Turn, pan and zoom as in Onshape (right-drag, middle-drag, scroll), or as on a trackpad; a view cube and the standard views (Shift+1 to 7, F to fit); click a part to select it and edit it as ever. Save the view as a PNG.',
     'On photonic chips, <b>electrical connections</b>: an on-chip photodiode now has an <b>out</b> port to the electronics (a voltage through its amplifier, or its current as a bare photodiode), and a phase shifter a <b>drive</b> input, \u03c0 of phase for V\u03c0 volts on top of the phase set, so a chip\u2019s Mach\u2013Zehnder or ring can be modulated, swept or locked from the electronics.',
     'A fix: light going back through a <b>fibre AOM</b> is now shifted the same way again, so a double pass (an AOM before a Faraday mirror) shifts by twice the drive, as a real one and the free-space AOM do. It was shifted back to where it started.',
     'The <b>documentation</b> (Help \u203a Documentation): how each model works, with its equations and limits: free space, fibre, electronics and photonic chips, element by element, with an FAQ.',

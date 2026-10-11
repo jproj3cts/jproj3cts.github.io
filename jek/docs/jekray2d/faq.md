@@ -33,7 +33,7 @@ A 2D bench is how most optical setups are drawn and planned, and it keeps the to
 
 ### Can I see my bench in 3D?
 
-Yes, a tab of free-space parts: use the **2D / 3D** switch at the bench's top right (see [Getting started: the 3D view](/jek/docs/jekray2d/getting-started/#the-3d-view)). It shows the same bench in three dimensions, with every part at the beam height. Parts set at their own heights, and tilted out of the plane, are planned next.
+Yes, a tab of free-space parts, as an experimental feature for now: switch it on under **Help › Experimental features**, then use the **2D / 3D** switch at the bench's top right (see [Getting started: the 3D view](/jek/docs/jekray2d/getting-started/#the-3d-view)). It shows the same bench in three dimensions, with every part at the beam height. Parts set at their own heights, and tilted out of the plane, are planned next.
 
 ### Why don't two of my lasers interfere?
 

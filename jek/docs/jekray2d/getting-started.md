@@ -37,6 +37,10 @@ The buttons below the palette open groups of parts.
 
 ## The 3D view
 
+<div class="dx-note" markdown="1">
+The 3D view is an experimental feature while it is being built. Switch it on under **Help › Experimental features**.
+</div>
+
 The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the tab in three dimensions. Every part sits at the beam height, 75 mm above a breadboard, and is made from its own numbers: a lens from its surfaces, a mirror from its curvature. The light is drawn as the trace has it: rays as lines, and Gaussian beams as tubes as wide as the beam is, in the bench plane and out of it.
 
 | Mouse (Onshape, the default) | Trackpad |

@@ -5664,6 +5664,61 @@ const TESTS = [
     },
   },
   {
+    name: 'A π/2 mode converter turns a vortex into a Hermite–Gauss mode, and back when rolled',
+    why: 'two thin cylinders of f = 50 mm, √2 f apart, the beam focused between them with a Rayleigh range (1 + 1/√2) f (Beijersbergen et al. 1993): LG01 leaves as HG10 turned 45° (its intensity round a ring goes as cos² from the diagonal), and HG10 through the pair rolled ±45° leaves as LG01, an even ring of charge ∓1 (largest departure from those)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const f = 50, d = f * Math.SQRT2, zR = (1 + Math.SQRT1_2) * f, w0 = Math.sqrt(zR * 633e-6 / Math.PI);
+      const conv = (src, roll) => { J.load({ format: 'jekray', version: 1, elements: [
+        Object.assign({ type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, gauss: true, w0, z0: 100 + d / 2, wavelength: 633, rays: 1, width: 2 * w0, power: 1, pol: 's' }, src),
+        { type: 'mask', id: 'L1', name: 'L1', x: 0, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)', roll },
+        { type: 'mask', id: 'L2', name: 'L2', x: d, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)', roll },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 300, y: 0, angle: 180, length: 40 }] }); J.trace();
+        const E = (u, v) => J.arrivalE('Sc', u, v), I = (u, v) => E(u, v).reduce((a, x) => a + x * x, 0), a = 0.5;
+        const ring = Array.from({ length: 16 }, (_, k) => I(a * Math.cos(k * Math.PI / 8), a * Math.sin(k * Math.PI / 8)));
+        let wind = 0, prev = Math.atan2(E(a, 0)[1], E(a, 0)[0]);
+        for (let k = 1; k <= 64; k++) { const th = k * 2 * Math.PI / 64, e = E(a * Math.cos(th), a * Math.sin(th)), q = Math.atan2(e[1], e[0]); let dq = q - prev; dq -= 2 * Math.PI * Math.round(dq / (2 * Math.PI)); wind += dq; prev = q; }
+        return { ring, wind: wind / (2 * Math.PI) };
+      };
+      const A = conv({ tem: 'lg', lp: 0, ll: 1 }, 0), Bp = conv({ tem: 'hg', hm: 1, hn: 0 }, 45), Bm = conv({ tem: 'hg', hm: 1, hn: 0 }, -45);
+      const mx = Math.max(...A.ring);
+      const hg = Math.max(...A.ring.map((v, k) => Math.abs(v / mx - Math.cos(k * Math.PI / 8 - Math.PI / 4) ** 2)));
+      const lg = Math.max(...[Bp, Bm].map(B => Math.max(...B.ring.map(v => Math.abs(v / B.ring[0] - 1)))));
+      return Math.max(hg, lg, Math.abs(Bp.wind + 1), Math.abs(Bm.wind - 1));
+    },
+  },
+  {
+    name: 'A Dove prism rolled about the beam turns a Hermite–Gauss mode by twice as much',
+    why: 'an HG10 beam through an N-BK7 Dove prism: unrolled, its lobes stay across the beam; rolled 22.5°, they turn through 45° (the dark line between them is dark to a part in 10^5 of the lobes, read round the beam’s centre)',
+    want: 0, tol: 1e-5, unit: '',
+    run: J => {
+      const ring = roll => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -80, y: 0, angle: 0, gauss: true, w0: 1, z0: 80, wavelength: 633, rays: 1, width: 2, power: 1, pol: 's', tem: 'hg', hm: 1, hn: 0 },
+        { type: 'prism', id: 'D', name: 'D', x: 0, y: 0, angle: 0, shape: 'dove', size: 25, material: { glass: 'N-BK7' }, roll },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 80, y: 0, angle: 180, length: 60 }] }); J.trace();
+        const c = J.arrivalsInfo('Sc')[0], I = (u, v) => J.arrivalE('Sc', u + c.u0, v + (c.v0 || 0)).reduce((a, x) => a + x * x, 0);
+        return { r: Array.from({ length: 8 }, (_, k) => I(Math.cos(k * Math.PI / 8), Math.sin(k * Math.PI / 8))), twisted: c.twisted };
+      };
+      const A = ring(0), B = ring(22.5);
+      if (A.twisted || B.twisted) return NaN;
+      // the dark line: square to the lobes, at 90° unrolled and at 45° rolled (the screen faces back, its across against the bench's)
+      return Math.max(A.r[4] / Math.max(...A.r), B.r[2] / Math.max(...B.r));
+    },
+  },
+  {
+    name: 'A higher-order beam twisted by cylinders at odd angles is marked',
+    why: 'an HG10 beam through a thin cylinder and then one rolled 30° to it: the beam has no fixed axes any more, so its arrival is marked as only roughly placed (and the photodiode says so); through two cylinders lined up, it is not (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const tw = roll => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, gauss: true, w0: 0.3, z0: 100, wavelength: 633, rays: 1, width: 0.6, power: 1, pol: 's', tem: 'hg', hm: 1, hn: 0 },
+        { type: 'mask', id: 'L1', name: 'L1', x: 0, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)' },
+        { type: 'mask', id: 'L2', name: 'L2', x: 30, y: 0, angle: 0, length: 20, amp: '1', delay: '-(x^2)/(100*lambda)', roll },
+        { type: 'detector', id: 'D', name: 'D', x: 200, y: 0, angle: 180, length: 20 }] }); J.trace(); return J.arrivalsInfo('D')[0].twisted; };
+      return tw(30) === true && tw(0) === false ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

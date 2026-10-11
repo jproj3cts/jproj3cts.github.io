@@ -3687,6 +3687,13 @@ function curvAt(s, y) {
   return d2 / Math.pow(1 + d1 * d1, 1.5);
 }
 
+/* A mask's amplitude and delay at (u across, v up) in the bench's frame: a mask rolled about its
+   axis has its pattern turned with it */
+function maskOf(s) {
+  if (!s.maskFn || !(s.tilt && s.roll)) return s.maskFn;
+  if (!s._mf) Object.defineProperty(s, '_mf', { value: (u, v, l) => s.maskFn(...rollFrame(s, u, v), l), enumerable: false });
+  return s._mf;
+}
 /* A surface's curvature in the bench plane, for the beam's pilot in it: a cylinder rolled about
    its axis keeps cos^2 of its power there (one curved out of the plane, sin^2) */
 function kapIn(s, y) {
@@ -5014,7 +5021,9 @@ function traceSceneOnce() {
           // the delay's slope in the plane, as a grating or a lens would bend them; the
           // beam's pilot takes the lens its curvature makes.
           const lam = nm * 1e-6, hh = 1e-4;
-          const f0 = s.maskFn(ly, hS, lam), fp = s.maskFn(ly + hh, hS, lam), fm = s.maskFn(ly - hh, hS, lam);
+          // a mask rolled about its axis: its pattern turned with it (see maskOf)
+          const mf = maskOf(s);
+          const f0 = mf(ly, hS, lam), fp = mf(ly + hh, hS, lam), fm = mf(ly - hh, hS, lam);
           // a jump across the tiny step is an edge in the phase (a binary grating's step), a line
           // of no width that bends nothing: only a smooth delay has a slope and a curvature. A
           // jump of whole waves is no jump at all (a blazed grating's or a kinoform's reset, as an
@@ -5031,7 +5040,7 @@ function traceSceneOnce() {
           // and up and down by its slope that way, off the plane (a smooth delay's only)
           let slopeV = 0;
           if (anyZ) {
-            const fu = s.maskFn(ly, hS + hh, lam), fd = s.maskFn(ly, hS - hh, lam), du = wrap(fu[1] - f0[1]), dd = wrap(f0[1] - fd[1]);
+            const fu = mf(ly, hS + hh, lam), fd = mf(ly, hS - hh, lam), du = wrap(fu[1] - f0[1]), dd = wrap(f0[1] - fd[1]);
             if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
           }
           if (isQ) {
@@ -8924,8 +8933,10 @@ function faceArrivals(el) {
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
-    if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] ? A : Object.assign(A, { comps: modes[0].c }));
-    else modes.forEach(({ w, c }, k) => out.push(Object.assign({}, A, { comps: c, J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k })));
+    // a higher-order beam through parts that turn or treat its axes apart: its modes along its way (see beamQM)
+    const withModes = (A2, c) => { const QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
+    if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] && !src.roll ? A : withModes(A, modes[0].c));
+    else modes.forEach(({ w, c }, k) => out.push(withModes(Object.assign({}, A, { J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k }), c)));
   });
   return out;
 }
@@ -8948,6 +8959,25 @@ function arrivalField(A, u, v0) {
   // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
   const k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
   const du = u - A.u0, dv = v0 - (A.v0 || 0), xb = du * A.ldx, v = A.vs ? hx * dv - ez * A.ldy * du : dv, cT = (Math.abs(A.ldx) || 1) * hx;
+  if (A.QM) {
+    // a higher-order beam in its own frame: x1, y1 along its axes, each with its q and gathered Gouy phase
+    const M = A.QM, c0 = Math.cos(M.th), s0 = Math.sin(M.th), x1 = xb * c0 + v * s0, y1 = -xb * s0 + v * c0;
+    const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3];
+    const ia = [qa[0] / (qa[0] ** 2 + qa[1] ** 2), -qa[1] / (qa[0] ** 2 + qa[1] ** 2)], ib = [qb[0] / (qb[0] ** 2 + qb[1] ** 2), -qb[1] / (qb[0] ** 2 + qb[1] ** 2)];
+    const wa = qW(qa, A.lam0), wb = qW(qb, A.lam0);
+    const re = 0.5 * k * (ia[1] * x1 * x1 + ib[1] * y1 * y1);
+    const ph = -0.5 * k * (ia[0] * x1 * x1 + ib[0] * y1 * y1) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * M.psi[0] - 0.5 * M.psi[1];
+    const amp0 = Math.sqrt(2 / (Math.PI * wa * wb)) * Math.exp(re) * Math.sqrt(cT);
+    let c = 0, sn = 0;
+    for (const [mx, my, ar, ai] of M.comps) {
+      let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
+      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) / Math.sqrt(Math.pow(2, mx + my) * f);
+      const p2 = ph - mx * M.psi[0] - my * M.psi[1], er = a * Math.cos(p2), ei = a * Math.sin(p2);
+      c += er * ar - ei * ai; sn += er * ai + ei * ar;
+    }
+    const J = A.J;
+    return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
+  }
   if (A.Q && !A.comps) {
     // a beam with its axes turned (see beamQ): exp(-i k r.P.r / 2), P = Q^-1, normalised over the face
     const P = ccInv(A.Q), a = P[0][0] * xb * xb + 2 * P[1][0] * xb * v + P[3][0] * v * v, bI = P[0][1] * xb * xb + 2 * P[1][1] * xb * v + P[3][1] * v * v;
@@ -17405,8 +17435,17 @@ function cavEventABCD(ev, lam0) {
   if (ev.mode === 'M') {
     // a mask is a thin lens of whatever curvature its delay has: in the plane the tracer
     // found it (ev.C); out of it, from the same formula across the other way
-    const fn = ev.surf.maskFn, hh = 1e-4, C = ev.C || 0;
+    const fn = maskOf(ev.surf), hh = 1e-4, C = ev.C || 0;
     if (!fn) return { x: [1, 0, C, 1], y: [1, 0, C, 1] };
+    if (ev.surf.tilt && ev.surf.roll) {
+      // rolled: its delay's curvature both ways and across, the beam's left being the mask's +u or -u
+      const f = (a, b) => fn(ev.ly + a, b, lam0)[1], c0 = f(0, 0);
+      const Hxx = (f(hh, 0) + f(-hh, 0) - 2 * c0) / (hh * hh), Hyy = (f(0, hh) + f(0, -hh) - 2 * c0) / (hh * hh);
+      const Hxy = (f(hh, hh) - f(hh, -hh) - f(-hh, hh) + f(-hh, -hh)) / (4 * hh * hh);
+      const fr = ev.surf.f, sg = (ev.dIn[0] * fr.c + ev.dIn[1] * fr.s) >= 0 ? 1 : -1, n = ev.n1 || 1;
+      const cx = Hxx * lam0 / n, cy = Hyy * lam0 / n, cxy = sg * Hxy * lam0 / n;
+      return { x: [1, 0, cx, 1], y: [1, 0, cy, 1], m4: { A: [[1, 0], [0, 1]], C: [[cx, cxy], [cxy, cy]] } };
+    }
     const f0 = fn(ev.ly, 0, lam0), fp = fn(ev.ly, hh, lam0), fm = fn(ev.ly, -hh, lam0);
     const smooth = Math.abs(fp[1] - fm[1]) < 0.05 && Math.abs(fp[1] + fm[1] - 2 * f0[1]) < 0.05;
     return { x: [1, 0, C, 1], y: [1, 0, smooth ? (fp[1] + fm[1] - 2 * f0[1]) / (hh * hh) * lam0 : 0, 1] };
@@ -17482,6 +17521,115 @@ function beamQ(B, i, lam0) {
     Q = QFree(Q, (bb.len3 || bb.len) / bb.n);
   }
   return gen ? Q : null;
+}
+/* A Hermite-Gauss sum [m, n, re, im] in one frame, written in a frame turned by alpha (its
+   axes x1 = x cos a + y sin a, y1 = -x sin a + y cos a): modes of one order N = m + n only mix
+   among themselves, so the sum stays finite. The overlaps are worked out on a grid (the
+   trapezium rule is exact to rounding for these), and kept */
+const hgRotMemo = new Map();
+function hgUnit(m, x) { let f = 1; for (let i = 2; i <= m; i++) f *= i; return Math.pow(2 / Math.PI, 0.25) / Math.sqrt(Math.pow(2, m) * f) * hermite(m, Math.SQRT2 * x) * Math.exp(-x * x); }
+function hgRotate(comps, alpha) {
+  if (!comps || Math.abs(Math.sin(alpha)) < 1e-15 && Math.cos(alpha) > 0) return comps;
+  const out = new Map(), ca = Math.cos(alpha), sa = Math.sin(alpha);
+  for (const [m, n, ar, ai] of comps) {
+    const N = m + n, key = m + ',' + n + ',' + alpha;
+    let row = hgRotMemo.get(key);
+    if (!row) {
+      const L = Math.sqrt(2 * N + 1) + 5, K = 2 * Math.ceil(12 * L) + 1, h = 2 * L / (K - 1), xs = Array.from({ length: K }, (_, i) => -L + i * h);
+      row = [];
+      for (let j = 0; j <= N; j++) {
+        let s = 0;
+        for (const x of xs) for (const y of xs) s += hgUnit(m, x) * hgUnit(n, y) * hgUnit(j, x * ca + y * sa) * hgUnit(N - j, -x * sa + y * ca);
+        row.push(s * h * h);
+      }
+      if (hgRotMemo.size > 2000) hgRotMemo.clear();
+      hgRotMemo.set(key, row);
+    }
+    row.forEach((g, j) => { if (Math.abs(g) < 1e-13) return; const k = j + ',' + (N - j), o = out.get(k) || [j, N - j, 0, 0]; o[2] += g * ar; o[3] += g * ai; out.set(k, o); });
+  }
+  return [...out.values()].filter(c => Math.hypot(c[2], c[3]) > 1e-12);
+}
+// Q in a frame turned by th (r = R r1): R^T Q R
+function QRot(Q, th) {
+  const c = Math.cos(th), s = Math.sin(th), R = [[c, -s], [s, c]], RT = [[c, s], [-s, c]];
+  const a = rcMul(RT, Q), b = [a[0], a[1], a[2], a[3]];
+  // (R^T Q) R: by columns
+  return [cz.a(cz.r(b[0], R[0][0]), cz.r(b[1], R[1][0])), cz.a(cz.r(b[0], R[0][1]), cz.r(b[1], R[1][1])),
+    cz.a(cz.r(b[2], R[0][0]), cz.r(b[3], R[1][0])), cz.a(cz.r(b[2], R[0][1]), cz.r(b[3], R[1][1]))];
+}
+/* A higher-order beam (a Hermite-Gauss sum) along its way, as beamQ, with its modes: they are
+   carried in the beam's own principal frame (th), each axis's Gouy phase psi gathered over every
+   stretch of free space (what turns modes into each other in a converter). Where a part with
+   axes of its own meets a beam that is round, or already lined up with it, the sum is turned
+   into the part's frame, the Gouy phases so far first folded into it. A part that turns the
+   image (a Dove prism) turns the frame. A beam twisted by parts at odd angles to each other
+   (general astigmatism) has no such frame: it is marked, and its modes are only roughly placed */
+function beamQM(B, i, lam0, comps, th0) {
+  const chain = [];
+  for (let j = i; j >= 0; j = B[j].parent) chain.push(j);
+  chain.reverse();
+  const r0 = B[chain[0]], q0 = [r0.qr / r0.n, r0.qi / r0.n];
+  let Q = [q0, [0, 0], [0, 0], q0], th = th0 || 0, C = comps, twisted = false, gen = !!th0;
+  const g0 = Math.atan2(q0[1], q0[0]); let psi = [g0, g0];
+  // (to a part in a million: a part's matrices come from rays traced through it, and are that good)
+  const offd = (M) => Math.hypot(M[1][0], M[1][1]) <= 1e-6 * (Math.hypot(M[0][0], M[0][1]) + Math.hypot(M[3][0], M[3][1]) + 1e-300);
+  const round = M => offd(M) && Math.hypot(M[0][0] - M[3][0], M[0][1] - M[3][1]) <= 1e-6 * (Math.hypot(M[0][0], M[0][1]) + 1e-300);
+  const fold = () => {
+    // the Gouy phases so far into the modes, (m + 1/2) psi_x + (n + 1/2) psi_y, then from nothing
+    C = C.map(([m, n, a, b]) => { const p = -(m + 0.5) * psi[0] - (n + 0.5) * psi[1], c = Math.cos(p), s = Math.sin(p); return [m, n, a * c - b * s, a * s + b * c]; });
+    psi = [0, 0];
+  };
+  for (let c = 0; c < chain.length; c++) {
+    const bb = B[chain[c]];
+    if (c > 0) {
+      const m = cavEventABCD(bb.ev, lam0); if (!m) return null;
+      const A = m.m4 ? m.m4.A : [[m.x[0], 0], [0, m.y[0]]], Cm = m.m4 ? m.m4.C : [[m.x[2], 0], [0, m.y[2]]], Qbefore = Q;
+      if (m.m4 || Math.abs(m.x[0] - m.y[0]) > 1e-12 || Math.abs(m.x[2] - m.y[2]) > 1e-12 * (Math.abs(m.x[2]) + Math.abs(m.y[2]) + 1e-300) || (bb.ev && bb.ev.surf && bb.ev.surf.tilt)) gen = true;
+      // the part as three steps: a stretch S along its own axes, a turn or mirror U (A = U S), then a
+      // lens L = C A^-1 in the beam's new frame; the modes follow each
+      const ax = M => 0.5 * Math.atan2(M[0][1] + M[1][0], M[0][0] - M[1][1]);
+      const isRound = M => Math.abs(M[0][1]) + Math.abs(M[1][0]) + Math.abs(M[0][0] - M[1][1]) <= 1e-6 * (Math.abs(M[0][0]) + Math.abs(M[1][1])) + 1e-12;
+      const take = phi => {
+        // a beam round here, or lined up with the part already, takes the part's axes; any other is twisted
+        if (Math.abs(Math.sin(2 * (phi - th))) < 1e-6) return;
+        if (round(Q) || offd(QRot(Q, phi))) { fold(); C = hgRotate(C, phi - th); th = phi; }
+        else twisted = true;
+      };
+      const AtA = [[A[0][0] ** 2 + A[1][0] ** 2, A[0][0] * A[0][1] + A[1][0] * A[1][1]], [0, A[0][1] ** 2 + A[1][1] ** 2]]; AtA[1][0] = AtA[0][1];
+      const sd = Math.sqrt(Math.max(0, AtA[0][0] * AtA[1][1] - AtA[0][1] ** 2)), sn = Math.sqrt(AtA[0][0] + AtA[1][1] + 2 * sd);
+      const S = [[(AtA[0][0] + sd) / sn, AtA[0][1] / sn], [AtA[0][1] / sn, (AtA[1][1] + sd) / sn]], dS = S[0][0] * S[1][1] - S[0][1] ** 2;
+      const Si = [[S[1][1] / dS, -S[0][1] / dS], [-S[0][1] / dS, S[0][0] / dS]];
+      const U = [[A[0][0] * Si[0][0] + A[0][1] * Si[1][0], A[0][0] * Si[0][1] + A[0][1] * Si[1][1]], [A[1][0] * Si[0][0] + A[1][1] * Si[1][0], A[1][0] * Si[0][1] + A[1][1] * Si[1][1]]];
+      const sym = (M, N) => [[M[0][0] * N[0][0] + M[0][1] * N[1][0], M[0][0] * N[0][1] + M[0][1] * N[1][1]], [M[1][0] * N[0][0] + M[1][1] * N[1][0], M[1][0] * N[0][1] + M[1][1] * N[1][1]]];
+      const conj = (R, Qm) => { const RT = [[R[0][0], R[1][0]], [R[0][1], R[1][1]]], a2 = rcMul(R, Qm); return [cz.a(cz.r(a2[0], RT[0][0]), cz.r(a2[1], RT[1][0])), cz.a(cz.r(a2[0], RT[0][1]), cz.r(a2[1], RT[1][1])), cz.a(cz.r(a2[2], RT[0][0]), cz.r(a2[3], RT[1][0])), cz.a(cz.r(a2[2], RT[0][1]), cz.r(a2[3], RT[1][1]))]; };
+      if (!isRound(S)) take(ax(S));
+      let Qs = conj(S, Q), mirrored = false;
+      const dU = U[0][0] * U[1][1] - U[0][1] * U[1][0];
+      if (dU > 0) th += Math.atan2(U[1][0], U[0][0]);
+      else {
+        // mirrored: into the bench's frame (Gouy phases folded in), flipped, its frame the mirror's
+        const save = Q; Q = Qs; fold(); Q = save;
+        C = hgRotate(C, -th); C = C.map(([mm, n, a2, b2]) => n % 2 ? [mm, n, -a2, -b2] : [mm, n, a2, b2]);
+        th = Math.atan2(U[1][0], U[0][0]); mirrored = true;
+      }
+      Q = conj(U, Qs);
+      const Ai = [[A[1][1] / (A[0][0] * A[1][1] - A[0][1] * A[1][0]), -A[0][1] / (A[0][0] * A[1][1] - A[0][1] * A[1][0])], [-A[1][0] / (A[0][0] * A[1][1] - A[0][1] * A[1][0]), A[0][0] / (A[0][0] * A[1][1] - A[0][1] * A[1][0])]];
+      const Lm = sym(Cm, Ai), Ls = [[Lm[0][0], 0.5 * (Lm[0][1] + Lm[1][0])], [0.5 * (Lm[0][1] + Lm[1][0]), Lm[1][1]]];
+      if (mirrored && !round(Q)) {
+        // the beam's own axes: those of Im Q (shared with Re Q while it is not twisted)
+        const phQ = 0.5 * Math.atan2(2 * Q[1][1], Q[0][1] - Q[3][1]);
+        if (offd(QRot(Q, phQ))) { C = hgRotate(C, phQ - th); th = phQ; }
+      }
+      if (!isRound(Ls)) take(ax(Ls));
+      Q = QThroughEvent(m, Qbefore);
+    }
+    // free space: each axis's Gouy phase, in the modes' frame, while the beam keeps to it
+    const L = (bb.len3 || bb.len) / bb.n, Qa = QRot(Q, th);
+    Q = QFree(Q, L);
+    if (!twisted && offd(Qa)) { const Qb = QRot(Q, th); psi = [psi[0] + Math.atan2(Qb[0][1], Qb[0][0]) - Math.atan2(Qa[0][1], Qa[0][0]), psi[1] + Math.atan2(Qb[3][1], Qb[3][0]) - Math.atan2(Qa[3][1], Qa[3][0])]; }
+    else if (!offd(Qa)) twisted = true;
+  }
+  return gen ? { Q, th, psi, comps: C, twisted } : null;
 }
 /* q through a reduced matrix: q is reduced too (the physical q over the index) */
 const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q[1], dr = m[2] * q[0] + m[3], di = m[2] * q[1], den = dr * dr + di * di; return [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den]; };
@@ -21777,6 +21925,8 @@ function updateReadoutsIn(container, el) {
       ['Beam it sends out', 'M\u00b2 ' + (+clamp(Math.PI * el.core / 2e3 * el.na / (nm * 1e-6), 1, 30).toPrecision(3)) + ' at ' + nm + ' nm (a filled core)']] : [['Mode field diameter', fmtLen(2 * m.w) + ' at ' + nm + ' nm'], ['V number', (+m.V.toPrecision(3)) + (m.V < 2.405 ? ', single mode' : ', multimode: the fundamental only is shown')]];
     if (r) rows.push(['Arriving', (+r.inMw.toPrecision(4)) + ' mW'], ['Coupling efficiency', (100 * r.eff).toPrecision(4) + '%'], ['Into the fibre', (+r.mw.toPrecision(4)) + ' mW']);
     else rows.push(['Arriving', 'no Gaussian beam reaches the face']);
+    const twisted = faceArrivals(el).some(A => A.QM && A.QM.twisted), twistNote = ['Note', 'a higher-order beam arrives twisted (parts at odd angles to each other turned its axes apart): its modes are only roughly placed; read it from the diffracted field'];
+    if (twisted) rows.push(twistNote);
     if (portsInUse().has(pkey(el.id, 0))) {
       const P = portPower(el, 0);
       rows.push(['Into the fibre network', fmtMw(P.out)], ['Out into free space', fmtMw(P.inn)]);
@@ -21785,7 +21935,8 @@ function updateReadoutsIn(container, el) {
   } else if (el.type === 'detector') {
     const r = detectorReading(el), nm = benchNms()[0];
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
-    parts = [[...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
+    const twisted = faceArrivals(el).some(A => A.QM && A.QM.twisted), twistNote = ['Note', 'a higher-order beam arrives twisted (parts at odd angles to each other turned its axes apart): its modes are only roughly placed; read it from the diffracted field'];
+    parts = [[...(twisted && !r.field ? [twistNote] : []), ...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
       ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
@@ -26155,6 +26306,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     portScreen(id, i) { const Q = portWorld(getEl(id), i); return [sx(Q.x), sy(Q.y)]; },
     fibrePoint(id, k, t) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[k], t)); },
     fibreMid(id) { const segs = fibreSegs(project.fibres.find(F => F.id === id)); return toScr(bez(segs[Math.floor((segs.length - 1) / 2)], segs.length % 2 ? 0.5 : 1)); },
+    // the Gaussian beams' field arriving at a point on a part's face (u across, v up), summed: [s re, s im, p re, p im]
+    arrivalE(name, u, v) { const e = [0, 0, 0, 0]; for (const A of faceArrivals(this.byName(name))) { const f = arrivalField(A, u, v); for (let k = 0; k < 4; k++) e[k] += f[k]; } return e; },
+    arrivalsInfo(name) { return faceArrivals(this.byName(name)).map(A => ({ twisted: !!(A.QM && A.QM.twisted), th: A.QM ? A.QM.th : null, comps: A.comps || null, general: !!(A.Q || A.QM), psi: A.QM ? A.QM.psi : null, Q: A.QM ? A.QM.Q : A.Q || null, qx: A.qx, v0: A.v0, vs: A.vs, ldx: A.ldx, u0: A.u0 })); },
     // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
     eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
     arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },

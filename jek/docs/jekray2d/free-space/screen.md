@@ -38,6 +38,10 @@ From the strongest arrival it gives the irradiance map, the point spread functio
 
 Near a steep focus the vector focal field is used (**Vector focus**: auto, on or off), so a screen at the focus of a high-NA objective shows the field along the axis too (see [Free-space optics: steep foci](/jek/docs/jekray2d/free-space/#steep-foci)).
 
+The map is placed where the light lands on the face, above or below its centre too, and on a screen tipped or rolled out of the plane it is the pattern on the face itself, stretched up it where the light meets it at a slope.
+
+With the experimental 3D view on, **Show its diffraction pattern on its face (3D view)** paints the map onto the screen's face in the 3D view, where the light lands, in the same colours and scale as the tab (linear or log). It updates as the field is worked out again.
+
 ### Aberrations
 
 The **Aberrations** tab sweeps a fan source across the field:

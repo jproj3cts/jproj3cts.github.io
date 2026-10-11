@@ -3008,6 +3008,7 @@ function normElementBase(e) {
       });
     case 'screen':
       return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), absorb: e.absorb !== false,
+        ...(e.faceMap === true ? { faceMap: true } : {}),             // its diffraction pattern painted on its face in the 3D view
         R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
         binWidth: Math.max(0, num(e.binWidth, 0)),
         binInterp: e.binInterp !== false,
@@ -11757,7 +11758,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h;
+    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey();
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     const sk = selection().map(e => e.id).join();
@@ -11850,6 +11851,7 @@ const V3D = (() => {
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, mat.matte(0xffb347), mat.body()));
+        if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
         return g;
       }
       case 'source': {
@@ -11959,6 +11961,41 @@ const V3D = (() => {
     sp.scale.set(c.width * k, c.height * k, 1); sp.center.set(0.5, 0); sp.renderOrder = 10;
     return sp;
   }
+
+  /* A screen's diffraction pattern on its face: the Diffraction tab's irradiance map, in its colours
+     and scale (lin or log), where the light lands, cut to the face. x along its normal, y across, z up */
+  function faceMapMesh(el, x0) {
+    const r = diffractionLater(el), D = r && r.D;
+    if (!D || !D.map) return null;
+    const M = D.map, n = M.n, L = el.length / 2;
+    let pk = 0, pi = 0; for (let i = 0; i < M.v.length; i++) { pk = Math.max(pk, M.v[i]); pi = Math.max(pi, M.inc[i]); }
+    pk = Math.max(pk, 0.02 * pi);
+    const log = el.mapScale === 'log', cv = document.createElement('canvas'); cv.width = cv.height = n;
+    const cx = cv.getContext('2d'), img = cx.createImageData(n, n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      let v = M.v[j * n + i] / (pk || 1);
+      if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
+      const [rr, gg, bb] = magma(v), o = ((n - 1 - j) * n + i) * 4;
+      img.data[o] = rr; img.data[o + 1] = gg; img.data[o + 2] = bb; img.data[o + 3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    // the map's rectangle on the face, cut to the face's square
+    const u0 = Math.max(M.u0, -L), u1 = Math.min(M.u1, L), v0 = Math.max(M.v0, -L), v1 = Math.min(M.v1, L);
+    if (!(u1 > u0 && v1 > v0)) return null;
+    const fu = u => (u - M.u0) / (M.u1 - M.u0), fv = v => (v - M.v0) / (M.v1 - M.v0), x = x0 + 0.05;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute([x, u0, v0, x, u1, v0, x, u1, v1, x, u0, v1], 3));
+    geo.setAttribute('uv', new T.Float32BufferAttribute([fu(u0), fv(v0), fu(u1), fv(v0), fu(u1), fv(v1), fu(u0), fv(v1)], 2));
+    geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.magFilter = T.LinearFilter;
+    const m = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.userData.faceMap = el.id;
+    return m;
+  }
+  // what the screens painted with their pattern show now: the scene is built again when it changes
+  const faceMapsKey = () => project.elements.filter(e => e.type === 'screen' && e.faceMap && e.bench === project.tab).map(e => {
+    const c = popScreenCache.get(e.id); return e.id + ':' + (c && c.D && c.D.map ? [c.D.peak, c.D.map.u0, c.D.map.v0, c.D.map.u1, e.mapScale].join(',') : '-');
+  }).join(';');
 
   /* ---------- the scene, from the bench ---------- */
   function build() {
@@ -12477,6 +12514,8 @@ const V3D = (() => {
       },
       // the middle of the arrow over the selected part, css px
       liftScreen() { if (!R) return null; sync(); if (!R.lift) return null; const v = R.lift.hit[0].position.clone().project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
+      // the screens showing their diffraction pattern on their face, by name, as drawn now
+      faceMaps() { if (!R) return null; sync(); const out = []; R.groups.parts.traverse(o => { if (o.userData.faceMap) out.push((getEl(o.userData.faceMap) || {}).name); }); return out; },
       // the tip knob on the canvas, css px, while one mirror is selected
       tipScreen() { if (!R) return null; sync(); if (!R.tip) return null; const v = R.tip.knob.position.clone().project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
       // the ring's knob on the canvas, css px, while one part is selected
@@ -14634,6 +14673,13 @@ function screenParams(el) {
     }));
   if (el.R) srows.append(param('Radius (mm)', el, 'R', { wide: true }));
   srows.append(h('label', { class: 'rt-check wide' }, stop, 'Stop the rays it records'));
+  // its diffraction pattern on its face, in the 3D view (an experimental feature)
+  if (exp('v3d') || el.faceMap) {
+    const fm = h('input', { type: 'checkbox' });
+    fm.checked = !!el.faceMap;
+    fm.addEventListener('change', () => { checkpoint(); if (fm.checked) el.faceMap = true; else delete el.faceMap; changed(false); });
+    srows.append(h('label', { class: 'rt-check wide', title: 'Paints the irradiance map from its Diffraction tab onto the screen\u2019s face in the 3D view, where the light lands on it, in the same colours and scale.' }, fm, 'Show its diffraction pattern on its face (3D view)'));
+  }
   panel.append(srows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The screen records rays arriving on its ticked face; rays reaching it from behind pass straight through. Untick the box to sample a beam without blocking it, which is how to measure a cavity. Its length is how far it reaches across the bench, which sets what it catches and the span of its plots.' +
     (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
@@ -23558,6 +23604,7 @@ function checkImport(raw, p, notes) {
       if (IMPORT_SAME.has(k)) continue;
       if (k === 'z' && V3D.free(n) && isFinite(v) && +v === BEAM_Z) continue;       // the beam height, which is no height of its own
       if ((k === 'tip' || k === 'roll') && tippable(n) && isFinite(v) && +v === 0) continue;   // upright, which is no tip at all
+      if (k === 'faceMap' && n.type === 'screen' && v === false) continue;                    // not shown, as by default
       if (!(k in n)) { notes.push(who + ': field ' + fmtV(k) + ' is not used by a ' + (n.type === 'fcomp' ? FC[n.kind].label.toLowerCase() : typeLabel(n).toLowerCase()) + ': ignored.'); continue; }
       const w = n[k];
       if (typeof w === 'number') {
@@ -25418,6 +25465,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'With the experimental 3D view, <b>the diffracted field in 3D</b>: a screen\u2019s Diffraction tab, a photodiode read through the field and the vector focus follow heights, tips and rolls: the pattern lands where the beam does, on a tipped screen as the screen sees it; a periscope\u2019s vertical leg is propagated, and one that turns the beam turns its image and polarisation; a rolled Dove prism turns the pattern; an iris above or below the beam clips it there. Tick <b>Show its diffraction pattern on its face</b> on a screen to see its pattern painted on it in the 3D view.',
     'With the experimental 3D view, <b>Gaussian beams through turned optics</b>: a beam through a part tipped or rolled out of the plane is carried as one complex 2\u00d72 matrix (a general astigmatic beam), so its ellipse turns with a rolled cylinder, a photodiode or fibre tip takes it as it is, and the 3D view draws it turned. Higher-order modes go with it: an HG<sub>10</sub> beam through a mode converter rolled 45\u00b0 leaves as an LG<sub>01</sub> vortex, a rolled Dove prism turns a mode by twice its roll, and a beam twisted by parts at odd angles is marked. A cavity with a rolled or tipped part is solved from its 4\u00d74 round trip, its mode\u2019s axes turned with it.',
     'With the experimental 3D view, photodiodes and fibre tips take a beam <b>where and as it lands</b>: above or below their centre, sloped, or on a face tipped or rolled out of the plane, the footprint stretched up the face as it should be. A fibre tip raised or tipped off a beam couples exactly what one moved or turned across it does; a small beam landing well off a large diode\u2019s centre is no longer missed; and moving a fibre tip up or down re-solves its fibre network at once.',
     'With the experimental 3D view, <b>roll</b> any free-space part about its own axis (its Roll): a cylindrical lens at 45\u00b0, a grating with its grooves turned, and a new <b>Dove prism</b> (a prism shape), which turns the image by twice its roll. A rolled source turns its rays and its polarisation with it.',

@@ -5791,6 +5791,23 @@ const TESTS = [
     },
   },
   {
+    name: 'A screen can show its diffraction pattern on its face in 3D',
+    why: 'two screens in a Gaussian beam’s path, one ticked to show its pattern on its face: in the 3D view that one carries the pattern and the other does not, and the setting is kept with the bench (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.3, z0: 0, wavelength: 633, rays: 1, width: 0.6, power: 1, pol: 's', beamView: 'field', popN: 128 },
+        { type: 'screen', id: 'A', name: 'Shows it', x: 0, y: 0, angle: 180, length: 10, absorb: false, faceMap: true },
+        { type: 'screen', id: 'B', name: 'Plain', x: 40, y: 0, angle: 180, length: 10 }] });
+      try {
+        J.experimental(true); await J.view3d.set(true);
+        const shown = J.view3d.faceMaps();
+        const kept = J.byName('Shows it').faceMap === true && J.byName('Plain').faceMap === undefined;
+        return shown && shown.length === 1 && shown[0] === 'Shows it' && kept ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

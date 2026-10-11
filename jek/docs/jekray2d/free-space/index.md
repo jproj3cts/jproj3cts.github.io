@@ -172,6 +172,10 @@ At a surface, the field takes the phase the *real* surface adds. Rays are traced
 
 Where tilts or decentres break the round symmetry, the field is sampled on a 2D grid instead. The Fresnel kernel is separable, so each axis keeps its own pilot, waist and grid. An astigmatic beam can then focus in x and y at different places without the grid blowing up. In 2D, each sample carries its own polarisation through its own Fresnel, coating or waveplate matrix.
 
+### The field out of the plane
+
+The diffracted field follows the bench in 3D. Each surface's phase screen is traced through the part as it stands (raised, tipped or rolled, met above or below its centre), so a rolled cylinder's diagonal curvature is in the field as it is in the beam. The field's light is carried along each leg's full length in 3D, a periscope's vertical leg included. A part that turns the image a quarter (a periscope that turns the beam) has the field's grid transposed first, and a smaller turn (a Dove prism rolled) is sampled through its whole $$2\times2$$ map of positions. Polarisation is taken in each beam's own axes either side. An iris or edge clips the light where it passes, above or below the centre too. At a screen, a photodiode or a fibre tip, the field lands where the beam does, on a tipped face as the face itself sees it.
+
 ### Steep foci
 
 Near a focus reached at high numerical aperture, the paraxial step fails twice over. Its quadratic phase is not the sphere the light converges on, and it has no field along the axis. There the field is summed directly by the Rayleigh–Sommerfeld integral, from the pupil to each point on the screen:
@@ -291,8 +295,8 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- Parts sit at heights and can be tipped and rolled, but are placed on the bench plane. The Gaussian beam follows tips and rolls (see [beams through turned optics](#beams-through-turned-optics)); the diffracted field does not yet. A tipped lens has no edge for light to meet between its faces. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane (the beam's size carries on up a vertical leg, but the diffracted field is not propagated along one).
-- A cavity's mode, the diffracted field and a screen's views take the beam as centred out of the plane (a photodiode's and a fibre tip's Gaussian readings do not); an iris's opening is not narrowed by a beam passing above or below its centre.
+- Parts sit at heights and can be tipped and rolled, but are placed on the bench plane. The Gaussian beam and the diffracted field follow heights, tips and rolls (see [beams through turned optics](#beams-through-turned-optics) and [the field out of the plane](#the-field-out-of-the-plane)). A tipped lens has no edge for light to meet between its faces. A crystal's faces keep the ray's own polarisation frame.
+- A cavity's steady-state field takes the loop's axis as closed out of the plane: a cavity whose tipped mirror walks the beam up and down is solved as if it did not.
 - The round field assumes a figure of revolution about the axis. Off-axis and tilted cases use the 2D field, which is paraxial in free space and slower.
 - Rays and fields agree at the beam's centre by construction. Far from it, the Gaussian beam's paraxial model and the exact rays can differ, as they should.
 - Light from separate sources never interferes. Two paths of one launch interfere as far as the source's coherence allows.

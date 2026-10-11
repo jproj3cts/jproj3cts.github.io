@@ -12131,7 +12131,10 @@ const V3D = (() => {
   }
 
   /* ---------- the models ---------- */
-  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) { if (m.map) m.map.dispose(); m.dispose(); } }); } };
+  /* models taken down: their geometry and pictures freed. Their materials are left to be collected
+     rather than disposed: disposing the last material of a kind frees its compiled shader, which the
+     next build (each step of a drag) would then compile again, the slowest thing the view does */
+  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
     glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
@@ -13010,7 +13013,8 @@ const V3D = (() => {
         const kinds = {}; for (const p of R.groups.parts.children) { const el = getEl(p.userData.id); if (el) kinds[el.type] = (kinds[el.type] || 0) + 1; }
         let meshes = 0; R.groups.parts.traverse(o => { if (o.isMesh) meshes++; });
         const b = contentBox();
-        return { parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
+        const progs = (R.gl.info && R.gl.info.programs) || [];
+        return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null,
@@ -26219,6 +26223,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'Moving and turning parts in the <b>3D view</b> is now smooth: each step of a drag no longer compiles the view\u2019s shaders again, which made it stutter.',
     'An <b>eye</b> beside each part in the Bench panel\u2019s list hides it in the 3D view (click it again to show it): handy to see past a housing, a mount or a big optic. The light still meets the part exactly as before, and the choice is saved with the bench.',
     '<b>Light</b> is now set for the whole bench, in the Bench panel (click an empty part of the bench), as three ticks: the rays, the Gaussian beams\u2019 envelope, and their diffracted field (linear or log), each on or off. Benches saved with a field view on a source open with it on.',
     'A part\u2019s height is now its <b>z</b>, and <b>z, Tip and Roll can be swept</b> like any other number. Panels line their boxes up side by side, and rays leaving a fibre\u2019s end (a tip, or a fibre-coupled laser) now spread as its beam does, at the mode\u2019s angle.',

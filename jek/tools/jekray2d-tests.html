@@ -5257,6 +5257,26 @@ const TESTS = [
     },
   },
   {
+    name: 'Dragging a part in 3D compiles no new shaders',
+    why: 'the Michelson in 3D: a part dragged ten steps (each rebuilding the models) uses the shader programs already compiled, the slow step that made dragging stutter (1 when no new one is made and the part moved)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const V = J.view3d, raf = () => new Promise(r => requestAnimationFrame(() => r()));
+      try {
+        await V.set(true); await raf(); await raf();
+        const c = V.screenOf('Fixed mirror'), x0 = J.byName('Fixed mirror').x;
+        V.pointer('pointerdown', c.x, c.y); await raf();
+        V.pointer('pointermove', c.x + 2, c.y + 1, { buttons: 1 }); await raf(); await raf();
+        const p0 = V.stats().programs;
+        for (let i = 2; i <= 10; i++) { V.pointer('pointermove', c.x + 2 * i, c.y + i, { buttons: 1 }); await raf(); }
+        V.pointer('pointerup', c.x + 20, c.y + 10, { buttons: 0 }); await raf();
+        const p1 = V.stats().programs;
+        return p0 > 0 && p1 === p0 && J.byName('Fixed mirror').x !== x0 ? 1 : 0;
+      } finally { V.undo(); await V.set(false); }
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

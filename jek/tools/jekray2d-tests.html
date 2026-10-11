@@ -5277,6 +5277,18 @@ const TESTS = [
     },
   },
   {
+    name: 'A Gaussian wider than a lens: the light past its rim has a hole as wide as the lens',
+    why: 'the plano-convex example with Beam A a Gaussian of 10 mm waist radius on a 25.4 mm lens: the branch past the rim, its hole (mm, the lens\u2019s clear radius, 12.7) and its share of the power exp(\u22122\u00b712.7\u00b2/10\u00b2) = 0.040 (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const d = JSON.parse(getDemo('plano-convex'));
+      d.elements[0].gauss = true; d.elements[0].w0 = 10;
+      J.load(d); J.trace();
+      const L = J.byName('Beam A'), past = J.lastTrace().beams.filter(b => b.src === L.id && b.hole > 0);
+      return past.length && Math.abs(past[0].hole - 12.7) < 0.01 && Math.abs(past[0].w - Math.exp(-2 * 12.7 * 12.7 / 100)) < 0.003 ? 1 : 0;
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

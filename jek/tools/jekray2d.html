@@ -5071,14 +5071,14 @@ function traceSceneOnce() {
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
-            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh }, segDir(FAR / 20)));
+            J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh, ...(hole > 0 ? { hole } : {}) }, segDir(FAR / 20)));
           if (anyZ) pts.zNext = zh + uz * FAR;
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
         if (isQ) {
           beams.push(Object.defineProperty(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh }, segDir(best)),
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh, ...(hole > 0 ? { hole } : {}) }, segDir(best)),
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           bid = beams.length - 1; evt = null;
         }
@@ -6254,14 +6254,18 @@ function drawBeams(fieldShown) {
     }
     const nxp = -seg.dy, nyp = seg.dx;
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
-    const up = [], dn = [];
+    const up = [], dn = [], upIn = [], dnIn = [];
     for (let i = 0; i <= steps; i++) {
       const t = seg.len * i / steps;
       const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, M2);
       if (!b) continue;
       const x = seg.x0 + seg.dx * t, y = seg.y0 + seg.dy * t;
-      up.push([sx(x + nxp * b.w), sy(y + nyp * b.w)]);
-      dn.push([sx(x - nxp * b.w), sy(y - nyp * b.w)]);
+      // light that went round an element's rim (a beam wider than the lens): it has a hole in its
+      // middle as wide as the element, so it is drawn either side of it, out past the rim
+      const inner = seg.hole > 0 ? seg.hole : 0, outer = inner ? Math.max(b.w, inner + 0.5 * b.w) : b.w;
+      up.push([sx(x + nxp * outer), sy(y + nyp * outer)]);
+      dn.push([sx(x - nxp * outer), sy(y - nyp * outer)]);
+      if (inner) { upIn.push([sx(x + nxp * inner), sy(y + nyp * inner)]); dnIn.push([sx(x - nxp * inner), sy(y - nyp * inner)]); }
     }
     if (up.length < 2) continue;
     if (outline) {
@@ -6270,15 +6274,26 @@ function drawBeams(fieldShown) {
       for (let i = 0; i < up.length; i++) wide = Math.max(wide, Math.hypot(up[i][0] - dn[i][0], up[i][1] - dn[i][1]));
       if (wide < 10) continue;
     }
+    // a share of the beam that went round a rim shows as faintly as it is weak
+    const faint = seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1;
     ctx.beginPath();
-    up.forEach(([X, Y], i) => i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y));
-    for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
-    ctx.closePath();
+    if (upIn.length === up.length) {
+      // two bands, either side of the hole
+      for (const [A, B2] of [[up, upIn], [dn, dnIn]]) {
+        A.forEach(([X, Y], i) => i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y));
+        for (let i = B2.length - 1; i >= 0; i--) ctx.lineTo(B2[i][0], B2[i][1]);
+        ctx.closePath();
+      }
+    } else {
+      up.forEach(([X, Y], i) => i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y));
+      for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
+      ctx.closePath();
+    }
     ctx.fillStyle = seg.colour;
-    ctx.globalAlpha = outline ? 0 : glowA(0.16);
+    ctx.globalAlpha = outline ? 0 : glowA(0.16 * faint);
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
-    ctx.globalAlpha = glowA(outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55);
+    ctx.globalAlpha = glowA((outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55) * faint);
     ctx.setLineDash(outline ? [3, 4] : []);
     ctx.strokeStyle = seg.colour;
     ctx.lineWidth = 1;
@@ -12509,7 +12524,7 @@ const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ color: col(seg.colour), transparent: true, opacity: add ? 0.16 : 0.22, blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });

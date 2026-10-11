@@ -5652,6 +5652,63 @@ const TESTS = [
     },
   },
   {
+    name: 'A crystal rolled about the beam turns its optic axis with it',
+    why: 'light at 45° through a calcite beam displacer (axis 45° in the plane) and a Wollaston prism (20° wedges): rolled 90°, each beam lands as far up or down as it landed across unrolled, its power and polarisation swapped s for p; rolled 10⁻⁹°, all as unrolled (largest difference: mm, and share of power)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const run = (cr, roll) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol: 'linear', polAngle: 45 },
+        { type: 'crystal', id: 'C', name: 'C', x: 0, y: 0, angle: 0, crystal: 'calcite', ...cr, ...(roll ? { roll } : {}) },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 60 }] }); J.trace();
+        return J.lastTrace().screens.Sc.map(h => ({ y: h.y, z: h.z || 0, s: h.sr * h.sr + h.si * h.si, p: h.pr * h.pr + h.pi * h.pi })).sort((a, b) => a.y + a.z - b.y - b.z); };
+      let worst = 0;
+      for (const cr of [{ shape: 'displacer', length: 20, size: 10, axisAngle: 45 }, { shape: 'wollaston', size: 10, wedge: 20 }]) {
+        const A = run(cr, 0), B = run(cr, 90), C = run(cr, 1e-9);
+        if (A.length !== 2 || B.length !== 2 || C.length !== 2 || Math.abs(A[0].y - A[1].y) < 1) return NaN;
+        // roll +90°, right-handed about +x, takes the bench's +y to +z; the screen faces back, so its across is −y
+        A.forEach((a, i) => { const bb = B.find(h => Math.abs(h.z + a.y) < 1e-6) || { y: 1e9, z: 1e9, s: 9, p: 9 }, c = C[i];
+          worst = Math.max(worst, Math.abs(bb.y), Math.abs(bb.s - a.p), Math.abs(bb.p - a.s), Math.abs(c.y - a.y), Math.abs(c.z), Math.abs(c.s - a.s), Math.abs(c.p - a.p)); });
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'A crystal rolled with a rolled source takes its light as one polarisation',
+    why: 'a calcite beam displacer rolled 30°, and a Wollaston prism rolled 45° between two sources: from a p source rolled 30° the displacer sends one beam, walked off along the line rolled 30°, polarised as it came; p light unrolled into the Wollaston leaves as two equal beams on the diagonal, each polarised at 45° (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const run = (cr, srcRoll, pol) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol, ...(srcRoll ? { roll: srcRoll } : {}) },
+        { type: 'crystal', id: 'C', name: 'C', x: 0, y: 0, angle: 0, crystal: 'calcite', ...cr },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 60 }] }); J.trace();
+        return J.lastTrace().screens.Sc; };
+      const D = run({ shape: 'displacer', length: 20, size: 10, axisAngle: 45, roll: 30 }, 30, 'p'), D0 = run({ shape: 'displacer', length: 20, size: 10, axisAngle: 45 }, 0, 'p');
+      if (D.length !== 1 || D0.length !== 1) return 0;
+      const r = Math.hypot(D[0].y, D[0].z || 0), r0 = Math.abs(D0[0].y), along = Math.abs(Math.atan2(-(D[0].z || 0), D[0].y) * 180 / Math.PI - 30);
+      const okD = Math.abs(r - r0) < 1e-6 && along < 1e-6 && Math.abs((D[0].sr ** 2 + D[0].si ** 2) / D[0].w - 0.25) < 1e-6;
+      const W = run({ shape: 'wollaston', size: 10, wedge: 20, roll: 45 }, 0, 'p');
+      const okW = W.length === 2 && W.every(h => Math.abs(Math.abs(h.y) - Math.abs(h.z)) < 1e-6 && Math.abs((h.sr ** 2 + h.si ** 2) / h.w - 0.5) < 1e-3) && Math.abs(W[0].w / W[1].w - 1) < 0.01;
+      return okD && okW ? 1 : 0;
+    },
+  },
+  {
+    name: 'A doubling crystal rolled about the beam converts the light along its turned axis',
+    why: '1560 nm into 50 mm of PPLN with its axis s: p light into one rolled 90° makes the harmonic s light makes unrolled, polarised p; s light into one rolled 45°, what half the power makes unrolled (half the light is along the axis), polarised at 45°; s light from a source rolled 30° into one rolled 30°, all of it (largest relative difference)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const run = (pol, roll, srcRoll, power = 1000) => { J.load({ format: 'jekray', version: 1, minPower: 1e-6, elements: [
+        { type: 'source', id: 'L', name: 'L', x: -50, y: 0, angle: 0, wavelength: 1560, gauss: true, w0: 0.05, z0: 50, width: 0.1, rays: 1, pol, power, ...(srcRoll ? { roll: srcRoll } : {}) },
+        { type: 'nlc', id: 'X', name: 'X', x: 0, y: 0, angle: 0, nlLen: 50, material: 'ppln', temp: 40, ...(roll ? { roll } : {}) },
+        { type: 'filter', id: 'F', name: 'F', x: 60, y: 0, angle: 0, ftype: 'shortpass', edge: 1100, slope: 1, tmax: 100 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 80, y: 0, angle: 180, length: 20 }] }); J.trace();
+        const n = J.nlc('X'), h = J.lastTrace().screens.Sc.find(t => t.nm < 1000);
+        return { P: n && n[0] ? n[0].r.P2 : 0, s: h ? (h.sr ** 2 + h.si ** 2) / h.w : NaN }; };
+      const A = run('s', 0), B = run('p', 90), C = run('s', 45), D = run('s', 30, 30), H = run('s', 0, 0, 500);
+      if (!(A.P > 0)) return NaN;
+      return Math.max(Math.abs(B.P / A.P - 1), Math.abs(B.s), Math.abs(C.P / H.P - 1), Math.abs(C.s - 0.5), Math.abs(D.P / A.P - 1), Math.abs(A.s - 1));
+    },
+  },
+  {
     name: 'A fibre tip raised off a beam couples what one moved across does',
     why: 'a single-mode fibre tip in a Gaussian beam focused on it, its centre 2 µm off the beam: above it, and beside it in the bench plane, the same share coupled (and raising it after the bench was first worked out changes the reading) (largest relative difference)',
     want: 0, tol: 1e-9, unit: '',

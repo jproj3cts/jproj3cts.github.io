@@ -44,6 +44,15 @@ Two wedges with their optic axes crossed: across the beam in the plane in the fi
 
 Two prisms with an air gap cut between them, at an angle between the two critical angles $$\arcsin(1/n_o)$$ and $$\arcsin(1/n_e)$$. The polarisation with the higher index is totally reflected out of the side, and the other passes. So it is a polariser with a very high extinction ratio, and its rejected light leaves as a beam of its own.
 
+### Tipped and rolled
+
+With the experimental 3D view on, a crystal can be tipped or rolled out of the plane, and its optic axis $$\hat c$$ turns with it. The light entering is then split along the crystal's own two polarisations, not s and p:
+
+- the ordinary one along $$\hat k \times \hat c$$, across the axis and the wave normal $$\hat k$$;
+- the extraordinary one at right angles to it and to $$\hat k$$.
+
+The extraordinary index is taken at the wave normal's own angle to the axis, $$n(\theta)$$ above, and its energy walks off by $$\rho$$ in the plane of $$\hat k$$ and $$\hat c$$. Rolled $$90°$$, a beam displacer walks its beam up instead of across, and a Wollaston prism splits up and down. Rolled $$45°$$, a Wollaston prism splits p light into two equal beams on the diagonal. The faces split the light by their Fresnel coefficients in their own planes of incidence, as an isotropic face would.
+
 ## Settings
 
 {% include jekray2d_params.html group="free" key="crystal" %}
@@ -51,7 +60,7 @@ Two prisms with an air gap cut between them, at an angle between the two critica
 ## Assumptions
 
 <div class="dx-warn" markdown="1">
-- The optic axis lies in the bench plane, or straight out of it. Crystals cut with other axes are not modelled.
+- Unturned, the optic axis lies in the bench plane, or straight out of it. Tipping or rolling the crystal turns it out of the plane; crystals cut with other axes are not modelled.
 - The Glan–Taylor's gap is cut for 633 nm. Far from it, both polarisations may pass or both reflect.
 - The faces are uncoated: each reflects by its Fresnel coefficients for its own index.
 </div>

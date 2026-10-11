@@ -59,6 +59,8 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 
 **Heights.** A selected part also has an arrow over it: drag it up or down to set the part's height, in 0.5 mm steps (Shift: 0.1 mm), or type it in **Height** in its panel. The light follows: a part above or below the beam is missed, and a lens or curved mirror met off its centre turns the beam up or down (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). On the 2D bench, a part not at the beam height shows by how much under its name.
 
+**Tipping a mirror.** A selected mirror also has a blue arc over its face with a knob on it, as the vertical knob of a kinematic mount: drag the knob to tip the mirror up or down, 0.02° a pixel (Shift: 0.002°), or type it in **Tip** in its panel. **Facing** is the other knob, across. Two mirrors tipped against each other walk a beam up and leave it level, as on a real bench. A tipped mirror shows by how much under its name on the 2D bench.
+
 The 3D view is a view of the same bench: select a part and its panel opens as usual, and anything you change there shows at once. For now it is for tabs of free-space parts only. A tab with fibre, electronic or chip parts stays 2D; move those parts to a tab of their own, joined by link planes or feedthroughs. Drawings show in 2D only.
 
 ## Settings and sweeps

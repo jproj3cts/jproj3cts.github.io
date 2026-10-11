@@ -254,12 +254,12 @@ with $$\eta = n_1/n_2$$, $$\cos\theta_i = -\hat d\cdot\hat n$$ and $$\cos\theta_
 
 **Polarisation.** A ray's $$s$$ direction is the one across it nearest straight up, so in the bench plane $$s$$ is out of the plane as ever. Off it, a surface's plane of incidence is tilted, and its own $$s$$ lies along $$\hat n\times\hat d$$. The ray's amplitudes are turned into that frame for the surface's Fresnel coefficients or coating, and each ray leaving is turned back into its own frame. So a ray high on a lens, polarised across the bench, is $$s$$ to the lens there, as it should be.
 
-So a lens set 2 mm high bends a level beam up as one moved 2 mm across bends it sideways, aberrations included, and a photodiode or fibre tip off the beam's height reads, or couples, only what overlaps it. A link plane carries the light to the same place against its partner, at the partner's height. With every part at the beam height and every source a line, none of this runs, and the bench traces exactly as it did.
+So a lens set 2 mm high bends a level beam up as one moved 2 mm across bends it sideways, aberrations included, and a photodiode or fibre tip off the beam's height reads, or couples, only what overlaps it. A link plane carries the light to the same place against its partner, at the partner's height. A mirror can also be tipped out of the plane (its **Tip**; see [Mirror](/jek/docs/jekray2d/free-space/mirror/#tip)): its normal leaves the plane, and the same 3D trace follows the light off it. With every part at the beam height and upright, and every source a line, none of this runs, and the bench traces exactly as it did.
 
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- Parts sit at heights but are not yet tilted out of the plane. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane.
+- Parts sit at heights; mirrors can be tipped, other parts not yet. A ray sent straight up or down (a periscope's vertical leg) leaves the bench and is not followed. Rays out of the plane are traced exactly; a crystal's faces keep the ray's own polarisation frame, and the Gaussian beam's matrices and the diffracted field take the beam as centred out of the plane.
 - A cavity's mode, the diffracted field and a screen's views take the beam as centred out of the plane; an iris's opening is not narrowed by a beam passing above or below its centre.
 - The round field assumes a figure of revolution about the axis. Off-axis and tilted cases use the 2D field, which is paraxial in free space and slower.
 - Rays and fields agree at the beam's centre by construction. Far from it, the Gaussian beam's paraxial model and the exact rays can differ, as they should.

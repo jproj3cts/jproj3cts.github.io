@@ -40,6 +40,16 @@ $$
 
 so a curved mirror used off axis makes a beam astigmatic, as it does in the lab.
 
+### Tip
+
+A mirror can be tipped out of the bench plane by its **Tip** $$\tau$$ (degrees, up positive; shown while the experimental 3D view is on, or when a mirror has one), as the vertical knob of a kinematic mount tips it. Its normal is then
+
+$$
+\hat n = (\cos\phi\cos\tau,\ \sin\phi\cos\tau,\ \sin\tau),
+$$
+
+with $$\phi$$ its **Facing**. Rays meet it in 3D, within its round aperture, and reflect by $$\hat d' = \hat d - 2(\hat d\cdot\hat n)\,\hat n$$. Square on, a tip $$\tau$$ sends the light back rising at $$2\tau$$. A tipped 45° fold also turns the polarisation, as a real one does: s and p are taken from the tipped plane of incidence (see [heights](/jek/docs/jekray2d/free-space/#heights)).
+
 ### Chirped mirrors
 
 A mirror can add a group delay dispersion $$\mathrm{GDD}$$ (fs²) to each reflection: a spectral phase $$\tfrac12\,\mathrm{GDD}\,(\omega - \omega_0)^2$$ on the light reflected from its face. A negative GDD compresses a positively chirped pulse. See [Short pulses](/jek/docs/jekray2d/free-space/#short-pulses).

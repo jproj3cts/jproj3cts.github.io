@@ -42,13 +42,13 @@ so a curved mirror used off axis makes a beam astigmatic, as it does in the lab.
 
 ### Tip
 
-A mirror can be tipped out of the bench plane by its **Tip** $$\tau$$ (degrees, up positive; shown while the experimental 3D view is on, or when a mirror has one), as the vertical knob of a kinematic mount tips it. Its normal is then
+A mirror (as any free-space part) can be tipped out of the bench plane by its **Tip** $$\tau$$ (degrees, up positive; shown while the experimental 3D view is on, or when a part has one), as the vertical knob of a kinematic mount tips it. Its normal is then
 
 $$
 \hat n = (\cos\phi\cos\tau,\ \sin\phi\cos\tau,\ \sin\tau),
 $$
 
-with $$\phi$$ its **Facing**. Rays meet it in 3D, within its round aperture, and reflect by $$\hat d' = \hat d - 2(\hat d\cdot\hat n)\,\hat n$$. Square on, a tip $$\tau$$ sends the light back rising at $$2\tau$$. A tipped 45° fold also turns the polarisation, as a real one does: s and p are taken from the tipped plane of incidence (see [heights](/jek/docs/jekray2d/free-space/#heights)).
+with $$\phi$$ its **Facing**. Rays meet it in 3D, within its round aperture, and reflect by $$\hat d' = \hat d - 2(\hat d\cdot\hat n)\,\hat n$$. Square on, a tip $$\tau$$ sends the light back rising at $$2\tau$$. A tipped 45° fold also turns the polarisation, as a real one does: s and p are taken from the tipped plane of incidence (see [heights](/jek/docs/jekray2d/free-space/#heights)). Two mirrors tipped $$45°$$ one over the other, the upper at its own height and tipped $$-45°$$, make a periscope.
 
 ### Chirped mirrors
 

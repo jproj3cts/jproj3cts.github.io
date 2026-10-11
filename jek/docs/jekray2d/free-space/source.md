@@ -31,7 +31,7 @@ The fan is a line across the source, in the bench plane. With the 3D view turned
 | A grid | an $$N \times N$$ square grid, trimmed to the round beam |
 | Hexapolar | rings of 6, 12, 18, … about the middle, $$\operatorname{round}((N-1)/2)$$ of them, as a lens design program samples a pupil |
 
-A ray $$s$$ of the width up starts that far above the source's height, with a slope $$\tan(s\,\Theta)$$. Every ray is traced exactly in 3D (see [heights](/jek/docs/jekray2d/free-space/#heights)). A screen's **Rays** tab then has a spot diagram, across against up, with the aberrations as they are.
+A ray $$s$$ of the width up starts that far above the source's height, rising at the angle $$s\,\Theta$$. A source with a **Tip** $$\tau$$ sends all of its light up at $$\tau$$ more (down, for a negative tip). Every ray is traced exactly in 3D (see [heights](/jek/docs/jekray2d/free-space/#heights)). A screen's **Rays** tab then has a spot diagram, across against up, with the aberrations as they are.
 
 ### The Gaussian beam
 

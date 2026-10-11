@@ -5457,6 +5457,91 @@ const TESTS = [
     },
   },
   {
+    name: 'A lens tipped out of the plane does up and down what one turned in it does across',
+    why: 'a cross of rays 10 mm wide through a plano-convex lens turned 8° in the bench plane, and through the same lens tipped 8° up instead: every ray lands where its partner did, turned through 90° (the screen’s across axis runs against the bench’s y), aberrations and all (largest difference, mm)',
+    want: 0, tol: 1e-9, unit: 'mm',
+    run: J => {
+      const hits = o => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 5, width: 10, pol: 's', pattern: 'cross' },
+        Object.assign({ type: 'lens', id: 'Ln', name: 'Ln', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }, o),
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 95, y: 0, angle: 180, length: 60 }] }); J.trace();
+        return J.lastTrace().screens.Sc.filter(t => !t.chief).map(t => [t.y, t.z || 0]); };
+      const A = hits({ angle: 8 }), B = hits({ tip: 8 });
+      if (A.length !== 9 || B.length !== 9) return NaN;
+      const sort = L => L.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const a = sort(A.map(([y, z]) => [-z, -y])), b = sort(B);
+      return Math.max(...a.map((v, i) => Math.max(Math.abs(v[0] - b[i][0]), Math.abs(v[1] - b[i][1]))));
+    },
+  },
+  {
+    name: 'A plate tipped out of the plane shifts the beam up as one turned in it shifts it across',
+    why: 'a 10 mm N-BK7 window turned 20° in the bench plane, light polarised in the plane (p to it); the same window tipped 20° up, light polarised up (p to it again): the beam is shifted the same distance, up instead of across, and the same power passes (largest relative difference)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const hit = (o, pol) => { J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol },
+        Object.assign({ type: 'prism', id: 'W', name: 'W', x: 0, y: 0, angle: 0, shape: 'window', size: 25, thickness: 10, material: { glass: 'N-BK7' } }, o),
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 60 }] }); J.trace();
+        return J.lastTrace().screens.Sc[0]; };
+      const A = hit({ angle: 20 }, 'p'), B = hit({ tip: 20 }, 's');
+      if (!A || !B || !(Math.abs(A.y) > 1)) return NaN;
+      return Math.max(Math.abs(B.z / -A.y - 1), Math.abs(B.w / A.w - 1));
+    },
+  },
+  {
+    name: 'A periscope sends a beam straight up and on at the new height',
+    why: 'two mirrors one over the other, the lower tipped up 45°, the upper (100 mm higher) tipped down 45°: the light climbs the 100 mm straight up and leaves level at the upper mirror’s height, its polarisation as it was (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, gauss: true, w0: 0.4, z0: 0, wavelength: 633, rays: 3, width: 1, power: 1, pol: 's' },
+        { type: 'mirror', id: 'M1', name: 'M1', x: 0, y: 0, angle: 180, length: 25.4, tip: 45 },
+        { type: 'mirror', id: 'M2', name: 'M2', x: 0, y: 0, angle: 0, length: 25.4, tip: -45, z: 175 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 100, y: 0, angle: 180, length: 25, z: 175 }] });
+      J.trace();
+      const T = J.lastTrace(), H = T.screens.Sc, up = T.beams.find(b => !b.fan && b.d3 && Math.abs(b.d3[2] - 1) < 1e-12);
+      return H.length === 4 && H.every(h => Math.abs(h.z) < 1e-9 && Math.abs(h.dz) < 1e-12 && Math.abs(h.sr - 1) < 1e-12 && Math.abs(h.pr) < 1e-12)
+        && up && Math.abs(up.len3 - 100) < 1e-9 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A periscope that turns the beam turns its polarisation, as a real one does',
+    why: 'up 100 mm and then across the bench instead of on along it, light polarised up: it leaves polarised along the bench, as two perfect mirrors give, E′ = −E + 2(E·n)n at each, worked as vectors here (largest difference in the amplitudes)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      const got = {};
+      for (const pol of ['s', 'p']) {
+        J.load({ format: 'jekray', version: 1, elements: [
+          { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 1, width: 1, pol },
+          { type: 'mirror', id: 'M1', name: 'M1', x: 0, y: 0, angle: 180, length: 25.4, tip: 45 },
+          { type: 'mirror', id: 'M2', name: 'M2', x: 0, y: 0, angle: 90, length: 25.4, tip: -45, z: 175 },
+          { type: 'screen', id: 'Sc', name: 'Sc', x: 0, y: 100, angle: -90, length: 25, z: 175 }] });
+        J.trace(); const h = J.lastTrace().screens.Sc[0]; if (!h) return NaN;
+        got[pol] = [h.sr, h.pr];
+      }
+      const r = Math.SQRT1_2, n1 = [-r, 0, r], n2 = [0, r, -r], dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+      const refl = (E, n) => { const k = dot(E, n); return E.map((v, i) => -v + 2 * k * n[i]); };
+      // in: along +x, s up and p = d × s; out: along +y after two reflections, s up and p = d × s again
+      const ins = { s: [0, 0, 1], p: [0, -1, 0] }, S1 = [0, 0, 1], P1 = [1, 0, 0];
+      let worst = 0;
+      for (const pol of ['s', 'p']) { const E = refl(refl(ins[pol], n1), n2); worst = Math.max(worst, Math.abs(got[pol][0] - dot(E, S1)), Math.abs(got[pol][1] - dot(E, P1))); }
+      return Math.abs(got.s[1]) > 0.5 ? worst : NaN;
+    },
+  },
+  {
+    name: 'A source tipped out of the plane sends its light up at that angle',
+    why: 'a source tipped 3° up, a screen 100 mm on: its rays arrive 100 tan 3° higher, rising at tan 3° (largest relative error)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: 0, y: 0, angle: 0, wavelength: 633, rays: 3, width: 1, pol: 's', tip: 3 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 100, y: 0, angle: 180, length: 60 }] });
+      J.trace();
+      const H = J.lastTrace().screens.Sc, tn = Math.tan(3 * Math.PI / 180);
+      return H.length === 3 ? Math.max(...H.map(h => Math.max(Math.abs(h.z / (100 * tn) - 1), Math.abs(h.dz / tn - 1)))) : NaN;
+    },
+  },
+  {
     name: 'In 3D a mirror is tipped by its blue knob',
     why: 'a mirror selected in 3D: its knob dragged 30 px along its arc tips it by 0.6° (0.02° a pixel), the tip is kept with the bench, and Ctrl+Z puts it back upright (1 when all hold)',
     want: 1, tol: 0, unit: '',

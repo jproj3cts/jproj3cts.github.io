@@ -12,7 +12,7 @@ Read all of it before writing a file. The parts that matter most are **Coordinat
 - Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.
 - A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.
 
-What it cannot do: most of what leaves the plane. Parts can sit at different heights and a mirror can be tipped a little (below), but light sent straight up or down is not followed, and there are no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.
+What it cannot do: build a bench in true 3D. Parts can sit at different heights and be tipped up or down (below), and light sent straight up or down (a periscope) is followed, but parts are placed on the bench plane, and there are no mechanics (no forces on particles, no thermal effects). A real setup that leaves the plane, such as a periscope or a beam sent up into a vertical microscope, has to be unfolded into the plane. Say how you did it in the project's notes.
 
 ## How to work
 
@@ -54,7 +54,7 @@ A `.jekray` file is one JSON object:
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 
-A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. A mirror may take "tip": degrees it is tipped up (positive) or down out of the plane, as a mount's vertical knob does; leave it out for an upright mirror. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
+A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
 
 ## Coordinates and angles
 

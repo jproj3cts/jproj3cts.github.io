@@ -5166,8 +5166,23 @@ const TESTS = [
         const shown = J.view3d.switchShown(); await J.view3d.set(true); const on = J.view3d.on();
         J.select('Fixed mirror');
         const labels = [...document.getElementById('rig').contentDocument.querySelectorAll('#panel label')].map(l => l.textContent);
-        return shown && on && ['Height (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => labels.includes(t)) ? 1 : 0;
+        return shown && on && ['z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => labels.includes(t)) ? 1 : 0;
       } finally { await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'A part\u2019s z, tip and roll can be swept like any other number',
+    why: 'the Michelson\u2019s fixed mirror: each of z, Tip and Roll has its Sweep button, and setting them as a sweep does lands them where the panel would (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      J.select('Fixed mirror');
+      const doc = document.getElementById('rig').contentDocument;
+      const swept = ['z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-f').querySelector('.rt-sweep-toggle'); });
+      J.setParam('Fixed mirror', 'z', 120); J.setParam('Fixed mirror', 'tip', 2); J.setParam('Fixed mirror', 'roll', 190);
+      const m = J.byName('Fixed mirror'), set = m.z === 120 && m.tip === 2 && m.roll === -170;
+      J.setParam('Fixed mirror', 'z', 75);
+      return swept && set && m.z === undefined ? 1 : 0;
     },
   },
   {

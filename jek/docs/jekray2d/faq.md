@@ -33,7 +33,7 @@ A 2D bench is how most optical setups are drawn and planned, and it keeps the to
 
 ### Can I see my bench in 3D?
 
-Yes: use the **2D / 3D** switch at the bench's top right (see [Getting started: the 3D view](/jek/docs/jekray2d/getting-started/#the-3d-view)). It shows the same bench in three dimensions. Every free-space part can be raised, tipped and rolled, and the light follows exactly, rays, beams and the diffracted field alike: periscopes, misaligned cavities, rolled cylinders and Dove prisms (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). Each free-space part takes all six degrees of freedom (x, y, height, facing, tip and roll); fibre, electronic and chip parts are left out of the 3D view.
+Yes: use the **2D / 3D** switch at the bench's top right (see [Getting started: the 3D view](/jek/docs/jekray2d/getting-started/#the-3d-view)). It shows the same bench in three dimensions. Every free-space part can be raised, tipped and rolled, and the light follows exactly, rays, beams and the diffracted field alike: periscopes, misaligned cavities, rolled cylinders and Dove prisms (see [Free-space optics: heights](/jek/docs/jekray2d/free-space/#heights)). Each free-space part takes all six degrees of freedom (x, y, z, facing, tip and roll); fibre, electronic and chip parts are left out of the 3D view.
 
 ### Why don't two of my lasers interfere?
 

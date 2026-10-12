@@ -588,8 +588,11 @@
   .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
   .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
   .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding-left: 1.1rem; }
-  .rt-expmenu li { margin-bottom: 0.25rem; }
+  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expmenu ul.off { opacity: 0.6; }
+  .rt-expmenu li { margin-bottom: 0.35rem; }
+  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
+  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
   .rt-expmenu li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
@@ -25232,17 +25235,21 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, Fly (on its bar) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
-const EXP_KEY = 'jek-raytracer-experimental';
-let expOn = false;
+const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
+// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are
+let expOn = false, expPicks = {};
 try { expOn = !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { /* private window: off */ }
-const exp = key => expOn && EXPERIMENTAL.some(f => f.key === key);
-function setExperimental(on) {
-  expOn = !!on;
-  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); } catch (err) { /* not kept: fine */ }
+try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); if (v && typeof v === 'object') expPicks = v; } catch (err) { /* none kept: all ticked */ }
+const expPicked = key => expPicks[key] !== false;
+const exp = key => expOn && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
+function setExperimental(on, picks) {
+  if (on !== undefined && on !== null) expOn = !!on;
+  if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
+  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !expOn;
   layoutPalette(); renderPanel(); requestRender();
@@ -26939,6 +26946,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',
     '<b>Part packs</b> (File \u2192 Part packs\u2026): sets of parts and glasses made by others, a maker\u2019s catalogue or a course\u2019s kit, installed from a file or a link once you have seen what is in them. Their parts are under + Add part \u2192 Packs and their glasses in each lens\u2019s material menu; a part placed from one carries its glass with it, so the bench opens anywhere. Packs hold data only, never code. <b>Make a pack from the selection</b> turns your own parts into one to share.',
     'Experimental: <b>Try me</b>, a white box in the bottom right corner while flying through the bench, with a QR code that opens a copy of it on a phone, \u201cTry me!\u201d above it.',
     '<b>Sweeps, faster</b>: a sweep that renders the field renders on several of the computer\u2019s cores at once, coarse to fine, and starts playing within a moment of pressing Play, filling in as it goes; and a ray sweep keeps each step it has traced, so from its second cycle it only draws.',
@@ -27072,10 +27080,18 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
   const fill = () => {
     const cb = h('input', { type: 'checkbox' });
     cb.checked = expOn;
-    cb.addEventListener('change', () => { setExperimental(cb.checked); toast(expOn ? 'Experimental features on' : 'Experimental features off'); });
-    menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
-      h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. The setting is kept in this browser.'),
-      EXPERIMENTAL.length ? h('ul', null, ...EXPERIMENTAL.map(f => h('li', null, h('b', null, f.name), ': ', f.what)))
+    const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
+    cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
+    // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
+    const row = f => {
+      const t = h('input', { type: 'checkbox', 'data-exp': f.key });
+      t.checked = expPicked(f.key);
+      t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
+      return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
+    };
+    menu.replaceChildren(h('label', null, cb, 'Turn on the ticked experimental features'),
+      h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
+      EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
         : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
   };
   const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
@@ -28130,7 +28146,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     index: refIndex,
     version: () => APP_VERSION,
     // experimental features: switch them on or off, and whether one is on
-    experimental(on) { if (on !== undefined) setExperimental(on); return { on: expOn, list: EXPERIMENTAL.map(f => f.key) }; },
+    experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),
     // an STL object onto the bench from a file's contents (text, or bytes as an array of numbers): its name
     stl(src, name, x, y, units) { const T = parseSTL(Array.isArray(src) ? new Uint8Array(src) : src), el = stlElement(T, name || 'object.stl', x || 0, y || 0, units); el.bench = project.tab; project.elements.push(el); changed(true); return el.name; },

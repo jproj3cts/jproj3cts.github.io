@@ -3099,6 +3099,22 @@ const TESTS = [
     },
   },
   {
+    name: 'Each experimental feature has its own tick, and the master switch turns on only the ticked ones',
+    why: 'with the switch off none is on, however ticked; on, every ticked one is; unticking photonic circuits turns them off while Fly stays on; ticking it again brings it back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      try {
+        const all = J.experimental().list.join();
+        const off = J.experimental(false).active.length === 0;
+        const on = J.experimental(true).active.join() === all;
+        const one = J.experimental(true, { pic: false }), noPic = !one.active.includes('pic') && one.active.includes('fly');
+        const back = J.experimental(undefined, { pic: true }).active.includes('pic');
+        const masterOff = J.experimental(false, { fly: true }).active.length === 0;
+        return off && on && noPic && back && masterOff ? 1 : 0;
+      } finally { J.experimental(false, { pic: true, fly: true, tryme: true }); }
+    },
+  },
+  {
     name: 'A 1\u00d7N splitter shares the light equally, less its excess loss',
     why: '1 mW into a 1\u00d74 splitter with 0.5 dB excess loss: 0.25 mW \u00d7 10^(\u22120.05) at each branch: the largest error in mW',
     want: 0, tol: 1e-12, unit: ' mW',

@@ -13531,9 +13531,9 @@ const V3D = (() => {
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
       .addScaledVector(up, (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
-    // E rolls to the right, Q to the left, about the way it looks: 90 degrees a second
+    // E rolls to the right, Q to the left, about the way it looks: 45 degrees a second
     const roll = (K.has('rollL') ? 1 : 0) - (K.has('rollR') ? 1 : 0);
-    if (roll && dt > 0) flyRot(0, 0, 1, roll * Math.PI / 2 * dt);
+    if (roll && dt > 0) flyRot(0, 0, 1, roll * Math.PI / 4 * dt);
     if ((m.lengthSq() > 0 || roll) && dt > 0) {
       if (m.lengthSq() > 0) R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
       flyLook(); need();

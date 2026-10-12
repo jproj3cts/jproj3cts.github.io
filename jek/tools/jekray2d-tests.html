@@ -151,7 +151,7 @@ const bk7Lens = o => Object.assign({
 
 /* Two corrugated horns at 100 GHz facing each other D apart, parts between */
 const rfBench = (D, between, o = {}) => bench('rf', [
-  { type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: o.rays || 3, mmw: { kind: 'corrugated', ghz: 100, dbm: 0, a: 7.5, L: 60 } },
+  { type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: o.rays || 3, mmw: { kind: 'corrugated', ghz: o.ghz || 100, dbm: 0, a: 7.5, L: 60 } },
   ...between,
   { type: 'detector', name: 'Rx', x: D, y: 0, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: 7.5, L: 60 } },
 ], { minPower: 1e-6 });
@@ -3099,7 +3099,7 @@ const TESTS = [
         return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
       });
       J.experimental(true);
-      try { for (const P of ['free', 'pic', 'elec']) for (const k of J.palette(P)) { let ok = false; try { ok = !!J.byName(J.add(k)); } catch (e) { /* counted below */ } if (!ok) bad.push(P + ':' + k); } }
+      try { for (const P of ['free', 'pic', 'elec', 'rf']) for (const k of J.palette(P)) { let ok = false; try { ok = !!J.byName(J.add(k)); } catch (e) { /* counted below */ } if (!ok) bad.push(P + ':' + k); } }
       finally { J.experimental(false); }
       if (bad.length) console.log('wrong parts:', bad);
       return bad.length;
@@ -5781,6 +5781,26 @@ const TESTS = [
       J.load(rfBench(120, [])); const a = J.detector('Rx').rf.inMw;
       J.load(rfBench(120, [{ type: 'lens', name: 'Slab', x: 60, y: 0, diameter: 100, surfaces: [{ R: null, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }], gaps: [30], materials: [{ glass: 'Nylon' }], mmw: {} }]));
       return J.detector('Rx').rf.inMw / a;
+    },
+  },
+  {
+    name: 'RF is experimental, and an RF lens is a part of its own',
+    why: 'the RF tab of parts shows only with the switch on and RF ticked; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      try {
+        const off = !J.experimental(false).active.includes('rf') && !J.palettesOn().includes('rf');
+        const on = J.experimental(true).active.includes('rf') && J.palettesOn().includes('rf');
+        const unticked = !J.experimental(true, { rf: false }).active.includes('rf') && !J.palettesOn().includes('rf');
+        J.experimental(true, { rf: true });
+        J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'PTFE' }], mmw: {} },
+          { type: 'lens', name: 'L2', x: 300, y: 50, diameter: 25, surfaces: [{ R: 50 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }], { ghz: 150 }));
+        const label = J.typeLabel('L1') === 'RF lens' && J.typeLabel('L2') !== 'RF lens';
+        const rfm = J.materialOptions(J.byName('L1')), opt = J.materialOptions(J.byName('L2'));
+        const rfOk = rfm.length === 9 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && !rfm.some(o => o[0] === 'N-BK7');
+        const optOk = !opt.some(o => o[0] === 'HDPE' || o[0] === 'PTFE') && opt.some(o => o[0] === 'N-BK7');
+        return off && on && unticked && label && rfOk && optOk ? 1 : 0;
+      } finally { J.experimental(false, { rf: true }); }
     },
   },
   {

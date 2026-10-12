@@ -7,6 +7,8 @@ description: Quasi-optics from 1 GHz to 3 THz in JEKray2D. Feed horns launch and
 
 <p class="dx-lead">At millimetre and sub-millimetre wavelengths a beam is only a few wavelengths across. It is guided by lenses and mirrors as light is, but it spreads by diffraction within the bench, and it is sent and taken in by horns. The RF tab has the parts of such a bench. Its beams are Gaussian beams, traced as any other is.</p>
 
+RF is an experimental feature. Switch it on under **Help › Experimental features**. A bench with RF parts opens and runs with it off; only the RF tab of parts is hidden.
+
 ## Frequency and wavelength
 
 An RF part is set by its frequency $$f$$, in GHz, and its power, in dBm. The bench still works in wavelength, $$\lambda = c/f$$:
@@ -95,7 +97,7 @@ $$
 
 so a beam through a thickness $$t$$ keeps $$e^{-\alpha t}$$ of its power. A plain face reflects as any dielectric face does, $$((n-1)/(n+1))^2$$ at normal incidence, which is 4.3% for HDPE. Real lenses are often grooved to cut this. To model that, set a face's coating to reflect nothing.
 
-A lens's material menu lists them with their index at the bench's frequency: for example, "PTFE (Teflon), n = 1.44 at 150 GHz".
+They are the materials of an **RF lens**, a part of its own on the RF tab, drawn white as these plastics are. Its material menu lists only them, with their index at the bench's frequency: for example, "PTFE (Teflon), n = 1.44 at 150 GHz". An optical lens's menu keeps to glasses.
 
 ## The parts
 
@@ -103,7 +105,7 @@ A lens's material menu lists them with their index at the bench's frequency: for
 |---|---|
 | Feed horn | Launches the horn's Gaussian beam at a frequency and power. |
 | Receiving horn | Takes in the overlap with its mode, read by a detector. |
-| HDPE lens | A plano-convex lens, 100 mm across, $$f = R/(n-1) = 150$$ mm. |
+| RF lens | A plano-convex HDPE lens, 100 mm across, $$f = R/(n-1) = 150$$ mm, in any of the dielectrics above. |
 | Flat mirror | A metal mirror, 100 mm. |
 | Focusing mirror | A concave metal mirror, $$R = 300$$ mm. |
 | Wire grid | A polariser: it passes one polarisation and stops the other. |

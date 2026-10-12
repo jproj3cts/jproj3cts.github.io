@@ -51,7 +51,7 @@ A `.jekray` file is one JSON object:
 | minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
 | view | optional: {"cx", "cy", "scale"}. Leave it out and the tool fits the view |
 | style | optional: the bench's look, {"bg": a colour "#rrggbb" (dark as it is; light, such as "#ffffff" for a figure, drawn light with dark lines), "holes": false to hide the grid holes}. Leave it out for the dark breadboard |
-| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "envelope": false to hide the Gaussian beams' outlines, "field": true to show the diffracted field, "scale": "lin" or "log" for the field}. Leave it out for rays and envelopes |
+| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "envelope": false to hide the Gaussian beams' outlines, "field": true to show the diffracted field, "scale": "lin", "log" (30 dB) or "log60" (60 dB) for the field}. Leave it out for rays and envelopes |
 
 Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
 

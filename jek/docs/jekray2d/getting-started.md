@@ -73,7 +73,9 @@ The 3D view is a view of the same bench: select a part and its panel opens as us
 
 Every number in a panel can be typed or dragged. Beside most is **Sweep**: it moves the value back and forth over a range, and the bench follows as it plays. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study.
 
-How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): three ticks for the rays, the Gaussian beams' envelope and their diffracted field (linear or log), each on or off. With both on, the envelope marks the field's 1/e² edge.
+How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): three ticks for the rays, the Gaussian beams' envelope and their diffracted field, each on or off. The field's **Field intensity** is linear, or logarithmic over 30 dB or 60 dB. With both on, the envelope marks the field's 1/e² edge.
+
+In the 3D view the diffracted field glows along each beam as a volume, coloured by its irradiance: each point on the picture shows the brightest irradiance along that line of sight, against a key in W/cm² at the bottom left. Point at the light to read the irradiance there and where it is. A tight focus is far brighter than the beam that makes it, so choose 60 dB to see both; on a slow computer or a phone, untick the field to leave the beams as outlines.
 
 ## Saving and sharing
 

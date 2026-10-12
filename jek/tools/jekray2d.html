@@ -176,6 +176,18 @@
   .rt-tryme svg, .rt-tryme img { display: block; }
   .rt-tryme small { display: block; max-width: 200px; color: #333; font: 0.75rem/1.3 var(--jek-sans); }
   .rt-flyhint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 32px); font: 0.78rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.9); background: rgba(10,13,16,0.6); padding: 4px 10px; border-radius: 4px; pointer-events: none; text-align: center; }
+  .rt-probekey { margin: 2px 0 0.4rem; font-size: 0.7rem; }
+  .rt-probekey canvas { display: block; width: 100%; height: 10px; border-radius: 2px; }
+  .rt-probekey .tk { position: relative; height: 1.2em; font-family: var(--jek-mono); font-size: 0.64rem; color: var(--jek-ink-soft); }
+  .rt-probekey .tk span { position: absolute; top: 1px; white-space: nowrap; transform: translateX(-50%); }
+  .rt-probekey .tk span:first-child { transform: none; } .rt-probekey .tk span:last-child { transform: translateX(-100%); }
+  .rt-v3dkey { position: absolute; left: 60px; bottom: 8px; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.85); background: rgba(10,13,16,0.72); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
+  .rt-v3dkey b { font-weight: 600; }
+  .rt-v3dkey canvas { display: block; width: 100%; height: 10px; margin: 4px 0 2px; border-radius: 2px; }
+  .rt-v3dkey .tk { position: relative; height: 1.1em; font-family: var(--jek-mono); font-size: 0.64rem; }
+  .rt-v3dkey .tk span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
+  .rt-v3dkey .tk span:first-child { transform: none; } .rt-v3dkey .tk span:last-child { transform: translateX(-100%); }
+  .rt-v3dkey .rd { margin-top: 3px; color: #fff; min-height: 1.35em; }
   .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.78); background: rgba(10,13,16,0.55); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
   .rt-v3dhint[hidden] { display: none; }
   .rt-v3dhint.faded { opacity: 0; transition: opacity 0.6s ease 1.5s; }
@@ -3396,6 +3408,8 @@ function demoProject() {
    their envelope, as their diffracted field, or not at all, with the field's intensity scale.
    (Older benches set this source by source: a bench with any source showing its field shows
    every beam's field.) */
+/* how many decades a log scale of the field spans: 0 for linear, 3 (30 dB) or 6 (60 dB) */
+const fieldDec = sc => sc === 'log60' ? 6 : sc === 'log' ? 3 : 0;
 function normLight(L, els) {
   L = L && typeof L === 'object' ? L : null;
   const any = k => (els || []).some(e => e && (e.beamView === k || e.emitView === k));
@@ -3405,7 +3419,7 @@ function normLight(L, els) {
     rays: L ? L.rays !== false : true,
     envelope: L && typeof L.envelope === 'boolean' ? L.envelope : was ? was !== 'none' : true,
     field: L && typeof L.field === 'boolean' ? L.field : was ? was === 'field' : any('field'),
-    scale: L && (L.scale === 'log' || L.scale === 'lin') ? L.scale : (els || []).some(e => e && e.beamView === 'field' && e.beamScale === 'log') ? 'log' : 'lin',
+    scale: L && (L.scale === 'log' || L.scale === 'log60' || L.scale === 'lin') ? L.scale : (els || []).some(e => e && e.beamView === 'field' && e.beamScale === 'log') ? 'log' : 'lin',
   };
 }
 const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
@@ -9216,7 +9230,7 @@ function renderSweepFrames(list, onDone) {
           if (closeupOnShow() && !fieldFrames.closeup.has(closeupKey(key))) {
             job.stage = 'the close-up';
             const vk = closeupKey(key), view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab };
-            const o = await fwRequest('closeup', 'sweep', { key, view, step: CLOSEUP_STEP, log: lightOf().scale === 'log' });
+            const o = await fwRequest('closeup', 'sweep', { key, view, step: CLOSEUP_STEP, log: fieldDec(lightOf().scale) });
             if (!live()) return;
             if (o && !o.mismatch && o.img) keepFrame(fieldFrames.closeup, vk, closeupFrame(o, CLOSEUP_STEP));
           }
@@ -9269,7 +9283,7 @@ function renderSweepFrames(list, onDone) {
         if (closeupOnShow() && fieldFrames.bench.has(key) && !fieldFrames.closeup.has(closeupKey(key))) {
           job.stage = 'the close-up';
           const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab };
-          keepFrame(fieldFrames.closeup, closeupKey(key), closeupFrame(closeupImage(benchFrame(key).segs, view, CLOSEUP_STEP, lightOf().scale === 'log'), CLOSEUP_STEP));
+          keepFrame(fieldFrames.closeup, closeupKey(key), closeupFrame(closeupImage(benchFrame(key).segs, view, CLOSEUP_STEP, fieldDec(lightOf().scale)), CLOSEUP_STEP));
           yield;
         }
       }
@@ -12244,8 +12258,9 @@ const V3D = (() => {
       btn('Right', 'From the right (Shift+4)', () => view('right')), nm, mouse, btn('PNG', 'Save this view as a picture', png));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
-    stage.append(sw, bar, hint, flyHint);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse, flyBtn, flyHint };
+    const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
+    stage.append(sw, bar, hint, flyHint, vkey);
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, flyBtn, flyHint, vkey };
     hintText();
     // flying, the mouse turns the view and the wheel sets the speed: the canvas's own handlers stand aside
     cv.addEventListener('pointerdown', e => { if (!fly) return; e.stopImmediatePropagation(); e.preventDefault(); if (document.pointerLockElement !== cv) flyLock(); }, true);
@@ -12279,6 +12294,7 @@ const V3D = (() => {
     if (mi) mi.hidden = !there;
     D.stage.classList.toggle('v3d', on);
     D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
+    if (!on) D.vkey.hidden = true;
     D.flyBtn.hidden = !flyOk();
     if (fly && !on) flyStop();
     D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
@@ -12384,7 +12400,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join();
+    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + (lightOf().field ? '|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
@@ -12416,13 +12432,13 @@ const V3D = (() => {
   /* models taken down: their geometry and pictures freed. Their materials are left to be collected
      rather than disposed: disposing the last material of a kind frees its compiled shader, which the
      next build (each step of a drag) would then compile again, the slowest thing the view does */
-  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
+  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
   /* what a part's model is made from: everything but where it is, how it is turned and its name, so a
      part moved or turned keeps its model and is only put in its new place (a screen showing its
      pattern on its face is made again each time, its picture changing with the light) */
   const POSE = new Set(['x', 'y', 'z', 'angle', 'tip', 'roll', 'name', 'label', 'sweeps', 'hide3d', 'locked', 'group']);
   const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o); };
-  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
+  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
     glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
@@ -12698,7 +12714,10 @@ const V3D = (() => {
     if (G.parts.children.length) box.setFromObject(G.parts);
     R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
     board(box);
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, project.tab].join('|'), got = lc.get(lastTrace);
+    // the diffracted field as a volume, when the bench shows it: its key changes as it arrives
+    const vb = R.boardBox, VL = lightOf().field && vb ? volLater([vb.min.x, vb.min.y, vb.max.x, vb.max.y]) : { data: null, busy: false };
+    R.vol = VL.data; R.volBusy = VL.busy;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab].join('|'), got = lc.get(lastTrace);
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
     else {
       if (got) { for (const o of got.objs) disposeObj(o); lc.delete(lastTrace); }
@@ -12712,6 +12731,8 @@ const V3D = (() => {
         for (const [T2, v] of lc) if (T2 !== lastTrace && !live.has(T2)) { for (const o of v.objs) disposeObj(o); lc.delete(T2); }
       }
     }
+    R.volMeshes = G.light.children.filter(o => o.userData.vol);
+    keyShow();
     // the sun over the board, its shadow covering it
     const c = new T.Vector3(), s = new T.Vector3();
     (box.isEmpty() ? new T.Box3(new T.Vector3(-100, -100, 0), new T.Vector3(100, 100, 100)) : box).getCenter(c).z = 0;
@@ -12811,6 +12832,123 @@ const V3D = (() => {
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });
+    if (lightOf().field && R.vol) volMeshes(G);
+  }
+  /* The diffracted field as a glowing volume, segment by segment: a box round each, its shader
+     marching the view's ray through it in steps fitted to the beam (long outside it, short
+     across it, and never past more than half the gap between two cuts along it) and keeping the
+     brightest irradiance it meets, in the bench's colours and scale (lin or log, 30 dB) against
+     the brightest on the tab: what the key under it reads */
+  const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+  const VOL_FS = `
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uR, uDec; uniform vec3 uCam;
+    varying vec3 vP;
+    // the two cuts either side of t, how far between them, the larger reach, and their gap
+    void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
+      lo = 0; hi = uNc - 1;
+      for (int k = 0; k < 7; k++) { if (hi - lo <= 1) break; int m = (lo + hi) / 2; if (uTs[m] <= t) lo = m; else hi = m; }
+      float a = uTs[lo], b = uTs[hi];
+      f = b > a ? clamp((t - a) / (b - a), 0.0, 1.0) : 0.0; rm = max(uRm[lo], uRm[hi]); gap = max(b - a, 1e-6);
+    }
+    // one cut's irradiance at a point across the beam, nothing beyond its reach
+    float row(int j, vec2 xy) {
+      float M = float(uM), nc = float(uNc), rm = uRm[j];
+      if (uTwo == 0) { float q = length(xy) / rm; return q > 1.0 ? 0.0 : texture2D(uTex, vec2((sqrt(q) * (M - 1.0) + 0.5) / M, (float(j) + 0.5) / nc)).r; }
+      vec2 u = xy / rm;
+      if (max(abs(u.x), abs(u.y)) > 1.0) return 0.0;
+      vec2 g = (u * 0.5 + 0.5) * (M - 1.0) + 0.5;
+      return texture2D(uTex, vec2(g.x / M, (float(j) * M + g.y) / (M * nc))).r;
+    }
+    void main() {
+      vec3 ro = uCam, rd = normalize(vP - uCam);
+      vec3 sg = vec3(rd.x < 0.0 ? -1.0 : 1.0, rd.y < 0.0 ? -1.0 : 1.0, rd.z < 0.0 ? -1.0 : 1.0), iv = sg / max(abs(rd), vec3(1e-9));
+      vec3 t0 = (vec3(-uR, -uR, uTa) - ro) * iv, t1 = (vec3(uR, uR, uTb) - ro) * iv, tn = min(t0, t1), tf = max(t0, t1);
+      float sN = max(max(max(tn.x, tn.y), tn.z), 0.0), sF = min(min(tf.x, tf.y), tf.z);
+      if (sF <= sN) discard;
+      float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
+      for (int i = 0; i < 320; i++) {
+        if (sp > sF) break;
+        vec3 p = ro + rd * sp;
+        int lo, hi; float f, rm, gap; cutAt(clamp(p.z, uTa, uTb), lo, hi, f, rm, gap);
+        float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm, ds;
+        if (q > 1.0) ds = min((q - 1.0) * rm * 0.6 / side, gap / along);
+        else {
+          // the two cuts each at this distance from the axis (not the same share of their reach)
+          best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
+          ds = min(min(uRm[lo], uRm[hi]) * 0.12 / side, gap * 0.5 / along);
+        }
+        sp += max(ds, minStep);
+      }
+      float v = best;
+      if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0);
+      if (v <= 0.002) discard;
+      gl_FragColor = vec4(texture2D(uMap, vec2(v, 0.5)).rgb, clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v));
+    }`;
+  let magmaTex = null;
+  function volMeshes(G) {
+    const V = R.vol, dec = fieldDec(lightOf().scale);
+    if (!magmaTex) {
+      const d = new Uint8Array(256 * 4);
+      for (let i = 0; i < 256; i++) { const c = magma(i / 255); d.set([c[0], c[1], c[2], 255], i * 4); }
+      magmaTex = new T.DataTexture(d, 256, 1, T.RGBAFormat); magmaTex.magFilter = magmaTex.minFilter = T.LinearFilter; magmaTex.needsUpdate = true;
+    }
+    // the brightest drawn last, over the rest: each pixel shows the brightest light along its line of sight
+    const rank = new Map([...V.segs].sort((a, b) => a.peak - b.peak).map((s, k) => [s, k]));
+    for (const s of V.segs) {
+      const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
+      for (let i = 0; i < data.length; i++) data[i] = s.I[i] / V.peak;
+      const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
+      tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
+      const Rm = Math.max(...s.rmax), ts = new Float32Array(64), rm = new Float32Array(64);
+      for (let j = 0; j < 64; j++) { ts[j] = s.ts[Math.min(j, nc - 1)]; rm[j] = s.rmax[Math.min(j, nc - 1)]; }
+      const geo = new T.BoxGeometry(2 * Rm, 2 * Rm, s.tb - s.ta); geo.translate(0, 0, (s.ta + s.tb) / 2);
+      const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
+        uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
+          uDec: { value: dec }, uTa: { value: s.ta }, uTb: { value: s.tb }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+      const o = new T.Mesh(geo, m3);
+      const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
+      o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
+      o.renderOrder = 2 + rank.get(s);
+      o.userData.vol = s; o.userData.texs = [tex];
+      o.onBeforeRender = (r, sc, cam) => { m3.uniforms.uCam.value.copy(cam.position).applyMatrix4(o.matrixWorld.clone().invert()); };
+      G.add(o);
+    }
+  }
+  /* the key under the 3D view while it shows the field: its colours against irradiance, and
+     what is under the pointer */
+  function keyShow() {
+    if (!D) return;
+    const on = active() && R && lightOf().field && (R.vol || R.volBusy);
+    D.vkey.hidden = !on;
+    if (!on) return;
+    if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
+    const pk = R.vol.peak, dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    cv.width = 240; cv.height = 1;
+    const g = cv.getContext('2d'), img = g.createImageData(240, 1);
+    for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
+    g.putImageData(img, 0, 0);
+    const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
+    D.vread = h('div', { class: 'rd' }, 'Point at the light to read it');
+    D.vkey.replaceChildren(h('b', null, 'Irradiance' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
+      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? fmtIrr(v) : '0'))),
+      D.vread);
+  }
+  /* the brightest irradiance along the line of sight under the pointer, and where: { I, p } */
+  function volUnder(e) {
+    if (!R || !R.vol || !R.volMeshes || !R.volMeshes.length) return null;
+    const rc = new T.Raycaster(); rc.setFromCamera(ndc(e), R.camera);
+    let best = null;
+    for (const o of R.volMeshes) {
+      const inv = o.matrixWorld.clone().invert(), ro = rc.ray.origin.clone().applyMatrix4(inv), rd = rc.ray.direction.clone().transformDirection(inv);
+      const r = volRayMax(o.userData.vol, ro.toArray(), rd.toArray());
+      if (r && (!best || r.I > best.I)) best = { I: r.I, p: rc.ray.at(r.s, new T.Vector3()).toArray() };
+    }
+    return best;
+  }
+  function readVol(e) {
+    if (!D || !D.vread || D.vkey.hidden) return;
+    const r = volUnder(e);
+    D.vread.textContent = r ? fmtIrr(r.I) + ' at ' + r.p.map(v => v.toFixed(1)).join(', ') + ' mm' : 'Point at the light to read it';
   }
   /* the breadboard under it all, its holes on the bench's 25 mm grid */
   function board(box) {
@@ -13075,7 +13213,7 @@ const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -13377,6 +13515,11 @@ const V3D = (() => {
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null,
+      look(p, t) { if (!R) return; sync(); setCam(p, t); keepCam(); need(); },
+      pointOnScreen(p) { if (!R) return null; sync(); const v = new T.Vector3(...p).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
+      // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
+      field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
+      fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },
@@ -16960,20 +17103,30 @@ function holdScale(el, which, v) {
 }
 function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
-  const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem' });
+  const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
   const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
     selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
   const box = h('div', { class: 'rt-readout' });
-  const views = [['map', 'Irradiance'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
+  const views = [['map', 'Irradiance'], ['probe', 'Along the beam'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
+  // Along the beam: a plane across the light, slid back from the screen towards it
+  const reach = () => probeReach(el), probeD = () => clamp(vs(el).probeD === undefined ? reach() / 2 : vs(el).probeD, 0, reach());
+  const slider = h('input', { type: 'range', min: '0', max: '1', step: 'any', style: 'flex:1', 'aria-label': 'Distance before the screen' });
+  const dTxt = h('span', { class: 'rt-mono', style: 'min-width:4.2rem;text-align:right;white-space:nowrap' });
+  slider.addEventListener('input', () => { vs(el).probeD = +slider.value * reach(); refresh(); });
+  const probeRow = h('div', { style: 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem' }, h('span', { style: 'white-space:nowrap' }, 'Back from it'), slider, dTxt);
+  const keyBox = h('div', { class: 'rt-probekey' });
   const refresh = () => {
-    const { D, busy } = diffractionLater(el);
+    const probe = vs(el).diffView === 'probe', L = reach(), d = probeD();
+    probeRow.style.display = probe ? 'flex' : 'none'; keyBox.style.display = probe ? '' : 'none';
+    if (probe) { if (document.activeElement !== slider) slider.value = L > 0 ? String(d / L) : '0'; dTxt.textContent = fmtLen(d); }
+    const { D, busy } = probe ? (L > 0 ? probeLater(el, d) : { D: null, busy: false }) : diffractionLater(el);
     views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = vs(el).diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
     });
-    scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
+    scaleRow.style.display = vs(el).diffView === 'map' || probe ? '' : 'none';
     cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives
     if (!D) {
       drawDiff(cv, null, el);
@@ -16984,10 +17137,24 @@ function diffractionSection(el) {
     drawDiff(cv, D, el);
     const two = !D.symmetric;
     const rows2 = [];
+    if (probe) {
+      // in W/cm², for the laser of the strongest beam arriving
+      const P = probePower(el) * 1e-3, pk = (cv._full && cv._full.pk) || D.peak, dec = el.mapScale === 'log' ? 3 : 0;
+      const bar = document.createElement('canvas'); bar.width = 240; bar.height = 1;
+      const g = bar.getContext('2d'), im = g.createImageData(240, 1);
+      for (let i = 0; i < 240; i++) { const q = magma(i / 239); im.data.set([q[0], q[1], q[2], 255], i * 4); }
+      g.putImageData(im, 0, 0);
+      const ticks = dec ? [[0, pk * 1e-3], [0.5, pk * 10 ** -1.5], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
+      keyBox.replaceChildren(bar, h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? fmtIrr(v * P) : '0'))),
+        D.peak > 1.05 * pk ? h('div', { class: 'note', style: 'margin-top:2px' }, 'The peak, ' + fmtIrr(D.peak * P) + ', is sharper than the map\u2019s samples.') : '');
+      rows2.push(['Plane', fmtLen(d) + ' before the screen, square to it'], ['Peak irradiance', fmtIrr(D.peak * P)], ['Power through it', (+(D.power * P * 1e3).toPrecision(4)) + ' mW']);
+    }
     if (D.NA) rows2.push(['Numerical aperture', (+D.NA.toPrecision(4)) + ' (f/' + (+(1 / (2 * D.NA)).toPrecision(3)) + ')']);
     rows2.push(['Strehl ratio', D.strehl === null ? 'n/a' : String(+D.strehl.toPrecision(4))]);
-    rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
-    rows2.push(['Power arriving', pctTxt(100 * D.power)]);
+    if (!probe) {
+      rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
+      rows2.push(['Power arriving', pctTxt(100 * D.power)]);
+    }
     if (D.interference !== null) rows2.push(['Interference', (+(100 * D.interference).toPrecision(4)) + '% of the incoherent sum']);
     if (D.visibility !== null) rows2.push(['Fringe visibility', String(+D.visibility.toPrecision(3))]);
     if (D.vector) {
@@ -17021,19 +17188,20 @@ function diffractionSection(el) {
     else if (D.curved) notes.push('The screen\u2019s curvature is not included in the field.');
     if (D.coarse.length) notes.push(D.coarse.map(id => (getEl(id) || {}).name).join(', ') + ' has detail finer than three grid samples, so its diffraction here is only roughly right: raise the source\u2019s grid points.');
     if (D.steep.length) notes.push('The wavefront after ' + D.steep.map(id => (getEl(id) || {}).name).join(', ') + ' turns faster than the grid can follow: raise the source\u2019s grid points.');
+    if (probe) notes.unshift('The light across a plane ' + fmtLen(d) + ' before the screen, worked out as if the screen stood there: anywhere back to the last part the light arrives from. In W/cm\u00b2 for ' + (+probePower(el).toPrecision(4)) + ' mW from its laser.');
     if (busy) notes.push('Updating\u2026');
     box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
       ...notes.map(t => h('p', { class: 'note' }, t)));
   };
-  const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
-  panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw),
-    zoomControls(cv, getZ, redraw, () => vs(el).diffView !== 'map'), box);
+  const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, (vs(el).diffView === 'probe' ? probeLater(el, probeD()) : diffractionLater(el)).D, el);
+  panel.append(tabs, probeRow, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
+    zoomControls(cv, getZ, redraw, () => vs(el).diffView !== 'map' && vs(el).diffView !== 'probe'), box);
   bindSync(cv, refresh);
 }
 
 function drawDiff(cv, D, el) {
   const dpr = window.devicePixelRatio || 1, view = vs(el).diffView, Z = plotZoom(el, view);
-  const w = cv.clientWidth || 280, square = view === 'map';
+  const w = cv.clientWidth || 280, square = view === 'map' || view === 'probe';
   const c = cv.getContext('2d');
   cv._full = null; cv._csv = null;
   updateSyncButtons();
@@ -17700,7 +17868,7 @@ function renderOverview() {
   };
   panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-    selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
+    selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
   const gh = h('input', { type: 'checkbox' });
   gh.checked = project.ghosts;
@@ -21402,7 +21570,7 @@ function closeupFrame(r, step) {
 /* the close-up's caption: just below the bench tabs, which sit over the top left corner */
 const closeupCaptionY = () => { const tb = document.getElementById('benchTabs'); return (tb && tb.offsetHeight ? tb.offsetHeight : 0) + 18; };
 function closeupCompute(vkey, srcs, step) {
-  const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab }, log = lightOf().scale === 'log';
+  const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab }, log = fieldDec(lightOf().scale);
   const done = r => {
     const cv = mkCanvas(r.img.width, r.img.height);
     cv.getContext('2d').putImageData(r.img, 0, 0);
@@ -21477,12 +21645,193 @@ function closeupImage(segs, view, step, log) {
   const img = new ImageData(nx, ny);
   for (let q = 0; q < nx * ny; q++) {
     let v = pk > 0 ? I[q] / pk : 0;
-    if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
+    if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / log);
     img.data[q * 4] = RGB[q * 3]; img.data[q * 4 + 1] = RGB[q * 3 + 1]; img.data[q * 4 + 2] = RGB[q * 3 + 2];
     img.data[q * 4 + 3] = Math.round(255 * Math.min(1, v));
   }
   return { img, info: { contrast: iMax > 0 ? Math.min(1, vis) : null, beams,
     lamN: parts.length ? 2 * Math.PI / parts[0].k : null } };
+}
+/* ---------- The diffracted field in 3D ----------
+   Each segment's field as a volume for the 3D view: cuts across the beam along it, close
+   together near a waist (evenly in asinh of the distance from it over the Rayleigh range) and
+   no further apart than 10 mm, or a twelfth of the segment (20 mm for a 2D field). A round beam's cut is its radial profile; a
+   2D one's a square map across it (in the bench plane, then up out of it). In W/mm², from the
+   field's irradiance per unit power and its laser's power. Each cut reaches out to where the
+   light has fallen 60 dB below its peak there (50 dB for a map), a profile sampled on a square
+   root of the radius so a focus's core keeps its detail. Beams add as intensities here; the screens and
+   the close-up add those of one launch as fields. */
+const VOL_M = 96, VOL_M2 = 41, VOL_CUTS = 40, VOL_CUTS2 = 24;
+/* a 2D field on a coarser grid for the 3D view's maps, which are 41 samples across (one on the axis): every k-th
+   sample, k a power of two leaving at least 64, so long as the field's phase (its pilot taken off)
+   turns less than 0.8 rad between the new samples; a field with finer detail keeps its grid */
+function volDecimate(F) {
+  const N = F.N, g = Math.max(field2Slope(F, 'x') * F.ax.d, field2Slope(F, 'y') * F.ay.d);
+  let k = 1;
+  while (N / (2 * k) >= 64 && g * 2 * k <= 0.8) k *= 2;
+  if (k === 1) return F;
+  const n = N / k, out = Object.assign({}, F, { N: n, ax: Object.assign({}, F.ax, { d: F.ax.d * k }), ay: Object.assign({}, F.ay, { d: F.ay.d * k }) });
+  for (const [kr, ki] of fieldComps(F)) {
+    const R = new Float64Array(n * n), I = new Float64Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const o = j * k * N + i * k; R[j * n + i] = F[kr][o]; I[j * n + i] = F[ki][o]; }
+    out[kr] = R; out[ki] = I;
+  }
+  return out;
+}
+function volLegBase(leg) { const p = Object.getPrototypeOf(leg); return p && Object.prototype.hasOwnProperty.call(p, 'cutC') ? p : leg; }
+function volData(segs, tab, bb) {
+  const out = [];
+  let peak = 0;
+  for (const sg of segs) {
+    const b = sg.b;
+    if (!b || (tab && b.bench !== tab)) continue;
+    const L3 = b.len3 || b.len;
+    if (!(L3 > 0)) continue;
+    const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]), e = d.map(v => v / dl);
+    const z0 = b.z0 !== undefined ? b.z0 : BEAM_Z;
+    // cut to the board (light off the table goes on, on the 2D bench), and to 2 m at most
+    let ta = 0, tb = Math.min(L3, 2000);
+    if (bb) for (const [p, q] of [[-e[0], b.x0 - bb[0]], [e[0], bb[2] - b.x0], [-e[1], b.y0 - bb[1]], [e[1], bb[3] - b.y0]]) {
+      if (Math.abs(p) < 1e-12) { if (q < 0) tb = -1; continue; }
+      const r = q / p;
+      if (p < 0) ta = Math.max(ta, r); else tb = Math.min(tb, r);
+    }
+    if (!(tb > ta)) continue;
+    const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {}, two = sg.eng === '2d', Fd = two ? volDecimate(leg.field || F0) : null;
+    const A = two ? (F0.ax && F0.ay && F0.ax.zR <= F0.ay.zR ? F0.ax : F0.ay) : F0;
+    const zR = A && A.zR > 0 ? A.zR : (tb - ta), tw = A && isFinite(A.z) ? -A.z : (ta + tb) / 2;
+    // where to cut: dense through the waist (three to each unit of asinh), and every 10 mm along
+    // (20 mm for a 2D map, each of which is a whole propagation)
+    const ua = Math.asinh((ta - tw) / zR), ub = Math.asinh((tb - tw) / zR), set = new Set();
+    const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (two ? 20 : 10)), 1, 12);
+    for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
+    for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
+    const ts = Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y));
+    // the launch's share of its laser (half each for an unpolarised one's two halves)
+    const Pw = Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.root || 1), M = two ? VOL_M2 : VOL_M;
+    const I = new Float32Array(ts.length * (two ? M * M : M)), rmax = new Float32Array(ts.length);
+    let pk = 0;
+    ts.forEach((t, j) => {
+      if (!two) {
+        const c = leg.cutC(t), x = c.x, n = x.length;
+        let top = 0; for (let i = 0; i < n; i++) top = Math.max(top, c.re[i] ** 2 + c.im[i] ** 2);
+        let edge = 0; for (let i = 0; i < n; i++) if (c.re[i] ** 2 + c.im[i] ** 2 > 1e-6 * top) edge = i;
+        const R = Math.min(c.half, Math.max(x[Math.min(n - 1, edge + 1)], 1e-6) * 1.05);
+        rmax[j] = R;
+        let i0 = 0;
+        for (let m = 0; m < M; m++) {
+          const r = R * (m / (M - 1)) ** 2;
+          while (i0 < n - 2 && x[i0 + 1] < r) i0++;
+          let v;
+          if (r <= x[0]) v = c.re[0] ** 2 + c.im[0] ** 2;
+          else if (r >= x[n - 1]) v = 0;
+          else { const f = (r - x[i0]) / (x[i0 + 1] - x[i0]), a = c.re[i0] ** 2 + c.im[i0] ** 2, bq = c.re[i0 + 1] ** 2 + c.im[i0 + 1] ** 2; v = a + (bq - a) * f; }
+          v *= Pw; I[j * M + m] = v; if (v > pk) pk = v;
+        }
+        return;
+      }
+      const F = field2Propagate(Fd, t), N = F.N, dx = F.ax.d, dy = F.ay.d, G = new Float64Array(N * N);
+      let top = 0; for (let o = 0; o < N * N; o++) { G[o] = field2I(F, o); if (G[o] > top) top = G[o]; }
+      let ex = 0;
+      for (let jj = 0; jj < N; jj++) for (let i = 0; i < N; i++) if (G[jj * N + i] > 1e-5 * top) ex = Math.max(ex, Math.abs(i - N / 2) * dx, Math.abs(jj - N / 2) * dy);
+      const R = Math.max(1e-6, Math.min((N / 2 - 1) * Math.min(dx, dy) * 2, ex * 1.05 + Math.max(dx, dy)));
+      rmax[j] = R;
+      for (let q = 0; q < M; q++) for (let p = 0; p < M; p++) {
+        const u = -R + 2 * R * p / (M - 1), v = -R + 2 * R * q / (M - 1), fx = u / dx + N / 2, fy = v / dy + N / 2, ix = Math.floor(fx), iy = Math.floor(fy);
+        let val = 0;
+        if (ix >= 0 && iy >= 0 && ix < N - 1 && iy < N - 1) {
+          const ax = fx - ix, ay = fy - iy, o = iy * N + ix;
+          val = (G[o] * (1 - ax) + G[o + 1] * ax) * (1 - ay) + (G[o + N] * (1 - ax) + G[o + N + 1] * ax) * ay;
+        }
+        val *= Pw; I[(j * M + q) * M + p] = val; if (val > pk) pk = val;
+      }
+    });
+    if (!(pk > 0)) continue;
+    peak = Math.max(peak, pk);
+    const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
+    const v = { i: sg.i, two, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n };
+    // light running the same way along the same line, cut the same (an unpolarised beam's halves): one volume, added
+    const k = [two, M, ...v.o, ...e, ...ts, ...rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join();
+    const same = out.find(w => w.k === k);
+    if (same) { let m = 0; for (let q = 0; q < I.length; q++) { same.I[q] += I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, same.peak); continue; }
+    v.k = k;
+    out.push(v);
+  }
+  for (const v of out) delete v.k;
+  return { segs: out, peak };
+}
+/* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
+   From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
+   on the page (the tests) from the bench's field if it is there, else worked out there and then */
+const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
+function volLater(bb) {
+  const srcs = popSources();
+  if (!srcs.length) return { data: null, busy: false };
+  const pk = popKeyOf(lastTrace.beams, srcs), key = pk + '|' + project.tab + '|' + bb.map(v => Math.round(v)).join();
+  if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
+  const keep = d => {
+    d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
+    while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
+    return d;
+  };
+  if (fieldWorker()) {
+    if (VOL.job !== key) {
+      VOL.job = key;
+      fwRequest('vol3d', 'vol3d', { key: pk, tab: project.tab, bb }).then(o => {
+        if (VOL.job === key) VOL.job = null;
+        if (o && !o.mismatch) keep(o); else VOL.rev++;
+        requestRender();
+      }).catch(() => { if (VOL.job === key) VOL.job = null; VOL.rev++; requestRender(); });
+    }
+    return { data: null, busy: true };
+  }
+  const segs = popState.key === pk && popState.result ? popState.result.segs : popRun(lastTrace.beams, srcs, {}).segs;
+  return { data: keep(volData(segs, project.tab, bb)), busy: false };
+}
+/* an irradiance in W/mm², as W/cm² with a prefix */
+function fmtIrr(v) {
+  const w = v * 100;
+  if (!(w > 0)) return '0 W/cm²';
+  const [k, u] = w >= 1e6 ? [1e6, 'MW'] : w >= 1e3 ? [1e3, 'kW'] : w >= 1 ? [1, 'W'] : w >= 1e-3 ? [1e-3, 'mW'] : w >= 1e-6 ? [1e-6, 'µW'] : [1e-9, 'nW'];
+  return (+(w / k).toPrecision(3)) + ' ' + u + '/cm²';
+}
+/* the brightest irradiance (W/mm²) a ray (origin ro, unit direction rd, in a volume segment's
+   frame: x across, y up, z along) meets in it, and how far along the ray: as the 3D view's
+   shader finds it, for the readout under the pointer */
+function volRayMax(s, ro, rd) {
+  const nc = s.ts.length, M = s.M, Rm = Math.max(...s.rmax);
+  let sN = 0, sF = Infinity;
+  for (const [o, d, lo, hi] of [[ro[0], rd[0], -Rm, Rm], [ro[1], rd[1], -Rm, Rm], [ro[2], rd[2], s.ta, s.tb]]) {
+    if (Math.abs(d) < 1e-12) { if (o < lo || o > hi) return null; continue; }
+    const a = (lo - o) / d, b = (hi - o) / d;
+    sN = Math.max(sN, Math.min(a, b)); sF = Math.min(sF, Math.max(a, b));
+  }
+  if (!(sF > sN)) return null;
+  const side = Math.sqrt(Math.max(1 - rd[2] * rd[2], 1e-6)), along = Math.max(Math.abs(rd[2]), 1e-6), minStep = (sF - sN) / 4000;
+  let best = 0, at = null;
+  for (let sp = sN, it = 0; sp <= sF && it < 2000; it++) {
+    const x = ro[0] + rd[0] * sp, y = ro[1] + rd[1] * sp, t = clamp(ro[2] + rd[2] * sp, s.ta, s.tb);
+    let lo = 0, hi = nc - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s.ts[m] <= t) lo = m; else hi = m; }
+    const f = s.ts[hi] > s.ts[lo] ? clamp((t - s.ts[lo]) / (s.ts[hi] - s.ts[lo]), 0, 1) : 0, rm = Math.max(s.rmax[lo], s.rmax[hi]), gap = Math.max(s.ts[hi] - s.ts[lo], 1e-6);
+    const q = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rm : Math.hypot(x, y) / rm;
+    let ds;
+    if (q > 1) ds = Math.min((q - 1) * rm * 0.6 / side, gap / along);
+    else {
+      const at1 = j => {
+        const rj = s.rmax[j], qj = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rj : Math.hypot(x, y) / rj;
+        if (qj > 1) return 0;
+        if (!s.two) { const g = Math.sqrt(qj) * (M - 1), i = Math.min(M - 2, Math.floor(g)), a = g - i; return s.I[j * M + i] * (1 - a) + s.I[j * M + i + 1] * a; }
+        const gx = (x / rj * 0.5 + 0.5) * (M - 1), gy = (y / rj * 0.5 + 0.5) * (M - 1), i = Math.min(M - 2, Math.floor(gx)), k = Math.min(M - 2, Math.floor(gy)), a = gx - i, b = gy - k, o = (j * M + k) * M + i;
+        return (s.I[o] * (1 - a) + s.I[o + 1] * a) * (1 - b) + (s.I[o + M] * (1 - a) + s.I[o + M + 1] * a) * b;
+      };
+      const v = at1(lo) * (1 - f) + at1(hi) * f;
+      if (v > best) { best = v; at = sp; }
+      ds = Math.min(Math.min(s.rmax[lo], s.rmax[hi]) * 0.12 / side, gap * 0.5 / along);
+    }
+    sp += Math.max(ds, minStep);
+  }
+  return best > 0 ? { I: best, s: at } : null;
 }
 
 /* The field at one world point, for the checks: every Gaussian source's tree, as the
@@ -21568,7 +21917,7 @@ function popSlices(items, perIn) {
     probe.fillStyle = sg.b.colour;
     const hex = probe.fillStyle;                    // the browser hands back #rrggbb
     const cr = parseInt(hex.slice(1, 3), 16), cg = parseInt(hex.slice(3, 5), 16), cb = parseInt(hex.slice(5, 7), 16);
-    const log = lightOf().scale === 'log';
+    const log = fieldDec(lightOf().scale);
     // each slice as a column of normalised values over y / Y, where Y is its drawn half-width;
     // a round field is a radial profile, a 2D one the cut through the bench plane
     const cols = [], Ys = [], gains = [], cuts = [];
@@ -21623,7 +21972,7 @@ function popSlices(items, perIn) {
         // the outer fifth fades to nothing, so light that reaches the edge of what is drawn ends softly
         const au = Math.abs(u);
         if (au > 0.8) v *= 0.5 * (1 + Math.cos(Math.PI * (au - 0.8) / 0.2));
-        col[row] = log ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3) : 0) : v;
+        col[row] = log ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / log) : 0) : v;
       }
       cols.push(col);
     }
@@ -22763,6 +23112,53 @@ function diffraction(el) {
 /* The same for the panels, computed a slice at a time; the last answer stands meanwhile.
    Each open screen has its own job, taken in turn, so pinned screens do not starve each other. */
 const popScreenState = { jobs: new Map(), timer: null };
+/* ---------- Along the beam: a plane across the light a distance before a screen ----------
+   The field there is worked out as the screen's own is, with the screen moved that far back
+   towards the light it faces (and the bench traced again), then put back: so it holds all the
+   screen's figures, for that plane. It reaches back as far as the free space the light
+   arrives through; past that, the plane would be before the last optic. */
+function probeReach(el) {
+  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+  let L = 0;
+  for (const b of lastTrace.beams || []) if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0 && !b.fan) L = Math.max(L, b.len);
+  return L;
+}
+/* the laser power (mW) the figures are per unit of: that of the strongest beam arriving */
+function probePower(el) {
+  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+  let best = null;
+  for (const b of lastTrace.beams || []) if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0 && (!best || (b.w || 0) > (best.w || 0))) best = b;
+  const src = best && getEl(best.src);
+  return src ? Math.max(0, splitRoot(src).power || 0) : 0;
+}
+function probeField(el, d) {
+  const x0 = el.x, y0 = el.y, a = el.angle * deg;
+  el.x += Math.cos(a) * d; el.y += Math.sin(a) * d;
+  try {
+    lastTraceKey = null; traceScene();
+    const job = popScreenPrep(el);
+    return job ? popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep })) : null;
+  } finally { el.x = x0; el.y = y0; lastTraceKey = null; traceScene(); }
+}
+const probeCache = new Map(), probeJobs = new Map();
+/* the plane d mm before the screen: { D, busy }, from the field worker (or here, in the tests) */
+function probeLater(el, d) {
+  const job = popScreenPrep(el);
+  if (!job) return { D: null, busy: false };
+  const key = job.key + '|' + d.toFixed(3), c = probeCache.get(el.id);
+  if (c && c.key === key) return { D: c.D, busy: false };
+  if (TEST_MODE || !fieldWorker()) { const D = probeField(el, d); probeCache.set(el.id, { key, D }); return { D, busy: false }; }
+  if (probeJobs.get(el.id) !== key) {
+    probeJobs.set(el.id, key);
+    fwRequest('probe', 'probe:' + el.id, { id: el.id, d }).then(o => {
+      if (probeJobs.get(el.id) !== key) return;
+      probeJobs.delete(el.id);
+      if (o) probeCache.set(el.id, { key, D: o.D ? diffFns(o.D) : null });
+      syncPanel();
+    }).catch(() => { if (probeJobs.get(el.id) === key) probeJobs.delete(el.id); syncPanel(); });
+  }
+  return { D: c ? c.D : null, busy: true };
+}
 function diffractionLater(el) {
   const job = popScreenPrep(el);
   if (!job) return { D: null, busy: false };
@@ -24511,7 +24907,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\" or \"log\" for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
+const AI_GUIDE_PROSE = "# JEKray2D: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray2D**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray2d.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray2D is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray2D and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -26946,6 +27342,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
+    'A screen\u2019s Diffraction tab has <b>Along the beam</b>: a plane across the light slid back from the screen towards it, with the irradiance map, peak and power through it in W/cm\u00b2 and mW, and every figure the screen gives, as a beam profiler would read them anywhere along the beam.',
     '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',
     '<b>Part packs</b> (File \u2192 Part packs\u2026): sets of parts and glasses made by others, a maker\u2019s catalogue or a course\u2019s kit, installed from a file or a link once you have seen what is in them. Their parts are under + Add part \u2192 Packs and their glasses in each lens\u2019s material menu; a part placed from one carries its glass with it, so the bench opens anywhere. Packs hold data only, never code. <b>Make a pack from the selection</b> turns your own parts into one to share.',
     'Experimental: <b>Try me</b>, a white box in the bottom right corner while flying through the bench, with a QR code that opens a copy of it on a phone, \u201cTry me!\u201d above it.',
@@ -27089,7 +27487,7 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
       t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
       return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
     };
-    menu.replaceChildren(h('label', null, cb, 'Turn on the ticked experimental features'),
+    menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
       h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
       EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
         : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
@@ -28017,6 +28415,13 @@ function workerMain() {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
         if (key === args.key) { out = closeupImage(bench.R.segs, args.view, args.step, args.log); transfer.push(out.img.data.buffer); }
+        else out = { mismatch: true };      } else if (kind === 'probe') {
+        const el = getEl(args.id);
+        out = { D: el ? fwPackD(probeField(el, args.d)) : null };
+      } else if (kind === 'vol3d') {
+        const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+        if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
+        if (key === args.key) { out = volData(bench.R.segs, args.tab, args.bb); for (const v of out.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer); }
         else out = { mismatch: true };
       }
       self.postMessage({ id, ok: true, out, cav: fwPackCavities(before) }, transfer);
@@ -28061,6 +28466,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
+    // a screen's Along the beam view: the plane d mm before it, its peak (W/cm²), power through it (mW) and beam radius (mm)
+    probe(name, d) { const el = this.byName(name); traceScene(); const D = el && probeField(el, d), P = el ? probePower(el) : 0; return D && { peak: D.peak * P * 0.1, power: D.power * P, w: D.wx, reach: probeReach(el) }; },
+    // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
+    vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const V = volData(popRun(lastTrace.beams, srcs, {}).segs, project.tab, null);
+      return { peak: V.peak * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
+        axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },
     async packInstall(raw) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); await packPut(pack); return pack.id; },

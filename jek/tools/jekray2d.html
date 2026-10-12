@@ -4674,13 +4674,37 @@ function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
+  // a sweep playing round again: each step's trace kept from the cycle before
+  const keep = traceStoreOn();
+  if (keep && traceStore.has(key)) {
+    const c = traceStore.get(key);
+    statsCache.clear(); diffCache.clear(); binCache.clear();
+    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; traceStoreHits++;
+    afterTrace();
+    return;
+  }
   const t0 = performance.now();
   traceCount++;
   traceSceneRaw();
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
+  if (keep) keepTrace(lastTraceKey, lastTrace, lastTraceMs);
 }
+/* While a sweep plays, the traces of its steps are kept, so the second cycle and after only
+   draw them. Only a bench the trace worker can trace whole: nothing on it carries state from
+   one trace to the next (fibre networks, lasers, vapour cells); kept up to a few hundred
+   thousand rays' worth, dropped when the sweeps stop. */
+const traceStore = new Map();
+let traceStoreRays = 0, traceStoreHits = 0;
+const TRACE_STORE_RAYS = 400000;
+const traceStoreOn = () => !TEST_MODE && !IN_WORKER && typeof playing !== 'undefined' && playing.size > 0 && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
+function keepTrace(key, T, ms) {
+  const n = (T.rays || []).length + 1;
+  traceStore.set(key, { T, ms, n }); traceStoreRays += n;
+  while (traceStoreRays > TRACE_STORE_RAYS && traceStore.size > 1) { const [k, v] = traceStore.entries().next().value; traceStore.delete(k); traceStoreRays -= v.n; }
+}
+function dropTraceStore() { traceStore.clear(); traceStoreRays = 0; }
 /* light round loops through free space and the fibres: what the tips send out, carried from
    one pass of the trace to the next, and how many passes it has had */
 let tipCarry = null, tipPass = 0, traceDepth = 0;
@@ -9018,12 +9042,13 @@ function playAllNow() {
 }
 function pause(el, path) {
   playing.delete(sweepKey(el, path));
+  if (!playing.size) dropTraceStore();
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   if (!playing.size) return;
-  playing.clear();
+  playing.clear(); dropTraceStore();
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function syncPhases() {
@@ -12534,7 +12559,11 @@ const V3D = (() => {
   /* ---------- the scene, from the bench ---------- */
   function build() {
     const G = R.groups;
-    for (const g of [G.light, G.sel]) disposeAll(g);
+    disposeAll(G.sel);
+    // the light: kept with its trace while a sweep plays (see traceStore), else made anew
+    for (const o of [...G.light.children]) { G.light.remove(o); if (!o.userData.kept) disposeObj(o); }
+    const lc = R.lightCache || (R.lightCache = new Map());
+    if (!traceStoreOn() && lc.size) { for (const v of lc.values()) for (const o of v.objs) disposeObj(o); lc.clear(); }
     // the parts and their names are taken down but kept: one whose model is unchanged goes back up
     for (const g of [G.parts, G.names]) for (const o of [...g.children]) g.remove(o);
     const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
@@ -12571,7 +12600,20 @@ const V3D = (() => {
     if (G.parts.children.length) box.setFromObject(G.parts);
     R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
     board(box);
-    light(box, R.boardBox);
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, project.tab].join('|'), got = lc.get(lastTrace);
+    if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
+    else {
+      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(lastTrace); }
+      light(box, R.boardBox);
+      const objs = [...G.light.children];
+      if (traceStoreOn()) {
+        for (const o of objs) o.userData.kept = true;
+        lc.set(lastTrace, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
+        // only the traces still kept keep their light
+        const live = new Set([...traceStore.values()].map(c => c.T));
+        for (const [T2, v] of lc) if (T2 !== lastTrace && !live.has(T2)) { for (const o of v.objs) disposeObj(o); lc.delete(T2); }
+      }
+    }
     // the sun over the board, its shadow covering it
     const c = new T.Vector3(), s = new T.Vector3();
     (box.isEmpty() ? new T.Box3(new T.Vector3(-100, -100, 0), new T.Vector3(100, 100, 100)) : box).getCenter(c).z = 0;
@@ -14259,8 +14301,10 @@ function tick(t) {
     const el = getEl(p.id);
     const sw = el && el.sweeps && el.sweeps[p.path];
     if (!sw || getPath(el, p.path) === undefined) { playing.delete(k); continue; }
-    // a sweep with steps of its own, not rendered ahead: from one of its positions to the next
-    const st = !P && sw.steps ? sw.steps * sw.freq : 0;
+    // a sweep with steps of its own, not rendered ahead: from one of its positions to the next; a
+    // gliding one, where each step's trace is kept, on steps fine enough to look smooth (up to
+    // about 60 a second) so that each comes round again
+    const st = !P && sw.steps ? sw.steps * sw.freq : !P && traceStoreOn() ? clamp(Math.round(60 / sw.freq), 120, 600) * sw.freq : 0;
     setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
   }
   // traced before the panels look: a screen's field is found by the bench as traced, and a
@@ -24658,7 +24702,7 @@ function openProjectData(data, label) {
   try { loadProject(data); } catch (err) { project = prev; history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
   lastImport = notes;
-  playing.clear(); updateSweepButtons();
+  playing.clear(); dropTraceStore(); updateSweepButtons();
   selectOne(null); selFibreId = null; updateUndoButtons();
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
@@ -27566,7 +27610,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       list.forEach(([e, p], k) => setParam(e, p, saved[k])); traceScene();
       return found / n;
     },
-    traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n }; },
+    traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n, stored: traceStore.size, restored: traceStoreHits }; },
     serialize,
     benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
     // fibres: join two ports by element name and port number; what a fibre photodiode reads

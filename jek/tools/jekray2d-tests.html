@@ -5638,6 +5638,47 @@ const TESTS = [
           corner && corner.s.join() === '1,-1,1' && corner.cells === 3 && none === null ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
+  },
+  {
+    name: 'Separate lasers on one screen weigh in by their powers',
+    why: 'two lasers side by side, 1 mW and 4 mW, the same beams otherwise, landing 6 mm apart on one screen: the brighter spot holds 4 times the other\u2019s light on its map, the map is per unit power of the 4 mW laser (so the brighter spot reads 2/\u03c0w\u00b2 = 2.546 /mm\u00b2 for w = 0.5 mm), and 5 mW arrive in all, 1.25 of that unit (largest relative error)',
+    want: 0, tol: 0.02, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'A', name: 'A', x: -40, y: 3, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 0.5, z0: 0, rays: 1, width: 1, pol: 's' },
+        { type: 'source', id: 'B', name: 'B', x: -40, y: -3, angle: 0, wavelength: 633, power: 4, gauss: true, w0: 0.5, z0: 0, rays: 1, width: 1, pol: 's' },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 0, y: 0, angle: 180, length: 30 }] });
+      const D = J.diffraction('Sc'), M = D.map, n = M.n, h = (M.u1 - M.u0) / n;
+      // each spot's light on the map: the map runs along the screen, which faces back down the beams (+y is its -u)
+      const at = y => { let sum = 0; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const u = M.u0 + (i + 0.5) * h; if (Math.abs(Math.abs(u) - 3) < 2 && Math.sign(u) === y) sum += M.v[j * n + i]; } return sum; };
+      const a = at(1), b = at(-1), hi = Math.max(a, b), lo = Math.min(a, b);
+      return Math.max(Math.abs(hi / lo / 4 - 1), Math.abs(D.peak / (2 / Math.PI / 0.25) - 1), Math.abs(D.power / 1.25 - 1), D.laser && D.laser.name === 'B' ? 0 : 1);
+    },
+  },
+  {
+    name: 'In the 3D view, beams of one laser running together add as fields: in phase four times as bright, opposite nothing',
+    why: 'two launches split from one 1 mW laser along the same line, each alone 2P/\u03c0w\u00b2 = 0.2546 W/cm\u00b2 at w = 0.5 mm: in phase 1.019 W/cm\u00b2, at 90\u00b0 0.509, opposite in phase none (largest relative error, the last against the in-phase peak)',
+    want: 0, tol: 0.015, unit: '',
+    run: J => {
+      const one = ph => { J.load({ format: 'jekray', version: 1, light: { field: true }, elements: [
+        { type: 'source', id: 'A', name: 'A', x: -50, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 0.5, z0: 0, rays: 1, width: 1, pol: 's' },
+        { type: 'source', id: 'B', name: 'B', x: -50, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 0.5, z0: 0, rays: 1, width: 1, pol: 's', splitFrom: 'A', splitPhase: ph },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 50, y: 0, angle: 180, length: 30 }] }); return J.vol3d().peak; };
+      const I0 = 2e-3 / (Math.PI * 0.25) * 100, a = one(0), b = one(90), c = one(180);
+      return Math.max(Math.abs(a / (4 * I0) - 1), Math.abs(b / (2 * I0) - 1), c / a);
+    },
+  },
+  {
+    name: 'A balanced Mach\u2013Zehnder\u2019s dark port is dark in the 3D view',
+    why: 'the Mach\u2013Zehnder example: the light leaving the combiner for its dark output holds less than 1% of the irradiance of the light leaving for the bright one, as their fields cancel and add (the ratio)',
+    want: 0, tol: 0.01, unit: '',
+    run: J => {
+      const o = JSON.parse(getDemo('mach-zehnder')); o.light = { field: true };
+      J.load(o);
+      const v = J.vol3d(), T = J.lastTrace(), ends = id => v.segs.filter(s => (T.beams[s.i] || {}).endEl === id).reduce((m, s) => Math.max(m, s.peak), 0);
+      const p1 = ends(J.byName('Output 1').id), p2 = ends(J.byName('Output 2').id);
+      return p1 > 0 && p2 >= 0 ? Math.min(p1, p2) / Math.max(p1, p2) : NaN;
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

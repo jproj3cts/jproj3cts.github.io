@@ -34,7 +34,7 @@ The **Diffraction** tab shows the field that arrives from every Gaussian beam an
 - **Gaussian beams**, from the field engine;
 - **Ray fans**, taken as uniform pupils of their width and curvature.
 
-From the strongest arrival it gives the irradiance map, the point spread function, the MTF (quoted at a spatial frequency you set), enclosed energy, and the Strehl ratio. Strehl is the peak against the peak a perfect wave from the same amplitude at the last surface would reach, which makes defocus against the screen count.
+Light from separate lasers counts for each one's power: the map and figures are per unit power of the strongest arrival's laser, the others in proportion. From the strongest arrival it gives the irradiance map, the point spread function, the MTF (quoted at a spatial frequency you set), enclosed energy, and the Strehl ratio. Strehl is the peak against the peak a perfect wave from the same amplitude at the last surface would reach, which makes defocus against the screen count.
 
 Near a steep focus the vector focal field is used (**Vector focus**: auto, on or off), so a screen at the focus of a high-NA objective shows the field along the axis too (see [Free-space optics: steep foci](/jek/docs/jekray2d/free-space/#steep-foci)).
 

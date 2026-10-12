@@ -205,10 +205,11 @@
           <li>Nothing to install and no account needed; a two-minute guided tour and 40 examples to start from</li>
           <li>Exact rays through real glass, and diffracted Gaussian beams with interference and polarisation</li>
           <li>A 3D view: raise, tip and roll any part, and the light follows, periscopes and misaligned cavities included; bring in mounts and housings from CAD as STL files</li>
+          <li>The diffracted field in 3D, glowing along each beam in calibrated W/cm&sup2;, interference and all; point at it to read it</li>
           <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters, fibre subsystems and the electronics after the detector, across as many tabs as you like</li>
           <li>Cavities, lasers, photodiode signals, oscilloscopes, lock-ins and lock error signals</li>
           <li>Aberrations, pulses, broadband light, nonlinear optics, vapour cells and optical traps</li>
-          <li>Share benches as links or live embeds, import Thorlabs .zmx files, export pictures and data</li>
+          <li>Share benches as links or live embeds, import Thorlabs .zmx files, install part packs of others&rsquo; parts and glasses, export pictures and data</li>
           <li>With JEKrayPro, benches save to the cloud as you work, with their whole history, and fork like code, and your own parts wait in My parts; sign in with Google or Microsoft</li>
           <li>Design with an AI assistant using the <a href="/jek/tools/jekray2d-ai-guide.md" download>JEKray2D guide</a></li>
         </ul>
@@ -277,7 +278,7 @@
       <div>
         <h2>Waves, not just rays</h2>
         <p>The field of each beam is propagated through the system, and every surface acts on it with the phase found by the ray trace. Slits, irises, knife edges, beam blocks and masks, whose amplitude and delay you write as a formula, act on the field as well as on the rays.</p>
-        <p>Branches of the same beam add as fields wherever they meet, so double slits, interferometers and standing waves come out as they should. Zoom in below 50 µm to see the field computed on every pixel.</p>
+        <p>Branches of the same beam add as fields wherever they meet, so double slits, interferometers and standing waves come out as they should. Zoom in below 50 µm to see the field computed on every pixel. Every screen maps the irradiance arriving, its phase, and its polarisation point by point, with Stokes parameters, the PSF, MTF and enclosed energy; lasers of different powers each count for what they are.</p>
       </div>
     </section>
 
@@ -288,8 +289,20 @@
       </figure>
       <div>
         <h2>In three dimensions</h2>
-        <p>Switch any bench of free-space parts to 3D and see it on a breadboard, turned and zoomed as in a CAD program. Click a part for arrows to move it along x, y and up, and again for rings to turn, tip and roll it, each one the colour of its axis. Bring in mounts, posts and housings from CAD as STL files: they stop the light where it meets them, and save with the bench or to your own parts library. Hide any part in 3D to see past it, and the light still meets it.</p>
+        <p>Switch any bench of free-space parts to 3D and see it on a breadboard, turned and zoomed as in a CAD program, or from any face, edge or corner of the view cube. Click a part for arrows to move it along x, y and up, and again for rings to turn, tip and roll it, each one the colour of its axis. Bring in mounts, posts and housings from CAD as STL files: they stop the light where it meets them, and save with the bench or to your own parts library. Hide any part in 3D to see past it, and the light still meets it.</p>
         <p>The light follows exactly. Rays are traced through real surfaces met off-centre and at an angle, Gaussian beams through turned optics as general astigmatic beams with their higher-order modes, and the diffracted field through all of it. Periscopes turn the polarisation and the image as real ones do, a rolled Dove prism turns the image by twice its roll, and a cavity with a mirror tipped a few microradians walks its light round to its own axis, with the mode matching and alignment sensitivities to show for it.</p>
+      </div>
+    </section>
+
+    <section class="rt-feature">
+      <figure class="rt-shot">
+        <img src="img/field-3d.png" alt="A Mach–Zehnder interferometer in the 3D view, its beams glowing by their irradiance: the light leaving the combiner for one output is bright, for the other dark, with a key in W/cm² and the pointer reading 61.7 mW/cm²" loading="lazy">
+        <figcaption>A Mach–Zehnder in 3D: the field, its dark port, and a reading</figcaption>
+      </figure>
+      <div>
+        <h2>The diffracted field in 3D</h2>
+        <p>With the diffracted field shown, the 3D view draws every beam as a glowing volume coloured by its irradiance: a focus pinching to its waist, an iris&rsquo;s rings spreading behind it, a vortex&rsquo;s dark core, the lobes of a higher-order mode. It is a measurement, not a picture: the key is in W/cm&sup2; for the lasers&rsquo; own powers, linear or logarithmic over 30 or 60 dB, and pointing at the light reads the irradiance there and where it is.</p>
+        <p>Beams of one laser that run together add as fields, so an interferometer&rsquo;s dark port is dark in 3D as on its screen. The field is worked out off the page, across the computer&rsquo;s cores, and kept, so a sweep plays smoothly once it has been round.</p>
       </div>
     </section>
 

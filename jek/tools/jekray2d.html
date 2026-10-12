@@ -9338,11 +9338,11 @@ function swPool() {
   } catch (err) { SW.failed = true; swDrop(); return null; }
   return SW.pool;
 }
-function swAsk(W, proj, args) {
+function swAsk(W, proj, args, kind) {
   return new Promise((resolve, reject) => {
     const id = ++W.seq;
     W.jobs.set(id, { resolve, reject });
-    const msg = { id, kind: 'step', args };
+    const msg = { id, kind: kind || 'step', args };
     if (W.sent !== proj) { msg.proj = proj; W.sent = proj; }
     W.w.postMessage(msg);
   });
@@ -17190,7 +17190,7 @@ function diffractionSection(el) {
     }
     if (D.NA) rows2.push(['Numerical aperture', (+D.NA.toPrecision(4)) + ' (f/' + (+(1 / (2 * D.NA)).toPrecision(3)) + ')']);
     rows2.push(['Strehl ratio', D.strehl === null ? 'n/a' : String(+D.strehl.toPrecision(4))]);
-    rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
+    rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power' + (D.lasers > 1 && D.laser ? ' of ' + D.laser.name : '')]);
     rows2.push(['Power arriving', pctTxt(100 * D.power)]);
     if (D.interference !== null) rows2.push(['Interference', (+(100 * D.interference).toPrecision(4)) + '% of the incoherent sum']);
     if (D.visibility !== null) rows2.push(['Fringe visibility', String(+D.visibility.toPrecision(3))]);
@@ -17216,6 +17216,7 @@ function diffractionSection(el) {
     notes.push(two ? 'A 2D field, carrying its polarisation at every point: pairs of figures are in the bench plane, then out of it, and the MTF is from the line spread in each direction. S1 is the bench-plane polarisation against the out-of-plane, S2 the same at 45\u00b0, S3 the circular part, positive right-handed.'
       : 'A round field, so these are the full two-dimensional figures. Its polarisation is the same across the beam; choose \u201cAlways 2D\u201d on the source to follow polarisation point by point.');
     if (D.fan) notes.push('The source is a ray fan, taken as a uniform pupil.');
+    if (D.lasers > 1 && D.laser) notes.push('Light from ' + D.lasers + ' lasers arrives here, each weighed by its power: the map and figures are per unit power of ' + D.laser.name + ' (' + (+D.laser.mW.toPrecision(4)) + ' mW), the strongest here, the others in proportion to theirs.');
     if (D.arrivals > 1) notes.push(D.arrivals + ' beams arrive here. ' + (D.coherent
       ? 'Those from the same launch add as fields, with their phases, so the map shows their interference' + (D.launches > 1 ? '; separate launches (another source, wavelength or an unpolarised beam\u2019s other half) add as intensities' : '') + '. The profiles, Strehl ratio and MTF are for the strongest beam alone.'
       : 'They come from separate launches, so the map adds their intensities; the figures are for the strongest.'));
@@ -19942,7 +19943,7 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
   for (const L2 of launches.values()) {
     const parts = L2.map((h2, i) => {
       const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, P = pupils.get(h2);
-      return { h2, P, cz, c: L2.cs ? L2.cs[i] : 1 };
+      return { h2, P, cz, c: (L2.cs ? L2.cs[i] : 1) * (h2.lw || 1) };
     });
     for (let jv = 0; jv < MN; jv++) {
       const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
@@ -19974,7 +19975,7 @@ function vfApply(el, D, hits, launches, R, sYx, sYy, MNv) {
       const e0 = [0, 0, 0, 0, 0, 0];
       L2.forEach((h2, i) => {
         const P = pupils.get(h2); if (!P) return;
-        const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, s = u - h2.ly, e = vfAt(P, s * h2.p, v - (h2.lz || 0), b.len + s * cz), c = L2.cs ? L2.cs[i] : 1;
+        const b = h2.sg.b, cz = sYx * b.dx + sYy * b.dy, s = u - h2.ly, e = vfAt(P, s * h2.p, v - (h2.lz || 0), b.len + s * cz), c = (L2.cs ? L2.cs[i] : 1) * (h2.lw || 1);
         for (let m = 0; m < 6; m++) e0[m] += c * e[m];
       });
       I += e0.reduce((a, x) => a + x * x, 0);
@@ -21789,39 +21790,143 @@ function volDecimate(F) {
   return out;
 }
 function volLegBase(leg) { const p = Object.getPrototypeOf(leg); return p && Object.prototype.hasOwnProperty.call(p, 'cutC') ? p : leg; }
-function volData(segs, tab, bb) {
-  const out = [];
-  let peak = 0;
+/* A segment's field at a point of its own frame (px across in the bench plane, py up out of it,
+   pz along it), as [p re, p im, s re, s im]: as trapLegAt, cuts along the beam with the fast
+   phase taken off and put back, but a round field read from its own radial samples (with its
+   reference sphere) rather than summed from its Hankel series point by point */
+const volRadii = new WeakMap();
+function volFieldAt(L, px, py, pz) {
+  if (L.two) return trapLegAt(L, px, py, pz);
+  const acc = [0, 0, 0, 0], u = pz / L.H, i0 = Math.floor(u) - 1, r = Math.hypot(px, py), J = L.J, k = L.k;
+  for (let j = 0; j < 4; j++) {
+    const ij = i0 + j, tj = ij * L.H;
+    let l = 1;
+    for (let m = 0; m < 4; m++) if (m !== j) l *= (u - (i0 + m)) / (j - m);
+    const G = trapLegCut(L, ij);
+    let x = volRadii.get(G); if (!x) { x = popRadii(qdht(G.re.length), G.R); volRadii.set(G, x); }
+    const n = x.length;
+    let vr = 0, vi = 0;
+    if (r <= x[0]) { vr = G.re[0]; vi = G.im[0]; }
+    else if (r < x[n - 1]) {
+      let lo = 0, hi = n - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (x[m] <= r) lo = m; else hi = m; }
+      const f = (r - x[lo]) / (x[hi] - x[lo]);
+      vr = G.re[lo] + (G.re[hi] - G.re[lo]) * f; vi = G.im[lo] + (G.im[hi] - G.im[lo]) * f;
+    }
+    const bph = (G.sphere ? -k / (2 * G.z) : 0) * r * r, cb = Math.cos(bph), sb = Math.sin(bph), v0 = vr * cb - vi * sb, v1 = vr * sb + vi * cb;
+    const s = [v0 * J[0] - v1 * J[1], v0 * J[1] + v1 * J[0]], p = [v0 * J[2] - v1 * J[3], v0 * J[3] + v1 * J[2]];
+    const ph = k * tj, c = Math.cos(ph), sn = Math.sin(ph);
+    acc[0] += l * (p[0] * c - p[1] * sn); acc[1] += l * (p[0] * sn + p[1] * c);
+    acc[2] += l * (s[0] * c - s[1] * sn); acc[3] += l * (s[0] * sn + s[1] * c);
+  }
+  const ph = -k * pz, c = Math.cos(ph), sn = Math.sin(ph);
+  return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c];
+}
+/* the share of its laser's power a segment's field is per unit of, in W */
+const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.root || 1);
+/* Beams of one launch that run the same way through the same space interfere, and fringes
+   across them are on a scale the 3D view can show: each such segment's mates, the others of its
+   launch on the bench plane running within 6 degrees of it, side by side within a few beam
+   widths, over a stretch of its length. (Beams crossing at an angle or running opposite ways
+   make fringes far finer than the view; they add as intensities.) */
+function volPartners(segs, tab) {
+  const flat = sg => { const b = sg.b; return b && (!tab || b.bench === tab) && b.len > 0 && !(b.len3 > 0 && Math.abs(b.len3 - b.len) > 1e-9) && !(b.d3 && Math.abs(b.d3[2]) > 1e-9); };
+  const byL = new Map();
+  for (const sg of segs) if (flat(sg)) { if (!byL.has(sg.coh)) byL.set(sg.coh, []); byL.get(sg.coh).push(sg); }
+  const out = new Map(), wAt = (sg, t) => { try { return volLegBase(sg.leg).cutC(clamp(t, 0, sg.b.len)).w || 0; } catch (err) { return 0; } };
+  for (const L of byL.values()) for (const a of L) for (const c of L) {
+    if (a === c) continue;
+    const A = a.b, C = c.b;
+    if (A.dx * C.dx + A.dy * C.dy < Math.cos(6 * deg) || Math.abs((A.z0 ?? BEAM_Z) - (C.z0 ?? BEAM_Z)) > 1e-6) continue;
+    // where c runs alongside a: its ends on a's axis
+    const t0 = (C.x0 - A.x0) * A.dx + (C.y0 - A.y0) * A.dy, t1 = t0 + C.len * (C.dx * A.dx + C.dy * A.dy), lo = Math.max(0, Math.min(t0, t1)), hi = Math.min(A.len, Math.max(t0, t1));
+    if (!(hi > lo)) continue;
+    const tm = 0.5 * (lo + hi), xm = (C.x0 + C.dx * (tm - t0) - (A.x0 + A.dx * tm)) * -A.dy + (C.y0 + C.dy * (tm - t0) - (A.y0 + A.dy * tm)) * A.dx;
+    if (Math.abs(xm) > 3 * (wAt(a, tm) + wAt(c, tm - t0)) + 1e-9) continue;
+    if (!out.has(a)) out.set(a, []);
+    out.get(a).push(c);
+  }
+  return out;
+}
+/* where a segment's volume is cut across it: its direction, height, and the distances along it,
+   or null for none (no length, or off the board) */
+function volCuts(sg, bb, two) {
+  const b = sg.b, L3 = b.len3 || b.len;
+  if (!(L3 > 0)) return null;
+  const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]), e = d.map(v => v / dl);
+  const z0 = b.z0 !== undefined ? b.z0 : BEAM_Z;
+  // cut to the board (light off the table goes on, on the 2D bench), and to 2 m at most
+  let ta = 0, tb = Math.min(L3, 2000);
+  if (bb) for (const [p, q] of [[-e[0], b.x0 - bb[0]], [e[0], bb[2] - b.x0], [-e[1], b.y0 - bb[1]], [e[1], bb[3] - b.y0]]) {
+    if (Math.abs(p) < 1e-12) { if (q < 0) tb = -1; continue; }
+    const r = q / p;
+    if (p < 0) ta = Math.max(ta, r); else tb = Math.min(tb, r);
+  }
+  if (!(tb > ta)) return null;
+  const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {};
+  const A = two ? (F0.ax && F0.ay && F0.ax.zR <= F0.ay.zR ? F0.ax : F0.ay) : F0;
+  const zR = A && A.zR > 0 ? A.zR : (tb - ta), tw = A && isFinite(A.z) ? -A.z : (ta + tb) / 2;
+  // where to cut: dense through the waist (three to each unit of asinh), and every 10 mm along
+  // (20 mm for a 2D map, each of which is a whole propagation)
+  const ua = Math.asinh((ta - tw) / zR), ub = Math.asinh((tb - tw) / zR), set = new Set();
+  const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (two ? 20 : 10)), 1, 12);
+  for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
+  for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
+  return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y)) };
+}
+/* Each segment's volume, of those on the tab (only: the segments, by index, to work out, or a
+   Map of them to the ranges of their cuts, [[j0, j1], ...], a share of a pooled job: the rest of
+   their cuts are left empty, for volStitch to fill from the other shares) */
+function volData(segs, tab, bb, only) {
+  const out = [], mates = volPartners(segs, tab);
   for (const sg of segs) {
     const b = sg.b;
-    if (!b || (tab && b.bench !== tab)) continue;
-    const L3 = b.len3 || b.len;
-    if (!(L3 > 0)) continue;
-    const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]), e = d.map(v => v / dl);
-    const z0 = b.z0 !== undefined ? b.z0 : BEAM_Z;
-    // cut to the board (light off the table goes on, on the 2D bench), and to 2 m at most
-    let ta = 0, tb = Math.min(L3, 2000);
-    if (bb) for (const [p, q] of [[-e[0], b.x0 - bb[0]], [e[0], bb[2] - b.x0], [-e[1], b.y0 - bb[1]], [e[1], bb[3] - b.y0]]) {
-      if (Math.abs(p) < 1e-12) { if (q < 0) tb = -1; continue; }
-      const r = q / p;
-      if (p < 0) ta = Math.max(ta, r); else tb = Math.min(tb, r);
-    }
-    if (!(tb > ta)) continue;
-    const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {}, two = sg.eng === '2d', Fd = two ? volDecimate(leg.field || F0) : null;
-    const A = two ? (F0.ax && F0.ay && F0.ax.zR <= F0.ay.zR ? F0.ax : F0.ay) : F0;
-    const zR = A && A.zR > 0 ? A.zR : (tb - ta), tw = A && isFinite(A.z) ? -A.z : (ta + tb) / 2;
-    // where to cut: dense through the waist (three to each unit of asinh), and every 10 mm along
-    // (20 mm for a 2D map, each of which is a whole propagation)
-    const ua = Math.asinh((ta - tw) / zR), ub = Math.asinh((tb - tw) / zR), set = new Set();
-    const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (two ? 20 : 10)), 1, 12);
-    for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
-    for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
-    const ts = Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y));
+    if (!b || (tab && b.bench !== tab) || (only && !only.has(sg.i))) continue;
+    const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {}, cohs = mates.get(sg) || [], coh = cohs.length > 0;
+    // a segment whose light interferes with its mates' is a map of their fields added, whatever its engine
+    const two = sg.eng === '2d' || coh, Fd = sg.eng === '2d' && !coh ? volDecimate(leg.field || F0) : null;
+    const C = volCuts(sg, bb, two);
+    if (!C) continue;
+    const { e, z0, ts } = C, ranges = only instanceof Map ? only.get(sg.i) : null;
     // the launch's share of its laser (half each for an unpolarised one's two halves)
-    const Pw = Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.root || 1), M = two ? VOL_M2 : VOL_M;
+    const Pw = volPw(sg), M = two ? VOL_M2 : VOL_M;
     const I = new Float32Array(ts.length * (two ? M * M : M)), rmax = new Float32Array(ts.length);
     let pk = 0;
+    // the fields of a segment and its mates at a point on the bench (x, y) at height z0 + v
+    const members = coh ? [sg, ...cohs].map(m => ({ m, L: trapLegPart(m, [m.b.x0, m.b.y0]), a: Math.sqrt(volPw(m)) })) : null;
+    const nX = -b.dy, nY = b.dx;
     ts.forEach((t, j) => {
+      if (ranges && !ranges.some(([j0, j1]) => j >= j0 && j < j1)) return;
+      if (coh) {
+        // reach: each member's few widths about its axis, as seen from this one's
+        let R = 0;
+        for (const { m } of members) {
+          const tm = (b.x0 + b.dx * t - m.b.x0) * m.b.dx + (b.y0 + b.dy * t - m.b.y0) * m.b.dy;
+          if (tm < 0 || tm > m.b.len) continue;
+          const off = (m.b.x0 + m.b.dx * tm - b.x0 - b.dx * t) * nX + (m.b.y0 + m.b.dy * tm - b.y0 - b.dy * t) * nY;
+          let w = 0; try { w = volLegBase(m.leg).cutC(tm).w || 0; } catch (err) { /* none */ }
+          R = Math.max(R, Math.abs(off) + 3.2 * w);
+        }
+        R = Math.max(R, 1e-6); rmax[j] = R;
+        const X = b.x0 + b.dx * t, Y = b.y0 + b.dy * t;
+        for (let q = 0; q < M; q++) for (let p2 = 0; p2 < M; p2++) {
+          const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
+          const acc = [0, 0, 0, 0];
+          for (const { m, L, a } of members) {
+            const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
+            // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
+            // or starts where this one ends, the light has passed from one to the other (and would be counted
+            // twice). A segment's own, all of it
+            if (m !== sg && (pz0 < -1e-3 || pz0 > m.b.len + 1e-3 || (pz0 > m.b.len - 1e-3 && t < b.len - 1e-3) || (pz0 < 1e-3 && t > 1e-3))) continue;
+            const pz = clamp(pz0, 0, m.b.len);
+            const f = volFieldAt(L, -rx * m.b.dy + ry * m.b.dx, v, pz);
+            for (let c = 0; c < 4; c++) acc[c] += a * f[c];
+          }
+          const val = acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
+          I[(j * M + q) * M + p2] = val; if (val > pk) pk = val;
+        }
+        return;
+      }
       if (!two) {
         const c = leg.cutC(t), x = c.x, n = x.length;
         let top = 0; for (let i = 0; i < n; i++) top = Math.max(top, c.re[i] ** 2 + c.im[i] ** 2);
@@ -21856,19 +21961,65 @@ function volData(segs, tab, bb) {
         val *= Pw; I[(j * M + q) * M + p] = val; if (val > pk) pk = val;
       }
     });
-    if (!(pk > 0)) continue;
-    peak = Math.max(peak, pk);
+    if (!(pk > 0) && !ranges) continue;          // (a share's dark cuts still go back, to be stitched)
     const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
-    const v = { i: sg.i, two, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n };
-    // light running the same way along the same line, cut the same (an unpolarised beam's halves): one volume, added
-    const k = [two, M, ...v.o, ...e, ...ts, ...rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join();
-    const same = out.find(w => w.k === k);
-    if (same) { let m = 0; for (let q = 0; q < I.length; q++) { same.I[q] += I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, same.peak); continue; }
-    v.k = k;
-    out.push(v);
+    out.push({ i: sg.i, two, coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
   }
-  for (const v of out) delete v.k;
+  return ranges0(only) ? { segs: out, peak: 0 } : volMerge(out);
+}
+const ranges0 = only => only instanceof Map;
+/* a pooled job's shares put back together: each segment's cuts from whichever share worked them out */
+function volStitch(list) {
+  const by = new Map(), out = [];
+  for (const v of list) {
+    if (!v.ranges) { out.push(v); continue; }
+    const w = by.get(v.i);
+    if (!w) { by.set(v.i, v); out.push(v); continue; }
+    const per = v.two ? v.M * v.M : v.M;
+    for (const [j0, j1] of v.ranges) {
+      for (let j = j0; j < j1; j++) w.rmax[j] = v.rmax[j];
+      w.I.set(v.I.subarray(j0 * per, j1 * per), j0 * per);
+    }
+    w.peak = Math.max(w.peak, v.peak);
+  }
+  for (const v of out) delete v.ranges;
+  return out;
+}
+/* Volumes of light running the same way along the same line, cut the same: an unpolarised beam's
+   halves, added as the separate light they are; mates holding the same summed field, kept once */
+function volMerge(list) {
+  const out = [], byK = new Map();
+  let peak = 0;
+  for (const v of list) {
+    if (!(v.peak > 0)) continue;
+    const k = [v.two, v.M, ...v.o, ...v.e, ...v.ts, ...v.rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join(), same = byK.get(k);
+    if (same && v.coh) continue;
+    if (same) { let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m); continue; }
+    byK.set(k, v); out.push(v); peak = Math.max(peak, v.peak);
+  }
   return { segs: out, peak };
+}
+/* the segments of a tab shared among n workers, the heaviest first to whichever has least so far:
+   a map (a 2D field, or light that interferes) counts twenty round profiles */
+function volShare(segs, tab, n, bb) {
+  const mates = volPartners(segs, tab), load = new Array(n).fill(0), parts = Array.from({ length: n }, () => new Map());
+  // a segment's cuts, in runs: a heavy one (its cuts maps) split so no share waits on it alone
+  const chunks = [];
+  for (const sg of segs) {
+    if (!sg.b || (tab && sg.b.bench !== tab)) continue;
+    const two = sg.eng === '2d' || mates.has(sg), C = volCuts(sg, bb, two);
+    if (!C) continue;
+    const nc = C.ts.length, per = two ? 20 : 1, k = two ? Math.min(n, nc) : 1, step = Math.ceil(nc / k);
+    for (let j0 = 0; j0 < nc; j0 += step) chunks.push({ i: sg.i, r: [j0, Math.min(nc, j0 + step)], c: per * (Math.min(nc, j0 + step) - j0) });
+  }
+  chunks.sort((a, b) => b.c - a.c || a.i - b.i || a.r[0] - b.r[0]);
+  for (const q of chunks) {
+    let k = 0; for (let j = 1; j < n; j++) if (load[j] < load[k]) k = j;
+    load[k] += q.c;
+    if (!parts[k].has(q.i)) parts[k].set(q.i, []);
+    parts[k].get(q.i).push(q.r);
+  }
+  return parts;
 }
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
@@ -21884,6 +22035,38 @@ function volLater(bb) {
     while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
     return d;
   };
+  // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
+  const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
+  const pool = heavyVol && !sweepJob ? swPool() : null;
+  if (pool && pool.length > 1 && fieldWorker()) {
+    if (VOL.job !== key) {
+      VOL.job = key;
+      const proj = fwProject(), n = pool.length, tab = project.tab, beams = lastTrace.beams; 
+      // the bench's field run once (the page may have it already), then each worker carries on its share
+      // (the render workers load the bench meanwhile)
+      for (const W of pool) swAsk(W, proj, {}, 'warm').catch(() => {});
+      const run = popState.key === pk && popState.result ? Promise.resolve(popState.result.segs)
+        : fwRequest('run', 'vol-run').then(o => o && o.key === pk ? fwUnpackRun(o.R, beams).segs : null);
+      run.then(segs => {
+        if (!segs) return [null];
+        const shares = volShare(segs, tab, n, bb), mates = volPartners(segs, tab);
+        const pack = sg => ({ i: sg.i, eng: sg.eng, F0: sg.F0, src: sg.src.id, root: sg.root, boost: sg.boost, coh: sg.coh });
+        return Promise.all(shares.map((share, part) => {
+          if (!share.size) return { segs: [] };
+          const need = new Set(share.keys());
+          for (const sg of segs) if (share.has(sg.i)) for (const m of mates.get(sg) || []) need.add(m.i);
+          return swAsk(pool[part], proj, { key: pk, tab, bb, only: [...share.entries()], segs: segs.filter(sg => need.has(sg.i)).map(pack) }, 'volpart');
+        }));
+      }).then(outs => {
+        if (VOL.job === key) VOL.job = null;
+        swRelease();
+        if (outs.some(o => !o || o.mismatch)) { VOL.rev++; requestRender(); return; }
+        keep(volMerge(volStitch(outs.flatMap(o => o.segs))));
+        requestRender();
+      }).catch(err => { console.warn('JEKray2D 3D field workers:', err && err.message); if (VOL.job === key) VOL.job = null; SW.failed = true; swDrop(); VOL.rev++; requestRender(); });
+    }
+    return { data: null, busy: true };
+  }
   if (fieldWorker()) {
     if (VOL.job !== key) {
       VOL.job = key;
@@ -22715,7 +22898,11 @@ function popDiffraction(el, R) {
     const p = sYx * -sg.b.dy + sYy * sg.b.dx;           // cosine of the tilt, signed by the in-plane axis
     return Object.assign({ sg, G, st, ly, p }, arrival3(el, sg.b));
   });
-  const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) > x.st.power * segW(x.sg) ? y : x);
+  // each arrival's laser power (mW): separate lasers weigh in by it, against the strongest arrival's
+  for (const h2 of hits) h2.Pl = Math.max(0, splitRoot(h2.sg.src).power || 0);
+  const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) * (y.Pl || 1) > x.st.power * segW(x.sg) * (x.Pl || 1) ? y : x);
+  // so the map stays per unit of the strongest arrival's laser power, the others scaled to it
+  for (const h2 of hits) h2.lw = dom.Pl > 0 ? Math.sqrt(h2.Pl / dom.Pl) : 1;
   const { sg, G, st } = dom;
   const lam = G.lam0 / G.n, len = sg.b.len3 || sg.b.len;
   // the other modes of the dominant arrival's beam, when its M^2 is above 1
@@ -22991,7 +23178,7 @@ function popDiffraction(el, R) {
   const stokes = [0, 0, 0, 0];
   const domL = [...vLaunches.values()].find(L2 => L2.includes(dom));
   for (const L2 of vLaunches.values()) {
-    const parts = L2.map((h2, i) => ({ f: fieldAt(h2), c: L2.cs ? L2.cs[i] : 1 }));
+    const parts = L2.map((h2, i) => ({ f: fieldAt(h2), c: (L2.cs ? L2.cs[i] : 1) * h2.lw }));
     for (let jv = 0; jv < MN; jv++) {
       const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
       for (let iu = 0; iu < MN; iu++) {
@@ -23029,12 +23216,13 @@ function popDiffraction(el, R) {
   const tilt = Math.acos(Math.min(1, Math.abs(dom.p))) / deg;
   // power arriving: each arrival's field power times its Jones power; where they
   // interfere, scaled by what the fields added up to on the map
-  const powerInc = hits.reduce((s, h2) => s + h2.st.power * segW(h2.sg) / h2.sg.repr, 0);
+  const powerInc = hits.reduce((s, h2) => s + h2.st.power * segW(h2.sg) * h2.lw * h2.lw / h2.sg.repr, 0);
   const power = interference === null ? powerInc : powerInc * interference;
   const Dout = {
     symmetric: sg.eng !== '2d', engine: sg.eng, NA, nm: sg.b.nm, airy, cutoff,
     strehl: Iideal > 0 && !sibs.length ? peak * calib / Iideal : null, peak: peak * segW(sg), power, powerInc, interference, visibility, fine,
     coherent, wx, wy, arrivals: hits.length, launches: launches.size, tilt,
+    laser: dom.sg.src ? { name: splitRoot(dom.sg.src).name, mW: dom.Pl } : null, lasers: new Set(hits.map(h2 => splitRoot(h2.sg.src).id)).size,
     stokes: stokes[0] > 0 ? stokes.map(v => v / stokes[0]) : null,
     dop: stokes[0] > 0 ? Math.hypot(stokes[1], stokes[2], stokes[3]) / stokes[0] : null,
     curved: !!el.R, steep: [...R.notes.steep], coarse: [...R.notes.coarse], clipped: [...R.notes.clipped], fan: !!sg.b.fan,
@@ -27408,6 +27596,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'In the 3D view, beams of one laser running together now add as <b>fields</b>: an interferometer\u2019s dark port is dark there, as on its screen. The 3D field is worked out on several of the computer\u2019s cores at once. A screen with light from several lasers weighs each by its power.',
     'The 3D view\u2019s <b>view cube</b> shades the face, edge or corner under the pointer, so it is clear which way a click will look from; its bar keeps just Fly (a bird), Fit, Names, the mouse and PNG (the views are on the cube, and on Shift+1 to 7). The Draw palette steps aside in 3D, drawings being 2D only. Flying, Q and E roll the view (Space and Ctrl rise and fall), and the mouse turns it about its own axes; landing levels it.',
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',
     '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
@@ -28482,10 +28671,31 @@ function workerMain() {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
         if (key === args.key) { out = closeupImage(bench.R.segs, args.view, args.step, args.log); transfer.push(out.img.data.buffer); }
-        else out = { mismatch: true };      } else if (kind === 'vol3d') {
+        else out = { mismatch: true };      } else if (kind === 'run') {
+        // the bench's field run, without the bench's drawing of it (for the 3D view's render workers)
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
-        if (key === args.key) { out = volData(bench.R.segs, args.tab, args.bb); for (const v of out.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer); }
+        out = { key, R: fwPackRun(bench.R, transfer) };
+      } else if (kind === 'warm') {
+        out = true;                                      // the bench loaded and traced: ready for its share
+      } else if (kind === 'volpart') {
+        // a render worker's share of the 3D field: the segments' starting fields as the field worker
+        // worked them out, carried on from there, here
+        const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+        if (key !== args.key) out = { mismatch: true };
+        else {
+          const segs = args.segs.map(q => { const b = lastTrace.beams[q.i]; return Object.assign({}, q, { b, src: getEl(q.src), leg: legAlong(q.eng === '2d' ? popLeg2(q.F0) : popLeg(q.F0), b) }); });
+          out = volData(segs, args.tab, args.bb, new Map(args.only));
+          for (const v of out.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
+        }
+      } else if (kind === 'vol3d') {
+        const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
+        if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
+        if (key === args.key) {
+          // one share of a pooled job, or all of it
+          out = volData(bench.R.segs, args.tab, args.bb, null);
+          for (const v of out.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
+        }
         else out = { mismatch: true };
       }
       self.postMessage({ id, ok: true, out, cav: fwPackCavities(before) }, transfer);
@@ -28531,8 +28741,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
-    vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const V = volData(popRun(lastTrace.beams, srcs, {}).segs, project.tab, null);
-      return { peak: V.peak * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
+    vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
+      return { peak: V.peak * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },

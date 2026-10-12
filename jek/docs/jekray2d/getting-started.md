@@ -75,7 +75,7 @@ Every number in a panel can be typed or dragged. Beside most is **Sweep**: it mo
 
 How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): three ticks for the rays, the Gaussian beams' envelope and their diffracted field, each on or off. The field's **Field intensity** is linear, or logarithmic over 30 dB or 60 dB. With both on, the envelope marks the field's 1/e² edge.
 
-In the 3D view the diffracted field glows along each beam as a volume, coloured by its irradiance: each point on the picture shows the brightest irradiance along that line of sight, against a key in W/cm² at the bottom left. Point at the light to read the irradiance there and where it is. A tight focus is far brighter than the beam that makes it, so choose 60 dB to see both; on a slow computer or a phone, untick the field to leave the beams as outlines.
+In the 3D view the diffracted field glows along each beam as a volume, coloured by its irradiance: each point on the picture shows the brightest irradiance along that line of sight, against a key in W/cm² at the bottom left. Point at the light to read the irradiance there and where it is. Beams of one laser running together add as fields, so an interferometer's dark port is dark here too; beams crossing at an angle or running opposite ways add as intensities, their fringes being far finer than the view. A tight focus is far brighter than the beam that makes it, so choose 60 dB to see both; on a slow computer or a phone, untick the field to leave the beams as outlines.
 
 ## Saving and sharing
 

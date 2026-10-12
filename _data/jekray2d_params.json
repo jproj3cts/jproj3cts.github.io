@@ -9,7 +9,7 @@
     {
      "k": "wavelength",
      "def": "633",
-     "meaning": "nm, 100 to 20000."
+     "meaning": "nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw)."
     },
     {
      "k": "width",

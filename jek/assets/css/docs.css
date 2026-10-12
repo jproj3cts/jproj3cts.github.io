@@ -18,6 +18,7 @@
 .dx-cat-fibre { --dx-accent: var(--jek-red); }
 .dx-cat-elec { --dx-accent: #c08a12; }
 .dx-cat-pic { --dx-accent: #3a9d5d; }
+.dx-cat-rf { --dx-accent: #b08d00; }
 
 /* ---------- contents ---------- */
 .dx-nav {
@@ -65,6 +66,7 @@
 .dx-tree li.dx-cat-fibre { --dx-accent: var(--jek-red); }
 .dx-tree li.dx-cat-elec { --dx-accent: #c08a12; }
 .dx-tree li.dx-cat-pic { --dx-accent: #3a9d5d; }
+.dx-tree li.dx-cat-rf { --dx-accent: #b08d00; }
 .dx-tree li[class*="dx-cat-"] > a::before {
   content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.45rem; background: var(--dx-accent); vertical-align: 0.05rem;
 }

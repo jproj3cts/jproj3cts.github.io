@@ -104,6 +104,7 @@ Signs:
 - **Frequency doubling:** a Gaussian laser focused into an "nlc" (a periodically poled crystal: "material" "ppln" or "ppktp", "nlLen" mm, "temp" °C, "axis" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave "period" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass "filter". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.
 - **Self-phase modulation and solitons:** a pulsed fibre laser ("tau", "rep", "power") into fibre long and strong enough for a nonlinear phase (standard fibre has "gamma" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
+- **Millimetre waves (RF):** a feed horn is a source with "mmw": {"kind": "corrugated" (or "smooth", "diagonal", "gauss"), "ghz": frequency, 1 to 3000, "dbm": power, "a": aperture radius mm, "L": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with "mmw": {"kind", "a", "L"}, "material": "custom" and "resp" in A/W; it reads the power its mode takes in. Lenses take the RF dielectrics as their glass: "HDPE", "PTFE", "Rexolite", "TPX", "HR silicon", "Fused quartz (RF)", "Alumina", "Nylon". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them "mmw": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
 ## Checklist
@@ -139,7 +140,7 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 
 | field | default | meaning |
 |---|---|---|
-| wavelength | `633` | nm, 100 to 20000. |
+| wavelength | `633` | nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw). |
 | width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
 | divergence | `0` | degrees, full angle of the fan; negative converges. |
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |

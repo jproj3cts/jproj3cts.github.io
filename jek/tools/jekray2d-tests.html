@@ -149,6 +149,13 @@ const bk7Lens = o => Object.assign({
   surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }],
 }, o);
 
+/* Two corrugated horns at 100 GHz facing each other D apart, parts between */
+const rfBench = (D, between, o = {}) => bench('rf', [
+  { type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: o.rays || 3, mmw: { kind: 'corrugated', ghz: 100, dbm: 0, a: 7.5, L: 60 } },
+  ...between,
+  { type: 'detector', name: 'Rx', x: D, y: 0, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: 7.5, L: 60 } },
+], { minPower: 1e-6 });
+
 /* A one-surface-pair window, used for the Fresnel checks */
 const windowBlock = (angle, coat) => ({
   type: 'prism', name: 'Window', shape: 'window', x: 0, y: 0, angle,
@@ -5736,6 +5743,51 @@ const TESTS = [
           P.glasses.length === 1 && P.glasses[0].glass === 'MYGLASS' && !chk.error && !chk.notes.length && placed.elements.length === 2 && placed.fibres.length === 1 ? 1 : 0;
       } finally { await J.packRemove(id); }
     },
+  },  { group: 'RF: millimetre-wave quasi-optics' },
+  {
+    name: 'A corrugated horn launches the Gaussian that fits its aperture',
+    why: 'a corrugated horn at 100 GHz, aperture radius 7.5 mm, slant length 60 mm: wa = 0.6435 a, and with x = pi wa^2 / (lambda L), the waist w0 = wa / sqrt(1 + x^2) (Goldsmith 7.6), in mm',
+    wantFrom: () => { const wa = 0.6435 * 7.5, lam = 299792458 / 100 * 1e-6, x = Math.PI * wa * wa / (lam * 60); return wa / Math.sqrt(1 + x * x); },
+    tol: 1e-9, unit: 'mm',
+    run: J => { J.load(rfBench(30, [])); return J.byName('Horn').w0; },
+  },
+  {
+    name: '… with its waist behind the aperture, at L / (1 + 1/x^2)',
+    why: 'the same horn: the waist sits dz = L / (1 + 1/x^2) behind the aperture, so the source’s waist distance is −dz, in mm',
+    wantFrom: () => { const wa = 0.6435 * 7.5, lam = 299792458 / 100 * 1e-6, x = Math.PI * wa * wa / (lam * 60); return -60 / (1 + 1 / (x * x)); },
+    tol: 1e-9, unit: 'mm',
+    run: J => { J.load(rfBench(30, [])); return J.byName('Horn').z0; },
+  },
+  {
+    name: 'Two horns face to face couple as their Gaussians overlap',
+    why: 'identical corrugated horns 40 mm apart: their waists are D + 2 dz apart, so the overlap is 1 / (1 + (D + 2 dz)^2 / (4 zR^2)), times each horn’s Gaussian share (0.98 each); received over sent at 0 dBm, from the receiver’s aperture field',
+    wantFrom: () => { const wa = 0.6435 * 7.5, lam = 299792458 / 100 * 1e-6, x = Math.PI * wa * wa / (lam * 60), w0 = wa / Math.sqrt(1 + x * x), dz = 60 / (1 + 1 / (x * x)), zR = Math.PI * w0 * w0 / lam, d = 40 + 2 * dz;
+      return 0.98 * 0.98 / (1 + d * d / (4 * zR * zR)); },
+    rel: true, tol: 0.003, unit: '',
+    run: J => { J.load(rfBench(40, [])); return J.detector('Rx').mw; },
+  },
+  {
+    name: 'A plano-convex HDPE lens has f = R / (n − 1)',
+    why: 'R = 78.9 mm in HDPE (n = 1.526), 22 mm thick, the flat face towards the focus: the system’s focal length (the rear principal plane is on the curved face, so the thickness does not change it), in mm',
+    wantFrom: () => 78.9 / 0.526, rel: true, tol: 0.002, unit: 'mm',
+    run: J => { J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: {} }], { rays: 11 })); return J.system().efl; },
+  },
+  {
+    name: 'A dielectric slab absorbs as its loss tangent says',
+    why: 'a 30 mm slab of nylon (n = 1.73, tan δ = 0.011, faces with no reflection) between the horns at 100 GHz: the power arriving falls by exp(−2π n tan δ t / λ)',
+    wantFrom: () => Math.exp(-2 * Math.PI * 1.73 * 0.011 * 30 / (299792458 / 100 * 1e-6)),
+    rel: true, tol: 1e-4, unit: '',
+    run: J => {
+      J.load(rfBench(120, [])); const a = J.detector('Rx').rf.inMw;
+      J.load(rfBench(120, [{ type: 'lens', name: 'Slab', x: 60, y: 0, diameter: 100, surfaces: [{ R: null, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }], gaps: [30], materials: [{ glass: 'Nylon' }], mmw: {} }]));
+      return J.detector('Rx').rf.inMw / a;
+    },
+  },
+  {
+    name: 'An optical source stops at 1 mm; past that is the RF tab’s',
+    why: 'a source set to 5 mm in a saved bench opens at 1 mm (1e6 nm), and one set to 50 nm at 100 nm, in nm summed',
+    want: 1e6 + 100, tol: 0, unit: 'nm',
+    run: J => { J.load(bench('lim', [src({ name: 'A', wavelength: 5e6 }), src({ name: 'B', y: 10, wavelength: 50 })])); return J.byName('A').wavelength + J.byName('B').wavelength; },
   },  { group: 'Heights' },
   {
     name: 'Light crossing a vapour cell at an angle, turned or tipped, goes further through the vapour',

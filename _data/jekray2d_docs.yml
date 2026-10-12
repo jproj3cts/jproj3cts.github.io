@@ -178,6 +178,9 @@
       url: /jek/docs/jekray2d/chips/phase-shifter/
     - title: On-chip photodiode
       url: /jek/docs/jekray2d/chips/photodiode/
+- title: RF and millimetre waves
+  url: /jek/docs/jekray2d/rf/
+  cat: rf
 - title: Part packs
   url: /jek/docs/jekray2d/part-packs/
 - title: FAQ

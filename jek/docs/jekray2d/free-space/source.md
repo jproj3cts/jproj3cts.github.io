@@ -65,7 +65,7 @@ A source is s (out of the plane), p (in it), linear at an angle from p, or unpol
 
 ### Wavelengths
 
-A source has a main wavelength and up to 12 more. Each wavelength is traced on its own, and wavelengths add as powers. A source's colour on the bench follows its wavelength, unless you set one.
+A source has a main wavelength and up to 12 more, each between 100 nm and 1 mm. Longer waves are the [RF tab](/jek/docs/jekray2d/rf/)'s: its feed horns go from 1 GHz (30 cm) to 3 THz. Each wavelength is traced on its own, and wavelengths add as powers. A source's colour on the bench follows its wavelength, unless you set one.
 
 ### Coherence
 

@@ -1,0 +1,15 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Millimetre-wave link, 150 GHz",
+  "notes": "A corrugated feed horn at 150 GHz (2 mm) sends a Gaussian beam through an HDPE lens, which collimates it, round a flat mirror, and into a second lens that focuses it into a receiving horn. The lenses are 150 mm focal length, set so the beam's waist in the second horn is the image of the one in the first. Select the receiver for the power it takes in: of the 0 dBm sent, 2% goes into the first horn's sidelobes, about a fifth is lost at the lenses (mostly reflected at their four plain faces, 4.3% each for HDPE's n = 1.526, the rest absorbed in the plastic), and the second horn takes in 98% of what reaches it. Sweep the receiver's x or its y to see how fast the coupling falls with an offset or a wrong focus. The RF tab has the parts.",
+  "view": { "cx": 150, "cy": 175, "scale": 1.4 },
+  "maxBounces": 40, "minPower": 1e-6,
+  "elements": [
+    { "type": "source", "id": "tx", "name": "Feed horn", "x": 0, "y": 0, "angle": 0, "rays": 3, "mmw": { "kind": "corrugated", "ghz": 150, "dbm": 0, "a": 7.5, "L": 60 } },
+    { "type": "lens", "id": "l1", "name": "Lens 1", "x": 130.3, "y": 0, "angle": 0, "diameter": 100, "surfaces": [{ "R": null }, { "R": -78.9 }], "gaps": [22], "materials": [{ "glass": "HDPE" }], "mmw": {} },
+    { "type": "mirror", "id": "m1", "name": "Flat mirror", "x": 300, "y": 0, "angle": 135, "length": 100, "mmw": {} },
+    { "type": "lens", "id": "l2", "name": "Lens 2", "x": 300, "y": 152.3, "angle": 90, "diameter": 100, "surfaces": [{ "R": 78.9 }, { "R": null }], "gaps": [22], "materials": [{ "glass": "HDPE" }], "mmw": {} },
+    { "type": "detector", "id": "rx", "name": "Receiver", "x": 300, "y": 282.6, "angle": 270, "material": "custom", "resp": 0.5, "gain": 10000, "mmw": { "kind": "corrugated", "a": 7.5, "L": 60 } }
+  ]
+}

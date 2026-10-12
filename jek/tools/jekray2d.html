@@ -170,7 +170,11 @@
   .rt-v3dbar .rt-btn.off { opacity: 0.55; }
   .rt-v3dbar select { font: 0.75rem var(--jek-sans); padding: 0.2rem; border-radius: var(--jek-radius); }
   .rt-stage.rt-flying { position: fixed; inset: 0; z-index: 1000; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
-  .rt-stage.rt-flying > :not(.rt-v3d):not(.rt-flyhint) { display: none !important; }
+  .rt-stage.rt-flying > :not(.rt-v3d):not(.rt-flyhint):not(.rt-tryme) { display: none !important; }
+  .rt-tryme { position: absolute; right: 16px; bottom: 16px; z-index: 8; background: #fff; border-radius: 8px; padding: 10px 12px 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); text-align: center; pointer-events: none; }
+  .rt-tryme b { display: block; margin-bottom: 6px; color: var(--jek-orange, #f47742); font: 800 1.35rem/1.1 var(--jek-sans); letter-spacing: 0.01em; }
+  .rt-tryme svg, .rt-tryme img { display: block; }
+  .rt-tryme small { display: block; max-width: 200px; color: #333; font: 0.75rem/1.3 var(--jek-sans); }
   .rt-flyhint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 32px); font: 0.78rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.9); background: rgba(10,13,16,0.6); padding: 4px 10px; border-radius: 4px; pointer-events: none; text-align: center; }
   .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.78); background: rgba(10,13,16,0.55); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
   .rt-v3dhint[hidden] { display: none; }
@@ -13256,7 +13260,37 @@ const V3D = (() => {
     try { const q = D.stage.requestFullscreen && D.stage.requestFullscreen(); if (q && q.then) q.then(() => { if (fly) fly.fs = true; }, () => {}); } catch (e) { /* the page itself fills the window */ }
     flyLock();
     fly.raf = requestAnimationFrame(flyStep);
+    tryMe(true);
     requestRender();
+  }
+  /* Try me (experimental): a QR code to a copy of the bench, bottom right while flying */
+  let qrLoad = null;
+  const qrLib = () => qrLoad || (qrLoad = new Promise((res, rej) => {
+    if (typeof qrcode === 'function') return res(qrcode);
+    const sc = document.createElement('script');
+    sc.src = new URL('../assets/vendor/qrcode/qrcode.js', location.href).href;
+    sc.onload = () => typeof qrcode === 'function' ? res(qrcode) : rej(new Error('no QR library'));
+    sc.onerror = () => { qrLoad = null; rej(new Error('the QR library did not load')); };
+    document.head.append(sc);
+  }));
+  async function tryMe(on) {
+    if (D.tryme) { D.tryme.remove(); D.tryme = null; }
+    if (!on || !flyOk() || !(() => { try { return exp('tryme'); } catch (e) { return false; } })()) return;
+    const box = h('div', { class: 'rt-tryme', 'aria-label': 'Try me: a QR code that opens a copy of this bench' }, h('b', null, 'Try me!'));
+    D.tryme = box; D.stage.append(box);
+    try {
+      const [lib, hash] = await Promise.all([qrLib(), shareHash()]);
+      if (D.tryme !== box) return;
+      const url = shareBase() + '#p=' + hash, q = lib(0, 'L');
+      q.addData(url, 'Byte'); q.make();
+      // as big as it needs to be to scan from across a room: 4 px a module at least, up to 40% of the height
+      const n = q.getModuleCount(), px = Math.max(160, Math.min(Math.floor(D.stage.clientHeight * 0.4), n * 4));
+      const cell = Math.max(1, Math.floor(px / (n + 2)));
+      const wrap = h('div'); wrap.innerHTML = q.createSvgTag({ cellSize: cell, margin: cell, scalable: false });
+      box.append(wrap.firstChild);
+    } catch (err) {
+      if (D.tryme === box) box.append(h('small', null, /overflow|length/i.test(err.message) ? 'This bench is too big to fit in a QR code: share it with a link or a .jekray file.' : 'No QR code here: ' + err.message + '.'));
+    }
   }
   function flyStop() {
     if (!fly) return;
@@ -13270,6 +13304,7 @@ const V3D = (() => {
     fly = null;
     D.stage.classList.remove('rt-flying');
     D.flyHint.hidden = true;
+    tryMe(false);
     if (document.pointerLockElement === D.cv) try { document.exitPointerLock(); } catch (e) { /* gone already */ }
     if (document.fullscreenElement === D.stage) { const q = document.exitFullscreen(); if (q && q.catch) q.catch(() => {}); }
     aim(); keepCam(); requestRender();
@@ -13371,6 +13406,8 @@ const V3D = (() => {
       // flying: start or land, hold a key down or let it go (by its code), turn by mouse pixels
       fly(on) { if (on) flyStart(); else flyStop(); return !!fly; },
       flying: () => !!fly,
+      // the Try me box while flying: its text, and the size of its QR code in modules (0 while it is being made, -1 too big)
+      tryMe: () => { if (!D || !D.tryme) return null; const sv = D.tryme.querySelector('svg'); return { text: D.tryme.querySelector('b').textContent, svg: !!sv, note: (D.tryme.querySelector('small') || {}).textContent || '' }; },
       flyKey(code, down) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code === 'Escape' ? 'Escape' : '', bubbles: true, cancelable: true })); },
       flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
@@ -25136,6 +25173,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, Fly (on its bar) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
@@ -26593,6 +26631,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Experimental: <b>Try me</b>, a white box in the bottom right corner while flying through the bench, with a QR code that opens a copy of it on a phone, \u201cTry me!\u201d above it.',
     '<b>Sweeps, faster</b>: a sweep that renders the field renders on several of the computer\u2019s cores at once, coarse to fine, and starts playing within a moment of pressing Play, filling in as it goes; and a ray sweep keeps each step it has traced, so from its second cycle it only draws.',
     'Less waiting on the page while the field is worked out: a photodiode that samples the field reads it from the background worker; a photodiode behind a cavity opens four times as fast (its beat notes pair each sideband\u2019s light as one beam, not every round trip with every other, and its figure while the cavity\u2019s field is on its way is worked out more coarsely).',
     'A sweep that renders the field now plays smoothly with a screen open on its Diffraction tab, and after a pause: each step was asked for a field it had not been rendered for, and worked out again on the spot. Played again with every step rendered, it starts at once, and the time left counts only the steps still to work out.',

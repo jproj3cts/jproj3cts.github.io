@@ -5361,6 +5361,23 @@ const TESTS = [
     },
   },
   {
+    name: 'Flying with Try me on shows a QR code to a copy of the bench',
+    why: 'the Michelson in 3D with the Try me and Fly experiments on: flying puts up a box reading \u201cTry me!\u201d with a QR code in it, and landing takes it away (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const V = J.view3d, wait = ms => new Promise(r => setTimeout(r, ms));
+      try {
+        J.experimental(true); await V.set(true);
+        V.fly(true);
+        let T = null;
+        for (let k = 0; k < 50; k++) { T = V.tryMe(); if (T && (T.svg || T.note)) break; await wait(100); }
+        V.fly(false);
+        return T && T.text === 'Try me!' && T.svg && V.tryMe() === null ? 1 : 0;
+      } finally { V.fly(false); J.experimental(false); await V.set(false); }
+    },
+  },
+  {
     name: 'A lens in 3D is made from its own surfaces',
     why: 'the plano-convex example’s lenses: each model as thick along the beam as the lens’s centre and as wide, both ways across it, as its diameter (the largest error, mm)',
     want: 0, tol: 1e-3, unit: ' mm',

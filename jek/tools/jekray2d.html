@@ -2565,6 +2565,29 @@ const fibreGamma = (F, nm) => F && F.gamma !== null && F.gamma !== undefined && 
    since, or as the spectrum an earlier fibre left (sp); Pavg is its average power (W). Returns
    the spectrum it leaves with (its peak 1, and the B-integral it took, rad), or null where the
    nonlinear phase would stay under 0.01 rad, which leaves the pulse to the linear model. */
+/* The pulse through a fibre with its nonlinearity, as the network asks for it: each answer kept
+   by what it was worked out from, so none is worked out twice; on the page, worked out in the
+   field worker, the fibre's last answer standing meanwhile (none the first time: the pulse is
+   taken through linearly), and the bench traced again when it comes */
+const spmCache = new Map(), spmLast = new Map(), spmAsked = new Set();
+function fibreSPMLater(F, nm, len, P, Pavg, gdd, sp) {
+  const key = JSON.stringify([F, nm, len, [P.tau, P.pshape, P.rep, P.gdd0, P.spec ? P.spec.key || P.spec.half : null], Pavg, gdd, sp ? sp.key || [sp.half, sp.d0, sp.dd] : null]);
+  if (spmCache.has(key)) return spmCache.get(key);
+  const keep = r => {
+    if (r) r.key = key;
+    spmCache.set(key, r || null); spmLast.set(F.id, r || null);
+    while (spmCache.size > 200) spmCache.delete(spmCache.keys().next().value);
+    return r || null;
+  };
+  if (TEST_MODE || IN_WORKER || !fieldWorker()) return keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp));
+  if (!spmAsked.has(key)) {
+    spmAsked.add(key);
+    fwRequest('spm', 'spm:' + key, { F, nm, len, P, Pavg, gdd, sp })
+      .then(r => { keep(r); }, () => { keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp)); })
+      .then(() => { spmAsked.delete(key); fibreNetMemo = { key: null, net: null }; lastTraceKey = null; requestRender(); });
+  }
+  return spmLast.has(F.id) ? spmLast.get(F.id) : null;
+}
 function fibreSPM(F, nm, len, P, Pavg, gdd, sp) {
   const g = fibreGamma(F, nm) * 1e-3, Ep = Pavg / (P.rep * 1e6);                 // 1/(W m); J a pulse
   const dW0 = 2 * Math.PI * pulseDnu(P) * 1e-15, tl = P.tau;                   // rad/fs; fs
@@ -9252,6 +9275,7 @@ function activityNow() {
   const J0 = [...popScreenState.jobs.values()], scr = J0.map(J => J.el.name);
   if (scr.length) jobs.push((J0[0].finishing ? 'the figures at ' : 'the field at ') + scr[0] + (scr.length > 1 ? ' and ' + (scr.length - 1) + ' more screen' + (scr.length > 2 ? 's' : '') : ''));
   if (cavJob && !cavJob.done) jobs.push('the cavity’s steady state');
+  if (spmAsked.size) jobs.push('the pulse through the fibre');
   if (TW.full) jobs.push('the rays');
   if (!jobs.length && FW.busy) jobs.push({ detector: 'the light at the photodiodes', closeup: 'the close-up', cavity: 'the cavity’s steady state', screen: 'the field at the screens', bench: 'the diffracted field on the bench' }[FW.busy.kind] || 'the field');
   if (!jobs.length) return null;
@@ -10065,7 +10089,7 @@ function fibreNet() {
         // nonlinearity too (the pulse then carries the spectrum it leaves with)
         let gdd = (w.gdd || 0) + fibreGDD(f.F, G.nm, f.Lmm / 1000), sp = w.sp || null;
         if (pulsed && f.Lmm > 0) {
-          const r = fibreSPM(f.F, G.nm, f.Lmm / 1000, pulsed, pw * (pulsed.power || 0) * 1e-3, w.gdd || 0, w.sp || null);
+          const r = fibreSPMLater(f.F, G.nm, f.Lmm / 1000, pulsed, pw * (pulsed.power || 0) * 1e-3, w.gdd || 0, w.sp || null);
           if (r) { sp = r; gdd = 0; const o = res.spm.get(f.F.id); if (!o || r.B > o.B) res.spm.set(f.F.id, { B: r.B, broad: r.broad, peak: r.peakIn, nm: G.nm }); }
         }
         arrive(next, q, E, dl, fo, gdd, sp);
@@ -27461,6 +27485,8 @@ function workerMain() {
         out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
+      } else if (kind === 'spm') {
+        out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
       } else if (kind === 'trace') {
         out = { key: args.key, rays: lastTrace.rays };
       } else if (kind === 'full') {

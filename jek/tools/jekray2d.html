@@ -12256,8 +12256,8 @@ const V3D = (() => {
     const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land (experimental)', () => flyStart());
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
-    // (the views are on the cube, the keys F and Shift+1 to 7, and the right-click menu)
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, nm, mouse, btn('PNG', 'Save this view as a picture', png));
+    // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, btn('PNG', 'Save this view as a picture', png));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
@@ -12296,6 +12296,8 @@ const V3D = (() => {
     if (mi) mi.hidden = !there;
     D.stage.classList.toggle('v3d', on);
     D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
+    // drawings are 2D only: the rail's Draw palette goes while the 3D view shows, and comes back after
+    if (on !== D.wasOn) { D.wasOn = on; if (on && palette === 'draw') setPalette('free'); else fillRail(); }
     if (!on) D.vkey.hidden = true;
     D.flyBtn.hidden = !flyOk();
     if (fly && !on) flyStop();
@@ -13407,25 +13409,29 @@ const V3D = (() => {
   }
 
   /* ---------- fly (experimental): the bench full screen, flown through ----------
-     W A S D (or the arrows) move the way the camera looks and across it, E and Q (or Space and
-     Ctrl) straight up and down, Shift four times as fast; the mouse turns the view, as far as
-     straight up or down; the wheel sets the speed. The pointer is held to the canvas while
+     W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
+     down the picture, Q and E roll it left and right, Shift four times as fast; the mouse turns
+     the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
      flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
   const flyOk = () => { try { return exp('fly'); } catch (e) { return false; } };
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
-    KeyE: 'u', Space: 'u', KeyQ: 'd', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
-  // which way it looks: th down from straight up, as aim() has it, round the heading h
-  const flyDir = () => new T.Vector3(-Math.sin(fly.th) * Math.cos(fly.h), -Math.sin(fly.th) * Math.sin(fly.h), -Math.cos(fly.th));
+    KeyE: 'rollR', KeyQ: 'rollL', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+  // the camera's own axes, as it is turned now: it looks along its -z, its y is up the picture
+  const flyAxis = (x, y, z) => new T.Vector3(x, y, z).applyQuaternion(fly.q);
+  const flyDir = () => flyAxis(0, 0, -1);
   function flyLook() {
-    R.camera.quaternion.setFromEuler(new T.Euler(fly.th, 0, fly.h + Math.PI / 2, 'ZYX')); R.camera.updateMatrixWorld();
-    R.heading = fly.h;
-    R.target.copy(R.camera.position).add(flyDir().multiplyScalar(fly.dist));
+    R.camera.quaternion.copy(fly.q); R.camera.updateMatrixWorld();
+    const f = flyDir();
+    if (Math.hypot(f.x, f.y) > 1e-6) R.heading = Math.atan2(-f.y, -f.x);
+    R.target.copy(R.camera.position).add(f.multiplyScalar(fly.dist));
   }
+  // a turn about one of the camera's own axes
+  const flyRot = (x, y, z, a) => { fly.q.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(x, y, z), a)).normalize(); };
   function flyHintText() {
     if (!fly) return;
     const locked = document.pointerLockElement === D.cv;
-    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 E / Q: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
+    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 Q / E: roll \u00b7 Space / Ctrl: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
       (fly.speed >= 1000 ? +(fly.speed / 1000).toPrecision(2) + ' m' : Math.round(fly.speed) + ' mm') + '/s) \u00b7 Esc: land';
   }
   function flyLock() { try { const q = D.cv.requestPointerLock && D.cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) { /* no pointer lock: drag to look */ } }
@@ -13434,7 +13440,7 @@ const V3D = (() => {
     R.anim = null;
     const d = R.camera.position.clone().sub(R.target), r = d.length() || 100;
     aim();
-    fly = { keys: new Set(), h: R.heading, th: Math.acos(clamp(d.z / r, -1, 1)), dist: r, speed: clamp(r * 0.5, 20, 5000), last: null, raf: 0, fs: false };
+    fly = { keys: new Set(), q: R.camera.quaternion.clone(), dist: r, speed: clamp(r * 0.5, 20, 5000), last: null, raf: 0, fs: false };
     D.stage.classList.add('rt-flying');
     D.flyHint.hidden = false;
     flyHintText();
@@ -13511,22 +13517,25 @@ const V3D = (() => {
     if (!fly || !(document.pointerLockElement === D.cv || (e.buttons && e.target === D.cv))) return;
     flyTurn(e.movementX || 0, e.movementY || 0);
   }
+  // the mouse turns the view about its own axes, as a pilot turns, rolled or not
   function flyTurn(dx, dy) {
-    fly.h -= dx * 0.0022;
-    fly.th = clamp(fly.th - dy * 0.0022, 0.02, Math.PI - 0.02);
+    flyRot(0, 1, 0, -dx * 0.0022); flyRot(1, 0, 0, -dy * 0.0022);
     flyLook(); need();
   }
   function flyStep(t) {
     if (!fly) return;
     const dt = fly.last === null ? 0 : Math.min(0.1, (t - fly.last) / 1000);
     fly.last = t;
-    const K = fly.keys, f = flyDir(), right = new T.Vector3(-Math.sin(fly.h), Math.cos(fly.h), 0);
+    const K = fly.keys, f = flyDir(), right = flyAxis(1, 0, 0), up = flyAxis(0, 1, 0);
     const m = new T.Vector3()
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
-      .addScaledVector(new T.Vector3(0, 0, 1), (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
-    if (m.lengthSq() > 0 && dt > 0) {
-      R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
+      .addScaledVector(up, (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
+    // E rolls to the right, Q to the left, about the way it looks: 90 degrees a second
+    const roll = (K.has('rollL') ? 1 : 0) - (K.has('rollR') ? 1 : 0);
+    if (roll && dt > 0) flyRot(0, 0, 1, roll * Math.PI / 2 * dt);
+    if ((m.lengthSq() > 0 || roll) && dt > 0) {
+      if (m.lengthSq() > 0) R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
       flyLook(); need();
     }
     fly.raf = requestAnimationFrame(flyStep);
@@ -13556,7 +13565,7 @@ const V3D = (() => {
         return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
-      camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null,
+      camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray(), up: new T.Vector3(0, 1, 0).applyQuaternion(R.camera.quaternion).toArray() } : null,
       look(p, t) { if (!R) return; sync(); setCam(p, t); keepCam(); need(); },
       // the view cube under a canvas point: the signs of the place a click there looks from, and the cells it shades
       cubeAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), s = cubeRegion({ clientX: b.left + px, clientY: b.top + py }); cubeHover(s); return s && { s, cells: R.cubeHL ? R.cubeHL.geometry.attributes.position.count / 6 : 0 }; },
@@ -25688,7 +25697,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, the bird on its bar (Fly) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
+  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, the bird on its bar (Fly) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, Q and E roll it, Space and Ctrl rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
@@ -25931,7 +25940,7 @@ function fillRail() {
   stage.classList.toggle('rail', railOn);
   if (!railOn) return;
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
-  const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), 'draw'].map(pal => {
+  const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), ...(V3D.active() ? [] : ['draw'])].map(pal => {   // drawings are 2D only
     const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_SHORT[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
     return b;
@@ -27399,7 +27408,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'The 3D view\u2019s <b>view cube</b> shades the face, edge or corner under the pointer, so it is clear which way a click will look from; its bar keeps just Fly (a bird), Names, the mouse and PNG (the views are on the cube, and on F and Shift+1 to 7).',
+    'The 3D view\u2019s <b>view cube</b> shades the face, edge or corner under the pointer, so it is clear which way a click will look from; its bar keeps just Fly (a bird), Fit, Names, the mouse and PNG (the views are on the cube, and on Shift+1 to 7). The Draw palette steps aside in 3D, drawings being 2D only. Flying, Q and E roll the view (Space and Ctrl rise and fall), and the mouse turns it about its own axes; landing levels it.',
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',
     '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
     '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',

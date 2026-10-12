@@ -11419,7 +11419,7 @@ const ELEC = (() => {
     const optical = wires.some(F => [F.a, F.b].some(p => { const E = getEl(p[0]); return E && E.type !== 'elec'; })) || project.elements.some(e => e.type === 'chopper');
     // what the network is: each block's settings and the wiring, not where a block sits on the bench
     const blocks = JSON.stringify([els.map(e => { const { x, y, angle, name, bench, sweeps, ...rest } = e; return rest; }), wires.map(F => [F.a, F.b])]);
-    const key = (optical ? traceKeyNow() : '') + '|' + blocks;
+    const key = (optical ? traceKeyNow() + '|' + detFieldGen : '') + '|' + blocks;
     if (memo.key === key) return memo.R;
     const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
     const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
@@ -11699,7 +11699,8 @@ const ELEC = (() => {
   function readDet(el) {
     if (el.type === 'fcomp') return pdNetMw(el);
     if (el.type === 'pic') return lastTrace.net ? netPower(lastTrace.net.pd.get(el.id), lastTrace.net.keys) : 0;
-    if (el.fieldSample && !fieldHeld()) { const J = popScreenPrep(el); return J ? detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })).mw : 0; }
+    // sampled from the field: from the field worker, off the page (the last reading meanwhile)
+    if (el.fieldSample && !fieldHeld()) { const r = detectorFieldResult(el); return r ? r.mw : 0; }
     return detectorReading(el).mw;
   }
   const scaled = (S, k, unit) => { const o = zero(unit || S.unit); o.dc = k * S.dc; o.tones = S.tones.map(t => ({ f: t.f, re: k * t.re, im: k * t.im })); for (let i = 0; i < NF; i++) o.psd[i] = k * k * S.psd[i]; return o; };
@@ -22492,6 +22493,7 @@ function detectorField(el, R) {
 /* its reading: at once in the tests and the worker, from the worker on the page (the tracer's
    meanwhile) */
 const detFieldCache = new Map();
+let detFieldGen = 0;                   // readings come in from the worker: a new one counts up
 function detectorFieldResult(el) {
   const J = popScreenPrep(el);
   if (!J) return { mw: 0, tones: [] };
@@ -22507,6 +22509,7 @@ function detectorFieldResult(el) {
       const cur = detFieldCache.get(el.id);
       if (!cur || cur.asked !== key) return;
       detFieldCache.set(el.id, o && o.key === key ? { key, r: o.r } : { key: cur.key, r: cur.r });
+      detFieldGen++;                       // the electronics read it again
       deviceCache.delete(lastTrace); syncPanel(); requestRender();
     }).catch(() => { detFieldCache.delete(el.id); syncPanel(); });
   }

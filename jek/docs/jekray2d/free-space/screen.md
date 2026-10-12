@@ -44,8 +44,6 @@ The map is placed where the light lands on the face, above or below its centre t
 
 **Polarisation** shows the polarisation point by point: the colour is how circular it is (S3/S0, red right-handed, blue left-handed, white linear), its brightness the irradiance, and an ellipse every few pixels traces the field there, its long axis along the polarisation (across the map is in the bench plane, p; up it, out of the plane, s). Separate lasers add as Stokes parameters, so where they overlap the light is partly polarised and the ellipses shrink with its degree of polarisation. The overall Stokes parameters and degree of polarisation are listed under the map.
 
-**Along the beam** shows the light across a plane before the screen, square to it: slide **Back from it** anywhere back to the last part the light arrives from. It is worked out as if the screen stood at that plane, so it gives all the screen's figures there, and its map and peak are in W/cm² for the power of the strongest beam's laser, with a colour key under the map. Use it as a beam profiler: to find a waist, to see how far an aperture's rings reach, or to read the irradiance a sample would see at any point along a beam.
-
 **Show its diffraction pattern on its face (3D view)** paints the map onto the screen's face in the 3D view, where the light lands, in the same colours and scale as the tab (linear or log). It updates as the field is worked out again.
 
 ### Aberrations

@@ -5577,20 +5577,6 @@ const TESTS = [
     },
   },
   {
-    name: 'A screen\u2019s Along the beam view gives the light at a plane before it, as a Gaussian beam has it there',
-    why: 'a 1 mW beam of waist 0.1 mm (Rayleigh range 49.6 mm) leaving the source, the screen 100 mm on: 50 mm before the screen the peak is 2P/\u03c0w(50 mm)\u00b2 = 3.158 W/cm\u00b2, at the screen 1.257 W/cm\u00b2, all 1 mW passing; the plane can go back 100 mm (largest relative error)',
-    want: 0, tol: 0.01, unit: '',
-    run: J => {
-      J.load({ format: 'jekray', version: 1, elements: [
-        { type: 'source', id: 'S', name: 'S', x: -50, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 0.1, z0: 0, rays: 1, width: 0.2, pol: 's' },
-        { type: 'screen', id: 'Sc', name: 'Sc', x: 50, y: 0, angle: 180, length: 30 }] });
-      const zR = Math.PI * 0.01 / 633e-6, pk = z => 2 * 1e-3 / (Math.PI * 0.01 * (1 + (z / zR) ** 2)) * 100;
-      const a = J.probe('Sc', 50), b = J.probe('Sc', 0);
-      if (!a || !b || Math.abs(a.reach - 100) > 1e-6) return NaN;
-      return Math.max(Math.abs(a.peak / pk(50) - 1), Math.abs(b.peak / pk(100) - 1), Math.abs(a.power - 1), Math.abs(b.power - 1));
-    },
-  },
-  {
     name: 'A screen\u2019s polarisation map follows the light point by point: s, then circular after a quarter-wave plate',
     why: 's-polarised light on a screen reads S1/S0 = \u22121 wherever it is bright; through a quarter-wave plate at 45\u00b0 it reads |S3/S0| = 1 there, with the sign of the screen\u2019s own S3 for the whole spot (1 when both hold)',
     want: 1, tol: 0, unit: '',

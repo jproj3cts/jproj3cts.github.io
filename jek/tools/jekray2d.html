@@ -176,11 +176,11 @@
   .rt-tryme svg, .rt-tryme img { display: block; }
   .rt-tryme small { display: block; max-width: 200px; color: #333; font: 0.75rem/1.3 var(--jek-sans); }
   .rt-flyhint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 32px); font: 0.78rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.9); background: rgba(10,13,16,0.6); padding: 4px 10px; border-radius: 4px; pointer-events: none; text-align: center; }
-  .rt-probekey { margin: 2px 0 0.4rem; font-size: 0.7rem; }
-  .rt-probekey canvas { display: block; width: 100%; height: 10px; border-radius: 2px; }
-  .rt-probekey .tk { position: relative; height: 1.2em; font-family: var(--jek-mono); font-size: 0.64rem; color: var(--jek-ink-soft); }
-  .rt-probekey .tk span { position: absolute; top: 1px; white-space: nowrap; transform: translateX(-50%); }
-  .rt-probekey .tk span:first-child { transform: none; } .rt-probekey .tk span:last-child { transform: translateX(-100%); }
+  .rt-diffkey { margin: 2px 0 0.4rem; font-size: 0.7rem; }
+  .rt-diffkey canvas { display: block; width: 100%; height: 10px; border-radius: 2px; }
+  .rt-diffkey .tk { position: relative; height: 1.2em; font-family: var(--jek-mono); font-size: 0.64rem; color: var(--jek-ink-soft); }
+  .rt-diffkey .tk span { position: absolute; top: 1px; white-space: nowrap; transform: translateX(-50%); }
+  .rt-diffkey .tk span:first-child { transform: none; } .rt-diffkey .tk span:last-child { transform: translateX(-100%); }
   .rt-v3dkey { position: absolute; left: 60px; bottom: 8px; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.85); background: rgba(10,13,16,0.72); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
   .rt-v3dkey b { font-weight: 600; }
   .rt-v3dkey canvas { display: block; width: 100%; height: 10px; margin: 4px 0 2px; border-radius: 2px; }
@@ -17108,26 +17108,18 @@ function diffractionSection(el) {
   const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
     selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
   const box = h('div', { class: 'rt-readout' });
-  const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['probe', 'Along the beam'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
+  const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
-  // Along the beam: a plane across the light, slid back from the screen towards it
-  const reach = () => probeReach(el), probeD = () => clamp(vs(el).probeD === undefined ? reach() / 2 : vs(el).probeD, 0, reach());
-  const slider = h('input', { type: 'range', min: '0', max: '1', step: 'any', style: 'flex:1', 'aria-label': 'Distance before the screen' });
-  const dTxt = h('span', { class: 'rt-mono', style: 'min-width:4.2rem;text-align:right;white-space:nowrap' });
-  slider.addEventListener('input', () => { vs(el).probeD = +slider.value * reach(); refresh(); });
-  const probeRow = h('div', { style: 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem' }, h('span', { style: 'white-space:nowrap' }, 'Back from it'), slider, dTxt);
-  const keyBox = h('div', { class: 'rt-probekey' });
+  const keyBox = h('div', { class: 'rt-diffkey' });
   const refresh = () => {
-    const probe = vs(el).diffView === 'probe', L = reach(), d = probeD();
     const pv = vs(el).diffView === 'phase' || vs(el).diffView === 'pol';
-    probeRow.style.display = probe ? 'flex' : 'none'; keyBox.style.display = probe || pv ? '' : 'none';
-    if (probe) { if (document.activeElement !== slider) slider.value = L > 0 ? String(d / L) : '0'; dTxt.textContent = fmtLen(d); }
-    const { D, busy } = probe ? (L > 0 ? probeLater(el, d) : { D: null, busy: false }) : diffractionLater(el);
+    keyBox.style.display = pv ? '' : 'none';
+    const { D, busy } = diffractionLater(el);
     views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = vs(el).diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
     });
-    scaleRow.style.display = vs(el).diffView === 'map' || probe ? '' : 'none';
+    scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
     cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives
     if (!D) {
       drawDiff(cv, null, el);
@@ -17142,24 +17134,10 @@ function diffractionSection(el) {
     if (vs(el).diffView === 'phase') {
       rows2.push(['Phase of', D.launches > 1 ? 'the strongest beam\u2019s laser' : 'the light'], ['Along', 'its polarisation at its brightest point']);
     }
-    if (probe) {
-      // in W/cm², for the laser of the strongest beam arriving
-      const P = probePower(el) * 1e-3, pk = (cv._full && cv._full.pk) || D.peak, dec = el.mapScale === 'log' ? 3 : 0;
-      const bar = document.createElement('canvas'); bar.width = 240; bar.height = 1;
-      const g = bar.getContext('2d'), im = g.createImageData(240, 1);
-      for (let i = 0; i < 240; i++) { const q = magma(i / 239); im.data.set([q[0], q[1], q[2], 255], i * 4); }
-      g.putImageData(im, 0, 0);
-      const ticks = dec ? [[0, pk * 1e-3], [0.5, pk * 10 ** -1.5], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
-      keyBox.replaceChildren(bar, h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? fmtIrr(v * P) : '0'))),
-        D.peak > 1.05 * pk ? h('div', { class: 'note', style: 'margin-top:2px' }, 'The peak, ' + fmtIrr(D.peak * P) + ', is sharper than the map\u2019s samples.') : '');
-      rows2.push(['Plane', fmtLen(d) + ' before the screen, square to it'], ['Peak irradiance', fmtIrr(D.peak * P)], ['Power through it', (+(D.power * P * 1e3).toPrecision(4)) + ' mW']);
-    }
     if (D.NA) rows2.push(['Numerical aperture', (+D.NA.toPrecision(4)) + ' (f/' + (+(1 / (2 * D.NA)).toPrecision(3)) + ')']);
     rows2.push(['Strehl ratio', D.strehl === null ? 'n/a' : String(+D.strehl.toPrecision(4))]);
-    if (!probe) {
-      rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
-      rows2.push(['Power arriving', pctTxt(100 * D.power)]);
-    }
+    rows2.push(['Peak irradiance', (+D.peak.toPrecision(4)) + ' /mm\u00b2 per unit power']);
+    rows2.push(['Power arriving', pctTxt(100 * D.power)]);
     if (D.interference !== null) rows2.push(['Interference', (+(100 * D.interference).toPrecision(4)) + '% of the incoherent sum']);
     if (D.visibility !== null) rows2.push(['Fringe visibility', String(+D.visibility.toPrecision(3))]);
     if (D.vector) {
@@ -17195,14 +17173,13 @@ function diffractionSection(el) {
     if (D.steep.length) notes.push('The wavefront after ' + D.steep.map(id => (getEl(id) || {}).name).join(', ') + ' turns faster than the grid can follow: raise the source\u2019s grid points.');
     if (vs(el).diffView === 'phase') notes.unshift('The phase of the field across the screen, \u2212\u03c0 to \u03c0 as hue, brightness by its amplitude: taken along the polarisation of its brightest point, whose phase is zero. A beam meeting the screen at an angle shows tilt fringes; a diverging or converging one, rings of its curvature; a vortex, its turns of phase round a dark core.' + (D.launches > 1 ? ' Only the strongest laser\u2019s light has a phase here; the others add to the irradiance alone.' : ''));
     if (vs(el).diffView === 'pol') notes.unshift('The polarisation at each point: the colour is how circular it is (S3/S0: red right-handed, blue left-handed, white linear), its brightness the irradiance, and each ellipse the shape the field traces there, its long axis the direction of the polarisation (across the map is in the bench plane, p; up it, out of the plane, s). Separate lasers add as Stokes parameters, so where they overlap the light is partly polarised and the ellipses shrink by its degree of polarisation.');
-    if (probe) notes.unshift('The light across a plane ' + fmtLen(d) + ' before the screen, worked out as if the screen stood there: anywhere back to the last part the light arrives from. In W/cm\u00b2 for ' + (+probePower(el).toPrecision(4)) + ' mW from its laser.');
     if (busy) notes.push('Updating\u2026');
     box.replaceChildren(h('dl', null, ...rows2.flatMap(([a, b2]) => [h('dt', null, a), h('dd', null, b2)])),
       ...notes.map(t => h('p', { class: 'note' }, t)));
   };
-  const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, (vs(el).diffView === 'probe' ? probeLater(el, probeD()) : diffractionLater(el)).D, el);
-  panel.append(tabs, probeRow, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
-    zoomControls(cv, getZ, redraw, () => !['map', 'probe', 'phase', 'pol'].includes(vs(el).diffView)), box);
+  const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
+  panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
+    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), box);
   bindSync(cv, refresh);
 }
 
@@ -17229,7 +17206,7 @@ function diffKey(view) {
 }
 function drawDiff(cv, D, el) {
   const dpr = window.devicePixelRatio || 1, view = vs(el).diffView, Z = plotZoom(el, view);
-  const w = cv.clientWidth || 280, square = ['map', 'probe', 'phase', 'pol'].includes(view);
+  const w = cv.clientWidth || 280, square = ['map', 'phase', 'pol'].includes(view);
   const c = cv.getContext('2d');
   cv._full = null; cv._csv = null;
   updateSyncButtons();
@@ -23194,53 +23171,6 @@ function diffraction(el) {
 /* The same for the panels, computed a slice at a time; the last answer stands meanwhile.
    Each open screen has its own job, taken in turn, so pinned screens do not starve each other. */
 const popScreenState = { jobs: new Map(), timer: null };
-/* ---------- Along the beam: a plane across the light a distance before a screen ----------
-   The field there is worked out as the screen's own is, with the screen moved that far back
-   towards the light it faces (and the bench traced again), then put back: so it holds all the
-   screen's figures, for that plane. It reaches back as far as the free space the light
-   arrives through; past that, the plane would be before the last optic. */
-function probeReach(el) {
-  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
-  let L = 0;
-  for (const b of lastTrace.beams || []) if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0 && !b.fan) L = Math.max(L, b.len);
-  return L;
-}
-/* the laser power (mW) the figures are per unit of: that of the strongest beam arriving */
-function probePower(el) {
-  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
-  let best = null;
-  for (const b of lastTrace.beams || []) if (b.endEl === el.id && b.dx * nX + b.dy * nY < 0 && (!best || (b.w || 0) > (best.w || 0))) best = b;
-  const src = best && getEl(best.src);
-  return src ? Math.max(0, splitRoot(src).power || 0) : 0;
-}
-function probeField(el, d) {
-  const x0 = el.x, y0 = el.y, a = el.angle * deg;
-  el.x += Math.cos(a) * d; el.y += Math.sin(a) * d;
-  try {
-    lastTraceKey = null; traceScene();
-    const job = popScreenPrep(el);
-    return job ? popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep })) : null;
-  } finally { el.x = x0; el.y = y0; lastTraceKey = null; traceScene(); }
-}
-const probeCache = new Map(), probeJobs = new Map();
-/* the plane d mm before the screen: { D, busy }, from the field worker (or here, in the tests) */
-function probeLater(el, d) {
-  const job = popScreenPrep(el);
-  if (!job) return { D: null, busy: false };
-  const key = job.key + '|' + d.toFixed(3), c = probeCache.get(el.id);
-  if (c && c.key === key) return { D: c.D, busy: false };
-  if (TEST_MODE || !fieldWorker()) { const D = probeField(el, d); probeCache.set(el.id, { key, D }); return { D, busy: false }; }
-  if (probeJobs.get(el.id) !== key) {
-    probeJobs.set(el.id, key);
-    fwRequest('probe', 'probe:' + el.id, { id: el.id, d }).then(o => {
-      if (probeJobs.get(el.id) !== key) return;
-      probeJobs.delete(el.id);
-      if (o) probeCache.set(el.id, { key, D: o.D ? diffFns(o.D) : null });
-      syncPanel();
-    }).catch(() => { if (probeJobs.get(el.id) === key) probeJobs.delete(el.id); syncPanel(); });
-  }
-  return { D: c ? c.D : null, busy: true };
-}
 function diffractionLater(el) {
   const job = popScreenPrep(el);
   if (!job) return { D: null, busy: false };
@@ -27426,7 +27356,6 @@ const NEWS = [
   ['1.1', APP_DATE, [
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',
     '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
-    'A screen\u2019s Diffraction tab has <b>Along the beam</b>: a plane across the light slid back from the screen towards it, with the irradiance map, peak and power through it in W/cm\u00b2 and mW, and every figure the screen gives, as a beam profiler would read them anywhere along the beam.',
     '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',
     '<b>Part packs</b> (File \u2192 Part packs\u2026): sets of parts and glasses made by others, a maker\u2019s catalogue or a course\u2019s kit, installed from a file or a link once you have seen what is in them. Their parts are under + Add part \u2192 Packs and their glasses in each lens\u2019s material menu; a part placed from one carries its glass with it, so the bench opens anywhere. Packs hold data only, never code. <b>Make a pack from the selection</b> turns your own parts into one to share.',
     'Experimental: <b>Try me</b>, a white box in the bottom right corner while flying through the bench, with a QR code that opens a copy of it on a phone, \u201cTry me!\u201d above it.',
@@ -28498,10 +28427,7 @@ function workerMain() {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
         if (key === args.key) { out = closeupImage(bench.R.segs, args.view, args.step, args.log); transfer.push(out.img.data.buffer); }
-        else out = { mismatch: true };      } else if (kind === 'probe') {
-        const el = getEl(args.id);
-        out = { D: el ? fwPackD(probeField(el, args.d)) : null };
-      } else if (kind === 'vol3d') {
+        else out = { mismatch: true };      } else if (kind === 'vol3d') {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
         if (key === args.key) { out = volData(bench.R.segs, args.tab, args.bb); for (const v of out.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer); }
@@ -28549,8 +28475,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
-    // a screen's Along the beam view: the plane d mm before it, its peak (W/cm²), power through it (mW) and beam radius (mm)
-    probe(name, d) { const el = this.byName(name); traceScene(); const D = el && probeField(el, d), P = el ? probePower(el) : 0; return D && { peak: D.peak * P * 0.1, power: D.power * P, w: D.wx, reach: probeReach(el) }; },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const V = volData(popRun(lastTrace.beams, srcs, {}).segs, project.tab, null);
       return { peak: V.peak * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,

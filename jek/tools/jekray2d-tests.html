@@ -5525,7 +5525,7 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load({ format: 'jekray', version: 1, elements: [] });
-      const pack = { format: 'jekray-pack', version: 1, id: 'acme.lenses', name: 'Acme lenses', author: 'Acme', packVersion: '2',
+      const pack = { format: 'jekpack', version: 1, id: 'acme.lenses', name: 'Acme lenses', author: 'Acme', packVersion: '2',
         glasses: [{ glass: 'ACME-1', nd: 1.6, vd: 40 }, { glass: 'ACME-T', table: { wl: [0.4, 0.6, 0.8, 1.0], n: [1.72, 1.70, 1.69, 1.685] } }, { glass: 'NODATA' }],
         parts: [{ name: 'AC-100', group: 'Lenses', elements: [{ type: 'lens', id: 'a', name: 'L', x: 0, y: 0, materials: [{ glass: 'ACME-T' }] }] },
           { name: 'AC-50', group: 'Lenses', elements: [{ type: 'lens', id: 'b', name: 'M', x: 0, y: 0, materials: [{ glass: 'ACME-1' }] }] },
@@ -5547,7 +5547,7 @@ const TESTS = [
     why: 'packs hold data only: one with a "code" or "scripts" entry is refused, as are a newer pack version, a bench file, a malformed id and a pack with nothing usable in it; a well-formed one passes (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
-      const ok = { format: 'jekray-pack', version: 1, id: 'x.y', name: 'X', parts: [{ name: 'M', elements: [{ type: 'mirror', id: 'm', name: 'M', x: 0, y: 0 }] }] };
+      const ok = { format: 'jekpack', version: 1, id: 'x.y', name: 'X', parts: [{ name: 'M', elements: [{ type: 'mirror', id: 'm', name: 'M', x: 0, y: 0 }] }] };
       const err = o => J.packCheck(Object.assign({}, ok, o)).error || '';
       return !err({}) && /code/.test(err({ code: 'main.js' })) && /code/.test(err({ scripts: ['a.js'] })) && /newer/.test(err({ version: 2 })) &&
         /bench/.test(err({ format: 'jekray' })) && /id/.test(err({ id: '../../x' })) && /no parts/.test(err({ parts: [{ elements: [{ type: 'nope' }] }] })) ? 1 : 0;
@@ -5563,7 +5563,7 @@ const TESTS = [
         { type: 'fcomp', kind: 'pd', id: 'PD', name: 'PD', x: 0, y: 40, angle: 0, group: 'g1' },
         { type: 'lens', id: 'L', name: 'L', x: 30, y: -20, materials: [{ glass: 'MYGLASS', table: { wl: [0.5, 1], n: [1.5, 1.49] } }] }],
         fibres: [{ a: ['FL', 0], b: ['PD', 0] }] });
-      const P = J.packMake({ format: 'jekray-pack', id: 'me.kit', name: 'Kit' }, ['FL', 'PD', 'L']);
+      const P = J.packMake({ format: 'jekpack', id: 'me.kit', name: 'Kit' }, ['FL', 'PD', 'L']);
       const pair = P.parts.find(p => p.elements.length === 2), lens = P.parts.find(p => p.elements.length === 1);
       const centred = p => Math.abs(p.elements.reduce((a, e) => a + e.x, 0)) < 1e-6 && Math.abs(p.elements.reduce((a, e) => a + e.y, 0)) < 1e-6;
       const chk = J.packCheck(P);

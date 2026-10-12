@@ -125,7 +125,7 @@ When a file is opened, JEKray2D lists anything it could not use as written: an u
 
 ## Part packs
 
-A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File → Part packs…** and then add from **+ Add part → Packs**. A pack is one JSON object, {"format": "jekray-pack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
+A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File → Part packs…** and then add from **+ Add part → Packs**. A pack is one JSON object, {"format": "jekpack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
 
 ## Element reference
 

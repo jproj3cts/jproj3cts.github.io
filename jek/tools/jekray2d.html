@@ -168,6 +168,7 @@
   .rt-v3dbar { position: absolute; right: 8px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 5rem); }
   .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
   .rt-v3dbar .rt-btn.off { opacity: 0.55; }
+  .rt-v3dbar .rt-flybird { display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; }
   .rt-v3dbar select { font: 0.75rem var(--jek-sans); padding: 0.2rem; border-radius: var(--jek-radius); }
   .rt-stage.rt-flying { position: fixed; inset: 0; z-index: 1000; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
   .rt-stage.rt-flying > :not(.rt-v3d):not(.rt-flyhint):not(.rt-tryme) { display: none !important; }
@@ -12251,11 +12252,12 @@ const V3D = (() => {
     mouse.value = ctrl;
     mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
     const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
-    const flyBtn = btn('Fly', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land (experimental)', () => flyStart());
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn,
-      btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), btn('Iso', 'Isometric (Shift+7)', () => view('iso')),
-      btn('Top', 'From above (Shift+5)', () => view('top')), btn('Front', 'From the front (Shift+1)', () => view('front')),
-      btn('Right', 'From the right (Shift+4)', () => view('right')), nm, mouse, btn('PNG', 'Save this view as a picture', png));
+    // Fly: a bird in flight
+    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land (experimental)', () => flyStart());
+    flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
+    flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
+    // (the views are on the cube, the keys F and Shift+1 to 7, and the right-click menu)
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, nm, mouse, btn('PNG', 'Save this view as a picture', png));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
@@ -12384,11 +12386,16 @@ const V3D = (() => {
     }
     gl.render(scene, camera);
     // the view cube, looking the way the camera looks
-    const c = cubeRect(), dir = camera.position.clone().sub(R.target).normalize();
-    R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.quaternion.copy(camera.quaternion); R.cubeCam.updateMatrixWorld();
+    const c = cubeRect();
+    cubeAim();
     gl.setScissorTest(true); gl.setScissor(c.x, R.h - c.y - c.h, c.w, c.h); gl.setViewport(c.x, R.h - c.y - c.h, c.w, c.h);
     gl.clearDepth(); gl.render(R.cube, R.cubeCam);
     gl.setScissorTest(false); gl.setViewport(0, 0, R.w, R.h);
+  }
+  // the view cube's camera, looking the way the main one does
+  function cubeAim() {
+    const dir = R.camera.position.clone().sub(R.target).normalize();
+    R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.quaternion.copy(R.camera.quaternion); R.cubeCam.updateMatrixWorld();
   }
   function need() { if (!R || R.queued) return; R.queued = true; requestAnimationFrame(() => { R.queued = false; draw(); }); }
   const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9ecef' : '#101417'; };
@@ -13121,12 +13128,46 @@ const V3D = (() => {
     const p = new T.Vector3(); return rc.ray.intersectPlane(new T.Plane(new T.Vector3(0, 0, 1), -BEAM_H), p) ? { point: p } : null;
   }
   function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
-  function cubeClick(e) {
+  /* where on the cube a point lands: the corner, edge or face a click there looks from, as the
+     signs of x, y and up (each of the cube's faces is cut in thirds each way: a corner's three
+     cells, an edge's two, a face's middle) */
+  const CUBE_CUT = 0.32;
+  function cubeRegion(e) {
     const n = ndc(e), c = cubeRect(), rc = ray.get();
+    if (!inCube(n)) return null;
+    cubeAim();
     rc.setFromCamera({ x: (n.px - c.x) / c.w * 2 - 1, y: -(n.py - c.y) / c.h * 2 + 1 }, R.cubeCam);
     const hit = rc.intersectObject(R.box, false)[0];
-    if (!hit) return;
-    const p = hit.point, s = [p.x, p.y, p.z].map(v => Math.abs(v) > 0.32 ? Math.sign(v) : 0);
+    return hit ? [hit.point.x, hit.point.y, hit.point.z].map(v => Math.abs(v) > CUBE_CUT ? Math.sign(v) : 0) : null;
+  }
+  /* the region under the pointer, shaded: every cell of it, on each face it reaches */
+  function cubeHover(s) {
+    const k = s ? s.join() : '';
+    if (k === (R.cubeHoverKey || '')) return;
+    R.cubeHoverKey = k;
+    if (R.cubeHL) { R.cube.remove(R.cubeHL); R.cubeHL.geometry.dispose(); R.cubeHL = null; }
+    if (s) {
+      const pos = [], band = [[-0.5, -CUBE_CUT], [-CUBE_CUT, CUBE_CUT], [CUBE_CUT, 0.5]], sideOf = b => b === 0 ? -1 : b === 1 ? 0 : 1, out = 0.503;
+      for (let a = 0; a < 3; a++) for (const sg of [-1, 1]) {
+        if (s[a] !== 0 && s[a] !== sg) continue;          // the region's faces: those it touches
+        const [b, c] = [0, 1, 2].filter(i => i !== a);
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+          const cell = [0, 0, 0]; cell[a] = sg; cell[b] = sideOf(i); cell[c] = sideOf(j);
+          if (cell.join() !== s.join()) continue;
+          const q = (u, v) => { const p = [0, 0, 0]; p[a] = sg * out; p[b] = u; p[c] = v; return p; };
+          const [u0, u1] = band[i], [v0, v1] = band[j], A = q(u0, v0), B = q(u1, v0), C = q(u1, v1), D2 = q(u0, v1);
+          pos.push(...A, ...B, ...C, ...A, ...C, ...D2);
+        }
+      }
+      const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+      R.cubeHL = new T.Mesh(g, R.cubeHLMat || (R.cubeHLMat = new T.MeshBasicMaterial({ color: 0x0092b2, transparent: true, opacity: 0.55, side: T.DoubleSide, depthWrite: false })));
+      R.cube.add(R.cubeHL);
+    }
+    need();
+  }
+  function cubeClick(e) {
+    const s = cubeRegion(e);
+    if (!s || s.every(v => v === 0)) return;
     const dir = new T.Vector3(...s).normalize();
     if (Math.abs(dir.z) > 0.999) dir.y = -1e-4;
     const dist = R.camera.position.distanceTo(R.target);
@@ -13207,13 +13248,14 @@ const V3D = (() => {
       if (e.button === 1) e.preventDefault();
       drag = { mode, moved: 0, pivot, button: e.button };
     });
+    cv.addEventListener('pointerleave', () => { if (R) cubeHover(null); });
     cv.addEventListener('pointermove', e => {
       if (!R) return;
       if (!drag || !P.has(e.pointerId)) {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -13516,6 +13558,9 @@ const V3D = (() => {
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null,
       look(p, t) { if (!R) return; sync(); setCam(p, t); keepCam(); need(); },
+      // the view cube under a canvas point: the signs of the place a click there looks from, and the cells it shades
+      cubeAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), s = cubeRegion({ clientX: b.left + px, clientY: b.top + py }); cubeHover(s); return s && { s, cells: R.cubeHL ? R.cubeHL.geometry.attributes.position.count / 6 : 0 }; },
+      cubeRect: () => R ? cubeRect() : null,
       pointOnScreen(p) { if (!R) return null; sync(); const v = new T.Vector3(...p).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
       // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
       field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
@@ -25643,7 +25688,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, Fly (on its bar) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
+  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, the bird on its bar (Fly) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, E and Q rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
@@ -27354,6 +27399,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The 3D view\u2019s <b>view cube</b> shades the face, edge or corner under the pointer, so it is clear which way a click will look from; its bar keeps just Fly (a bird), Names, the mouse and PNG (the views are on the cube, and on F and Shift+1 to 7).',
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',
     '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
     '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',

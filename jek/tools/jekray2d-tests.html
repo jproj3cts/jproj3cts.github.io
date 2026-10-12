@@ -5613,6 +5613,23 @@ const TESTS = [
       }
       return Math.abs(tot) / (2 * Math.PI);
     },
+  },
+  {
+    name: 'The view cube shades the face, edge or corner under the pointer',
+    why: 'looking from straight in front, the middle of the cube is its front face (one cell shaded), half way to its right edge the edge between front and right (two cells, one on each face), and its top right corner the corner of front, right and top (three); its corners outside the cube shade nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 0 }] });
+      try {
+        await J.view3d.set(true);
+        J.view3d.look([0, -300, 75], [0, 0, 75]);
+        const c = J.view3d.cubeRect(), at = (fx, fy) => J.view3d.cubeAt(c.x + fx * c.w, c.y + fy * c.h);
+        // the cube is drawn 1.8 units across its square: its faces span the middle 1/1.8 of it
+        const k = 0.5 / 1.8, face = at(0.5, 0.5), edge = at(0.5 + 0.9 * k, 0.5), corner = at(0.5 + 0.9 * k, 0.5 - 0.9 * k), none = at(0.02, 0.02);
+        return face && face.s.join() === '0,-1,0' && face.cells === 1 && edge && edge.s.join() === '1,-1,0' && edge.cells === 2 &&
+          corner && corner.s.join() === '1,-1,1' && corner.cells === 3 && none === null ? 1 : 0;
+      } finally { await J.view3d.set(false); }
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

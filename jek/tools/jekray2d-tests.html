@@ -4636,6 +4636,29 @@ const TESTS = [
     },
   },
   {
+    name: 'A rendered sweep plays with a screen open, finding every step\u2019s field',
+    why: 'a lens swept across a beam shown as its field, rendered at 6 steps a cycle, played with the screen\u2019s Diffraction tab open, then paused and played again: the screen fields worked out on the spot while it plays (none: each step\u2019s was rendered)',
+    want: 0, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, name: 't', light: { rays: false, envelope: false, field: true, scale: 'lin' }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 2, phase: 0, wave: 'sine', field: true, steps: 6 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 90, y: 0, angle: 180, length: 10 }] });
+      const doc = document.getElementById('rig').contentDocument, raf = () => new Promise(r => requestAnimationFrame(() => r()));
+      J.select('Screen');
+      const tab = [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Diffraction'); if (tab) tab.click();
+      try {
+        await J.sweepPlay('Lens', 'y');
+        const n0 = J.framesInfo().live;
+        for (let i = 0; i < 20; i++) await raf();
+        J.sweepPause(); await J.sweepPlay('Lens', 'y');
+        for (let i = 0; i < 20; i++) await raf();
+        return J.framesInfo().live - n0;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
     name: 'A sweep keeps its steps a cycle, within range',
     why: 'saved and opened again: 12 steps kept; 1000 held to the 240 most; 1 and a word dropped (the sweep plays smoothly)',
     want: 1, tol: 0, unit: '',

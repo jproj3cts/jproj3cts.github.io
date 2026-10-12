@@ -9057,9 +9057,10 @@ function sampleShown() {
 }
 /* how long a render has left: the time its steps have taken so far, on average, for each left */
 function sweepEta(j) {
-  const done = j.i + (j.part || 0), dt = (performance.now() - j.t0) / 1000;
+  if (j.t0 === null) return '';
+  const done = j.i + (j.part || 0) - j.i0, dt = (performance.now() - j.t0) / 1000;
   if (done < 0.5 || dt < 1.5) return '';
-  const left = dt / done * (j.n - done);
+  const left = dt / done * (j.n - j.i0 - done);
   return left < 1 ? '' : 'about ' + (left < 60 ? Math.ceil(left / 5) * 5 + ' s' : left < 3600 ? Math.round(left / 60) + ' min' : (left / 3600).toFixed(1) + ' h') + ' left';
 }
 /* screens whose diffracted field is on show: their panel is open at the Diffraction tab */
@@ -9096,9 +9097,24 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  // every step already rendered (played before, paused, played again): straight on, no render pass
+  {
+    let all = true;
+    for (let i = 0; i < n && all; i++) {
+      list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, period)));
+      traceScene();
+      const srcs = popSources();
+      if (srcs.length && !fieldFrames.bench.has(popKeyOf(lastTrace.beams, srcs))) all = false;
+      for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; }
+    }
+    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+    traceScene();
+    if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n }; changed(false); onDone(); return; }
+  }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
   const cyc = () => commonPeriod(list.map(([el, path]) => el.sweeps[path] || { freq: 1 / period })) || period;
-  const job = { list, i: 0, n, t0: performance.now() };
+  const job = { list, i: 0, n, t0: null, i0: 0 };
+  const timing = i => { if (job.t0 === null) { job.t0 = performance.now(); job.i0 = i; } };   // timed from the first step that needs working out
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
@@ -9128,7 +9144,7 @@ function renderSweepFrames(list, onDone) {
           traceScene();
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (!fieldFrames.bench.has(key)) {
-            job.stage = 'the bench';
+            timing(i); job.stage = 'the bench';
             const o = await fwRequest('bench', 'sweep');
             if (!live()) return;
             if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); requestRender(); }
@@ -9149,7 +9165,7 @@ function renderSweepFrames(list, onDone) {
           traceScene();
           const J = popScreenPrep(scr);
           if (!J || fieldFrames.screens.has(J.key)) continue;
-          job.stage = scr.name;
+          timing(i); job.stage = scr.name;
           const o = await fwRequest('screen', 'sweep', { id: scr.id });
           if (!live()) return;
           if (o && o.key === J.key && o.D) keepFrame(fieldFrames.screens, J.key, diffFns(o.D));
@@ -9181,7 +9197,7 @@ function renderSweepFrames(list, onDone) {
         traceScene();
         const key = popKeyOf(lastTrace.beams, srcs);
         if (!fieldFrames.bench.has(key)) {
-          job.stage = 'the bench';
+          timing(i); job.stage = 'the bench';
           const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
           const R = yield* run(popRunGen(lastTrace.beams, srcs, { draw: true, per: clamp(Math.floor(POP_SLICES / Math.max(1, n)), 6, 48) }));
           keepFrame(fieldFrames.bench, key, R);
@@ -9200,7 +9216,7 @@ function renderSweepFrames(list, onDone) {
         traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
         const J = popScreenPrep(scr);
         if (!J || fieldFrames.screens.has(J.key)) continue;
-        job.stage = scr.name;
+        timing(i); job.stage = scr.name;
         const R = yield* run(popRunGen(lastTrace.beams, J.srcs, { keep: J.keep }));
         traceScene();
         keepFrame(fieldFrames.screens, J.key, popDiffraction(scr, R));
@@ -14202,6 +14218,9 @@ function tick(t) {
     const st = !P && sw.steps ? sw.steps * sw.freq : 0;
     setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
   }
+  // traced before the panels look: a screen's field is found by the bench as traced, and a
+  // trace a step behind its parts asks for a field no step has (worked out live, every step)
+  traceScene();
   syncPanel();
   requestRender();
   animFrame = requestAnimationFrame(tick);
@@ -22496,12 +22515,14 @@ function detectorFieldResult(el) {
 
 /* The screen's answer, now: for the optimiser, the tests and the export */
 const popScreenCache = new Map();
+let liveScreens = 0;                   // screen fields worked out on the spot (for the tests)
 function diffraction(el) {
   const job = popScreenPrep(el);
   if (!job) return null;
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return c.D;
   if (fieldFrames.screens.has(job.key)) return fieldFrames.screens.get(job.key);
+  liveScreens++;
   const D = popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }));
   popScreenCache.set(el.id, { key: job.key, D });
   return D;
@@ -26386,6 +26407,7 @@ function cloudMenuShown() {
 const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
 const NEWS = [
   ['Since 1.0', '29 September \u2013 11 October 2026', [
+    'A sweep that renders the field now plays smoothly with a screen open on its Diffraction tab, and after a pause: each step was asked for a field it had not been rendered for, and worked out again on the spot. Played again with every step rendered, it starts at once, and the time left counts only the steps still to work out.',
     '<b>STL objects</b> are kept compactly with the bench, so a CAD part now saves to the cloud too (a mesh of more than 40 000 triangles is simplified as it comes in, to its outline\u2019s detail, and the panel says so); and <b>\u2605 Save to My parts</b> in its panel keeps it in your parts library.',
     'An <b>electrical feedthrough</b> (Elec \u2192 Feedthrough): a pair on two tabs carries signals between them, both ways, as a bulkhead connector does. A photodiode on the optical bench can feed a lock-in on an electronics tab, and a generator there drive a modulator back on the bench.',
     'Fibre tips send their rays out as a line, a cross, a grid or hexapolar rings, as a source does, so in 3D the light leaving a fibre fills its cone. A Gaussian beam wider than a lens now shows the share of it that goes round the rim as faint bands outside it, not as a whole beam passing by.',
@@ -27469,6 +27491,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
+    // the rendered frames kept: how many, and whether a screen's field as the bench is now is among them
+    framesInfo(name) { const el = name && this.byName(name), J = el && popScreenPrep(el); return { live: liveScreens, bench: fieldFrames.bench.size, screens: fieldFrames.screens.size, has: J ? fieldFrames.screens.has(J.key) : null, key: J ? J.key.length + ':' + J.key.slice(0, 120) : null, keys: [...fieldFrames.screens.keys()].slice(0, 3).map(k => k.length + ':' + k.slice(0, 120)), full: J ? J.key : null, all: [...fieldFrames.screens.keys()] }; },
     renderedSteps() {
       const P = renderedPeriod();
       if (!P) return -1;

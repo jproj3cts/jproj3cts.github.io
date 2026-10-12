@@ -598,6 +598,8 @@
   .rt-news h3:first-child { margin-top: 0; }
   .rt-news h3 span { margin-left: 0.4rem; font-weight: 400; font-size: 0.8rem; color: var(--jek-ink-soft); }
   .rt-news ul { margin: 0 0 0.4rem; padding-left: 1.2rem; }
+  .rt-news-all { margin: 0 0 0.6rem; }
+  .rt-news-all summary { cursor: pointer; font-weight: 600; color: var(--jek-cyan-dark); margin-bottom: 0.3rem; }
   .rt-news li { margin-bottom: 0.2rem; }
   .rt-subhead { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }
   dialog.rt-dialog #bugWhat, dialog.rt-dialog #bugExpect { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.875rem; }
@@ -26449,9 +26451,11 @@ function cloudMenuShown() {
   accountShown();
 }
 /* ---------- Version, what's new, citing ---------- */
-const APP_VERSION = '1.0', APP_DATE = '28 September 2026';
+const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
+/* each version: its number, its date, every change, and (from 1.1) the few that matter most,
+   shown first with the rest folded away */
 const NEWS = [
-  ['Since 1.0', '29 September \u2013 11 October 2026', [
+  ['1.1', APP_DATE, [
     'Less waiting on the page while the field is worked out: a photodiode that samples the field reads it from the background worker; a photodiode behind a cavity opens four times as fast (its beat notes pair each sideband\u2019s light as one beam, not every round trip with every other, and its figure while the cavity\u2019s field is on its way is worked out more coarsely).',
     'A sweep that renders the field now plays smoothly with a screen open on its Diffraction tab, and after a pause: each step was asked for a field it had not been rendered for, and worked out again on the spot. Played again with every step rendered, it starts at once, and the time left counts only the steps still to work out.',
     '<b>STL objects</b> are kept compactly with the bench, so a CAD part now saves to the cloud too (a mesh of more than 40 000 triangles is simplified as it comes in, to its outline\u2019s detail, and the panel says so); and <b>\u2605 Save to My parts</b> in its panel keeps it in your parts library.',
@@ -26500,8 +26504,14 @@ const NEWS = [
     'New <b>fibre parts</b>: splitters and combiners (1\u00d7N, typed), M\u00d7N star couplers, a polarisation beam splitter, a <b>balanced photodetector</b>, an <b>optical spectrum analyser</b>, a fibre mirror, an optical switch, a variable delay line, a fibre stretcher (piezo, with a drive input), a tunable filter, a depolariser and a semiconductor amplifier. Fibres\u2019 ends can be connectors that reflect (PC, APC, flat cleaves).',
     'Photodetectors in free space and fibre now work alike (material, dark current, amplifier noise), the free-space one drawn as a semicircle, with scope and spectrum views that match the instruments. An <b>optical chopper</b> for the free-space palette.',
     'A bench that fills the window, a <b>Bench panel you can pin</b>, R and Shift+R to turn parts, steady readouts while sweeping, and the optimiser on mirrors as on screens.',
-    'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.']],
-  ['1.0', APP_DATE, [
+    'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.'], [
+    'A <b>3D view</b> of every bench, a switch away: every free-space part placed, tipped and rolled in all six degrees of freedom, with rays, Gaussian beams and the diffracted field followed exactly through it, misaligned cavities included.',
+    '<b>STL objects</b> from CAD on the bench (mounts, housings, baffles), saved with it and kept in My parts.',
+    '<b>Electronics</b> as a standard part of the tool, with <b>feedthroughs</b> carrying signals between tabs, and photonic chips wired to them.',
+    '<b>JEKrayPro</b> in open beta: benches in the cloud with their history, My benches and My parts; and the <b>documentation</b>, with the equations behind every model.',
+    '<b>Draw</b> on the bench for figures, and export just the view you have framed.',
+    'Smoother all round: sweeps that render the field play every step, parts drag smoothly in 3D, and long sums run in the background.']],
+  ['1.0', '28 September 2026', [
     'The free edition. An <b>examples gallery</b> with a picture of each bench, and a search.',
     '<b>Guided tours</b>: focus a laser beam, and build a Michelson interferometer, step by step on a tab of their own.',
     '<b>Earlier versions</b> (Open ▾): this browser keeps copies of your project as you work, and before you open something else.',
@@ -26538,10 +26548,12 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
   } catch (err) { /* no store: no dot */ }
   document.getElementById('btnNews').addEventListener('click', () => {
     const body = document.getElementById('newsBody');
-    body.replaceChildren(...NEWS.flatMap(([v, date, items]) => {
-      const ul = h('ul');
-      for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); }
-      return [h('h3', null, /^\d/.test(v) ? 'Version ' + v : v, h('span', null, date)), ul];
+    const list = items => { const ul = h('ul'); for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); } return ul; };
+    body.replaceChildren(...NEWS.flatMap(([v, date, items, top]) => {
+      const head = h('h3', null, /^\d/.test(v) ? 'Version ' + v : v, h('span', null, date));
+      // the version's highlights first, its every change folded beneath them
+      if (top) return [head, list(top), h('details', { class: 'rt-news-all' }, h('summary', null, 'All ' + items.length + ' changes in ' + v), list(items))];
+      return [head, list(items)];
     }));
     dot.hidden = true;
     try { localStorage.setItem(NEWS_KEY, APP_VERSION); } catch (err) { /* shown again: fine */ }

@@ -9176,6 +9176,9 @@ function renderSweepFrames(list, onDone) {
     else toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
+  // several workers at once, each step whole on one of them, the page left alone (see swPool)
+  const pool = !closeupOnShow() && swPool();
+  if (pool) { renderOnPool(pool, list, n, cyc(), job, onDone); return; }
   if (fieldWorker()) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
@@ -9256,7 +9259,7 @@ function renderSweepFrames(list, onDone) {
         if (closeupOnShow() && fieldFrames.bench.has(key) && !fieldFrames.closeup.has(closeupKey(key))) {
           job.stage = 'the close-up';
           const view = { cx: V().cx, cy: V().cy, s: V().scale, W, H, tab: project.tab };
-          keepFrame(fieldFrames.closeup, closeupKey(key), closeupFrame(closeupImage(fieldFrames.bench.get(key).segs, view, CLOSEUP_STEP, lightOf().scale === 'log'), CLOSEUP_STEP));
+          keepFrame(fieldFrames.closeup, closeupKey(key), closeupFrame(closeupImage(benchFrame(key).segs, view, CLOSEUP_STEP, lightOf().scale === 'log'), CLOSEUP_STEP));
           yield;
         }
       }
@@ -9282,6 +9285,91 @@ function renderSweepFrames(list, onDone) {
   };
   updateSweepButtons(); syncPanel();
   setTimeout(step, 0);
+}
+
+/* ---------- A sweep's field rendered on several workers at once ----------
+   Each worker holds the bench as it was when Play was pressed; for a step it is sent only the
+   swept values, which it sets as the page would (setParam), traces, and works out the bench's
+   field and every screen's there, so what comes back is filed under the very keys the page
+   will ask for when it plays that step. The page itself is left alone meanwhile, so the sweep
+   can play as the steps come in. They are rendered coarse to fine: every eighth first, then
+   the fourths, the halves and the rest; once the first pass is in, it plays, each step it has
+   not got yet shown as the nearest one before it that it has, so the motion is there at once
+   and fills in. As many workers as the computer has cores to spare, up to six. */
+const SW = { pool: [], failed: false, idle: null };
+const swSize = () => Math.max(1, Math.min(6, ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1));
+function swPool() {
+  if (SW.failed || TEST_MODE || IN_WORKER || !APP_SRC || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
+  clearTimeout(SW.idle);
+  try {
+    while (SW.pool.length < swSize()) {
+      const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
+      const W = { w: new Worker(url), sent: null, jobs: new Map(), seq: 0 };
+      URL.revokeObjectURL(url);
+      W.w.onmessage = e => { const j = W.jobs.get(e.data.id); if (!j) return; W.jobs.delete(e.data.id); if (e.data.ok) j.resolve(e.data.out); else j.reject(new Error(e.data.err)); };
+      W.w.onerror = e => { e.preventDefault(); for (const j of W.jobs.values()) j.reject(new Error(e.message || 'a render worker stopped')); W.jobs.clear(); };
+      SW.pool.push(W);
+    }
+  } catch (err) { SW.failed = true; swDrop(); return null; }
+  return SW.pool;
+}
+function swAsk(W, proj, args) {
+  return new Promise((resolve, reject) => {
+    const id = ++W.seq;
+    W.jobs.set(id, { resolve, reject });
+    const msg = { id, kind: 'step', args };
+    if (W.sent !== proj) { msg.proj = proj; W.sent = proj; }
+    W.w.postMessage(msg);
+  });
+}
+function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
+// kept a minute after a render, for the next; then let go (each holds a copy of the tool)
+const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
+function renderOnPool(pool, list, n, period, job, onDone) {
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id);
+  const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
+  // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
+  const order = [], seen = new Set();
+  for (let st = 8; st >= 1; st >>= 1) for (let i = 0; i < n; i += st) if (!seen.has(i)) { seen.add(i); order.push(i); }
+  const first = Math.ceil(n / 8), done = new Set();
+  let next = 0, started = false;
+  job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0;
+  job.stage = pool.length > 1 ? pool.length + ' at once' : '';
+  const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period, n, done }; onDone(); };
+  const runOne = async W => {
+    while (live() && next < order.length) {
+      const i = order[next++];
+      const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
+      const o = await swAsk(W, proj, { sets, ids });
+      if (!live()) return;
+      if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });
+      for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
+      done.add(i); job.i = done.size - 1;
+      if (!started && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
+      requestRender(); syncPanel();
+    }
+  };
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); changed(false); toast('Stopped rendering the field'); };
+  Promise.all(pool.map(runOne)).then(() => {
+    if (!live()) return;
+    sweepJob = null; swRelease();
+    fieldRendered = { keys, period, n };
+    changed(false);
+    if (!started) { started = true; onDone(); }
+  }, err => {
+    // a worker failed: the pool is not used again, and the render starts again the old way
+    if (!live()) return;
+    console.warn('JEKray2D render workers:', err && err.message);
+    sweepJob = null; SW.failed = true; swDrop();
+    renderSweepFrames(list, started ? () => {} : onDone);
+  });
+  updateSweepButtons(); syncPanel();
+}
+/* a rendered bench field, put back together against the trace the page has for it, the first time it is drawn */
+function benchFrame(key) {
+  const f = fieldFrames.bench.get(key);
+  if (f && f.packed) { const R = fwUnpackRun(f.packed, lastTrace.beams); fieldFrames.bench.set(key, R); return R; }
+  return f;
 }
 
 /* ---------- What is being worked out: a bar at the bottom left of the window ----------
@@ -14294,8 +14382,11 @@ function tick(t) {
     if (playStep === null) { playStep = want; stepSince = t; }
     if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { playStep += Math.sign(want - playStep); stepSince = t; }
     if (want !== playStep) clockT = (playStep + 0.49 * Math.sign(want - playStep)) * P / n;
-    // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly
+    // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly;
+    // while the render is still filling in, the nearest step before it that is there
     tq = (((playStep % n) + n) % n);
+    const D = fieldRendered.done;
+    if (D && D.size) for (let k = 0; k < n && !D.has(tq); k++) tq = (tq - 1 + n) % n;
   } else playStep = null;
   for (const [k, p] of playing) {
     const el = getEl(p.id);
@@ -14483,6 +14574,8 @@ function sweepControls(el, path, sw, label) {
       status.hidden = !status.textContent;
     });
     box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
+    // the render workers warmed up while the sweep is in view, so Play does not wait for them to start
+    if (sw.field && swPool()) swRelease();
   }
 
   const key = sweepKey(el, path);
@@ -21217,7 +21310,7 @@ function drawCloseup() {
   const srcs = popSources();
   if (!srcs.length) return false;
   const key = popKeyOf(lastTrace.beams, srcs);
-  if (key !== popState.key && fieldFrames.bench.has(key)) { popState.key = key; popState.result = fieldFrames.bench.get(key); popState.job = null; }
+  if (key !== popState.key && fieldFrames.bench.has(key)) { popState.key = key; popState.result = benchFrame(key); popState.job = null; }
   if (key !== popState.key || !popState.result) { schedulePop(); return false; }
   const vkey = closeupKey(key);
   // a sweep rendered ahead has this frame's close-up already
@@ -21656,7 +21749,7 @@ function drawPop() {
   if (drag && drag.started && (drag.mode === 'move' || drag.mode === 'rotate') && !playing.size) return new Set();
   const key = popKeyOf(lastTrace.beams, srcs);
   if (key !== popState.key && fieldFrames.bench.has(key)) {
-    popState.key = key; popState.result = fieldFrames.bench.get(key); popState.job = null;
+    popState.key = key; popState.result = benchFrame(key); popState.job = null;
   }
   if (key !== popState.key) { schedulePop(); return new Set(); }
   const R = popState.result;
@@ -26500,6 +26593,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Sweeps, faster</b>: a sweep that renders the field renders on several of the computer\u2019s cores at once, coarse to fine, and starts playing within a moment of pressing Play, filling in as it goes; and a ray sweep keeps each step it has traced, so from its second cycle it only draws.',
     'Less waiting on the page while the field is worked out: a photodiode that samples the field reads it from the background worker; a photodiode behind a cavity opens four times as fast (its beat notes pair each sideband\u2019s light as one beam, not every round trip with every other, and its figure while the cavity\u2019s field is on its way is worked out more coarsely).',
     'A sweep that renders the field now plays smoothly with a screen open on its Diffraction tab, and after a pause: each step was asked for a field it had not been rendered for, and worked out again on the spot. Played again with every step rendered, it starts at once, and the time left counts only the steps still to work out.',
     '<b>STL objects</b> are kept compactly with the bench, so a CAD part now saves to the cloud too (a mesh of more than 40 000 triangles is simplified as it comes in, to its outline\u2019s detail, and the panel says so); and <b>\u2605 Save to My parts</b> in its panel keeps it in your parts library.',
@@ -27541,6 +27635,13 @@ function workerMain() {
         out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
+      } else if (kind === 'step') {
+        // a sweep's step for the render pool: the swept values set as the page sets them, then its fields
+        for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }
+        traceScene();
+        const srcs = popSources();
+        out = { bench: srcs.length ? { key: popKeyOf(lastTrace.beams, srcs), R: fwPackRun(popRun(lastTrace.beams, srcs, { draw: true }), transfer) } : null,
+          screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }) };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
       } else if (kind === 'trace') {

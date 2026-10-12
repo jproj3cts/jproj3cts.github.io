@@ -5518,6 +5518,64 @@ const TESTS = [
         return same && !notes.length && dark && st && st.kinds.stl === 1 ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
+  },  { group: 'Part packs' },
+  {
+    name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',
+    why: 'a pack of two lenses, one in a measured glass (n = 1.70 at 600 nm) and one in an Abbe glass (nd = 1.60), plus a glass with no data and a part of an unknown type: the two good parts and glasses are kept, the other two left out with a note each; a lens placed from it has the glass’s table in it and n = 1.70 at 600 nm; both glasses are in its material menu; and once the pack is removed the lens on the bench is unchanged (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const pack = { format: 'jekray-pack', version: 1, id: 'acme.lenses', name: 'Acme lenses', author: 'Acme', packVersion: '2',
+        glasses: [{ glass: 'ACME-1', nd: 1.6, vd: 40 }, { glass: 'ACME-T', table: { wl: [0.4, 0.6, 0.8, 1.0], n: [1.72, 1.70, 1.69, 1.685] } }, { glass: 'NODATA' }],
+        parts: [{ name: 'AC-100', group: 'Lenses', elements: [{ type: 'lens', id: 'a', name: 'L', x: 0, y: 0, materials: [{ glass: 'ACME-T' }] }] },
+          { name: 'AC-50', group: 'Lenses', elements: [{ type: 'lens', id: 'b', name: 'M', x: 0, y: 0, materials: [{ glass: 'ACME-1' }] }] },
+          { name: 'Bogus', elements: [{ type: 'warpdrive' }] }] };
+      const chk = J.packCheck(pack), id = await J.packInstall(pack);
+      try {
+        const [L] = J.packPlace(id, 0), [M] = J.packPlace(id, 1), l = J.byName(L), m = J.byName(M);
+        const opts = J.materialOptions(l).filter(o => /Acme lenses/.test(o[1])).map(o => o[1]).join();
+        const okCheck = chk.notes.length === 3 && chk.pack.parts.length === 2 && chk.pack.glasses.length === 2;
+        const okL = l.materials[0].table && Math.abs(J.index(l.materials[0], 600) - 1.70) < 1e-9, okM = Math.abs(J.index(m.materials[0], 587.5618) - 1.6) < 1e-6;
+        const before = JSON.stringify(l);
+        await J.packRemove(id);
+        return okCheck && okL && okM && opts === 'ACME-1 (Acme lenses),ACME-T (Acme lenses)' && JSON.stringify(J.byName(L)) === before && !J.packs().length ? 1 : 0;
+      } finally { await J.packRemove(id); }
+    },
+  },
+  {
+    name: 'A part pack with code in it, or one this version cannot read, is refused',
+    why: 'packs hold data only: one with a "code" or "scripts" entry is refused, as are a newer pack version, a bench file, a malformed id and a pack with nothing usable in it; a well-formed one passes (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const ok = { format: 'jekray-pack', version: 1, id: 'x.y', name: 'X', parts: [{ name: 'M', elements: [{ type: 'mirror', id: 'm', name: 'M', x: 0, y: 0 }] }] };
+      const err = o => J.packCheck(Object.assign({}, ok, o)).error || '';
+      return !err({}) && /code/.test(err({ code: 'main.js' })) && /code/.test(err({ scripts: ['a.js'] })) && /newer/.test(err({ version: 2 })) &&
+        /bench/.test(err({ format: 'jekray' })) && /id/.test(err({ id: '../../x' })) && /no parts/.test(err({ parts: [{ elements: [{ type: 'nope' }] }] })) ? 1 : 0;
+    },
+  },
+  {
+    name: 'A pack made from the selection holds each part or group once, centred, with its fibres and glasses',
+    why: 'a fibre laser and photodetector joined by a fibre and grouped, and a lens in a measured glass, selected and made into a pack: 2 parts, the pair with its fibre, each centred on (0, 0), the glass written out once; the pack reads back with no notes, and placing the pair puts its fibre on the bench (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'fcomp', kind: 'laser', id: 'FL', name: 'FL', x: -40, y: 40, angle: 0, group: 'g1' },
+        { type: 'fcomp', kind: 'pd', id: 'PD', name: 'PD', x: 0, y: 40, angle: 0, group: 'g1' },
+        { type: 'lens', id: 'L', name: 'L', x: 30, y: -20, materials: [{ glass: 'MYGLASS', table: { wl: [0.5, 1], n: [1.5, 1.49] } }] }],
+        fibres: [{ a: ['FL', 0], b: ['PD', 0] }] });
+      const P = J.packMake({ format: 'jekray-pack', id: 'me.kit', name: 'Kit' }, ['FL', 'PD', 'L']);
+      const pair = P.parts.find(p => p.elements.length === 2), lens = P.parts.find(p => p.elements.length === 1);
+      const centred = p => Math.abs(p.elements.reduce((a, e) => a + e.x, 0)) < 1e-6 && Math.abs(p.elements.reduce((a, e) => a + e.y, 0)) < 1e-6;
+      const chk = J.packCheck(P);
+      const id = await J.packInstall(P);
+      try {
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        J.packPlace(id, P.parts.indexOf(pair));
+        const placed = J.project();
+        return P.parts.length === 2 && pair && pair.fibres && pair.fibres.length === 1 && lens && centred(pair) && centred(lens) &&
+          P.glasses.length === 1 && P.glasses[0].glass === 'MYGLASS' && !chk.error && !chk.notes.length && placed.elements.length === 2 && placed.fibres.length === 1 ? 1 : 0;
+      } finally { await J.packRemove(id); }
+    },
   },  { group: 'Heights' },
   {
     name: 'Light crossing a vapour cell at an angle, turned or tipped, goes further through the vapour',

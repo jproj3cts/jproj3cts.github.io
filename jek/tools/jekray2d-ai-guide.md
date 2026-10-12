@@ -123,6 +123,10 @@ Before you answer, check each of these:
 
 When a file is opened, JEKray2D lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.
 
+## Part packs
+
+A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File → Part packs…** and then add from **+ Add part → Packs**. A pack is one JSON object, {"format": "jekray-pack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
+
 ## Element reference
 
 Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.

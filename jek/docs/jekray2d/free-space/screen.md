@@ -40,6 +40,10 @@ Near a steep focus the vector focal field is used (**Vector focus**: auto, on or
 
 The map is placed where the light lands on the face, above or below its centre too, and on a screen tipped or rolled out of the plane it is the pattern on the face itself, stretched up it where the light meets it at a slope.
 
+**Phase** shows the phase of the field across the screen, from −π to π as hue, its brightness the field's amplitude. It is taken along the polarisation of the brightest point, whose phase is zero there. A beam meeting the screen at an angle shows tilt fringes, a diverging or converging one rings of its curvature, and a vortex turns once round its dark core for each unit of its charge. With several lasers, only the strongest one's light has a phase.
+
+**Polarisation** shows the polarisation point by point: the colour is how circular it is (S3/S0, red right-handed, blue left-handed, white linear), its brightness the irradiance, and an ellipse every few pixels traces the field there, its long axis along the polarisation (across the map is in the bench plane, p; up it, out of the plane, s). Separate lasers add as Stokes parameters, so where they overlap the light is partly polarised and the ellipses shrink with its degree of polarisation. The overall Stokes parameters and degree of polarisation are listed under the map.
+
 **Along the beam** shows the light across a plane before the screen, square to it: slide **Back from it** anywhere back to the last part the light arrives from. It is worked out as if the screen stood at that plane, so it gives all the screen's figures there, and its map and peak are in W/cm² for the power of the strongest beam's laser, with a colour key under the map. Use it as a beam profiler: to find a waist, to see how far an aperture's rings reach, or to read the irradiance a sample would see at any point along a beam.
 
 **Show its diffraction pattern on its face (3D view)** paints the map onto the screen's face in the 3D view, where the light lands, in the same colours and scale as the tab (linear or log). It updates as the field is worked out again.

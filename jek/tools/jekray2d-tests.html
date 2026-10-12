@@ -5589,6 +5589,44 @@ const TESTS = [
       if (!a || !b || Math.abs(a.reach - 100) > 1e-6) return NaN;
       return Math.max(Math.abs(a.peak / pk(50) - 1), Math.abs(b.peak / pk(100) - 1), Math.abs(a.power - 1), Math.abs(b.power - 1));
     },
+  },
+  {
+    name: 'A screen\u2019s polarisation map follows the light point by point: s, then circular after a quarter-wave plate',
+    why: 's-polarised light on a screen reads S1/S0 = \u22121 wherever it is bright; through a quarter-wave plate at 45\u00b0 it reads |S3/S0| = 1 there, with the sign of the screen\u2019s own S3 for the whole spot (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const bright = (D, f) => { const M = D.map, pk = Math.max(...M.v); let ok = true, n = 0; for (let i = 0; i < M.v.length; i++) if (M.v[i] > 0.5 * pk) { n++; if (!f(M, i)) ok = false; } return ok && n > 4; };
+      const els = plate => [{ type: 'source', id: 'S', name: 'S', x: -80, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 0.5, z0: 0, rays: 1, width: 1, pol: 's', popModel: '2d' },
+        ...(plate ? [{ type: 'waveplate', id: 'W', name: 'QWP', x: -20, y: 0, angle: 0, retard: 0.25, axis: 45 }] : []),
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 40, y: 0, angle: 180, length: 20 }];
+      J.load({ format: 'jekray', version: 1, elements: els(false) });
+      const s = bright(J.diffraction('Sc'), (M, i) => M.s1[i] / M.v[i] < -0.999);
+      J.load({ format: 'jekray', version: 1, elements: els(true) });
+      const D = J.diffraction('Sc'), sg = Math.sign(D.stokes[3]);
+      const c = sg !== 0 && bright(D, (M, i) => sg * M.s3[i] / M.v[i] > 0.999);
+      return s && c ? 1 : 0;
+    },
+  },
+  {
+    name: 'A screen\u2019s phase map winds once round a vortex\u2019s dark core',
+    why: 'an LG01 beam (charge 1) on a screen: going once round its ring of light, its phase turns by 2\u03c0 (the winding number, in turns, against 1)',
+    want: 1, tol: 0.02, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -80, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 1, z0: 0, rays: 1, width: 2, pol: 's', tem: 'lg', lp: 0, ll: 1 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 0, y: 0, angle: 180, length: 30 }] });
+      const M = J.diffraction('Sc').map, n = M.n, cu = (M.u0 + M.u1) / 2, cv = (M.v0 + M.v1) / 2, h = (M.u1 - M.u0) / n;
+      // the ring of light: its radius from the brightest pixel
+      let k = 0; for (let i = 1; i < M.v.length; i++) if (M.v[i] > M.v[k]) k = i;
+      const r = Math.hypot(M.u0 + ((k % n) + 0.5) * h - cu, M.v0 + (Math.floor(k / n) + 0.5) * h - cv);
+      let tot = 0, last = null;
+      for (let j = 0; j <= 72; j++) {
+        const a = 2 * Math.PI * j / 72, i = Math.floor((cu + r * Math.cos(a) - M.u0) / h), q = Math.floor((cv + r * Math.sin(a) - M.v0) / h), ph = M.ph[q * n + i];
+        if (last !== null) { let d = ph - last; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; tot += d; }
+        last = ph;
+      }
+      return Math.abs(tot) / (2 * Math.PI);
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

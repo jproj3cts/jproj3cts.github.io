@@ -13348,6 +13348,8 @@ const V3D = (() => {
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint,
+    // a bench opened in 3D (a link made there), from a camera if given
+    open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => FREE.has(el.type) && el.type !== 'draw',
     // for the tests: what the view holds
     api: {
@@ -24519,7 +24521,9 @@ function uiState() {
   }
   const scroll = { main: Math.round(mainPanel.scrollTop), page: Math.round(window.scrollY || 0) };
   for (const [id, box] of pinBoxes) scroll[id] = Math.round(box._hold != null ? box._hold : box.scrollTop);
-  return { sel: selectedId, pins: pins.slice(), views, scroll };
+  // in the 3D view: the link opens in it, from where the camera is
+  const v3d = V3D.active() ? { cam: V3D.api.camera() } : null;
+  return Object.assign({ sel: selectedId, pins: pins.slice(), views, scroll }, v3d ? { v3d } : {});
 }
 function applyUi(ui) {
   if (!ui || typeof ui !== 'object') return;
@@ -24531,6 +24535,10 @@ function applyUi(ui) {
   if (typeof ui.sel === 'string' && getEl(ui.sel)) selectOne(ui.sel);
   traceScene();
   renderPanel(); requestRender();
+  if (ui.v3d && typeof ui.v3d === 'object') {
+    const C = ui.v3d.cam, ok = a => Array.isArray(a) && a.length === 3 && a.every(x => typeof x === 'number' && isFinite(x));
+    V3D.open(C && ok(C.p) && ok(C.t) ? { p: C.p, t: C.t } : null);
+  }
   const sc = ui.scroll && typeof ui.scroll === 'object' ? ui.scroll : {};
   requestAnimationFrame(() => {
     if (sc.main > 0) holdScroll(mainPanel, sc.main);
@@ -24580,7 +24588,7 @@ function shareData() {
   });
   if (d.measures.length) out.measures = d.measures;
   const ui = uiState();
-  if (ui.sel || ui.pins.length || ui.scroll.page) out.ui = ui;
+  if (ui.sel || ui.pins.length || ui.scroll.page || ui.v3d) out.ui = ui;
   return out;
 }
 const b64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };

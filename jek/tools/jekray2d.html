@@ -2062,7 +2062,7 @@ function nlcSources(hits) {
       type: 'source', virtual: true, shg: true, id: 'shg~' + el.id + '~' + k, name: el.name + ' (second harmonic)', bench: H.bench,
       ...(up ? { z: E.z + E.d3[2] * off, tip: Math.atan2(E.d3[2], lh) / deg } : {}),
       x: up ? E.x + E.d3[0] * off : ex + odx * off, y: up ? E.y + E.d3[1] * off : ey + ody * off, angle: up ? Math.atan2(E.d3[1], E.d3[0]) / deg : Math.atan2(ody, odx) / deg, wavelength: nm2, lines: [], colourAuto: true, colour: wavelengthColour(nm2),
-      gauss: true, w0, z0: -qz - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto', beamView: 'envelope', beamScale: 'lin',
+      gauss: true, w0, z0: -qz - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto',
       pol: el.axis, polAngle: 0, coh: 0, lineshape: 'lorentz', power: H.r.P2 * 1000, tau: 0, pshape: 'sech2', rep: 80, gdd0: 0,
       // polarised along the crystal's axis, turned with its roll as the light saw it
       vJ: H.phiR ? (th => [Math.sin(th), 0, Math.cos(th), 0])((el.axis === 'p' ? 0 : Math.PI / 2) + H.phiR) : el.axis === 'p' ? [0, 0, 1, 0] : [1, 0, 0, 0], vLag: 0, vKey: 'shg~' + el.id + '~' + k + ':q', vFo: 2 * (H.fo || 0), sweeps: {},
@@ -3040,8 +3040,6 @@ function normElementBase(e) {
         gauss: e.gauss === true,
         w0: Math.max(1e-4, num(e.w0, 0.35)),
         z0: num(e.z0, 0),
-        beamView: e.beamView === 'field' ? 'field' : 'envelope',
-        beamScale: e.beamScale === 'log' ? 'log' : 'lin',
         popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
         popModel: e.popModel === '2d' ? '2d' : 'auto',
         traceRays: e.traceRays !== false,
@@ -3179,7 +3177,6 @@ function normElementBase(e) {
         length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
         core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
         na: clamp(num(e.na, 0.12), 0.01, 0.9),
-        emitView: e.emitView === 'field' ? 'field' : 'envelope',   // what it sends out, from the fibre network
         emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
         ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
         mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
@@ -10302,7 +10299,7 @@ function tipSources(net) {
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
           gauss: true, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
           m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
-          popN: 256, popModel: 'auto', beamView: tip.emitView, beamScale: 'lin', pol: 's', polAngle: 0,
+          popN: 256, popModel: 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
           // a pulsed fibre laser's pulse, chirped by the fibres it came through
           tau: K.root.tau || 0, pshape: K.root.pshape || 'sech2', rep: K.root.rep || 80, gdd0: (c.sp ? 0 : K.root.gdd0 || 0) + (c.pw > 0 ? c.gw / c.pw : 0),
@@ -13279,10 +13276,11 @@ const V3D = (() => {
     const box = h('div', { class: 'rt-tryme', 'aria-label': 'Try me: a QR code that opens a copy of this bench' }, h('b', null, 'Try me!'));
     D.tryme = box; D.stage.append(box);
     try {
-      const [lib, hash] = await Promise.all([qrLib(), shareHash()]);
+      const [lib, [url, alnum]] = await Promise.all([qrLib(), qrLink()]);
       if (D.tryme !== box) return;
-      const url = shareBase() + '#p=' + hash, q = lib(0, 'L');
-      q.addData(url, 'Byte'); q.make();
+      const q = lib(0, 'L');
+      q.addData(url, alnum ? 'Alphanumeric' : 'Byte'); q.make();
+      box.dataset.url = url;
       // as big as it needs to be to scan from across a room: 4 px a module at least, up to 40% of the height
       const n = q.getModuleCount(), px = Math.max(160, Math.min(Math.floor(D.stage.clientHeight * 0.4), n * 4));
       const cell = Math.max(1, Math.floor(px / (n + 2)));
@@ -17434,7 +17432,7 @@ function laserSources() {
       const v = {
         type: 'source', virtual: true, laser: true, id: 'laser~' + c.id + '~' + o.j, name: mir.name + ' (laser output)', bench: mir.bench,
         x: B[o.j].x0 + dx * off, y: B[o.j].y0 + dy * off, angle: Math.atan2(dy, dx) / deg, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
-        gauss: true, w0, z0: -q[0] - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto', beamView: 'envelope', beamScale: 'lin',
+        gauss: true, w0, z0: -q[0] - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto',
         pol: 's', polAngle: 0, coh: 0, lineshape: 'lorentz', power: o.P * 1000, tau: 0, pshape: 'sech2', rep: 80, gdd0: 0,
         vJ: J.map(x => x / jn), vLag: 0, vKey: 'laser~' + c.id + ':q', vFo: 0, sweeps: {},
       };
@@ -24293,7 +24291,7 @@ const AI_FIELDS = {
     wavelength: 'nm, 100 to 20000.', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
-    m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.', beamView: '"envelope" (outline of the beam) or "field" (the diffracted field, computed by physical optics).',
+    m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
     traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
     polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
@@ -24332,7 +24330,7 @@ const AI_FIELDS = {
     preset: 'leave "custom".' },
   grating: { length: 'mm.', lpmm: 'lines per mm.', mode: '"reflect" or "transmit".', blaze: 'nm blaze wavelength.', eff: '% into the first order at the blaze.' },
   fibre: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
-    emitView: '"envelope" or "field": how the light it sends out is shown.', emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
+    emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
   nlc: { length: 'mm: the aperture across the beam.', nlLen: 'mm along the beam (10 to 50 is usual).', material: '"ppln" (MgO:PPLN, d_eff 14 pm/V) or "ppktp" (d_eff 9.5 pm/V).', period: 'poling period, µm; 0 (the default) picks the best period for the beam through it.', temp: '°C: tunes the phase matching (PPLN is usually run hot, 40 to 200).', axis: '"s" (z axis out of the bench plane: s light converts) or "p".', faces: '"ar" (end faces anti-reflection coated, 0.1%; the default) or "bare".' },
   cell: { length: 'mm: the window diameter.', cellLen: 'mm along the beam (75 is usual).', atom: '"Rb" (natural), "Rb85", "Rb87", "Cs" or "K".', line: '"D2" or "D1".',
@@ -24522,7 +24520,7 @@ function uiState() {
   const scroll = { main: Math.round(mainPanel.scrollTop), page: Math.round(window.scrollY || 0) };
   for (const [id, box] of pinBoxes) scroll[id] = Math.round(box._hold != null ? box._hold : box.scrollTop);
   // in the 3D view: the link opens in it, from where the camera is
-  const v3d = V3D.active() ? { cam: V3D.api.camera() } : null;
+  const r1 = a => a.map(v => Math.round(v * 10) / 10), c = V3D.active() && V3D.api.camera(), v3d = c ? { cam: { p: r1(c.p), t: r1(c.t) } } : null;
   return Object.assign({ sel: selectedId, pins: pins.slice(), views, scroll }, v3d ? { v3d } : {});
 }
 function applyUi(ui) {
@@ -24588,7 +24586,15 @@ function shareData() {
   });
   if (d.measures.length) out.measures = d.measures;
   const ui = uiState();
-  if (ui.sel || ui.pins.length || ui.scroll.page || ui.v3d) out.ui = ui;
+  // only what is set: nothing selected, pinned, scrolled or in 3D leaves it out
+  const U = {};
+  if (ui.sel) U.sel = ui.sel;
+  if (ui.pins.length) U.pins = ui.pins;
+  if (Object.keys(ui.views).length) U.views = ui.views;
+  const sc = Object.fromEntries(Object.entries(ui.scroll).filter(([, v]) => v > 0));
+  if (Object.keys(sc).length) U.scroll = sc;
+  if (ui.v3d) U.v3d = ui.v3d;
+  if (Object.keys(U).length) out.ui = U;
   return out;
 }
 const b64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -24605,14 +24611,49 @@ async function shareHash(data) {
 async function readShareHash(h) {
   const kind = h[0], body = h.slice(1);
   let bytes;
-  try { bytes = unb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
-  if (kind === 'z') {
+  try { bytes = kind === 'q' ? unb32(body) : unb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  if (kind === 'z' || kind === 'q') {
     if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekray file instead');
     try { bytes = await streamBytes(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
   } else if (kind !== 'j') throw new Error('that is not a JEKray2D link');
   try { return JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
 }
 const shareBase = () => location.origin + location.pathname;
+/* A link for a QR code, as small as it can be: the bench without its notes, its parts renumbered
+   0, 1, 2... (not where a cavity's lock setting is keyed by them), deflated, and written in base
+   32 capitals after /R/ on the site, all of it in the QR code's alphanumeric mode (5.5 bits a
+   character, against 8 for a byte). The site's 404 page forwards /R/... to the tool as #p=q... */
+function shareDataCompact() {
+  const d = shareData();
+  delete d.notes;
+  if (!d.cavityLock) {
+    const map = new Map(), taken = new Set(d.elements.map(e => e.id));
+    let k = 0;
+    const next = () => { let t; do t = (k++).toString(36); while (taken.has(t)); return t; };
+    for (const e of d.elements) map.set(e.id, next());
+    const m = id => map.has(id) ? map.get(id) : id;
+    for (const e of d.elements) { e.id = m(e.id); if (e.splitFrom) e.splitFrom = m(e.splitFrom); }
+    for (const F of d.fibres || []) { F.a = [m(F.a[0]), F.a[1]]; F.b = [m(F.b[0]), F.b[1]]; delete F.id; }
+    if (d.ui) {
+      if (d.ui.sel) d.ui.sel = m(d.ui.sel);
+      if (d.ui.pins) d.ui.pins = d.ui.pins.map(m);
+      if (d.ui.views) d.ui.views = Object.fromEntries(Object.entries(d.ui.views).map(([id, v]) => [m(id), v]));
+    }
+  }
+  return d;
+}
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const b32 = bytes => { let out = '', acc = 0, bits = 0; for (const b of bytes) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { out += B32[(acc >>> (bits - 5)) & 31]; bits -= 5; } acc &= (1 << bits) - 1; } if (bits) out += B32[(acc << (5 - bits)) & 31]; return out; };
+const unb32 = t => { const out = []; let acc = 0, bits = 0; for (const ch of t.toUpperCase()) { const v = B32.indexOf(ch); if (v < 0) throw new Error('bad'); acc = (acc << 5) | v; bits += 5; if (bits >= 8) { out.push((acc >>> (bits - 8)) & 255); bits -= 8; } acc &= (1 << bits) - 1; } return new Uint8Array(out); };
+/* the QR link: [url, alphanumeric?]: capitals throughout where the site's address allows it */
+async function qrLink() {
+  const json = new TextEncoder().encode(JSON.stringify(shareDataCompact()));
+  const host = location.origin.toUpperCase();
+  if (typeof CompressionStream !== 'undefined' && /^[0-9A-Z $%*+\-.\/:]+$/.test(host)) {
+    try { return [host + '/R/' + b32(await streamBytes(json, new CompressionStream('deflate-raw'))), true]; } catch (err) { /* the long way below */ }
+  }
+  return [shareBase() + '#p=' + await shareHash(shareDataCompact()), false];
+}
 async function shareLink() {
   const hash = '#p=' + await shareHash(), url = shareBase() + hash;
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
@@ -24727,6 +24768,7 @@ function checkImport(raw, p, notes) {
     }
     for (const [k, v] of Object.entries(e)) {
       if (IMPORT_SAME.has(k)) continue;
+      if (k === 'beamView' || k === 'beamScale' || k === 'emitView') continue;             // how the light showed, now the bench's Light (see normLight)
       if (k === 'z' && V3D.free(n) && isFinite(v) && +v === BEAM_Z) continue;       // the beam height, which is no height of its own
       if ((k === 'tip' || k === 'roll') && tippable(n) && isFinite(v) && +v === 0) continue;   // upright, which is no tip at all
       if (k === 'faceMap' && n.type === 'screen' && v === false) continue;                    // not shown, as by default
@@ -27723,7 +27765,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
-  const shared = !TEST_MODE && location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/);
+  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/);
   if (shared) { if (!EMBED) window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
@@ -28028,7 +28070,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a link pasted into the address bar of a page already open changes only the hash
   if (!TEST_MODE) window.addEventListener('hashchange', () => {
     if (!EMBED && helpLink()) return;
-    const sh = location.hash.match(/^#p=([zj][A-Za-z0-9_-]+)/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
+    const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
     if (!sh && !dm) return;
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     if (sh) openShareHash(sh[1]); else openDemo(dm[1], true);

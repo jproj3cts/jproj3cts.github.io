@@ -70,6 +70,16 @@
     target = "/jek" + path;
   }
 
+  /* A JEKray2D bench in a QR code: /R/ then the bench, deflated, in base 32 capitals (the QR
+     code's compact alphanumeric mode). The tool reads it as #p=q followed by the same. */
+  var bench = /^\/R\/([A-Za-z2-7]+)\/?$/.exec(path);
+  if (!target && bench) {
+    document.getElementById("missing").hidden = true;
+    document.getElementById("forwarding").hidden = false;
+    window.location.replace("/jek/tools/jekray2d.html#p=q" + bench[1].toUpperCase());
+    return;
+  }
+
   if (target) {
     document.getElementById("missing").hidden = true;
     document.getElementById("forwarding").hidden = false;

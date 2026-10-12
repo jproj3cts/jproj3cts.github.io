@@ -1051,7 +1051,7 @@ A laser, a 50/50 cube, two arms and two screens. Note the cube at angle 0 sends 
   "maxBounces": 40,
   "minPower": 0.001,
   "elements": [
-    {"type":"source","id":"laser","name":"Laser","x":-60,"y":0,"angle":0,"width":2,"gauss":true,"w0":1,"z0":60,"beamView":"field","popN":128,"pol":"s","rays":3},
+    {"type":"source","id":"laser","name":"Laser","x":-60,"y":0,"angle":0,"width":2,"gauss":true,"w0":1,"z0":60,"popN":128,"pol":"s","rays":3},
     {"type":"cube","id":"50-50-cube","name":"50/50 cube","x":0,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
     {"type":"mirror","id":"moving-mirror","name":"Moving mirror","x":50,"y":0,"angle":180},
     {"type":"mirror","id":"fixed-mirror","name":"Fixed mirror","x":0,"y":50,"angle":-90},
@@ -1073,7 +1073,7 @@ A linear cavity. The end mirror’s R = 500 mm is concave towards the cavity (it
   "maxBounces": 40,
   "minPower": 0.001,
   "elements": [
-    {"type":"source","id":"laser","name":"Laser","x":-50,"y":0,"angle":0,"width":0.5,"gauss":true,"w0":0.3,"z0":50,"beamView":"field","pol":"s","rays":1},
+    {"type":"source","id":"laser","name":"Laser","x":-50,"y":0,"angle":0,"width":0.5,"gauss":true,"w0":0.3,"z0":50,"pol":"s","rays":1},
     {"type":"mirror","id":"input-coupler","name":"Input coupler","x":0,"y":0,"angle":0,"reflect":99},
     {"type":"mirror","id":"end-mirror","name":"End mirror","x":250,"y":0,"angle":180,"reflect":99.9,"R":500},
     {"type":"screen","id":"transmitted","name":"Transmitted","x":300,"y":0,"angle":180,"length":20},
@@ -1094,7 +1094,7 @@ Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the 
   "maxBounces": 40,
   "minPower": 0.0001,
   "elements": [
-    {"type":"source","id":"laser","name":"Laser","x":-130,"y":0,"angle":0,"wavelength":1064,"width":0.5,"gauss":true,"w0":0.3,"z0":130,"beamView":"field","pol":"s","rays":1},
+    {"type":"source","id":"laser","name":"Laser","x":-130,"y":0,"angle":0,"wavelength":1064,"width":0.5,"gauss":true,"w0":0.3,"z0":130,"pol":"s","rays":1},
     {"type":"eom","id":"eom-20-mhz","name":"EOM, 20 MHz","x":-100,"y":0,"angle":0},
     {"type":"cube","id":"pick-off","name":"Pick-off","x":-50,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
     {"type":"mirror","id":"input-coupler","name":"Input coupler","x":0,"y":0,"angle":0,"reflect":99},

@@ -12253,7 +12253,7 @@ const V3D = (() => {
     mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
     const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
     // Fly: a bird in flight
-    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land (experimental)', () => flyStart());
+    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Q and E to roll, Esc to land', () => flyStart());
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
     // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
@@ -13408,13 +13408,13 @@ const V3D = (() => {
     }, 'image/png');
   }
 
-  /* ---------- fly (experimental): the bench full screen, flown through ----------
+  /* ---------- fly: the bench full screen, flown through ----------
      W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
      down the picture, Q and E roll it left and right, Shift four times as fast; the mouse turns
      the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
      flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
-  const flyOk = () => { try { return exp('fly'); } catch (e) { return false; } };
+  const flyOk = () => true;                               // (part of the tool proper since 1.1)
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
     KeyE: 'rollR', KeyQ: 'rollL', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
   // the camera's own axes, as it is turned now: it looks along its -z, its y is up the picture
@@ -25885,8 +25885,7 @@ async function zmxIntoMine(files, mode) {
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'fly', name: 'Fly through the bench', what: 'in the 3D view, the bird on its bar (Fly) fills the screen with the bench and lets you fly through it: W A S D move you the way you look and across, the mouse turns you, Q and E roll it, Space and Ctrl rise and fall, Shift goes faster, the wheel sets the speed, and Esc lands.' },
-  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (Fly, above), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -27596,6 +27595,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Fly</b> is part of the tool, no longer experimental: the bird on the 3D view\u2019s bar flies you through the bench, full screen (W A S D to move, the mouse to look, Q and E to roll, Space and Ctrl up and down, Esc to land).',
     'In the 3D view, beams of one laser running together now add as <b>fields</b>: an interferometer\u2019s dark port is dark there, as on its screen. The 3D field is worked out on several of the computer\u2019s cores at once. A screen with light from several lasers weighs each by its power.',
     'The 3D view\u2019s <b>view cube</b> shades the face, edge or corner under the pointer, so it is clear which way a click will look from; its bar keeps just Fly (a bird), Fit, Names, the mouse and PNG (the views are on the cube, and on Shift+1 to 7). The Draw palette steps aside in 3D, drawings being 2D only. Flying, Q and E roll the view (Space and Ctrl rise and fall), and the mouse turns it about its own axes; landing levels it.',
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',

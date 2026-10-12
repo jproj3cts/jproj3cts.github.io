@@ -5784,6 +5784,20 @@ const TESTS = [
     },
   },
   {
+    name: 'A horn is drawn as built: its flare at asin(a / L), a single-mode waveguide, quarter-wave grooves',
+    why: 'corrugated, 100 GHz, a 7.5 mm, L 60 mm: the flare narrows at half-angle asin(a / L) to a waveguide of radius 0.36 lambda (between TM01’s cut-off 2.61 r and TE11’s 3.41 r, so TE11 alone), two wavelengths of it behind; grooves lambda / 4 deep; a diagonal horn is square; a receiver is built for the bench’s frequency (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(rfBench(100, [{ type: 'source', name: 'Diag', x: 0, y: 40, angle: 0, rays: 1, mmw: { kind: 'diagonal', ghz: 100, dbm: 0, a: 7.5, L: 60 } }], { ghz: 100 }));
+      const H = J.hornShape('Horn'), lam = 299792458 / 100 * 1e-6, rg = 0.36 * lam;
+      const angle = Math.abs(Math.atan((H.a - H.rg) / H.Lf) - Math.asin(7.5 / 60)) < 1e-9;
+      const guide = Math.abs(H.rg - rg) < 1e-9 && 2.61 * H.rg < lam && 3.41 * H.rg > lam && Math.abs(-H.xb - H.Lf - 2 * lam) < 1e-9;
+      const grooves = Math.abs(H.D - lam / 4) < 1e-9 && H.grooves > 10;
+      const D = J.hornShape('Diag'), rx = J.hornShape('Rx');
+      return angle && guide && grooves && D.square && D.grooves === 0 && Math.abs(rx.lam - lam) < 1e-9 ? 1 : 0;
+    },
+  },
+  {
     name: 'RF is experimental, and an RF lens is a part of its own',
     why: 'the RF tab of parts shows only with the switch on and RF ticked; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
     want: 1, tol: 0, unit: '',

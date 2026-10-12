@@ -6437,15 +6437,48 @@ function drawScreen(el, sel) {
 const srcBody = el => ({ L: 20, hw: Math.max(el.width / 2, 2) + 1.5 });
 /* a feed horn from above: its flare from the waveguide to the aperture (on the part's place, facing
    the way it sends or takes light), in the RF palette's amber, and the aperture in the beam's colour */
+/* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
+function hornLam(el) {
+  if (el.type === 'source') return C_NM_GHZ / el.mmw.ghz * 1e-6;
+  const nm = benchNms().find(v => v > 1e5);
+  return nm ? nm * 1e-6 : 3;
+}
+/* A horn's shape in its own frame (x along its beam, the aperture at 0, the rest behind). The
+   flare is the cone whose slant length L runs from the apex to the aperture's rim, so its
+   half-angle is asin(a / L); it narrows to the waveguide, sized for the one mode at its
+   frequency (a circular guide's TE11 cuts off at 3.41 r and TM01 at 2.61 r, so r = 0.36 lambda
+   carries TE11 alone; a diagonal horn's square guide the same), then two wavelengths of guide
+   and a flange. A corrugated horn's wall is grooved a quarter-wave deep, three grooves to the
+   wavelength. A diagonal horn is square across (a its half-side). The upper half's outline,
+   and a corrugated horn's grooved inner wall from the aperture back to the throat. */
 function hornShape(el) {
-  const a = el.mmw.a, Lax = Math.sqrt(Math.max(1, el.mmw.L * el.mmw.L - a * a)), wg = 0.2 * a;
-  return { a, Lax, outline: [[0, -a], [-Lax, -wg], [-Lax - 0.25 * Lax, -wg], [-Lax - 0.25 * Lax, wg], [-Lax, wg], [0, a]] };
+  const { a, L, kind } = el.mmw, lam = hornLam(el);
+  const Lax = Math.sqrt(Math.max(1e-6, L * L - a * a)), tanA = a / Lax;
+  const rg = Math.min(0.36 * lam, 0.9 * a), Lf = (a - rg) / tanA;
+  const xb = -Lf - 2 * lam, rFl = Math.max(2.2 * rg, rg + 1), back = xb - Math.max(0.4 * lam, 0.5);
+  const corr = kind === 'corrugated', D = corr ? lam / 4 : 0, wall = corr ? Math.max(0.04 * a, 0.3) : 0, rAt = x => a + x * tanA;
+  const upper = [[0, a + D + wall], [-Lf, rg + D + wall], ...(corr ? [[-Lf, rg]] : []), [xb, rg], [xb, Math.max(rFl, rg + D + wall)], [back, Math.max(rFl, rg + D + wall)]];
+  let grooves = null;
+  if (corr) {
+    const p = Math.max(lam / 3, Lf / 120);
+    grooves = [[0, a]];
+    for (let x = 0; x - p > -Lf + 1e-9; x -= p) {
+      const m = x - p / 2, e = x - p;
+      grooves.push([m, rAt(m)], [m, rAt(m) + D], [e, rAt(e) + D], [e, rAt(e)]);
+    }
+    grooves.push([-Lf, rg]);
+  }
+  return { a, lam, Lf, rg, xb, rFl, back, corr, D, wall, square: kind === 'diagonal', upper, grooves,
+    outline: [...upper, ...upper.slice().reverse().map(([x, y]) => [x, -y])] };
 }
 function drawHorn(el, sel) {
-  const f = frame(el), H = hornShape(el);
+  const f = frame(el), H = hornShape(el), s = V().scale;
   pathLocal(f, H.outline, true);
   ctx.fillStyle = bodyFill('#4a3a1c'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#ffb347'; ctx.lineWidth = sel ? 2.2 : 1.5; ctx.stroke();
+  // the bore: the flare's inner wall, grooved in a corrugated horn (when the grooves can be seen)
+  const bore = H.grooves && H.lam / 3 * s >= 3 ? H.grooves : [[0, H.a], [-H.Lf, H.rg]];
+  for (const sg of [1, -1]) { pathLocal(f, bore.map(([x, y]) => [x, sg * y])); ctx.strokeStyle = sel ? selInk() : 'rgba(255,179,71,0.75)'; ctx.lineWidth = 1; ctx.stroke(); }
   pathLocal(f, [[0, -H.a], [0, H.a]]);
   ctx.strokeStyle = el.type === 'source' ? el.colour : '#7ee0a1'; ctx.lineWidth = 3; ctx.stroke();
 }
@@ -12592,7 +12625,7 @@ const V3D = (() => {
      part moved or turned keeps its model and is only put in its new place (a screen showing its
      pattern on its face is made again each time, its picture changing with the light) */
   const POSE = new Set(['x', 'y', 'z', 'angle', 'tip', 'roll', 'name', 'label', 'sweeps', 'hide3d', 'locked', 'group']);
-  const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o); };
+  const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o) + (el.mmw && el.type === 'detector' ? '|' + hornLam(el) : ''); };   // a receiving horn is built for the bench's frequency
   const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
@@ -12637,10 +12670,20 @@ const V3D = (() => {
     const g = new T.Group(), add = (...o) => { for (const x of o) g.add(x); };
     const L = (el.length || 10) / 2;
     if ((el.type === 'source' || el.type === 'detector') && el.mmw && !el.mmw.part) {
-      // a feed horn: its flare (a cone from the waveguide out to the aperture) and the waveguide behind
-      const H = hornShape(el), wg = 0.2 * H.a, back = -H.Lax * 1.25;
-      add(mesh(lathe([[0, H.a], [-H.Lax, wg], [back, wg], [back, 0]]), mat.metal(0xd8a650, 0.25)));
-      add(mesh(disc(0.3, H.a * 0.98, -0.2), mat.glow(el.type === 'source' ? el.colour : '#3f9a63')));
+      // a horn (see hornShape): its flare, waveguide and flange turned about its axis, square for a
+      // diagonal horn; a corrugated horn's grooved bore inside a thick wall
+      const H = hornShape(el), gold = mat.metal(0xd8a650, 0.25);
+      const turn = pts => {
+        if (!H.square) return lathe(pts);
+        const g2 = new T.LatheGeometry(pts.map(([x, r]) => new T.Vector2(Math.max(0, r) * Math.SQRT2, x)), 4, Math.PI / 4).toNonIndexed();
+        g2.computeVertexNormals(); g2.rotateZ(-Math.PI / 2); return g2;
+      };
+      if (H.corr) {
+        add(mesh(turn([[H.xb, H.rg], [H.xb, H.upper[4][1]], [H.back, H.upper[4][1]], [H.back, 0]]), gold));
+        add(mesh(turn([...H.grooves.slice().reverse(), [0, H.upper[0][1]], [-H.Lf, H.upper[1][1]], [-H.Lf, H.rg], [H.xb, H.rg]]), gold));
+      } else add(mesh(turn([[0, H.a], [-H.Lf, H.rg], [H.xb, H.rg], [H.xb, H.rFl], [H.back, H.rFl], [H.back, 0]]), gold));
+      // the mouth is open: the glow is down at the throat, where the waveguide feeds the flare
+      add(mesh(disc(Math.min(0.3, 0.1 * H.rg), H.rg * 0.95, -H.Lf), mat.glow(el.type === 'source' ? el.colour : '#3f9a63')));
       return g;
     }
     switch (el.type) {
@@ -24685,7 +24728,7 @@ function fitView() {
     for (let i = 0; i < portsOf(e).length; i++) { const Q = portWorld(e, i); x0 = Math.min(x0, Q.x); x1 = Math.max(x1, Q.x); y0 = Math.min(y0, Q.y); y1 = Math.max(y1, Q.y); }
     // a horn reaches back to its waveguide
     if (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector')) {
-      const b = -1.25 * hornShape(e).Lax, a = e.angle * deg, X = e.x + b * Math.cos(a), Y = e.y + b * Math.sin(a);
+      const b = hornShape(e).back, a = e.angle * deg, X = e.x + b * Math.cos(a), Y = e.y + b * Math.sin(a);
       x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y);
     }
   }
@@ -29049,6 +29092,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // experimental features: switch them on or off, and whether one is on
     palettesOn: () => palettesOn(),
     typeLabel(name) { return typeLabel(this.byName(name)); },
+    hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),
     // an STL object onto the bench from a file's contents (text, or bytes as an array of numbers): its name

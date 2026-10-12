@@ -58,6 +58,10 @@ $$
 
 A horn also traces a small fan of rays along its beam, so lenses and mirrors show their focus as rays do.
 
+### Its shape
+
+A horn is drawn as it would be built. Its flare is the cone whose slant length $$L$$ runs from the apex to the aperture's rim, so its half-angle is $$\arcsin(a/L)$$. The flare narrows to a waveguide sized for one mode at the horn's frequency. A circular guide's TE₁₁ mode cuts off at $$\lambda = 3.41\,r$$ and TM₀₁ at $$2.61\,r$$, so a radius $$r = 0.36\,\lambda$$ carries TE₁₁ alone. Behind it are two wavelengths of guide and a flange. A corrugated horn's bore is grooved a quarter-wave deep, three grooves to the wavelength, inside a thick wall. A diagonal horn, its guide and its flange are square across. A receiving horn is drawn for the frequency of the RF beam on the bench.
+
 ## Receiving horns
 
 A receiving horn takes in the overlap of the field arriving on its aperture with its own mode. Its mode is the beam it would launch, sent backwards: a Gaussian of radius $$w_a$$ whose phase converges on the horn's apex, $$L$$ behind the aperture. For each polarisation, with the beams of one launch added as fields first,

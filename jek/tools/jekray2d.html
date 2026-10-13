@@ -973,6 +973,10 @@
   .rt-acctmenu .rt-accthead span { display: block; color: var(--jek-ink-soft); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .rt-acctmenu .rt-menunote a { color: inherit; }
   .rt-acctmenu .rt-menunote.rt-warn { color: var(--jek-red); font-weight: 600; }
+  .rt-assumed { margin: 0 0 0.6rem; padding: 0.45rem 0.6rem; font-size: 0.8125rem; color: var(--jek-red); background: #fdecea; border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
+  .rt-assumed ul { margin: 0.25rem 0 0.2rem; padding-left: 1.1rem; }
+  .rt-assumed li { margin: 0.1rem 0; }
+  .rt-assumed .rt-link { font-size: 0.75rem; }
   .rt-glasswarn { margin: 0; padding: 0.4rem 0.55rem; font-size: 0.8125rem; color: var(--jek-ink); background: #fdecea; border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
@@ -3186,6 +3190,8 @@ function normElementBase(e) {
   // and rolled about its own axis (the way it faces, or its optical axis), degrees (see setRoll)
   if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(6), -180, 180);
   if (typeof e.group === 'string' && e.group) base.group = e.group.slice(0, 40);     // one of a group, picked and moved together
+  // what its import had to assume (a coating from the part number, a fold it could not follow): shown in red until dismissed
+  if (Array.isArray(e.assumed) && e.assumed.length) base.assumed = e.assumed.filter(x => typeof x === 'string' && x).slice(0, 12).map(x => x.slice(0, 400));
   if (e.mmw && typeof e.mmw === 'object') base.mmw = normRf(e.mmw, e.type);              // an RF part: the RF palette's, a horn's settings
   if (e.mod && typeof e.mod === 'object') { const m = normModRef(e.mod, e.type); if (m) base.mod = m; }   // a mod's part: which mod, its settings
   // its name moved off its usual place (mm from the part) or made bigger or smaller
@@ -6851,6 +6857,23 @@ function labelSize(f) {
   project.labelMm = +(labelMm() * f).toPrecision(3);
   scheduleSave(); requestRender();
 }
+/* a ringed red ! on a part whose import made assumptions (see partAssumptions); not in exports */
+function drawAssumed(els) {
+  if (exporting) return;
+  for (const el of els) {
+    if (el.type !== 'lens' && el.type !== 'mirror' && el.type !== 'prism' && el.type !== 'cube' && !el.assumed) continue;
+    if (!partAssumptions(el).length) continue;
+    const r = Math.max(4, halfSize(el)), X = sx(el.x) + Math.min(r * V().scale * 0.75, 60) + 6, Y = sy(el.y) - Math.min(r * V().scale * 0.75, 60) - 6;
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(X, Y, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#d7263d'; ctx.stroke();
+    ctx.fillStyle = '#d7263d'; ctx.font = '700 12px ' + getCss('--jek-sans'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('!', X, Y + 0.5);
+    ctx.restore();
+  }
+}
 function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
@@ -7016,6 +7039,7 @@ function renderAll(stale) {
   }
   for (const el of els) if (el.type === 'source') draw(el);
   for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
+  drawAssumed(els);
   drawLabels();
   drawMeasures();
   updateEmpty();
@@ -15596,6 +15620,8 @@ function renderPanelBody(el) {
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   pinTitle(title, el.id, () => selectEl(el));
   panel.append(title);
+  const asm = assumedBox(el);
+  if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
   panel.append(h('h3', null, 'Position'));
@@ -18002,6 +18028,24 @@ function askForMaterial(apply) {
 const unknownGlass = m => !!m && !m.table && !m.nlc && m.glass !== 'AIR' && m.glass !== 'custom' &&
   !glassKey(m.glass) && !RF_MAT[m.glass] && !isFinite(m.nd);
 const unknownGlassNote = m => h('p', { class: 'rt-glasswarn wide' }, m.glass + ' is not in the glass catalogue and no index came with it, so it traces as n = 1.5. Choose it, or its equivalent, under Material, or set a constant index.');
+/* everything a part's import assumed, and any glass it has that traces as n = 1.5 */
+function partAssumptions(el) {
+  const out = [...(el.assumed || [])];
+  const mats = el.type === 'lens' ? el.materials || [] : el.material ? [el.material] : [];
+  for (const m of mats) if (unknownGlass(m)) out.push(m.glass + ' is not in the glass catalogue and no index came with it, so it traces as n = 1.5: choose it under Material.');
+  return [...new Set(out)];
+}
+/* the red box at the top of its panel */
+function assumedBox(el) {
+  const list = partAssumptions(el);
+  if (!list.length) return null;
+  const box = h('div', { class: 'rt-assumed', role: 'note' },
+    h('strong', null, 'Imported with assumptions'),
+    h('ul', null, ...list.map(t => h('li', null, t))));
+  if (el.assumed && el.assumed.length) box.append(h('button', { type: 'button', class: 'rt-link', title: 'Clear the import\u2019s notes once you have checked them (a glass with no index stays flagged until it is chosen)',
+    onclick: () => { checkpoint(); delete el.assumed; changed(true); } }, 'Dismiss'));
+  return box;
+}
 function materialOptions(mat, rf) {
   // the RF dielectrics: by their index at the bench's frequency, when it is an RF bench
   const nm = benchNms()[0], at = nm > 1e5 ? ' at ' + fmtGHz(nm) : ' (RF)';
@@ -26587,6 +26631,14 @@ function exportZmx() {
   } catch (err) { toast(err.message, true); }
 }
 
+/* the part a parsed file makes, carrying what its import assumed; a glass's missing index is
+   checked live instead (see partAssumptions), so it clears once the glass is chosen */
+function zmxPart(Z, fileName, mode) {
+  const el = zmxToElement(Z, fileName, mode);
+  const kept = [...Z.warnings].filter(w => !/so n = 1\.5 was used/.test(w));
+  if (kept.length) el.assumed = kept.map(w => w.charAt(0).toUpperCase() + w.slice(1) + '.');
+  return normElement(el);
+}
 /* a .zmx file read into a part: Z (the parsed file, with its warnings) and the element */
 function zmxElement(file, mode) {
   return new Promise((resolve, reject) => {
@@ -26594,7 +26646,7 @@ function zmxElement(file, mode) {
     r.onload = () => {
       try {
         const Z = parseZmx(decodeZmx(r.result), file.name);
-        resolve({ Z, el: normElement(zmxToElement(Z, file.name, mode)) });
+        resolve({ Z, el: zmxPart(Z, file.name, mode) });
       } catch (err) { reject(err); }
     };
     r.onerror = () => reject(new Error('Could not read ' + file.name));
@@ -27066,6 +27118,8 @@ async function placeMine(p, at) {
     let c = MINE.content.get(k);
     if (!c) { c = (await api('/v1/parts/' + p.id)).content; MINE.content.set(k, c); }
     const clip = JSON.parse(c);
+    // a part of one element takes the name it is kept under, which a rename changes
+    if (Array.isArray(clip.elements) && clip.elements.length === 1 && p.name) clip.elements[0].name = p.name;
     clip.from = null;                                   // not where it was copied from: never nudged
     let pt = [V().cx, V().cy];
     if (at) { const r = canvas.getBoundingClientRect(), q = V3D.active() ? V3D.tablePoint(at[0], at[1]) : [wx(at[0] - r.left), wy(at[1] - r.top)]; if (q) pt = [snapVal(q[0]), snapVal(q[1])]; }
@@ -28389,6 +28443,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',
     'Glasses <b>D-ZK3M</b> (CDGM\u2019s moulding glass, in Thorlabs\u2019 C350TMD and others) and <b>N-SK5</b> (and its twin D-ZK3). A lens of a glass the tracer does not know, with no index given for it, now says so in its panel: it traces as n = 1.5 until you choose the glass.',
     'Denser panels: each setting is one row, its label beside its box, X and Y (and Tip and Roll) side by side. Sweeping is the \u223f button at the end of a row; a swept number shows its sweep folded to one line with Play, and opens to edit, one at a time. Sections fold under their headings and stay as you left them, readouts gather in a Readout section, and the longer explanations sit under About this part.',
     '<b>Export a lens (.zmx)</b> (File menu): the lenses selected, as a sequential prescription that lens-design programs open, with every face\u2019s radius, conic, aspheric terms, glass and aperture, the bench\u2019s wavelengths, and the image at the paraxial focus. Lenses and windows on one axis go as one system; a mirror can go on its own.',
@@ -30240,6 +30295,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return optimise(this.byName(name), path, this.byName(targetName), key, goal, targetVal);
     },
     importZmxText(text, fileName, mode) { return zmxToElement(parseZmx(text, fileName), fileName, mode || 'auto'); },
+    // the parts the bench marks with a red ! (their import assumed something)
+    assumedOn() { return project.elements.filter(e => onTab(e) && partAssumptions(e).length).map(e => e.name); },
+    // a .zmx onto the bench as File › Import does it (selected, its assumptions kept)
+    importZmxBench(text, fileName, mode) { const el = zmxPart(parseZmx(text, fileName), fileName, mode || 'auto'); el.bench = project.tab; project.elements.push(el); selectOne(el.id); changed(true); traceScene(); return el.name; },
+    // a part kept in My parts placed on the bench, its content given (as fetched)
+    minePlace(p, content) { MINE.content.set(p.id + '@' + p.updated_at, content); return placeMine(p); },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },

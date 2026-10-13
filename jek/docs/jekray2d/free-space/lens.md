@@ -76,6 +76,10 @@ Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list 
 
 **File › Import a lens (.zmx)** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands, for example), the surfaces are given it.
 
+When the import has to assume something (a coating from the part number, a fold it cannot follow, a glass it does not know), the part's panel opens with a red note listing each assumption, and the part carries a ringed red ! on the bench. **Dismiss** clears the notes once you have checked them. A glass with no index stays flagged until you choose it under **Material**.
+
+A part kept in **My parts** comes onto the bench under the name it is kept as, so renaming it there renames what you add.
+
 ## Exporting a lens
 
 **File › Export a lens (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It holds:

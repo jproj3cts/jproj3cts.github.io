@@ -736,6 +736,52 @@ const TESTS = [
     },
   },
   {
+    name: 'An import that assumed something says so, in red, until dismissed',
+    why: 'a -C lens whose file only says COAT AR: its coating is assumed from the part number, so its panel opens with the red note and the bench marks it; Dismiss clears both (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const zmx = ['VERS 1', 'MODE SEQ', 'NAME A240TM-C', 'UNIT MM',
+        'SURF 0', ' CURV 0', ' DISZ INFINITY',
+        'SURF 1', ' CURV 3.125E-1', ' DISZ 2.97', ' GLAS N-BK7 0 0 1.5168 64.17', ' DIAM 4 1', ' COAT AR',
+        'SURF 2', ' CURV -1.25E-1', ' DISZ 4', ' DIAM 4 1', ' COAT AR',
+        'SURF 9', ' CURV 0', ' DISZ 0'].join('\r\n');
+      J.load(bench('asm', []));
+      const name = J.importZmxBench(zmx, 'A240TM-C.zmx', 'lens');
+      const doc = document.getElementById('rig').contentDocument;
+      const box = doc.querySelector('#panel .rt-assumed');
+      const shown = !!box && /AR coating/.test(box.textContent) && J.byName(name).assumed.length > 0 && J.assumedOn().includes(name);
+      [...box.querySelectorAll('button')].find(b => b.textContent === 'Dismiss').click();
+      const gone = !doc.querySelector('#panel .rt-assumed') && !J.byName(name).assumed && !J.assumedOn().includes(name);
+      return shown && gone ? 1 : 0;
+    },
+  },
+  {
+    name: 'A glass with no index is flagged until it is chosen',
+    why: 'a lens of a glass outside the catalogue with no index in its file: the red note and the bench mark show, with no Dismiss for it, and go once N-BK7 is chosen (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(bench('asm2', [bk7Lens({ name: 'U', materials: [{ glass: 'XYZ-123' }] })]));
+      J.select('U');
+      const box = doc.querySelector('#panel .rt-assumed');
+      const shown = !!box && /XYZ-123/.test(box.textContent) && ![...box.querySelectorAll('button')].some(b => b.textContent === 'Dismiss') && J.assumedOn().includes('U');
+      J.byName('U').materials[0].glass = 'N-BK7';
+      J.select('U');
+      return shown && !doc.querySelector('#panel .rt-assumed') && !J.assumedOn().includes('U') ? 1 : 0;
+    },
+  },
+  {
+    name: 'A kept part comes onto the bench under the name it was renamed to',
+    why: 'a part kept in My parts as “Old name”, then renamed “My collimator”: added to the bench, it is called My collimator',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('mine', []));
+      const content = JSON.stringify({ format: 'jekray-clip', elements: [bk7Lens({ id: 'q1', name: 'Old name' })], fibres: [] });
+      await J.minePlace({ id: 'p1', updated_at: 't1', name: 'My collimator' }, content);
+      return J.byName('My collimator') && !J.byName('Old name') ? 1 : 0;
+    },
+  },
+  {
     name: 'A band coating works inside its band',
     why: '0.5% per face means 99.0025% through two of them',
     want: 99.0025, tol: 0.02, unit: '%',

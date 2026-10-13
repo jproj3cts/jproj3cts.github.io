@@ -13366,7 +13366,8 @@ const V3D = (() => {
     const rank = new Map([...V.segs].sort((a, b) => a.peak - b.peak).map((s, k) => [s, k]));
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
-      for (let i = 0; i < data.length; i++) data[i] = s.I[i] / V.peak;
+      const top = volDisp(V);
+      for (let i = 0; i < data.length; i++) data[i] = Math.min(1e4, s.I[i] / top);   // above the top colour, held at it (half floats end at 65504)
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
       const Rm = Math.max(...s.rmax), ts = new Float32Array(64), rm = new Float32Array(64);
@@ -13400,7 +13401,7 @@ const V3D = (() => {
     D.vkey.hidden = !on;
     if (!on) return;
     if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
-    const pk = R.vol.peak, dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    const pk = volDisp(R.vol), over = pk < 0.999 * R.vol.peak, dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
     cv.width = 240; cv.height = 1;
     const g = cv.getContext('2d'), img = g.createImageData(240, 1);
     for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
@@ -13408,7 +13409,7 @@ const V3D = (() => {
     const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
     D.vread = h('div', { class: 'rd' }, 'Point at the light to read it');
     D.vkey.replaceChildren(h('b', null, 'Irradiance' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
-      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? fmtIrr(v) : '0'))),
+      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%', title: f === 1 && over ? 'Brighter light (up to ' + fmtIrr(R.vol.peak) + ', where the beam is narrowest) shows in this colour too' : null }, v ? (f === 1 && over ? '\u2265 ' : '') + fmtIrr(v) : '0'))),
       D.vread);
   }
   /* the brightest irradiance along the line of sight under the pointer, and where: { I, p } */
@@ -14043,7 +14044,7 @@ const V3D = (() => {
       // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
       field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
       // each piece of the field volume: where it starts, its direction, and its extent along it
-      fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
+      fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
@@ -22491,6 +22492,11 @@ const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost
    launch on the bench plane running within 6 degrees of it, side by side within a few beam
    widths, over a stretch of its length. (Beams crossing at an angle or running opposite ways
    make fringes far finer than the view; they add as intensities.) */
+/* a segment's power as it starts: its launch's share of its laser times the power its field carries */
+const volSegPower = sg => {
+  if (sg._pw === undefined) { let f = 1; try { f = (sg.eng === '2d' ? popStats2(sg.F0) : popStats(sg.F0)).power; } catch (err) { /* unknown: as launched */ } sg._pw = volPw(sg) * (f > 0 ? f : 0); }
+  return sg._pw;
+};
 function volPartners(segs, tab) {
   const flat = sg => { const b = sg.b; return b && (!tab || b.bench === tab) && b.len > 0 && !(b.len3 > 0 && Math.abs(b.len3 - b.len) > 1e-9) && !(b.d3 && Math.abs(b.d3[2]) > 1e-9); };
   const byL = new Map();
@@ -22500,6 +22506,10 @@ function volPartners(segs, tab) {
     if (a === c) continue;
     const A = a.b, C = c.b;
     if (A.dx * C.dx + A.dy * C.dy < Math.cos(6 * deg) || Math.abs((A.z0 ?? BEAM_Z) - (C.z0 ?? BEAM_Z)) > 1e-6) continue;
+    // a ghost of a ten-thousandth the power makes fringes of 2% at most: not worth a map, whose
+    // coarse grid (as wide as the wider beam) would blur a tight focus of the stronger one
+    const wa = volSegPower(a), wc = volSegPower(c);
+    if (Math.min(wa, wc) < 1e-4 * Math.max(wa, wc)) continue;
     // where c runs alongside a: its ends on a's axis
     const t0 = (C.x0 - A.x0) * A.dx + (C.y0 - A.y0) * A.dy, t1 = t0 + C.len * (C.dx * A.dx + C.dy * A.dy), lo = Math.max(0, Math.min(t0, t1)), hi = Math.min(A.len, Math.max(t0, t1));
     if (!(hi > lo)) continue;
@@ -22561,8 +22571,13 @@ function volData(segs, tab, bb, only) {
       if (ranges && !ranges.some(([j0, j1]) => j >= j0 && j < j1)) return;
       if (coh) {
         // reach: each member's few widths about its axis, as seen from this one's
+        // (sized to the beams that matter: a ghost of a few percent adds fringes within the strong
+        // beam, and its own faint spread beyond it is left out, rather than a grid as wide as it
+        // blurring a tight focus of the strong one)
         let R = 0;
+        const top = Math.max(...members.map(({ m }) => volSegPower(m)));
         for (const { m } of members) {
+          if (volSegPower(m) < 0.05 * top) continue;
           // (a cut at an end, its place rounded to single precision, still counts as on the segment)
           const tm0 = (b.x0 + b.dx * t - m.b.x0) * m.b.dx + (b.y0 + b.dy * t - m.b.y0) * m.b.dy;
           if (tm0 < -1e-3 || tm0 > m.b.len + 1e-3) continue;
@@ -22651,6 +22666,26 @@ function volStitch(list) {
 }
 /* Volumes of light running the same way along the same line, cut the same: an unpolarised beam's
    halves, added as the separate light they are; mates holding the same summed field, kept once */
+/* the irradiance the 3D colours run up to: the brightest but for the brightest 3% of the light's
+   length, so a fibre's face or a tight focus (micrometres long, and orders of magnitude brighter)
+   shows in the top colour rather than leaving the rest of the beam at the bottom of the scale */
+function volDisp(V) {
+  if (V.disp) return V.disp;
+  const pts = [];
+  for (const s of V.segs) {
+    const per = s.two ? s.M * s.M : s.M, n = s.ts.length;
+    for (let j = 0; j < n; j++) {
+      let m = 0; for (let q = j * per; q < (j + 1) * per; q++) if (s.I[q] > m) m = s.I[q];
+      const w = 0.5 * ((s.ts[Math.min(n - 1, j + 1)] - s.ts[j]) + (s.ts[j] - s.ts[Math.max(0, j - 1)]));
+      if (m > 0 && w > 0) pts.push([m, w]);
+    }
+  }
+  pts.sort((a, b) => b[0] - a[0]);
+  const tot = pts.reduce((a, p) => a + p[1], 0);
+  let acc = 0, d = V.peak;
+  for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
+  return (V.disp = Math.min(V.peak, Math.max(d, V.peak * 1e-9)));
+}
 function volMerge(list) {
   const out = [], byK = new Map();
   let peak = 0;
@@ -28471,6 +28506,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',
     'Glasses <b>D-ZK3M</b> (CDGM\u2019s moulding glass, in Thorlabs\u2019 C350TMD and others) and <b>N-SK5</b> (and its twin D-ZK3). A lens of a glass the tracer does not know, with no index given for it, now says so in its panel: it traces as n = 1.5 until you choose the glass.',
@@ -30163,7 +30199,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     sweepPause() { pauseAll(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
-      return { peak: V.peak * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
+      return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },

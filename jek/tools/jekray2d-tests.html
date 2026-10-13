@@ -5358,6 +5358,19 @@ const TESTS = [
   },
   { group: 'The 3D view' },
   {
+    name: 'The 3D field\u2019s colours run to the collimated beam, not a micrometre spot',
+    why: 'a 1 mW beam from a 20 \u00b5m waist (160 W/cm\u00b2 there) collimated by a 50 mm lens to w \u2248 0.5 mm (about 0.25 W/cm\u00b2) for a metre: the top of the colour scale comes within a factor of 3 of the collimated beam, the waist above it, rather than the waist leaving the rest at the bottom of the scale',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('disp', [src({ name: 'S', x: -50, width: 1, rays: 3, gauss: true, w0: 0.02, z0: 0, power: 1 }),
+        { type: 'lens', name: 'L', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 25.84 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'Sc', x: 1000, length: 30 })], { light: { rays: false, envelope: false, field: true } }));
+      const v = J.vol3d(), w = 633e-6 * 50 / (Math.PI * 0.02), Ic = 2 * 1e-3 / (Math.PI * (w / 10) ** 2);
+      TESTS_EXPECT.disp = [v.disp, v.peak, Ic];
+      return v.peak > 100 * v.disp && v.disp > Ic / 3 && v.disp < Ic * 3 ? 1 : 0;
+    },
+  },
+  {
     name: 'Interfering beams fill their 3D field to the part they end on',
     why: 'the Michelson\u2019s two arms, added as fields to the output port: every cut of each such segment, its last (at the screen) included, keeps the beam\u2019s reach, rather than a last cut of none that left the light short of the screen (1 when all hold)',
     want: 1, tol: 0, unit: '',

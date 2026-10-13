@@ -12803,7 +12803,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + (lightOf().field ? '|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)

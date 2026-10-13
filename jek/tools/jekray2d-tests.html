@@ -5289,6 +5289,25 @@ const TESTS = [
   },
   { group: 'The 3D view' },
   {
+    name: 'The bench\u2019s Light ticks redraw the 3D view',
+    why: 'the Michelson in 3D: unticking Show the rays takes its rays out, unticking the envelope its beams, and ticking them again brings them back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      try {
+        J.experimental(true); await J.view3d.set(true);
+        J.select(null);
+        const doc = document.getElementById('rig').contentDocument;
+        const tick = i => doc.querySelectorAll('#panel .rt-check input')[i].click();
+        const s0 = J.view3d.stats();
+        tick(0); const s1 = J.view3d.stats();
+        tick(1); const s2 = J.view3d.stats();
+        tick(0); tick(1); const s3 = J.view3d.stats();
+        return s0.rays > 0 && s0.beams > 0 && s1.rays === 0 && s1.beams > 0 && s2.rays === 0 && s2.beams === 0 && s3.rays === s0.rays && s3.beams === s0.beams ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
     name: 'A tab of free-space parts opens in 3D, each part a model, the light drawn',
     why: 'the Michelson example in 3D: its six parts each made (a source, a cube, two mirrors, two screens), rays as lines and its Gaussian beams as tubes, a name over each, and a breadboard under them all; then back to 2D (1 when all hold)',
     want: 1, tol: 0, unit: '',

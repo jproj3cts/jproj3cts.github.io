@@ -6532,12 +6532,64 @@ function drawSource(el, sel) {
   ctx.stroke();
 }
 
+/* The surfaces a beam segment runs between, so it is drawn cut along them, not square across
+   its axis: at a 45° mirror the beam in ends on the mirror and the beam out starts on it, each
+   edge where it meets the surface. Each plane is its point on the axis and its normal, turned so
+   the segment lies on its positive side. The normal at a surface comes from what it did to the
+   axis: a reflection's along the change in direction, a refraction's from Snell's law (n1 d1 -
+   n2 d2 lies along it); where the axis went straight on, from the part's own facing. The end's
+   is the next segment's start, or the part the beam ends on. Null where there is none. */
+// each segment's first child (the segment that leaves its end), by index
+function segKids(B) {
+  if (segKids.B === B) return segKids.m;
+  const m = new Map();
+  B.forEach((c, j) => { if (c.parent >= 0 && c.ev && c.ev.dIn && !m.has(c.parent)) m.set(c.parent, j); });
+  segKids.B = B; segKids.m = m;
+  return m;
+}
+function segPlanes(B, i) {
+  const b = B[i], len = b.len3 || b.len, d3 = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(...d3), dir = d3.map(v => v / dl);
+  const plane = (ev, hx, hy, hz, sgn, el) => {
+    let n = [0, 0, 0];
+    if (ev && ev.dIn && ev.dOut) {
+      const a = ev.din3 || [...ev.dIn, 0], c = ev.dout3 || [...ev.dOut, 0], n1 = ev.n1 || 1, n2 = ev.n2 || 1;
+      n = ev.mode === 'R' ? [0, 1, 2].map(k => c[k] - a[k]) : [0, 1, 2].map(k => n1 * a[k] - n2 * c[k]);
+    }
+    if (Math.hypot(...n) < 1e-6 && el && !['source', 'fcomp', 'elec', 'pic', 'draw', 'fibre'].includes(el.type)) n = [Math.cos(el.angle * deg), Math.sin(el.angle * deg), 0];
+    const m = Math.hypot(...n);
+    if (m < 1e-6) return null;
+    n = n.map(v => v / m);
+    const c = n[0] * dir[0] + n[1] * dir[1] + n[2] * dir[2];
+    if (Math.abs(c) < 0.05) return null;                      // grazing: left square
+    n = n.map(v => v * Math.sign(c) * sgn);
+    const h2 = Math.hypot(n[0], n[1]);
+    return { x: hx, y: hy, z: hz, n3: n, nx: h2 > 1e-6 ? n[0] / h2 : 0, ny: h2 > 1e-6 ? n[1] / h2 : 0, flat: h2 > 0.05, tan: Math.sqrt(Math.max(0, 1 - c * c)) / Math.abs(c) };
+  };
+  const z0 = b.z0 !== undefined ? b.z0 : BEAM_Z;
+  const ev0 = b.ev && b.ev.dIn ? b.ev : null;
+  const p0 = ev0 ? plane(ev0, b.x0, b.y0, ev0.hz !== undefined ? ev0.hz : z0, 1, getEl(ev0.el)) : null;
+  const k = segKids(B).get(i), ev1 = k !== undefined ? B[k].ev : null, end = getEl(b.endEl);
+  const p1 = (ev1 || end) ? plane(ev1, b.x0 + b.dx * b.len, b.y0 + b.dy * b.len, ev1 && ev1.hz !== undefined ? ev1.hz : z0 + dir[2] * len, -1, ev1 ? getEl(ev1.el) : end) : null;
+  return { p0, p1, len };
+}
+// the canvas clipped to between a segment's planes (screen coordinates); W the widest it is drawn, mm
+function clipSegPlanes(P, W) {
+  const big = 4 * W + 50;
+  for (const q of [P.p0, P.p1]) {
+    if (!q || !q.flat) continue;                              // a plane lying flat (a periscope's mirror) cuts nothing seen from above
+    const tx = -q.ny, ty = q.nx;
+    ctx.beginPath();
+    ctx.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); ctx.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
+    ctx.lineTo(sx(q.x - tx * big + q.nx * big), sy(q.y - ty * big + q.ny * big)); ctx.lineTo(sx(q.x + tx * big + q.nx * big), sy(q.y + ty * big + q.ny * big));
+    ctx.closePath(); ctx.clip();
+  }
+}
 function drawBeams(fieldShown) {
   const B = lastTrace.beams;
   if (!B || !B.length || !lightOf().envelope) return;
   ctx.save();
   // a cavity's round trips land on one another: each envelope once, to the pixel
-  const done = new Set(), m2 = new Map();
+  const done = new Set(), m2 = new Map(), idx = new Map(B.map((b, i) => [b, i]));
   for (const seg of B) {
     if (seg.fan || seg.pol || seg.bench !== project.tab) continue;       // a ray fan's pilot is not a beam; one envelope per beam
     if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
@@ -6553,8 +6605,12 @@ function drawBeams(fieldShown) {
     const nxp = -seg.dy, nyp = seg.dx;
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
     const up = [], dn = [], upIn = [], dnIn = [];
-    for (let i = 0; i <= steps; i++) {
-      const t = seg.len * i / steps;
+    // past each end as far as its surface runs across the beam, then cut along the surface
+    const PL = segPlanes(B, idx.get(seg)), wMax = Math.max(bA ? bA.w : 0, bB ? bB.w : 0, seg.hole || 0) * 1.6;
+    const e0 = PL.p0 ? Math.min(5, PL.p0.tan) * wMax : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * wMax : 0;
+    for (let i = -1; i <= steps + 1; i++) {
+      const t = i < 0 ? -e0 : i > steps ? seg.len + e1 : seg.len * i / steps;
+      if ((i < 0 && !e0) || (i > steps && !e1)) continue;
       const b = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, M2);
       if (!b) continue;
       const x = seg.x0 + seg.dx * t, y = seg.y0 + seg.dy * t;
@@ -6574,6 +6630,7 @@ function drawBeams(fieldShown) {
     }
     // a share of the beam that went round a rim shows as faintly as it is weak
     const faint = seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1;
+    ctx.save(); clipSegPlanes(PL, seg.len + wMax * 6);
     ctx.beginPath();
     if (upIn.length === up.length) {
       // two bands, either side of the hole
@@ -6600,6 +6657,7 @@ function drawBeams(fieldShown) {
       side.forEach(([X, Y], i) => i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y));
       ctx.stroke();
     }
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -12607,6 +12665,7 @@ const V3D = (() => {
     gl.shadowMap.enabled = true; gl.shadowMap.type = T.PCFSoftShadowMap;
     gl.shadowMap.autoUpdate = false;                      // shadows are drawn again only when the scene is (see build), not as the view turns
     gl.autoClear = false;
+    gl.localClippingEnabled = true;                      // beams cut along the surfaces they meet (see segPlanes)
     const scene = new T.Scene();
     const pm = new T.PMREMGenerator(gl);
     // the studio light round it all, its ceiling turned to be up (+z) as the bench's is
@@ -12619,6 +12678,15 @@ const V3D = (() => {
     scene.add(sun, sun.target, new T.HemisphereLight(0xffffff, 0x404850, 0.5));
     const groups = { board: new T.Group(), parts: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
     for (const g of Object.values(groups)) scene.add(g);
+    // a beam that is never rebuilt, too small to see, for each way beams are blended: it keeps the
+    // shader every beam shares (cut by two planes, see segClip3) compiled while the beams are
+    // rebuilt, so dragging a part never waits on a new one
+    // (and one not cut, as the outlines and markers redrawn with them are)
+    for (const blending of [T.NormalBlending, T.AdditiveBlending]) for (const cut of [true, false]) {
+      const keep = new T.Mesh(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([0, 0, -1e4, 1e-3, 0, -1e4, 0, 1e-3, -1e4], 3)),
+        new T.MeshBasicMaterial(Object.assign(cut ? { clippingPlanes: [new T.Plane(new T.Vector3(0, 0, 1), 1e9), new T.Plane(new T.Vector3(0, 0, 1), 1e9)] } : {}, { transparent: true, opacity: 0, blending, side: T.DoubleSide, depthWrite: false })));
+      keep.frustumCulled = false; scene.add(keep);
+    }
     // the view cube: its own small scene, drawn in the top right corner over the bench
     const cube = new T.Scene(), cubeCam = new T.OrthographicCamera(-0.9, 0.9, 0.9, -0.9, 0.1, 10);
     const faceTex = label => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
@@ -13107,7 +13175,9 @@ const V3D = (() => {
       const L3 = seg.len3 || seg.len, d = seg.d3 || [seg.dx, seg.dy, seg.uz || 0], up = seg.d3 && !(seg.len > 1e-9);
       const c = up ? [0, Math.min(1, 400 / L3)] : cut(seg.x0, seg.y0, seg.x0 + seg.dx * seg.len, seg.y0 + seg.dy * seg.len, bb);
       if (!c) return;
-      const ta = c[0] * L3, tb = c[1] * L3;
+      // past each end as far as its surface runs across the beam, cut along the surface (see segPlanes)
+      const PL = segPlanes(B, i), wEnd = Math.max(...[0, L3].map(t => { const b2 = beamAt(seg.qr + t, seg.qi, seg.n, seg.nm, Mx); return b2 ? b2.w : 0; })) * 1.6;
+      const ta = c[0] * L3 - (c[0] === 0 && PL.p0 ? Math.min(5, PL.p0.tan) * wEnd : 0), tb = c[1] * L3 + (c[1] === 1 && PL.p1 ? Math.min(5, PL.p1.tan) * wEnd : 0);
       const steps = Math.max(8, Math.min(64, Math.round((tb - ta) / 4))), nt = 20, pos = [], idx = [];
       // across it: level, and up out of the plane square to it
       const hl = Math.hypot(d[0], d[1]), nx = hl > 1e-9 ? -d[1] / hl : -seg.dy, ny = hl > 1e-9 ? d[0] / hl : seg.dx;
@@ -13128,12 +13198,15 @@ const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });
     if (lightOf().field && R.vol) volMeshes(G);
   }
+  // a segment's planes as the renderer's clipping planes (the world is the bench's frame, in mm)
+  // always two (one that cuts nothing standing in), so every beam shares one compiled shader
+  const segClip3 = P => [P.p0, P.p1].map(q => q ? new T.Plane(new T.Vector3(...q.n3), -(q.n3[0] * q.x + q.n3[1] * q.y + q.n3[2] * q.z)) : new T.Plane(new T.Vector3(0, 0, 1), 1e9));
   /* The diffracted field as a glowing volume, segment by segment: a box round each, its shader
      marching the view's ray through it in steps fitted to the beam (long outside it, short
      across it, and never past more than half the gap between two cuts along it) and keeping the
@@ -13141,7 +13214,7 @@ const V3D = (() => {
      the brightest on the tab: what the key under it reads */
   const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
   const VOL_FS = `
-    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uR, uDec; uniform vec3 uCam;
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uDec; uniform vec3 uCam; uniform vec4 uP0, uP1;
     varying vec3 vP;
     // the two cuts either side of t, how far between them, the larger reach, and their gap
     void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
@@ -13162,7 +13235,7 @@ const V3D = (() => {
     void main() {
       vec3 ro = uCam, rd = normalize(vP - uCam);
       vec3 sg = vec3(rd.x < 0.0 ? -1.0 : 1.0, rd.y < 0.0 ? -1.0 : 1.0, rd.z < 0.0 ? -1.0 : 1.0), iv = sg / max(abs(rd), vec3(1e-9));
-      vec3 t0 = (vec3(-uR, -uR, uTa) - ro) * iv, t1 = (vec3(uR, uR, uTb) - ro) * iv, tn = min(t0, t1), tf = max(t0, t1);
+      vec3 t0 = (vec3(-uR, -uR, uZa) - ro) * iv, t1 = (vec3(uR, uR, uZb) - ro) * iv, tn = min(t0, t1), tf = max(t0, t1);
       float sN = max(max(max(tn.x, tn.y), tn.z), 0.0), sF = min(min(tf.x, tf.y), tf.z);
       if (sF <= sN) discard;
       float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
@@ -13173,8 +13246,9 @@ const V3D = (() => {
         float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm, ds;
         if (q > 1.0) ds = min((q - 1.0) * rm * 0.6 / side, gap / along);
         else {
-          // the two cuts each at this distance from the axis (not the same share of their reach)
-          best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
+          // the two cuts each at this distance from the axis (not the same share of their reach),
+          // only between the surfaces the segment runs from and to
+          if (dot(uP0.xyz, p) + uP0.w >= 0.0 && dot(uP1.xyz, p) + uP1.w >= 0.0) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
           ds = min(min(uRm[lo], uRm[hi]) * 0.12 / side, gap * 0.5 / along);
         }
         sp += max(ds, minStep);
@@ -13184,6 +13258,15 @@ const V3D = (() => {
       if (v <= 0.002) discard;
       gl_FragColor = vec4(texture2D(uMap, vec2(v, 0.5)).rgb, clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v));
     }`;
+  function volPlanes(s) {
+    const B = lastTrace.beams || [], none = new T.Vector4(0, 0, 0, 1);
+    const k = B.findIndex(b => Math.abs(b.x0 - s.o[0]) < 1e-6 && Math.abs(b.y0 - s.o[1]) < 1e-6 && (() => { const d = b.d3 || [b.dx, b.dy, b.uz || 0], l = Math.hypot(...d); return (d[0] * s.e[0] + d[1] * s.e[1] + d[2] * s.e[2]) / l > 0.9999; })());
+    if (k < 0) return { pl: [none, none], ext: [0, 0] };
+    const P = segPlanes(B, k), ex = [s.n[0], s.n[1], 0], ez = s.e, ey = [ez[1] * ex[2] - ez[2] * ex[1], ez[2] * ex[0] - ez[0] * ex[2], ez[0] * ex[1] - ez[1] * ex[0]];
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const loc = q => { if (!q) return none; const n = [dot(q.n3, ex), dot(q.n3, ey), dot(q.n3, ez)], r = [q.x - s.o[0], q.y - s.o[1], q.z - s.o[2]], pp = [dot(r, ex), dot(r, ey), dot(r, ez)]; return new T.Vector4(n[0], n[1], n[2], -dot(n, pp)); };
+    return { pl: [loc(P.p0), loc(P.p1)], ext: [P.p0 ? Math.min(5, P.p0.tan) : 0, P.p1 ? Math.min(5, P.p1.tan) : 0] };
+  }
   let magmaTex = null;
   function volMeshes(G) {
     const V = R.vol, dec = fieldDec(lightOf().scale);
@@ -13200,11 +13283,13 @@ const V3D = (() => {
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
       const Rm = Math.max(...s.rmax), ts = new Float32Array(64), rm = new Float32Array(64);
+      // the surfaces its beam runs between, in the box's own frame (x across, z along), and how far past its ends to reach them
+      const { pl, ext } = volPlanes(s);
       for (let j = 0; j < 64; j++) { ts[j] = s.ts[Math.min(j, nc - 1)]; rm[j] = s.rmax[Math.min(j, nc - 1)]; }
-      const geo = new T.BoxGeometry(2 * Rm, 2 * Rm, s.tb - s.ta); geo.translate(0, 0, (s.ta + s.tb) / 2);
+      const za = s.ta - ext[0] * Rm, zb = s.tb + ext[1] * Rm, geo = new T.BoxGeometry(2 * Rm, 2 * Rm, zb - za); geo.translate(0, 0, (za + zb) / 2);
       const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
         uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
-          uDec: { value: dec }, uTa: { value: s.ta }, uTb: { value: s.tb }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+          uDec: { value: dec }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
       const o = new T.Mesh(geo, m3);
       const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
@@ -22781,19 +22866,26 @@ function drawPop() {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
   ctx.imageSmoothingEnabled = true;
+  // each segment cut along the surfaces it runs between (see segPlanes), its end slices drawn on past its ends to meet them
+  const TB = lastTrace.beams || [], at = new Map(TB.map((b, i) => [[b.x0, b.y0, b.dx, b.dy].join(','), i]));
   for (const sg of R.segs) {
     const D = sg.draw, b = sg.b;
     if (!D || b.bench !== project.tab) continue;
+    const i = at.get([b.x0, b.y0, b.dx, b.dy].join(',')), PL = i !== undefined ? segPlanes(TB, i) : { p0: null, p1: null };
+    const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
+    ctx.save();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys));
     const nx = -b.dy, ny = b.dx;
     ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     ctx.globalAlpha = glowA(0.95 * D.alpha);
-    const ts = D.ts;
     for (let c = 0; c < ts.length; c++) {
-      const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0];
-      const tB = c < ts.length - 1 ? 0.5 * (ts[c] + ts[c + 1]) : ts[c];
+      const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0] - e0;
+      const tB = c < last ? 0.5 * (ts[c] + ts[c + 1]) : ts[c] + e1;
       if (tB <= tA) continue;
       ctx.drawImage(D.cv, 3 * c + 1, 0, 1, POP_ROWS, tA, -D.Ys[c], tB - tA, 2 * D.Ys[c]);
     }
+    ctx.restore();
   }
   ctx.restore();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -27965,6 +28057,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Beams are cut along the surfaces they meet, in 2D and 3D, their envelope and their diffracted field alike: at a 45\u00b0 mirror the beam in ends on the mirror and the beam out starts from it, where before each ended square across its axis, half of it past the mirror and half short of it.',
     'Experimental: <b>Mods</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the mods it uses, and offers them when opened. An example mod and a guide to writing one are in the documentation.',
     'Experimental: <b>RF and millimetre waves</b> (Help \u2192 Experimental features\u2026), a new <b>RF</b> tab of parts for quasi-optics from 1 GHz to 3 THz. A <b>feed horn</b> (corrugated, smooth-wall, diagonal or ideal) launches the Gaussian beam that fits its aperture, set by its frequency in GHz and its power in dBm; a <b>receiving horn</b> takes in the overlap with its own mode, in dBm and as a share of what arrives. <b>RF lenses</b>, white, of the RF dielectrics (HDPE, PTFE, Rexolite, TPX, silicon, quartz, alumina, nylon), absorb by their loss tangent, and metal mirrors, wire grids, film beam splitters and absorber loads complete the bench. A new example, <b>Millimetre-wave link, 150 GHz</b>, and a page in the documentation. Optical sources now stop at 1 mm (and start at 100 nm): longer waves are the RF tab\u2019s.',
     '<b>Fly</b> is part of the tool, no longer experimental: the bird on the 3D view\u2019s bar flies you through the bench, full screen (W A S D to move, the mouse to look, Q and E to roll, Space and Ctrl up and down, Esc to land).',
@@ -29743,6 +29836,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
     hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean'))); },
+    beams: () => lastTrace.beams,
+    segPlanes: i => segPlanes(lastTrace.beams, i),
     maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
     modReadout(name) { return modReadoutResults(this.byName(name)).map(x => ({ name: x.D.name, none: x.none, fail: x.fail || null, r: x.r })); },
     modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },

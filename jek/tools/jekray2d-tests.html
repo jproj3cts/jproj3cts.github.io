@@ -5845,6 +5845,17 @@ const TESTS = [
     why: 'a source set to 5 mm in a saved bench opens at 1 mm (1e6 nm), and one set to 50 nm at 100 nm, in nm summed',
     want: 1e6 + 100, tol: 0, unit: 'nm',
     run: J => { J.load(bench('lim', [src({ name: 'A', wavelength: 5e6 }), src({ name: 'B', y: 10, wavelength: 50 })])); return J.byName('A').wavelength + J.byName('B').wavelength; },
+  },
+  {
+    name: 'A beam is drawn cut along the surfaces it meets, not square across it',
+    why: 'a beam along x onto a mirror at 45°, reflected up: the beam in ends on a plane through the hit point along the mirror (its normal across the mirror, the beam on its positive side), the beam out starts on the same plane, and each runs past its end by tan 45° = 1 of its width to meet it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('cut45', [src({ gauss: true, w0: 4, z0: 0, width: 8, rays: 1 }), { type: 'mirror', name: 'M', x: 50, y: 0, angle: 135, length: 25.4 }, screen({ name: 'S', x: 50, y: 40, angle: 270, length: 20 })]));
+      const B = J.beams(), i = B.findIndex(b => b.dx > 0.99), j = B.findIndex(b => b.dy > 0.99);
+      const a = J.segPlanes(i).p1, b = J.segPlanes(j).p0, m = Math.SQRT1_2, ok = (q, d) => q && Math.abs(q.nx * m + q.ny * m) < 1e-9 && Math.abs(q.x - 50) < 1e-9 && Math.abs(q.y) < 1e-9 && Math.abs(q.tan - 1) < 1e-9 && (q.nx * d[0] + q.ny * d[1]) * (q === a ? -1 : 1) > 0;
+      return ok(a, [1, 0]) && ok(b, [0, 1]) ? 1 : 0;
+    },
   },  { group: 'Mods' },
   {
     name: 'A mod’s plate focuses as the delay it gives says',

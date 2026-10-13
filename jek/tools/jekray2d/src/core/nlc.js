@@ -3,14 +3,11 @@ import { EPS0, FACT, atomLines } from './traps.js';
 import { zeemanLines } from './zeeman.js';
 import { hermite } from './pulses.js';
 import { wavelengthColour } from './colour.js';
-import { deg, num } from '../state/project.js';
+import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir, toWorld, toWorldDir } from './mask.js';
 import { cellPumps, zOf } from '../engines/trace.js';
-import { H } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { ci } from '../engines/fibre.js';
-import { h } from '../ui/panel.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
 
 /* ---------- Nonlinear crystals: second-harmonic generation ----------

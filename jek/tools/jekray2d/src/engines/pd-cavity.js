@@ -12,7 +12,7 @@ import { getEl, selected } from '../state/elements.js';
 import { meshSize } from '../core/stl.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
 import { lastTrace, paraxial, sourceLines, traceScene } from './trace.js';
-import { H, V, W, portsInUse, requestRender, wx, wy } from '../ui/render.js';
+import { portsInUse, requestRender } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from '../ui/sweeps.js';
 import { arrival3, detectorReading, deviceCache, faceArrivals, fibreCoupling, fibreMode, rfCoupling } from './fibre-face.js';

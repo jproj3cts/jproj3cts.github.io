@@ -1,15 +1,14 @@
 import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
-import { history, project } from '../state/project.js';
+import { project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
-import { keepSnapshot, onTab, restore, scheduleSave } from '../state/tabs.js';
+import { keepSnapshot, onTab, scheduleSave } from '../state/tabs.js';
 import { setExporting } from '../engines/trace.js';
-import { H, V, W, canvas, draw, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
+import { H, V, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
 import { h } from '../ui/panel.js';
-import { cx } from '../engines/cavity.js';
 import { setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { PALETTE_NAMES } from '../ui/experimental.js';
-import { fillRail, rail } from '../ui/rail.js';
+import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
 import {

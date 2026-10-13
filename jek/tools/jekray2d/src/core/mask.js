@@ -1,7 +1,6 @@
 import { deg } from '../state/project.js';
 import { sagFn } from './geometry.js';
 import { clamp } from '../ui/params.js';
-import { h } from '../ui/panel.js';
 import { modMaskFns } from '../io/mods.js';
 
 /* ---------- Mask functions ----------

@@ -1,12 +1,7 @@
 import { JONES_TYPES, linesPerMm } from '../core/modulators.js';
 import { hermite } from '../core/pulses.js';
 import { MASK_EDGE_SHARE, maskFootprint, maskJumps, maskResets } from '../core/mask.js';
-import { paraxial } from './trace.js';
-import { W, sx, wx, wy } from '../ui/render.js';
-import { ci } from './fibre.js';
-import { h } from '../ui/panel.js';
 import { popInside, popInvR, popPhiExact, popPhiPar, popW } from './field.js';
-import { cx } from './cavity.js';
 import { jonesOf, polCoeff, polMatrixTo } from './polarisation.js';
 import { beamAxes, popScreen } from './phase-screen.js';
 import { popClear } from './beam-tree.js';

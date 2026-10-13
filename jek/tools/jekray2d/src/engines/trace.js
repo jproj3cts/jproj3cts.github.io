@@ -12,7 +12,7 @@ import { splitOffset, splitRoot } from '../core/coherence.js';
 import { gddPath, isLaserLike, m2Of, pulseGrid, pulseOf, syncLine, syncSplit } from '../core/pulses.js';
 import { isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { deg, num, project } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
@@ -22,12 +22,11 @@ import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
 } from '../core/mask.js';
-import { H, sx, sy, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { playing } from '../ui/sweeps.js';
-import { ci, fibreNetCached, tipSources } from './fibre.js';
+import { fibreNetCached, tipSources } from './fibre.js';
 import { V3D } from '../ui/view3d.js';
-import { h, renderPanel, vs } from '../ui/panel.js';
+import { renderPanel } from '../ui/panel.js';
 import { binCache } from '../ui/panels.js';
 import { beamAt, cavityLater, laserSources, laserState } from '../ui/panel-cavity.js';
 import { cavSolved, findCavities, setCavCache } from './cavity.js';

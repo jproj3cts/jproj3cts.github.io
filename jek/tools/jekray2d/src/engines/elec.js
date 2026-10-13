@@ -1,4 +1,4 @@
-import { MODS, cmul } from '../core/modulators.js';
+import { MODS } from '../core/modulators.js';
 import { pdResp, responsivity } from '../core/rf.js';
 import { deg, nextName, num, project } from '../state/project.js';
 import { VSRC, getEl, normElement, setVSRC } from '../state/elements.js';
@@ -10,8 +10,8 @@ import {
   traceScene, traceSceneRaw
 } from './trace.js';
 import {
-  H, V, W, bodyFill, ctx, detR, draw, getCss, halfSize, modBlockH, modHAt, modNAt, pathLocal, portFill,
-  portsInUse, removeFibre, selInk, srcBody, sx, sy
+  V, bodyFill, ctx, detR, draw, getCss, modBlockH, modHAt, modNAt, pathLocal, portFill, portsInUse,
+  removeFibre, selInk, srcBody, sx, sy
 } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
 import { clamp } from '../ui/params.js';
@@ -19,7 +19,6 @@ import { fieldHeld } from '../ui/sweeps.js';
 import { detectorReading } from './fibre-face.js';
 import { FC_H, FC_W, netPower, pkey, portName, portWorld, portsOf, portsOfOptic } from './fibre.js';
 import { INST, pdNetMw, pdSignal } from '../ui/instruments.js';
-import { tick } from '../ui/optimise.js';
 import { bindSync, h, panel, param, selectField, textField } from '../ui/panel.js';
 import { benchNms, binCache, readoutBox } from '../ui/panels.js';
 import { plotSaveRow } from '../ui/plots.js';
@@ -27,7 +26,6 @@ import { fmtHz } from '../ui/panel-cavity.js';
 import { diffCache } from './diffraction.js';
 import { detFieldGen, detectorFieldResult, statsCache } from './pd-cavity.js';
 import { changed } from '../ui/actions.js';
-import { api } from '../io/account.js';
 import { modStatus } from '../io/mods.js';
 
 /* ==========================================================================

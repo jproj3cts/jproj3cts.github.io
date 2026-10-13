@@ -11,7 +11,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { blank } from './jstok.mjs';
+import * as acorn from './vendor/acorn.mjs';
+import * as walk from './vendor/acorn-walk.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const PAGE = path.resolve(HERE, '../jekray2d.html');
@@ -67,41 +68,74 @@ export function declared(line) {
   }
   return { kind: m[1], names };
 }
-/* what each module declares, exports, imports and uses */
+export const parse = text => acorn.parse(text, { ecmaVersion: 2024, sourceType: 'module' });
+const isScope = n => /Function|Program|BlockStatement|For(In|Of)?Statement|SwitchStatement|CatchClause|ClassExpression/.test(n.type);
+/* the names each scope declares, so a reference can be told from a local of the same name */
+function scopesOf(ast) {
+  const S = new Map(), add = (node, n) => { if (!S.has(node)) S.set(node, new Set()); S.get(node).add(n); };
+  const names = (p, out) => { if (!p) return out; switch (p.type) { case 'Identifier': out.push(p.name); break; case 'ObjectPattern': for (const q of p.properties) names(q.type === 'RestElement' ? q.argument : q.value, out); break; case 'ArrayPattern': for (const q of p.elements) names(q, out); break; case 'RestElement': names(p.argument, out); break; case 'AssignmentPattern': names(p.left, out); break; } return out; };
+  walk.fullAncestor(ast, (node, st, anc) => {
+    const up = re => { for (let i = anc.length - 1; i >= 0; i--) if (re.test(anc[i].type)) return anc[i]; };
+    if (node.type === 'VariableDeclaration') { const sc = node.kind === 'var' ? up(/Function|Program/) : up(/BlockStatement|Program|For(In|Of)?Statement|SwitchStatement|CatchClause|Function/); for (const d of node.declarations) for (const n of names(d.id, [])) add(sc, n); }
+    else if (/Function/.test(node.type)) { for (const p of node.params) for (const n of names(p, [])) add(node, n); if (node.type === 'FunctionDeclaration' && node.id) add(up(/BlockStatement|Program|For(In|Of)?Statement|SwitchStatement|CatchClause|Function/), node.id.name); if (node.type === 'FunctionExpression' && node.id) add(node, node.id.name); }
+    else if (node.type === 'ClassDeclaration' && node.id) add(up(/BlockStatement|Program|Function/), node.id.name);
+    else if (node.type === 'ClassExpression' && node.id) add(node, node.id.name);
+    else if (node.type === 'CatchClause' && node.param) for (const n of names(node.param, [])) add(node, n);
+  });
+  return S;
+}
+/* identifiers that refer to a module-scope binding (not a property, key, label or local) */
+export function moduleRefs(ast) {
+  const S = scopesOf(ast), out = [];
+  walk.fullAncestor(ast, (node, st, anc) => {
+    if (node.type !== 'Identifier') return;
+    const p = anc[anc.length - 2];
+    if (p.type === 'MemberExpression' && p.property === node && !p.computed) return;
+    if ((p.type === 'Property' || p.type === 'PropertyDefinition' || p.type === 'MethodDefinition') && p.key === node && !p.computed && !p.shorthand) return;
+    if (p.type === 'VariableDeclarator' && p.id === node) return;
+    if (/Function|Class/.test(p.type) && (p.id === node || (p.params || []).includes(node))) return;
+    if (/^(ImportSpecifier|ImportDefaultSpecifier|ExportSpecifier|LabeledStatement|BreakStatement|ContinueStatement)$/.test(p.type)) return;
+    if ((p.type === 'AssignmentPattern' && p.left === node) || p.type === 'RestElement' || p.type === 'ArrayPattern') return;
+    for (let i = anc.length - 2; i >= 1; i--) { const a = anc[i]; if (isScope(a) && S.get(a) && S.get(a).has(node.name)) return; }
+    out.push(node);
+  });
+  return out;
+}
+/* what each module declares, exports, imports and refers to at module scope */
 export function scan() {
   const mods = new Map();
   for (const f of order()) {
-    const { header, body } = split(read('src/' + f)), blanked = blank(body.join('\n')).split('\n');
+    const text = read('src/' + f), ast = parse(text);
     const decls = new Map(), exported = new Set(), imports = new Map(), uses = new Set();
-    body.forEach((l, i) => { const ex = l.startsWith('export '); const d = declared(ex ? l.slice(7) : l); if (!d) return; for (const n of d.names) { decls.set(n, d.kind); if (ex) exported.add(n); } void i; });
-    for (const m of header.matchAll(/import \{([^}]*)\} from '([^']+)';/g)) for (const n of m[1].split(',').map(s => s.trim()).filter(Boolean)) imports.set(n, path.posix.normalize(path.posix.join(path.posix.dirname(f), m[2])));
-    for (const s of blanked) for (const w of s.matchAll(/[A-Za-z_$][\w$]*/g)) {
-      const n = w[0], pre = s.slice(0, w.index).replace(/\s+$/, ''), post = s.slice(w.index + n.length).replace(/^\s+/, '');
-      if (/(^|[^.])\.$/.test(pre)) continue;                                 // a property (not a spread, ...name)
-      if (post.startsWith(':') && !post.startsWith('::') && /[{,]$/.test(pre)) continue;   // an object key
-      uses.add(n);
+    for (const st of ast.body) {
+      if (st.type === 'ImportDeclaration') { const to = path.posix.normalize(path.posix.join(path.posix.dirname(f), st.source.value)); for (const s of st.specifiers) imports.set(s.local.name, to); continue; }
+      const d = st.type === 'ExportNamedDeclaration' ? st.declaration : st, ex = st.type === 'ExportNamedDeclaration';
+      if (!d) continue;
+      const names = d.type === 'VariableDeclaration' ? d.declarations.filter(v => v.id.type === 'Identifier').map(v => v.id.name) : d.id ? [d.id.name] : [];
+      const kind = d.type === 'VariableDeclaration' ? d.kind : d.type === 'ClassDeclaration' ? 'class' : d.type === 'FunctionDeclaration' ? 'function' : null;
+      if (kind) for (const n of names) { decls.set(n, kind); if (ex) exported.add(n); }
     }
-    mods.set(f, { decls, exported, imports, uses });
+    for (const id of moduleRefs(ast)) uses.add(id.name);
+    mods.set(f, { decls, exported, imports, uses, ast, text });
   }
   return mods;
 }
 /* statements a module runs as it loads, other than declarations: allowed only where the data
    the worker needs is set up, and in boot.js, where the page is put together */
 const LOAD_OK = { 'core/traps.js': /FACT\.push/, 'engines/fibre.js': /FC\[k\]\.portList/, 'ui/boot.js': /./ };
-export function loadTimeStatements(f, body) {
-  const out = [], blanked = blank(body.join('\n')).split('\n');
-  let depth = 0;
-  for (let i = 0; i < blanked.length; i++) {
-    const l = blanked[i], raw = body[i];
-    // (judged on the blanked text, so a line inside a template string or a comment is not a statement)
-    if (depth === 0 && /^[^\s/})\]`'",.]/.test(l) && !/^(export |import |const |let |var |function\b|async |class )/.test(raw) && !(LOAD_OK[f] && LOAD_OK[f].test(raw))) out.push({ line: i + 1, text: raw.slice(0, 80) });
-    for (const ch of l) { if ('{(['.includes(ch)) depth++; else if ('})]'.includes(ch)) depth--; }
+export function loadTimeStatements(f, text) {
+  const ast = parse(text), out = [];
+  for (const st of ast.body) {
+    if (/Declaration$/.test(st.type)) continue;
+    const raw = text.slice(st.start, st.end).split('\n')[0];
+    if (LOAD_OK[f] && LOAD_OK[f].test(text.slice(st.start, st.end))) continue;
+    out.push({ line: text.slice(0, st.start).split('\n').length, text: raw.slice(0, 80) });
   }
   return out;
 }
 export function lint() {
   const errors = [], warnings = [], mods = scan();
-  for (const f of order()) for (const s of loadTimeStatements(f, split(read('src/' + f)).body)) errors.push(f + ':' + s.line + ' runs code as it loads (' + s.text.trim() + '): a module only declares; put it in its wire function, called from boot.js');
+  for (const f of order()) for (const s of loadTimeStatements(f, read('src/' + f))) errors.push(f + ':' + s.line + ' runs code as it loads (' + s.text.trim() + '): a module only declares; put it in its wire function, called from boot.js');
   const shared = new Set([...read('src/state/shared.md').matchAll(/^- `([\w$]+)`/gm)].map(m => m[1]));
   const home = new Map();
   for (const [f, m] of mods) for (const [n, kind] of m.decls) { if (home.has(n)) errors.push(n + ' is declared in both ' + home.get(n).f + ' and ' + f); home.set(n, { f, kind }); }

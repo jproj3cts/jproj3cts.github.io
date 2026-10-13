@@ -4,11 +4,11 @@ import { getEl, normElementBase, serialize } from '../state/elements.js';
 import { undo } from '../state/tabs.js';
 import { traceScene } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
-import { allSweeps, pauseAll, play, playAll, playing } from '../ui/sweeps.js';
+import { allSweeps, pauseAll, playAll, playing } from '../ui/sweeps.js';
 import { V3D } from '../ui/view3d.js';
 import { h, holdScroll, mainPanel, pinBoxes, pinOk, pins, renderPanel, setPins, viewState, vs } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
-import { esc, openProjectData } from './open.js';
+import { openProjectData } from './open.js';
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address

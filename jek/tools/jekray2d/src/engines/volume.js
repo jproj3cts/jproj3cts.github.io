@@ -5,7 +5,7 @@ import { isHigherMode } from '../core/beams-hom.js';
 import { deg, project } from '../state/project.js';
 import { allSources, fieldDec, lightOf } from '../state/elements.js';
 import { lastTrace } from './trace.js';
-import { V, W, mkCanvas, requestRender, wx, wy } from '../ui/render.js';
+import { mkCanvas, requestRender } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { SW, swAsk, swDrop, swPool, swRelease, sweepJob } from '../ui/sweeps.js';
 import { popRadii, popStats, qdht } from './field.js';

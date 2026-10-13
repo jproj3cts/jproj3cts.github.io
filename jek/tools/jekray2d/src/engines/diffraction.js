@@ -5,16 +5,12 @@ import { deg, project } from '../state/project.js';
 import { allSources, getEl } from '../state/elements.js';
 import { frame, toLocal } from '../core/mask.js';
 import { lastTrace } from './trace.js';
-import { H, V, sx, sy, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { arrival3 } from './fibre-face.js';
-import { ci } from './fibre.js';
-import { h } from '../ui/panel.js';
 import {
   besselJ01, field2LineAt, halfWidthOf, ihankel, interpL, popAxis, popFieldSeries, popGuard, popInside,
   popIntensityAt, popInvR, popPower, popRadii, popResidual, popStats, popW, qdht
 } from './field.js';
-import { cz } from './cavity.js';
 import { VF_NA, polMaps, vfApply, vfAt, vfPupil } from './vector-focus.js';
 import { cdft, cmulPhase, field2I, fieldComps, interp2, popStats2 } from './field2d.js';
 import { popJ, popKeyOf, popRun, segW } from './beam-tree.js';

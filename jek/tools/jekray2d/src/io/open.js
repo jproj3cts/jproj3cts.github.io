@@ -7,7 +7,7 @@ import { checkpoint, keepSnapshot, renderBenchTabs } from '../state/tabs.js';
 import { dropTraceStore, tippable } from '../engines/trace.js';
 import { setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
-import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portName, portsOf } from '../engines/fibre.js';
+import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';

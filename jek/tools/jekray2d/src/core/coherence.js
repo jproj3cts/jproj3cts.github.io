@@ -1,6 +1,4 @@
 import { getEl } from '../state/elements.js';
-import { V } from '../ui/render.js';
-import { vs } from '../ui/panel.js';
 
 /* ---------- Coherence ----------
    A source's coherence length Lc (c over its linewidth) sets how well two branches of its

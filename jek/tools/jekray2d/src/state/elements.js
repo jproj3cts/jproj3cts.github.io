@@ -25,7 +25,6 @@ import { CONNS, FC, FIBRE_POLS, fcPortsOf, pkey, portsOf } from '../engines/fibr
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';
-import { cx } from '../engines/cavity.js';
 import { modsCarried, normCarried } from '../io/mods.js';
 
 function normSurface(s) {

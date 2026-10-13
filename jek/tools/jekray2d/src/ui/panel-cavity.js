@@ -7,10 +7,9 @@ import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { checkpoint, curBench, scheduleSave, selectEl } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { W, getCss, requestRender, sx, sy, wx, wy } from './render.js';
+import { getCss, requestRender } from './render.js';
 import { clamp } from './params.js';
 import { V3D } from './view3d.js';
-import { tick } from './optimise.js';
 import {
   BENCH_PIN, bindSync, fid, fmtLen, h, numInput, panel, pinTitle, renderPanel, selectField, setFid,
   syncPanel
@@ -26,7 +25,6 @@ import { interp2, popStats2 } from '../engines/field2d.js';
 import { popRunGen } from '../engines/beam-tree.js';
 import { updateReadouts } from '../engines/pd-cavity.js';
 import { changed } from './actions.js';
-import { kb } from '../io/cloud.js';
 import { fieldWorker, fwRequest } from '../worker/field-worker.js';
 
 /* ---------- Cavities in the panels ----------

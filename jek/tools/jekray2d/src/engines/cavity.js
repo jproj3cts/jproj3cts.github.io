@@ -1,10 +1,7 @@
 import { hermite } from '../core/pulses.js';
-import { num } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { maskOf } from '../core/geometry.js';
 import { lastTrace, vdot3 } from './trace.js';
-import { H, V, ctx, sx, sy } from '../ui/render.js';
-import { h } from '../ui/panel.js';
 import { popInside, popLeg, popRadii, popSurface, qdht } from './field.js';
 import { beamAxes, popScreen } from './phase-screen.js';
 import { fft, fieldComps, popLeg2, popSurface2 } from './field2d.js';

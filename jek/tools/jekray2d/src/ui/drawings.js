@@ -5,14 +5,13 @@ import { checkpoint, onTab } from '../state/tabs.js';
 import { frame, toLocal, toWorld, toWorldDir } from '../core/mask.js';
 import { exporting } from '../engines/trace.js';
 import {
-  H, V, W, benchLight, canvas, ctx, getCss, halfSize, mkCanvas, pathLocal, requestRender, selFibreId,
-  selInk, selection, setSelFibreId, srcBody, stage, sx, sy, wx, wy
+  V, benchLight, canvas, ctx, getCss, halfSize, mkCanvas, pathLocal, requestRender, selFibreId, selInk,
+  selection, setSelFibreId, srcBody, stage, sx, sy, wx, wy
 } from './render.js';
 import { drag, hitTest, inPolygon, setDrag, snapVal } from './pointer.js';
 import { clamp } from './params.js';
 import { FC_W, fcH } from '../engines/fibre.js';
 import { beginEdit, bindSync, endEdit, fid, h, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
-import { cx } from '../engines/cavity.js';
 import { changed, moveEls, rotateEls, toast } from './actions.js';
 import { palette } from './experimental.js';
 import { rail, setPalette } from './rail.js';

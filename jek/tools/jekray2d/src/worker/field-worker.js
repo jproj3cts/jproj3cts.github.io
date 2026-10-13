@@ -5,7 +5,7 @@ import {
   afterTrace, lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey, setLastTraceMs,
   setTraceCount, traceCount, traceKeyNow, traceScene
 } from '../engines/trace.js';
-import { draw, requestRender } from '../ui/render.js';
+import { requestRender } from '../ui/render.js';
 import { drag } from '../ui/pointer.js';
 import { playing, showActivityNow } from '../ui/sweeps.js';
 import { syncPanel } from '../ui/panel.js';

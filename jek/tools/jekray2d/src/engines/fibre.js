@@ -6,12 +6,11 @@ import { wavelengthColour } from '../core/colour.js';
 import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toWorld, toWorldDir } from '../core/mask.js';
-import { V, W, modS } from '../ui/render.js';
+import { V, modS } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { arrivalField, faceArrivals, fanFromFibre, fibreMode, mmShare } from './fibre-face.js';
 import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
-import { h } from '../ui/panel.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
 
 /* ==========================================================================

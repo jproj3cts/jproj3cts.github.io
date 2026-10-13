@@ -13,7 +13,6 @@ import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
 import { fmtLen, h, renderPanel, syncPanel } from './panel.js';
-import { cx } from '../engines/cavity.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
 import { accountsOn } from '../io/account.js';

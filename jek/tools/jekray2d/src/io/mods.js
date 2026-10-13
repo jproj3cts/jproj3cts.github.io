@@ -3,7 +3,7 @@ import { MODS, MOD_COLOURS, modNames, modText } from '../core/modulators.js';
 import { num, project, typeLabel } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { setLastTraceKey } from '../engines/trace.js';
-import { H, W, requestRender, wx, wy } from '../ui/render.js';
+import { requestRender } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { detectorReading } from '../engines/fibre-face.js';
 import { h, panel, param, renderPanel, selectField } from '../ui/panel.js';

@@ -2,15 +2,14 @@ import { deg, nextName, num, project } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, normElement } from '../state/elements.js';
 import { frame, toWorld } from '../core/mask.js';
 import { lastTrace } from './trace.js';
-import { V, W, bodyFill, ctx, draw, getCss, halfSize, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
+import { V, bodyFill, ctx, draw, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { ci, netPower, pkey, portWorld } from './fibre.js';
+import { netPower, pkey, portWorld } from './fibre.js';
 import { signalSection } from '../ui/instruments.js';
 import { bindSync, fid, fmtLen, h, numInput, panel, param, selectField, setFid, vs } from '../ui/panel.js';
 import { fmtMw, portRows, readoutBox } from '../ui/panels.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../ui/plots.js';
 import { fmtHz } from '../ui/panel-cavity.js';
-import { api } from '../io/account.js';
 
 /* ==========================================================================
    Photonic circuits (experimental: exp('pic'))

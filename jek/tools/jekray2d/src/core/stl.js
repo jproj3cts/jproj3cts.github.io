@@ -3,9 +3,7 @@ import { deg, num } from '../state/project.js';
 import { faceSurf, lensSurfaces, makeSurf, polySurfaces } from './geometry.js';
 import { maskFns, stopBlades } from './mask.js';
 import { zOf } from '../engines/trace.js';
-import { V, W } from '../ui/render.js';
 import { ELEC } from '../engines/elec.js';
-import { h } from '../ui/panel.js';
 
 /* ---------- STL objects ----------
    A mesh brought in from a .stl file (a mount, a housing, a baffle, anything from CAD): an

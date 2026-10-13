@@ -4,7 +4,7 @@ import { atomLines, gasDamping, sphereAlpha, trapAlpha, trapPhysics, waterViscos
 import { zeemanLines, zeemanStates } from '../core/zeeman.js';
 import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, faddeeva, nlcPeriod } from '../core/nlc.js';
 import { MODS } from '../core/modulators.js';
-import { fibreGamma, fibreSPM, pulseSpectrum } from '../core/pulses.js';
+import { fibreGamma, fibreSPM } from '../core/pulses.js';
 import { lgComps } from '../core/beams-hom.js';
 import { TYPE_LABEL, project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
@@ -17,7 +17,7 @@ import {
   traceStore, traceStoreHits
 } from '../engines/trace.js';
 import {
-  H, V, bez, fibreSegs, handlePos, hornShape, modS, requestRender, resize, segPlanes, selection,
+  bez, fibreSegs, handlePos, hornShape, modS, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender
 } from './render.js';
 import { wirePointer } from './pointer.js';
@@ -27,13 +27,13 @@ import {
   updateActivity
 } from './sweeps.js';
 import { arrivalField, detectorReading, faceArrivals } from '../engines/fibre-face.js';
-import { fibreNet, portWorld, portsOf } from '../engines/fibre.js';
+import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
 import { INST, osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from './instruments.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
-import { h, pinBoxes, pins, renderPanel, setPins, sweepPlay, togglePin, viewState, vs } from './panel.js';
+import { pinBoxes, pins, renderPanel, setPins, togglePin, viewState, vs } from './panel.js';
 import { portPower, pulseReport, trapReport } from './panels.js';
 import { materialOptions, partAssumptions } from './plots.js';
 import { beamAt, laserState } from './panel-cavity.js';
@@ -59,8 +59,8 @@ import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } fro
 import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement } from '../io/zmx-import.js';
-import { exportZmx, zmxExport, zmxPart } from '../io/zmx-export.js';
-import { EXPERIMENTAL, PALETTES, exp, expOn, palette, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { zmxExport, zmxPart } from '../io/zmx-export.js';
+import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine } from './myparts.js';

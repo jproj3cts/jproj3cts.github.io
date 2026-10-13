@@ -17,11 +17,10 @@ import { FC, FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, t
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
-import { fmtLen, h, renderPanel, vs } from './panel.js';
+import { fmtLen, h, renderPanel } from './panel.js';
 import { benchNms } from './panels.js';
 import { partAssumptions } from './plots.js';
 import { beamAt, fmtHz } from './panel-cavity.js';
-import { cx } from '../engines/cavity.js';
 import { popSources } from '../engines/beam-tree.js';
 import { closeupOn, drawCloseup, setCloseupOn } from '../engines/closeup.js';
 import { drawPop } from './heavy.js';

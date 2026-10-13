@@ -1,6 +1,5 @@
 import { num } from '../state/project.js';
 import { lastTrace } from '../engines/trace.js';
-import { H, W } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { netPower } from '../engines/fibre.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';

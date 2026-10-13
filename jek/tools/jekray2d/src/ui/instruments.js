@@ -3,7 +3,6 @@ import { pdResp, responsivity } from '../core/rf.js';
 import { cohGamma, splitRoot } from '../core/coherence.js';
 import { deg } from '../state/project.js';
 import { lastTrace, loadGen } from '../engines/trace.js';
-import { H, V, W, draw, sx, sy } from './render.js';
 import { arrivalField, arrivalWindow, detectorReading, deviceMemo, faceArrivals } from '../engines/fibre-face.js';
 import { netPower } from '../engines/fibre.js';
 import { ELEC } from '../engines/elec.js';

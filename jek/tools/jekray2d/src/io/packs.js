@@ -1,11 +1,10 @@
-import { EMBED, TEST_MODE, cloud } from '../core/constants.js';
+import { EMBED, TEST_MODE } from '../core/constants.js';
 import { normMat, num, project, typeLabel, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { V, canvas, selection, wx, wy } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
 import { V3D } from '../ui/view3d.js';
 import { h } from '../ui/panel.js';
-import { cx } from '../engines/cavity.js';
 import { clipOf, downloadFile, pasteClip, saveFile, toast } from '../ui/actions.js';
 import { PART_DRAG, exp } from '../ui/experimental.js';
 import { fillPicker, picker } from '../ui/picker.js';

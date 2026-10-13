@@ -1,8 +1,7 @@
-import { history, project } from '../state/project.js';
+import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
-import { restore } from '../state/tabs.js';
 import { paraxial, traceScene, traceStoreOn } from '../engines/trace.js';
-import { getCss, requestRender, sx, sy } from './render.js';
+import { getCss, requestRender } from './render.js';
 import { clamp, getPath, setParam } from './params.js';
 import {
   allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
@@ -10,7 +9,7 @@ import {
   stepSince, stepValue
 } from './sweeps.js';
 import { detectorReading, fibreCoupling } from '../engines/fibre-face.js';
-import { fmtLen, syncPanel, vs } from './panel.js';
+import { fmtLen, syncPanel } from './panel.js';
 import { fmtFs, fmtFs2, pulseReport } from './panels.js';
 import { drawAxes, plotArea, plotCsv } from './plots.js';
 import { blockedPct, diffraction, screenStats } from '../engines/pd-cavity.js';

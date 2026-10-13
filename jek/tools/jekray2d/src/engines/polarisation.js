@@ -1,7 +1,6 @@
 import { filterT } from '../core/crystals.js';
 import { deg } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
-import { ci } from './fibre.js';
 import { benchNms } from '../ui/panels.js';
 import { modJonesM } from '../io/mods.js';
 

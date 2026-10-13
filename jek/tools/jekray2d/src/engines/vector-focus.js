@@ -1,8 +1,5 @@
-import { H, W, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { h } from '../ui/panel.js';
 import { popInside, popRadii, popStats, qdht } from './field.js';
-import { cz } from './cavity.js';
 import { polCoeff, polMatrix } from './polarisation.js';
 import { popScreen } from './phase-screen.js';
 import { cdft, interp2, popStats2 } from './field2d.js';

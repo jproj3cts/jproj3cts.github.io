@@ -12,7 +12,6 @@ import { h, renderPanel } from './panel.js';
 import { addElement, changed, toast } from './actions.js';
 import { layoutPalette, railRecent } from './rail.js';
 import { accountShown } from '../io/account.js';
-import { kb } from '../io/cloud.js';
 import { modsSync } from '../io/mods.js';
 
 /* ==========================================================================

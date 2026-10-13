@@ -8,7 +8,7 @@ import { getEl, lightOf, selected } from '../state/elements.js';
 import { checkpoint, selectEl, switchTab } from '../state/tabs.js';
 import { STL_UNITS, meshHullCache } from '../core/stl.js';
 import { RAY_PATTERNS, rayPattern, tippable } from '../engines/trace.js';
-import { V, requestRender, selFibre, selection, setSelFibreId } from './render.js';
+import { requestRender, selFibre, selection, setSelFibreId } from './render.js';
 import { drawBarShown, drawPanel } from './drawings.js';
 import { getPath, setParam } from './params.js';
 import {
@@ -17,7 +17,6 @@ import {
   sweepValue
 } from './sweeps.js';
 import { applyFibre } from '../engines/fibre-face.js';
-import { ci } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';

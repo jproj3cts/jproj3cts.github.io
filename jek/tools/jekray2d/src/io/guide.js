@@ -6,7 +6,6 @@ import { DETECTOR_MATERIALS } from '../core/rf.js';
 import { PRISM_SHAPES, TYPE_LABEL } from '../state/project.js';
 import { normElementBase } from '../state/elements.js';
 import { STOP_SHAPES } from '../core/mask.js';
-import { draw } from '../ui/render.js';
 import { FC, FC_ORDER } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';

@@ -1,8 +1,4 @@
-import { maskOf } from '../core/geometry.js';
 import { MASK_EDGE_SHARE, maskFootprint, maskJumps } from '../core/mask.js';
-import { V, W, sx, sy, wx, wy } from '../ui/render.js';
-import { ci } from './fibre.js';
-import { h } from '../ui/panel.js';
 import { popScreen } from './phase-screen.js';
 import { fieldComps, interp2 } from './field2d.js';
 

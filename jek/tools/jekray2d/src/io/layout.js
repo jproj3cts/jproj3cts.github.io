@@ -1,11 +1,8 @@
 import { deg, project } from '../state/project.js';
-import { restore } from '../state/tabs.js';
 import { lastTrace, setExporting } from '../engines/trace.js';
 import { DPR, H, V, W, canvas, ctx, lightLayer, render, requestRender, setCtx, setDPR } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { h } from '../ui/panel.js';
 import { binnedField } from '../ui/panels.js';
-import { cx } from '../engines/cavity.js';
 import { diffraction, screenStats } from '../engines/pd-cavity.js';
 import { downloadFile, fitView, safeFileName, toast } from '../ui/actions.js';
 

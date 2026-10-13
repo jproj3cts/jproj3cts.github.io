@@ -1,5 +1,3 @@
-import { ci } from '../engines/fibre.js';
-
 /* ---------- Thin-film stacks ----------
    Characteristic matrix method: each layer contributes a 2x2 matrix in its tilted
    admittance, and the stack gives the complex amplitude reflection for s and p. */

@@ -1,7 +1,5 @@
 import { refIndex } from './glass.js';
 import { AMU, ATOMS, ATOM_ISO, C_SI, HPL, KB } from './cells.js';
-import { num } from '../state/project.js';
-import { cx, cz } from '../engines/cavity.js';
 
 /* ---------- Dipole traps ----------
    Atoms for a trap readout: their D lines (Steck's data), each as a two-level line of its own

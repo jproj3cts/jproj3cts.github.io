@@ -17,7 +17,7 @@ import { getEl, normElement } from '../state/elements.js';
 import { addBench, benchName, checkpoint, linkPairs, linkPartner, selectEl } from '../state/tabs.js';
 import { MASK_PRESETS, STOP_SHAPES, compileMaskExpr, maskFns, stopSlitLike } from '../core/mask.js';
 import { RAY_PATTERNS, lastTrace, sourceLines } from '../engines/trace.js';
-import { H, V, W, draw, getCss, removeFibre, sx, sy } from './render.js';
+import { getCss, removeFibre } from './render.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
 import { clamp } from './params.js';

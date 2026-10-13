@@ -11,7 +11,7 @@ The tool is served as one page, `jek/tools/jekray2d.html`. That page is built fr
   - `ui/`: rendering, drawings, the pointer, panels, plots, sweeps, the 3D view, wiring;
   - `io/`: saving and opening, share links, .zmx, part packs, mods, the cloud, the AI guide;
   - `worker/`: the field worker.
-- `jstok.mjs`: a small tokenizer the build's lint uses.
+- `vendor/`: acorn and acorn-walk (MIT), the parser the build's lint reads the modules with.
 - `test/node/`: tests that run in Node, with no browser. The browser suite is `jek/tools/jekray2d-tests.html`.
 
 ## Working on it

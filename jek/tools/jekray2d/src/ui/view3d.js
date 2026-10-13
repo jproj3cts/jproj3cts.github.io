@@ -8,26 +8,25 @@ import { benchName, checkpoint, curBench, linkPartner, undo } from '../state/tab
 import { lensSurfaces, polyVerts, rawSag, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
-import { lastTrace, sag3, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
+import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  H, V, benchBg, benchHoles, benchLight, detR, draw, filterColour, hornLam, hornShape, metal,
-  requestRender, resize, segPlanes, selection, setSelection, srcBody, stage, surfPoints, wx, wy
+  benchBg, benchHoles, benchLight, detR, draw, filterColour, hornLam, hornShape, requestRender, resize,
+  segPlanes, selection, setSelection, srcBody, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
-import { drag, snapVal } from './pointer.js';
+import { snapVal } from './pointer.js';
 import { clamp } from './params.js';
 import { qW } from '../engines/fibre-face.js';
 import { h, renderPanel, syncPanel } from './panel.js';
 import { magma } from './plots.js';
 import { beamAt } from './panel-cavity.js';
-import { QFree, beamQ, cavEventABCD, ccInv, cx, cz, mfree, qThrough } from '../engines/cavity.js';
+import { QFree, beamQ, cavEventABCD, ccInv, mfree, qThrough } from '../engines/cavity.js';
 import { VOL, fmtIrr, volDisp, volLater, volRayMax } from '../engines/volume.js';
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
 import { qrLink } from '../io/share.js';
 import { exp, palette } from './experimental.js';
 import { fillRail, setPalette } from './rail.js';
-import { api } from '../io/account.js';
 
 /* ==========================================================================
    3D view: a tab of free-space parts seen in three dimensions, turned and zoomed as in a CAD

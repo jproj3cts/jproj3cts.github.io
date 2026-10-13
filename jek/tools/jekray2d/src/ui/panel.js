@@ -1,39 +1,27 @@
 import { BEAM_Z } from '../core/constants.js';
-import { fmtFs, fmtHz, fmtLen, fmtNum } from '../core/format.js';
-import { FIBRE_NG, cohGamma, lagOf, splitChain, splitRoot } from '../core/coherence.js';
-import { applyPulse, gsmModes, m2Of, syncLine } from '../core/pulses.js';
-import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../core/beams-hom.js';
-import { wavelengthColour } from '../core/colour.js';
+import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
+import { syncLine } from '../core/pulses.js';
 import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
-import { getEl, lightOf, selected } from '../state/elements.js';
-import { STL_UNITS, meshHullCache } from '../core/stl.js';
-import { RAY_PATTERNS, rayPattern, tippable } from '../engines/trace.js';
+import { getEl, selected } from '../state/elements.js';
+import { tippable } from '../engines/trace.js';
 import { requestRender, selFibre, selection, setSelFibreId } from './render.js';
-import { drawBarShown, drawPanel } from './drawings.js';
+import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
   FIELD_FRAMES, WAVES, advOpen, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
   swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
-import { applyFibre } from '../engines/fibre-face.js';
-import { PIC } from '../engines/pic.js';
-import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
+import { ELEC_UI } from './elec.js';
+import { PIC_UI } from './pic.js';
+import { PART_UI } from './parts/registry.js';
 import { updateReadouts } from './readouts.js';
-import {
-  cellPanel, crystalPanel, cubePanel, detectorPanel, faradayPanel, fcompPanel, fibreLinkPanel,
-  fibrePanel, filterPanel, gainPanel, gratingPanel, groupPanel, jonesPanel, linkPanel, maskPanel,
-  modulatorPanel, nlcPanel, prismPanel, pulseLine, pulseToggle, readoutBox, readoutTabs, rfHornPanel,
-  screenPanel, stopPanel
-} from './panels.js';
-import { assumedBox, lensPanel } from './plots.js';
+import { fibreLinkPanel, groupPanel, rfHornPanel } from './panels.js';
+import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
-import { cavitiesOf, gaussFromFan } from '../engines/cavity.js';
-import { popNote } from './heavy.js';
+import { cavitiesOf } from '../engines/cavity.js';
 import { changed, duplicate, removeEl } from './actions.js';
 import { checkpoint, selectEl, switchTab } from './tabs.js';
-import { importStl } from './experimental.js';
-import { saveToMine } from './myparts.js';
 import { modPanel } from '../io/mods.js';
 
 /* ==========================================================================
@@ -267,27 +255,6 @@ export function coherenceNote(el) {
   return 'Linewidth ' + fmtHz(dnu) + ' (' + (dl >= 0.1 ? +dl.toPrecision(3) + ' nm' : +(1000 * dl).toPrecision(3) + ' pm') + ', FWHM). ' +
     'Two paths of this source a distance \u0394L apart interfere with fringe contrast ' + (el.lineshape === 'gauss' ? 'exp(\u2212(\u03c0\u0394L/Lc)\u00b2/4 ln 2)' : 'exp(\u2212\u03c0|\u0394L|/Lc)') +
     ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
-}
-/* An STL object's panel: its units (the file carries none), its size, colour and shape */
-function stlPanel(el) {
-  panel.append(h('h3', null, 'STL object'));
-  const rows = h('div', { class: 'rt-rows' },
-    selectField('Units of the file', [['mm', 'Millimetres'], ['cm', 'Centimetres'], ['m', 'Metres'], ['in', 'Inches'], ['other', 'Other (mm per unit)']], () => el.units || 'mm',
-      v => { el.units = v; if (v !== 'other') el.scale = STL_UNITS[v]; meshHullCache.delete(el.id); }, { wide: true }));
-  if (el.units === 'other') rows.append(param('mm per unit', el, 'scale'));
-  const cid = 'rtf' + (++fid), ci = h('input', { type: 'color', id: cid, value: el.colour || '#8a8f96' });
-  ci.addEventListener('change', () => { checkpoint(); el.colour = ci.value; changed(false); });
-  rows.append(h('div', { class: 'rt-f' }, h('label', { for: cid }, 'Colour'), ci));
-  panel.append(rows);
-  panel.append(readoutBox('stl'));
-  const fi = h('input', { type: 'file', accept: '.stl,.STL', hidden: true });
-  fi.addEventListener('change', () => { const f = fi.files[0]; if (f) importStl(f, null, el); fi.value = ''; });
-  panel.append(fi, h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Replace its shape from a .stl file\u2026'),
-    h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026')));
-  const M = el.mesh;
-  if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
-    ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'));
 }
 export function selectField(label, options, get, set, opts = {}) {
   const id = 'rtf' + (++fid);
@@ -525,7 +492,7 @@ function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
   if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : F.wire ? ELEC.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
+  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   pinTitle(title, el.id, () => selectEl(el));
@@ -565,36 +532,12 @@ function renderPanelBody(el) {
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));
   panel.append(rows);
 
-  const horn = el.mmw && !el.mmw.part;
+  const horn = el.mmw && !el.mmw.part, U = PART_UI[el.type];
   if (horn) rfHornPanel(el);
-  else if (el.type === 'source') sourcePanel(el);
-  if (el.type === 'mirror') mirrorPanel(el);
-  if (el.type === 'screen') screenPanel(el);
-  if (el.type === 'lens') lensPanel(el);
   if (el.mod) modPanel(el);                                                                   // a mod's part
-  else if (el.type === 'waveplate' || el.type === 'polariser') jonesPanel(el);
-  if (el.type === 'stop') stopPanel(el);
-  if (el.type === 'mask' && !el.mod) maskPanel(el);
-  if (el.type === 'cube') cubePanel(el);
-  if (el.type === 'prism') prismPanel(el);
-  if (el.type === 'grating') gratingPanel(el);
-  if (el.type === 'fibre') fibrePanel(el);
-  if (el.type === 'detector' && !horn) detectorPanel(el);
-  if (el.type === 'faraday' || el.type === 'isolator') faradayPanel(el);
-  if (el.type === 'crystal') crystalPanel(el);
-  if (el.type === 'filter') filterPanel(el);
-  if (el.type === 'gain') gainPanel(el);
-  if (el.type === 'cell') cellPanel(el);
-  if (el.type === 'nlc') nlcPanel(el);
-  if (el.type === 'link') linkPanel(el);
-  if (el.type === 'fcomp' && !el.mod) fcompPanel(el);
-  if (el.type === 'pic') PIC.panelFor(el);                                                    // PIC hook
-  if (el.type === 'elec' && !el.mod) ELEC.panelFor(el);                                                  // ELEC hook
-  if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
-  if (el.type === 'chopper') ELEC.chopperPanel(el);                                           // ELEC hook
-  if (el.type === 'stl') stlPanel(el);
-  if (el.type === 'draw') drawPanel(el);
-  if (el.type !== 'elec' && el.type !== 'draw') ELEC.opticPanel(el);                                 // ELEC hook
+  // the part's own sections (a horn's stand in for a source's or a detector's; a mod's for its part's)
+  if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
+  if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -607,217 +550,5 @@ function renderPanelBody(el) {
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));
   holdScroll(panel, panel._hold != null ? panel._hold : scroll);
-}
-
-function sourcePanel(el) {
-  panel.append(h('h3', null, 'Beam'));
-  const rows = h('div', { class: 'rt-rows' });
-  const colId = 'rtf' + (++fid);
-  const col = h('input', { id: colId, type: 'color' });
-  col.addEventListener('input', () => { beginEdit(); el.colour = col.value; el.colourAuto = false; chk.checked = false; changed(false); });
-  col.addEventListener('change', endEdit);
-  bindSync(col, () => { col.value = el.colour; });
-  const chk = h('input', { type: 'checkbox' });
-  chk.checked = el.colourAuto;
-  chk.addEventListener('change', () => {
-    checkpoint(); el.colourAuto = chk.checked;
-    if (el.colourAuto) el.colour = wavelengthColour(el.wavelength);
-    changed(false);
-  });
-  const root = splitRoot(el), linked = root !== el;
-  const wlId = 'rtf' + (++fid);
-  rows.append(
-    // a copy split from a laser has the laser's wavelength
-    linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
-    param('Power (mW)', el, 'power'),
-    h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col),
-    h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
-  );
-  panel.append(rows);
-
-  // the ray fan: on its own, and hidden with its settings when it is off
-  panel.append(h('h3', null, 'Rays'));
-  const tr = h('input', { type: 'checkbox' });
-  tr.checked = el.traceRays;
-  tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
-  panel.append(h('label', { class: 'rt-check' }, tr, 'Trace the ray fan'));
-  if (el.traceRays) {
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Beam width (mm)', el, 'width'),
-      param('Divergence, full (°)', el, 'divergence'),
-      param('Rays', el, 'rays')));
-    // the pattern across the beam: the line of the 2D bench, or spread up and down too
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
-    const pn = h('p', { class: 'note', style: 'margin-top:0.3rem' });
-    bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways, each traced exactly in 3D. Screens show where they land on a spot diagram (Rays tab).'; });
-    panel.append(pn);
-  }
-  else if (!el.gauss) {
-    // without a Gaussian beam the fan's width and divergence still shape the diffracted field
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Beam width (mm)', el, 'width'),
-      param('Divergence, full (°)', el, 'divergence')));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
-  } else panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'));
-
-  panel.append(h('h3', null, 'Beam propagation'));
-  const gb = h('input', { type: 'checkbox' });
-  gb.checked = el.gauss;
-  gb.addEventListener('change', () => {
-    checkpoint();
-    el.gauss = gb.checked;
-    if (el.gauss) gaussFromFan(el);    // start from the fan that is already there
-    changed(true);
-  });
-  panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
-  if (el.gauss) {
-    const fb = h('input', { type: 'checkbox' });
-    fb.checked = !!el.fibre;
-    fb.addEventListener('change', () => {
-      checkpoint();
-      if (fb.checked) { el.fibre = { core: 4.4, na: 0.12 }; applyFibre(el); } else delete el.fibre;
-      changed(true);
-    });
-    panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, fb, 'Launch from a single-mode fibre'));
-    if (el.fibre) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
-    else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Waist radius (mm)', el, 'w0'),
-      param('Waist distance (mm)', el, 'z0'),
-      ...(el.tem === 'gauss' ? [param('M\u00b2 (beam quality)', el, 'm2')] : [])));
-    if (!el.fibre) {
-      panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-        selectField('Beam mode', [['gauss', 'Gaussian (TEM\u2080\u2080)'], ['hg', 'Hermite\u2013Gauss HG\u2098\u2099'], ['lg', 'Laguerre\u2013Gauss LG\u209a\u2097 (vortex)']],
-          () => el.tem, v => { el.tem = v; fanFromGauss(el); }, { wide: el.tem === 'gauss' }),
-        ...(el.tem === 'hg' ? [param('m, nodes in the bench plane', el, 'hm'), param('n, nodes out of it', el, 'hn')]
-          : el.tem === 'lg' ? [param('p, radial order', el, 'lp'), param('l, vortex charge', el, 'll')] : [])));
-    }
-    const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-    bindSync(line, () => {
-      if (isHigherMode(el)) {
-        const lam = el.wavelength * 1e-6, [mx, my] = modeM2(el), zR = Math.PI * el.w0 * el.w0 / lam;
-        line.textContent = (el.tem === 'hg' ? 'HG' + el.hm + el.hn : 'LG' + el.lp + (el.ll < 0 ? '\u2212' : '') + Math.abs(el.ll)) + ' of a Gaussian of waist ' + fmtLen(el.w0) +
-          ': M\u00b2 ' + mx + (my !== mx ? ' in the bench plane, ' + my + ' out of it' : '') + ', so its second-moment waist is ' + fmtLen(el.w0 * Math.sqrt(mx)) + (my !== mx ? ' (' + fmtLen(el.w0 * Math.sqrt(my)) + ' out of the plane)' : '') +
-          ' and its far-field half-angle ' + (+(1000 * Math.sqrt(mx) * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad; Rayleigh range ' + fmtLen(zR) + '. ' +
-          (el.tem === 'lg' ? 'It is carried as a coherent sum of ' + lgComps(el.lp, el.ll).length + ' Hermite\u2013Gauss modes, each with its own Gouy phase, so a pair of cylindrical lenses converts it as in the lab. ' : '') +
-          'The diffracted field uses the 2D model.';
-        return;
-      }
-      const lam = el.wavelength * 1e-6, M2 = m2Of(el);
-      const zR = Math.PI * el.w0 * el.w0 / (M2 * lam);
-      line.textContent = 'Rayleigh range ' + fmtLen(zR) + ', far-field half-angle ' +
-        (+(1000 * M2 * lam / (Math.PI * el.w0)).toPrecision(3)) + ' mrad.' +
-        (M2 > 1 ? ' With M\u00b2 above 1 the beam is partly coherent across itself: a sum of ' + gsmModes(M2).length +
-          ' Hermite\u2013Gauss modes of a Gaussian ' + (+Math.sqrt(M2).toPrecision(3)) + '\u00d7 narrower, added as powers (a Gaussian Schell-model beam, as from a multimode laser or an LED). The diffracted field runs once per mode, so it is that much slower.' : '');
-    });
-    panel.append(line);
-    // how it is shown (envelope, field) is the bench's, for every source alike; how its field is worked out is its own
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
-      selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; })));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'));
-    if (lightOf().field) {
-      const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-      bindSync(pn, () => { pn.textContent = popNote(el); });
-      panel.append(pn);
-      panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The field is propagated by diffraction, physical optics propagation with a pilot Gaussian choosing between near- and far-field steps. Each surface is a phase screen found by tracing rays through the real surface, so aberrations and clear apertures are included. While the beam stays round it is a radial profile moved with Hankel transforms; a tilted curved face, a tilted refracting face, an off-axis segment or an off-centre hit makes it a 2D field with separate pilots in and out of the bench plane, and what you see is the cut through the plane. Each slice is scaled to its own peak; the dashed lines are the 1/e\u00b2 radius of the Gaussian envelope for comparison.'));
-    }
-    panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. The ray fan\u2019s width and divergence (under Rays) stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
-  }
-
-  panel.append(h('h3', null, 'Polarisation'));
-  const prows = h('div', { class: 'rt-rows' },
-    selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
-      () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
-  if (el.pol === 'linear') prows.append(param('Angle from p (°)', el, 'polAngle'));
-  panel.append(prows);
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
-
-  // the laser's own line: how far apart two paths can be and still interfere
-  panel.append(h('h3', null, 'Coherence'));
-  // split from another laser's source: one launch with it
-  const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
-  const srows = h('div', { class: 'rt-rows' }, selectField('Split from', [['', 'Nothing: a laser of its own'], ...others.map(e => [e.id, e.name])],
-    () => el.splitFrom && getEl(el.splitFrom) ? el.splitFrom : '', v => { el.splitFrom = v || null; }, { wide: true }));
-  if (linked) srows.append(param('Phase against it (\u00b0)', el, 'splitPhase'), param('Extra fibre (mm)', el, 'splitPath'));
-  panel.append(srows);
-  if (linked) {
-    const sl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-    bindSync(sl, () => {
-      const r = splitRoot(el), lag = lagOf(el), g = cohGamma(r);
-      sl.textContent = 'Light from ' + r.name + ', split before it reaches the bench (a fibre coupler, say): the two add as fields wherever they meet, so they interfere. ' +
-        'This one keeps its own power, place, beam and polarisation; its wavelength and line are ' + r.name + '\u2019s. ' +
-        'The phase between them is set by the fibres to within a wavelength, which in practice drifts: sweep it to see the fringes move. ' +
-        'The extra fibre is counted at a group index of ' + FIBRE_NG + ': ' + fmtLen(Math.abs(lag)) + ' of optical path against ' + r.name +
-        (g ? ', so fringes with its light have at most ' + (+g(lag).toPrecision(3)) + ' of full contrast.' : ', which matters only once the laser has a coherence length (set on ' + r.name + ').');
-    });
-    panel.append(sl);
-  }
-  const crows = h('div', { class: 'rt-rows' });
-  const pulsed = !linked && el.tau > 0;
-  if (!linked && !pulsed) coherenceFields(el, crows);
-  panel.append(crows);
-  const cl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-  bindSync(cl, () => {
-    if (linked) { cl.textContent = 'The line is ' + splitRoot(el).name + '\u2019s' + (el.coh > 0 ? ': coherence length ' + fmtLen(el.coh) + '.' : ': a single frequency.'); return; }
-    if (el.tau > 0) { cl.textContent = 'Set by the pulse (below): coherence length ' + fmtLen(el.coh) + ', Gaussian.'; return; }
-    cl.textContent = coherenceNote(el);
-  });
-  panel.append(cl);
-  panel.append(h('h3', null, 'Pulse'));
-  if (linked) {
-    const pl = h('p', { class: 'note' });
-    bindSync(pl, () => { const r = splitRoot(el); pl.textContent = r.tau > 0 ? 'The pulse is ' + r.name + '\u2019s: ' + fmtFs(r.tau) + ', ' + (r.pshape === 'gauss' ? 'Gaussian' : 'sech\u00b2') + '. The extra fibre above delays it.' : r.name + ' is continuous.'; });
-    panel.append(pl);
-  } else {
-    panel.append(pulseToggle(el));
-    const prow = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' });
-    if (el.tau > 0) prow.append(param('Duration (fs)', el, 'tau'),
-      selectField('Shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }),
-      param('Repetition rate (MHz)', el, 'rep'),
-      param('Chirp at the laser, GDD (fs\u00b2)', el, 'gdd0', { wide: true }));
-    panel.append(prow);
-    // turning a laser pulsed or continuous changes the panel: redraw it once the field is left
-    const built = el.tau > 0, flip = () => { if ((el.tau > 0) !== built) setTimeout(renderPanel); };
-    prow.addEventListener('focusout', flip);
-    const pl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-    bindSync(pl, () => { pl.textContent = pulseLine(el); if (!prow.contains(document.activeElement)) flip(); });
-    if (el.tau > 0) panel.append(pl);
-  }
-
-  panel.append(h('h3', null, 'Extra wavelengths'));
-  const presets = [['', 'Just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
-    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
-  const pre = h('select', { id: 'rtf' + (++fid) });
-  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
-  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
-  pre.addEventListener('change', () => {
-    checkpoint();
-    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
-    changed(true);
-  });
-  panel.append(h('div', { class: 'rt-rows' },
-    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'Preset'), pre),
-    textField('Wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
-}
-
-function mirrorPanel(el) {
-  // what arrives at its face: the rays, the diffracted field and a pulse, read as a screen reads them
-  if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
-  panel.append(h('h3', null, 'Mirror'));
-  panel.append(h('div', { class: 'rt-rows' },
-    param('Length (mm)', el, 'length'),
-    param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    param('Reflectance (%)', el, 'reflect'),
-    param('Conic k', el, 'k', { blank: 0 }),
-    param('Off-axis offset (mm)', el, 'offset'),
-    param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
-  ));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));
-  if (el.source) panel.append(h('p', { class: 'note' }, 'Imported from ' + el.source + '.'));
 }
 

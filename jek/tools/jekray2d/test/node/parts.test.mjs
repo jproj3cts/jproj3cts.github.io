@@ -10,6 +10,7 @@ globalThis.location = { hostname: '', hash: '', search: '', href: '' };
 workerShim();
 const { PARTS, PART_ORDER, TYPE_LABEL, FREE_PARTS, FREE_GROUPS, PART_BY_KEY, pickerRows } = await import('../../src/parts/registry.js');
 const { RF } = await import('../../src/parts/rf.js');
+const { PART_UI } = await import('../../src/ui/parts/registry.js');
 const { makeElement, normElement, loadProject, demoProject } = await import('../../src/state/elements.js');
 const { PALETTES, PART_GROUPS } = await import('../../src/ui/experimental.js');
 
@@ -51,4 +52,13 @@ test('an unknown type normalises to nothing, a known one to its defaults', () =>
   const m = normElement({ type: 'mirror' });
   assert.equal(m.length, 25); assert.equal(m.reflect, 100); assert.equal(m.R, null);
   assert.equal(normElement({ type: 'mirror', reflect: 150 }).reflect, 100);
+});
+test('every part has its page side: drawn, picked and edited', () => {
+  for (const t of Object.keys(PARTS)) {
+    const U = PART_UI[t];
+    assert.ok(U, t + ' has a ui/parts module');
+    for (const k of ['draw', 'hit', 'panel']) assert.equal(typeof U[k], 'function', t + '.' + k);
+    assert.ok(t === 'draw' || Number.isInteger(U.rank), t + ' has a pick rank');
+  }
+  assert.deepEqual(Object.keys(PART_UI).sort(), Object.keys(PARTS).sort());
 });

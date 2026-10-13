@@ -15,9 +15,9 @@ import { portsInUse } from './render.js';
 import { playing } from './sweeps.js';
 import { detectorReading, faceArrivals, fibreCoupling, fibreMode, rfCoupling } from '../engines/fibre-face.js';
 import { ampASE, ampGain, netPower, pkey } from '../engines/fibre.js';
-import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
-import { pdNetMw, pdSignal } from './instruments.js';
+import { pdNetMw, pdSignal } from '../engines/detector.js';
+import { PIC_UI } from './pic.js';
 import { h, mainPanel, pinBoxes } from './panel.js';
 import { cellInfo, portPower, portRows } from './panels.js';
 import { blockedPct, pctOfSources, viaCavity } from '../engines/pd-cavity.js';
@@ -103,7 +103,7 @@ function updateReadoutsIn(container, el) {
     parts = [rows, 'Spot statistics are measured along the screen from its centre and weighted by ray power. Wavefront error is the spread in optical path to the centroid.' +
       (st && st.mixed ? ' Path figures use the most common wavelength on this screen.' : '')];
   } else if (el.type === 'pic') {
-    parts = PIC.readout(el);                                                                   // PIC hook
+    parts = PIC_UI.readout(el);                                                                   // PIC hook
   } else if (el.type === 'elec') {
     parts = ELEC.readout(el);                                                                  // ELEC hook
   } else if (el.type === 'fcomp') {

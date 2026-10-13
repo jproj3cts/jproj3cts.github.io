@@ -1,22 +1,23 @@
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen } from '../core/format.js';
-import { MOD_COLOURS } from '../core/modulators.js';
 import { C_NM_GHZ } from '../core/rf.js';
 import { beamAt, m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
 import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
-import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected } from '../state/elements.js';
+import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
-import { dsagFn, lensSurfaces, polyVerts, sagFn } from '../core/geometry.js';
-import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
-import { frame, maskFns, stopBlades, toLocal, toWorld } from '../core/mask.js';
+import { sagFn } from '../core/geometry.js';
+import { crystalGeom, meshHull } from '../core/stl.js';
+import { frame, toLocal, toWorld } from '../core/mask.js';
 import { exporting, lastTrace } from '../engines/trace.js';
-import { drawDrawing, drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
+import { drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
 import { drag } from './pointer.js';
-import { FC, FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
+import { SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
+import { ELEC_UI } from './elec.js';
+import { PART_UI } from './parts/registry.js';
 import { updateReadouts } from './readouts.js';
 import { h, renderPanel } from './panel.js';
 import { partAssumptions } from './plots.js';
@@ -24,7 +25,6 @@ import { popSources } from '../engines/beam-tree.js';
 import { closeupOn, setCloseupOn } from '../engines/closeup.js';
 import { drawPop } from './heavy.js';
 import { drawCloseup } from './closeup.js';
-import { screenStats } from '../engines/screen-stats.js';
 import { changed, drawMeasures, drawMinimap } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { cssColour } from '../io/layout.js';
@@ -230,104 +230,6 @@ export function surfPoints(s, n = 48, reverse = false, f = null) {
   return ys.map(y => [s.z + sagFn(s, y), y]);
 }
 
-function drawLens(el, sel) {
-  const f = frame(el);
-  const ss = lensSurfaces(el);
-  const glass = getCss('--rt-glass');
-  for (let i = 0; i < ss.length - 1; i++) {
-    if (el.materials[i].glass === 'AIR') continue;
-    const pts = surfPoints(ss[i], 48, false, f).concat(surfPoints(ss[i + 1], 48, true, f));
-    pathLocal(f, pts, true);
-    // an RF lens is white plastic (PTFE, HDPE), not glass
-    ctx.fillStyle = el.mmw ? 'rgba(242,242,236,0.5)' : 'rgba(115,185,202,0.16)';
-    ctx.fill();
-    ctx.strokeStyle = sel ? selInk() : el.mmw ? (lightLayer ? '#8f8f88' : '#f2f2ec') : glass;
-    ctx.lineWidth = sel ? 2 : 1.4;
-    ctx.stroke();
-  }
-}
-
-function drawMirror(el, sel) {
-  const f = frame(el);
-  const [s] = elementSurfaces(el);
-  const pts = surfPoints(s, 48, false, f);
-  // hatching on the back
-  ctx.strokeStyle = metal(0.45);
-  ctx.lineWidth = 1;
-  const hat = Math.min(3, 8 / V().scale + 0.6);
-  const nH = Math.max(4, Math.round(el.length * V().scale / 7));
-  ctx.beginPath();
-  for (let i = 0; i <= nH; i++) {
-    const y = s.semi * (2 * i / nH - 1);
-    const x = sagFn(s, y);
-    const [ax, ay] = toWorld(f, x, y);
-    const [bx, by] = toWorld(f, x - hat, y - hat);
-    ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by));
-  }
-  ctx.stroke();
-  pathLocal(f, pts);
-  ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
-  ctx.lineWidth = sel ? 3.5 : 3;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.lineCap = 'butt';
-}
-
-function drawScreen(el, sel) {
-  const f = frame(el);
-  const [surf] = elementSurfaces(el);
-  const L = surf.semi;
-  pathLocal(f, surfPoints(surf, 48, false, f));
-  ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
-  ctx.lineWidth = sel ? 4 : 3.5;
-  ctx.stroke();
-  // ticks on the detecting face
-  const k = 1 / V().scale;
-  const nT = Math.max(3, Math.round(el.length * V().scale / 9));
-  ctx.strokeStyle = 'rgba(255,179,71,0.6)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i <= nT; i++) {
-    const y = L * (2 * i / nT - 1);
-    const x = sagFn(surf, y);
-    const [ax, ay] = toWorld(f, x, y), [bx, by] = toWorld(f, x + 5 * k, y);
-    ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by));
-  }
-  ctx.stroke();
-  // mark the hits
-  const hits = lastTrace.screens[el.id] || [];
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  for (const t of hits) {
-    if (t.chief) continue;
-    const [x1, y1] = toWorld(f, sagFn(surf, t.y), t.y);
-    ctx.fillRect(sx(x1) - 1.5, sy(y1) - 1.5, 3, 3);
-  }
-  // the intensity profile, coherently summed, drawn behind the screen
-  const st = screenStats(el);
-  if (st && st.profile && st.profile.max > 0) {
-    const P = st.profile, k = 1 / V().scale;
-    const depth = 46 * k;
-    ctx.beginPath();
-    for (let i = 0; i < P.nb; i++) {
-      const y = P.lo + (P.hi - P.lo) * (i + 0.5) / P.nb;
-      const v = P.binC[i] / P.max;
-      // stand the plot off along the local normal, so it follows a curved screen
-      const m = dsagFn(surf, y);
-      const nl = Math.hypot(1, m);
-      const off = -(4 * k + depth * v);
-      const [wx0, wy0] = toWorld(f, sagFn(surf, y) + off / nl, y - off * m / nl);
-      const X = sx(wx0), Y = sy(wy0);
-      i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
-    }
-    ctx.strokeStyle = 'rgba(255,179,71,0.85)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-}
-
-/* a source's body, in mm on the bench (so it zooms with everything else): its length, and its
-   half-height, a little more than its beam's */
-export const srcBody = el => ({ L: 20, hw: Math.max(el.width / 2, 2) + 1.5 });
 /* a feed horn from above: its flare from the waveguide to the aperture (on the part's place, facing
    the way it sends or takes light), in the RF palette's amber, and the aperture in the beam's colour */
 /* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
@@ -364,7 +266,7 @@ export function hornShape(el) {
   return { a, lam, Lf, rg, xb, rFl, back, corr, D, wall, square: kind === 'diagonal', upper, grooves,
     outline: [...upper, ...upper.slice().reverse().map(([x, y]) => [x, -y])] };
 }
-function drawHorn(el, sel) {
+export function drawHorn(el, sel) {
   const f = frame(el), H = hornShape(el), s = V().scale;
   pathLocal(f, H.outline, true);
   ctx.fillStyle = bodyFill('#4a3a1c'); ctx.fill();
@@ -374,24 +276,6 @@ function drawHorn(el, sel) {
   for (const sg of [1, -1]) { pathLocal(f, bore.map(([x, y]) => [x, sg * y])); ctx.strokeStyle = sel ? selInk() : 'rgba(255,179,71,0.75)'; ctx.lineWidth = 1; ctx.stroke(); }
   pathLocal(f, [[0, -H.a], [0, H.a]]);
   ctx.strokeStyle = el.type === 'source' ? el.colour : '#7ee0a1'; ctx.lineWidth = 3; ctx.stroke();
-}
-function drawSource(el, sel) {
-  if (el.mmw && !el.mmw.part) return drawHorn(el, sel);
-  const f = frame(el);
-  const k = 1 / V().scale;             // px → mm
-  const { L, hw } = srcBody(el);
-  const body = [[-L, -hw], [0, -hw], [0, hw], [-L, hw]];
-  pathLocal(f, body, true);
-  ctx.fillStyle = bodyFill('#2b2622');
-  ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : getCss('--rt-source');
-  ctx.lineWidth = sel ? 2 : 1.5;
-  ctx.stroke();
-  // emitter face in the ray colour
-  pathLocal(f, [[0, -el.width / 2 - 0.5*k], [0, el.width / 2 + 0.5*k]]);
-  ctx.strokeStyle = el.colour;
-  ctx.lineWidth = 3;
-  ctx.stroke();
 }
 
 /* The surfaces a beam segment runs between, so it is drawn cut along them, not square across
@@ -854,81 +738,12 @@ function drawCredit() {
   ctx.fillText('Made with JEKray2D \u00b7 jeksys.net', W - 10, H - 8);
   ctx.restore();
 }
-function drawBlock(el, sel) {
-  const f = frame(el);
-  const V = polyVerts(el);
-  pathLocal(f, V, true);
-  ctx.fillStyle = 'rgba(115,185,202,0.16)';
-  ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : getCss('--rt-glass');
-  ctx.lineWidth = sel ? 2 : 1.4;
-  ctx.stroke();
-  if (el.type === 'cube') {
-    const a = el.size / 2;
-    pathLocal(f, [[-a, -a], [a, a]]);
-    ctx.strokeStyle = metal(0.35 + 0.6 * el.reflect / 100);
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-}
-function drawStop(el, sel) {
-  const f = frame(el), blades = stopBlades(el), b = el.outer / 2;
-  ctx.strokeStyle = sel ? selInk() : '#9aa4ab';
-  ctx.lineWidth = sel ? 5 : 4;
-  ctx.lineCap = 'butt';
-  for (const [lo, hi] of blades) { pathLocal(f, [[0, lo], [0, hi]]); ctx.stroke(); }
-  // the plate's full extent, faintly, and a tick at each blade edge inside it
-  ctx.strokeStyle = 'rgba(154,164,171,0.35)'; ctx.lineWidth = 1;
-  pathLocal(f, [[0, -b], [0, b]]); ctx.stroke();
-  ctx.strokeStyle = 'rgba(154,164,171,0.6)';
-  const k = 4 / V().scale;
-  for (const [lo, hi] of blades) for (const e of [lo, hi]) if (Math.abs(Math.abs(e) - b) > 1e-6) {
-    pathLocal(f, [[-k, e], [k, e]]); ctx.stroke();
-  }
-}
-function drawMask(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, col = el.mod ? MOD_COLOURS[el.mod.colour || 'grey'] : '#d8b35a';   // a mod's plate in its own colour
-  pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
-  ctx.fillStyle = col + '29'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
-  // its amplitude along it, as a trace beside the plate (a mod's at the bench's wavelength)
-  const fn = maskFns(el).fn, n = 64, pts = [], lam = el.mod ? benchNms()[0] * 1e-6 : 633e-6;
-  for (let i = 0; i <= n; i++) { const u = -L + 2 * L * i / n; pts.push([-(3 + 6 * Math.min(1, Math.max(0, fn(u, 0, lam)[0]))) * k, u]); }
-  pathLocal(f, pts); ctx.strokeStyle = col + 'b3'; ctx.lineWidth = 1; ctx.stroke();
-}
-function drawJones(el, sel) {
-  const f = frame(el);
-  const L = el.length / 2, k = 1 / V().scale;
-  if (el.mod) {                                       // a mod's polarisation plate: a plate in its colour, no axis to show
-    const col = MOD_COLOURS[el.mod.colour || 'grey'];
-    pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
-    ctx.fillStyle = col + '38'; ctx.fill(); ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
-    return;
-  }
-  pathLocal(f, [[-0.6 * k * 2, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
-  ctx.fillStyle = el.type === 'polariser' ? 'rgba(157,107,255,0.22)' : 'rgba(115,185,202,0.18)';
-  ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : (el.type === 'polariser' ? '#b79bff' : '#73b9ca');
-  ctx.lineWidth = sel ? 2.5 : 1.6;
-  ctx.stroke();
-  // a badge showing where the axis sits in the polarisation plane
-  const [bx, by] = toWorld(f, 0, L + 9 * k);
-  const X = sx(bx), Y = sy(by), r = 6;
-  ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.stroke();
-  const a = el.axis * deg;
-  ctx.beginPath();
-  ctx.moveTo(X - Math.cos(a) * r, Y + Math.sin(a) * r);
-  ctx.lineTo(X + Math.cos(a) * r, Y - Math.sin(a) * r);
-  ctx.strokeStyle = el.type === 'polariser' ? '#b79bff' : '#73b9ca';
-  ctx.lineWidth = 2; ctx.stroke();
-}
 /* A thin plate seen edge-on: the shared look of the newer thin elements */
 /* A fibre component: a box with its tag, and its ports */
 /* Fibre components as schematic symbols, in rose, drawn in the part's own frame in mm with
    v down the page (u across): leads run in from the ports, and a value (a ratio, a loss, a
    shift) sits beside the symbol where it says something. The box is still what is clicked. */
-const FSYM = (() => {
+export const FSYM = (() => {
   const ln = (c, a, b, d, e) => { c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); };
   const shape = (c, P, close = true) => { c.beginPath(); P.forEach(([u, v], i) => i ? c.lineTo(u, v) : c.moveTo(u, v)); if (close) { c.closePath(); c.fillStyle = bodyFill('#2b3338'); c.fill(); } c.stroke(); };
   const box = (c, a, b) => shape(c, [[-a, -b], [a, -b], [a, b], [-a, b]]);
@@ -1085,31 +900,17 @@ const FSYM = (() => {
   }
   return { draw };
 })();
-function drawFcomp(el, sel) {
-  if (FSYM.draw(el, sel)) { drawPorts(el); return; }
-  const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = fcH(el) / 2, s = V().scale;
-  const laser = el.kind === 'laser';
-  pathLocal(f, roundRect(w, hh, 1.6), true);
-  ctx.fillStyle = bodyFill(laser ? 'rgba(0,0,0,0.35)' : '#2b373d'); ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : laser ? wavelengthColour(el.wavelength) : '#9fb1b8'; ctx.lineWidth = sel ? 2.4 : 1.4; ctx.stroke();
-  const tag = typeof K.tag === 'function' ? K.tag(el) : K.tag, fs = clamp(2.6 * s, 7, 14);
-  if (fs * tag.length * 0.62 < FC_W * s) {
-    ctx.save(); ctx.fillStyle = laser ? wavelengthColour(el.wavelength) : 'rgba(255,255,255,0.8)'; ctx.font = '600 ' + fs + 'px ' + getCss('--jek-mono');
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tag, sx(el.x), sy(el.y)); ctx.restore();
-  }
-  drawPorts(el);
-}
 /* a w x hh half-size rectangle with corners of radius r, as points */
-function roundRect(w, hh, r) {
+export function roundRect(w, hh, r) {
   const pts = [], k = 6;
   for (const [cx, cy, a0] of [[w - r, -hh + r, -90], [w - r, hh - r, 0], [-w + r, hh - r, 90], [-w + r, -hh + r, 180]])
     for (let i = 0; i <= k; i++) { const a = (a0 + 90 * i / k) * deg; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
   return pts;
 }
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
-function drawPorts(el) {
+export function drawPorts(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
-  ELEC.drawExtras(el);                                                                       // ELEC hook
+  ELEC_UI.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
     if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
@@ -1299,54 +1100,7 @@ export function removeFibre(F) {
   if (selFibreId === F.id) selFibreId = null;
   changed(true);
 }
-/* A link plane: a dashed line, with where it leads */
-function drawLink(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, P = linkPartner(el);
-  const col = P ? '#7fdcff' : 'rgba(127,220,255,0.45)';
-  pathLocal(f, [[0, -L], [0, L]]);
-  ctx.setLineDash([6, 4]); ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 3 : 2.2; ctx.stroke(); ctx.setLineDash([]);
-  // end caps
-  ctx.beginPath();
-  for (const y of [-L, L]) { const [ax, ay] = toWorld(f, -4 * k, y), [bx, by] = toWorld(f, 4 * k, y); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); }
-  ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
-}
-/* a modulator: a crystal block; an AOM's transducer along one side with its sound waves, an EOM's electrodes above and below */
-function drawModulator(el, sel) {
-  const aom = el.type === 'aom', { f, L, k } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', 5);
-  const t = 5 * k;
-  ctx.save();
-  if (aom) {
-    pathLocal(f, [[-t, L], [t, L], [t, L + 4 * k], [-t, L + 4 * k]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
-    ctx.strokeStyle = 'rgba(154,208,255,0.45)'; ctx.lineWidth = 1;
-    for (let i = 1; i < 5; i++) { const y = L - i * 2 * L / 5; pathLocal(f, [[-t, y], [t, y]]); ctx.stroke(); }
-  } else {
-    for (const y of [L, -L]) { pathLocal(f, [[-t, y], [t, y]]); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 3; ctx.stroke(); }
-  }
-  ctx.restore();
-}
-/* a vapour cell: a glass tube along the beam, windows at its ends, faintly tinted */
-function drawCell(el, sel) {
-  const f = frame(el), L = el.length / 2, H = el.cellLen / 2, k = 1 / V().scale;
-  pathLocal(f, [[-H, -L], [H, -L], [H, L], [-H, L]], true);
-  ctx.fillStyle = 'rgba(199,155,255,0.13)'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#c79bff'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
-  for (const x of [-H, H]) { pathLocal(f, [[x - 1.2 * k, -L], [x + 1.2 * k, -L], [x + 1.2 * k, L], [x - 1.2 * k, L]], true); ctx.fillStyle = 'rgba(115,185,202,0.35)'; ctx.fill(); }
-  // the stem where the metal sits
-  pathLocal(f, [[-2.5, L], [2.5, L], [2.5, L + Math.min(8, L * 0.5)], [-2.5, L + Math.min(8, L * 0.5)]], true);
-  ctx.strokeStyle = sel ? selInk() : '#c79bff'; ctx.lineWidth = 1.1; ctx.stroke();
-}
-function drawNlc(el, sel) {
-  const f = frame(el), L = el.length / 2, H = el.nlLen / 2;
-  pathLocal(f, [[-H, -L], [H, -L], [H, L], [-H, L]], true);
-  ctx.fillStyle = 'rgba(120,200,160,0.16)'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#78c8a0'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
-  // the poling: a few stripes across
-  const n = Math.max(3, Math.min(24, Math.round(el.nlLen / 2)));
-  ctx.beginPath();
-  for (let i = 1; i < n; i++) { const x = -H + 2 * H * i / n, [ax, ay] = toWorld(f, x, -L), [bx, by] = toWorld(f, x, L); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); }
-  ctx.strokeStyle = 'rgba(120,200,160,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-}
-function drawPlate(el, sel, stroke, fill, half) {
+export function drawPlate(el, sel, stroke, fill, half) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
   ctx.fillStyle = fill; ctx.fill();
@@ -1354,7 +1108,7 @@ function drawPlate(el, sel, stroke, fill, half) {
   return { f, L, k };
 }
 /* an arrow along the element's axis above it: the direction of a Faraday rotator's field */
-function drawAxisArrow(f, L, k, colour, bar) {
+export function drawAxisArrow(f, L, k, colour, bar) {
   const [ax, ay] = toWorld(f, -7 * k, L + 9 * k), [bx, by] = toWorld(f, 7 * k, L + 9 * k);
   const X1 = sx(ax), Y1 = sy(ay), X2 = sx(bx), Y2 = sy(by), an = Math.atan2(Y2 - Y1, X2 - X1);
   ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(X2, Y2);
@@ -1363,69 +1117,6 @@ function drawAxisArrow(f, L, k, colour, bar) {
   if (bar) { const px = -Math.sin(an) * 5, py = Math.cos(an) * 5; ctx.moveTo(X2 + px, Y2 + py); ctx.lineTo(X2 - px, Y2 - py); }
   ctx.strokeStyle = colour; ctx.lineWidth = 1.6; ctx.stroke();
 }
-function drawGrating(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, refl = el.mode === 'reflect';
-  // substrate behind a reflection grating, thin plate for a transmission one
-  const back = refl ? -Math.max(2, 6 * k) : -1.2 * k;
-  pathLocal(f, [[back, -L], [0, -L], [0, L], [back, L]], true);
-  ctx.fillStyle = refl ? 'rgba(216,222,227,0.14)' : 'rgba(115,185,202,0.14)'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
-  // grooves on the working face
-  const n = Math.max(4, Math.min(60, Math.round(2 * L * V().scale / 5))), pts = [];
-  for (let i = 0; i <= n; i++) { const y = -L + 2 * L * i / n; pts.push([0, y]); if (i < n) pts.push([2.5 * k, y + 2 * L / n * 0.8]); }
-  pathLocal(f, pts);
-  ctx.strokeStyle = sel ? selInk() : '#c9a6ff'; ctx.lineWidth = 1.2; ctx.stroke();
-}
-function drawFibre(el, sel) {
-  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = Math.max(8, 30 * k);
-  pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
-  ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
-  // the jacketed fibre leaving the back of the ferrule
-  pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
-  ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
-  // the core on the face
-  pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
-  ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 3; ctx.stroke();
-  drawPorts(el);
-}
-/* a photodetector as the literature draws it: a semicircle, its flat side the active face towards the light */
-export const detR = el => Math.max(el.length / 2 + 1.5, 4);
-function drawDetector(el, sel) {
-  if (el.mmw && !el.mmw.part) return drawHorn(el, sel);
-  const f = frame(el), L = el.length / 2, H = detR(el), pts = [];
-  for (let i = 0; i <= 32; i++) { const a = Math.PI / 2 + Math.PI * i / 32; pts.push([H * Math.cos(a), H * Math.sin(a)]); }
-  pathLocal(f, pts, true);
-  ctx.fillStyle = bodyFill('#2b3338'); ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#9aa4ab'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
-  pathLocal(f, [[0, -L], [0, L]]);
-  ctx.strokeStyle = '#7ee0a1'; ctx.lineWidth = 3.5; ctx.stroke();
-  const hits = lastTrace.screens[el.id] || [];
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  for (const t of hits) { if (t.chief) continue; const [x1, y1] = toWorld(f, 0, t.y); ctx.fillRect(sx(x1) - 1.5, sy(y1) - 1.5, 3, 3); }
-}
-/* an STL object from above: its outline, filled as a solid */
-function drawStl(el, sel) {
-  const f = frame(el);
-  pathLocal(f, meshHull(el), true);
-  ctx.fillStyle = (el.colour || '#8a8f96') + 'cc'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : 'rgba(0,0,0,0.6)'; ctx.lineWidth = sel ? 2.2 : 1.2; ctx.stroke();
-}
-function drawCrystal(el, sel) {
-  const f = frame(el), G = crystalGeom(el), k = 1 / V().scale;
-  pathLocal(f, G.outline, true);
-  ctx.fillStyle = 'rgba(183,155,255,0.13)'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#b79bff'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
-  ctx.lineWidth = 1.2; ctx.strokeStyle = sel ? selInk() : '#b79bff';
-  if (G.cut) { pathLocal(f, G.cut); ctx.stroke(); }
-  if (G.gap) for (const g of G.gap) { pathLocal(f, [[g[0], g[1]], [g[2], g[3]]]); ctx.stroke(); }
-  // the optic axis, where it lies in the bench plane
-  if (el.shape === 'displacer') {
-    const a = el.axisAngle * deg, r = 0.35 * Math.min(el.length, el.size);
-    pathLocal(f, [[-r * Math.cos(a), -r * Math.sin(a)], [r * Math.cos(a), r * Math.sin(a)]]);
-    ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(183,155,255,0.8)'; ctx.stroke(); ctx.setLineDash([]);
-  }
-}
 export function filterColour(el) {
   if (el.ftype === 'nd') return '#9aa4ab';
   if (el.ftype === 'bandpass') return wavelengthColour(el.centre);
@@ -1433,39 +1124,11 @@ export function filterColour(el) {
 }
 export function draw(el) {
   drawBody(el);
-  if (el.type !== 'fcomp') ELEC.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
+  if (el.type !== 'fcomp') ELEC_UI.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
 }
 function drawBody(el) {
-  const sel = el.id === selectedId || extraSel.has(el.id);
-  if (el.type === 'draw') return drawDrawing(el, sel);
-  if (el.type === 'chopper') return ELEC.drawChopper(el, sel);                                // ELEC hook
-  if (el.type === 'stl') return drawStl(el, sel);
-  if (el.type === 'grating') return drawGrating(el, sel);
-  if (el.type === 'aom' || el.type === 'eom') return drawModulator(el, sel);
-  if (el.type === 'fibre') return drawFibre(el, sel);
-  if (el.type === 'detector') return drawDetector(el, sel);
-  if (el.type === 'crystal') return drawCrystal(el, sel);
-  if (el.type === 'filter') { const c = filterColour(el); drawPlate(el, sel, c, c + '33'); return; }
-  if (el.type === 'gain') { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2.2); return; }
-  if (el.type === 'cell') { drawCell(el, sel); return; }
-  if (el.type === 'nlc') { drawNlc(el, sel); return; }
-  if (el.type === 'link') { drawLink(el, sel); return; }
-  if (el.type === 'fcomp') { drawFcomp(el, sel); return; }
-  if (el.type === 'pic') { PIC.draw(el, sel); return; }                                      // PIC hook
-  if (el.type === 'elec') { ELEC.draw(el, sel); return; }                                    // ELEC hook
-  if (el.type === 'faraday' || el.type === 'isolator') {
-    const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
-    drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
-    return;
-  }
-  if (el.type === 'waveplate' || el.type === 'polariser') return drawJones(el, sel);
-  if (el.type === 'mask') return drawMask(el, sel);
-  if (el.type === 'stop') return drawStop(el, sel);
-  if (el.type === 'cube' || el.type === 'prism') return drawBlock(el, sel);
-  if (el.type === 'lens') drawLens(el, sel);
-  else if (el.type === 'mirror') drawMirror(el, sel);
-  else if (el.type === 'screen') drawScreen(el, sel);
-  else if (el.type === 'source') drawSource(el, sel);
+  const sel = el.id === selectedId || extraSel.has(el.id), U = PART_UI[el.type];
+  if (U) U.draw(el, sel);
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

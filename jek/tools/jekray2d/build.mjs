@@ -74,9 +74,9 @@ export function declared(line) {
   return { kind: m[1], names };
 }
 export const parse = text => acorn.parse(text, { ecmaVersion: 2024, sourceType: 'module' });
-const isScope = n => /Function|Program|BlockStatement|For(In|Of)?Statement|SwitchStatement|CatchClause|ClassExpression/.test(n.type);
+export const isScope = n => /Function|Program|BlockStatement|For(In|Of)?Statement|SwitchStatement|CatchClause|ClassExpression/.test(n.type);
 /* the names each scope declares, so a reference can be told from a local of the same name */
-function scopesOf(ast) {
+export function scopesOf(ast) {
   const S = new Map(), add = (node, n) => { if (!S.has(node)) S.set(node, new Set()); S.get(node).add(n); };
   const names = (p, out) => { if (!p) return out; switch (p.type) { case 'Identifier': out.push(p.name); break; case 'ObjectPattern': for (const q of p.properties) names(q.type === 'RestElement' ? q.argument : q.value, out); break; case 'ArrayPattern': for (const q of p.elements) names(q, out); break; case 'RestElement': names(p.argument, out); break; case 'AssignmentPattern': names(p.left, out); break; } return out; };
   walk.fullAncestor(ast, (node, st, anc) => {
@@ -138,19 +138,50 @@ export function loadTimeStatements(f, text) {
   }
   return out;
 }
-const ENGINE_SIDE = /^(core|state|parts|engines|worker)\//, LAYER_EXCEPTIONS = new Set(['engines/elec.js', 'engines/pic.js']);
+const ENGINE_SIDE = /^(core|state|parts|engines|worker)\//, LAYER_EXCEPTIONS = new Set();
+/* the names a module's top-level initialisers read as the module loads: outside any function, or
+   inside one called there and then (an IIFE) */
+export function loadTimeReads(ast, text) {
+  const out = [], FN = /^(FunctionExpression|ArrowFunctionExpression)$/;
+  const refs = moduleRefs(ast), inInit = [];
+  for (const st of ast.body) {
+    const d = st.type === 'ExportNamedDeclaration' ? st.declaration : st;
+    if (!d || d.type !== 'VariableDeclaration') continue;
+    for (const v of d.declarations) if (v.init) {
+      // the stretches of the initialiser that run now: everything but function bodies not called at once
+      const lazy = [];
+      walk.recursive(v.init, null, {
+        FunctionExpression(n) { lazy.push([n.start, n.end]); }, ArrowFunctionExpression(n) { lazy.push([n.start, n.end]); }, FunctionDeclaration(n) { lazy.push([n.start, n.end]); },
+        CallExpression(n, st, c) { if (FN.test(n.callee.type)) { c(n.callee.body, st); for (const a of n.arguments) c(a, st); } else { c(n.callee, st); for (const a of n.arguments) c(a, st); } },
+        Property(n, st, c) { if (n.kind === 'get' || n.kind === 'set') lazy.push([n.value.start, n.value.end]); else c(n.value, st); },
+      });
+      inInit.push([v.init.start, v.init.end, lazy]);
+    }
+  }
+  for (const id of refs) for (const [s, e, lazy] of inInit) if (id.start >= s && id.end <= e && !lazy.some(([a, b]) => id.start >= a && id.end <= b)) out.push([id.name, text.slice(0, id.start).split('\n').length]);
+  return out;
+}
 export function lint() {
   const errors = [], warnings = [], mods = scan();
   for (const f of order()) for (const s of loadTimeStatements(f, read('src/' + f))) errors.push(f + ':' + s.line + ' runs code as it loads (' + s.text.trim() + '): a module only declares; put it in its wire function, called from boot.js');
   // the layers: core, state, engines and the worker know nothing of the page (ui, io, page); the
-  // engines reach it through core/hooks.js. ELEC and PIC still carry their panels and drawings
-  // (stage 5 of the split takes them out), so for now they are the two allowed exceptions.
+  // engines reach it through core/hooks.js (LAYER_EXCEPTIONS: modules let through for a while).
   for (const [f, m] of mods) {
     if (!ENGINE_SIDE.test(f) || LAYER_EXCEPTIONS.has(f)) continue;
     const bad = [...new Set([...m.imports.values()].filter(from => !ENGINE_SIDE.test(from)))];
     if (bad.length) errors.push(f + ' imports from the page side (' + bad.join(', ') + '): core, state, engines and the worker reach the page through core/hooks.js');
   }
   for (const f of LAYER_EXCEPTIONS) { const m = mods.get(f); if (m && ![...m.imports.values()].some(from => !ENGINE_SIDE.test(from))) warnings.push(f + ' no longer imports from the page side: take it off LAYER_EXCEPTIONS in build.mjs'); }
+  // the page runs the modules in order.json's order, in one scope: a value a module works out as it
+  // loads (an object, a table, an IIFE) must not read a const, let or class a later module declares
+  { const at = new Map(); [...mods.keys()].forEach((f, i) => at.set(f, i));
+    const homeOf = new Map(); for (const [f, m] of mods) for (const [n, kind] of m.decls) if (kind !== 'function') homeOf.set(n, f);
+    for (const [f, m] of mods) for (const [n, line] of loadTimeReads(m.ast, m.text)) { const h = homeOf.get(n); if (h && h !== f && at.get(h) > at.get(f)) errors.push(f + ':' + line + ' reads ' + n + ' as it loads, but ' + h + ' comes later in order.json'); } }
+  // a module cannot assign another's binding: a shared let is set through its setter (setX)
+  for (const [f, m] of mods) walk.simple(m.ast, {
+    AssignmentExpression(n) { if (n.left.type === 'Identifier' && m.imports.has(n.left.name)) errors.push(f + ':' + m.text.slice(0, n.start).split('\n').length + ' assigns ' + n.left.name + ', which ' + m.imports.get(n.left.name) + ' declares: use its setter'); },
+    UpdateExpression(n) { if (n.argument.type === 'Identifier' && m.imports.has(n.argument.name)) errors.push(f + ':' + m.text.slice(0, n.start).split('\n').length + ' changes ' + n.argument.name + ', which ' + m.imports.get(n.argument.name) + ' declares: use its setter'); },
+  });
   const shared = new Set([...read('src/state/shared.md').matchAll(/^- `([\w$]+)`/gm)].map(m => m[1]));
   const home = new Map();
   for (const [f, m] of mods) for (const [n, kind] of m.decls) { if (home.has(n)) errors.push(n + ' is declared in both ' + home.get(n).f + ' and ' + f); home.set(n, { f, kind }); }

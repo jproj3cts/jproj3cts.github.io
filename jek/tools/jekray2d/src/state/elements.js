@@ -259,3 +259,10 @@ export function loadProject(data) {
   hooks.benchStyleShown();      // after the page is set up, on first load
   return p;
 }
+
+/* a photodetector as the literature draws it: a semicircle, its flat side the active face towards the light */
+export const detR = el => Math.max(el.length / 2 + 1.5, 4);
+
+/* a source's body, in mm on the bench (so it zooms with everything else): its length, and its
+   half-height, a little more than its beam's */
+export const srcBody = el => ({ L: 20, hw: Math.max(el.width / 2, 2) + 1.5 });

@@ -32,8 +32,9 @@ import { GAIN } from './gain.js';
    The parts: one module each in this folder, gathered here. A part says what it is called, how the
    picker lists it (picker, and its place in FREE_GROUPS), what a new one is (make), what a saved one
    is taken to be (norm: every field checked and given its default), its extent out of the bench
-   plane (zHalf, zSquare) and what the AI guide says of it (guide). Everything else about a part,
-   how it is drawn, traced, shown in 3D and edited, still finds it by type in the engines and ui.
+   plane (zHalf, zSquare) and what the AI guide says of it (guide). How it is drawn, picked and
+   edited on the page: ui/parts/<type>.js. How the light meets it, and its 3D model, still find it
+   by type in engines/trace.js and ui/view3d.js.
    ========================================================================== */
 export const PARTS = {
   stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN

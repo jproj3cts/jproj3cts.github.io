@@ -32,10 +32,11 @@ import {
 import { arrivalField, detectorReading, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
-import { ELEC } from '../engines/elec.js';
 import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
+import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
 import { V3D } from './view3d.js';
-import { INST, osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from './instruments.js';
+import { INST } from './instruments.js';
+import { ELEC_UI } from './elec.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
 import { pinBoxes, pins, renderPanel, setPins, syncPanel, togglePin, viewState, vs } from './panel.js';
 import { portPower } from './panels.js';
@@ -236,7 +237,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     stl(src, name, x, y, units) { const T = parseSTL(Array.isArray(src) ? new Uint8Array(src) : src), el = stlElement(T, name || 'object.stl', x || 0, y || 0, units); el.bench = project.tab; project.elements.push(el); changed(true); return el.name; },
     stlHull: name => meshHull(project.elements.find(e => e.name === name)),
     pic: PIC.api,                                                                              // PIC hook
-    elec: ELEC.api,                                                                            // ELEC hook
+    elec: ELEC_UI.api,                                                                            // ELEC hook
     // the field steps kept between runs: how many, hits and misses since the last look; clear empties it
     // a field worker started from the page's own code, as the bench starts one, and asked to
     // trace: whatever the page's code does at its top level must still run in a worker

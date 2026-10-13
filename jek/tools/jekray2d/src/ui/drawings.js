@@ -1,13 +1,13 @@
 import { EMBED, IN_WORKER, clamp, mkCanvas } from '../core/constants.js';
 import { DRAW_DASH, DRAW_FONTS, DRAW_SHAPES, hexColour, normDraw } from '../state/drawings.js';
 import { V, deg, extraSel, nextName, project, selectOne, selectedId, typeLabel, uid } from '../state/project.js';
-import { getEl, normElement, selected } from '../state/elements.js';
+import { getEl, normElement, selected, srcBody } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { frame, toLocal, toWorld, toWorldDir } from '../core/mask.js';
 import { exporting } from '../engines/trace.js';
 import {
   benchLight, canvas, ctx, getCss, halfSize, pathLocal, requestRender, selFibreId, selInk, selection,
-  setSelFibreId, srcBody, stage, sx, sy, wx, wy
+  setSelFibreId, stage, sx, sy, wx, wy
 } from './render.js';
 import { drag, hitTest, inPolygon, setDrag, snapVal } from './pointer.js';
 import { FC_W, fcH } from '../engines/fibre.js';

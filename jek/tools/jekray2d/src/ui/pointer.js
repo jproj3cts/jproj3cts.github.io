@@ -2,22 +2,22 @@ import { EMBED, ZOOM_MAX, clamp } from '../core/constants.js';
 import { V, deg, extraSel, project, selectOne, selectedId, uid } from '../state/project.js';
 import { selected } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
-import { polyVerts, sagFn } from '../core/geometry.js';
-import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, toLocal } from '../core/mask.js';
 import {
-  H, W, canvas, detR, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip, portAt,
-  removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, srcBody,
-  sx, sy, wx, wy
+  H, W, canvas, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip, portAt,
+  removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, sx, sy, wx,
+  wy
 } from './render.js';
 import {
   DRAW_DRAGS, alignBox, alignShown, drawDblClick, drawDown, drawKey, drawMove, drawTool, drawUp,
-  finishPen, groupEls, groupOf, hitDrawing, labelAt, partsLocked, penDraft, scaleDrawing, scaleGrips,
-  setPenCursor, setPenEnded, setXformMode, snap15, ungroupEls, xformMode
+  finishPen, groupEls, groupOf, labelAt, partsLocked, penDraft, scaleDrawing, scaleGrips, setPenCursor,
+  setPenEnded, setXformMode, snap15, ungroupEls, xformMode
 } from './drawings.js';
-import { FC_W, fcH, pkey } from '../engines/fibre.js';
+import { pkey } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
+import { hitSurface } from './parts/hits.js';
+import { PART_UI } from './parts/registry.js';
 import { renderPanel, syncPanel } from './panel.js';
 import {
   changed, duplicateSel, hideCtxMenu, measureDown, measureDraft, measureMode, measureMove, measureUp,
@@ -37,73 +37,16 @@ import { fwPump, midDrag } from '../page/workers.js';
 export function hitTest(px, py) {
   const tol = 7 / V().scale;
   const x = wx(px), y = wy(py);
-  const order = { source: 0, screen: 1, stop: 1, waveplate: 1, polariser: 1, mask: 1, fibre: 1, detector: 1, faraday: 1, isolator: 1,
-    filter: 1, gain: 1, cell: 2, nlc: 2, link: 1, fcomp: 1, pic: 1, aom: 1, eom: 1, chopper: 1, elec: 1, mirror: 2, grating: 2, lens: 3, cube: 3, prism: 3, crystal: 3, stl: 4 };
-  // a drawing over the light is met first, one under it last
-  const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : order[e.type];
+  // a drawing over the light is met first, one under it last; the parts in their own order (PART_UI)
+  const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : PART_UI[e.type] ? PART_UI[e.type].rank : 9;
   const at = new Map(project.elements.map((e, i) => [e, i]));
   // in the Draw palette only drawings are picked on the bench (a part by its name, for moving that)
   const els = project.elements.filter(e => onTab(e) && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
-    if (el.type === 'draw') { if (hitDrawing(el, lx, ly, tol)) return el; continue; }
-    if (el.type === 'source') {
-      const { L, hw } = srcBody(el);
-      if (lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol) return el;
-      continue;
-    }
-    if (el.type === 'cube' || el.type === 'prism') {
-      if (inPolygon(polyVerts(el), lx, ly, tol)) return el;
-      continue;
-    }
-    if (el.type === 'crystal') {
-      if (inPolygon(crystalGeom(el).outline, lx, ly, tol)) return el;
-      continue;
-    }
-    if (el.type === 'fibre' || el.type === 'detector') {
-      if (el.type === 'detector') { if (lx <= tol && Math.hypot(lx, ly) <= detR(el) + tol) return el; continue; }    // its semicircle
-      const H = Math.max(el.length / 2, 0.6), body = Math.max(8, 30 / V().scale);
-      if (lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol) return el;
-      continue;
-    }
-    if (el.type === 'fcomp') {
-      if (Math.abs(lx) <= FC_W / 2 + tol && Math.abs(ly) <= fcH(el) / 2 + tol) return el;
-      continue;
-    }
-    if (el.type === 'pic') { if (PIC.hit(el, lx, ly, tol)) return el; continue; }               // PIC hook
-    if (el.type === 'elec') { if (ELEC.hit(el, lx, ly, tol)) return el; continue; }             // ELEC hook
-    if (el.type === 'chopper') { if (ELEC.hitChopper(el, lx, ly, tol)) return el; continue; }   // ELEC hook
-    if (el.type === 'stl') { if (inPolygon(meshHull(el), lx, ly, tol)) return el; continue; }
-    if (el.type === 'cell') {
-      if (Math.abs(lx) <= el.cellLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol) return el;
-      continue;
-    }
-    if (el.type === 'nlc') {
-      if (Math.abs(lx) <= el.nlLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol) return el;
-      continue;
-    }
-    if (['grating', 'faraday', 'isolator', 'filter', 'gain', 'link', 'aom', 'eom'].includes(el.type)) {
-      if (lx <= tol + 0.4 && lx >= -(el.type === 'grating' && el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4) - tol && Math.abs(ly) <= el.length / 2 + tol) return el;
-      continue;
-    }
-    const ss = elementSurfaces(el);
-    if (el.type === 'lens') {
-      const a = ss[0], b = ss[ss.length - 1];
-      const r = el.diameter / 2 + tol;
-      if (Math.abs(ly) <= r && lx >= a.xmin - tol && lx <= b.xmax + tol) return el;
-      continue;
-    }
-    if (el.type === 'stop') {
-      if (Math.abs(lx) <= tol + 0.2 && Math.abs(ly) <= el.outer / 2 + tol) return el;
-      continue;
-    }
-    if (el.type === 'waveplate' || el.type === 'polariser' || el.type === 'mask') {
-      if (Math.abs(lx) <= tol + 0.3 && Math.abs(ly) <= el.length / 2 + tol) return el;
-      continue;
-    }
-    const s = ss[0];
-    if (Math.abs(ly) <= s.semi + tol && Math.abs(lx - sagFn(s, Math.min(s.semi, Math.abs(ly)))) <= tol) return el;
+    const U = PART_UI[el.type];
+    if ((U ? U.hit : hitSurface)(el, lx, ly, tol)) return el;
   }
   return null;
 }

@@ -4,15 +4,15 @@ import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
-import { FIBRE_COLOUR, FREE_3D, fieldDec, getEl, lightOf } from '../state/elements.js';
+import { FIBRE_COLOUR, FREE_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
 import { lensSurfaces, polyVerts, rawSag, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, detR, draw, filterColour, hornLam, hornShape, requestRender, resize,
-  segPlanes, selection, setSelection, srcBody, surfPoints
+  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, requestRender, resize,
+  segPlanes, selection, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';

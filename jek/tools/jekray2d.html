@@ -7156,12 +7156,12 @@ function drawRays(stale) {
 function drawRaysOn(ctx, rays) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
-  ctx.lineWidth = 1.2;
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs);
+  ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
     const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
@@ -7205,7 +7205,7 @@ function drawRaysOn(ctx, rays) {
 function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
 /* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
    so the glow adds up to a beam rather than a block */
-const rayDensity = segs => Math.min(1, Math.max(0.15, Math.sqrt(600 / Math.max(1, segs))));
+const rayDensity = segs => Math.min(1, Math.max(0.08, Math.sqrt(600 / Math.max(1, segs))));
 
 /* A part's outline in its own frame (mm): the body a label sits under and the view fits around.
    Line-like parts are the line across the beam; bodies their rectangle or polygon. */
@@ -7214,6 +7214,7 @@ function bodyOutline(el) {
   const rect = (x0, x1, b) => [[x0, -b], [x1, -b], [x1, b], [x0, b]];
   if (el.type === 'source') { if (el.mmw && !el.mmw.part) return rect(hornShape(el).back, 0, r); const { L, hw } = srcBody(el); return rect(-L, 0, hw); }
   if (el.type === 'cube' || el.type === 'prism') return polyVerts(el);
+  if (el.type === 'lens') { const ss = elementSurfaces(el); return rect(Math.min(...ss.map(s => s.xmin)), Math.max(...ss.map(s => s.xmax)), r); }
   if (el.type === 'crystal') return crystalGeom(el).outline;
   if (el.type === 'stl') return meshHull(el);
   if (el.type === 'cell') return rect(-el.cellLen / 2, el.cellLen / 2, r);
@@ -7294,6 +7295,7 @@ function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
   labelBoxes.clear();
+  const taken = portLabelBoxes.splice(0);
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
@@ -7313,7 +7315,7 @@ function drawLabels() {
     const w = ctx.measureText(el.name).width;
     if (!el.label) for (let step = 0; step < 4; step++) {
       const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
-      if (![...labelBoxes.values()].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
+      if (![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
       Y += 13 * u;
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
@@ -7651,6 +7653,9 @@ function roundRect(w, hh, r) {
   return pts;
 }
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
+/* where the port names were drawn this frame, in css px: the parts' names keep off them */
+const portLabelBoxes = [];
+const keepOffLabel = box => { portLabelBoxes.push(box); };
 function drawPorts(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
@@ -7665,7 +7670,10 @@ function drawPorts(el) {
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;
       ctx.textAlign = W ? 'left' : Q.dx > 0 ? 'left' : 'right'; ctx.textBaseline = W ? 'middle' : 'bottom';
-      ctx.fillText(portName(el, i), X + (W ? r + 3 : Q.dx * (r + 3)), Y - (W ? 0 : 3));
+      const t = portName(el, i), tx = X + (W ? r + 3 : Q.dx * (r + 3)), ty = Y - (W ? 0 : 3), tw = ctx.measureText(t).width;
+      ctx.fillText(t, tx, ty);
+      // kept, so the part's name steps out of its way (see drawLabels)
+      portLabelBoxes.push({ x: ctx.textAlign === 'right' ? tx - tw : tx, y: W ? ty - 5 : ty - 9, w: tw, h: 10 });
       ctx.textBaseline = 'alphabetic';
     }
   });
@@ -14813,12 +14821,15 @@ function elecDrawExtras(el) {
     const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
     ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
     ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    keepOffLabel({ x: sx(Q.x) - r - 1, y: sy(Q.y) - r - 1, w: 2 * r + 2, h: 2 * r + 2 });                      // the part's name keeps off the port
     // its name beside it, outside the part, upright
     if (V().scale > 2.2) {
       ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
       const side = Math.abs(Q.dx) > 0.3, X = sx(Q.x), Y = sy(Q.y);
       ctx.textAlign = side ? (Q.dx > 0 ? 'left' : 'right') : 'left'; ctx.textBaseline = side ? 'bottom' : 'middle';
-      ctx.fillText(P.name, side ? X + Q.dx * (r + 3) : X + r + 3, side ? Y - 3 : Y - Q.dy * (r + 4));
+      const tx = side ? X + Q.dx * (r + 3) : X + r + 3, ty = side ? Y - 3 : Y - Q.dy * (r + 4), tw = ctx.measureText(P.name).width, fs = parseFloat(ctx.font);
+      ctx.fillText(P.name, tx, ty);
+      keepOffLabel({ x: ctx.textAlign === 'right' ? tx - tw : tx, y: side ? ty - fs : ty - fs / 2, w: tw, h: fs + 1 });   // the part's name steps out of its way
       ctx.restore();
     }
   });
@@ -15572,10 +15583,8 @@ function drawStop(el, sel) {
   ctx.lineWidth = sel ? 5 : 4;
   ctx.lineCap = 'butt';
   for (const [lo, hi] of blades) { pathLocal(f, [[0, lo], [0, hi]]); ctx.stroke(); }
-  // the plate's full extent, faintly, and a tick at each blade edge inside it
-  ctx.strokeStyle = 'rgba(154,164,171,0.35)'; ctx.lineWidth = 1;
-  pathLocal(f, [[0, -b], [0, b]]); ctx.stroke();
-  ctx.strokeStyle = 'rgba(154,164,171,0.6)';
+  // a tick at each blade edge inside the plate: the opening between them is open
+  ctx.strokeStyle = 'rgba(154,164,171,0.6)'; ctx.lineWidth = 1;
   const k = 4 / V().scale;
   for (const [lo, hi] of blades) for (const e of [lo, hi]) if (Math.abs(Math.abs(e) - b) > 1e-6) {
     pathLocal(f, [[-k, e], [k, e]]); ctx.stroke();
@@ -29526,7 +29535,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned, step aside from one another, and stay readable at any zoom; in 3D they step up where they would overlap. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
+    'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned (under a thick lens\u2019s whole body), step aside from one another and from the port names and sockets beside them, and stay readable at any zoom; in 3D they step up where they would overlap. A dense fan of rays is thinned to a lighter line, so a cavity\u2019s field stays a beam rather than a block, and an iris shows its opening as a gap, with no faint line across it. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',

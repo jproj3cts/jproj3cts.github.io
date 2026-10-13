@@ -12,10 +12,8 @@ function drawStop(el, sel) {
   ctx.lineWidth = sel ? 5 : 4;
   ctx.lineCap = 'butt';
   for (const [lo, hi] of blades) { pathLocal(f, [[0, lo], [0, hi]]); ctx.stroke(); }
-  // the plate's full extent, faintly, and a tick at each blade edge inside it
-  ctx.strokeStyle = 'rgba(154,164,171,0.35)'; ctx.lineWidth = 1;
-  pathLocal(f, [[0, -b], [0, b]]); ctx.stroke();
-  ctx.strokeStyle = 'rgba(154,164,171,0.6)';
+  // a tick at each blade edge inside the plate: the opening between them is open
+  ctx.strokeStyle = 'rgba(154,164,171,0.6)'; ctx.lineWidth = 1;
   const k = 4 / V().scale;
   for (const [lo, hi] of blades) for (const e of [lo, hi]) if (Math.abs(Math.abs(e) - b) > 1e-6) {
     pathLocal(f, [[-k, e], [k, e]]); ctx.stroke();

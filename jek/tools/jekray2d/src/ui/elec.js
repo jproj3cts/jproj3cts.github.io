@@ -3,7 +3,7 @@ import { V, deg, nextName, project } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { frame } from '../core/mask.js';
-import { bodyFill, ctx, getCss, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy } from './render.js';
+import { bodyFill, ctx, getCss, keepOffLabel, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy } from './render.js';
 import { snapVal } from './pointer.js';
 import { pkey, portName, portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import {
@@ -231,12 +231,15 @@ function elecDrawExtras(el) {
     const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
     ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
     ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    keepOffLabel({ x: sx(Q.x) - r - 1, y: sy(Q.y) - r - 1, w: 2 * r + 2, h: 2 * r + 2 });                      // the part's name keeps off the port
     // its name beside it, outside the part, upright
     if (V().scale > 2.2) {
       ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
       const side = Math.abs(Q.dx) > 0.3, X = sx(Q.x), Y = sy(Q.y);
       ctx.textAlign = side ? (Q.dx > 0 ? 'left' : 'right') : 'left'; ctx.textBaseline = side ? 'bottom' : 'middle';
-      ctx.fillText(P.name, side ? X + Q.dx * (r + 3) : X + r + 3, side ? Y - 3 : Y - Q.dy * (r + 4));
+      const tx = side ? X + Q.dx * (r + 3) : X + r + 3, ty = side ? Y - 3 : Y - Q.dy * (r + 4), tw = ctx.measureText(P.name).width, fs = parseFloat(ctx.font);
+      ctx.fillText(P.name, tx, ty);
+      keepOffLabel({ x: ctx.textAlign === 'right' ? tx - tw : tx, y: side ? ty - fs : ty - fs / 2, w: tw, h: fs + 1 });   // the part's name steps out of its way
       ctx.restore();
     }
   });

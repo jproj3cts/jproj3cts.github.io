@@ -7,7 +7,7 @@ import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSele
 import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
 import { polyVerts, sagFn } from '../core/geometry.js';
-import { crystalGeom, meshHull } from '../core/stl.js';
+import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, toLocal, toWorld } from '../core/mask.js';
 import { exporting, lastTrace } from '../engines/trace.js';
 import { drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
@@ -457,12 +457,12 @@ function drawRays(stale) {
 function drawRaysOn(ctx, rays) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
-  ctx.lineWidth = 1.2;
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs);
+  ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
     const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
@@ -506,7 +506,7 @@ function drawRaysOn(ctx, rays) {
 export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
 /* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
    so the glow adds up to a beam rather than a block */
-export const rayDensity = segs => Math.min(1, Math.max(0.15, Math.sqrt(600 / Math.max(1, segs))));
+export const rayDensity = segs => Math.min(1, Math.max(0.08, Math.sqrt(600 / Math.max(1, segs))));
 
 /* A part's outline in its own frame (mm): the body a label sits under and the view fits around.
    Line-like parts are the line across the beam; bodies their rectangle or polygon. */
@@ -515,6 +515,7 @@ export function bodyOutline(el) {
   const rect = (x0, x1, b) => [[x0, -b], [x1, -b], [x1, b], [x0, b]];
   if (el.type === 'source') { if (el.mmw && !el.mmw.part) return rect(hornShape(el).back, 0, r); const { L, hw } = srcBody(el); return rect(-L, 0, hw); }
   if (el.type === 'cube' || el.type === 'prism') return polyVerts(el);
+  if (el.type === 'lens') { const ss = elementSurfaces(el); return rect(Math.min(...ss.map(s => s.xmin)), Math.max(...ss.map(s => s.xmax)), r); }
   if (el.type === 'crystal') return crystalGeom(el).outline;
   if (el.type === 'stl') return meshHull(el);
   if (el.type === 'cell') return rect(-el.cellLen / 2, el.cellLen / 2, r);
@@ -595,6 +596,7 @@ function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
   labelBoxes.clear();
+  const taken = portLabelBoxes.splice(0);
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
@@ -614,7 +616,7 @@ function drawLabels() {
     const w = ctx.measureText(el.name).width;
     if (!el.label) for (let step = 0; step < 4; step++) {
       const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
-      if (![...labelBoxes.values()].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
+      if (![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
       Y += 13 * u;
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
@@ -952,6 +954,9 @@ export function roundRect(w, hh, r) {
   return pts;
 }
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
+/* where the port names were drawn this frame, in css px: the parts' names keep off them */
+const portLabelBoxes = [];
+export const keepOffLabel = box => { portLabelBoxes.push(box); };
 export function drawPorts(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
@@ -966,7 +971,10 @@ export function drawPorts(el) {
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;
       ctx.textAlign = W ? 'left' : Q.dx > 0 ? 'left' : 'right'; ctx.textBaseline = W ? 'middle' : 'bottom';
-      ctx.fillText(portName(el, i), X + (W ? r + 3 : Q.dx * (r + 3)), Y - (W ? 0 : 3));
+      const t = portName(el, i), tx = X + (W ? r + 3 : Q.dx * (r + 3)), ty = Y - (W ? 0 : 3), tw = ctx.measureText(t).width;
+      ctx.fillText(t, tx, ty);
+      // kept, so the part's name steps out of its way (see drawLabels)
+      portLabelBoxes.push({ x: ctx.textAlign === 'right' ? tx - tw : tx, y: W ? ty - 5 : ty - 9, w: tw, h: 10 });
       ctx.textBaseline = 'alphabetic';
     }
   });

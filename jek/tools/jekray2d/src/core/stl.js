@@ -234,6 +234,10 @@ function crystalSurfaces(el) {
 
 export function elementSurfaces(el) {
   if (el.type === 'stl') return [makeSurf(el, 0, 0, 0, 0, [], 1, { kind: 'absorb', mesh: true })];
+  // a source's own light leaves its aperture; light coming the other way (a return beam, another
+  // laser's) goes in through it and is lost inside (a horn is open: it receives; a seed of no
+  // width, a test's probe inside a cavity, takes nothing in)
+  if (el.type === 'source') return el.mmw && !el.mmw.part || !(el.width > 0) ? [] : [makeSurf(el, -0.5, 0, 0, 0, [], el.width / 2 + 0.5, { kind: 'absorb' })];
   if (el.type === 'cube' || el.type === 'prism') return polySurfaces(el);
   if (el.type === 'crystal') return crystalSurfaces(el);
   if (el.type === 'grating' || el.type === 'aom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];

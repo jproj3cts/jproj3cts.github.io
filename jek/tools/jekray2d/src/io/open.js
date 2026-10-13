@@ -5,7 +5,7 @@ import { TYPE_LABEL } from '../parts/registry.js';
 import { history, project, selectOne, setProject, typeLabel } from '../state/project.js';
 import { loadProject } from '../state/elements.js';
 import { dropTraceStore, tippable } from '../engines/trace.js';
-import { setSelFibreId } from '../ui/render.js';
+import { W, setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
 import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -198,7 +198,7 @@ export function openProjectData(data, label) {
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
   changed(true);
-  if (!raw.view) fitView();
+  if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked

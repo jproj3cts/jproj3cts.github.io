@@ -6,13 +6,13 @@ import { wavelengthColour } from '../core/colour.js';
 import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
 import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
-import { sagFn } from '../core/geometry.js';
+import { polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, meshHull } from '../core/stl.js';
 import { frame, toLocal, toWorld } from '../core/mask.js';
 import { exporting, lastTrace } from '../engines/trace.js';
 import { drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
 import { drag } from './pointer.js';
-import { SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
+import { FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
@@ -460,11 +460,14 @@ function drawRaysOn(ctx, rays) {
   ctx.lineWidth = 1.2;
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
+  let segs = 0;
+  for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
+  const dens = rayDensity(segs);
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5)));
+    const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     const key = r.colour + '|' + lvl;
-    if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, rays: [] });
+    if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, rays: [] });
     groups.get(key).rays.push(r);
   }
   // the view's transform written out, and a segment wholly inside the clip margin drawn as it
@@ -496,6 +499,38 @@ function drawRaysOn(ctx, rays) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/* A ray's brightness from the power it carries, on a log scale: a 4% Fresnel ghost is plainly
+   fainter than the beam it came off, a beam 40 dB down is a trace. w: its power as a fraction */
+export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
+/* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
+   so the glow adds up to a beam rather than a block */
+export const rayDensity = segs => Math.min(1, Math.max(0.15, Math.sqrt(600 / Math.max(1, segs))));
+
+/* A part's outline in its own frame (mm): the body a label sits under and the view fits around.
+   Line-like parts are the line across the beam; bodies their rectangle or polygon. */
+export function bodyOutline(el) {
+  const r = halfSize(el);
+  const rect = (x0, x1, b) => [[x0, -b], [x1, -b], [x1, b], [x0, b]];
+  if (el.type === 'source') { if (el.mmw && !el.mmw.part) return rect(hornShape(el).back, 0, r); const { L, hw } = srcBody(el); return rect(-L, 0, hw); }
+  if (el.type === 'cube' || el.type === 'prism') return polyVerts(el);
+  if (el.type === 'crystal') return crystalGeom(el).outline;
+  if (el.type === 'stl') return meshHull(el);
+  if (el.type === 'cell') return rect(-el.cellLen / 2, el.cellLen / 2, r);
+  if (el.type === 'nlc') return rect(-el.nlLen / 2, el.nlLen / 2, r);
+  if (el.type === 'fcomp') return rect(-FC_W / 2, FC_W / 2, r);
+  if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
+  if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
+  if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  return [[0, -r], [0, r]];
+}
+/* that outline's bounding box on the bench (world mm) */
+export function worldBox(el) {
+  const f = frame(el);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [u, v] of bodyOutline(el)) { const [x, y] = toWorld(f, u, v); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  return { x0, x1, y0, y1 };
 }
 
 export function halfSize(el) {
@@ -559,25 +594,34 @@ function drawAssumed(els) {
 function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
-  if (!exporting) labelBoxes.clear();
+  labelBoxes.clear();
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
-    const r = halfSize(el) * V().scale;
-    const a = el.angle * deg;
-    // place the label below the element, whichever way it's rotated
-    const ex = Math.abs(Math.sin(a)) * r, ey = Math.abs(Math.cos(a)) * r;
-    // its size on the bench, in mm, as everything drawn there: a figure looks the same at any zoom
-    const k = el.label ? el.label.s : 1, fs = labelMm() * V().scale * k, u = fs / 11;
-    let X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6 * u) + 14 * u + (el.type === 'lens' ? 4 * u : 0);
+    // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
+    // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
+    const k = el.label ? el.label.s : 1;
+    let fs = labelMm() * V().scale * k;
+    if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    const u = fs / 11;
+    // below the part's body, whichever way it is turned, centred under it
+    const B = worldBox(el);
+    let X = sx((B.x0 + B.x1) / 2), Y = sy(B.y0) + 14 * u + (el.type === 'lens' ? 4 * u : 0);
     // moved or scaled with the select tool: where it was put, at its size
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
-    if (!exporting) { const w = ctx.measureText(el.name).width; labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y }); }
+    // two names in the same place: the later one steps down until clear
+    const w = ctx.measureText(el.name).width;
+    if (!el.label) for (let step = 0; step < 4; step++) {
+      const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
+      if (![...labelBoxes.values()].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
+      Y += 13 * u;
+    }
+    labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
     ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
-    if (ex >= 0) ctx.fillText(el.name, X, Y);
+    ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
     if (el.z !== undefined && Math.abs(el.z - BEAM_Z) > 1e-9) {

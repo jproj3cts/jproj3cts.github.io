@@ -75,6 +75,9 @@ export function cavEventABCD(ev, lam0) {
   const Axy = (py[1] - my[1]) / (2 * hh), Ayx = (px[2] - mx[2]) / (2 * hh);
   const Cxy = n2 * (slope(py)[0] - slope(my)[0]) / (2 * hh), Cyx = n2 * (slope(px)[1] - slope(mx)[1]) / (2 * hh);
   const out = { x: [Ax, 0, Cx, 1 / Ax], y: [Ay, 0, Cy, 1 / Ay] };
+  // an axicon's cone: the rays either side of its tip part by its angle, which these differences
+  // read as a lens of no focal length; the beam's pilot ignores the tip's kink (see curvAt), so here too
+  if (ev.surf && ev.surf.odd && ev.surf.odd[0]) { out.x[2] = 0; out.y[2] = 0; return out; }
   const sc = Math.abs(Ax) + Math.abs(Ay) + 1e-300, cc = Math.abs(Cx) + Math.abs(Cy) + 1e-9;
   if (Math.abs(Axy) + Math.abs(Ayx) > 1e-9 * sc || Math.abs(Cxy) + Math.abs(Cyx) > 1e-7 * cc) out.m4 = { A: [[Ax, Axy], [Ayx, Ay]], C: [[Cx, Cxy], [Cyx, Cy]] };
   return out;

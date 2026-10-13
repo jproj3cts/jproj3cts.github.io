@@ -339,7 +339,7 @@
   .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
   /* what is being worked out: top right of the bench, white, no box */
   .rt-activity {
-    position: absolute; z-index: 5; right: 0.75rem; top: 0.55rem; width: min(380px, 55%);
+    position: absolute; z-index: 5; right: 7rem; top: 0.55rem; width: min(380px, 50%);
     font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
     text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
@@ -1159,3 +1159,5 @@
     .rt-right { margin-left: 0; }
     .rt-status { width: 100%; text-align: left; }
   }
+/* a phone: the minimap would cover a third of the bench */
+@media (max-width: 640px) { .rt-minimap { display: none !important; } }

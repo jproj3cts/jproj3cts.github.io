@@ -44,8 +44,13 @@ function drawScreen(el, sel) {
   const st = screenStats(el);
   if (st && st.profile && st.profile.max > 0) {
     const P = st.profile, k = 1 / V().scale;
-    const depth = 46 * k;
+    // as tall as the light is strong: a beam 40 dB down gets a sliver, not a full plot of its own
+    const depth = 46 * k * Math.max(0.12, 1 + Math.log10(Math.max(1e-9, (st.power || 0) / 100)) / 3);
     ctx.beginPath();
+    // from the baseline, along the profile, back to the baseline: a closed plot
+    const at = (y, v) => { const m = dsagFn(surf, y), nl = Math.hypot(1, m), off = -(4 * k + depth * v); const [wx0, wy0] = toWorld(f, sagFn(surf, y) + off / nl, y - off * m / nl); return [sx(wx0), sy(wy0)]; };
+    const base0 = at(P.lo, 0), base1 = at(P.hi, 0);
+    ctx.moveTo(base0[0], base0[1]);
     for (let i = 0; i < P.nb; i++) {
       const y = P.lo + (P.hi - P.lo) * (i + 0.5) / P.nb;
       const v = P.binC[i] / P.max;
@@ -55,8 +60,11 @@ function drawScreen(el, sel) {
       const off = -(4 * k + depth * v);
       const [wx0, wy0] = toWorld(f, sagFn(surf, y) + off / nl, y - off * m / nl);
       const X = sx(wx0), Y = sy(wy0);
-      i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+      ctx.lineTo(X, Y);
     }
+    ctx.lineTo(base1[0], base1[1]);
+    ctx.fillStyle = 'rgba(255,179,71,0.16)';
+    ctx.fill();
     ctx.strokeStyle = 'rgba(255,179,71,0.85)';
     ctx.lineWidth = 1.5;
     ctx.stroke();

@@ -11,8 +11,8 @@ import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, requestRender, resize,
-  segPlanes, selection, setSelection, surfPoints
+  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, rayAlpha, rayDensity,
+  requestRender, resize, segPlanes, selection, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';
@@ -230,6 +230,7 @@ export const V3D = (() => {
       R.boardBelow = below;
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
+    spreadNames(camera);
     gl.render(scene, camera);
     // the view cube, looking the way the camera looks
     const c = cubeRect();
@@ -384,7 +385,9 @@ export const V3D = (() => {
       }
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
-        add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, mat.matte(0xffb347), mat.body()));
+        // a monitor the light goes through is see-through; a dump or a camera is a solid plate
+        const face = el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
+        add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
         if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
         return g;
       }
@@ -491,6 +494,26 @@ export const V3D = (() => {
     }
     return null;
   }
+  /* names that would sit on each other step up, each above the last, so every one can be read */
+  function spreadNames(camera) {
+    const G = R.groups.names; if (!G || G.children.length < 2) return;
+    const W = R.w, H = R.h, rows = [], v = new T.Vector3();
+    for (const sp of G.children) {
+      v.copy(sp.position).project(camera);
+      const [w, h] = sp.userData.px || [60, 16];
+      rows.push({ sp, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, w, h, behind: v.z > 1 });
+    }
+    rows.sort((a, b) => a.y - b.y);
+    const placed = [];
+    for (const r of rows) {
+      let n = 0;
+      if (!r.behind) for (; n < 4; n++) {
+        const y1 = r.y - n * (r.h + 3), box = { x0: r.x - r.w / 2, x1: r.x + r.w / 2, y0: y1 - r.h, y1 };
+        if (!placed.some(b => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) { placed.push(box); break; }
+      }
+      r.sp.center.set(0.5, -n * (r.h + 3) / r.h);
+    }
+  }
   /* a name, drawn the same size on screen however far away */
   function label(text, colour) {
     const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
@@ -503,6 +526,7 @@ export const V3D = (() => {
     const sp = new T.Sprite(new T.SpriteMaterial({ map: t, sizeAttenuation: false, depthTest: false, transparent: true }));
     const k = 2 * Math.tan(R.camera.fov * deg / 2) / Math.max(1, R.h) * 0.5;      // css px to the sprite's units, at half the canvas's resolution
     sp.scale.set(c.width * k, c.height * k, 1); sp.center.set(0.5, 0); sp.renderOrder = 10;
+    sp.userData.px = [c.width / 2, c.height / 2];        // its size on the screen, css px
     return sp;
   }
 
@@ -632,11 +656,13 @@ export const V3D = (() => {
   function light(box, bb) {
     const G = R.groups.light, add = !benchLight();
     const blend = add ? T.AdditiveBlending : T.NormalBlending;
-    const groups = new Map();
-    for (const r of lightOf().rays ? lastTrace.rays || [] : []) {
+    const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
+    let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
+    const dens = rayDensity(segs);
+    for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
-      const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5))), key = r.colour + '|' + lvl;
-      if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, pos: [] });
+      const lvl = Math.round(rayAlpha(r.w) * dens * 12), key = r.colour + '|' + lvl;
+      if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
         const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, bb);
@@ -694,8 +720,10 @@ export const V3D = (() => {
           const P = ccInv(QFree(QG, t / seg.n)), a = -P[0][1], b2 = -P[1][1], c = -P[3][1], k = 2 * Math.PI / lam0;
           const th = 0.5 * Math.atan2(2 * b2, a - c), m1 = 0.5 * (a + c) + Math.hypot(0.5 * (a - c), b2), m2v = 0.5 * (a + c) - Math.hypot(0.5 * (a - c), b2);
           const W1 = Math.sqrt(Mx) * Math.sqrt(2 / (k * Math.max(1e-30, m1))), W2 = Math.sqrt(My) * Math.sqrt(2 / (k * Math.max(1e-30, m2v))), ct = Math.cos(th), st = Math.sin(th);
-          for (let j = 0; j < nt; j++) { const a2 = 2 * Math.PI * j / nt, p1 = Math.cos(a2) * W1, p2 = Math.sin(a2) * W2, u = p1 * ct - p2 * st, v = p1 * st + p2 * ct; pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
-          continue;
+          // a Q the 4x4 model cannot hold (an axicon's cone, a degenerate axis) would give a sheet: the plain widths then
+          const wyP = isFinite(wy) ? wy : wx, sane = isFinite(W1) && isFinite(W2) && W1 < 8 * Math.max(wx, wyP) + 2 && W2 < 8 * Math.max(wx, wyP) + 2;
+          if (sane) for (let j = 0; j < nt; j++) { const a2 = 2 * Math.PI * j / nt, p1 = Math.cos(a2) * W1, p2 = Math.sin(a2) * W2, u = p1 * ct - p2 * st, v = p1 * st + p2 * ct; pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
+          if (sane) continue;
         }
         for (let j = 0; j < nt; j++) { const a = 2 * Math.PI * j / nt, u = Math.cos(a) * wx, v = Math.sin(a) * (isFinite(wy) ? wy : wx); pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
       }
@@ -951,10 +979,19 @@ export const V3D = (() => {
   function contentBox() { return R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100)); }
   function fit(dirName, animate) {
     if (!R) return;
-    const b = contentBox(), c = b.getCenter(new T.Vector3()), r = Math.max(20, b.getBoundingSphere(new T.Sphere()).radius);
+    const b = contentBox(), c = b.getCenter(new T.Vector3());
     const dir = dirName ? new T.Vector3(...VIEWS[dirName]).normalize() : R.camera.position.clone().sub(R.target).normalize();
-    const fov = R.camera.fov * deg / 2, fovH = Math.atan(Math.tan(fov) * R.camera.aspect), dist = r / Math.sin(Math.min(fov, fovH)) * 1.05;
-    go(c.clone().add(dir.multiplyScalar(dist)), c, animate);
+    const fov = R.camera.fov * deg / 2, fovH = Math.atan(Math.tan(fov) * R.camera.aspect);
+    // as close as keeps the box's eight corners in view from this direction (a long bench fills the width)
+    const up = Math.abs(dir.z) > 0.95 ? new T.Vector3(0, 1, 0) : new T.Vector3(0, 0, 1);
+    const right = new T.Vector3().crossVectors(up, dir).normalize(), upV = new T.Vector3().crossVectors(dir, right).normalize();
+    let dist = 20;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const p = new T.Vector3(sx < 0 ? b.min.x : b.max.x, sy < 0 ? b.min.y : b.max.y, sz < 0 ? b.min.z : b.max.z).sub(c);
+      const d = p.dot(dir), x = Math.abs(p.dot(right)), y = Math.abs(p.dot(upV));
+      dist = Math.max(dist, d + x / Math.tan(fovH), d + y / Math.tan(fov));
+    }
+    go(c.clone().add(dir.multiplyScalar(dist * 1.08)), c, animate);
   }
   function view(name) { fit(name, true); }
   /* the camera to a new place, turning smoothly about the target there */

@@ -352,7 +352,7 @@
   .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
   /* what is being worked out: top right of the bench, white, no box */
   .rt-activity {
-    position: absolute; z-index: 5; right: 0.75rem; top: 0.55rem; width: min(380px, 55%);
+    position: absolute; z-index: 5; right: 7rem; top: 0.55rem; width: min(380px, 50%);
     font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
     text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
@@ -1172,6 +1172,8 @@
     .rt-right { margin-left: 0; }
     .rt-status { width: 100%; text-align: left; }
   }
+/* a phone: the minimap would cover a third of the bench */
+@media (max-width: 640px) { .rt-minimap { display: none !important; } }
 </style>
 </head>
 <body>
@@ -4818,6 +4820,10 @@ function crystalSurfaces(el) {
 
 function elementSurfaces(el) {
   if (el.type === 'stl') return [makeSurf(el, 0, 0, 0, 0, [], 1, { kind: 'absorb', mesh: true })];
+  // a source's own light leaves its aperture; light coming the other way (a return beam, another
+  // laser's) goes in through it and is lost inside (a horn is open: it receives; a seed of no
+  // width, a test's probe inside a cavity, takes nothing in)
+  if (el.type === 'source') return el.mmw && !el.mmw.part || !(el.width > 0) ? [] : [makeSurf(el, -0.5, 0, 0, 0, [], el.width / 2 + 0.5, { kind: 'absorb' })];
   if (el.type === 'cube' || el.type === 'prism') return polySurfaces(el);
   if (el.type === 'crystal') return crystalSurfaces(el);
   if (el.type === 'grating' || el.type === 'aom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
@@ -5641,7 +5647,6 @@ function traceSceneOnce() {
   // link planes and their partners: the first two sharing a pair name
   const linkTo = new Map(), linkSurf = new Map();
   for (const el of project.elements) {
-    if (el.type === 'source') continue;
     const surfs = surfsBy.get(el.bench), segs = segsBy.get(el.bench);
     const f = frame(el);
     const ss = elementSurfaces(el);
@@ -7154,11 +7159,14 @@ function drawRaysOn(ctx, rays) {
   ctx.lineWidth = 1.2;
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
   const groups = new Map();
+  let segs = 0;
+  for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
+  const dens = rayDensity(segs);
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5)));
+    const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     const key = r.colour + '|' + lvl;
-    if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, rays: [] });
+    if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, rays: [] });
     groups.get(key).rays.push(r);
   }
   // the view's transform written out, and a segment wholly inside the clip margin drawn as it
@@ -7190,6 +7198,38 @@ function drawRaysOn(ctx, rays) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/* A ray's brightness from the power it carries, on a log scale: a 4% Fresnel ghost is plainly
+   fainter than the beam it came off, a beam 40 dB down is a trace. w: its power as a fraction */
+function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
+/* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
+   so the glow adds up to a beam rather than a block */
+const rayDensity = segs => Math.min(1, Math.max(0.15, Math.sqrt(600 / Math.max(1, segs))));
+
+/* A part's outline in its own frame (mm): the body a label sits under and the view fits around.
+   Line-like parts are the line across the beam; bodies their rectangle or polygon. */
+function bodyOutline(el) {
+  const r = halfSize(el);
+  const rect = (x0, x1, b) => [[x0, -b], [x1, -b], [x1, b], [x0, b]];
+  if (el.type === 'source') { if (el.mmw && !el.mmw.part) return rect(hornShape(el).back, 0, r); const { L, hw } = srcBody(el); return rect(-L, 0, hw); }
+  if (el.type === 'cube' || el.type === 'prism') return polyVerts(el);
+  if (el.type === 'crystal') return crystalGeom(el).outline;
+  if (el.type === 'stl') return meshHull(el);
+  if (el.type === 'cell') return rect(-el.cellLen / 2, el.cellLen / 2, r);
+  if (el.type === 'nlc') return rect(-el.nlLen / 2, el.nlLen / 2, r);
+  if (el.type === 'fcomp') return rect(-FC_W / 2, FC_W / 2, r);
+  if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
+  if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
+  if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  return [[0, -r], [0, r]];
+}
+/* that outline's bounding box on the bench (world mm) */
+function worldBox(el) {
+  const f = frame(el);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [u, v] of bodyOutline(el)) { const [x, y] = toWorld(f, u, v); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  return { x0, x1, y0, y1 };
 }
 
 function halfSize(el) {
@@ -7253,25 +7293,34 @@ function drawAssumed(els) {
 function drawLabels() {
   const sans = getCss('--jek-sans');
   ctx.textAlign = 'center';
-  if (!exporting) labelBoxes.clear();
+  labelBoxes.clear();
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
-    const r = halfSize(el) * V().scale;
-    const a = el.angle * deg;
-    // place the label below the element, whichever way it's rotated
-    const ex = Math.abs(Math.sin(a)) * r, ey = Math.abs(Math.cos(a)) * r;
-    // its size on the bench, in mm, as everything drawn there: a figure looks the same at any zoom
-    const k = el.label ? el.label.s : 1, fs = labelMm() * V().scale * k, u = fs / 11;
-    let X = sx(el.x), Y = sy(el.y) + Math.max(ey, 6 * u) + 14 * u + (el.type === 'lens' ? 4 * u : 0);
+    // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
+    // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
+    const k = el.label ? el.label.s : 1;
+    let fs = labelMm() * V().scale * k;
+    if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    const u = fs / 11;
+    // below the part's body, whichever way it is turned, centred under it
+    const B = worldBox(el);
+    let X = sx((B.x0 + B.x1) / 2), Y = sy(B.y0) + 14 * u + (el.type === 'lens' ? 4 * u : 0);
     // moved or scaled with the select tool: where it was put, at its size
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
-    if (!exporting) { const w = ctx.measureText(el.name).width; labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y }); }
+    // two names in the same place: the later one steps down until clear
+    const w = ctx.measureText(el.name).width;
+    if (!el.label) for (let step = 0; step < 4; step++) {
+      const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
+      if (![...labelBoxes.values()].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
+      Y += 13 * u;
+    }
+    labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
     ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
-    if (ex >= 0) ctx.fillText(el.name, X, Y);
+    ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
     if (el.z !== undefined && Math.abs(el.z - BEAM_Z) > 1e-9) {
@@ -12839,6 +12888,7 @@ const V3D = (() => {
       R.boardBelow = below;
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
+    spreadNames(camera);
     gl.render(scene, camera);
     // the view cube, looking the way the camera looks
     const c = cubeRect();
@@ -12993,7 +13043,9 @@ const V3D = (() => {
       }
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
-        add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, mat.matte(0xffb347), mat.body()));
+        // a monitor the light goes through is see-through; a dump or a camera is a solid plate
+        const face = el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
+        add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
         if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
         return g;
       }
@@ -13100,6 +13152,26 @@ const V3D = (() => {
     }
     return null;
   }
+  /* names that would sit on each other step up, each above the last, so every one can be read */
+  function spreadNames(camera) {
+    const G = R.groups.names; if (!G || G.children.length < 2) return;
+    const W = R.w, H = R.h, rows = [], v = new T.Vector3();
+    for (const sp of G.children) {
+      v.copy(sp.position).project(camera);
+      const [w, h] = sp.userData.px || [60, 16];
+      rows.push({ sp, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, w, h, behind: v.z > 1 });
+    }
+    rows.sort((a, b) => a.y - b.y);
+    const placed = [];
+    for (const r of rows) {
+      let n = 0;
+      if (!r.behind) for (; n < 4; n++) {
+        const y1 = r.y - n * (r.h + 3), box = { x0: r.x - r.w / 2, x1: r.x + r.w / 2, y0: y1 - r.h, y1 };
+        if (!placed.some(b => box.x0 < b.x1 && b.x0 < box.x1 && box.y0 < b.y1 && b.y0 < box.y1)) { placed.push(box); break; }
+      }
+      r.sp.center.set(0.5, -n * (r.h + 3) / r.h);
+    }
+  }
   /* a name, drawn the same size on screen however far away */
   function label(text, colour) {
     const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
@@ -13112,6 +13184,7 @@ const V3D = (() => {
     const sp = new T.Sprite(new T.SpriteMaterial({ map: t, sizeAttenuation: false, depthTest: false, transparent: true }));
     const k = 2 * Math.tan(R.camera.fov * deg / 2) / Math.max(1, R.h) * 0.5;      // css px to the sprite's units, at half the canvas's resolution
     sp.scale.set(c.width * k, c.height * k, 1); sp.center.set(0.5, 0); sp.renderOrder = 10;
+    sp.userData.px = [c.width / 2, c.height / 2];        // its size on the screen, css px
     return sp;
   }
 
@@ -13241,11 +13314,13 @@ const V3D = (() => {
   function light(box, bb) {
     const G = R.groups.light, add = !benchLight();
     const blend = add ? T.AdditiveBlending : T.NormalBlending;
-    const groups = new Map();
-    for (const r of lightOf().rays ? lastTrace.rays || [] : []) {
+    const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
+    let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
+    const dens = rayDensity(segs);
+    for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
-      const lvl = Math.max(1, Math.round(10 * Math.pow(r.w, 0.5))), key = r.colour + '|' + lvl;
-      if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: 0.08 + 0.72 * lvl / 10, pos: [] });
+      const lvl = Math.round(rayAlpha(r.w) * dens * 12), key = r.colour + '|' + lvl;
+      if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
         const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, bb);
@@ -13303,8 +13378,10 @@ const V3D = (() => {
           const P = ccInv(QFree(QG, t / seg.n)), a = -P[0][1], b2 = -P[1][1], c = -P[3][1], k = 2 * Math.PI / lam0;
           const th = 0.5 * Math.atan2(2 * b2, a - c), m1 = 0.5 * (a + c) + Math.hypot(0.5 * (a - c), b2), m2v = 0.5 * (a + c) - Math.hypot(0.5 * (a - c), b2);
           const W1 = Math.sqrt(Mx) * Math.sqrt(2 / (k * Math.max(1e-30, m1))), W2 = Math.sqrt(My) * Math.sqrt(2 / (k * Math.max(1e-30, m2v))), ct = Math.cos(th), st = Math.sin(th);
-          for (let j = 0; j < nt; j++) { const a2 = 2 * Math.PI * j / nt, p1 = Math.cos(a2) * W1, p2 = Math.sin(a2) * W2, u = p1 * ct - p2 * st, v = p1 * st + p2 * ct; pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
-          continue;
+          // a Q the 4x4 model cannot hold (an axicon's cone, a degenerate axis) would give a sheet: the plain widths then
+          const wyP = isFinite(wy) ? wy : wx, sane = isFinite(W1) && isFinite(W2) && W1 < 8 * Math.max(wx, wyP) + 2 && W2 < 8 * Math.max(wx, wyP) + 2;
+          if (sane) for (let j = 0; j < nt; j++) { const a2 = 2 * Math.PI * j / nt, p1 = Math.cos(a2) * W1, p2 = Math.sin(a2) * W2, u = p1 * ct - p2 * st, v = p1 * st + p2 * ct; pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
+          if (sane) continue;
         }
         for (let j = 0; j < nt; j++) { const a = 2 * Math.PI * j / nt, u = Math.cos(a) * wx, v = Math.sin(a) * (isFinite(wy) ? wy : wx); pos.push(x + nx * u + vx * v, y + ny * u + vy * v, zc + vz * v); }
       }
@@ -13560,10 +13637,19 @@ const V3D = (() => {
   function contentBox() { return R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100)); }
   function fit(dirName, animate) {
     if (!R) return;
-    const b = contentBox(), c = b.getCenter(new T.Vector3()), r = Math.max(20, b.getBoundingSphere(new T.Sphere()).radius);
+    const b = contentBox(), c = b.getCenter(new T.Vector3());
     const dir = dirName ? new T.Vector3(...VIEWS[dirName]).normalize() : R.camera.position.clone().sub(R.target).normalize();
-    const fov = R.camera.fov * deg / 2, fovH = Math.atan(Math.tan(fov) * R.camera.aspect), dist = r / Math.sin(Math.min(fov, fovH)) * 1.05;
-    go(c.clone().add(dir.multiplyScalar(dist)), c, animate);
+    const fov = R.camera.fov * deg / 2, fovH = Math.atan(Math.tan(fov) * R.camera.aspect);
+    // as close as keeps the box's eight corners in view from this direction (a long bench fills the width)
+    const up = Math.abs(dir.z) > 0.95 ? new T.Vector3(0, 1, 0) : new T.Vector3(0, 0, 1);
+    const right = new T.Vector3().crossVectors(up, dir).normalize(), upV = new T.Vector3().crossVectors(dir, right).normalize();
+    let dist = 20;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const p = new T.Vector3(sx < 0 ? b.min.x : b.max.x, sy < 0 ? b.min.y : b.max.y, sz < 0 ? b.min.z : b.max.z).sub(c);
+      const d = p.dot(dir), x = Math.abs(p.dot(right)), y = Math.abs(p.dot(upV));
+      dist = Math.max(dist, d + x / Math.tan(fovH), d + y / Math.tan(fov));
+    }
+    go(c.clone().add(dir.multiplyScalar(dist * 1.08)), c, animate);
   }
   function view(name) { fit(name, true); }
   /* the camera to a new place, turning smoothly about the target there */
@@ -15443,8 +15529,13 @@ function drawScreen(el, sel) {
   const st = screenStats(el);
   if (st && st.profile && st.profile.max > 0) {
     const P = st.profile, k = 1 / V().scale;
-    const depth = 46 * k;
+    // as tall as the light is strong: a beam 40 dB down gets a sliver, not a full plot of its own
+    const depth = 46 * k * Math.max(0.12, 1 + Math.log10(Math.max(1e-9, (st.power || 0) / 100)) / 3);
     ctx.beginPath();
+    // from the baseline, along the profile, back to the baseline: a closed plot
+    const at = (y, v) => { const m = dsagFn(surf, y), nl = Math.hypot(1, m), off = -(4 * k + depth * v); const [wx0, wy0] = toWorld(f, sagFn(surf, y) + off / nl, y - off * m / nl); return [sx(wx0), sy(wy0)]; };
+    const base0 = at(P.lo, 0), base1 = at(P.hi, 0);
+    ctx.moveTo(base0[0], base0[1]);
     for (let i = 0; i < P.nb; i++) {
       const y = P.lo + (P.hi - P.lo) * (i + 0.5) / P.nb;
       const v = P.binC[i] / P.max;
@@ -15454,8 +15545,11 @@ function drawScreen(el, sel) {
       const off = -(4 * k + depth * v);
       const [wx0, wy0] = toWorld(f, sagFn(surf, y) + off / nl, y - off * m / nl);
       const X = sx(wx0), Y = sy(wy0);
-      i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+      ctx.lineTo(X, Y);
     }
+    ctx.lineTo(base1[0], base1[1]);
+    ctx.fillStyle = 'rgba(255,179,71,0.16)';
+    ctx.fill();
     ctx.strokeStyle = 'rgba(255,179,71,0.85)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
@@ -20012,6 +20106,9 @@ function cavEventABCD(ev, lam0) {
   const Axy = (py[1] - my[1]) / (2 * hh), Ayx = (px[2] - mx[2]) / (2 * hh);
   const Cxy = n2 * (slope(py)[0] - slope(my)[0]) / (2 * hh), Cyx = n2 * (slope(px)[1] - slope(mx)[1]) / (2 * hh);
   const out = { x: [Ax, 0, Cx, 1 / Ax], y: [Ay, 0, Cy, 1 / Ay] };
+  // an axicon's cone: the rays either side of its tip part by its angle, which these differences
+  // read as a lens of no focal length; the beam's pilot ignores the tip's kink (see curvAt), so here too
+  if (ev.surf && ev.surf.odd && ev.surf.odd[0]) { out.x[2] = 0; out.y[2] = 0; return out; }
   const sc = Math.abs(Ax) + Math.abs(Ay) + 1e-300, cc = Math.abs(Cx) + Math.abs(Cy) + 1e-9;
   if (Math.abs(Axy) + Math.abs(Ayx) > 1e-9 * sc || Math.abs(Cxy) + Math.abs(Cyx) > 1e-7 * cc) out.m4 = { A: [[Ax, Axy], [Ayx, Ay]], C: [[Cx, Cxy], [Cyx, Cy]] };
   return out;
@@ -22153,11 +22250,14 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   let coarse = 0;
   if (!replay && ev.mask && ev.mask.shape !== 'knife') {
     const M = ev.mask, feat = 2 * M.a;
-    if (M.shape === 'disc') {
+    if (M.shape === 'disc' || M.slits) {
+      // a disc, or a slit along the bench: the samples pulled in to a quarter of the feature
+      // (a slit only across itself, it runs the other way) while the grid still spans the beam
       const Sin = statsIn();
-      const spanX = 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
+      // past a slit only its openings carry light, so the grid need span those, not the beam
+      const spanX = M.slits ? 6 * (Math.abs(ev.ly - M.o) + (M.ext || M.a)) * ev.cth * aAx : 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
       ax.d = Math.min(ax.d, Math.max(feat * ev.cth * aAx / 4, spanX / N));
-      ay.d = Math.min(ay.d, Math.max(feat * aAy / 4, spanY / N));
+      if (M.shape === 'disc' || M.h > 0) ay.d = Math.min(ay.d, Math.max((M.h > 0 ? 2 * M.h : feat) * aAy / 4, spanY / N));
     }
     if (feat * ev.cth * aAx < 3 * ax.d || (!M.slits || M.h > 0) && feat * aAy < 3 * ay.d) coarse = 1;
     // behind a disc, Poisson's spot at the next surface, 0.38 lambda t / a in radius: narrower
@@ -25893,9 +25993,9 @@ function fitView() {
   if (!els.length) { Object.assign(V(), { cx: 0, cy: 0, scale: 4 }); requestRender(); return; }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const e of els) {
-    const r = halfSize(e);
-    x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r);
-    y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r);
+    const B = worldBox(e);
+    x0 = Math.min(x0, B.x0); x1 = Math.max(x1, B.x1);
+    y0 = Math.min(y0, B.y0); y1 = Math.max(y1, B.y1);
     // the ports too, and the shaped fibres from them: a fibre tip's tail, a route drawn wide
     for (let i = 0; i < portsOf(e).length; i++) { const Q = portWorld(e, i); x0 = Math.min(x0, Q.x); x1 = Math.max(x1, Q.x); y0 = Math.min(y0, Q.y); y1 = Math.max(y1, Q.y); }
     // a horn reaches back to its waveguide
@@ -25909,9 +26009,11 @@ function fitView() {
     if (!ids.has(F.a[0]) || !ids.has(F.b[0])) continue;
     for (const n of F.path || []) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); }
   }
-  const pad = 1.25;
-  const s = Math.min(W / ((x1 - x0) * pad || 1), H / ((y1 - y0) * pad || 1));
-  Object.assign(V(), { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale: Math.min(200, Math.max(0.05, s)) });
+  // the stage less what lies over it: the parts rail at the left, the bench tabs above, the scale bar below
+  const rail = document.getElementById('partsRail'), mL = rail && !rail.hidden ? 60 : 8, mR = 8, mT = 40, mB = 36;
+  const pad = 1.2, vw = Math.max(80, W - mL - mR), vh = Math.max(80, H - mT - mB);
+  const s = Math.min(200, Math.max(0.05, Math.min(vw / ((x1 - x0) * pad || 1), vh / ((y1 - y0) * pad || 1))));
+  Object.assign(V(), { cx: (x0 + x1) / 2 - (mL - mR) / (2 * s), cy: (y0 + y1) / 2 + (mT - mB) / (2 * s), scale: s });
   scheduleSave();
   requestRender();
 }
@@ -27105,7 +27207,7 @@ function openProjectData(data, label) {
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
   changed(true);
-  if (!raw.view) fitView();
+  if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
@@ -29424,6 +29526,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned, step aside from one another, and stay readable at any zoom; in 3D they step up where they would overlap. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',

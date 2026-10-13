@@ -505,7 +505,6 @@ function traceSceneOnce() {
   // link planes and their partners: the first two sharing a pair name
   const linkTo = new Map(), linkSurf = new Map();
   for (const el of project.elements) {
-    if (el.type === 'source') continue;
     const surfs = surfsBy.get(el.bench), segs = segsBy.get(el.bench);
     const f = frame(el);
     const ss = elementSurfaces(el);

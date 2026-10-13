@@ -488,11 +488,14 @@ export function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   let coarse = 0;
   if (!replay && ev.mask && ev.mask.shape !== 'knife') {
     const M = ev.mask, feat = 2 * M.a;
-    if (M.shape === 'disc') {
+    if (M.shape === 'disc' || M.slits) {
+      // a disc, or a slit along the bench: the samples pulled in to a quarter of the feature
+      // (a slit only across itself, it runs the other way) while the grid still spans the beam
       const Sin = statsIn();
-      const spanX = 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
+      // past a slit only its openings carry light, so the grid need span those, not the beam
+      const spanX = M.slits ? 6 * (Math.abs(ev.ly - M.o) + (M.ext || M.a)) * ev.cth * aAx : 6 * Sin.wx * aAx + 2 * Math.abs(Sin.cx) * aAx, spanY = 6 * Sin.wy * aAy + 2 * Math.abs(Sin.cy) * aAy;
       ax.d = Math.min(ax.d, Math.max(feat * ev.cth * aAx / 4, spanX / N));
-      ay.d = Math.min(ay.d, Math.max(feat * aAy / 4, spanY / N));
+      if (M.shape === 'disc' || M.h > 0) ay.d = Math.min(ay.d, Math.max((M.h > 0 ? 2 * M.h : feat) * aAy / 4, spanY / N));
     }
     if (feat * ev.cth * aAx < 3 * ax.d || (!M.slits || M.h > 0) && feat * aAy < 3 * ay.d) coarse = 1;
     // behind a disc, Poisson's spot at the next surface, 0.38 lambda t / a in radius: narrower

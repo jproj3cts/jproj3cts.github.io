@@ -6,7 +6,7 @@ import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
 import {
   H, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
-  selInk, selection, setSelFibreId, setSelection, sx, sy, wx, wy
+  selInk, selection, setSelFibreId, setSelection, sx, sy, worldBox, wx, wy
 } from './render.js';
 import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
 import { drag, hitTest, setDrag, snapVal } from './pointer.js';
@@ -388,9 +388,9 @@ export function fitView() {
   if (!els.length) { Object.assign(V(), { cx: 0, cy: 0, scale: 4 }); requestRender(); return; }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const e of els) {
-    const r = halfSize(e);
-    x0 = Math.min(x0, e.x - r); x1 = Math.max(x1, e.x + r);
-    y0 = Math.min(y0, e.y - r); y1 = Math.max(y1, e.y + r);
+    const B = worldBox(e);
+    x0 = Math.min(x0, B.x0); x1 = Math.max(x1, B.x1);
+    y0 = Math.min(y0, B.y0); y1 = Math.max(y1, B.y1);
     // the ports too, and the shaped fibres from them: a fibre tip's tail, a route drawn wide
     for (let i = 0; i < portsOf(e).length; i++) { const Q = portWorld(e, i); x0 = Math.min(x0, Q.x); x1 = Math.max(x1, Q.x); y0 = Math.min(y0, Q.y); y1 = Math.max(y1, Q.y); }
     // a horn reaches back to its waveguide
@@ -404,9 +404,11 @@ export function fitView() {
     if (!ids.has(F.a[0]) || !ids.has(F.b[0])) continue;
     for (const n of F.path || []) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); }
   }
-  const pad = 1.25;
-  const s = Math.min(W / ((x1 - x0) * pad || 1), H / ((y1 - y0) * pad || 1));
-  Object.assign(V(), { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale: Math.min(200, Math.max(0.05, s)) });
+  // the stage less what lies over it: the parts rail at the left, the bench tabs above, the scale bar below
+  const rail = document.getElementById('partsRail'), mL = rail && !rail.hidden ? 60 : 8, mR = 8, mT = 40, mB = 36;
+  const pad = 1.2, vw = Math.max(80, W - mL - mR), vh = Math.max(80, H - mT - mB);
+  const s = Math.min(200, Math.max(0.05, Math.min(vw / ((x1 - x0) * pad || 1), vh / ((y1 - y0) * pad || 1))));
+  Object.assign(V(), { cx: (x0 + x1) / 2 - (mL - mR) / (2 * s), cy: (y0 + y1) / 2 + (mT - mB) / (2 * s), scale: s });
   scheduleSave();
   requestRender();
 }

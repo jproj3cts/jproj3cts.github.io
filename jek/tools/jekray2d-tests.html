@@ -7140,8 +7140,37 @@ const TESTS = [
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
+  {
+    name: 'A narrow slit\u2019s first minimum lands where \u03bbL/a says, at the default sampling',
+    why: 'a 3 mm beam through a 0.1 mm slit used to be sampled too coarsely (the grid spanned the beam, not the slit), which put the first minimum 10 % in; past a slit the grid now spans only its openings',
+    want: 6.33, tol: 0.35, unit: 'mm',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 633, width: 6, rays: 5, power: 1, gauss: true, w0: 3 },
+        { type: 'stop', id: 'St', name: 'Slit', x: 0, y: 0, angle: 0, aperture: 0.1, outer: 25.4, shape: 'slit' },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 1000, y: 0, angle: 180, length: 60 }], maxBounces: 50, minPower: 0.001, ghosts: false });
+      J.trace();
+      const D = J.diffraction('Screen'), m = D.map, n = m.n, row = [];
+      for (let i = 0; i < n; i++) row.push(m.v[(n >> 1) * n + i]);
+      const mx = Math.max(...row);
+      for (let i = n >> 1; i < n - 2; i++) if (row[i] < row[i - 1] && row[i] <= row[i + 1] && row[i] < 0.05 * mx) return m.u0 + (m.u1 - m.u0) * (i + 0.5) / n;
+      return 0;
+    },
+  },
+  {
+    name: 'Light that reaches a laser from the front goes into it, not through it',
+    why: 'a laser\u2019s output face takes in a return beam (a mirror facing it, the other laser of a counter-propagating pair); it used to pass through the housing and carry on',
+    want: 0, tol: 0, unit: '% of the source',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, wavelength: 633, width: 1, rays: 3, power: 1 },
+        { type: 'mirror', id: 'M', name: 'Mirror', x: 40, y: 0, angle: 180, length: 25, reflect: 100 },
+        { type: 'screen', id: 'B', name: 'Behind', x: -40, y: 0, angle: 180, length: 25 }], maxBounces: 20, minPower: 0.001, ghosts: false });
+      J.trace();
+      return J.metric('Behind', 'power') || 0;
+    },
+  },
 ];
-
 /* ---------- Lasers, cells and fibre benches ---------- */
 const rigJ = () => document.getElementById('rig').contentWindow.JEKray2D;
 /* a 20 mm cube as a text and as a binary .stl (the binary as an array of byte values) */

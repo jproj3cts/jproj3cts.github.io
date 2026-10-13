@@ -973,6 +973,7 @@
   .rt-acctmenu .rt-accthead span { display: block; color: var(--jek-ink-soft); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .rt-acctmenu .rt-menunote a { color: inherit; }
   .rt-acctmenu .rt-menunote.rt-warn { color: var(--jek-red); font-weight: 600; }
+  .rt-glasswarn { margin: 0; padding: 0.4rem 0.55rem; font-size: 0.8125rem; color: var(--jek-ink); background: #fdecea; border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
   .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
@@ -1598,6 +1599,10 @@ const GLASS = {
   'N-SF10':       [1.62153902, 0.256287842, 1.64447552, 0.0122241457, 0.0595736775, 147.468793],
   'N-SF11':       [1.73759695, 0.313747346, 1.89878101, 0.013188707, 0.0623068142, 155.23629],
   'S-LAH64':      [1.83021453, 0.29156359, 1.28544024, 0.0090482329, 0.0330756689, 89.3675501],
+  'N-SK5':        [0.991463823, 0.495982121, 0.987393925, 0.00522730467, 0.0172733646, 98.3594579],
+  // CDGM's moulding glass (Thorlabs' C350TMD and others), as moulded: nd 1.5864, Vd 60.714 from its
+  // datasheet, the N-SK5 curve (its unmoulded twin, D-ZK3) scaled to them; f = 4.50 mm at 980 nm for the C350TMD
+  'D-ZK3M':       [0.986113808, 0.493305763, 1.10663096, 0.00522730467, 0.0172733646, 98.3594579],
   'N-FK51A':      [0.971247817, 0.216901417, 0.904651666, 0.00472301995, 0.0153575612, 168.68133],
   'N-PK51':       [1.15610775, 0.153229344, 0.785618966, 0.00585597402, 0.0194072416, 140.537046],
   'N-BAK1':       [1.12365662, 0.309276848, 0.881511957, 0.00644742752, 0.0222284402, 107.297751],
@@ -1628,6 +1633,7 @@ const GLASS = {
 };
 const GLASS_ALIAS = {
   'BK7': 'N-BK7', 'NBK7': 'N-BK7', 'H-K9L': 'N-BK7', 'HK9L': 'N-BK7',
+  'D-ZK3': 'N-SK5', 'H-ZK3': 'N-SK5', 'ZK3': 'N-SK5', 'SK5': 'N-SK5',
   'F_SILICA': 'Fused silica', 'SILICA': 'Fused silica', 'FUSED SILICA': 'Fused silica',
   'UVFS': 'Fused silica', 'FUSEDSILICA': 'Fused silica', 'SIO2': 'Fused silica',
   'CORNING7980': 'Fused silica', 'INFRASIL': 'Fused silica', 'SUPRASIL': 'Fused silica',
@@ -16813,6 +16819,7 @@ function materialRows(el) {
       el.material = pickMaterial(v, m);
     }, { wide: m.glass !== 'custom' }));
   if (m.glass === 'custom') rows.append(param('Index n', el, 'material.n'));
+  if (unknownGlass(m)) rows.append(unknownGlassNote(m));
   rows.append(param('Absorption (per mm)', el, 'material.abs', { wide: true }));
   return rows;
 }
@@ -17990,6 +17997,11 @@ function askForMaterial(apply) {
 }
 
 /* a material menu: an optical part's glasses, or an RF lens's dielectrics (each kept to its own) */
+/* a glass the tracer does not know, with no index given for it: it traces as n = 1.5, which the
+   panel says plainly (an imported part's glass from another catalogue, often) */
+const unknownGlass = m => !!m && !m.table && !m.nlc && m.glass !== 'AIR' && m.glass !== 'custom' &&
+  !glassKey(m.glass) && !RF_MAT[m.glass] && !isFinite(m.nd);
+const unknownGlassNote = m => h('p', { class: 'rt-glasswarn wide' }, m.glass + ' is not in the glass catalogue and no index came with it, so it traces as n = 1.5. Choose it, or its equivalent, under Material, or set a constant index.');
 function materialOptions(mat, rf) {
   // the RF dielectrics: by their index at the bench's frequency, when it is an RF bench
   const nm = benchNms()[0], at = nm > 1e5 ? ' at ' + fmtGHz(nm) : ' (RF)';
@@ -18005,7 +18017,7 @@ function materialOptions(mat, rf) {
   for (const pk of PACKS.list) pk.glasses.forEach((m, i) => opts.push(['pack:' + pk.id + ':' + i, m.glass + ' (' + pk.name + ')']));
   if (RF_MAT[mat.glass]) opts.push(rfOpts.find(o => o[0] === mat.glass));
   const known = glassKey(mat.glass) || RF_MAT[mat.glass];
-  if (!known && !mat.table && mat.glass !== 'custom' && mat.glass !== 'AIR') opts.unshift([mat.glass, mat.glass + ' (from file)']);
+  if (!known && !mat.table && mat.glass !== 'custom' && mat.glass !== 'AIR') opts.unshift([mat.glass, mat.glass + (isFinite(mat.nd) ? ' (from file)' : ' (unknown: n = 1.5)')]);
   if (mat.table) opts.unshift([mat.glass, mat.glass + ' (measured data)']);
   opts.push(['AIR', 'Air gap'], ['custom', 'Constant index'], ['import', 'Import a material\u2026']);
   return opts;
@@ -18087,6 +18099,7 @@ function lensPanel(el) {
         }),
       );
       if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
+      if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
       if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
       panel.append(mrows);
     }
@@ -28376,6 +28389,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Glasses <b>D-ZK3M</b> (CDGM\u2019s moulding glass, in Thorlabs\u2019 C350TMD and others) and <b>N-SK5</b> (and its twin D-ZK3). A lens of a glass the tracer does not know, with no index given for it, now says so in its panel: it traces as n = 1.5 until you choose the glass.',
     'Denser panels: each setting is one row, its label beside its box, X and Y (and Tip and Roll) side by side. Sweeping is the \u223f button at the end of a row; a swept number shows its sweep folded to one line with Play, and opens to edit, one at a time. Sections fold under their headings and stay as you left them, readouts gather in a Readout section, and the longer explanations sit under About this part.',
     '<b>Export a lens (.zmx)</b> (File menu): the lenses selected, as a sequential prescription that lens-design programs open, with every face\u2019s radius, conic, aspheric terms, glass and aperture, the bench\u2019s wavelengths, and the image at the paraxial focus. Lenses and windows on one axis go as one system; a mirror can go on its own.',
     'Beams are cut along the surfaces they meet, in 2D and 3D, their envelope and their diffracted field alike: at a 45\u00b0 mirror the beam in ends on the mirror and the beam out starts from it, where before each ended square across its axis, half of it past the mirror and half short of it.',

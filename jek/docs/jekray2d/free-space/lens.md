@@ -96,7 +96,7 @@ The .zmx format is plain text. Reading or writing it needs no licence. Zemax and
 
 <div class="dx-warn" markdown="1">
 - Every surface is a figure of revolution about the lens's axis, which lies in the bench plane: no decentred or tilted surfaces within one lens. Tilt or move the whole lens instead.
-- A catalogue glass is described by its Sellmeier coefficients. A glass the tool does not know falls back to $$n = 1.5$$, and the import report says so.
+- A catalogue glass is described by its Sellmeier coefficients. A glass the tool does not know uses the $$n_d$$ and $$V_d$$ the file gives for it. With neither, it falls back to $$n = 1.5$$, and the import report and the lens's panel both say so: choose the glass, or its equivalent, under **Material**.
 - No thermal effects, stress birefringence or surface errors.
 </div>
 

@@ -2493,6 +2493,29 @@ const TESTS = [
     run: () => TESTS_EXPECT.zmx.gaps[0],
   },
   {
+    name: 'A Thorlabs moulded asphere in D-ZK3M has its catalogue focal length',
+    why: 'the C350TMD prescription (R = 2.5912 mm, k = \u22120.903, 3.649 mm of D-ZK3M, flat back): Thorlabs gives f = 4.50 mm at its 980 nm design wavelength',
+    want: 4.50, tol: 0.01, unit: ' mm',
+    run: J => {
+      J.load(bench('c350', [{ type: 'lens', name: 'C350', x: 0, y: 0, angle: 0, diameter: 3.7,
+        surfaces: [{ R: 2.5912490091215195, k: -0.9029508626753, A: [0.002903857580327, 0.0001043665847952, 0.000003714988780821] }, { R: null }],
+        gaps: [3.64862840814], materials: [{ glass: 'D-ZK3M' }] }]));
+      return J.paraxial('C350', 980).efl;
+    },
+  },
+  {
+    name: 'A glass the tracer does not know says so in its panel',
+    why: 'a lens of a glass outside the catalogue with no index given traces as n = 1.5, and its panel says that plainly; one in a known glass has no warning (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(bench('ug', [bk7Lens({ name: 'U', materials: [{ glass: 'XYZ-123' }] }), bk7Lens({ name: 'K', x: 40, materials: [{ glass: 'D-ZK3' }] })]));
+      J.select('U'); const warned = !!doc.querySelector('#panel .rt-glasswarn');
+      J.select('K'); const quiet = !doc.querySelector('#panel .rt-glasswarn');
+      return warned && quiet ? 1 : 0;
+    },
+  },
+  {
     name: '.zmx export reads back as the same lens',
     why: 'an even asphere cemented to a model glass, exported and imported again: radii, conic, aspheric terms, thicknesses and glasses all come back, the model glass by its nd',
     want: 0, tol: 1e-9, unit: ' worst difference',

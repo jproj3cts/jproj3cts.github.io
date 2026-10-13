@@ -8,11 +8,14 @@ import { normModRef } from '../core/modulators.js';
 import { DETECTOR_MATERIALS, applyRf, normRf } from '../core/rf.js';
 import { CMODES, applyPulse, isLaserLike, syncLine } from '../core/pulses.js';
 import { wavelengthColour } from '../core/colour.js';
-import { PRISM_SHAPES, TYPE_LABEL, deg, nextName, normCoat, normMat, num, uid } from './project.js';
+import {
+  PRISM_SHAPES, TYPE_LABEL, deg, nextName, normCoat, normMat, num, project, selectedId, setProject,
+  uid
+} from './project.js';
 import { ensureBenches } from './tabs.js';
 import { STL_UNITS, stlMeshNorm } from '../core/stl.js';
 import { STOP_SHAPES } from '../core/mask.js';
-import { RAY_PATTERNS, tippable } from '../engines/trace.js';
+import { RAY_PATTERNS, loadGen, setLoadGen, tippable } from '../engines/trace.js';
 import { ZOOM_MAX, benchStyleShown } from '../ui/render.js';
 import { normDraw } from '../ui/drawings.js';
 import { clamp, getPath } from '../ui/params.js';
@@ -24,7 +27,6 @@ import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';
 import { cx } from '../engines/cavity.js';
 import { modsCarried, normCarried } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): loadGen, project, selectedId
 
 function normSurface(s) {
   s = s || {};
@@ -457,7 +459,7 @@ export function makeElement(kind, x, y) {
 
 export function demoProject() {
   const p = { name: 'Untitled bench', view: { cx: 5, cy: 8, scale: 6 }, snap: 1, maxBounces: 200, minPower: 0.1, ghosts: false, library: [], elements: [] };
-  project = p;
+  setProject(p);
   p.elements.push(
     normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15 }),
     normElement({ type: 'lens', name: 'f = 50 mm biconvex', x: 0, y: 0, angle: 0, diameter: 25.4,
@@ -508,7 +510,7 @@ export function serialize() {
 
 export function loadProject(data) {
   try { V3D.reset(); } catch (e) { /* not set up yet */ }        // another project: back to 2D, its views forgotten
-  loadGen++;
+  setLoadGen(loadGen + 1);
   if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
   if (data.format !== FORMAT) throw new Error('This file is not a .jekray project.');
   if (data.version > VERSION) throw new Error('This project was saved by a newer version of the ray tracer.');
@@ -529,7 +531,7 @@ export function loadProject(data) {
     elements: [],
     mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
   };
-  project = p;
+  setProject(p);
   for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
   if (Array.isArray(data.benches) && data.benches.length) {
     const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
@@ -605,7 +607,8 @@ function normFibres(list, els) {
   return out;
 }
 
-let VSRC = new Map();                  // the sources fibre tips make, by id (see tipSources)
+export let VSRC = new Map();                  // the sources fibre tips make, by id (see tipSources)
+export function setVSRC(v) { return (VSRC = v); }
 export const FIBRE_COLOUR = '#e86fa6';        // fibres and fibre ports, rose: yellow is the electronics'
 export const getEl = id => project.elements.find(e => e.id === id) || VSRC.get(id);
 /* every source: those on the benches, and those fibre tips make */

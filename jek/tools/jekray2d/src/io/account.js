@@ -1,17 +1,18 @@
-import { EMBED, STORE_KEY, TEST_MODE } from '../core/constants.js';
+import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
 import { serialize } from '../state/elements.js';
+import { saveTimer } from '../state/tabs.js';
 import { h } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
 import { menuIcons } from './packs.js';
 import { cloudLink, cloudMenuShown, cloudPush } from './cloud.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): cloud, saveTimer
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
    provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
    on the API's host that this page never sees. The bench survives the trip in the autosave. */
 export const API_BASE = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://api.jeksys.net';
-let account;                                   // undefined: not asked yet; null: signed out; else /v1/me
+export let account;                                   // undefined: not asked yet; null: signed out; else /v1/me
+export function setAccount(v) { return (account = v); }
 export async function api(path, opts = {}) {
   const res = await fetch(API_BASE + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
@@ -261,7 +262,6 @@ async function showUniAdmin(id) {
       h('button', { type: 'button', class: 'rt-btn', onclick: act('/restore', e => 'If ' + e + ' was taken off, they can use the licence again.') }, 'Restore')),
     said].filter(Boolean));
 }
-document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
 /* Deleting the account: what goes and what stays said plainly, the export offered first, and
    the words typed out, as the API asks for them */
 const DELETE_WORDS = 'delete my account';
@@ -283,22 +283,6 @@ function showDeleteAccount() {
   input.value = ''; go.disabled = true; err.hidden = true;
   dlg.showModal(); input.focus();
 }
-{
-  const dlg = document.getElementById('deleteDialog'), input = document.getElementById('deleteConfirm'), go = document.getElementById('deleteGo'), err = document.getElementById('deleteError');
-  input.addEventListener('input', () => { go.disabled = input.value.trim().toLowerCase() !== DELETE_WORDS; });
-  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !go.disabled) go.click(); });
-  document.getElementById('deleteCancel').addEventListener('click', () => dlg.close());
-  go.addEventListener('click', async () => {
-    go.disabled = true; go.textContent = 'Deleting…'; err.hidden = true;
-    try {
-      await api('/v1/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: DELETE_WORDS }) });
-      dlg.close(); account = null;
-      if (cloud) cloudLink(null);                      // the bench here stays, in this browser only
-      fillAccount(); toast('Your account has been deleted');
-    } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
-    go.textContent = 'Delete my account';
-  });
-}
 async function loadAccount() {
   try { account = await api('/v1/me'); }
   catch (err) {
@@ -316,7 +300,7 @@ async function loadAccount() {
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 export const accountsOn = () => !TEST_MODE && !EMBED;
-let accountLoaded = null, orcidWarned = false;       // the first look at the account, for what waits on it (#pro)
+export let accountLoaded = null, orcidWarned = false;       // the first look at the account, for what waits on it (#pro)
 /* #pro, from the product page's JEKrayPro buttons: the subscription box when signed in,
    the sign-in choices when not, and a word when Pro is already theirs */
 export async function proLink() {
@@ -333,4 +317,27 @@ export function accountShown() {
   document.getElementById('acct').hidden = !on;
   cloudMenuShown();
   if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); accountLoaded = loadAccount(); }
+}
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireAccount() {
+  document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
+
+  {
+    const dlg = document.getElementById('deleteDialog'), input = document.getElementById('deleteConfirm'), go = document.getElementById('deleteGo'), err = document.getElementById('deleteError');
+    input.addEventListener('input', () => { go.disabled = input.value.trim().toLowerCase() !== DELETE_WORDS; });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter' && !go.disabled) go.click(); });
+    document.getElementById('deleteCancel').addEventListener('click', () => dlg.close());
+    go.addEventListener('click', async () => {
+      go.disabled = true; go.textContent = 'Deleting…'; err.hidden = true;
+      try {
+        await api('/v1/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: DELETE_WORDS }) });
+        dlg.close(); account = null;
+        if (cloud) cloudLink(null);                      // the bench here stays, in this browser only
+        fillAccount(); toast('Your account has been deleted');
+      } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
+      go.textContent = 'Delete my account';
+    });
+  }
+
 }

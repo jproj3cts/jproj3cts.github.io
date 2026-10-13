@@ -3,14 +3,18 @@ import { gainAt, gainSmall } from '../core/crystals.js';
 import { m2Of } from '../core/pulses.js';
 import { cavLine, modeM2 } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { deg, selectOne, typeLabel } from '../state/project.js';
+import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { checkpoint, curBench, scheduleSave, selectEl } from '../state/tabs.js';
-import { getCss, requestRender, sx, sy, wx, wy } from './render.js';
+import { lastTrace } from '../engines/trace.js';
+import { W, getCss, requestRender, sx, sy, wx, wy } from './render.js';
 import { clamp } from './params.js';
 import { V3D } from './view3d.js';
 import { tick } from './optimise.js';
-import { BENCH_PIN, bindSync, fmtLen, h, numInput, pinTitle, renderPanel, selectField, syncPanel } from './panel.js';
+import {
+  BENCH_PIN, bindSync, fid, fmtLen, h, numInput, panel, pinTitle, renderPanel, selectField, setFid,
+  syncPanel
+} from './panel.js';
 import { fmtW } from './panels.js';
 import {
   axisFont, drawAxes, magma, plotArea, plotCsv, plotFrame, plotZoom, updateSyncButtons, zoomControls,
@@ -24,7 +28,6 @@ import { updateReadouts } from '../engines/pd-cavity.js';
 import { changed } from './actions.js';
 import { kb } from '../io/cloud.js';
 import { fieldWorker, fwRequest } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W, fid, lastTrace, panel, project
 
 /* ---------- Cavities in the panels ----------
    Every cavity found shows as a card: in the bench overview, and in the panel of each
@@ -32,7 +35,7 @@ import { fieldWorker, fwRequest } from '../worker/field-worker.js';
 export const fmtHz = v => { const a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPrecision(4) + ' GHz' : a >= 1e6 ? +(v / 1e6).toPrecision(4) + ' MHz' : a >= 1e3 ? +(v / 1e3).toPrecision(4) + ' kHz' : +v.toPrecision(3) + ' Hz'; };
 /* A card with nothing solved yet starts a field run of the bench in the background, in
    slices, and the panels refresh when it is done */
-let cavJob = null;
+export let cavJob = null;
 export function cavityLater() {
   if (TEST_MODE || (cavJob && cavJob.trace === lastTrace)) return;
   if (fieldWorker()) {
@@ -368,7 +371,8 @@ function drawCavityScan(cv, c, pseudo) {
   updateSyncButtons();
 }
 
-let benchTab = 'bench';
+export let benchTab = 'bench';
+export function setBenchTab(v) { return (benchTab = v); }
 let aboutNode = null;
 const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 const EYE_SHUT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 10s3.6 5 10 5 10-5 10-5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 13.2 3.4 15.6M9.2 14.7l-.8 2.7M14.8 14.7l.8 2.7M19 13.2l1.6 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
@@ -416,7 +420,7 @@ export function renderOverview() {
   }
 
   // what the bench is, where it came from, what was assumed: the author's, or an assistant's
-  const notes = h('textarea', { class: 'rt-notes', id: 'rtf' + (++fid), rows: '3', spellcheck: 'true',
+  const notes = h('textarea', { class: 'rt-notes', id: 'rtf' + (setFid(fid + 1)), rows: '3', spellcheck: 'true',
     placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
   notes.value = project.notes || '';
   const fitH = () => { notes.style.height = 'auto'; notes.style.height = Math.min(320, notes.scrollHeight + 2) + 'px'; };
@@ -424,9 +428,9 @@ export function renderOverview() {
   requestAnimationFrame(fitH);
   panel.append(h('h3', null, h('label', { for: notes.id }, 'Notes')), notes);
 
-  const limId = 'rtf' + (++fid);
+  const limId = 'rtf' + (setFid(fid + 1));
   const lim = numInput(limId, () => project.maxBounces, v => { project.maxBounces = Math.round(clamp(v, 1, 100000)); });
-  const floorId = 'rtf' + (++fid);
+  const floorId = 'rtf' + (setFid(fid + 1));
   const floor = numInput(floorId, () => project.minPower, v => { if (v > 0) project.minPower = clamp(v, 1e-6, 50); });
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Snap while dragging', [['0', 'Off'], ['0.1', '0.1 mm'], ['1', '1 mm'], ['5', '5 mm'], ['12.5', '12.5 mm'], ['25', '25 mm (hole pitch)']],

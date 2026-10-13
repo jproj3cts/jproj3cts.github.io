@@ -1,10 +1,11 @@
 import { AMU, C_SI } from '../core/cells.js';
 import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
-import { deg } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { allSources, getEl } from '../state/elements.js';
 import { frame, toLocal } from '../core/mask.js';
-import { V, sx, sy, wx, wy } from '../ui/render.js';
+import { lastTrace } from './trace.js';
+import { H, V, sx, sy, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { arrival3 } from './fibre-face.js';
 import { ci } from './fibre.js';
@@ -17,7 +18,6 @@ import { cz } from './cavity.js';
 import { VF_NA, polMaps, vfApply, vfAt, vfPupil } from './vector-focus.js';
 import { cdft, cmulPhase, field2I, fieldComps, interp2, popStats2 } from './field2d.js';
 import { popJ, popKeyOf, popRun, segW } from './beam-tree.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, lastTrace, project
 
 /* ---------- Diffraction ----------
    The rays arriving at a screen sample the converging wavefront: each one carries a

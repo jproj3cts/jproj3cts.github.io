@@ -1,11 +1,10 @@
 import { maskOf } from '../core/geometry.js';
 import { MASK_EDGE_SHARE, maskFootprint, maskJumps } from '../core/mask.js';
-import { V, sx, sy, wx, wy } from '../ui/render.js';
+import { V, W, sx, sy, wx, wy } from '../ui/render.js';
 import { ci } from './fibre.js';
 import { h } from '../ui/panel.js';
 import { popScreen } from './phase-screen.js';
 import { fieldComps, interp2 } from './field2d.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W
 
 /* ---------- Physical optics propagation ----------
    The bench is the meridional slice of a round system, so a beam on axis is a
@@ -476,7 +475,8 @@ function popMask(r, a) {
    for now: tangential magnification A and the quadratic phase exp(-i k2 (C/A) r^2 / 2);
    the ray-traced phase takes its place later. Only residuals are ever interpolated,
    and every reference phase is put back analytically. */
-let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
+export let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
+export function setBAB_N(v) { return (BAB_N = v); }
 export function popSurface(F, q, ev) {
   // Behind an obscuring disc the light is the free beam less what a round opening of the
   // disc's size would pass (Babinet). Its grid, sized to hold the whole beam, cannot also hold

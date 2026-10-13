@@ -1,13 +1,13 @@
-import { deg } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { restore } from '../state/tabs.js';
-import { V, canvas, render, requestRender } from '../ui/render.js';
+import { lastTrace, setExporting } from '../engines/trace.js';
+import { DPR, H, V, W, canvas, ctx, lightLayer, render, requestRender, setCtx, setDPR } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { h } from '../ui/panel.js';
 import { binnedField } from '../ui/panels.js';
 import { cx } from '../engines/cavity.js';
 import { diffraction, screenStats } from '../engines/pd-cavity.js';
 import { downloadFile, fitView, safeFileName, toast } from '../ui/actions.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): DPR, H, W, ctx, exporting, lastTrace, lightLayer, project
 
 /* ---------- The layout as a vector drawing ----------
    The bench is drawn again into a context that keeps what it is told (paths, text, and the
@@ -132,8 +132,8 @@ class VecCtx {
 /* the bench drawn once into a VecCtx, just as it stands, less the handles */
 export function recordLayout() {
   const rec = new VecCtx(W, H), keep = ctx, dpr = DPR;
-  ctx = rec; DPR = 1; exporting = true;
-  try { render(); } finally { ctx = keep; DPR = dpr; exporting = false; requestRender(); }
+  setCtx(rec); setDPR(1); setExporting(true);
+  try { render(); } finally { setCtx(keep); setDPR(dpr); setExporting(false); requestRender(); }
   return rec;
 }
 const svgNum = v => +v.toFixed(2);
@@ -291,7 +291,7 @@ export async function exportLayout(kind, view) {
       toast('Saved ' + name);
     } else {
       const name = base + '.png';
-      exporting = true; render(); exporting = false;           // without the handles
+      setExporting(true); render(); setExporting(false);           // without the handles
       canvas.toBlob(blob => {
         if (!blob) { toast('The layout could not be exported here.', true); return; }
         downloadFile(name, blob);
@@ -300,7 +300,7 @@ export async function exportLayout(kind, view) {
       requestRender();
     }
   } catch (err) {
-    exporting = false;
+    setExporting(false);
     toast('The layout could not be exported: ' + err.message, true);
   } finally {
     if (!view) { Object.assign(V(), keep); requestRender(); }

@@ -1,8 +1,9 @@
 import { num } from '../state/project.js';
+import { lastTrace } from '../engines/trace.js';
+import { H, W } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { netPower } from '../engines/fibre.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, lastTrace
 
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that

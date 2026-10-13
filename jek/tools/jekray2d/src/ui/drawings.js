@@ -1,20 +1,21 @@
 import { EMBED, IN_WORKER } from '../core/constants.js';
-import { deg, nextName, num, selectOne, typeLabel, uid } from '../state/project.js';
+import { deg, extraSel, nextName, num, project, selectOne, selectedId, typeLabel, uid } from '../state/project.js';
 import { getEl, normElement, selected } from '../state/elements.js';
 import { checkpoint, onTab } from '../state/tabs.js';
 import { frame, toLocal, toWorld, toWorldDir } from '../core/mask.js';
+import { exporting } from '../engines/trace.js';
 import {
-  V, benchLight, canvas, getCss, halfSize, mkCanvas, pathLocal, requestRender, selInk, selection,
-  srcBody, stage, sx, sy, wx, wy
+  H, V, W, benchLight, canvas, ctx, getCss, halfSize, mkCanvas, pathLocal, requestRender, selFibreId,
+  selInk, selection, setSelFibreId, srcBody, stage, sx, sy, wx, wy
 } from './render.js';
-import { hitTest, inPolygon, snapVal } from './pointer.js';
+import { drag, hitTest, inPolygon, setDrag, snapVal } from './pointer.js';
 import { clamp } from './params.js';
 import { FC_W, fcH } from '../engines/fibre.js';
-import { beginEdit, bindSync, endEdit, h, numInput, renderPanel, syncPanel, vs } from './panel.js';
+import { beginEdit, bindSync, endEdit, fid, h, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
 import { cx } from '../engines/cavity.js';
 import { changed, moveEls, rotateEls, toast } from './actions.js';
+import { palette } from './experimental.js';
 import { rail, setPalette } from './rail.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, ctx, drag, exporting, extraSel, fid, palette, panel, project, selFibreId, selectedId
 
 /* ==========================================================================
    Drawings: rectangles, ellipses and paths drawn on the bench for figures, with the tools
@@ -217,7 +218,9 @@ export const DRAW_TOOLS = [
 ];
 export const partsLocked = () => palette === 'draw';
 export const DRAW_DRAGS = new Set(['drawshape', 'pen', 'dnode', 'dscale', 'label']);
-let penEnded = 0, textEdit = null, labelSelId = null, drawTool = 'select', penDraft = null, penCursor = null, drawNodeSel = null;    // drawNodeSel: { id, i } a path's picked node
+export let penEnded = 0, textEdit = null, labelSelId = null, drawTool = 'select', penDraft = null, penCursor = null, drawNodeSel = null;    // drawNodeSel: { id, i } a path's picked node
+export function setPenEnded(v) { return (penEnded = v); }
+export function setPenCursor(v) { return (penCursor = v); }
 export const drawIcon = k => { const s = document.createElement('span'); s.className = 'rt-dicon'; s.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' + DRAW_TOOLS.find(t => t[0] === k)[4] + '</svg>'; return s; };
 const DRAW_STYLE_KEY = 'jek-raytracer-drawstyle';
 /* the style a new drawing takes: the last one set */
@@ -299,15 +302,15 @@ export function drawDown(px, py, e) {
   if (drawTool === 'select') {
     // a drawing's scale handles, or a part's name (moved, or scaled by its corner)
     const el = scaleDrawing(), g = el && scaleGrips(el).find(q => Math.hypot(px - q.at[0], py - q.at[1]) <= 7);
-    if (g) { drag = { mode: 'dscale', el, g, orig: JSON.parse(JSON.stringify(el)), started: false, px0: px, py0: py }; return true; }
+    if (g) { setDrag({ mode: 'dscale', el, g, orig: JSON.parse(JSON.stringify(el)), started: false, px0: px, py0: py }); return true; }
     const lab = labelAt(px, py);
     if (lab && (lab.k === 'scale' || !hitTest(px, py))) {
       // in Draw just the name is picked, not its part; elsewhere the part with it
-      if (partsLocked()) { if (selectedId || extraSel.size || selFibreId) { selectOne(null); selFibreId = null; renderPanel(); } }
-      else if (selectedId !== lab.el.id || extraSel.size) { selectOne(lab.el.id); selFibreId = null; renderPanel(); }
+      if (partsLocked()) { if (selectedId || extraSel.size || selFibreId) { selectOne(null); setSelFibreId(null); renderPanel(); } }
+      else if (selectedId !== lab.el.id || extraSel.size) { selectOne(lab.el.id); setSelFibreId(null); renderPanel(); }
       labelSelId = lab.el.id;
       const B = labelBoxes.get(lab.el.id), L = lab.el.label || { dx: wx(B.ax) - lab.el.x, dy: wy(B.ay) - lab.el.y, s: 1 };
-      drag = { mode: 'label', el: lab.el, k: lab.k, start: Object.assign({}, L), ax: B.ax, ay: B.ay, px0: px, py0: py, started: false };
+      setDrag({ mode: 'label', el: lab.el, k: lab.k, start: Object.assign({}, L), ax: B.ax, ay: B.ay, px0: px, py0: py, started: false });
       requestRender();
       return true;
     }
@@ -327,7 +330,7 @@ export function drawDown(px, py, e) {
     return true;
   }
   if (drawTool === 'rect' || drawTool === 'ellipse') {
-    drag = { mode: 'drawshape', kind: drawTool, px0: px, py0: py, cur: null };
+    setDrag({ mode: 'drawshape', kind: drawTool, px0: px, py0: py, cur: null });
     return true;
   }
   if (drawTool === 'pen') {
@@ -341,7 +344,7 @@ export function drawDown(px, py, e) {
     if (N.length >= 2 && Math.hypot(sx(N[0].x) - px, sy(N[0].y) - py) < 8) { penDraft.closed = true; finishPen(); return true; }
     N.push({ x, y, h1: null, h2: null });
     penDraft.t = now;
-    drag = { mode: 'pen', px0: px, py0: py, started: false };
+    setDrag({ mode: 'pen', px0: px, py0: py, started: false });
     requestRender();
     return true;
   }
@@ -350,7 +353,7 @@ export function drawDown(px, py, e) {
     const g = drawGripAt(el, px, py);
     if (g) {
       if (g.k === 'node' || g.k === 'h1' || g.k === 'h2') { drawNodeSel = { id: el.id, i: g.i }; renderPanel(); }
-      drag = { mode: 'dnode', el, g, started: false, px0: px, py0: py };
+      setDrag({ mode: 'dnode', el, g, started: false, px0: px, py0: py });
       requestRender();
       return true;
     }
@@ -425,13 +428,13 @@ export function drawMove(px, py, e) {
 }
 export function drawUp(e) {
   const d = drag;
-  drag = null; canvas.classList.remove('dragging');
+  setDrag(null); canvas.classList.remove('dragging');
   if (d.mode === 'pen') { requestRender(); return; }
   if (d.mode === 'dnode' || d.mode === 'dscale' || d.mode === 'label') { if (d.started) changed(); else requestRender(); return; }
   // a rectangle or an ellipse: a click (no drag) picks what is there instead
   if (!d.cur || Math.hypot(d.cur[0] - d.px0, d.cur[1] - d.py0) < 3) {
     const hit = hitTest(d.px0, d.py0);
-    selectOne(hit ? hit.id : null); selFibreId = null; renderPanel(); requestRender();
+    selectOne(hit ? hit.id : null); setSelFibreId(null); renderPanel(); requestRender();
     return;
   }
   const b = shapeBox(d, { shiftKey: false });
@@ -518,7 +521,8 @@ function smoothNode(el, i) {
   n.h1 = [-tx * d1, -ty * d1]; n.h2 = [tx * d2, ty * d2]; n.smooth = true;
 }
 /* ---------- scaling a drawing with the select tool: eight handles round its box ---------- */
-let xformMode = 'scale', xformId = null;
+export let xformMode = 'scale', xformId = null;
+export function setXformMode(v) { return (xformMode = v); }
 export const scaleDrawing = () => {
   const el = selected(), ok = drawTool === 'select' && el && el.type === 'draw' && !extraSel.size && onTab(el) && !el.locked && !textEdit;
   if (ok && xformId !== el.id) { xformId = el.id; xformMode = 'scale'; }        // a drawing newly picked starts with its scale handles
@@ -805,7 +809,7 @@ const DB_ICONS = {
   dgy: '<rect x="7" y="2" width="10" height="5" fill="currentColor"/><rect x="5" y="10" width="14" height="4" fill="currentColor"/><rect x="8" y="17" width="8" height="5" fill="currentColor"/><path d="M12 7.5v2M12 14.5v2" stroke="#8b6ee0" stroke-width="2"/>',
 };
 const dbIco = k => { const s = h('span', { class: 'rt-ico' }); s.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' + DB_ICONS[k] + '</svg>'; return s; };
-let drawBarEl = null, alignBox = null;
+export let drawBarEl = null, alignBox = null;
 export function drawBarShown() {
   if (!drawBarEl) {
     const B = (k, title, fn, need) => { const b = h('button', { type: 'button', title, 'aria-label': title, 'data-need': need || '' }, dbIco(k)); b.addEventListener('click', e => { e.stopPropagation(); fn(); }); return b; };
@@ -947,7 +951,7 @@ export function drawPanel(el) {
       onclick: () => { if (get() === v) return; checkpoint(); set(v); keep(); changed(true); } }, ic ? dIco(ic) : null, label ? h('span', null, label) : null);
   }));
   const num = (get, set, unit, opts = {}) => {
-    const id = 'rtf' + (++fid), inp = numInput(id, get, v => { set(v); if (opts.style) keep(); });
+    const id = 'rtf' + (setFid(fid + 1)), inp = numInput(id, get, v => { set(v); if (opts.style) keep(); });
     inp.classList.add('rt-dnum');
     return [inp, unit ? h('span', { class: 'rt-dunit' }, unit) : null];
   };

@@ -1,18 +1,20 @@
+import { BEAM_Z } from '../core/constants.js';
 import { FIBRE_NG, cohGamma, lagOf, splitChain, splitRoot } from '../core/coherence.js';
 import { applyPulse, gsmModes, m2Of, syncLine } from '../core/pulses.js';
 import { isHigherMode, lgComps, modeM2 } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { selectOne, typeLabel } from '../state/project.js';
+import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
 import { getEl, lightOf, selected } from '../state/elements.js';
 import { checkpoint, selectEl, switchTab } from '../state/tabs.js';
 import { STL_UNITS, meshHullCache } from '../core/stl.js';
-import { BEAM_Z, RAY_PATTERNS, rayPattern, tippable } from '../engines/trace.js';
-import { V, requestRender, selFibre, selection } from './render.js';
+import { RAY_PATTERNS, rayPattern, tippable } from '../engines/trace.js';
+import { V, requestRender, selFibre, selection, setSelFibreId } from './render.js';
 import { drawBarShown, drawPanel } from './drawings.js';
 import { getPath, setParam } from './params.js';
 import {
-  FIELD_FRAMES, SWEEP_STEPS_MAX, WAVES, advOpen, fieldPossible, isPlaying, pause, play, swPool,
-  swRelease, sweepDefault, sweepEta, sweepFrac, sweepKey, sweepValue
+  FIELD_FRAMES, SWEEP_STEPS_MAX, WAVES, advOpen, fieldPossible, isPlaying, pause, play,
+  setFieldRendered, swPool, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey,
+  sweepValue
 } from './sweeps.js';
 import { applyFibre } from '../engines/fibre-face.js';
 import { ci } from '../engines/fibre.js';
@@ -26,21 +28,20 @@ import {
   rfHornPanel, screenPanel, stopPanel
 } from './panels.js';
 import { assumedBox, lensPanel } from './plots.js';
-import { cavitiesOf, fanFromGauss, fmtHz, gaussFromFan, renderOverview } from './panel-cavity.js';
+import { cavitiesOf, fanFromGauss, fmtHz, gaussFromFan, renderOverview, setBenchTab } from './panel-cavity.js';
 import { popNote } from './heavy.js';
 import { updateReadouts } from '../engines/pd-cavity.js';
 import { changed, duplicate, removeEl } from './actions.js';
 import { importStl } from './experimental.js';
 import { saveToMine } from './myparts.js';
 import { modPanel } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): benchTab, extraSel, fieldRendered, project, selFibreId, sweepJob
 
 /* ==========================================================================
    Properties panel
    ========================================================================== */
 
 export const mainPanel = document.getElementById('panel');
-let panel = mainPanel;  // where the panel builders write: the main panel, or a pinned one
+export let panel = mainPanel;  // where the panel builders write: the main panel, or a pinned one
 let refs = [];          // { node, sync() }, refreshed while dragging or animating
 /* Tabs and plot choices belong to each element, so two pinned screens can show different plots */
 export const viewState = new Map();
@@ -49,10 +50,12 @@ export function vs(el) {
   return viewState.get(el.id);
 }
 /* Panels kept open while other elements are selected: element ids, newest first */
-let pins = [];
+export let pins = [];
+export function setPins(v) { return (pins = v); }
 export const pinBoxes = new Map();
 let editing = false;
-let fid = 0;
+export let fid = 0;
+export function setFid(v) { return (fid = v); }
 
 export function fmtNum(v) {
   if (v === null || v === undefined || !isFinite(v)) return '';
@@ -210,7 +213,7 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      fieldRendered = null;
+      setFieldRendered(null);
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
@@ -219,7 +222,7 @@ function sweepControls(el, path, sw, label) {
   if (fieldPossible() || sw.field) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
-    fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; fieldRendered = null; changed(false); });
+    fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; setFieldRendered(null); changed(false); });
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
@@ -345,7 +348,7 @@ export function pinTitle(title, id, onSelect) {
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
-      selectOne(null); selFibreId = null; panelClosed = true; renderPanel(); requestRender();
+      selectOne(null); setSelFibreId(null); panelClosed = true; renderPanel(); requestRender();
     } }, '\u00d7');
   title.append(pinBtn, closeBtn);
   if (panel !== mainPanel) {
@@ -409,7 +412,8 @@ function dragPinned(e, title, box, id) {
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
-let panelClosed = false;           // the main panel closed with its ×
+export let panelClosed = false;           // the main panel closed with its ×
+export function setPanelClosed(v) { return (panelClosed = v); }
 export function renderPanel() {
   pins = pins.filter(pinOk);
   for (const [id, box] of pinBoxes) if (!pins.includes(id)) { box.remove(); pinBoxes.delete(id); }
@@ -614,7 +618,7 @@ function renderPanelBody(el) {
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); benchTab = 'cavity'; renderPanel(); requestRender(); } }, 'Show')));
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); setBenchTab('cavity'); renderPanel(); requestRender(); } }, 'Show')));
   }
 
   sectionise(panel, el.type);

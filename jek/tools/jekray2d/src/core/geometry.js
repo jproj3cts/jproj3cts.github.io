@@ -1,4 +1,5 @@
 import { DOVE_RATIO, deg } from '../state/project.js';
+import { rollFrame } from '../engines/trace.js';
 import { V } from '../ui/render.js';
 import { h } from '../ui/panel.js';
 

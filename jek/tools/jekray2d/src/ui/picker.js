@@ -1,18 +1,15 @@
 import { EMBED } from '../core/constants.js';
 import { h } from './panel.js';
 import { typingIn } from './actions.js';
-import { PALETTE_NAMES, addPart, palettesOn, partGroups, partTile, partsOf, recentParts } from './experimental.js';
+import { PALETTE_NAMES, addPart, palette, palettesOn, partGroups, partTile, partsOf, recentParts } from './experimental.js';
 import { setPalette } from './rail.js';
-import { MINE, loadMine, mineChanged, mineOn, mineTile, placeMine } from './myparts.js';
-import { PACKS, packHits, packTile } from '../io/packs.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): palette
+import { MINE, loadMine, mineBody, mineChanged, mineOn, mineTile, placeMine } from './myparts.js';
+import { PACKS, packHits, packTile, packsBody } from '../io/packs.js';
 
 /* ---------- the picker ---------- */
 export const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
-document.querySelector('.rt-wrap').append(picker);
-// the right-click menu beside it, so it can open over the picker's own parts (Rename, Delete)
-document.querySelector('.rt-wrap').append(document.getElementById('ctxMenu'));
-let pickTab = palette;
+export let pickTab = 'free';
+export function setPickTab(v) { return (pickTab = v); }
 export function pickerShown(on) {
   if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
@@ -72,10 +69,24 @@ export function fillPicker(q) {
   show();
   search.focus();
 }
-document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
-document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('#ctxMenu')) pickerShown(false); });
-document.addEventListener('keydown', e => {
-  if (EMBED || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
-  if (e.key === 'a' || e.key === 'A' || e.key === '/') { e.preventDefault(); pickerShown(true); }
-  else if (e.key === 'Escape' && !picker.hidden) pickerShown(false);
-});
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wirePicker() {
+  document.querySelector('.rt-wrap').append(picker);
+
+  // the right-click menu beside it, so it can open over the picker's own parts (Rename, Delete)
+  document.querySelector('.rt-wrap').append(document.getElementById('ctxMenu'));
+
+  pickTab = palette;                     // the palette the bench shows (settled once every module is loaded)
+
+  document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
+
+  document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('#ctxMenu')) pickerShown(false); });
+
+  document.addEventListener('keydown', e => {
+    if (EMBED || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
+    if (e.key === 'a' || e.key === 'A' || e.key === '/') { e.preventDefault(); pickerShown(true); }
+    else if (e.key === 'Escape' && !picker.hidden) pickerShown(false);
+  });
+
+}

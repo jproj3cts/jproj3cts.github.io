@@ -1,7 +1,12 @@
 import { APP_SRC, TEST_MODE } from '../core/constants.js';
-import { getEl, serialize } from '../state/elements.js';
-import { afterTrace, traceKeyNow, traceScene } from '../engines/trace.js';
+import { project } from '../state/project.js';
+import { VSRC, getEl, serialize } from '../state/elements.js';
+import {
+  afterTrace, lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey, setLastTraceMs,
+  setTraceCount, traceCount, traceKeyNow, traceScene
+} from '../engines/trace.js';
 import { draw, requestRender } from '../ui/render.js';
+import { drag } from '../ui/pointer.js';
 import { playing, showActivityNow } from '../ui/sweeps.js';
 import { syncPanel } from '../ui/panel.js';
 import { binCache } from '../ui/panels.js';
@@ -11,7 +16,6 @@ import { popLeg2 } from '../engines/field2d.js';
 import { diffCache } from '../engines/diffraction.js';
 import { statsCache } from '../engines/pd-cavity.js';
 import { modDelta } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): VSRC, drag, lastTrace, lastTraceKey, lastTraceMs, project, traceCount
 
 /* ==========================================================================
    The field worker
@@ -202,8 +206,8 @@ function adoptTrace(out) {
   TW.n++;
   if (out.key !== traceKeyNow()) { TW.rays = out.T.rays; return; }
   statsCache.clear(); diffCache.clear(); binCache.clear();
-  lastTrace = out.T;
-  lastTraceKey = out.key; lastTraceMs = out.ms; traceCount++;
+  setLastTrace(out.T);
+  setLastTraceKey(out.key); setLastTraceMs(out.ms); setTraceCount(traceCount + 1);
   TW.rays = null; TW.full = null;
   afterTrace();
   syncPanel();

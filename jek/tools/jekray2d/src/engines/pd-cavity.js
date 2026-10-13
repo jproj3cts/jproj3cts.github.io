@@ -7,14 +7,14 @@ import { C_MM, eomSidebands } from '../core/modulators.js';
 import { C_NM_GHZ, fibrePdNm, fmtDbm, fmtGHz, fmtWl, pdResp, responsivity, rfBeam } from '../core/rf.js';
 import { cohGamma, lagOf, splitRoot } from '../core/coherence.js';
 import { isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
-import { deg } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { meshSize } from '../core/stl.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
-import { paraxial, sourceLines, traceScene } from './trace.js';
-import { V, portsInUse, requestRender, wx, wy } from '../ui/render.js';
+import { lastTrace, paraxial, sourceLines, traceScene } from './trace.js';
+import { H, V, W, portsInUse, requestRender, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { fieldFrames, fieldHeld, playing, showActivityNow } from '../ui/sweeps.js';
+import { fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from '../ui/sweeps.js';
 import { arrival3, detectorReading, deviceCache, faceArrivals, fibreCoupling, fibreMode, rfCoupling } from './fibre-face.js';
 import { ampASE, ampGain, netPower, pkey } from './fibre.js';
 import { PIC } from './pic.js';
@@ -29,7 +29,6 @@ import { popStats2 } from './field2d.js';
 import { popRun, popRunGen } from './beam-tree.js';
 import { diffFns, popDiffraction, popScreenPrep, segFieldAt } from './diffraction.js';
 import { fieldWorker, fwMismatch, fwRequest } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, lastTrace, project, sweepJob
 
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
@@ -105,7 +104,7 @@ export function detectorField(el, R) {
 /* its reading: at once in the tests and the worker, from the worker on the page (the tracer's
    meanwhile) */
 const detFieldCache = new Map();
-let detFieldGen = 0;                   // readings come in from the worker: a new one counts up
+export let detFieldGen = 0;                   // readings come in from the worker: a new one counts up
 export function detectorFieldResult(el) {
   const J = popScreenPrep(el);
   if (!J) return { mw: 0, tones: [] };
@@ -130,7 +129,7 @@ export function detectorFieldResult(el) {
 
 /* The screen's answer, now: for the optimiser, the tests and the export */
 export const popScreenCache = new Map();
-let liveScreens = 0;                   // screen fields worked out on the spot (for the tests)
+export let liveScreens = 0;                   // screen fields worked out on the spot (for the tests)
 export function diffraction(el) {
   const job = popScreenPrep(el);
   if (!job) return null;

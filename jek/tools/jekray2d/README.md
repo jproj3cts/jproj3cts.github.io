@@ -24,4 +24,8 @@ node build.mjs --check    # says whether the page is current
 node --test test/node/*.test.mjs    # the Node tests (the first checks the page is current)
 ```
 
-The build joins the modules into one script in one scope, as the page has always run: it drops each module's import lines and `export` keywords and changes nothing else. A module starts with its imports, then one blank line, then its code. Every name a module takes from another must be imported from the module that declares it; the build's lint refuses otherwise. The exceptions, for now, are the mutable bindings listed in `src/state/shared.md`, which the next stage moves into state objects.
+`node build.mjs` also writes `src/main.js` (an entry importing every module in order) and `../jekray2d-dev.html`, which loads the modules directly instead of the built script. It runs the tool as the modules say it is, with the field worked out on the page (the workers start from the built page's script, so they are off there). The browser suite runs against it with `jekray2d-tests.html?dev=1`.
+
+A module declares; it does not act as it loads. Listeners, dialogs and anything else that touches the page go in the module's `wire…()` function, which `ui/boot.js` calls in the page's order once every module is loaded (the lint refuses a bare statement at a module's top level). A binding another module assigns is exported with a setter (`project` and `setProject`, `drag` and `setDrag`), since a module cannot assign another's binding.
+
+The build joins the modules into one script in one scope, as the page has always run: it drops each module's import lines and `export` keywords and changes nothing else. A module starts with its imports, then one blank line, then its code. Every name a module takes from another must be imported from the module that declares it; the build's lint refuses otherwise.

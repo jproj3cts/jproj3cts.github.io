@@ -2,13 +2,14 @@ import { IN_WORKER, TEST_MODE } from './constants.js';
 import { C_MM } from './modulators.js';
 import { splitRoot } from './coherence.js';
 import { wavelengthColour } from './colour.js';
+import { setLastTraceKey } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { applyFibre } from '../engines/fibre-face.js';
+import { setFibreNetMemo } from '../engines/fibre.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
 import { cdft } from '../engines/field2d.js';
 import { fieldWorker, fwRequest } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): fibreNetMemo, lastTraceKey
 
 /* ---------- Short pulses ----------
    A mode-locked laser's pulse is its spectrum with a spectral phase. The duration given is
@@ -123,7 +124,7 @@ export function fibreSPMLater(F, nm, len, P, Pavg, gdd, sp) {
     spmAsked.add(key);
     fwRequest('spm', 'spm:' + key, { F, nm, len, P, Pavg, gdd, sp })
       .then(r => { keep(r); }, () => { keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp)); })
-      .then(() => { spmAsked.delete(key); fibreNetMemo = { key: null, net: null }; lastTraceKey = null; requestRender(); });
+      .then(() => { spmAsked.delete(key); setFibreNetMemo({ key: null, net: null }); setLastTraceKey(null); requestRender(); });
   }
   return spmLast.has(F.id) ? spmLast.get(F.id) : null;
 }

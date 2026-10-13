@@ -1,5 +1,5 @@
-import { EMBED, TEST_MODE } from '../core/constants.js';
-import { normMat, num, typeLabel, uid } from '../state/project.js';
+import { EMBED, TEST_MODE, cloud } from '../core/constants.js';
+import { normMat, num, project, typeLabel, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { V, canvas, selection, wx, wy } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
@@ -12,7 +12,6 @@ import { fillPicker, picker } from '../ui/picker.js';
 import { clipIcon, palOf } from '../ui/myparts.js';
 import { startTour } from '../ui/tours.js';
 import { MOD_CODE_MAX, modConfirmText, modPrepare, modsSync } from './mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): cloud, project
 
 /* ==========================================================================
    Part packs: sets of parts and glasses made by others (a maker's catalogue, a course's kit),
@@ -147,7 +146,7 @@ export function packTile(pk, i, after) {
   return b;
 }
 // the Packs tab of the picker: each pack, its parts by group
-function packsBody(after) {
+export function packsBody(after) {
   if (!PACKS.list.length) return [h('p', { class: 'rt-pnone' }, 'No part packs installed. File › Part packs… installs one from a file or a link.')];
   const out = [];
   for (const pk of PACKS.list) {
@@ -233,58 +232,7 @@ function packDialogFill() {
       h('div', { class: 'rt-hint' }, pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : ''))), rm));
   }
 }
-{
-  const dlg = h('dialog', { class: 'rt-dialog', id: 'packDialog' });
-  const fi = h('input', { type: 'file', accept: '.jekpack,.json,application/json', hidden: true });
-  fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) await packInstallText(await f.text(), f.name); });
-  const make = () => {
-    const sel = selection();
-    if (!sel.length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
-    const name = prompt('A name for the pack', project.name ? project.name + ' parts' : 'My parts pack'); if (name === null) return;
-    const author = prompt('Who made it (shown to those who install it)', '') ; if (author === null) return;
-    const id = (author ? author + '.' : '') + name;
-    const pack = packFromSelection({ id: id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'pack', name: name.trim().slice(0, 60), author: author.trim().slice(0, 80), packVersion: '1' });
-    try { normPack(pack); } catch (err) { toast('Could not make the pack: ' + err.message, true); return; }
-    downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
-    toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
-  };
-  dlg.append(h('h2', null, 'Part packs'),
-    h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data only, never code, and are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
-    h('div', { id: 'packList', class: 'rt-packlist' }),
-    h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
-      h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install from a file…'),
-      h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install from a link…'),
-      h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: make }, 'Make a pack from the selection…'),
-      h('a', { class: 'rt-link', href: '/jek/docs/jekray2d/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
-      h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);
-  document.body.append(dlg);
-  document.getElementById('btnPacks').addEventListener('click', () => { packDialogFill(); dlg.showModal(); });
-  // a link with ?pack=...: offered, never installed without asking
-  const q = new URLSearchParams(location.search).get('pack');
-  if (q && !TEST_MODE && !EMBED) setTimeout(() => packInstallUrl(q), 800);
-  if (!TEST_MODE) packsLoad(); else PACKS.ready = true;
-}
 /* the menus: File (by the bench's name), View, Sweeps and Help */
-for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
-  const btn = document.getElementById(bId), menu = document.getElementById(mId);
-  const show = on => {
-    menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
-    if (!on) return;
-    // kept on the screen: a menu set against its button's right edge would run off a phone's left
-    menu.style.translate = '';
-    const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, pad = 8;
-    const dx = r.left < pad ? pad - r.left : r.right > vw - pad ? Math.max(pad - r.left, vw - pad - r.right) : 0;
-    if (dx) menu.style.translate = dx + 'px 0';
-    const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus();
-  };
-  btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-  menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
-  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
-}
-document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
-// the menus' stand-ins for the bar's own buttons (a phone hides those)
-for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
 /* the menus' icons: small line drawings on a 16 px square, in the text's colour, as a drawing
    program's menus have them; and a tick for an option that is on */
 export const MENU_ICONS = {
@@ -312,8 +260,6 @@ export const MENU_ICONS = {
   fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
 };
-// Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
-for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
 export function menuIcons(root) {
   for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
@@ -324,7 +270,72 @@ export function menuIcons(root) {
     svg.append(p); n.prepend(svg);
   }
 }
-menuIcons(document);
-// the experimental features' box opens from the Help menu, which closes as it does
-document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
-document.getElementById('btnSave').addEventListener('click', saveFile);
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wirePacks() {
+  {
+    const dlg = h('dialog', { class: 'rt-dialog', id: 'packDialog' });
+    const fi = h('input', { type: 'file', accept: '.jekpack,.json,application/json', hidden: true });
+    fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) await packInstallText(await f.text(), f.name); });
+    const make = () => {
+      const sel = selection();
+      if (!sel.length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
+      const name = prompt('A name for the pack', project.name ? project.name + ' parts' : 'My parts pack'); if (name === null) return;
+      const author = prompt('Who made it (shown to those who install it)', '') ; if (author === null) return;
+      const id = (author ? author + '.' : '') + name;
+      const pack = packFromSelection({ id: id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'pack', name: name.trim().slice(0, 60), author: author.trim().slice(0, 80), packVersion: '1' });
+      try { normPack(pack); } catch (err) { toast('Could not make the pack: ' + err.message, true); return; }
+      downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
+      toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
+    };
+    dlg.append(h('h2', null, 'Part packs'),
+      h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data only, never code, and are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
+      h('div', { id: 'packList', class: 'rt-packlist' }),
+      h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install from a file…'),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install from a link…'),
+        h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: make }, 'Make a pack from the selection…'),
+        h('a', { class: 'rt-link', href: '/jek/docs/jekray2d/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);
+    document.body.append(dlg);
+    document.getElementById('btnPacks').addEventListener('click', () => { packDialogFill(); dlg.showModal(); });
+    // a link with ?pack=...: offered, never installed without asking
+    const q = new URLSearchParams(location.search).get('pack');
+    if (q && !TEST_MODE && !EMBED) setTimeout(() => packInstallUrl(q), 800);
+    if (!TEST_MODE) packsLoad(); else PACKS.ready = true;
+  }
+
+  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
+    const btn = document.getElementById(bId), menu = document.getElementById(mId);
+    const show = on => {
+      menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      if (!on) return;
+      // kept on the screen: a menu set against its button's right edge would run off a phone's left
+      menu.style.translate = '';
+      const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, pad = 8;
+      const dx = r.left < pad ? pad - r.left : r.right > vw - pad ? Math.max(pad - r.left, vw - pad - r.right) : 0;
+      if (dx) menu.style.translate = dx + 'px 0';
+      const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus();
+    };
+    btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+    menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
+    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+  }
+
+  document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
+
+  // the menus' stand-ins for the bar's own buttons (a phone hides those)
+  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+
+  // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
+  for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
+
+  menuIcons(document);
+
+  // the experimental features' box opens from the Help menu, which closes as it does
+  document.getElementById('btnExp').addEventListener('click', () => { document.getElementById('helpMenu').hidden = true; document.getElementById('btnHelpMenu').setAttribute('aria-expanded', 'false'); });
+
+  document.getElementById('btnSave').addEventListener('click', saveFile);
+
+}

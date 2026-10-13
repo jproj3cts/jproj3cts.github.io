@@ -1,16 +1,17 @@
-import { IN_WORKER } from '../core/constants.js';
+import { BEAM_Z, IN_WORKER } from '../core/constants.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { C_NM_GHZ } from '../core/rf.js';
 import { m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { DOVE_RATIO, deg } from '../state/project.js';
+import { DOVE_RATIO, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, lightOf, selected } from '../state/elements.js';
 import { benchName, checkpoint, linkPartner, onTab, scheduleSave } from '../state/tabs.js';
 import { dsagFn, lensSurfaces, polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, maskFns, stopBlades, toLocal, toWorld } from '../core/mask.js';
-import { BEAM_Z } from '../engines/trace.js';
-import { drawDrawing, drawHalf, drawToolOverlay, labelBoxes, partsLocked } from './drawings.js';
+import { exporting, lastTrace } from '../engines/trace.js';
+import { drawDrawing, drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
+import { drag } from './pointer.js';
 import { clamp } from './params.js';
 import { FC, FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -22,7 +23,7 @@ import { partAssumptions } from './plots.js';
 import { beamAt, fmtHz } from './panel-cavity.js';
 import { cx } from '../engines/cavity.js';
 import { popSources } from '../engines/beam-tree.js';
-import { drawCloseup } from '../engines/closeup.js';
+import { closeupOn, drawCloseup, setCloseupOn } from '../engines/closeup.js';
 import { drawPop } from './heavy.js';
 import { screenStats, updateReadouts } from '../engines/pd-cavity.js';
 import { changed, drawMeasures, drawMinimap } from './actions.js';
@@ -30,16 +31,19 @@ import { cssColour } from '../io/layout.js';
 import { updateEmpty } from './tours.js';
 import { modDefOf, modParams, modResult } from '../io/mods.js';
 import { TW, traceLater } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): closeupOn, drag, exporting, extraSel, lastTrace, project, selectedId, textEdit
 
 /* ==========================================================================
    Rendering
    ========================================================================== */
 
 export const canvas = document.getElementById('bench');
-let ctx = canvas.getContext('2d');          // a VecCtx for a moment while the layout is exported
+export let ctx = canvas.getContext('2d');          // a VecCtx for a moment while the layout is exported
+export function setCtx(v) { return (ctx = v); }
 export const stage = document.getElementById('stage');
-let W = 0, H = 0, DPR = 1;
+export let W = 0, H = 0, DPR = 1;
+export function setW(v) { return (W = v); }
+export function setH(v) { return (H = v); }
+export function setDPR(v) { return (DPR = v); }
 
 export function resize() {
   const r = stage.getBoundingClientRect();
@@ -48,9 +52,7 @@ export function resize() {
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   requestRender();
 }
-new ResizeObserver(resize).observe(stage);
 /* the tool is the whole window; the page itself does not scroll */
-document.documentElement.classList.add('rt-noscroll');
 
 export const V = () => project.view;
 export const sx = x => W / 2 + (x - V().cx) * V().scale;
@@ -82,7 +84,7 @@ export function benchLight(bg = benchBg()) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.25;
 }
 // while a light bench is drawn
-let lightLayer = false;
+export let lightLayer = false;
 // the light laid on (over a light bench) rather than glowing (over the dark), and stronger
 export const glowOp = () => lightLayer ? 'source-over' : 'lighter';
 export const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
@@ -737,8 +739,8 @@ export function selection() {
   return out;
 }
 export function setSelection(list) {
-  selectedId = list.length ? list[0].id : null;
-  extraSel = new Set(list.slice(1).map(e => e.id));
+  setSelectedId(list.length ? list[0].id : null);
+  setExtraSel(new Set(list.slice(1).map(e => e.id)));
   selFibreId = null;
   renderPanel(); requestRender();
 }
@@ -830,7 +832,7 @@ function renderAll(stale) {
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
   if (lightOf().rays) drawRays(stale);
   if (!stale) {
-    closeupOn = drawCloseup();
+    setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
     drawBeams(fieldShown);
   }
@@ -851,7 +853,8 @@ function renderAll(stale) {
   if (exporting && !thumbing) drawCredit();
 }
 /* on an exported picture: where it was made */
-let thumbing = false;                 // drawing My benches' picture of the bench: no credit line
+export let thumbing = false;                 // drawing My benches' picture of the bench: no credit line
+export function setThumbing(v) { return (thumbing = v); }
 function drawCredit() {
   ctx.save();
   ctx.font = '11px ' + getCss('--jek-sans');
@@ -1324,7 +1327,8 @@ export function fibreAtPx(px, py) {
   }
   return best;
 }
-let selFibreId = null;
+export let selFibreId = null;
+export function setSelFibreId(v) { return (selFibreId = v); }
 export const selFibre = () => selFibreId ? (project.fibres || []).find(F => F.id === selFibreId) || null : null;
 export function removeFibre(F) {
   checkpoint();
@@ -1501,3 +1505,10 @@ function drawBody(el) {
   else if (el.type === 'source') drawSource(el, sel);
 }
 
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireRender() {
+  new ResizeObserver(resize).observe(stage);
+
+  document.documentElement.classList.add('rt-noscroll');
+
+}

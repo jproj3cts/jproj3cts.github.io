@@ -1,15 +1,14 @@
 import { EMBED, FORMAT, VERSION } from '../core/constants.js';
-import { selectOne } from '../state/project.js';
+import { history, project, selectOne, selectedId } from '../state/project.js';
 import { getEl, normElementBase, serialize } from '../state/elements.js';
 import { undo } from '../state/tabs.js';
 import { traceScene } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { allSweeps, pauseAll, play, playAll, playing } from '../ui/sweeps.js';
 import { V3D } from '../ui/view3d.js';
-import { h, holdScroll, mainPanel, pinBoxes, pinOk, renderPanel, viewState, vs } from '../ui/panel.js';
+import { h, holdScroll, mainPanel, pinBoxes, pinOk, pins, renderPanel, setPins, viewState, vs } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
 import { esc, openProjectData } from './open.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): history, pins, project, selectedId
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -39,7 +38,7 @@ export function applyUi(ui) {
     const el = getEl(id);
     if (el && v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (plainVal(x)) vs(el)[k] = x;
   }
-  pins = (Array.isArray(ui.pins) ? ui.pins : []).filter(id => typeof id === 'string' && pinOk(id));
+  setPins((Array.isArray(ui.pins) ? ui.pins : []).filter(id => typeof id === 'string' && pinOk(id)));
   if (typeof ui.sel === 'string' && getEl(ui.sel)) selectOne(ui.sel);
   traceScene();
   renderPanel(); requestRender();
@@ -178,15 +177,6 @@ async function shareLink() {
   try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
   catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
 }
-{
-  const dlg = document.getElementById('shareDialog');
-  document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
-  document.getElementById('shareClose').addEventListener('click', () => dlg.close());
-  for (const [b, t] of [['shareCopy', 'shareUrl'], ['shareEmbedCopy', 'shareEmbed']]) document.getElementById(b).addEventListener('click', e => {
-    const box = document.getElementById(t); box.select();
-    navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; });
-  });
-}
 /* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */
 export async function openShareHash(h) {
   try {
@@ -218,3 +208,16 @@ function sharedBar() {
   document.getElementById('stage').append(bar);
 }
 
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireShare() {
+  {
+    const dlg = document.getElementById('shareDialog');
+    document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    document.getElementById('shareClose').addEventListener('click', () => dlg.close());
+    for (const [b, t] of [['shareCopy', 'shareUrl'], ['shareEmbedCopy', 'shareEmbed']]) document.getElementById(b).addEventListener('click', e => {
+      const box = document.getElementById(t); box.select();
+      navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; });
+    });
+  }
+
+}

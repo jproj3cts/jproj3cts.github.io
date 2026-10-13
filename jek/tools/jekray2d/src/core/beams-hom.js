@@ -1,7 +1,7 @@
 import { gsmModes, hermite, laguerre, m2Of } from './pulses.js';
+import { H } from '../ui/render.js';
 import { ci } from '../engines/fibre.js';
 import { h } from '../ui/panel.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H
 
 /* ---------- Higher-order beams ----------
    A Gaussian source can launch a Hermite-Gauss mode HG_mn (m nodes across the bench plane, n

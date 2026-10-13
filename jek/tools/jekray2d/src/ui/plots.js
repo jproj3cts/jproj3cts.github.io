@@ -1,18 +1,18 @@
 import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
 import { RF_MAT, fmtGHz } from '../core/rf.js';
-import { deg, normMat } from '../state/project.js';
+import { deg, normMat, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { checkpoint } from '../state/tabs.js';
 import { getCss, niceStep, sx, sy } from './render.js';
+import { drag } from './pointer.js';
 import { clamp } from './params.js';
 import { playing } from './sweeps.js';
 import { pctTxt, stopSweepsFor } from './optimise.js';
-import { bindSync, fmtLen, h, numInput, param, selectField, vs } from './panel.js';
+import { bindSync, fid, fmtLen, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
 import { benchNms, coatingRows } from './panels.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
 import { PACKS } from '../io/packs.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): drag, fid, panel, project
 
 /* ---------- Zooming a panel plot ----------
    Each plot of each element keeps its own window: a zoom factor and a centre for each
@@ -569,7 +569,8 @@ export function pickMaterial(v, old) {
   return v === old.glass ? old : normMat({ glass: v });
 }
 
-let materialWanted = null;
+export let materialWanted = null;
+export function setMaterialWanted(v) { return (materialWanted = v); }
 export function askForMaterial(apply) {
   materialWanted = apply;
   document.getElementById('matNote').textContent = '';
@@ -670,7 +671,7 @@ export function lensPanel(el) {
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
     if (s.odd && s.odd[0]) {
       // an axicon's cone, given as its base angle; stored as the odd r^1 sag term
-      const cid = 'rtf' + (++fid);
+      const cid = 'rtf' + (setFid(fid + 1));
       const cone = numInput(cid, () => +(Math.atan(s.odd[0]) / deg).toPrecision(6), v => { if (Math.abs(v) < 80) s.odd[0] = Math.tan(v * deg); });
       rows.append(h('div', { class: 'rt-f wide' }, h('label', { for: cid }, 'Cone angle (°)'), cone));
     }

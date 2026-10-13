@@ -1,9 +1,9 @@
 import { TEST_MODE } from '../core/constants.js';
-import { selectOne } from '../state/project.js';
+import { project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
 import { checkpoint } from '../state/tabs.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
-import { V, canvas, draw, getCss, halfSize, requestRender, wx, wy } from './render.js';
+import { DPR, H, V, W, canvas, ctx, draw, getCss, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
 import { snapVal } from './pointer.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
@@ -14,7 +14,6 @@ import { layoutPalette, railRecent } from './rail.js';
 import { accountShown } from '../io/account.js';
 import { kb } from '../io/cloud.js';
 import { modsSync } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): DPR, H, W, ctx, project
 
 /* ==========================================================================
    Wiring
@@ -37,9 +36,8 @@ export const EXPERIMENTAL = [
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
 // the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are
-let expOn = false, expPicks = {};
-try { expOn = !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { /* private window: off */ }
-try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); if (v && typeof v === 'object') expPicks = v; } catch (err) { /* none kept: all ticked */ }
+export let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
+export let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
 export const expPicked = key => expPicks[key] !== false;
 export const exp = key => expOn && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 export function setExperimental(on, picks) {
@@ -67,14 +65,14 @@ export const PALETTES = {
     ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
     ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
-  elec: ELEC.PALETTE,                                                                        // ELEC hook
+  get elec() { return ELEC.PALETTE; },                                                       // ELEC hook (read when asked: ELEC is made after this table)
   rf: [['rf:horn', 'Horn', 'Feed horn (source)'], ['rf:rx', 'Receiver', 'Receiving horn and detector'], ['rf:lens', 'RF lens', 'RF lens (HDPE)'],
     ['rf:mirror', 'Mirror', 'Flat metal mirror'], ['rf:fmirror', 'Focusing mirror', 'Focusing metal mirror'], ['rf:grid', 'Wire grid', 'Wire-grid polariser'],
     ['rf:bs', 'Beam splitter', 'Film beam splitter'], ['rf:load', 'Load', 'Absorber load']],
-  pic: PIC.PALETTE,                                                                          // PIC hook
+  get pic() { return PIC.PALETTE; },                                                         // PIC hook (likewise)
 };
-let palette = 'free';
-try { const pv = localStorage.getItem('jek-raytracer-palette'); if (pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw') palette = pv; } catch (err) { /* private window: free space */ }
+export let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
+export function assignPalette(v) { return (palette = v); }
 /* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
@@ -119,11 +117,11 @@ export function partIcon(key) {
     const el = makeElement(key, 0, 0);
     if (el) {
       const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
-      ctx = c; W = N; H = N; DPR = 2; project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
+      setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
       draw(el);
       url = cv.toDataURL();
     }
-  } catch (err) { url = ''; } finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; }
+  } catch (err) { url = ''; } finally { setCtx(keep.ctx); setW(keep.W); setH(keep.H); setDPR(keep.DPR); project.view = keep.view; }
   partIcons.set(ck, url);
   return url;
 }

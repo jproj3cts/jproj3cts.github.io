@@ -1,17 +1,20 @@
-import { EPS, FAR, IN_WORKER, TEST_MODE, TRACE_BUDGET } from '../core/constants.js';
+import { BEAM_Z, EPS, FAR, IN_WORKER, TEST_MODE, TRACE_BUDGET } from '../core/constants.js';
 import { absorbAt, refIndex } from '../core/glass.js';
-import { bireAxis, birefIndex, filterT, gainAt, walkOff } from '../core/crystals.js';
+import { bireAxis, birefIndex, filterT, gainAt, gainSat, setGainSat, walkOff } from '../core/crystals.js';
 import { C_SI } from '../core/cells.js';
 import { cellJones, cellPolar, circShares } from '../core/zeeman.js';
-import { beamReach, beamShape, cellPlanFor, evalPlan, gratingOrders, nlcConvert, nlcSources } from '../core/nlc.js';
+import {
+  beamReach, beamShape, cellPlanFor, evalPlan, gratingOrders, nlcConv, nlcConvert, nlcSources,
+  setCellPlanMemo, setNlcConv
+} from '../core/nlc.js';
 import { MODS, aomOrders, cmul, eomSidebands, famAt, jonesAt, linesPerMm } from '../core/modulators.js';
 import { splitOffset, splitRoot } from '../core/coherence.js';
 import { gddPath, isLaserLike, m2Of, pulseGrid, pulseOf, syncLine, syncSplit } from '../core/pulses.js';
 import { isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { deg, num } from '../state/project.js';
+import { deg, num, project } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
-import { getEl } from '../state/elements.js';
+import { VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
@@ -19,7 +22,7 @@ import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
 } from '../core/mask.js';
-import { sx, sy, wx, wy } from '../ui/render.js';
+import { H, sx, sy, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { playing } from '../ui/sweeps.js';
 import { ci, fibreNetCached, tipSources } from './fibre.js';
@@ -27,13 +30,12 @@ import { V3D } from '../ui/view3d.js';
 import { h, renderPanel, vs } from '../ui/panel.js';
 import { binCache } from '../ui/panels.js';
 import { beamAt, cavityLater, laserSources, laserState } from '../ui/panel-cavity.js';
-import { cavSolved, findCavities } from './cavity.js';
+import { cavSolved, findCavities, setCavCache } from './cavity.js';
 import { jonesOf, jonesRoll, rollJones } from './polarisation.js';
 import { diffCache } from './diffraction.js';
 import { statsCache } from './pd-cavity.js';
 import { modJonesM } from '../io/mods.js';
 import { TW_FREE } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, VSRC, cavCache, cellPlanMemo, gainSat, nlcConv, project
 
 /* ==========================================================================
    Ray tracing
@@ -178,8 +180,10 @@ function intersectSeg(sg, px, py, dx, dy, tmin) {
   return (t >= tmin && u >= 0 && u <= 1) ? t : null;
 }
 
-let exporting = false;
-let lastTrace = { rays: [], screens: {} };
+export let exporting = false;
+export function setExporting(v) { return (exporting = v); }
+export let lastTrace = { rays: [], screens: {} };
+export function setLastTrace(v) { return (lastTrace = v); }
 
 function subFrame(f, lf) {
   const [ox, oy] = toWorld(f, lf.x, lf.y);
@@ -230,7 +234,11 @@ export function sourceLines(src) {
    changes: panning, zooming and redrawing cost nothing. How long it took is noted: a bench
    slow to trace is traced in a background thread while something is being dragged or a
    sweep plays (see traceLater), so the page keeps up and draws the rays as they come. */
-let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
+export let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
+export function setTraceCount(v) { return (traceCount = v); }
+export function setLoadGen(v) { return (loadGen = v); }
+export function setLastTraceMs(v) { return (lastTraceMs = v); }
+export function setLastTraceKey(v) { return (lastTraceKey = v); }
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
 export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
@@ -260,7 +268,7 @@ export function traceScene() {
    one trace to the next (fibre networks, lasers, vapour cells); kept up to a few hundred
    thousand rays' worth, dropped when the sweeps stop. */
 export const traceStore = new Map();
-let traceStoreRays = 0, traceStoreHits = 0;
+export let traceStoreRays = 0, traceStoreHits = 0;
 const TRACE_STORE_RAYS = 400000;
 export const traceStoreOn = () => !TEST_MODE && !IN_WORKER && typeof playing !== 'undefined' && playing.size > 0 && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
 function keepTrace(key, T, ms) {
@@ -286,7 +294,6 @@ export function traceSceneRaw() {
    there in 3D, s and p taken from its own plane of incidence; a mask's delay bends it by its
    gradient both ways, a grating keeps its rise across the grooves. With every part at the beam
    height and every source a line none of this runs, and the bench traces exactly as it did. */
-export const BEAM_Z = 75;
 /* A source's rays across its beam: [t across in the bench plane, s up out of it], each from -0.5
    to 0.5 of its width (and of its divergence, for a point source). A line, as ever, n across;
    a cross, n across and n up; a square grid of n by n, trimmed to the round beam; or hexapolar,
@@ -559,7 +566,7 @@ function traceSceneOnce() {
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)
   let splitsLeft = 200;
-  cellPlanMemo = new Map();
+  setCellPlanMemo(new Map());
 
   for (const src of project.elements) if (src.type === 'source') syncSplit(src);
   const runSources = list => {
@@ -1468,7 +1475,7 @@ function traceSceneOnce() {
   // on a second pass, what the tips sent out last pass, which already includes the light
   // that came back into them
   const vs = tipCarry || tipSources(net);
-  VSRC = new Map(vs.map(v => [v.id, v]));
+  setVSRC(new Map(vs.map(v => [v.id, v])));
   if (vs.length) runSources(vs);
   lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
@@ -1501,14 +1508,14 @@ function traceSceneOnce() {
   if (!gainSatBusy && (hasGain || hasCell || gainSat.size || cellPumps.size || nlcHits.length || nlcConv.size)) {
     let again = false;
     const conv = new Map(nlcDone.map(H => [H.k, H.r.conv]));
-    if (!(conv.size === nlcConv.size && [...conv].every(([k, v]) => nlcConv.has(k) && Math.abs(nlcConv.get(k) - v) <= 1e-9 + 1e-7 * v))) { nlcConv = conv; again = true; }
+    if (!(conv.size === nlcConv.size && [...conv].every(([k, v]) => nlcConv.has(k) && Math.abs(nlcConv.get(k) - v) <= 1e-9 + 1e-7 * v))) { setNlcConv(conv); again = true; }
     const next = new Map();
     if (hasGain) for (const c of findCavities()) { const L = laserState(c); if (L && L.clamp) for (const [id, s] of L.clamp) next.set(id, s); }
-    if (!(next.size === gainSat.size && [...next].every(([k, v]) => gainSat.has(k) && Math.abs(gainSat.get(k) - v) < 1e-6 * Math.abs(v)))) { gainSat = next; again = true; }
+    if (!(next.size === gainSat.size && [...next].every(([k, v]) => gainSat.has(k) && Math.abs(gainSat.get(k) - v) < 1e-6 * Math.abs(v)))) { setGainSat(next); again = true; }
     const pumps = new Map();
     for (const hh of cellHits) { if (!pumps.has(hh.id)) pumps.set(hh.id, []); pumps.get(hh.id).push({ dir: hh.dir, nu: hh.nu, I: hh.I, w: hh.w, ly: hh.ly, src: hh.src, comps: hh.comps, circ: hh.circ }); }
     const sig = m => [...m].map(([k, v]) => k + ':' + v.map(P => P.dir.map(q => q.toFixed(6)) + '/' + P.nu.toPrecision(12) + '/' + P.I.toPrecision(4) + '/' + P.w.toPrecision(4) + '/' + P.ly.toFixed(4) + '/' + P.src + (P.comps ? '/' + JSON.stringify(P.comps) : '') + (P.circ ? '/' + P.circ[0].toFixed(4) : '')).join(',')).join(';');
-    if (sig(pumps) !== sig(cellPumps)) { cellPumps = pumps; cellPlanMemo = new Map(); again = true; }
+    if (sig(pumps) !== sig(cellPumps)) { cellPumps = pumps; setCellPlanMemo(new Map()); again = true; }
     if (again) { gainSatBusy = true; try { traceSceneRaw(); } finally { gainSatBusy = false; } return; }
   }
   // the harmonics, launched from their crystals
@@ -1524,7 +1531,7 @@ function traceSceneOnce() {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
       lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
-      cavCache = null;
+      setCavCache(null);
     }
   }
   afterTrace();
@@ -1540,7 +1547,7 @@ export function afterTrace() {
 }
 let cavPanelSig = '';
 let gainSatBusy = false;
-let cellPumps = new Map();           // cell id -> the beams crossing it last trace: { dir, nu, I }
+export let cellPumps = new Map();           // cell id -> the beams crossing it last trace: { dir, nu, I }
 
 /* The system as a whole, from three probe rays sent in parallel to the first source */
 function firstOrder(probes, src) {

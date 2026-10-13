@@ -1,19 +1,19 @@
+import { BEAM_Z } from '../core/constants.js';
 import { splitRoot } from '../core/coherence.js';
 import { m2Of } from '../core/pulses.js';
 import { isHigherMode } from '../core/beams-hom.js';
-import { deg } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { allSources, fieldDec, lightOf } from '../state/elements.js';
-import { BEAM_Z } from './trace.js';
-import { V, mkCanvas, requestRender, wx, wy } from '../ui/render.js';
+import { lastTrace } from './trace.js';
+import { V, W, mkCanvas, requestRender, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
-import { SW, swAsk, swDrop, swPool, swRelease } from '../ui/sweeps.js';
+import { SW, swAsk, swDrop, swPool, swRelease, sweepJob } from '../ui/sweeps.js';
 import { popRadii, popStats, qdht } from './field.js';
 import { field2I, field2Propagate, field2Slope, fieldComps, popStats2 } from './field2d.js';
 import { POP_ROWS, POP_SLICES, popGroupCut, popKeyOf, popRun, popSources, popState } from './beam-tree.js';
 import { closeupAt, closeupImage, closeupPrep } from './closeup.js';
 import { trapLegAt, trapLegCut, trapLegPart } from './diffraction.js';
 import { fieldWorker, fwProject, fwRequest, fwUnpackRun } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W, lastTrace, project, sweepJob
 
 /* ---------- The diffracted field in 3D ----------
    Each segment's field as a volume for the 3D view: cuts across the beam along it, close

@@ -1,16 +1,16 @@
-import { deg, nextName, num } from '../state/project.js';
+import { deg, nextName, num, project } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, normElement } from '../state/elements.js';
 import { frame, toWorld } from '../core/mask.js';
-import { V, bodyFill, draw, getCss, halfSize, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
+import { lastTrace } from './trace.js';
+import { V, W, bodyFill, ctx, draw, getCss, halfSize, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { ci, netPower, pkey, portWorld } from './fibre.js';
 import { signalSection } from '../ui/instruments.js';
-import { bindSync, fmtLen, h, numInput, param, selectField, vs } from '../ui/panel.js';
+import { bindSync, fid, fmtLen, h, numInput, panel, param, selectField, setFid, vs } from '../ui/panel.js';
 import { fmtMw, portRows, readoutBox } from '../ui/panels.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../ui/plots.js';
 import { fmtHz } from '../ui/panel-cavity.js';
 import { api } from '../io/account.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W, ctx, fid, lastTrace, panel, project
 
 /* ==========================================================================
    Photonic circuits (experimental: exp('pic'))
@@ -570,7 +570,7 @@ export const PIC = (() => {
     const rows = h('div', { class: 'rt-rows' },
       selectField('From', opts(froms), () => String(V2.picFrom), v => { V2.picFrom = +v; }),
       selectField('To', opts(outs), () => String(V2.picTo), v => { V2.picTo = +v; }));
-    const numF = (label, key, lo) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => V2[key], v => { if (v > lo) V2[key] = v; })); };
+    const numF = (label, key, lo) => { const id = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => V2[key], v => { if (v > lo) V2[key] = v; })); };
     rows.append(numF('Centre (nm)', 'picC', 0), numF('Span (nm)', 'picSpan', 0));
     const cv = h('canvas', { height: '160', style: 'width:100%;display:block;margin-top:0.4rem' });
     const box = h('div', { class: 'rt-readout' });
@@ -704,7 +704,7 @@ export const PIC = (() => {
   function wgPanel(F) {
     const A = getEl(F.a[0]), B = getEl(F.b[0]), w = F.wg;
     panel.append(h('h2', null, h('span', null, 'Waveguide'), h('span', { class: 'kind' }, (A ? A.name : '?') + ' → ' + (B ? B.name : '?'))));
-    const fnum = (label, key, set) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => w[key], v => set(v))); };
+    const fnum = (label, key, set) => { const id = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id }, label), numInput(id, () => w[key], v => set(v))); };
     panel.append(h('div', { class: 'rt-rows' },
       wgSelect(() => w.preset, v => { w.preset = v; if (v !== 'custom') Object.assign(w, { neff: WG[v].neff, ng: WG[v].ng, loss: WG[v].loss }); }),
       fnum('Length (µm)', 'len', v => { w.len = Math.max(0, v); }),

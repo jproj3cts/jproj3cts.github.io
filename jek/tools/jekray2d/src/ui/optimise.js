@@ -1,16 +1,20 @@
+import { history, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { restore } from '../state/tabs.js';
 import { paraxial, traceScene, traceStoreOn } from '../engines/trace.js';
 import { getCss, requestRender, sx, sy } from './render.js';
 import { clamp, getPath, setParam } from './params.js';
-import { allSweeps, clockValueAt, pauseAll, playing, renderedPeriod, sampleShown, stepValue } from './sweeps.js';
+import {
+  allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
+  renderedPeriod, sampleShown, setAnimFrame, setAnimLast, setClockT, setPlayStep, setStepSince,
+  stepSince, stepValue
+} from './sweeps.js';
 import { detectorReading, fibreCoupling } from '../engines/fibre-face.js';
 import { fmtLen, syncPanel, vs } from './panel.js';
 import { fmtFs, fmtFs2, pulseReport } from './panels.js';
 import { drawAxes, plotArea, plotCsv } from './plots.js';
 import { blockedPct, diffraction, screenStats } from '../engines/pd-cavity.js';
 import { changed } from './actions.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): animFrame, animLast, clockT, fieldRendered, history, playStep, project, stepSince
 
 /* ---------- One-parameter search over a swept range ---------- */
 
@@ -376,7 +380,7 @@ function randn() {
 }
 
 /* Runs in slices so the page keeps painting; `onDone` gets the sorted samples. */
-let mcJob = null;                       // { i, n } while a tolerance study runs
+export let mcJob = null;                       // { i, n } while a tolerance study runs
 export function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) {
   pauseAll();
   const job = mcJob = { i: 0, n: trials };
@@ -442,10 +446,10 @@ export function stopSweepsFor(el, prefix) {
   updateSweepButtons();
 }
 export function tick(t) {
-  if (!playing.size) { animFrame = null; return; }
+  if (!playing.size) { setAnimFrame(null); return; }
   const dt = animLast === null ? 0 : Math.min(0.1, (t - animLast) / 1000);
-  animLast = t;
-  clockT += dt;
+  setAnimLast(t);
+  setClockT(clockT + (dt));
   // with the field rendered ahead for exactly what is playing, step between its samples
   let tq = clockT;
   const P = renderedPeriod();
@@ -454,15 +458,15 @@ export function tick(t) {
     // than its steps can be drawn slows to what can be shown, rather than skipping steps or
     // showing them half worked out (a step the renderer missed is worked out live, waited for)
     const n = fieldRendered.n, want = Math.round(clockT * n / P);
-    if (playStep === null) { playStep = want; stepSince = t; }
-    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { playStep += Math.sign(want - playStep); stepSince = t; }
-    if (want !== playStep) clockT = (playStep + 0.49 * Math.sign(want - playStep)) * P / n;
+    if (playStep === null) { setPlayStep(want); setStepSince(t); }
+    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { setPlayStep(playStep + (Math.sign(want - playStep))); setStepSince(t); }
+    if (want !== playStep) setClockT((playStep + 0.49 * Math.sign(want - playStep)) * P / n);
     // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly;
     // while the render is still filling in, the nearest step before it that is there
     tq = (((playStep % n) + n) % n);
     const D = fieldRendered.done;
     if (D && D.size) for (let k = 0; k < n && !D.has(tq); k++) tq = (tq - 1 + n) % n;
-  } else playStep = null;
+  } else setPlayStep(null);
   for (const [k, p] of playing) {
     const el = getEl(p.id);
     const sw = el && el.sweeps && el.sweeps[p.path];
@@ -478,7 +482,7 @@ export function tick(t) {
   traceScene();
   syncPanel();
   requestRender();
-  animFrame = requestAnimationFrame(tick);
+  setAnimFrame(requestAnimationFrame(tick));
 }
 export function updateSweepButtons() {
   const total = allSweeps().length;

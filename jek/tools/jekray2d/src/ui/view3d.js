@@ -1,19 +1,20 @@
+import { BEAM_Z } from '../core/constants.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { m2Env, modeM2 } from '../core/beams-hom.js';
-import { deg, selectOne } from '../state/project.js';
+import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, fieldDec, getEl, lightOf } from '../state/elements.js';
 import { benchName, checkpoint, curBench, linkPartner, undo } from '../state/tabs.js';
 import { lensSurfaces, polyVerts, rawSag, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
-import { BEAM_Z, sag3, setRoll, setTip, setZ, tippable, traceKeyNow, traceStoreOn, zOf } from '../engines/trace.js';
+import { lastTrace, sag3, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  V, benchBg, benchHoles, benchLight, detR, draw, filterColour, hornLam, hornShape, metal,
+  H, V, benchBg, benchHoles, benchLight, detR, draw, filterColour, hornLam, hornShape, metal,
   requestRender, resize, segPlanes, selection, setSelection, srcBody, stage, surfPoints, wx, wy
 } from './render.js';
 import { groupOf } from './drawings.js';
-import { snapVal } from './pointer.js';
+import { drag, snapVal } from './pointer.js';
 import { clamp } from './params.js';
 import { qW } from '../engines/fibre-face.js';
 import { h, renderPanel, syncPanel } from './panel.js';
@@ -24,10 +25,9 @@ import { VOL, fmtIrr, volDisp, volLater, volRayMax } from '../engines/volume.js'
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
 import { qrLink } from '../io/share.js';
-import { exp } from './experimental.js';
+import { exp, palette } from './experimental.js';
 import { fillRail, setPalette } from './rail.js';
 import { api } from '../io/account.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, drag, extraSel, lastTrace, palette, project, selectedId
 
 /* ==========================================================================
    3D view: a tab of free-space parts seen in three dimensions, turned and zoomed as in a CAD

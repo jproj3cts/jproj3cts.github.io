@@ -2,14 +2,13 @@ import { hermite } from '../core/pulses.js';
 import { num } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { maskOf } from '../core/geometry.js';
-import { vdot3 } from './trace.js';
-import { V, sx, sy } from '../ui/render.js';
+import { lastTrace, vdot3 } from './trace.js';
+import { H, V, ctx, sx, sy } from '../ui/render.js';
 import { h } from '../ui/panel.js';
 import { popInside, popLeg, popRadii, popSurface, qdht } from './field.js';
 import { beamAxes, popScreen } from './phase-screen.js';
 import { fft, fieldComps, popLeg2, popSurface2 } from './field2d.js';
 import { popClear } from './beam-tree.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, ctx, lastTrace
 
 /* ---------- Cavities ----------
    A cavity is found from the light's own path: along the pilot ray's tree of branches, the
@@ -20,7 +19,8 @@ import { popClear } from './beam-tree.js';
    follow), its round-trip ray matrices in and out of the bench plane, and from those its
    Gaussian mode, spectrum and losses. */
 const CAV_TOL_ANGLE = 0.01;          // rad: incoming directions this close count as the same event
-let cavCache = null;
+export let cavCache = null;
+export function setCavCache(v) { return (cavCache = v); }
 const surfIds = new WeakMap(); let surfNext = 1;
 const surfId = s => {
   // an element and where along it: the same across reloads, so a cavity keeps its name and settings

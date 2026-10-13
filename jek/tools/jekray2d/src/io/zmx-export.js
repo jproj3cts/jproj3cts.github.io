@@ -1,5 +1,5 @@
 import { glassKey, refIndex } from '../core/glass.js';
-import { deg, selectOne, typeLabel } from '../state/project.js';
+import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { checkpoint, onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
@@ -10,7 +10,6 @@ import { decodeZmx, parseZmx, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): project
 
 /* ==========================================================================
    .zmx lens file export
@@ -192,7 +191,8 @@ function zmxElement(file, mode) {
   });
 }
 // onto the bench (the first file), or, from My parts, each file into My parts
-let zmxToMine = false;
+export let zmxToMine = false;
+export function setZmxToMine(v) { return (zmxToMine = v); }
 export async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');

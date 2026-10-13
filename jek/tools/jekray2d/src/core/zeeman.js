@@ -1,7 +1,7 @@
 import { AMU, ATOMS, ATOM_ISO, C_SI, HPL } from './cells.js';
 import { FACT } from './traps.js';
-import { V } from '../ui/render.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, cellPumps
+import { cellPumps } from '../engines/trace.js';
+import { H, V } from '../ui/render.js';
 
 /* ---------- A magnetic field on the cell ----------
    A field B along the cell's axis splits each line into its Zeeman components. The hyperfine

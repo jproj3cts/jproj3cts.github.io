@@ -1,9 +1,8 @@
 import { linesPerMm } from '../core/modulators.js';
 import { rawDsag, rawSag } from '../core/geometry.js';
 import { faceFrame, rollFrame, tipFrame, zOf } from './trace.js';
-import { wx, wy } from '../ui/render.js';
+import { H, wx, wy } from '../ui/render.js';
 import { h } from '../ui/panel.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H
 
 /* ---------- A surface as a phase screen, by tracing rays in three dimensions ----------
    Every element on the bench is a figure of revolution about its own axis, and that axis

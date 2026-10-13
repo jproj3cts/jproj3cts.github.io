@@ -1,6 +1,6 @@
 import { fibreSPMLater } from '../core/pulses.js';
 import { allSources, getEl, loadProject } from '../state/elements.js';
-import { traceScene } from '../engines/trace.js';
+import { lastTrace, lastTraceMs, traceScene } from '../engines/trace.js';
 import { setParam } from '../ui/params.js';
 import { popLeg } from '../engines/field.js';
 import { cavSolved } from '../engines/cavity.js';
@@ -12,7 +12,6 @@ import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
 import { modAbsorb } from '../io/mods.js';
 import { fwPackCavities, fwPackD, fwPackRun } from './field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): lastTrace, lastTraceMs
 
 function workerMain() {
   let bench = { key: null, R: null };

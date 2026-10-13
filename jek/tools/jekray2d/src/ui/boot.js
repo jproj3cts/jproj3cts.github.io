@@ -6,19 +6,26 @@ import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, eva
 import { MODS } from '../core/modulators.js';
 import { fibreGamma, fibreSPM, pulseSpectrum } from '../core/pulses.js';
 import { lgComps } from '../core/beams-hom.js';
-import { TYPE_LABEL, selectOne, typeLabel, uid } from '../state/project.js';
+import { TYPE_LABEL, project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
-import { allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
+import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
 import { addBench, onTab, renderBenchTabs, switchTab } from '../state/tabs.js';
 import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
-import { paraxial, traceKeyNow, traceScene, traceStore } from '../engines/trace.js';
 import {
-  V, bez, fibreSegs, handlePos, hornShape, modS, requestRender, resize, segPlanes, selection,
-  setSelection, sx, sy, toScr
+  lastTrace, lastTraceKey, lastTraceMs, paraxial, setLastTraceKey, traceCount, traceKeyNow, traceScene,
+  traceStore, traceStoreHits
+} from '../engines/trace.js';
+import {
+  H, V, bez, fibreSegs, handlePos, hornShape, modS, requestRender, resize, segPlanes, selection,
+  setSelection, sx, sy, toScr, wireRender
 } from './render.js';
+import { wirePointer } from './pointer.js';
 import { getPath, setParam } from './params.js';
-import { fieldFrames, pauseAll, play, playing, renderedPeriod, stepValue, updateActivity } from './sweeps.js';
+import {
+  fieldFrames, fieldRendered, pauseAll, play, playing, renderedPeriod, stepValue, sweepJob,
+  updateActivity
+} from './sweeps.js';
 import { arrivalField, detectorReading, faceArrivals } from '../engines/fibre-face.js';
 import { fibreNet, portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -26,13 +33,13 @@ import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
 import { INST, osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from './instruments.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
-import { h, pinBoxes, renderPanel, sweepPlay, togglePin, viewState, vs } from './panel.js';
+import { h, pinBoxes, pins, renderPanel, setPins, sweepPlay, togglePin, viewState, vs } from './panel.js';
 import { portPower, pulseReport, trapReport } from './panels.js';
 import { materialOptions, partAssumptions } from './plots.js';
 import { beamAt, laserState } from './panel-cavity.js';
 import {
   besselJ01, besselZerosJ0, hankel, ihankel, popFieldSeries, popGaussian, popLeg, popPower, popRadii,
-  popStats, popSurface, popW, qdht
+  popStats, popSurface, popW, qdht, setBAB_N
 } from '../engines/field.js';
 import { cavEventABCD, cavModes, cavRunCache, cavSolved, findCavities } from '../engines/cavity.js';
 import { vfPupil } from '../engines/vector-focus.js';
@@ -42,28 +49,32 @@ import { popGroupCut, popGroups, popKeyOf, popRun, popSources, popStepCache, seg
 import { closeupInfoAt, fieldAlongLine, fieldAtPoint, volData, volDisp } from '../engines/volume.js';
 import { HEAVY_MS, fieldCost } from './heavy.js';
 import { popScreenPrep } from '../engines/diffraction.js';
-import { aberCache, aberrations, diffraction, popScreenCache, screenStats, viaCavity } from '../engines/pd-cavity.js';
+import { aberCache, aberrations, diffraction, liveScreens, popScreenCache, screenStats, viaCavity } from '../engines/pd-cavity.js';
 import {
   addElement, alignEls, changed, clipOf, fitView, measureOpl, measureSnap, pasteClip, rotateEls,
-  setStatus, toast, updateUndoButtons
+  setStatus, toast, updateUndoButtons, wireActions
 } from './actions.js';
 import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
-import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u } from '../io/share.js';
-import { openProjectData, parseProjectText } from '../io/open.js';
+import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
+import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement } from '../io/zmx-import.js';
 import { exportZmx, zmxExport, zmxPart } from '../io/zmx-export.js';
-import { EXPERIMENTAL, PALETTES, exp, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { EXPERIMENTAL, PALETTES, exp, expOn, palette, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { wirePicker } from './picker.js';
+import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine } from './myparts.js';
-import { PACKS, normPack, packFromSelection, packPut, packRemove, placePackPart } from '../io/packs.js';
-import { accountsOn, proLink } from '../io/account.js';
-import { homeOpen, openHome } from '../io/cloud.js';
-import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome } from './news.js';
-import { TOURS, endTour, nameInput, openDemo, startTour, tourTick } from './tours.js';
-import { modAsk, modHash, modJonesM, modLoad, modPrepare, modReadoutResults, modReset, modStatus } from '../io/mods.js';
+import { PACKS, normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
+import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
+import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
+import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
+import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
+import { modAsk, modHash, modJonesM, modLoad, modPrepare, modReadoutResults, modReset, modStatus, wireMods } from '../io/mods.js';
 import { FW, TW, workerShim } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): BAB_N, H, account, accountLoaded, expOn, fieldRendered, future, history, lastTrace, lastTraceKey, lastTraceMs, liveScreens, palette, pins, project, sweepJob, tour, traceCount, traceStoreHits
 
+
+// every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -73,7 +84,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
-  } catch (err) { project = null; }
+  } catch (err) { setProject(null); }
   if (!project) demoProject();
   nameInput.value = project.name;
   renderBenchTabs();
@@ -91,8 +102,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray2D = {
     view3d: V3D.api,
-    load(data) { loadProject(data); selectOne(null); history = []; future = []; renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
-    trace() { lastTraceKey = null; traceScene(); },
+    load(data) { loadProject(data); selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
+    trace() { setLastTraceKey(null); traceScene(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
     // sweeps: play one (resolving once any rendering of its field is done), pause them all, and
@@ -190,7 +201,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // experimental features: switch them on or off, and whether one is on
     palettesOn: () => palettesOn(),
     // mods: wait until every result asked for has come (traced again after each), and how they stand
-    async modsSettle() { for (let i = 0; i < 30; i++) { lastTraceKey = null; traceScene(); if (!MODS.waiting.size) break; await Promise.allSettled([...MODS.waiting.values()]); } lastTraceKey = null; traceScene(); },
+    async modsSettle() { for (let i = 0; i < 30; i++) { setLastTraceKey(null); traceScene(); if (!MODS.waiting.size) break; await Promise.allSettled([...MODS.waiting.values()]); } setLastTraceKey(null); traceScene(); },
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
@@ -291,7 +302,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     uiState: () => uiState(),
     pin(name) { const el = this.byName(name); if (el && !pins.includes(el.id)) togglePin(el); return pins.slice(); },
     // a link's panels, there and back: pins, selection and tabs as sent against as opened
-    shareUiRoundTrip() { const before = uiState(), d = JSON.parse(JSON.stringify(shareData())); pins = []; viewState.clear(); selectOne(null); openProjectData(d, 'test');
+    shareUiRoundTrip() { const before = uiState(), d = JSON.parse(JSON.stringify(shareData())); setPins([]); viewState.clear(); selectOne(null); openProjectData(d, 'test');
       const after = uiState(); return { before, after, same: JSON.stringify([before.sel, before.pins, before.views]) === JSON.stringify([after.sel, after.pins, after.views]) }; },
     pinned: () => pins.slice(),
     panelOf: id => pinBoxes.get(id) || null,
@@ -300,7 +311,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
     lastTrace() { return lastTrace; },
-    popCore: { popFieldSeries, setBabN: n => { BAB_N = n; }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
+    popCore: { popFieldSeries, setBabN: n => { setBAB_N(n); }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },
     // every Gaussian source's beam tree as fields, whatever it is set to show
     popNotes() {

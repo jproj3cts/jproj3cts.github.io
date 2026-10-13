@@ -1,13 +1,16 @@
 import { MODS, cmul } from '../core/modulators.js';
 import { pdResp, responsivity } from '../core/rf.js';
-import { deg, nextName, num } from '../state/project.js';
-import { getEl, normElement } from '../state/elements.js';
+import { deg, nextName, num, project } from '../state/project.js';
+import { VSRC, getEl, normElement, setVSRC } from '../state/elements.js';
 import { addBench, benchName, checkpoint, selectEl } from '../state/tabs.js';
 import { makeSurf } from '../core/geometry.js';
 import { frame } from '../core/mask.js';
-import { traceKeyNow, traceScene, traceSceneRaw } from './trace.js';
 import {
-  V, bodyFill, detR, draw, getCss, halfSize, modBlockH, modHAt, modNAt, pathLocal, portFill,
+  lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey, setLastTraceMs, traceKeyNow,
+  traceScene, traceSceneRaw
+} from './trace.js';
+import {
+  H, V, W, bodyFill, ctx, detR, draw, getCss, halfSize, modBlockH, modHAt, modNAt, pathLocal, portFill,
   portsInUse, removeFibre, selInk, srcBody, sx, sy
 } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
@@ -17,16 +20,15 @@ import { detectorReading } from './fibre-face.js';
 import { FC_H, FC_W, netPower, pkey, portName, portWorld, portsOf, portsOfOptic } from './fibre.js';
 import { INST, pdNetMw, pdSignal } from '../ui/instruments.js';
 import { tick } from '../ui/optimise.js';
-import { bindSync, h, param, selectField, textField } from '../ui/panel.js';
+import { bindSync, h, panel, param, selectField, textField } from '../ui/panel.js';
 import { benchNms, binCache, readoutBox } from '../ui/panels.js';
 import { plotSaveRow } from '../ui/plots.js';
 import { fmtHz } from '../ui/panel-cavity.js';
 import { diffCache } from './diffraction.js';
-import { detectorFieldResult, statsCache } from './pd-cavity.js';
+import { detFieldGen, detectorFieldResult, statsCache } from './pd-cavity.js';
 import { changed } from '../ui/actions.js';
 import { api } from '../io/account.js';
 import { modStatus } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, VSRC, W, ctx, detFieldGen, lastTrace, lastTraceKey, lastTraceMs, panel, project
 
 /* ==========================================================================
    Electronics
@@ -819,7 +821,7 @@ export const ELEC = (() => {
     const snap = project.elements.map(e => [e, Object.assign({}, e)]);
     try { apply(); traceSceneRaw(); return read(); } finally {
       for (const [e, s] of snap) { for (const k of Object.keys(e)) if (!(k in s)) delete e[k]; Object.assign(e, s); }
-      lastTrace = keep.T; lastTraceKey = keep.K; lastTraceMs = keep.ms; VSRC = keep.V;
+      setLastTrace(keep.T); setLastTraceKey(keep.K); setLastTraceMs(keep.ms); setVSRC(keep.V);
       statsCache.clear(); diffCache.clear(); binCache.clear();
     }
   }

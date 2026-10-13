@@ -1,6 +1,10 @@
-import { typeLabel } from '../state/project.js';
+import { extraSel, project, selectedId, setExtraSel, setSelectedId, typeLabel } from '../state/project.js';
 import { STL_KEEP, meshEncode, meshTris } from '../core/stl.js';
-import { V, canvas, draw, getCss, halfSize, requestRender, selection, wx, wy } from './render.js';
+import { exporting, setExporting } from '../engines/trace.js';
+import {
+  DPR, H, V, W, canvas, ctx, draw, getCss, halfSize, requestRender, selection, setCtx, setDPR, setH,
+  setW, wx, wy
+} from './render.js';
 import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';
 import { h } from './panel.js';
@@ -8,10 +12,9 @@ import { clipOf, pasteClip, showCtxMenu, toast } from './actions.js';
 import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
 import { fillRail, flyShown } from './rail.js';
-import { api, showSubscribe } from '../io/account.js';
+import { account, api, showSubscribe } from '../io/account.js';
 import { cloudOn, cloudPlace, fillHome, openHome, personalWs } from '../io/cloud.js';
 import { openZmx } from './tours.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): DPR, H, W, account, ctx, exporting, extraSel, project, selectedId
 
 /* ---------- My parts (JEKrayPro) ----------
    Parts and assemblies kept in the account, to use on any bench and any computer: one element
@@ -50,13 +53,13 @@ export function clipIcon(list, N = 64) {
   }
   const keep = { ctx, W, H, DPR, view: project.view, sel: selectedId, extra: extraSel, exporting };
   try {
-    ctx = c; W = N; H = N; DPR = 2; selectedId = null; extraSel = new Set(); exporting = true;
+    setCtx(c); setW(N); setH(N); setDPR(2); setSelectedId(null); setExtraSel(new Set()); setExporting(true);
     project.view = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale: N * 0.86 / Math.max(x1 - x0, y1 - y0, 1) };
     for (const e of list) draw(e);
     const url = cv.toDataURL('image/png');
     return url.length <= 24000 ? url : null;
   } catch (err) { return null; }
-  finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; selectedId = keep.sel; extraSel = keep.extra; exporting = keep.exporting; requestRender(); }
+  finally { setCtx(keep.ctx); setW(keep.W); setH(keep.H); setDPR(keep.DPR); project.view = keep.view; setSelectedId(keep.sel); setExtraSel(keep.extra); setExporting(keep.exporting); requestRender(); }
 }
 /* what a part keeps: the parts as copied, an STL object's mesh simplified further if need be
    to fit a part's 256 KB (the copy only: the one on the bench keeps its detail); null if it cannot */
@@ -140,7 +143,7 @@ export function mineTile(p, after) {
   return b;
 }
 // the My parts tab of the picker, or the rail's flyout
-function mineBody(after) {
+export function mineBody(after) {
   if (MINE.list === null) { loadMine().then(() => mineChanged()); return [h('p', { class: 'rt-pnone' }, 'Loading your parts…')]; }
   const sel = selection();
   const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },

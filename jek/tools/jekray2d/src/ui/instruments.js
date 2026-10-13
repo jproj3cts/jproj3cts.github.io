@@ -2,16 +2,16 @@ import { C_MM } from '../core/modulators.js';
 import { pdResp, responsivity } from '../core/rf.js';
 import { cohGamma, splitRoot } from '../core/coherence.js';
 import { deg } from '../state/project.js';
-import { V, draw, sx, sy } from './render.js';
+import { lastTrace, loadGen } from '../engines/trace.js';
+import { H, V, W, draw, sx, sy } from './render.js';
 import { arrivalField, arrivalWindow, detectorReading, deviceMemo, faceArrivals } from '../engines/fibre-face.js';
 import { netPower } from '../engines/fibre.js';
 import { ELEC } from '../engines/elec.js';
-import { bindSync, h, param, vs } from './panel.js';
+import { bindSync, fid, h, panel, param, setFid, vs } from './panel.js';
 import { benchNms, fmtMw } from './panels.js';
 import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 import { fmtHz } from './panel-cavity.js';
 import { detectorFieldResult, viaCavity } from '../engines/pd-cavity.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, fid, lastTrace, loadGen, panel
 
 /* ==========================================================================
    Instruments: one oscilloscope and one spectrum analyser view, drawn the same wherever a
@@ -251,29 +251,29 @@ export const INST = (() => {
   const plainNum = (id, get, set) => viewNum(id, get, set, false);
   function field(label, inp) { const id = inp.id; return h('div', { class: 'rt-f' }, h('label', { for: id }, label), inp); }
   function scopeControls(st, nCh, redraw) {
-    const sel = h('select', { id: 'rtf' + (++fid) }, h('option', { value: 'normal' }, 'Normal'), h('option', { value: 'roll' }, 'Roll'));
+    const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) }, h('option', { value: 'normal' }, 'Normal'), h('option', { value: 'roll' }, 'Roll'));
     sel.value = st.mode === 'roll' ? 'roll' : 'normal';
     sel.addEventListener('change', () => { st.mode = sel.value; redraw(true); });
     const rows = h('div', { class: 'rt-rows' }, field('Mode', sel),
-      field('Time span (s)', blankNum('rtf' + (++fid), () => st.span, v => { st.span = Math.max(0, v); redraw(); })));
+      field('Time span (s)', blankNum('rtf' + (setFid(fid + 1)), () => st.span, v => { st.span = Math.max(0, v); redraw(); })));
     st.ch = st.ch || [];
     for (let i = 0; i < nCh; i++) {
       const c = st.ch[i] || (st.ch[i] = { vdiv: 0, off: 0 }), nm = nCh > 1 ? 'Ch' + (i + 1) + ' ' : '';
-      rows.append(field(nm + 'Per division', blankNum('rtf' + (++fid), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); })),
-        field(nm + 'Offset', plainNum('rtf' + (++fid), () => c.off, v => { c.off = v; redraw(); })));
+      rows.append(field(nm + 'Per division', blankNum('rtf' + (setFid(fid + 1)), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); })),
+        field(nm + 'Offset', plainNum('rtf' + (setFid(fid + 1)), () => c.off, v => { c.off = v; redraw(); })));
     }
     return rows;
   }
   function spectrumControls(st, redraw) {
-    const sel = h('select', { id: 'rtf' + (++fid) }, h('option', { value: 'linear' }, 'Linear'), h('option', { value: 'log' }, 'Log'));
+    const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) }, h('option', { value: 'linear' }, 'Linear'), h('option', { value: 'log' }, 'Log'));
     sel.value = st.scale === 'log' ? 'log' : 'linear';
     sel.addEventListener('change', () => { st.scale = sel.value; redraw(true); });
     return h('div', { class: 'rt-rows' }, field('Frequency axis', sel),
-      field('Resolution bandwidth (Hz)', plainNum('rtf' + (++fid), () => st.rbw, v => { if (v > 0) { st.rbw = v; redraw(); } })),
-      field('From (Hz)', blankNum('rtf' + (++fid), () => st.fmin, v => { st.fmin = Math.max(0, v); redraw(); })),
-      field('To (Hz)', blankNum('rtf' + (++fid), () => st.fmax, v => { st.fmax = Math.max(0, v); redraw(); })),
-      field('dB per division', blankNum('rtf' + (++fid), () => st.dbdiv, v => { st.dbdiv = Math.max(0, v); redraw(); })),
-      field('Top (dB)', plainNum('rtf' + (++fid), () => st.ref, v => { st.ref = v; redraw(); })));
+      field('Resolution bandwidth (Hz)', plainNum('rtf' + (setFid(fid + 1)), () => st.rbw, v => { if (v > 0) { st.rbw = v; redraw(); } })),
+      field('From (Hz)', blankNum('rtf' + (setFid(fid + 1)), () => st.fmin, v => { st.fmin = Math.max(0, v); redraw(); })),
+      field('To (Hz)', blankNum('rtf' + (setFid(fid + 1)), () => st.fmax, v => { st.fmax = Math.max(0, v); redraw(); })),
+      field('dB per division', blankNum('rtf' + (setFid(fid + 1)), () => st.dbdiv, v => { st.dbdiv = Math.max(0, v); redraw(); })),
+      field('Top (dB)', plainNum('rtf' + (setFid(fid + 1)), () => st.ref, v => { st.ref = v; redraw(); })));
   }
   return { CH, scope, spectrum, record, trace, scopeControls, spectrumControls, autoSpan };
 })();

@@ -1,12 +1,14 @@
 import { APP_SRC, IN_WORKER, TEST_MODE } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
+import { project, selectedId } from '../state/project.js';
 import { allSources, fieldDec, getEl, lightOf } from '../state/elements.js';
 import { checkpoint, scheduleSave } from '../state/tabs.js';
-import { dropTraceStore, traceScene } from '../engines/trace.js';
-import { V, requestRender } from './render.js';
+import { dropTraceStore, lastTrace, traceScene } from '../engines/trace.js';
+import { H, V, W, requestRender } from './render.js';
 import { clamp, getPath, setParam } from './params.js';
-import { tick, updateSweepButtons } from './optimise.js';
-import { h, syncPanel, vs } from './panel.js';
+import { mcJob, tick, updateSweepButtons } from './optimise.js';
+import { h, pins, syncPanel, vs } from './panel.js';
+import { cavJob } from './panel-cavity.js';
 import { POP_SLICES, popKeyOf, popRunGen, popSources, popState } from '../engines/beam-tree.js';
 import { CLOSEUP_STEP, closeupFrame, closeupImage, closeupKey, closeupOnShow } from '../engines/closeup.js';
 import { diffFns, popDiffraction, popScreenPrep } from '../engines/diffraction.js';
@@ -14,15 +16,17 @@ import { popScreenState } from '../engines/pd-cavity.js';
 import { changed, toast } from './actions.js';
 import { modDelta } from '../io/mods.js';
 import { FW, TW, fieldWorker, fwProject, fwRequest, fwUnpackRun, workerShim } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, cavJob, lastTrace, mcJob, pins, project, selectedId
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
    to one another and "Sync phases" simply zeroes them all. */
 
 export const playing = new Map();          // "id|path" → { id, path }
-let clockT = 0;                     // seconds; advances while anything plays
-let animFrame = null, animLast = null;
+export let clockT = 0;                     // seconds; advances while anything plays
+export function setClockT(v) { return (clockT = v); }
+export let animFrame = null, animLast = null;
+export function setAnimLast(v) { return (animLast = v); }
+export function setAnimFrame(v) { return (animFrame = v); }
 export const advOpen = new Set();          // which sweeps have Advanced expanded
 
 export const WAVES = { sine: 'Sine', triangle: 'Triangle', ramp: 'Ramp (sawtooth)' };
@@ -184,9 +188,12 @@ function keepFrame(map, key, v) {
   const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
   while (map.size > cap) map.delete(map.keys().next().value);
 }
-let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
-let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
-let playStep = null, stepSince = 0;    // the rendered step on show while they play, and since when
+export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
+export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
+export function setFieldRendered(v) { return (fieldRendered = v); }
+export let playStep = null, stepSince = 0;    // the rendered step on show while they play, and since when
+export function setStepSince(v) { return (stepSince = v); }
+export function setPlayStep(v) { return (playStep = v); }
 /* the cycle the rendered steps cover, if they are for exactly what is playing. One sweep's steps
    are points of its cycle, so they hold at any rate: its frequency can change as it plays and
    every step is still found. Sweeps together hold while their rates keep the same cycle. */

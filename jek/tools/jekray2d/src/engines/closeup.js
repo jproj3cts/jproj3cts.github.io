@@ -1,8 +1,10 @@
 import { cohModes, lagOf } from '../core/coherence.js';
+import { project } from '../state/project.js';
 import { fieldDec, lightOf } from '../state/elements.js';
 import { sagFn } from '../core/geometry.js';
 import { toLocal } from '../core/mask.js';
-import { V, getCss, glowOp, mkCanvas, requestRender, wx, wy } from '../ui/render.js';
+import { lastTrace } from './trace.js';
+import { H, V, W, ctx, getCss, glowOp, lightLayer, mkCanvas, requestRender, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { benchFrame, fieldFrames } from '../ui/sweeps.js';
 import { fmtLen } from '../ui/panel.js';
@@ -10,7 +12,6 @@ import { cx } from './cavity.js';
 import { cutVec, popJ, popKeyOf, popSources, popState } from './beam-tree.js';
 import { schedulePop } from '../ui/heavy.js';
 import { fieldWorker, fwMismatch, fwRequest } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, ctx, lastTrace, lightLayer, project
 
 /* ---------- The close-up: the field on each pixel ----------
    Zoomed in to a few tens of microns, every beam segment crossing the view is sampled at
@@ -22,7 +23,8 @@ import { fieldWorker, fwMismatch, fwRequest } from '../worker/field-worker.js';
 const CLOSEUP_MM = 0.05;                 // view width below which the close-up takes over
 export const CLOSEUP_STEP = 2;                  // CSS pixels per sample
 const closeState = { key: '', img: null, info: null, step: 2, timer: null };
-let closeupOn = false;
+export let closeupOn = false;
+export function setCloseupOn(v) { return (closeupOn = v); }
 
 /* The segments of a field run that reach a window centred at (cx, cy) with half-size hw,
    each prepared with three cuts */

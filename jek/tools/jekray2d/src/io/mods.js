@@ -1,17 +1,17 @@
 import { EMBED, IN_WORKER, TEST_MODE } from '../core/constants.js';
 import { MODS, MOD_COLOURS, modNames, modText } from '../core/modulators.js';
-import { num, typeLabel } from '../state/project.js';
+import { num, project, typeLabel } from '../state/project.js';
 import { normElement } from '../state/elements.js';
-import { requestRender, wx, wy } from '../ui/render.js';
+import { setLastTraceKey } from '../engines/trace.js';
+import { H, W, requestRender, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { detectorReading } from '../engines/fibre-face.js';
-import { h, param, renderPanel, selectField } from '../ui/panel.js';
+import { h, panel, param, renderPanel, selectField } from '../ui/panel.js';
 import { diffraction } from '../engines/pd-cavity.js';
 import { toast } from '../ui/actions.js';
 import { exp } from '../ui/experimental.js';
 import { palOf } from '../ui/myparts.js';
 import { PACKS, PACK_FORMAT, normPack, packConfirm, packText } from './packs.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, lastTraceKey, panel, project
 
 /* ==========================================================================
    Mods: parts whose behaviour is code, written by anyone, run in a sandbox
@@ -145,18 +145,6 @@ function modFrame() {
   document.body.append(f);
   return F.ready;
 }
-if (!IN_WORKER) window.addEventListener('message', e => {
-  const F = MODS.frame;
-  if (!F || e.source !== F.el.contentWindow) return;            // only the sandbox's own frame is listened to
-  const m = e.data;
-  if (!m || typeof m !== 'object') return;
-  if (m.ready) { F.ok(); return; }
-  if (m.bad && typeof m.key === 'string') { modDrop(m.key, 'it ' + String(m.bad).slice(0, 80).replace(/^it /, '')); return; }
-  const C = MODS.calls.get(m.id);
-  if (!C) return;
-  MODS.calls.delete(m.id); clearTimeout(C.timer);
-  if (m.ok) C.resolve(m.out); else C.reject(new Error(typeof m.err === 'string' ? m.err.slice(0, 300) : 'it failed'));
-});
 // a mod's worker gone (it misbehaved): its calls fail, and it is loaded again when next wanted
 function modDrop(hash, why) {
   MODS.loaded.delete(hash);
@@ -256,7 +244,7 @@ export function modResult(el, fn, args, key, transfer) {
       let bytes = 0; for (const x of MODS.results.values()) bytes += x && x.byteLength ? x.byteLength : 64;
       for (const old of MODS.results.keys()) { if (bytes <= 256 * 1024 * 1024 || old === k) break; const x = MODS.results.get(old); bytes -= x && x.byteLength ? x.byteLength : 64; MODS.results.delete(old); }
     }, err => { MODS.failed.set(pk.hash + '|' + el.mod.def, err.message); })
-      .finally(() => { MODS.waiting.delete(k); MODS.rev++; if (!TEST_MODE) { lastTraceKey = null; requestRender(); renderPanel(); } });
+      .finally(() => { MODS.waiting.delete(k); MODS.rev++; if (!TEST_MODE) { setLastTraceKey(null); requestRender(); renderPanel(); } });
     MODS.waiting.set(k, P);
   }
   return null;
@@ -413,7 +401,7 @@ export function modsSync() {
   const on = typeof exp === 'function' && exp('mods');
   MODS.packs = new Map(on ? PACKS.list.filter(p => p.code && p.hash).map(p => [p.id, p]) : []);
   MODS.rev++;
-  if (!IN_WORKER && !TEST_MODE) { lastTraceKey = null; requestRender(); }
+  if (!IN_WORKER && !TEST_MODE) { setLastTraceKey(null); requestRender(); }
 }
 /* ---------- a bench carries the code of the mods its parts use ----------
    Saved with it (so a file, a share link or a QR code opens complete), never run on opening:
@@ -542,3 +530,19 @@ export function modAbsorb(D) {
   MODS.rev = D.rev;
 }
 
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireMods() {
+  if (!IN_WORKER) window.addEventListener('message', e => {
+    const F = MODS.frame;
+    if (!F || e.source !== F.el.contentWindow) return;            // only the sandbox's own frame is listened to
+    const m = e.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.ready) { F.ok(); return; }
+    if (m.bad && typeof m.key === 'string') { modDrop(m.key, 'it ' + String(m.bad).slice(0, 80).replace(/^it /, '')); return; }
+    const C = MODS.calls.get(m.id);
+    if (!C) return;
+    MODS.calls.delete(m.id); clearTimeout(C.timer);
+    if (m.ok) C.resolve(m.out); else C.reject(new Error(typeof m.err === 'string' ? m.err.slice(0, 300) : 'it failed'));
+  });
+
+}

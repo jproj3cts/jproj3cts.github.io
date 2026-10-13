@@ -1,12 +1,13 @@
-import { deg, nextName, num, selectOne, uid } from '../state/project.js';
+import { deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
 import { checkpoint, onTab, scheduleSave, switchTab } from '../state/tabs.js';
+import { lastTrace } from '../engines/trace.js';
 import {
-  V, canvas, fibreAtPx, getCss, halfSize, hornShape, removeFibre, requestRender, selInk, selection,
-  setSelection, sx, sy, wx, wy
+  H, V, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
+  selInk, selection, setSelFibreId, setSelection, sx, sy, wx, wy
 } from './render.js';
-import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, restack, ungroupEls } from './drawings.js';
-import { hitTest, snapVal } from './pointer.js';
+import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
+import { drag, hitTest, setDrag, snapVal } from './pointer.js';
 import { clamp } from './params.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
@@ -16,7 +17,6 @@ import { cx } from '../engines/cavity.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
 import { accountsOn } from '../io/account.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, ctx, drag, extraSel, future, history, lastTrace, lightLayer, penEnded, project, selFibreId, selectedId
 
 /* ==========================================================================
    Actions
@@ -152,52 +152,6 @@ const pasteOnce = fn => {
   if (P && performance.now() - P.t < 1500) { if (P.done) return; P.done = true; }
   fn();
 };
-document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || e.altKey || typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
-  const k = e.key.toLowerCase();
-  if (k !== 'c' && k !== 'x' && k !== 'v') return;
-  if (k !== 'v' && !selection().length) return;
-  if (e.repeat) { if (k === 'v') e.preventDefault(); return; }
-  if (k === 'v') pressV = { t: performance.now(), done: false };
-  clipKey = k;
-  setTimeout(() => {
-    if (clipKey !== k) return;
-    clipKey = null;
-    if (k === 'v') { if (clipMem) pasteOnce(() => pasteClip(clipMem)); return; }
-    const list = selection(); if (!list.length) return;
-    clipMem = clipOf(list);
-    try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
-    if (k === 'x') removeEls(list); else toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
-  }, 0);
-});
-document.addEventListener('copy', e => {
-  clipKey = null;
-  if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
-  const list = selection(); if (!list.length) return;
-  clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
-  toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
-});
-document.addEventListener('cut', e => {
-  clipKey = null;
-  if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
-  const list = selection(); if (!list.length) return;
-  clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
-  removeEls(list);
-});
-document.addEventListener('paste', e => {
-  if (typingIn(e.target)) return;
-  clipKey = null;
-  let clip = null;
-  try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
-  if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteOnce(() => pasteClip(clip)); return; }
-  // a whole project, as an assistant writes it: fences and all
-  const text = e.clipboardData.getData('text/plain');
-  if (!clip && /"elements"\s*:/.test(text)) { try { clip = parseProjectText(text); } catch (err) { toast('That looks like a project but ' + err.message.replace(/^The/, 'the'), true); e.preventDefault(); return; } }
-  if (clip && Array.isArray(clip.elements) && clip.format !== 'jekray-clip') {
-    e.preventDefault();
-    try { openProjectData(clip, 'the pasted project'); } catch (err) { toast(err.message, true); }
-  } else if (clipMem && !text) pasteOnce(() => pasteClip(clipMem));
-});
 
 /* ---------- The right-click menu ---------- */
 export function hideCtxMenu() { const m = document.getElementById('ctxMenu'); if (m) m.hidden = true; }
@@ -212,20 +166,6 @@ export function showCtxMenu(x, y, items) {
   m.style.left = (Math.max(4, Math.min(x, window.innerWidth - r.width - 8)) - r.left) + 'px';
   m.style.top = (Math.max(4, Math.min(y, window.innerHeight - r.height - 8)) - r.top) + 'px';
 }
-canvas.addEventListener('contextmenu', e => {
-  e.preventDefault();
-  if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
-  const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
-  const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);
-  if (fh) {
-    selFibreId = fh.id; selectOne(null); renderPanel(); requestRender();
-    showCtxMenu(e.clientX, e.clientY, [
-      { label: 'Straighten', off: !((fh.path && fh.path.length) || fh.ta != null || fh.tb != null), fn: () => { checkpoint(); fh.path = []; fh.ta = null; fh.tb = null; changed(true); } },
-      { label: 'Delete fibre', key: 'Del', fn: () => removeFibre(fh) }]);
-    return;
-  }
-  benchMenu(e.clientX, e.clientY, hit, at);
-});
 /* the bench's right-click menu, for a part (or nothing) at a point: the 2D bench's and the 3D view's */
 export function benchMenu(X, Y, hit, at, in3d) {
   const paste = { label: 'Paste here', key: 'Ctrl+V', off: !clipMem, fn: () => pasteClip(clipMem, at) };
@@ -259,8 +199,6 @@ export function benchMenu(X, Y, hit, at, in3d) {
     ...project.benches.filter(b => !list.every(x => x.bench === b.id)).map(b => ({ label: 'Move to ' + b.name, fn: () => moveToTab(list, b.id) })),
     { label: 'Zoom to selection', key: 'Z', fn: in3d ? () => V3D.zoomSel() : zoomToSelection }]);
 }
-document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
 
 /* ---------- Zoom to the selection, and the minimap ---------- */
 function zoomTo(els) {
@@ -309,28 +247,14 @@ export function drawMinimap() {
   g.strokeStyle = 'rgba(127,220,255,0.95)'; g.lineWidth = 1.2;
   g.strokeRect(MX(vx0), MY(vy1), (vx1 - vx0) * k, (vy1 - vy0) * k);
 }
-{
-  const mc = document.getElementById('minimap');
-  let on = false;
-  const go = e => {
-    if (!miniMap) return;
-    const r = mc.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-    V().cx = miniMap.x0 + (mx - miniMap.ox) / miniMap.k;
-    V().cy = miniMap.y0 + (miniMap.mh - my - miniMap.oy) / miniMap.k;
-    requestRender();
-  };
-  mc.addEventListener('pointerdown', e => { on = true; mc.setPointerCapture(e.pointerId); go(e); });
-  mc.addEventListener('pointermove', e => { if (on) go(e); });
-  const end = () => { if (on) { on = false; scheduleSave(); } };
-  mc.addEventListener('pointerup', end); mc.addEventListener('pointercancel', end);
-}
 
 /* ---------- Measuring ----------
    A ruler (drag from one point to another: its length and bearing) and an angle (click
    its vertex, then a point on each arm). Ends snap to elements' middles, fibre ports and
    the beams; Shift turns snapping off. A ruler with both ends on one beam's path also gives
    the optical path between them. Measurements stay on their tab until cleared. */
-let measureMode = false, measureTool = 'ruler', measureDraft = null;
+export let measureMode = false, measureTool = 'ruler', measureDraft = null;
+export function setMeasureDraft(v) { return (measureDraft = v); }
 const addMeasure = m => { checkpoint(); (project.measures = project.measures || []).push(m); scheduleSave(); };
 export function setMeasure(on) {
   measureMode = on; measureDraft = null;
@@ -361,12 +285,12 @@ export function measureSnap(px, py, free) {
 }
 export function measureDown(px, py, e) {
   const P = measureSnap(px, py, e.shiftKey);
-  if (measureTool === 'ruler') { measureDraft = { type: 'ruler', bench: project.tab, pts: [P, P] }; drag = { mode: 'measure' }; }
+  if (measureTool === 'ruler') { measureDraft = { type: 'ruler', bench: project.tab, pts: [P, P] }; setDrag({ mode: 'measure' }); }
   else {
     if (!measureDraft) measureDraft = { type: 'angle', bench: project.tab, pts: [P, P] };
     else if (measureDraft.pts.length === 2) measureDraft.pts.push(P);
     else { measureDraft.pts[2] = P; addMeasure(measureDraft); measureDraft = null; }
-    drag = { mode: 'measure', angle: true };
+    setDrag({ mode: 'measure', angle: true });
   }
   requestRender();
 }
@@ -377,7 +301,7 @@ export function measureMove(px, py, e) {
   requestRender();
 }
 export function measureUp() {
-  const d = drag; drag = null;
+  const d = drag; setDrag(null);
   if (d && !d.angle && measureDraft && measureDraft.type === 'ruler') {
     const [a, b] = measureDraft.pts;
     if (Math.hypot(sx(a.x) - sx(b.x), sy(a.y) - sy(b.y)) > 3) addMeasure(measureDraft);
@@ -447,17 +371,6 @@ export function drawMeasures() {
   }
   ctx.restore();
 }
-document.getElementById('measureBar').addEventListener('click', e => {
-  const b = e.target.closest('[data-mtool]'); if (!b) return;
-  const t = b.dataset.mtool;
-  if (t === 'clear') { measureDraft = null; if ((project.measures || []).some(m => m.bench === project.tab)) { checkpoint(); project.measures = project.measures.filter(m => m.bench !== project.tab); scheduleSave(); } requestRender(); return; }
-  if (t === 'done') { setMeasure(false); return; }
-  measureTool = t; measureDraft = null;
-  document.querySelectorAll('#measureBar [data-mtool]').forEach(x => x.classList.toggle('on', x.dataset.mtool === t));
-  requestRender();
-});
-document.getElementById('btnMeasure').addEventListener('click', () => setMeasure(!measureMode));
-document.getElementById('btnZoomSel').addEventListener('click', zoomToSelection);
 
 export function removeEl(el) {
   checkpoint();
@@ -537,3 +450,106 @@ export function saveFile() {
 }
 
 /* The bench as it stands, as a picture */
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireActions() {
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+    const k = e.key.toLowerCase();
+    if (k !== 'c' && k !== 'x' && k !== 'v') return;
+    if (k !== 'v' && !selection().length) return;
+    if (e.repeat) { if (k === 'v') e.preventDefault(); return; }
+    if (k === 'v') pressV = { t: performance.now(), done: false };
+    clipKey = k;
+    setTimeout(() => {
+      if (clipKey !== k) return;
+      clipKey = null;
+      if (k === 'v') { if (clipMem) pasteOnce(() => pasteClip(clipMem)); return; }
+      const list = selection(); if (!list.length) return;
+      clipMem = clipOf(list);
+      try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
+      if (k === 'x') removeEls(list); else toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+    }, 0);
+  });
+
+  document.addEventListener('copy', e => {
+    clipKey = null;
+    if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+    const list = selection(); if (!list.length) return;
+    clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
+    toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+  });
+
+  document.addEventListener('cut', e => {
+    clipKey = null;
+    if (typingIn(e.target) || (window.getSelection && String(window.getSelection()))) return;
+    const list = selection(); if (!list.length) return;
+    clipMem = clipOf(list); e.clipboardData.setData('text/plain', JSON.stringify(clipMem)); e.preventDefault();
+    removeEls(list);
+  });
+
+  document.addEventListener('paste', e => {
+    if (typingIn(e.target)) return;
+    clipKey = null;
+    let clip = null;
+    try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
+    if (clip && clip.format === 'jekray-clip') { e.preventDefault(); clipMem = clip; pasteOnce(() => pasteClip(clip)); return; }
+    // a whole project, as an assistant writes it: fences and all
+    const text = e.clipboardData.getData('text/plain');
+    if (!clip && /"elements"\s*:/.test(text)) { try { clip = parseProjectText(text); } catch (err) { toast('That looks like a project but ' + err.message.replace(/^The/, 'the'), true); e.preventDefault(); return; } }
+    if (clip && Array.isArray(clip.elements) && clip.format !== 'jekray-clip') {
+      e.preventDefault();
+      try { openProjectData(clip, 'the pasted project'); } catch (err) { toast(err.message, true); }
+    } else if (clipMem && !text) pasteOnce(() => pasteClip(clipMem));
+  });
+
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
+    const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
+    const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);
+    if (fh) {
+      setSelFibreId(fh.id); selectOne(null); renderPanel(); requestRender();
+      showCtxMenu(e.clientX, e.clientY, [
+        { label: 'Straighten', off: !((fh.path && fh.path.length) || fh.ta != null || fh.tb != null), fn: () => { checkpoint(); fh.path = []; fh.ta = null; fh.tb = null; changed(true); } },
+        { label: 'Delete fibre', key: 'Del', fn: () => removeFibre(fh) }]);
+      return;
+    }
+    benchMenu(e.clientX, e.clientY, hit, at);
+  });
+
+  document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+  {
+    const mc = document.getElementById('minimap');
+    let on = false;
+    const go = e => {
+      if (!miniMap) return;
+      const r = mc.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      V().cx = miniMap.x0 + (mx - miniMap.ox) / miniMap.k;
+      V().cy = miniMap.y0 + (miniMap.mh - my - miniMap.oy) / miniMap.k;
+      requestRender();
+    };
+    mc.addEventListener('pointerdown', e => { on = true; mc.setPointerCapture(e.pointerId); go(e); });
+    mc.addEventListener('pointermove', e => { if (on) go(e); });
+    const end = () => { if (on) { on = false; scheduleSave(); } };
+    mc.addEventListener('pointerup', end); mc.addEventListener('pointercancel', end);
+  }
+
+  document.getElementById('measureBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-mtool]'); if (!b) return;
+    const t = b.dataset.mtool;
+    if (t === 'clear') { measureDraft = null; if ((project.measures || []).some(m => m.bench === project.tab)) { checkpoint(); project.measures = project.measures.filter(m => m.bench !== project.tab); scheduleSave(); } requestRender(); return; }
+    if (t === 'done') { setMeasure(false); return; }
+    measureTool = t; measureDraft = null;
+    document.querySelectorAll('#measureBar [data-mtool]').forEach(x => x.classList.toggle('on', x.dataset.mtool === t));
+    requestRender();
+  });
+
+  document.getElementById('btnMeasure').addEventListener('click', () => setMeasure(!measureMode));
+
+  document.getElementById('btnZoomSel').addEventListener('click', zoomToSelection);
+
+}

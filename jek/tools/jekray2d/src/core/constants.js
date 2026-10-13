@@ -3,7 +3,9 @@
    ========================================================================== */
 
 export const STORE_KEY = 'jek-raytracer-session-v1';
-let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
+export let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
+export function setCloudOpening(v) { return (cloudOpening = v); }
+export function setCloud(v) { return (cloud = v); }
 // This same script also runs as the field worker (see "The field worker" near the end): there
 // it has no page, and runs the way the tests do, without timers or drawing
 export const IN_WORKER = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
@@ -15,5 +17,6 @@ export const FORMAT = 'jekray';
 export const VERSION = 1;
 export const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 export const FAR = 2e4;          // mm: how far an escaping ray is drawn
+export const BEAM_Z = 75;        // mm: the beam's height above the breadboard, where parts sit unless moved
 export const EPS = 1e-6;         // mm
 

@@ -1,7 +1,9 @@
-import { EMBED, TEST_MODE } from '../core/constants.js';
+import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
+import { history, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { keepSnapshot, onTab, restore, scheduleSave } from '../state/tabs.js';
-import { V, canvas, draw, halfSize, render, requestRender, sx, sy } from '../ui/render.js';
+import { setExporting } from '../engines/trace.js';
+import { H, V, W, canvas, draw, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
 import { h } from '../ui/panel.js';
 import { cx } from '../engines/cavity.js';
 import { setStatus, toast } from '../ui/actions.js';
@@ -10,9 +12,11 @@ import { PALETTE_NAMES } from '../ui/experimental.js';
 import { fillRail, rail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
-import { API_BASE, AUTH_OUTCOMES, accountShown, accountsOn, api, awaitPlan, fillAccount, showSubscribe } from './account.js';
+import {
+  API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, awaitPlan, fillAccount, setAccount,
+  showSubscribe
+} from './account.js';
 import { openZmx } from '../ui/tours.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, account, cloud, cloudOpening, exporting, history, project, thumbing
 
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -23,13 +27,13 @@ import { openZmx } from '../ui/tours.js';
    and goes up when the connection returns: the link and whether it has unsaved changes
    are kept with the autosave, so a reload picks up where it left off. */
 const CLOUD_KEY = 'jek-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
-let cloudTimer = null, cloudBusy = false, cloudAgain = false, cloudNote = '';
+export let cloudTimer = null, cloudBusy = false, cloudAgain = false, cloudNote = '';
 function cloudKeep() {
   if (TEST_MODE || EMBED) return;
   try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* not kept: fine */ }
 }
 export function cloudLink(link) {
-  cloud = link; clearTimeout(cloudTimer);
+  setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
 }
@@ -78,7 +82,7 @@ export async function cloudPush(opts = {}) {
       cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
     }
     else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) toast('Saving to the cloud needs JEKrayPro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
-    else if (err.status === 401) { cloudSay('Not saved: signed out'); account = null; fillAccount(); }
+    else if (err.status === 401) { cloudSay('Not saved: signed out'); setAccount(null); fillAccount(); }
     else if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); }
     else if (err.status) { cloudSay('Not saved to the cloud: ' + err.message); }
     else { cloudSay('Offline: will save to the cloud when back'); clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush({ quiet: true }), CLOUD_RETRY); }
@@ -88,8 +92,6 @@ export async function cloudPush(opts = {}) {
     if (cloudAgain && cloud) { cloudAgain = false; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush(), 2000); }
   }
 }
-window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
 export const personalWs = () => account && (account.workspaces.find(w => w.kind === 'personal') || account.workspaces[0]);
 // Save to cloud: a new cloud bench, or a kept version of the linked one.
 async function cloudSave() {
@@ -114,7 +116,7 @@ function benchThumb() {
   return new Promise(resolve => {
     try {
       if (!W || !H) return resolve(null);
-      exporting = true; thumbing = true; render(); exporting = false; thumbing = false;
+      setExporting(true); setThumbing(true); render(); setExporting(false); setThumbing(false);
       const cv = document.createElement('canvas'); cv.width = THUMB_W; cv.height = THUMB_H;
       const c = cv.getContext('2d'), sw = canvas.width, sh = canvas.height, d = sw / W;
       // the parts as seen, with a margin, cut to 8:5 and kept inside the view
@@ -139,7 +141,7 @@ function benchThumb() {
         if (b && b.size <= 120000) return resolve(b);
         cv.toBlob(j => resolve(j && j.size <= 120000 ? j : null), 'image/jpeg', 0.75);
       }, 'image/webp', 0.8);
-    } catch (err) { exporting = false; thumbing = false; resolve(null); }
+    } catch (err) { setExporting(false); setThumbing(false); resolve(null); }
   });
 }
 async function cloudThumb(link, force) {
@@ -153,9 +155,9 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  cloudOpening = true;
+  setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
-  finally { cloudOpening = false; }
+  finally { setCloudOpening(false); }
   // an old version opens as a copy: Save to cloud makes it a new bench
   if (version) cloudLink(null);
   else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
@@ -188,7 +190,6 @@ function cloudConflict(theirs) {
 export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null };
 const HOME_KEY = 'jek-home-view';
 const homeView = { sort: 'changed', rows: false };
-try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
 export const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
 const whenAgo = t => {
   const d = new Date(t), s = (Date.now() - t) / 1000;
@@ -235,7 +236,6 @@ function openHomeMenu(btn, items) {
   homeMenu = { el, btn };
   const first = el.querySelector('button, select'); if (first) first.focus();
 }
-document.addEventListener('pointerdown', e => { if (homeMenu && !homeMenu.el.contains(e.target) && e.target !== homeMenu.btn) closeHomeMenu(); }, true);
 const homeSay = (fn, ok) => async () => {
   try { const out = await fn(); if (ok) toast(typeof ok === 'function' ? ok(out) : ok); }
   catch (err) { toast(err.status === 402 ? 'That needs JEKrayPro.' : err.message, true); }
@@ -281,7 +281,7 @@ export async function fillHome() {
     box.removeAttribute('aria-busy');
     if (err.status === 404 && P.view === 'history') { Object.assign(P, { view: 'folder', history: null }); toast('That bench is not available to you', true); fillHome(); return; }
     box.replaceChildren(h('p', { class: 'rt-hempty' }, err.status === 401 ? 'You are signed out. Sign in again from the bench, top right.' : 'Could not reach your benches: ' + err.message));
-    if (err.status === 401) { account = null; fillAccount(); }
+    if (err.status === 401) { setAccount(null); fillAccount(); }
     return;
   }
   if (seq !== homeSeq) return;
@@ -566,69 +566,83 @@ export function cloudMenuShown() {
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
   if (!on) closeHome();
 }
-{
-  try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) cloud = v; } catch (err) { /* none */ }
-  document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
-  document.getElementById('btnCloudList').addEventListener('click', () => openHome());
-  document.getElementById('btnHome').addEventListener('click', () => openHome());
-  // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
-  document.getElementById('btnCloudFork').addEventListener('click', async () => {
-    if (!cloud) return;
-    const link = cloud, name = prompt('Name of the fork', (project.name || link.name) + ' (fork)');
-    if (name === null) return;
-    if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
-    try {
-      const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined })));
-      cloudOpening = true;
-      try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { cloudOpening = false; }
-      cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
-      toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
-    } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
-  });
-  document.getElementById('homeBack').addEventListener('click', closeHome);
-  document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
-  const search = document.getElementById('homeSearch');
-  let searchT = null;
-  search.addEventListener('input', () => {
-    clearTimeout(searchT);
-    searchT = setTimeout(() => { Object.assign(cloudPlace, { q: search.value.trim(), history: null }); if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') cloudPlace.view = 'folder'; fillHome(); }, 250);
-  });
-  // while the page is up, the bench's keys, copy and paste stay with the page
-  const home = document.getElementById('home');
-  for (const t of ['keydown', 'keyup', 'copy', 'cut', 'paste']) {
-    home.addEventListener(t, e => e.stopPropagation());
-    window.addEventListener(t, e => {
-      if (!homeOpen()) return;
-      if (t === 'keydown' && e.key === 'Escape' && !document.querySelector('dialog[open]')) {
-        e.preventDefault();
-        if (homeMenu) { const b = homeMenu.btn; closeHomeMenu(); b.focus(); } else closeHome();
-        e.stopPropagation(); return;
-      }
-      if (!home.contains(e.target)) e.stopPropagation();
-    }, true);
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireCloud() {
+  window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
+
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
+
+  try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
+
+  document.addEventListener('pointerdown', e => { if (homeMenu && !homeMenu.el.contains(e.target) && e.target !== homeMenu.btn) closeHomeMenu(); }, true);
+
+  {
+    try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
+    document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
+    document.getElementById('btnCloudList').addEventListener('click', () => openHome());
+    document.getElementById('btnHome').addEventListener('click', () => openHome());
+    // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
+    document.getElementById('btnCloudFork').addEventListener('click', async () => {
+      if (!cloud) return;
+      const link = cloud, name = prompt('Name of the fork', (project.name || link.name) + ' (fork)');
+      if (name === null) return;
+      if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
+      try {
+        const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined })));
+        setCloudOpening(true);
+        try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { setCloudOpening(false); }
+        cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
+        toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
+      } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
+    });
+    document.getElementById('homeBack').addEventListener('click', closeHome);
+    document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
+    const search = document.getElementById('homeSearch');
+    let searchT = null;
+    search.addEventListener('input', () => {
+      clearTimeout(searchT);
+      searchT = setTimeout(() => { Object.assign(cloudPlace, { q: search.value.trim(), history: null }); if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') cloudPlace.view = 'folder'; fillHome(); }, 250);
+    });
+    // while the page is up, the bench's keys, copy and paste stay with the page
+    const home = document.getElementById('home');
+    for (const t of ['keydown', 'keyup', 'copy', 'cut', 'paste']) {
+      home.addEventListener(t, e => e.stopPropagation());
+      window.addEventListener(t, e => {
+        if (!homeOpen()) return;
+        if (t === 'keydown' && e.key === 'Escape' && !document.querySelector('dialog[open]')) {
+          e.preventDefault();
+          if (homeMenu) { const b = homeMenu.btn; closeHomeMenu(); b.focus(); } else closeHome();
+          e.stopPropagation(); return;
+        }
+        if (!home.contains(e.target)) e.stopPropagation();
+      }, true);
+    }
+    home.addEventListener('scroll', closeHomeMenu, true);
+    window.addEventListener('resize', closeHomeMenu);
+    // Back in the browser leaves the page as well
+    window.addEventListener('popstate', () => { if (homeOpen() && location.hash !== '#benches') closeHome(); });
+    document.getElementById('subClose').addEventListener('click', () => document.getElementById('subDialog').close());
   }
-  home.addEventListener('scroll', closeHomeMenu, true);
-  window.addEventListener('resize', closeHomeMenu);
-  // Back in the browser leaves the page as well
-  window.addEventListener('popstate', () => { if (homeOpen() && location.hash !== '#benches') closeHome(); });
-  document.getElementById('subClose').addEventListener('click', () => document.getElementById('subDialog').close());
-}
-{
-  // the outcome of a sign-in, reported once, and taken out of the address
-  const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode');
-  if (outcome) {
-    q.delete('jekauth'); q.delete('jekauthcode');
-    window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
-    const m = AUTH_OUTCOMES[outcome];
-    // the provider's own error code, when it gave one, so the reason can be looked up
-    if (m) setTimeout(() => toast(m[0] + (code && /^[\w-]{1,40}$/.test(code) ? ' (Microsoft: ' + code + ')' : ''), m[1]), 600);
+
+  {
+    // the outcome of a sign-in, reported once, and taken out of the address
+    const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode');
+    if (outcome) {
+      q.delete('jekauth'); q.delete('jekauthcode');
+      window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+      const m = AUTH_OUTCOMES[outcome];
+      // the provider's own error code, when it gave one, so the reason can be looked up
+      if (m) setTimeout(() => toast(m[0] + (code && /^[\w-]{1,40}$/.test(code) ? ' (Microsoft: ' + code + ')' : ''), m[1]), 600);
+    }
+    const billing = q.get('jekbilling');
+    if (billing) {
+      q.delete('jekbilling');
+      window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+      if (billing === 'cancelled') setTimeout(() => toast('Payment cancelled: nothing was charged'), 600);
+      if (billing === 'success' && accountsOn()) setTimeout(() => awaitPlan(), 300);
+    }
+    accountShown();
   }
-  const billing = q.get('jekbilling');
-  if (billing) {
-    q.delete('jekbilling');
-    window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
-    if (billing === 'cancelled') setTimeout(() => toast('Payment cancelled: nothing was charged'), 600);
-    if (billing === 'success' && accountsOn()) setTimeout(() => awaitPlan(), 300);
-  }
-  accountShown();
+
 }

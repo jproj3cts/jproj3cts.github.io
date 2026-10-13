@@ -1,5 +1,5 @@
-import { EMBED, STORE_KEY, TEST_MODE } from '../core/constants.js';
-import { selectOne } from './project.js';
+import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
+import { extraSel, future, history, project, selectOne, selectedId, setFuture } from './project.js';
 import { getEl, selected, serialize } from './elements.js';
 import { requestRender } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
@@ -7,8 +7,7 @@ import { pauseAll } from '../ui/sweeps.js';
 import { stopSweepsFor } from '../ui/optimise.js';
 import { h, renderPanel } from '../ui/panel.js';
 import { changed, setStatus, updateUndoButtons } from '../ui/actions.js';
-import { cloudChanged, cloudOn } from '../io/cloud.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): cloud, cloudNote, extraSel, future, history, project, selectedId
+import { cloudChanged, cloudNote, cloudOn } from '../io/cloud.js';
 
 /* ---------- Tabs: benches of their own ----------
    A project holds one or more benches, each on a tab with its own view; every element is on
@@ -158,7 +157,7 @@ export function restore(str) {
 export function checkpoint() {
   history.push(snapshot());
   if (history.length > 150) history.shift();
-  future = [];
+  setFuture([]);
   updateUndoButtons();
 }
 export function undo() {
@@ -196,7 +195,7 @@ export function keepSnapshot(why, now) {
 }
 
 /* Autosave in this browser */
-let saveTimer = null;
+export let saveTimer = null;
 export function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   if (cloud) cloudChanged();

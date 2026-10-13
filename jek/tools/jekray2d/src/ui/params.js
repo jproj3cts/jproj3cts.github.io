@@ -1,13 +1,13 @@
 import { applyRf, normRf } from '../core/rf.js';
 import { applyPulse } from '../core/pulses.js';
 import { wavelengthColour } from '../core/colour.js';
+import { project } from '../state/project.js';
 import { selected } from '../state/elements.js';
 import { setRoll, setTip, setZ, zOf } from '../engines/trace.js';
 import { applyFibre } from '../engines/fibre-face.js';
 import { renderPanel } from './panel.js';
 import { fanFromGauss, gaussFromFan } from './panel-cavity.js';
 import { toast } from './actions.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): project
 
 /* ==========================================================================
    Parameters: every numeric setting has a path (e.g. "surfaces.0.R"), so the

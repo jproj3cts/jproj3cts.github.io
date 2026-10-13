@@ -1,3 +1,4 @@
+import { BEAM_Z } from '../core/constants.js';
 import { C_NM_GHZ, responsivity, rfBeam } from '../core/rf.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { hermite, m2Of } from '../core/pulses.js';
@@ -5,15 +6,14 @@ import { srcModes } from '../core/beams-hom.js';
 import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
-import { BEAM_Z, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
-import { V, wx, wy } from '../ui/render.js';
+import { lastTrace, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
+import { H, V, wx, wy } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { vs } from '../ui/panel.js';
 import { benchNms } from '../ui/panels.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
 import { QEig, QRot, beamQ, beamQM, cavEventABCD, ccInv, mfree, qThrough } from './cavity.js';
 import { detectorFieldResult, viaCavity } from './pd-cavity.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, lastTrace
 
 /* ---------- Fibres and photodetectors: the field that reaches their face ----------
    A fibre takes in the overlap of the arriving field with its own mode; a photodiode takes

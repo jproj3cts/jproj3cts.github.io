@@ -1,10 +1,11 @@
-import { FORMAT, TEST_MODE, VERSION } from '../core/constants.js';
+import { BEAM_Z, FORMAT, TEST_MODE, VERSION, cloud, cloudOpening } from '../core/constants.js';
 import { GLASS, glassKey } from '../core/glass.js';
 import { RF_MAT } from '../core/rf.js';
-import { TYPE_LABEL, selectOne, typeLabel } from '../state/project.js';
+import { TYPE_LABEL, history, project, selectOne, setProject, typeLabel } from '../state/project.js';
 import { loadProject } from '../state/elements.js';
 import { checkpoint, keepSnapshot, renderBenchTabs } from '../state/tabs.js';
-import { BEAM_Z, dropTraceStore, tippable } from '../engines/trace.js';
+import { dropTraceStore, tippable } from '../engines/trace.js';
+import { setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
 import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portName, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -15,7 +16,6 @@ import { changed, fitView, toast, updateUndoButtons } from '../ui/actions.js';
 import { applyUi } from './share.js';
 import { cloudLink } from './cloud.js';
 import { modsOffer } from './mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): cloud, cloudOpening, history, project, selFibreId
 
 /* ---------- Opening a project someone (or something) else wrote ----------
    A file from outside the tool, an AI assistant's above all, is read as leniently as it
@@ -188,11 +188,11 @@ export function openProjectData(data, label) {
   pauseAll();
   keepSnapshot('Before opening ' + label, true);
   if (prev && prev.elements.length) checkpoint();
-  try { loadProject(data); } catch (err) { project = prev; history.length = hist; updateUndoButtons(); throw err; }
+  try { loadProject(data); } catch (err) { setProject(prev); history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
   lastImport = notes;
   playing.clear(); dropTraceStore(); updateSweepButtons();
-  selectOne(null); selFibreId = null; updateUndoButtons();
+  selectOne(null); setSelFibreId(null); updateUndoButtons();
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
   changed(true);
@@ -227,20 +227,24 @@ export function openJekray(file) {
   };
   r.readAsText(file);
 }
-{
-  const dlg = document.getElementById('importDialog');
-  document.getElementById('importClose').addEventListener('click', () => dlg.close());
-  document.getElementById('importCopy').addEventListener('click', () => {
-    const t = importReportText(lastImport);
-    try { navigator.clipboard.writeText(t).then(() => toast('Report copied'), () => toast('Could not copy: select the list and copy it instead.', true)); }
-    catch (err) { toast('Could not copy: select the list and copy it instead.', true); }
-  });
-  const pd = document.getElementById('pasteDialog'), ta = document.getElementById('pasteText'), er = document.getElementById('pasteError');
-  document.getElementById('btnPasteProj').addEventListener('click', () => { er.hidden = true; pd.showModal(); ta.focus(); });
-  document.getElementById('pasteCancel').addEventListener('click', () => pd.close());
-  document.getElementById('pasteOpen').addEventListener('click', () => {
-    try { const data = parseProjectText(ta.value); pd.close(); openProjectData(data, 'the pasted project'); ta.value = ''; }
-    catch (err) { er.textContent = err.message; er.hidden = false; }
-  });
-}
 
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireOpen() {
+  {
+    const dlg = document.getElementById('importDialog');
+    document.getElementById('importClose').addEventListener('click', () => dlg.close());
+    document.getElementById('importCopy').addEventListener('click', () => {
+      const t = importReportText(lastImport);
+      try { navigator.clipboard.writeText(t).then(() => toast('Report copied'), () => toast('Could not copy: select the list and copy it instead.', true)); }
+      catch (err) { toast('Could not copy: select the list and copy it instead.', true); }
+    });
+    const pd = document.getElementById('pasteDialog'), ta = document.getElementById('pasteText'), er = document.getElementById('pasteError');
+    document.getElementById('btnPasteProj').addEventListener('click', () => { er.hidden = true; pd.showModal(); ta.focus(); });
+    document.getElementById('pasteCancel').addEventListener('click', () => pd.close());
+    document.getElementById('pasteOpen').addEventListener('click', () => {
+      try { const data = parseProjectText(ta.value); pd.close(); openProjectData(data, 'the pasted project'); ta.value = ''; }
+      catch (err) { er.textContent = err.message; er.hidden = false; }
+    });
+  }
+
+}

@@ -11,13 +11,13 @@ import {
   C_FS, PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu, pulseGrid, pulseHalf,
   pulseOf, pulseSpectrum, specAt
 } from '../core/pulses.js';
-import { PRISM_SHAPES, deg, nextName, normCoat, typeLabel } from '../state/project.js';
+import { PRISM_SHAPES, deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
 import { COAT_MATERIALS, coatPreset, qwot, stackAmp } from '../core/coatings.js';
 import { getEl, normElement } from '../state/elements.js';
 import { addBench, benchName, checkpoint, linkPairs, linkPartner, selectEl } from '../state/tabs.js';
 import { MASK_PRESETS, STOP_SHAPES, compileMaskExpr, maskFns, stopSlitLike } from '../core/mask.js';
-import { RAY_PATTERNS, sourceLines } from '../engines/trace.js';
-import { V, draw, getCss, removeFibre, sx, sy } from './render.js';
+import { RAY_PATTERNS, lastTrace, sourceLines } from '../engines/trace.js';
+import { H, V, W, draw, getCss, removeFibre, sx, sy } from './render.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
 import { clamp } from './params.js';
@@ -25,8 +25,8 @@ import { CONNS, FC, FIBRE_N, netPower, pkey, portName, portsOf, thruPartner } fr
 import { osaSection, signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
 import {
-  bindSync, coherenceFields, coherenceNote, fmtLen, fmtNum, h, numInput, param, renderPanel,
-  selectField, textField, vs
+  bindSync, coherenceFields, coherenceNote, fid, fmtLen, fmtNum, h, numInput, panel, param,
+  renderPanel, selectField, setFid, textField, vs
 } from './panel.js';
 import {
   askForMaterial, axisFont, diffractionSection, drawAxes, materialOptions, pickMaterial, plotArea,
@@ -38,7 +38,6 @@ import { aberCache, aberSource, aberrations, diffractionLater, screenStats } fro
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
 import { exportScreen } from '../io/layout.js';
 import { modReadoutSection, modReadouts } from '../io/mods.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, W, fid, lastTrace, panel, project
 
 /* ---------- The pulse that arrives ----------
    At a screen, a photodiode or a fibre tip: the spectral samples of each pulsed launch that
@@ -541,7 +540,7 @@ const RAY_PLOTS = [
 function rayPlots(el) {
   const st = screenStats(el);
   if (!RAY_PLOTS.some(([v]) => v === vs(el).rayView)) vs(el).rayView = 'power';
-  const sel = h('select', { id: 'rtf' + (++fid) });
+  const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) });
   for (const [v, t] of RAY_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).rayView;
   sel.addEventListener('change', () => { vs(el).rayView = sel.value; renderPanel(); });
@@ -576,7 +575,7 @@ function aberSection(el) {
     param('Fields', el, 'abN'),
     param('Rays per field', el, 'abRays'));
   panel.append(rows);
-  const sel = h('select', { id: 'rtf' + (++fid) });
+  const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) });
   for (const [v, t] of ABER_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).aberView;
   sel.addEventListener('change', () => { vs(el).aberView = sel.value; renderPanel(); });
@@ -911,7 +910,7 @@ function stackRows(el, holder) {
   const base = coatPath(el, holder);
   const coat = holder.coat;
   const box = h('div', { class: 'rt-stack' });
-  const pre = h('select', { id: 'rtf' + (++fid) });
+  const pre = h('select', { id: 'rtf' + (setFid(fid + 1)) });
   for (const [v, t] of [['', 'Choose a design\u2026'], ['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'],
     ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs']]) pre.append(h('option', { value: v }, t));
   pre.value = '';
@@ -926,7 +925,7 @@ function stackRows(el, holder) {
     h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'Preset'), pre)));
 
   coat.layers.forEach((L, k) => {
-    const sel = h('select', { id: 'rtf' + (++fid) });
+    const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) });
     for (const [v, t] of COAT_MATERIALS) sel.append(h('option', { value: String(+v) }, t));
     if (!COAT_MATERIALS.some(m => Math.abs(+m[0] - L.n) < 1e-9)) {
       sel.append(h('option', { value: String(+L.n) }, 'n = ' + (+L.n.toPrecision(4))));
@@ -1230,17 +1229,17 @@ export function fcompPanel(el) {
 export function fibreLinkPanel(F) {
   const A = getEl(F.a[0]), B = getEl(F.b[0]);
   panel.append(h('h2', null, h('span', null, 'Fibre'), h('span', { class: 'kind' }, (A ? A.name : '?') + ' \u2192 ' + (B ? B.name : '?'))));
-  const id1 = 'rtf' + (++fid), id2 = 'rtf' + (++fid), id3 = 'rtf' + (++fid);
+  const id1 = 'rtf' + (setFid(fid + 1)), id2 = 'rtf' + (setFid(fid + 1)), id3 = 'rtf' + (setFid(fid + 1));
   panel.append(h('div', { class: 'rt-rows' },
     h('div', { class: 'rt-f' }, h('label', { for: id1 }, 'Length (m)'), numInput(id1, () => F.len, v => { F.len = Math.max(0, v); })),
     h('div', { class: 'rt-f' }, h('label', { for: id2 }, 'Loss (dB/km)'), numInput(id2, () => F.loss, v => { F.loss = Math.max(0, v); })),
     h('div', { class: 'rt-f wide' }, h('label', { for: id3 }, 'Dispersion (ps/(nm km))'), numInput(id3, () => F.disp, v => { F.disp = v === null ? null : v; }, { blank: null, placeholder: 'standard single-mode (SMF-28)', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })),
-    (() => { const id4 = 'rtf' + (++fid); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })()));
+    (() => { const id4 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })()));
   // what it does to polarisation
   const tRows = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, selectField('Polarisation', [['smf', 'Kept (ideal, held still)'], ['random', 'Standard fibre as laid (random)'],
     ['pm', 'Polarisation maintaining'], ['mm', 'Multimode (scrambled)']], () => F.ftype || 'smf', v => { F.ftype = v; }, { wide: true }),
     selectField('Ends', Object.entries(CONNS).map(([k, c]) => [k, c.name]), () => F.conn || 'splice', v => { F.conn = v; }, { wide: true }));
-  const fnum = (label, key, set, opts) => { const id = 'rtf' + (++fid); return h('div', { class: 'rt-f' + (opts && opts.wide ? ' wide' : '') }, h('label', { for: id }, label), numInput(id, () => F[key], set)); };
+  const fnum = (label, key, set, opts) => { const id = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' + (opts && opts.wide ? ' wide' : '') }, h('label', { for: id }, label), numInput(id, () => F[key], set)); };
   if (F.ftype === 'pm') tRows.append(fnum('Key angle (\u00b0 from s)', 'key', v => { F.key = v; }), fnum('Beat length (mm)', 'beat', v => { F.beat = Math.max(0.1, v); }),
     fnum('Extinction ratio (dB)', 'per', v => { F.per = clamp(v, 0, 60); }, { wide: true }));
   if (F.ftype === 'random' || F.ftype === 'mm') tRows.append(fnum('Seed (another lay of the fibre)', 'seed', v => { F.seed = Math.round(v); }, { wide: true }));
@@ -1546,7 +1545,7 @@ export function maskPanel(el) {
     }, { wide: true }));
   const err = h('p', { class: 'note', style: 'color:var(--jek-red, #b3261e)' });
   const text = (label, key) => {
-    const id = 'rtf' + (++fid);
+    const id = 'rtf' + (setFid(fid + 1));
     const inp = h('input', { id, type: 'text', spellcheck: 'false', value: el[key], style: 'font-family:var(--jek-mono)' });
     inp.addEventListener('change', () => {
       const v = inp.value.trim() || (key === 'amp' ? '1' : '0');

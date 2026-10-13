@@ -11,12 +11,17 @@ import { modName } from '../io/mods.js';
    Project state
    ========================================================================== */
 
-let project = null;
-let selectedId = null;
+export let project = null;
+export function setProject(v) { return (project = v); }
+export let selectedId = null;
+export function setSelectedId(v) { return (selectedId = v); }
 // several selected: the one the panel shows is selectedId, the rest are here
-let extraSel = new Set();
+export let extraSel = new Set();
+export function setExtraSel(v) { return (extraSel = v); }
 export const selectOne = id => { selectedId = id; extraSel.clear(); };
-let history = [], future = [];
+export let history = [], future = [];
+export function setHistory(v) { return (history = v); }
+export function setFuture(v) { return (future = v); }
 export const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 export const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 export const deg = Math.PI / 180;

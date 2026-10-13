@@ -3,17 +3,16 @@ import { C_MM, MODS, cmul, eomSidebands, famAt } from '../core/modulators.js';
 import { FIBRE_NG, cohGamma, splitRoot } from '../core/coherence.js';
 import { fibreGDD, fibreSPMLater } from '../core/pulses.js';
 import { wavelengthColour } from '../core/colour.js';
-import { deg } from '../state/project.js';
+import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toWorld, toWorldDir } from '../core/mask.js';
-import { V, modS } from '../ui/render.js';
+import { V, W, modS } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { arrivalField, faceArrivals, fanFromFibre, fibreMode, mmShare } from './fibre-face.js';
 import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
 import { h } from '../ui/panel.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W, project
 
 /* ==========================================================================
    Fibre subsystems
@@ -38,7 +37,7 @@ import { fanFromGauss } from '../ui/panel-cavity.js';
    fibre, free space, fibre is followed one way round.
    ========================================================================== */
 export const FIBRE_N = 1.468;                  // phase and group index of the fibre
-export const ci = { mul: cmul, add: (a, b) => [a[0] + b[0], a[1] + b[1]], sc: (a, s) => [a[0] * s, a[1] * s], e: ph => [Math.cos(ph), Math.sin(ph)] };
+export const ci = { mul: (a, b) => cmul(a, b), add: (a, b) => [a[0] + b[0], a[1] + b[1]], sc: (a, s) => [a[0] * s, a[1] * s], e: ph => [Math.cos(ph), Math.sin(ph)] };
 /* 2x2 complex matrices on (s, p): [[ss, sp], [ps, pp]] */
 const J2 = {
   I: s => [[[s, 0], [0, 0]], [[0, 0], [s, 0]]],
@@ -351,7 +350,8 @@ function tipInputs(el) {
    and receives (for the readouts and the drawing), what each photodiode reads, and what
    each tip sends back out into free space. */
 /* the network again only when something it depends on has changed */
-let fibreNetMemo = { key: null, net: null };
+export let fibreNetMemo = { key: null, net: null };
+export function setFibreNetMemo(v) { return (fibreNetMemo = v); }
 export function fibreNetCached() {
   const fels = project.elements.filter(e => e.type === 'fcomp' || e.type === 'fibre' || e.type === 'pic');   // PIC hook
   if (!fels.length) { fibreNetMemo = { key: null, net: null }; return null; }

@@ -2,10 +2,11 @@ import { C_MM, JONES_TYPES, MODS } from '../core/modulators.js';
 import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { m2Of } from '../core/pulses.js';
 import { cavLine, isHigherMode, srcModes } from '../core/beams-hom.js';
+import { project } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { popMaskRound } from '../core/mask.js';
-import { zOf } from './trace.js';
-import { V } from '../ui/render.js';
+import { lastTrace, zOf } from './trace.js';
+import { V, W } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { h, vs } from '../ui/panel.js';
 import { popGaussian, popLeg, popStats, popSurface, popW } from './field.js';
@@ -13,7 +14,6 @@ import { cavDot, cavLS, cavLin, cavLoops, cavMiss, cavRunCache, cavSolved, cavSt
 import { field2Vector, popGaussian2, popLeg2, popStats2, popSurface2 } from './field2d.js';
 import { popSlices } from './volume.js';
 import { fanShape, popFan2, popFanRound } from './diffraction.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): W, lastTrace, project
 
 /* ---------- The beam tree as diffracted fields ----------
    The beam-parameter ray leaves a tree of segments: each starts at a surface (or the

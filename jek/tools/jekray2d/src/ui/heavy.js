@@ -1,11 +1,14 @@
 import { TEST_MODE } from '../core/constants.js';
 import { m2Of } from '../core/pulses.js';
 import { isHigherMode, srcModes } from '../core/beams-hom.js';
+import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { checkpoint } from '../state/tabs.js';
-import { V, clipSegPlanes, glowA, glowOp, requestRender, segPlanes, sx, sy } from './render.js';
+import { lastTrace } from '../engines/trace.js';
+import { DPR, V, clipSegPlanes, ctx, glowA, glowOp, requestRender, segPlanes, sx, sy } from './render.js';
+import { drag } from './pointer.js';
 import { clamp } from './params.js';
-import { benchFrame, fieldFrames, fieldHeld, playing, showActivityNow } from './sweeps.js';
+import { benchFrame, fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from './sweeps.js';
 import { h, syncPanel } from './panel.js';
 import {
   POP_MAX_SEGS, POP_MAX_SEGS_2D, POP_ROWS, POP_SLICES, popKeyOf, popRoundEv, popRunGen, popSources,
@@ -13,7 +16,6 @@ import {
 } from '../engines/beam-tree.js';
 import { changed, toast } from './actions.js';
 import { fieldWorker, fwMismatch, fwRequest, fwUnpackRun } from '../worker/field-worker.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): DPR, ctx, drag, lastTrace, project, sweepJob
 
 /* ---------- A heavy field, said before it is worked out ----------
    What a field run will cost, from what the tracer made: the Gaussian segments each source's

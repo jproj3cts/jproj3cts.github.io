@@ -6,12 +6,12 @@ import { wavelengthColour } from './colour.js';
 import { deg, num } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir, toWorld, toWorldDir } from './mask.js';
-import { zOf } from '../engines/trace.js';
+import { cellPumps, zOf } from '../engines/trace.js';
+import { H } from '../ui/render.js';
 import { clamp } from '../ui/params.js';
 import { ci } from '../engines/fibre.js';
 import { h } from '../ui/panel.js';
 import { fanFromGauss } from '../ui/panel-cavity.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): H, cellPumps
 
 /* ---------- Nonlinear crystals: second-harmonic generation ----------
    A periodically poled crystal (quasi-phase-matched, type 0: fundamental and harmonic both
@@ -115,7 +115,8 @@ export function nlcSources(hits) {
   });
   return out;
 }
-let nlcConv = new Map();               // crystal|source|nm|state -> the share of the light along its axis it converts
+export let nlcConv = new Map();               // crystal|source|nm|state -> the share of the light along its axis it converts
+export function setNlcConv(v) { return (nlcConv = v); }
 /* atoms per m^3 in the vapour at the cell's temperature */
 export function cellDensity(el) {
   const T = el.temp + 273.15;
@@ -281,7 +282,8 @@ export function cellProfile(el, rec) {
 }
 /* The plan for light of one beam (a record of the last trace, or none) through a cell, with
    the others there as they were: memoised for the trace */
-let cellPlanMemo = new Map();
+export let cellPlanMemo = new Map();
+export function setCellPlanMemo(v) { return (cellPlanMemo = v); }
 export function cellPlanFor(el, nu, dir, srcId, qLab, sec) {
   sec = sec > 1 + 1e-12 ? sec : 1;            // the light's path through the cell against its length: 1 / cos of its angle to the cell's axis
   const recs = cellPumps.get(el.id) || [];

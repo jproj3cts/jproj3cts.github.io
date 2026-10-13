@@ -55,7 +55,8 @@ export function filterT(el, nm) {
    That is its small-signal gain; in a cavity that lases, saturation holds the round trip at
    one, and the gain the light sees is the small-signal gain's logarithm scaled down to the
    saturated gain's (laserState), across the whole line (a homogeneous line) */
-let gainSat = new Map();             // gain element id -> that scale, while its cavity lases
+export let gainSat = new Map();             // gain element id -> that scale, while its cavity lases
+export function setGainSat(v) { return (gainSat = v); }
 export function gainSmall(el, nm) {
   const u = 2 * (nm - el.centre) / el.fwhm;
   return 1 + (el.g0 - 1) / (1 + u * u);

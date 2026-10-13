@@ -1,12 +1,12 @@
 import { EMBED } from '../core/constants.js';
+import { project } from '../state/project.js';
 import { readSnaps } from '../state/tabs.js';
 import { h } from './panel.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
-import { EXPERIMENTAL, exp, expPicked, setExperimental } from './experimental.js';
+import { EXPERIMENTAL, exp, expOn, expPicked, setExperimental } from './experimental.js';
 import { openDemo, startTour } from './tours.js';
-// Shared mutable state read or set here, not yet imported (see state/shared.md): expOn, project
 
 /* ---------- Version, what's new, citing ---------- */
 export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
@@ -110,131 +110,10 @@ const NEWS = [
     'Tabs of benches joined by link planes; share links; an AI assistant guide; background tracing for big benches.']],
 ];
 const CITE_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
-{
-  document.getElementById('appVersion').textContent = APP_VERSION;
-  const dlg = document.getElementById('newsDialog'), dot = document.getElementById('newsDot');
-  // the Help button carries the What's new dot, its menu being shut
-  new MutationObserver(() => { document.getElementById('helpDot').hidden = dot.hidden; }).observe(dot, { attributes: true, attributeFilter: ['hidden'] });
-  const NEWS_KEY = 'jek-raytracer-news';
-  try {
-    const seen = localStorage.getItem(NEWS_KEY);
-    // someone new has nothing to catch up on; someone back since an older version does
-    if (!seen && !localStorage.getItem('jek-raytracer-welcomed')) localStorage.setItem(NEWS_KEY, APP_VERSION);
-    else if (seen !== APP_VERSION && !EMBED) dot.hidden = false;
-  } catch (err) { /* no store: no dot */ }
-  document.getElementById('btnNews').addEventListener('click', () => {
-    const body = document.getElementById('newsBody');
-    const list = items => { const ul = h('ul'); for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); } return ul; };
-    body.replaceChildren(...NEWS.flatMap(([v, date, items, top]) => {
-      const head = h('h3', null, /^\d/.test(v) ? 'Version ' + v : v, h('span', null, date));
-      // the version's highlights first, its every change folded beneath them
-      if (top) return [head, list(top), h('details', { class: 'rt-news-all' }, h('summary', null, 'All ' + items.length + ' changes in ' + v), list(items))];
-      return [head, list(items)];
-    }));
-    dot.hidden = true;
-    try { localStorage.setItem(NEWS_KEY, APP_VERSION); } catch (err) { /* shown again: fine */ }
-    dlg.showModal();
-  });
-  document.getElementById('newsClose').addEventListener('click', () => dlg.close());
-}
-{
-  const dlg = document.getElementById('citeDialog');
-  document.getElementById('btnCite').addEventListener('click', () => {
-    const d = new Date(), iso = d.toISOString().slice(0, 10), year = APP_DATE.slice(-4);
-    document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray2D optical bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
-    document.getElementById('citeBib').value = '@software{jekray2d,\n  author  = {{JEK Systems}},\n  title   = {{JEKray2D}: optical bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
-    dlg.showModal();
-  });
-  dlg.addEventListener('click', e => {
-    const b = e.target.closest('[data-copy]');
-    if (!b) return;
-    const ta = document.getElementById(b.dataset.copy);
-    ta.select();
-    (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { document.execCommand('copy'); toast('Copied'); });
-  });
-  document.getElementById('citeClose').addEventListener('click', () => dlg.close());
-}
 /* A bug report by email: what happened, what was expected, the version and browser, and
    (if wanted) a link that opens the bench as it is. An email link carries a few thousand
    characters at most; a bench too big for that is asked for as a file instead. */
-{
-  const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
-  const fill = () => {
-    const cb = h('input', { type: 'checkbox' });
-    cb.checked = expOn;
-    const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
-    cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
-    // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
-    const row = f => {
-      const t = h('input', { type: 'checkbox', 'data-exp': f.key });
-      t.checked = expPicked(f.key);
-      t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
-      return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
-    };
-    menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
-      h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
-      EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
-        : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
-  };
-  const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
-  btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
-  document.getElementById('expDot').hidden = !expOn;
-}
 const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
-{
-  const dlg = document.getElementById('bugDialog'), note = document.getElementById('bugNote');
-  const what = document.getElementById('bugWhat'), expect = document.getElementById('bugExpect'), withBench = document.getElementById('bugBench');
-  const report = async () => {
-    const lines = ['What happened:', what.value.trim() || '(not given)', '', 'What I expected:', expect.value.trim() || '(not given)', '', '---',
-      'JEKray2D ' + APP_VERSION + ' (' + APP_DATE + ')', 'Browser: ' + navigator.userAgent,
-      'Bench: ' + (project.name || 'Untitled') + ', ' + project.elements.length + ' parts on ' + project.benches.length + ' tab' + (project.benches.length === 1 ? '' : 's')];
-    let link = null;
-    if (withBench.checked) { try { link = shareBase() + '#p=' + await shareHash(); } catch (err) { link = null; } }
-    return { lines, link };
-  };
-  const mailto = (subject, body) => 'mailto:' + BUG_TO + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-  document.getElementById('btnBug').addEventListener('click', () => { note.textContent = ''; dlg.showModal(); what.focus(); });
-  document.getElementById('bugClose').addEventListener('click', () => dlg.close());
-  document.getElementById('bugSend').addEventListener('click', async () => {
-    const { lines, link } = await report(), subject = 'JEKray2D bug: ' + (what.value.trim().split('\n')[0].slice(0, 60) || project.name || 'report');
-    let url = mailto(subject, lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n'));
-    if (link && url.length > BUG_MAILTO_MAX) {
-      // too big to travel in the email link: without it, and ask for the file
-      url = mailto(subject, lines.concat(['', 'The bench is attached as a .jekray file.']).join('\n'));
-      note.replaceChildren('This bench is too big to travel in an email link. Please attach it to the email: ',
-        h('button', { class: 'rt-link', type: 'button', onclick: () => saveFile() }, 'save it as a .jekray file'), ', then add that file to the email.');
-    }
-    window.location.href = url;
-    if (!note.textContent) note.textContent = 'Your email app should open with the report. If nothing happens, use Copy the report and send it to ' + BUG_TO + '.';
-  });
-  document.getElementById('bugCopy').addEventListener('click', async () => {
-    const { lines, link } = await report(), text = 'To: ' + BUG_TO + '\n\n' + lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n');
-    try { await navigator.clipboard.writeText(text); toast('Copied: paste it into an email to ' + BUG_TO); }
-    catch (err) { toast('Could not copy here; please email ' + BUG_TO, true); }
-  });
-}
-{
-  const dlg = document.getElementById('snapsDialog'), box = document.getElementById('snapsList');
-  const when = t => {
-    const d = new Date(t), today = new Date().toDateString() === d.toDateString();
-    const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    return today ? 'Today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
-  };
-  const fill = () => {
-    const list = readSnaps();
-    box.replaceChildren(...(list.length ? list.map((S, i) => h('div', null,
-      h('span', { class: 'when' }, when(S.t)),
-      h('span', { class: 'what', title: S.name }, S.name || 'Untitled bench', ' ', h('small', null, S.n + ' part' + (S.n === 1 ? '' : 's') + ' · ' + S.why)),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => {
-        try { dlg.close(); openProjectData(JSON.parse(S.json), 'the version from ' + when(S.t).replace('Today ', '')); }
-        catch (err) { toast('Could not open that version (' + err.message + ').', true); }
-      } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
-  };
-  document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
-  document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
-}
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
    gallery shows each with a picture from demos/thumbs/. */
@@ -300,40 +179,6 @@ export const EXAMPLES = [
    (a levitated sphere's gas damping, against Gieseler et al.'s measurements) */
 const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', 'levitated-nanoparticle']);
 const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
-{
-  const dlg = document.getElementById('galleryDialog'), grid = document.getElementById('galleryGrid');
-  const search = document.getElementById('gallerySearch');
-  const fill = () => {
-    const q = search.value.trim().toLowerCase();
-    grid.replaceChildren();
-    for (const [group, beta, list] of EXAMPLES) {
-      const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
-      if (!hits.length) continue;
-      grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
-        h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
-          h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
-    }
-    if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
-  };
-  window.openGallery = () => { hideWelcome(); search.value = ''; fill(); dlg.showModal(); grid.scrollTop = 0; search.focus(); };
-  search.addEventListener('input', fill);
-  document.getElementById('btnExamples').addEventListener('click', () => openGallery());
-  document.getElementById('galleryClose').addEventListener('click', () => dlg.close());
-  dlg.addEventListener('click', e => {
-    if (e.target === dlg) { dlg.close(); return; }                      // a click on the backdrop
-    const b = e.target.closest('[data-demo]');
-    if (b) { dlg.close(); openDemo(b.dataset.demo, true); }
-  });
-}
-{
-  const dlg = document.getElementById('helpDialog');
-  document.getElementById('btnHelp').addEventListener('click', () => { hideWelcome(); dlg.showModal(); });
-  document.getElementById('helpClose').addEventListener('click', () => dlg.close());
-  document.addEventListener('keydown', e => {
-    if (e.key !== '?' || e.ctrlKey || e.metaKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
-    e.preventDefault(); hideWelcome(); dlg.showModal();
-  });
-}
 /* the first visit: what to do first, and where the examples are */
 export function hideWelcome() {
   const w = document.getElementById('welcome');
@@ -352,4 +197,170 @@ export function showWelcome() {
       h('li', null, 'Press ? for every shortcut.')),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
+}
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+export function wireNews() {
+  {
+    document.getElementById('appVersion').textContent = APP_VERSION;
+    const dlg = document.getElementById('newsDialog'), dot = document.getElementById('newsDot');
+    // the Help button carries the What's new dot, its menu being shut
+    new MutationObserver(() => { document.getElementById('helpDot').hidden = dot.hidden; }).observe(dot, { attributes: true, attributeFilter: ['hidden'] });
+    const NEWS_KEY = 'jek-raytracer-news';
+    try {
+      const seen = localStorage.getItem(NEWS_KEY);
+      // someone new has nothing to catch up on; someone back since an older version does
+      if (!seen && !localStorage.getItem('jek-raytracer-welcomed')) localStorage.setItem(NEWS_KEY, APP_VERSION);
+      else if (seen !== APP_VERSION && !EMBED) dot.hidden = false;
+    } catch (err) { /* no store: no dot */ }
+    document.getElementById('btnNews').addEventListener('click', () => {
+      const body = document.getElementById('newsBody');
+      const list = items => { const ul = h('ul'); for (const t of items) { const li = h('li'); li.innerHTML = t; ul.append(li); } return ul; };
+      body.replaceChildren(...NEWS.flatMap(([v, date, items, top]) => {
+        const head = h('h3', null, /^\d/.test(v) ? 'Version ' + v : v, h('span', null, date));
+        // the version's highlights first, its every change folded beneath them
+        if (top) return [head, list(top), h('details', { class: 'rt-news-all' }, h('summary', null, 'All ' + items.length + ' changes in ' + v), list(items))];
+        return [head, list(items)];
+      }));
+      dot.hidden = true;
+      try { localStorage.setItem(NEWS_KEY, APP_VERSION); } catch (err) { /* shown again: fine */ }
+      dlg.showModal();
+    });
+    document.getElementById('newsClose').addEventListener('click', () => dlg.close());
+  }
+
+  {
+    const dlg = document.getElementById('citeDialog');
+    document.getElementById('btnCite').addEventListener('click', () => {
+      const d = new Date(), iso = d.toISOString().slice(0, 10), year = APP_DATE.slice(-4);
+      document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray2D optical bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
+      document.getElementById('citeBib').value = '@software{jekray2d,\n  author  = {{JEK Systems}},\n  title   = {{JEKray2D}: optical bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
+      dlg.showModal();
+    });
+    dlg.addEventListener('click', e => {
+      const b = e.target.closest('[data-copy]');
+      if (!b) return;
+      const ta = document.getElementById(b.dataset.copy);
+      ta.select();
+      (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { document.execCommand('copy'); toast('Copied'); });
+    });
+    document.getElementById('citeClose').addEventListener('click', () => dlg.close());
+  }
+
+  {
+    const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
+    const fill = () => {
+      const cb = h('input', { type: 'checkbox' });
+      cb.checked = expOn;
+      const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
+      cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
+      // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
+      const row = f => {
+        const t = h('input', { type: 'checkbox', 'data-exp': f.key });
+        t.checked = expPicked(f.key);
+        t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
+        return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
+      };
+      menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
+        h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
+        EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
+          : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
+    };
+    const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
+    btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+    document.getElementById('expDot').hidden = !expOn;
+  }
+
+  {
+    const dlg = document.getElementById('bugDialog'), note = document.getElementById('bugNote');
+    const what = document.getElementById('bugWhat'), expect = document.getElementById('bugExpect'), withBench = document.getElementById('bugBench');
+    const report = async () => {
+      const lines = ['What happened:', what.value.trim() || '(not given)', '', 'What I expected:', expect.value.trim() || '(not given)', '', '---',
+        'JEKray2D ' + APP_VERSION + ' (' + APP_DATE + ')', 'Browser: ' + navigator.userAgent,
+        'Bench: ' + (project.name || 'Untitled') + ', ' + project.elements.length + ' parts on ' + project.benches.length + ' tab' + (project.benches.length === 1 ? '' : 's')];
+      let link = null;
+      if (withBench.checked) { try { link = shareBase() + '#p=' + await shareHash(); } catch (err) { link = null; } }
+      return { lines, link };
+    };
+    const mailto = (subject, body) => 'mailto:' + BUG_TO + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    document.getElementById('btnBug').addEventListener('click', () => { note.textContent = ''; dlg.showModal(); what.focus(); });
+    document.getElementById('bugClose').addEventListener('click', () => dlg.close());
+    document.getElementById('bugSend').addEventListener('click', async () => {
+      const { lines, link } = await report(), subject = 'JEKray2D bug: ' + (what.value.trim().split('\n')[0].slice(0, 60) || project.name || 'report');
+      let url = mailto(subject, lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n'));
+      if (link && url.length > BUG_MAILTO_MAX) {
+        // too big to travel in the email link: without it, and ask for the file
+        url = mailto(subject, lines.concat(['', 'The bench is attached as a .jekray file.']).join('\n'));
+        note.replaceChildren('This bench is too big to travel in an email link. Please attach it to the email: ',
+          h('button', { class: 'rt-link', type: 'button', onclick: () => saveFile() }, 'save it as a .jekray file'), ', then add that file to the email.');
+      }
+      window.location.href = url;
+      if (!note.textContent) note.textContent = 'Your email app should open with the report. If nothing happens, use Copy the report and send it to ' + BUG_TO + '.';
+    });
+    document.getElementById('bugCopy').addEventListener('click', async () => {
+      const { lines, link } = await report(), text = 'To: ' + BUG_TO + '\n\n' + lines.concat(link ? ['', 'Link to the bench: ' + link] : []).join('\n');
+      try { await navigator.clipboard.writeText(text); toast('Copied: paste it into an email to ' + BUG_TO); }
+      catch (err) { toast('Could not copy here; please email ' + BUG_TO, true); }
+    });
+  }
+
+  {
+    const dlg = document.getElementById('snapsDialog'), box = document.getElementById('snapsList');
+    const when = t => {
+      const d = new Date(t), today = new Date().toDateString() === d.toDateString();
+      const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return today ? 'Today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
+    };
+    const fill = () => {
+      const list = readSnaps();
+      box.replaceChildren(...(list.length ? list.map((S, i) => h('div', null,
+        h('span', { class: 'when' }, when(S.t)),
+        h('span', { class: 'what', title: S.name }, S.name || 'Untitled bench', ' ', h('small', null, S.n + ' part' + (S.n === 1 ? '' : 's') + ' · ' + S.why)),
+        h('button', { class: 'rt-btn', type: 'button', onclick: () => {
+          try { dlg.close(); openProjectData(JSON.parse(S.json), 'the version from ' + when(S.t).replace('Today ', '')); }
+          catch (err) { toast('Could not open that version (' + err.message + ').', true); }
+        } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
+    };
+    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+    document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
+  }
+
+  {
+    const dlg = document.getElementById('galleryDialog'), grid = document.getElementById('galleryGrid');
+    const search = document.getElementById('gallerySearch');
+    const fill = () => {
+      const q = search.value.trim().toLowerCase();
+      grid.replaceChildren();
+      for (const [group, beta, list] of EXAMPLES) {
+        const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
+        if (!hits.length) continue;
+        grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
+          h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
+            h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
+      }
+      if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
+    };
+    window.openGallery = () => { hideWelcome(); search.value = ''; fill(); dlg.showModal(); grid.scrollTop = 0; search.focus(); };
+    search.addEventListener('input', fill);
+    document.getElementById('btnExamples').addEventListener('click', () => openGallery());
+    document.getElementById('galleryClose').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', e => {
+      if (e.target === dlg) { dlg.close(); return; }                      // a click on the backdrop
+      const b = e.target.closest('[data-demo]');
+      if (b) { dlg.close(); openDemo(b.dataset.demo, true); }
+    });
+  }
+
+  {
+    const dlg = document.getElementById('helpDialog');
+    document.getElementById('btnHelp').addEventListener('click', () => { hideWelcome(); dlg.showModal(); });
+    document.getElementById('helpClose').addEventListener('click', () => dlg.close());
+    document.addEventListener('keydown', e => {
+      if (e.key !== '?' || e.ctrlKey || e.metaKey || typingIn(e.target) || document.querySelector('dialog[open]')) return;
+      e.preventDefault(); hideWelcome(); dlg.showModal();
+    });
+  }
+
 }

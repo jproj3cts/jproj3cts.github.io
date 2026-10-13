@@ -456,8 +456,11 @@
     font-size: 0.8125rem;
     color: var(--jek-ink-soft);
   }
-  .rt-readout dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.75rem; margin: 0; }
+  .rt-readout dl { display: grid; grid-template-columns: minmax(4.5rem, auto) minmax(9.5rem, 1fr); gap: 0.15rem 0.75rem; margin: 0; }
   .rt-readout dt { color: var(--jek-ink-soft); }
+  /* a line with no label (a note) runs the full width */
+  .rt-readout dt:empty { display: none; }
+  .rt-readout dt:empty + dd { grid-column: 1 / -1; }
   .rt-readout dd { margin: 0; font-family: var(--jek-mono); color: var(--jek-ink); font-variant-numeric: tabular-nums; }
   .rt-readout .note { margin: 0.4rem 0 0; font-size: 0.75rem; }
 
@@ -3502,7 +3505,7 @@ function makeElement(kind, x, y) {
         surfaces: [{ R: 25.8 }, { R: null }], gaps: [5], materials: [{ glass: 'N-BK7' }] });
     case 'axicon':
       return normElement({ type: 'lens', name: nextName('Axicon'), x, y, diameter: 25.4,
-        surfaces: [{ R: null, odd: [Math.tan(10 * deg)] }, { R: null }], gaps: [5], materials: [{ glass: 'UVFS' }] });
+        surfaces: [{ R: null, odd: [Math.tan(10 * deg)] }, { R: null }], gaps: [5], materials: [{ glass: 'Fused silica' }] });
     case 'grating':
       return normElement({ type: 'grating', name: nextName('Grating'), x, y, angle: 180, length: 25, lpmm: 600, blaze: 500 });
     case 'fibre':
@@ -11690,7 +11693,8 @@ const ELEC = (() => {
     panel.append(box);
     if (el.kind === 'thru') thruSection(el);
     const io = el.kind === 'node' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, (io.length ? 'Ports: ' + io.join(', ') + '. ' : '') +
+    if (io.length) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Ports: ' + io.join(', ') + '.'));
+    panel.append(h('p', null,
       'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.' +
       (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : '')));
     instrumentSection(el);
@@ -15539,7 +15543,11 @@ function sectionise(box, kind) {
   const kids = [...box.children];
   const order = [], secs = [], about = [], reads = [];
   let cur = null;
-  const longText = k => k.tagName === 'P' && !k.className && k.textContent.length > 90;
+  // a long explanation, plain or a note, goes to About; a short one whose text is kept up to
+  // date (a status, a warning) stays where it is
+  const live = new Set(refs.map(r => r.node));
+  const longText = k => k.tagName === 'P' && (!k.className || k.className === 'note') && k.textContent.length > 90 &&
+    (k.textContent.length > 240 || (!live.has(k) && ![...k.querySelectorAll('*')].some(n => live.has(n))));
   for (const k of kids) {
     k.remove();
     if (k.tagName === 'H3') { cur = { h3: k, body: h('div', { class: 'rt-secbody' }) }; secs.push(cur); order.push(cur); continue; }
@@ -16799,7 +16807,7 @@ function coatPath(el, holder) {
 function materialRows(el) {
   const m = el.material;
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
-    selectField('Material', materialOptions(m), () => m.glass, v => {
+    selectField('Material', materialOptions(m), () => glassKey(m.glass) || m.glass, v => {
       if (v === 'import') { askForMaterial(mm => { el.material = mm; changed(true); }); return; }
       removeSweeps(el, 'material.');
       el.material = pickMaterial(v, m);
@@ -18071,7 +18079,7 @@ function lensPanel(el) {
       const m = el.materials[i];
       const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
         param(i === 0 && N === 2 ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`),
-        selectField('Material', materialOptions(m, !!el.mmw), () => m.glass, v => {
+        selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
           const old = el.materials[i];
           if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
           removeSweeps(el, `materials.${i}.`);
@@ -30298,6 +30306,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     tourTick() { tourTick(); return tour ? { i: tour.i, final: !!tour.T.steps[tour.i].final } : null; },
     tourEnd() { endTour(); },
     add(kind) { addElement(kind); traceScene(); return selected().name; },
+    paletteKinds() { return Object.entries(PALETTES).flatMap(([k, v]) => (v || []).map(x => [k, x[0], x[1]])); },
     palette(name) { return PALETTES[name].map(it => it[0]); },
     fibreCount() { return (project.fibres || []).length; },
     fibreSet(i, key, v) { const F = (project.fibres || []).filter(G => !G.wire)[i]; if (F) F[key] = v; },

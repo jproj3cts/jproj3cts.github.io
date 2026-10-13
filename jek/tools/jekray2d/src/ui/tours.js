@@ -1,14 +1,10 @@
-import { BEAM_Z, EMBED, IN_WORKER, TEST_MODE, cloud } from '../core/constants.js';
-import { normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
+import { BEAM_Z, EMBED, IN_WORKER, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
-import {
-  addBench, checkpoint, curBench, ensureBenches, keepSnapshot, onTab, redo, renderBenchTabs,
-  scheduleSave, undo
-} from '../state/tabs.js';
+import { curBench, ensureBenches, onTab } from '../state/tabs.js';
 import { lastTrace, setZ, zOf } from '../engines/trace.js';
-import { V, W, requestRender, stage } from './render.js';
+import { W, requestRender, stage } from './render.js';
 import { snapVal } from './pointer.js';
-import { clamp } from './params.js';
 import { allSweeps, paramLabel, pauseAll, playAll, syncPhases } from './sweeps.js';
 import { V3D } from './view3d.js';
 import {
@@ -17,8 +13,9 @@ import {
 } from './optimise.js';
 import { h, renderPanel, setPanelClosed } from './panel.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
-import { screenStats } from '../engines/pd-cavity.js';
+import { screenStats } from '../engines/screen-stats.js';
 import { changed, fitView, toast, updateUndoButtons } from './actions.js';
+import { addBench, checkpoint, redo, renderBenchTabs, undo } from './tabs.js';
 import { exportLayout } from '../io/layout.js';
 import { openJekray, openProjectData } from '../io/open.js';
 import { IMPORT_AS } from '../io/zmx-import.js';
@@ -27,6 +24,7 @@ import { assignPalette, importStl, palette } from './experimental.js';
 import { layoutPalette } from './rail.js';
 import { packInstallText } from '../io/packs.js';
 import { cloudLink } from '../io/cloud.js';
+import { keepSnapshot, scheduleSave } from '../io/autosave.js';
 import { hideWelcome } from './news.js';
 
 /* ---------- Guided tours ----------

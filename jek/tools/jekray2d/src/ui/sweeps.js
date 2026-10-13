@@ -1,21 +1,23 @@
-import { APP_SRC, IN_WORKER, TEST_MODE } from '../core/constants.js';
+import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
-import { project, selectedId } from '../state/project.js';
+import { V, project, selectedId } from '../state/project.js';
 import { allSources, fieldDec, getEl, lightOf } from '../state/elements.js';
-import { checkpoint, scheduleSave } from '../state/tabs.js';
 import { dropTraceStore, lastTrace, traceScene } from '../engines/trace.js';
-import { H, V, W, requestRender } from './render.js';
-import { clamp, getPath, setParam } from './params.js';
+import { H, W, requestRender } from './render.js';
+import { getPath, setParam } from '../state/params.js';
+import { modDelta } from '../engines/mods.js';
 import { mcJob, tick, updateSweepButtons } from './optimise.js';
 import { h, pins, syncPanel, vs } from './panel.js';
 import { cavJob } from './panel-cavity.js';
 import { POP_SLICES, popKeyOf, popRunGen, popSources, popState } from '../engines/beam-tree.js';
-import { CLOSEUP_STEP, closeupFrame, closeupImage, closeupKey, closeupOnShow } from '../engines/closeup.js';
+import { CLOSEUP_STEP, closeupImage } from '../engines/closeup.js';
+import { closeupFrame, closeupKey, closeupOnShow } from './closeup.js';
 import { diffFns, popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { popScreenState } from '../engines/pd-cavity.js';
 import { changed, toast } from './actions.js';
-import { modDelta } from '../io/mods.js';
-import { FW, TW, fieldWorker, fwProject, fwRequest, fwUnpackRun, workerShim } from '../worker/field-worker.js';
+import { checkpoint } from './tabs.js';
+import { scheduleSave } from '../io/autosave.js';
+import { FW, TW, WORKERS_OK, fieldWorker, fwProject, fwRequest, fwUnpackRun, newAppWorker } from '../page/workers.js';
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
@@ -176,7 +178,6 @@ export function syncPhases() {
    whichever screen is opened. Whatever was not rendered (a change to the bench) is simply
    worked out live, as it always was. */
 export const FIELD_FRAMES = 48;               // samples per cycle, unless a sweep sets its steps
-export const SWEEP_STEPS_MAX = 240;
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 export const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
 let framesLast = FIELD_FRAMES;         // samples a cycle in the render last run, for what is kept
@@ -405,13 +406,11 @@ function renderSweepFrames(list, onDone) {
 export const SW = { pool: [], failed: false, idle: null };
 const swSize = () => Math.max(1, Math.min(6, ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1));
 export function swPool() {
-  if (SW.failed || TEST_MODE || IN_WORKER || !APP_SRC || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
+  if (SW.failed || TEST_MODE || IN_WORKER || !WORKERS_OK || typeof OffscreenCanvas === 'undefined') return null;
   clearTimeout(SW.idle);
   try {
     while (SW.pool.length < swSize()) {
-      const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-      const W = { w: new Worker(url), sent: null, jobs: new Map(), seq: 0 };
-      URL.revokeObjectURL(url);
+      const W = { w: newAppWorker(), sent: null, jobs: new Map(), seq: 0 };
       W.w.onmessage = e => { const j = W.jobs.get(e.data.id); if (!j) return; W.jobs.delete(e.data.id); if (e.data.ok) j.resolve(e.data.out); else j.reject(new Error(e.data.err)); };
       W.w.onerror = e => { e.preventDefault(); for (const j of W.jobs.values()) j.reject(new Error(e.message || 'a render worker stopped')); W.jobs.clear(); };
       SW.pool.push(W);

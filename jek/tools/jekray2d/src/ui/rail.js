@@ -1,6 +1,6 @@
 import { EMBED } from '../core/constants.js';
 import { project } from '../state/project.js';
-import { scheduleSave } from '../state/tabs.js';
+import { PACKS } from '../state/packs.js';
 import {
   benchHoles, benchStyleShown, labelSize, requestRender, selFibreId, selection, setSelFibreId,
   setSelection, stage
@@ -15,7 +15,8 @@ import {
 } from './experimental.js';
 import { fillPicker, picker, pickerShown, setPickTab } from './picker.js';
 import { MINE, loadMine, mineBody, mineOn, placeMine } from './myparts.js';
-import { PACKS, placePackPart } from '../io/packs.js';
+import { placePackPart } from '../io/packs.js';
+import { scheduleSave } from '../io/autosave.js';
 
 /* ---------- the rail ---------- */
 const RAIL_KEY = 'jek-raytracer-rail';

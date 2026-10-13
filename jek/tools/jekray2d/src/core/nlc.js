@@ -1,14 +1,14 @@
+import { clamp } from './constants.js';
 import { ATOMS, C_SI, KB, VAPOUR } from './cells.js';
 import { EPS0, FACT, atomLines } from './traps.js';
 import { zeemanLines } from './zeeman.js';
 import { hermite } from './pulses.js';
+import { fanFromGauss } from './beams-hom.js';
 import { wavelengthColour } from './colour.js';
 import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir, toWorld, toWorldDir } from './mask.js';
 import { cellPumps, zOf } from '../engines/trace.js';
-import { clamp } from '../ui/params.js';
-import { fanFromGauss } from '../ui/panel-cavity.js';
 
 /* ---------- Nonlinear crystals: second-harmonic generation ----------
    A periodically poled crystal (quasi-phase-matched, type 0: fundamental and harmonic both

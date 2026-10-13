@@ -1,7 +1,8 @@
 import { fibreSPMLater } from '../core/pulses.js';
 import { allSources, getEl, loadProject } from '../state/elements.js';
 import { lastTrace, lastTraceMs, traceScene } from '../engines/trace.js';
-import { setParam } from '../ui/params.js';
+import { setParam } from '../state/params.js';
+import { modAbsorb } from '../engines/mods.js';
 import { popLeg } from '../engines/field.js';
 import { cavSolved } from '../engines/cavity.js';
 import { popLeg2 } from '../engines/field2d.js';
@@ -10,10 +11,8 @@ import { closeupImage } from '../engines/closeup.js';
 import { volData } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
-import { modAbsorb } from '../io/mods.js';
-import { fwPackCavities, fwPackD, fwPackRun } from './field-worker.js';
 
-function workerMain() {
+export function workerMain() {
   let bench = { key: null, R: null };
   self.onmessage = e => {
     const { id, kind, proj, args } = e.data;
@@ -86,4 +85,37 @@ function workerMain() {
       self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
     }
   };
+}
+
+/* A field run as plain data: each segment by its beam's index and its source's id, with its
+   starting field; the drawn slices as images. The page puts the rest back (fwUnpackRun). */
+export function fwPackRun(R, transfer) {
+  const segs = R.segs.map(sg => {
+    let draw = null;
+    if (sg.draw) {
+      const bm = sg.draw.cv.transferToImageBitmap();
+      transfer.push(bm);
+      draw = Object.assign({}, sg.draw, { cv: bm });
+    }
+    return { i: sg.i, src: sg.src.id, eng: sg.eng, F0: sg.F0, root: sg.root, clipped: sg.clipped, repr: sg.repr, boost: sg.boost, mode: sg.mode, coh: sg.coh, draw };
+  });
+  return { segs, notes: R.notes, truncated: R.truncated, ms: R.ms };
+}
+
+/* a screen's figures without their functions (diffFns puts them back) */
+export function fwPackD(D) {
+  if (!D) return null;
+  const o = {};
+  for (const k in D) if (typeof D[k] !== 'function') o[k] = D[k];
+  return o;
+}
+
+/* the cavities a job solved, for the cards; their responses rebuilt from the Krylov space */
+export function fwPackCavities(before) {
+  const out = [], pr = r => r && { Q: r.Q, H: r.H, m: r.m, beta: r.beta, scan: r.scan, dLock: r.dLock, P0: r.P0, Plock: r.Plock };
+  for (const [k, v] of cavSolved) {
+    if (v.trace !== lastTrace || (before && before.get(k) === v)) continue;
+    out.push({ k, eng: v.eng, delta: v.delta, mode: v.mode, res: pr(v.res), others: (v.others || []).map(o => ({ delta: o.delta, res: pr(o.res) })) });
+  }
+  return out;
 }

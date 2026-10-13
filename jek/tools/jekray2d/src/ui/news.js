@@ -1,11 +1,11 @@
 import { EMBED } from '../core/constants.js';
 import { project } from '../state/project.js';
-import { readSnaps } from '../state/tabs.js';
 import { h } from './panel.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
 import { EXPERIMENTAL, exp, expOn, expPicked, setExperimental } from './experimental.js';
+import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
 
 /* ---------- Version, what's new, citing ---------- */

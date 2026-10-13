@@ -1,8 +1,8 @@
 import { filterT } from '../core/crystals.js';
 import { deg } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
-import { benchNms } from '../ui/panels.js';
-import { modJonesM } from '../io/mods.js';
+import { benchNms } from '../state/elements.js';
+import { modJonesM } from './mods.js';
 
 /* ---------- Polarisation at a surface ----------
    A surface's s and p amplitude coefficients for one branch, in the tracer's convention

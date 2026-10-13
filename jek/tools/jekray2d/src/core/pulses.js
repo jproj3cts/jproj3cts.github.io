@@ -1,15 +1,13 @@
-import { IN_WORKER, TEST_MODE } from './constants.js';
+import { IN_WORKER, TEST_MODE, clamp } from './constants.js';
+import { hooks } from './hooks.js';
 import { C_MM } from './modulators.js';
 import { splitRoot } from './coherence.js';
+import { fanFromGauss } from './beams-hom.js';
 import { wavelengthColour } from './colour.js';
 import { setLastTraceKey } from '../engines/trace.js';
-import { requestRender } from '../ui/render.js';
-import { clamp } from '../ui/params.js';
 import { applyFibre } from '../engines/fibre-face.js';
 import { setFibreNetMemo } from '../engines/fibre.js';
-import { fanFromGauss } from '../ui/panel-cavity.js';
 import { cdft } from '../engines/field2d.js';
-import { fieldWorker, fwRequest } from '../worker/field-worker.js';
 
 /* ---------- Short pulses ----------
    A mode-locked laser's pulse is its spectrum with a spectral phase. The duration given is
@@ -119,12 +117,12 @@ export function fibreSPMLater(F, nm, len, P, Pavg, gdd, sp) {
     while (spmCache.size > 200) spmCache.delete(spmCache.keys().next().value);
     return r || null;
   };
-  if (TEST_MODE || IN_WORKER || !fieldWorker()) return keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp));
+  if (TEST_MODE || IN_WORKER || !hooks.fieldWorker()) return keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp));
   if (!spmAsked.has(key)) {
     spmAsked.add(key);
-    fwRequest('spm', 'spm:' + key, { F, nm, len, P, Pavg, gdd, sp })
+    hooks.fwRequest('spm', 'spm:' + key, { F, nm, len, P, Pavg, gdd, sp })
       .then(r => { keep(r); }, () => { keep(fibreSPM(F, nm, len, P, Pavg, gdd, sp)); })
-      .then(() => { spmAsked.delete(key); setFibreNetMemo({ key: null, net: null }); setLastTraceKey(null); requestRender(); });
+      .then(() => { spmAsked.delete(key); setFibreNetMemo({ key: null, net: null }); setLastTraceKey(null); hooks.requestRender(); });
   }
   return spmLast.has(F.id) ? spmLast.get(F.id) : null;
 }

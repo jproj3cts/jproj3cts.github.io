@@ -1,10 +1,10 @@
 import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
 import { serialize } from '../state/elements.js';
-import { saveTimer } from '../state/tabs.js';
 import { h } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
 import { menuIcons } from './packs.js';
 import { cloudLink, cloudMenuShown, cloudPush } from './cloud.js';
+import { saveTimer } from './autosave.js';
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the

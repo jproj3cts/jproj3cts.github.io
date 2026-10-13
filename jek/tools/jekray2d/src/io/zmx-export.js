@@ -1,11 +1,11 @@
 import { glassKey, refIndex } from '../core/glass.js';
 import { deg, project, selectOne, typeLabel } from '../state/project.js';
-import { normElement } from '../state/elements.js';
-import { checkpoint, onTab } from '../state/tabs.js';
+import { benchNms, normElement } from '../state/elements.js';
+import { onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
 import { selection } from '../ui/render.js';
-import { benchNms } from '../ui/panels.js';
 import { changed, clipOf, downloadFile, safeFileName, toast } from '../ui/actions.js';
+import { checkpoint } from '../ui/tabs.js';
 import { decodeZmx, parseZmx, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';

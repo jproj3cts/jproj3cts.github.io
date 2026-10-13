@@ -1,3 +1,4 @@
+import { clamp } from '../core/constants.js';
 import { C_MM, JONES_TYPES, MODS } from '../core/modulators.js';
 import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { m2Of } from '../core/pulses.js';
@@ -6,7 +7,6 @@ import { project } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { popMaskRound } from '../core/mask.js';
 import { lastTrace, zOf } from './trace.js';
-import { clamp } from '../ui/params.js';
 import { popGaussian, popLeg, popStats, popSurface, popW } from './field.js';
 import { cavDot, cavLS, cavLin, cavLoops, cavMiss, cavRunCache, cavSolved, cavSteady, cavWeights } from './cavity.js';
 import { field2Vector, popGaussian2, popLeg2, popStats2, popSurface2 } from './field2d.js';

@@ -1,4 +1,4 @@
-import { clamp } from '../ui/params.js';
+import { clamp } from '../core/constants.js';
 import { popInside, popRadii, popStats, qdht } from './field.js';
 import { polCoeff, polMatrix } from './polarisation.js';
 import { popScreen } from './phase-screen.js';

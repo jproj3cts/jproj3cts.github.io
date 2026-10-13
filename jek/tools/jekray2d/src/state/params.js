@@ -1,20 +1,19 @@
+import { clamp } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
 import { applyRf, normRf } from '../core/rf.js';
 import { applyPulse } from '../core/pulses.js';
+import { fanFromGauss } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { project } from '../state/project.js';
-import { selected } from '../state/elements.js';
+import { project } from './project.js';
+import { selected } from './elements.js';
 import { setRoll, setTip, setZ, zOf } from '../engines/trace.js';
 import { applyFibre } from '../engines/fibre-face.js';
-import { renderPanel } from './panel.js';
-import { fanFromGauss, gaussFromFan } from './panel-cavity.js';
-import { toast } from './actions.js';
+import { gaussFromFan } from '../engines/cavity.js';
 
 /* ==========================================================================
    Parameters: every numeric setting has a path (e.g. "surfaces.0.R"), so the
    panel and the sweep animator share one way of reading and writing it
    ========================================================================== */
-
-export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export function getPath(el, path) {
   // a free-space part's place out of the plane: kept only when not the default
@@ -34,7 +33,7 @@ export function setParam(el, path, v) {
   switch (last) {
     case 'wavelength':
       if (el.mmw) return;                                 // a horn's is its frequency's
-      if (v > 1e6 && el.type === 'source') toast('Light runs from 100 nm to 1 mm here; beyond that is radio: use a horn from the RF parts.');
+      if (v > 1e6 && el.type === 'source') hooks.toast('Light runs from 100 nm to 1 mm here; beyond that is radio: use a horn from the RF parts.');
       v = clamp(v, 100, el.type === 'source' ? 1e6 : 20000); break;
     case 'rays': v = Math.round(clamp(v, 1, 501)); break;
     case 'width': v = Math.max(0, v); break;
@@ -123,12 +122,13 @@ export function setParam(el, path, v) {
   if (starWas && el.type === 'fcomp' && el.kind === 'star') {
     const [M0, N0] = starWas, M = el.ins, N = el.outs, map = p => p < M0 ? (p < M ? p : -1) : (p - M0 < N ? M + p - M0 : -1);
     project.fibres = (project.fibres || []).filter(F => { for (const q of [F.a, F.b]) if (q[0] === el.id) { const m = map(q[1]); if (m < 0) return false; q[1] = m; } return true; });
-    setTimeout(() => { if (selected() === el) renderPanel(); });
+    setTimeout(() => { if (selected() === el) hooks.renderPanel(); });
   }
   // fewer branches: the fibres on the ones gone go with them
   if (el.type === 'fcomp' && el.kind === 'split' && last === 'ways') {
     project.fibres = (project.fibres || []).filter(F => ![F.a, F.b].some(q => q[0] === el.id && q[1] > el.ways));
-    setTimeout(() => { if (selected() === el) renderPanel(); });       // its title says how many
+    setTimeout(() => { if (selected() === el) hooks.renderPanel(); });       // its title says how many
   }
 }
 
+export const SWEEP_STEPS_MAX = 240;

@@ -1,9 +1,9 @@
 import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
-import { project } from '../state/project.js';
+import { V, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
-import { keepSnapshot, onTab, scheduleSave } from '../state/tabs.js';
+import { onTab } from '../state/tabs.js';
 import { setExporting } from '../engines/trace.js';
-import { H, V, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
+import { H, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
 import { h } from '../ui/panel.js';
 import { setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
@@ -15,6 +15,7 @@ import {
   API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, awaitPlan, fillAccount, setAccount,
   showSubscribe
 } from './account.js';
+import { keepSnapshot, scheduleSave } from './autosave.js';
 import { openZmx } from '../ui/tours.js';
 
 /* ---------- Cloud benches ----------

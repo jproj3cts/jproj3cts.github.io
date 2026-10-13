@@ -1,21 +1,24 @@
-import { deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
+import { clamp } from '../core/constants.js';
+import { fmtLen } from '../core/format.js';
+import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
-import { checkpoint, onTab, scheduleSave, switchTab } from '../state/tabs.js';
+import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
 import {
-  H, V, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
+  H, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
   selInk, selection, setSelFibreId, setSelection, sx, sy, wx, wy
 } from './render.js';
 import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
 import { drag, hitTest, setDrag, snapVal } from './pointer.js';
-import { clamp } from './params.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
-import { fmtLen, h, renderPanel, syncPanel } from './panel.js';
+import { h, renderPanel, syncPanel } from './panel.js';
+import { checkpoint, switchTab } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
 import { accountsOn } from '../io/account.js';
+import { scheduleSave } from '../io/autosave.js';
 
 /* ==========================================================================
    Actions

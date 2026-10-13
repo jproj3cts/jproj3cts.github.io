@@ -1,15 +1,15 @@
 import { TEST_MODE } from '../core/constants.js';
-import { project, selectOne } from '../state/project.js';
+import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
-import { checkpoint } from '../state/tabs.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
-import { DPR, H, V, W, canvas, ctx, draw, getCss, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
+import { DPR, H, W, canvas, ctx, draw, getCss, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
 import { snapVal } from './pointer.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
 import { h, renderPanel } from './panel.js';
 import { addElement, changed, toast } from './actions.js';
+import { checkpoint } from './tabs.js';
 import { layoutPalette, railRecent } from './rail.js';
 import { accountShown } from '../io/account.js';
 import { modsSync } from '../io/mods.js';

@@ -1,9 +1,9 @@
-import { deg, project } from '../state/project.js';
+import { clamp } from '../core/constants.js';
+import { V, deg, project } from '../state/project.js';
 import { lastTrace, setExporting } from '../engines/trace.js';
-import { DPR, H, V, W, canvas, ctx, lightLayer, render, requestRender, setCtx, setDPR } from '../ui/render.js';
-import { clamp } from '../ui/params.js';
-import { binnedField } from '../ui/panels.js';
-import { diffraction, screenStats } from '../engines/pd-cavity.js';
+import { DPR, H, W, canvas, ctx, lightLayer, render, requestRender, setCtx, setDPR } from '../ui/render.js';
+import { diffraction } from '../engines/pd-cavity.js';
+import { binnedField, screenStats } from '../engines/screen-stats.js';
 import { downloadFile, fitView, safeFileName, toast } from '../ui/actions.js';
 
 /* ---------- The layout as a vector drawing ----------

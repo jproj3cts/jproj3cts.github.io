@@ -1,15 +1,15 @@
-import { deg, nextName, num, project } from '../state/project.js';
+import { clamp } from '../core/constants.js';
+import { fmtHz, fmtLen, fmtMw } from '../core/format.js';
+import { V, deg, nextName, num, project } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, normElement } from '../state/elements.js';
 import { frame, toWorld } from '../core/mask.js';
 import { lastTrace } from './trace.js';
-import { V, bodyFill, ctx, draw, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
-import { clamp } from '../ui/params.js';
+import { bodyFill, ctx, draw, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy } from '../ui/render.js';
 import { netPower, pkey, portWorld } from './fibre.js';
 import { signalSection } from '../ui/instruments.js';
-import { bindSync, fid, fmtLen, h, numInput, panel, param, selectField, setFid, vs } from '../ui/panel.js';
-import { fmtMw, portRows, readoutBox } from '../ui/panels.js';
+import { bindSync, fid, h, numInput, panel, param, selectField, setFid, vs } from '../ui/panel.js';
+import { portRows, readoutBox } from '../ui/panels.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../ui/plots.js';
-import { fmtHz } from '../ui/panel-cavity.js';
 
 /* ==========================================================================
    Photonic circuits (experimental: exp('pic'))

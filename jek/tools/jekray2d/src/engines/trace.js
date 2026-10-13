@@ -1,4 +1,5 @@
-import { BEAM_Z, EPS, FAR, IN_WORKER, TEST_MODE, TRACE_BUDGET } from '../core/constants.js';
+import { BEAM_Z, EPS, FAR, IN_WORKER, TEST_MODE, TRACE_BUDGET, clamp } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
 import { absorbAt, refIndex } from '../core/glass.js';
 import { bireAxis, birefIndex, filterT, gainAt, gainSat, setGainSat, walkOff } from '../core/crystals.js';
 import { C_SI } from '../core/cells.js';
@@ -10,11 +11,11 @@ import {
 import { MODS, aomOrders, cmul, eomSidebands, famAt, jonesAt, linesPerMm } from '../core/modulators.js';
 import { splitOffset, splitRoot } from '../core/coherence.js';
 import { gddPath, isLaserLike, m2Of, pulseGrid, pulseOf, syncLine, syncSplit } from '../core/pulses.js';
-import { isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
+import { beamAt, isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
 import { deg, project } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
-import { VSRC, getEl, setVSRC } from '../state/elements.js';
+import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
@@ -22,19 +23,13 @@ import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
 } from '../core/mask.js';
-import { clamp } from '../ui/params.js';
-import { playing } from '../ui/sweeps.js';
 import { fibreNetCached, tipSources } from './fibre.js';
-import { V3D } from '../ui/view3d.js';
-import { renderPanel } from '../ui/panel.js';
-import { binCache } from '../ui/panels.js';
-import { beamAt, cavityLater, laserSources, laserState } from '../ui/panel-cavity.js';
-import { cavSolved, findCavities, setCavCache } from './cavity.js';
+import { modJonesM } from './mods.js';
+import { cavSolved, findCavities, laserSources, laserState, setCavCache } from './cavity.js';
 import { jonesOf, jonesRoll, rollJones } from './polarisation.js';
 import { diffCache } from './diffraction.js';
 import { statsCache } from './pd-cavity.js';
-import { modJonesM } from '../io/mods.js';
-import { TW_FREE } from '../worker/field-worker.js';
+import { binCache } from './screen-stats.js';
 
 /* ==========================================================================
    Ray tracing
@@ -269,7 +264,7 @@ export function traceScene() {
 export const traceStore = new Map();
 export let traceStoreRays = 0, traceStoreHits = 0;
 const TRACE_STORE_RAYS = 400000;
-export const traceStoreOn = () => !TEST_MODE && !IN_WORKER && typeof playing !== 'undefined' && playing.size > 0 && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
+export const traceStoreOn = () => !TEST_MODE && !IN_WORKER && hooks.playing() && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
 function keepTrace(key, T, ms) {
   const n = (T.rays || []).length + 1;
   traceStore.set(key, { T, ms, n }); traceStoreRays += n;
@@ -320,7 +315,7 @@ export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
 const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && e.pattern && e.pattern !== 'line') || (e.type === 'fibre' && e.emitPattern));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
-export const tippable = el => V3D.free(el) && el.type !== 'link';
+export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
 export function setRoll(el, v) { if (!isFinite(v)) return; v = ((+v + 180) % 360 + 360) % 360 - 180; if (Math.abs(v) < 1e-9) delete el.roll; else el.roll = +v.toFixed(6); }
 export function setTip(el, v) { if (!isFinite(v)) return; v = clamp(+v, -90, 90); if (Math.abs(v) < 1e-9) delete el.tip; else el.tip = +v.toFixed(6); }
@@ -1539,9 +1534,9 @@ export function afterTrace() {
   // when the set of cavities changes, the panels that show them are rebuilt
   if (!TEST_MODE && !IN_WORKER && typeof findCavities === 'function') {
     const sig = findCavities().map(c => c.id).join('/');
-    if (sig !== cavPanelSig) { cavPanelSig = sig; setTimeout(() => renderPanel(), 0); }
+    if (sig !== cavPanelSig) { cavPanelSig = sig; setTimeout(() => hooks.renderPanel(), 0); }
     // a bench with cavities keeps their steady states current
-    if (sig) setTimeout(() => { if (findCavities().some(c => { const S = cavSolved.get(c.id); return !S || S.trace !== lastTrace; })) cavityLater(); }, 0);
+    if (sig) setTimeout(() => { if (findCavities().some(c => { const S = cavSolved.get(c.id); return !S || S.trace !== lastTrace; })) hooks.cavityLater(); }, 0);
   }
 }
 let cavPanelSig = '';
@@ -1601,3 +1596,7 @@ export function paraxial(el, nm) {
   return { efl: -1 / u, bfl: -y / u };
 }
 
+/* A bench whose trace can be done wholly in the worker: one with nothing that carries state
+   from trace to trace on this page (fibre networks, lasers, vapour cells, crystals) */
+export const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', 'prism', 'cube', 'crystal', 'waveplate', 'polariser', 'grating',
+  'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link', 'draw']);

@@ -1,21 +1,20 @@
-import { EMBED } from '../core/constants.js';
-import { deg, extraSel, project, selectOne, selectedId, uid } from '../state/project.js';
+import { EMBED, ZOOM_MAX, clamp } from '../core/constants.js';
+import { V, deg, extraSel, project, selectOne, selectedId, uid } from '../state/project.js';
 import { selected } from '../state/elements.js';
-import { checkpoint, onTab, redo, scheduleSave, undo } from '../state/tabs.js';
+import { onTab } from '../state/tabs.js';
 import { polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, toLocal } from '../core/mask.js';
 import {
-  H, V, W, ZOOM_MAX, canvas, detR, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip,
-  portAt, removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection,
-  srcBody, sx, sy, wx, wy
+  H, W, canvas, detR, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip, portAt,
+  removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, srcBody,
+  sx, sy, wx, wy
 } from './render.js';
 import {
   DRAW_DRAGS, alignBox, alignShown, drawDblClick, drawDown, drawKey, drawMove, drawTool, drawUp,
   finishPen, groupEls, groupOf, hitDrawing, labelAt, partsLocked, penDraft, scaleDrawing, scaleGrips,
   setPenCursor, setPenEnded, setXformMode, snap15, ungroupEls, xformMode
 } from './drawings.js';
-import { clamp } from './params.js';
 import { FC_W, fcH, pkey } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
@@ -25,9 +24,11 @@ import {
   moveEls, removeEl, removeEls, rotateEls, saveFile, setMeasure, setMeasureDraft, toast,
   zoomToSelection
 } from './actions.js';
+import { checkpoint, redo, undo } from './tabs.js';
 import { palette } from './experimental.js';
 import { setPalette } from './rail.js';
-import { fwPump, midDrag } from '../worker/field-worker.js';
+import { scheduleSave } from '../io/autosave.js';
+import { fwPump, midDrag } from '../page/workers.js';
 
 /* ==========================================================================
    Hit testing and pointer interaction

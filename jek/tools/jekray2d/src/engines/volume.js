@@ -1,19 +1,13 @@
-import { BEAM_Z } from '../core/constants.js';
+import { BEAM_Z, clamp, mkCanvas } from '../core/constants.js';
 import { splitRoot } from '../core/coherence.js';
-import { m2Of } from '../core/pulses.js';
-import { isHigherMode } from '../core/beams-hom.js';
 import { deg, project } from '../state/project.js';
 import { allSources, fieldDec, lightOf } from '../state/elements.js';
 import { lastTrace } from './trace.js';
-import { mkCanvas, requestRender } from '../ui/render.js';
-import { clamp } from '../ui/params.js';
-import { SW, swAsk, swDrop, swPool, swRelease, sweepJob } from '../ui/sweeps.js';
 import { popRadii, popStats, qdht } from './field.js';
 import { field2I, field2Propagate, field2Slope, fieldComps, popStats2 } from './field2d.js';
-import { POP_ROWS, POP_SLICES, popGroupCut, popKeyOf, popRun, popSources, popState } from './beam-tree.js';
+import { POP_ROWS, POP_SLICES, popGroupCut, popKeyOf, popRun } from './beam-tree.js';
 import { closeupAt, closeupImage, closeupPrep } from './closeup.js';
 import { trapLegAt, trapLegCut, trapLegPart } from './diffraction.js';
-import { fieldWorker, fwProject, fwRequest, fwUnpackRun } from '../worker/field-worker.js';
 
 /* ---------- The diffracted field in 3D ----------
    Each segment's field as a volume for the 3D view: cuts across the beam along it, close
@@ -86,7 +80,7 @@ const volSegPower = sg => {
   if (sg._pw === undefined) { let f = 1; try { f = (sg.eng === '2d' ? popStats2(sg.F0) : popStats(sg.F0)).power; } catch (err) { /* unknown: as launched */ } sg._pw = volPw(sg) * (f > 0 ? f : 0); }
   return sg._pw;
 };
-function volPartners(segs, tab) {
+export function volPartners(segs, tab) {
   const flat = sg => { const b = sg.b; return b && (!tab || b.bench === tab) && b.len > 0 && !(b.len3 > 0 && Math.abs(b.len3 - b.len) > 1e-9) && !(b.d3 && Math.abs(b.d3[2]) > 1e-9); };
   const byL = new Map();
   for (const sg of segs) if (flat(sg)) { if (!byL.has(sg.coh)) byL.set(sg.coh, []); byL.get(sg.coh).push(sg); }
@@ -237,7 +231,7 @@ export function volData(segs, tab, bb, only) {
 }
 const ranges0 = only => only instanceof Map;
 /* a pooled job's shares put back together: each segment's cuts from whichever share worked them out */
-function volStitch(list) {
+export function volStitch(list) {
   const by = new Map(), out = [];
   for (const v of list) {
     if (!v.ranges) { out.push(v); continue; }
@@ -275,7 +269,7 @@ export function volDisp(V) {
   for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
   return (V.disp = Math.min(V.peak, Math.max(d, V.peak * 1e-9)));
 }
-function volMerge(list) {
+export function volMerge(list) {
   const out = [], byK = new Map();
   let peak = 0;
   for (const v of list) {
@@ -289,7 +283,7 @@ function volMerge(list) {
 }
 /* the segments of a tab shared among n workers, the heaviest first to whichever has least so far:
    a map (a 2D field, or light that interferes) counts twenty round profiles */
-function volShare(segs, tab, n, bb) {
+export function volShare(segs, tab, n, bb) {
   const mates = volPartners(segs, tab), load = new Array(n).fill(0), parts = Array.from({ length: n }, () => new Map());
   // a segment's cuts, in runs: a heavy one (its cuts maps) split so no share waits on it alone
   const chunks = [];
@@ -308,73 +302,6 @@ function volShare(segs, tab, n, bb) {
     parts[k].get(q.i).push(q.r);
   }
   return parts;
-}
-/* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
-   From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
-   on the page (the tests) from the bench's field if it is there, else worked out there and then */
-export const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
-export function volLater(bb) {
-  const srcs = popSources();
-  if (!srcs.length) return { data: null, busy: false };
-  const pk = popKeyOf(lastTrace.beams, srcs), key = pk + '|' + project.tab + '|' + bb.map(v => Math.round(v)).join();
-  if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
-  const keep = d => {
-    d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
-    while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
-    return d;
-  };
-  // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
-  const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
-  const pool = heavyVol && !sweepJob ? swPool() : null;
-  if (pool && pool.length > 1 && fieldWorker()) {
-    if (VOL.job !== key) {
-      VOL.job = key;
-      const proj = fwProject(), n = pool.length, tab = project.tab, beams = lastTrace.beams; 
-      // the bench's field run once (the page may have it already), then each worker carries on its share
-      // (the render workers load the bench meanwhile)
-      for (const W of pool) swAsk(W, proj, {}, 'warm').catch(() => {});
-      const run = popState.key === pk && popState.result ? Promise.resolve(popState.result.segs)
-        : fwRequest('run', 'vol-run').then(o => o && o.key === pk ? fwUnpackRun(o.R, beams).segs : null);
-      run.then(segs => {
-        if (!segs) return [null];
-        const shares = volShare(segs, tab, n, bb), mates = volPartners(segs, tab);
-        const pack = sg => ({ i: sg.i, eng: sg.eng, F0: sg.F0, src: sg.src.id, root: sg.root, boost: sg.boost, coh: sg.coh });
-        return Promise.all(shares.map((share, part) => {
-          if (!share.size) return { segs: [] };
-          const need = new Set(share.keys());
-          for (const sg of segs) if (share.has(sg.i)) for (const m of mates.get(sg) || []) need.add(m.i);
-          return swAsk(pool[part], proj, { key: pk, tab, bb, only: [...share.entries()], segs: segs.filter(sg => need.has(sg.i)).map(pack) }, 'volpart');
-        }));
-      }).then(outs => {
-        if (VOL.job === key) VOL.job = null;
-        swRelease();
-        if (outs.some(o => !o || o.mismatch)) { VOL.rev++; requestRender(); return; }
-        keep(volMerge(volStitch(outs.flatMap(o => o.segs))));
-        requestRender();
-      }).catch(err => { console.warn('JEKray2D 3D field workers:', err && err.message); if (VOL.job === key) VOL.job = null; SW.failed = true; swDrop(); VOL.rev++; requestRender(); });
-    }
-    return { data: null, busy: true };
-  }
-  if (fieldWorker()) {
-    if (VOL.job !== key) {
-      VOL.job = key;
-      fwRequest('vol3d', 'vol3d', { key: pk, tab: project.tab, bb }).then(o => {
-        if (VOL.job === key) VOL.job = null;
-        if (o && !o.mismatch) keep(o); else VOL.rev++;
-        requestRender();
-      }).catch(() => { if (VOL.job === key) VOL.job = null; VOL.rev++; requestRender(); });
-    }
-    return { data: null, busy: true };
-  }
-  const segs = popState.key === pk && popState.result ? popState.result.segs : popRun(lastTrace.beams, srcs, {}).segs;
-  return { data: keep(volData(segs, project.tab, bb)), busy: false };
-}
-/* an irradiance in W/mm², as W/cm² with a prefix */
-export function fmtIrr(v) {
-  const w = v * 100;
-  if (!(w > 0)) return '0 W/cm²';
-  const [k, u] = w >= 1e6 ? [1e6, 'MW'] : w >= 1e3 ? [1e3, 'kW'] : w >= 1 ? [1, 'W'] : w >= 1e-3 ? [1e-3, 'mW'] : w >= 1e-6 ? [1e-6, 'µW'] : [1e-9, 'nW'];
-  return (+(w / k).toPrecision(3)) + ' ' + u + '/cm²';
 }
 /* the brightest irradiance (W/mm²) a ray (origin ro, unit direction rd, in a volume segment's
    frame: x across, y up, z along) meets in it, and how far along the ray: as the 3D view's

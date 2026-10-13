@@ -1,247 +1,45 @@
+import { clamp } from '../core/constants.js';
+import { fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
 import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
 import { CRYSTALS, CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
-import { ATOMS, ATOM_ISO, C_SI, HPL, KB } from '../core/cells.js';
-import { EPS0, HBAR, SPHERE_DENSITY, TRAP_ATOMS, atomLines, gasDamping, trapFLabel, waterDamping } from '../core/traps.js';
+import { ATOMS, ATOM_ISO, C_SI, KB } from '../core/cells.js';
+import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, trapFLabel } from '../core/traps.js';
 import { MU_B } from '../core/zeeman.js';
 import { NLC, cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert } from '../core/nlc.js';
 import { C_MM } from '../core/modulators.js';
-import { DETECTOR_MATERIALS, RF_HORNS, applyRf, fmtWl } from '../core/rf.js';
-import { FIBRE_NG, cohGamma, lagOf, splitRoot } from '../core/coherence.js';
-import {
-  C_FS, PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu, pulseGrid, pulseHalf,
-  pulseOf, pulseSpectrum, specAt
-} from '../core/pulses.js';
+import { DETECTOR_MATERIALS, RF_HORNS, applyRf } from '../core/rf.js';
+import { FIBRE_NG } from '../core/coherence.js';
+import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { PRISM_SHAPES, deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
 import { COAT_MATERIALS, coatPreset, qwot, stackAmp } from '../core/coatings.js';
 import { getEl, normElement } from '../state/elements.js';
-import { addBench, benchName, checkpoint, linkPairs, linkPartner, selectEl } from '../state/tabs.js';
+import { benchName, linkPairs, linkPartner } from '../state/tabs.js';
 import { MASK_PRESETS, STOP_SHAPES, compileMaskExpr, maskFns, stopSlitLike } from '../core/mask.js';
-import { RAY_PATTERNS, lastTrace, sourceLines } from '../engines/trace.js';
+import { RAY_PATTERNS, lastTrace } from '../engines/trace.js';
 import { getCss, removeFibre } from './render.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
-import { clamp } from './params.js';
 import { CONNS, FC, FIBRE_N, netPower, pkey, portName, portsOf, thruPartner } from '../engines/fibre.js';
+import { modReadouts } from '../engines/mods.js';
 import { osaSection, signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
 import {
-  bindSync, coherenceFields, coherenceNote, fid, fmtLen, fmtNum, h, numInput, panel, param,
-  renderPanel, selectField, setFid, textField, vs
+  bindSync, coherenceFields, coherenceNote, fid, h, numInput, panel, param, renderPanel, selectField,
+  setFid, textField, vs
 } from './panel.js';
 import {
   askForMaterial, axisFont, diffractionSection, drawAxes, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,
   updateSyncButtons, zoomControls, zoomRange
 } from './plots.js';
-import { fmtHz } from './panel-cavity.js';
-import { aberCache, aberSource, aberrations, diffractionLater, screenStats } from '../engines/pd-cavity.js';
+import { aberCache, aberSource, aberrations, diffractionLater } from '../engines/pd-cavity.js';
+import { pulseReport } from '../engines/pulse.js';
+import { screenStats, trapReport } from '../engines/screen-stats.js';
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
+import { addBench, checkpoint, selectEl } from './tabs.js';
 import { exportScreen } from '../io/layout.js';
-import { modReadoutSection, modReadouts } from '../io/mods.js';
+import { modReadoutSection } from '../io/mods.js';
 
-/* ---------- The pulse that arrives ----------
-   At a screen, a photodiode or a fibre tip: the spectral samples of each pulsed launch that
-   reached it, grouped into branches (each path the light took), give each branch's spectral
-   phase at one point of the face, the tilt of its wavefront at each wavelength included.
-   A polynomial fit to that phase gives its group delay, GDD and TOD; the pulse in time is the
-   spectrum with that phase, the branches of one laser added as fields, separate lasers and
-   the two polarisations as powers. */
-const C_MMFS = 2.99792458e-4;             // light, mm per fs
-const pulseMemo = new WeakMap();
-function polyFit(xs, ys, deg) {
-  // least squares by the normal equations, in a scaled variable (well conditioned for deg <= 6)
-  const n = deg + 1, A = Array.from({ length: n }, () => new Float64Array(n + 1));
-  for (let i = 0; i < xs.length; i++) {
-    const p = [1]; for (let k = 1; k < 2 * n; k++) p.push(p[k - 1] * xs[i]);
-    for (let r = 0; r < n; r++) { for (let c = 0; c < n; c++) A[r][c] += p[r + c]; A[r][n] += p[r] * ys[i]; }
-  }
-  for (let c = 0; c < n; c++) {
-    let m = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[m][c])) m = r;
-    [A[c], A[m]] = [A[m], A[c]];
-    if (!A[c][c]) return null;
-    for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k]; }
-  }
-  return A.map((row, r) => row[n] / row[r]);
-}
-/* the FWHM of a sampled curve, interpolated at both half points; null if it does not fall to half */
-function fwhmOf(xs, ys) {
-  let k = 0; for (let i = 1; i < ys.length; i++) if (ys[i] > ys[k]) k = i;
-  const h2 = ys[k] / 2;
-  let a = k; while (a > 0 && ys[a] > h2) a--;
-  let b = k; while (b < ys.length - 1 && ys[b] > h2) b++;
-  if (ys[a] > h2 || ys[b] > h2) return null;
-  const xa = xs[a] + (xs[a + 1] - xs[a]) * (h2 - ys[a]) / (ys[a + 1] - ys[a]);
-  const xb = xs[b - 1] + (xs[b] - xs[b - 1]) * (h2 - ys[b - 1]) / (ys[b] - ys[b - 1]);
-  return xb - xa;
-}
-export function pulseReport(el) {
-  const hits = (lastTrace.pulses && lastTrace.pulses[el.id]) || [];
-  if (!hits.length) return null;
-  let memo = pulseMemo.get(lastTrace);
-  if (!memo) { memo = new Map(); pulseMemo.set(lastTrace, memo); }
-  if (memo.has(el.id)) return memo.get(el.id);
-  const out = pulseReportRaw(el, hits);
-  memo.set(el.id, out);
-  return out;
-}
-function pulseReportRaw(el, hits) {
-  // branches: one source, one polarisation state, one path
-  const byB = new Map();
-  for (const t of hits) {
-    const k = t.src + '|' + t.pol + '|' + t.path;
-    if (!byB.has(k)) byB.set(k, { src: t.src, pol: t.pol, path: t.path, h: [] });
-    byB.get(k).h.push(t);
-  }
-  const mid = (PULSE_SAMPLES - 1) / 2;
-  // the point on the face where the pulse is taken: the strongest branch's centre wavelength
-  let ref = null;
-  for (const B of byB.values()) for (const t of B.h) if (t.j === mid) { const w = t.sr ** 2 + t.si ** 2 + t.pr ** 2 + t.pi ** 2; if (!ref || w > ref.w) ref = { y: t.y, w }; }
-  if (!ref) { const t = hits[0]; ref = { y: t.y }; }
-  const branches = [];
-  for (const B of byB.values()) {
-    const src = getEl(B.src);
-    const P = pulseOf(src), G = src && pulseGrid(src);
-    if (!P || !G) continue;
-    const launch = src.virtual ? (src.vRoot ? src.vRoot.id : src.id) : splitRoot(src).id;
-    const tLag = (src.virtual ? src.vLag || 0 : lagOf(src)) / C_MMFS;    // fs: fibre before the launch
-    const pts = [];
-    for (const t of B.h.sort((a, b) => a.j - b.j)) {
-      const q = G.samples[t.j];
-      if (!q) continue;
-      const k = 2 * Math.PI / (q.nm * 1e-6);
-      // the path to the reference point along this wavelength's own wavefront, then the
-      // laser's chirp and the fibre before the launch
-      const ph = k * (t.opl + t.n * (ref.y - t.y) * t.dly) + 0.5 * (P.gdd0 || 0) * q.d * q.d + q.d * tLag;
-      pts.push({ d: q.d, x: q.d / G.dW, ph, as: [t.sr, t.si], ap: [t.pr, t.pi], y: t.y, dly: t.dly, nm: q.nm, S: q.S });
-    }
-    if (pts.length < 6) continue;
-    const c = polyFit(pts.map(p => p.x), pts.map(p => p.ph), Math.min(5, pts.length - 2));
-    if (!c) continue;
-    const dW = G.dW;
-    let GD = c[1] / dW, GDD = 2 * c[2] / (dW * dW), TOD = 6 * c[3] / (dW * dW * dW);
-    // a spectrum a fibre's nonlinearity reshaped carries a chirp of its own: its phase's
-    // smooth part, where it has light, counts too
-    if (P.spec) {
-      const xs = [], ys = [];
-      let prev = null, off = 0;
-      for (const p of pts) {
-        const A = specAt(P.spec, p.d);
-        if (A[0] * A[0] + A[1] * A[1] < 1e-3) { prev = null; continue; }
-        let ph = Math.atan2(A[1], A[0]) + off;
-        if (prev !== null) { while (ph - prev > Math.PI) { ph -= 2 * Math.PI; off -= 2 * Math.PI; } while (ph - prev < -Math.PI) { ph += 2 * Math.PI; off += 2 * Math.PI; } }
-        prev = ph; xs.push(p.x); ys.push(ph);
-      }
-      const cs = xs.length >= 6 ? polyFit(xs, ys, 3) : null;
-      if (cs) { GD += cs[1] / dW; GDD += 2 * cs[2] / (dW * dW); TOD += 6 * cs[3] / (dW * dW * dW); }
-    }
-    const share = pts.reduce((a, p) => a + p.S * (p.as[0] ** 2 + p.as[1] ** 2 + p.ap[0] ** 2 + p.ap[1] ** 2), 0) / G.samples.reduce((a, q) => a + q.S, 0);
-    // where each colour lands, and which way it is going: spatial chirp and angular dispersion
-    const lin = (ys) => { const n = pts.length, mx = pts.reduce((a, p) => a + p.nm, 0) / n, my = ys.reduce((a, v) => a + v, 0) / n;
-      let sxy = 0, sxx = 0; pts.forEach((p, i) => { sxy += (p.nm - mx) * (ys[i] - my); sxx += (p.nm - mx) ** 2; }); return sxx > 0 ? sxy / sxx : 0; };
-    const chirpY = lin(pts.map(p => p.y)), angD = lin(pts.map(p => Math.asin(clamp(p.dly, -1, 1))));
-    branches.push({ src, P, G, launch, pol: B.pol, pts, c, GD, GDD, TOD, share, chirpY, angD,
-      pft: Math.atan(Math.abs(P.wavelength * angD)) / deg });
-  }
-  if (!branches.length) return null;
-  // stray paths carrying next to nothing (a ghost off the back of a grating, say) are left out
-  const topShare = Math.max(...branches.map(b => b.share));
-  for (let i = branches.length - 1; i >= 0; i--) if (branches[i].share < 1e-5 * topShare) branches.splice(i, 1);
-  branches.sort((a, b) => a.GD - b.GD);
-  const tMin = branches[0].GD;
-  // each branch's own duration, on its own (for the table), and the window to show
-  const G0 = branches[0].G, tau0 = branches[0].P.tau;
-  const est = b => { const x = 4 * Math.LN2 * b.GDD / (tau0 * tau0); return tau0 * Math.sqrt(1 + x * x) + Math.abs(b.TOD) / (tau0 * tau0) * 2; };
-  let main = branches.reduce((a, b) => b.share > a.share ? b : a);
-  // the pulses near the strongest one are shown together; any further off are listed
-  const span = b => 4 * est(b) + 2 * tau0;
-  const near = branches.filter(b => Math.abs(b.GD - main.GD) < span(main) + span(b) + 30 * tau0);
-  const t0 = Math.min(...near.map(b => b.GD - span(b))), t1 = Math.max(...near.map(b => b.GD + span(b)));
-  const NT = 700, ts = Array.from({ length: NT }, (_, i) => t0 + (t1 - t0) * i / (NT - 1));
-  // the field of each branch on a fine grid of frequencies, then summed in time
-  const W = pulseHalf(G0.src), maxGDD = Math.max(...near.map(b => Math.abs(b.GDD))), maxT = Math.max(...near.map(b => Math.abs(b.GD - t0), Math.abs(t1 - t0)));
-  const NF = Math.round(clamp(Math.ceil(6 * W * (maxT + maxGDD * W) / Math.PI), 256, 6000));
-  const ds = Array.from({ length: NF }, (_, i) => -W + 2 * W * i / (NF - 1)), dd = 2 * W / (NF - 1);
-  const polyAt = (c, x) => { let v = 0; for (let k = c.length - 1; k >= 0; k--) v = v * x + c[k]; return v; };
-  const interp = (b, d, key, comp) => {          // an amplitude between the traced samples
-    const p = b.pts; if (d <= p[0].d) return p[0][key][comp]; if (d >= p[p.length - 1].d) return p[p.length - 1][key][comp];
-    let i = 1; while (p[i].d < d) i++;
-    const u = (d - p[i - 1].d) / (p[i].d - p[i - 1].d); return p[i - 1][key][comp] * (1 - u) + p[i][key][comp] * u;
-  };
-  // fields in time, per launch and polarisation (s, p), each [re, im] per time step
-  const fields = new Map();
-  const spec = new Map();                        // the spectrum arriving, per launch: |sum of fields|^2
-  for (const b of near) {
-    const key = b.launch;
-    // the power the rays' amplitudes are against: the laser's own (a fibre tip's amplitudes
-    // already carry the share of it that reached the tip)
-    if (!fields.has(key)) fields.set(key, { s: [new Float64Array(NT), new Float64Array(NT)], p: [new Float64Array(NT), new Float64Array(NT)], P: b.P, share: 0,
-      Pw: b.src.virtual && b.src.vRoot ? b.src.vRoot.power : b.P.power });
-    if (!spec.has(key)) spec.set(key, { s: [new Float64Array(NF), new Float64Array(NF)], p: [new Float64Array(NF), new Float64Array(NF)] });
-    const F = fields.get(key), SP = spec.get(key);
-    F.share += b.share;
-    const range = [b.pts[0].d, b.pts[b.pts.length - 1].d];
-    for (let q = 0; q < NF; q++) {
-      const d = ds[q];
-      if (d < range[0] || d > range[1]) continue;
-      // the pulse's own amplitude: its shape's, or a reshaped spectrum's with its phase
-      let amp = Math.sqrt(pulseSpectrum(b.P, d)) * dd, ph = polyAt(b.c, d / b.G.dW);
-      if (b.P.spec) { const A = specAt(b.P.spec, d); amp = Math.hypot(A[0], A[1]) * dd; ph += Math.atan2(A[1], A[0]); }
-      for (const [pk, key2] of [['s', 'as'], ['p', 'ap']]) {
-        const ar = interp(b, d, key2, 0), ai = interp(b, d, key2, 1);
-        if (!ar && !ai) continue;
-        // U = amp (ar + i ai) e^{i ph}: in time, U e^{-i d t}
-        const cr = amp * (ar * Math.cos(ph) - ai * Math.sin(ph)), ci2 = amp * (ar * Math.sin(ph) + ai * Math.cos(ph));
-        SP[pk][0][q] += cr / dd; SP[pk][1][q] += ci2 / dd;
-        const Fr = F[pk][0], Fi = F[pk][1];
-        for (let i = 0; i < NT; i++) {
-          const a = -d * ts[i], c2 = Math.cos(a), s2 = Math.sin(a);
-          Fr[i] += cr * c2 - ci2 * s2; Fi[i] += cr * s2 + ci2 * c2;
-        }
-      }
-    }
-  }
-  // intensity in time, each launch scaled to its peak power: its pulse energy at this face
-  // (average power over the repetition rate) spread over the pulse as it arrives
-  const I = new Float64Array(NT), parts = [];
-  for (const [key, F] of fields) {
-    const Ii = new Float64Array(NT);
-    for (let i = 0; i < NT; i++) Ii[i] = F.s[0][i] ** 2 + F.s[1][i] ** 2 + F.p[0][i] ** 2 + F.p[1][i] ** 2;
-    const area = Ii.reduce((a, v) => a + v, 0) * (t1 - t0) / (NT - 1);
-    const energy = (F.Pw || 0) * 1e-3 * F.share / (F.P.rep * 1e6);             // J at this face
-    const scale = area > 0 ? energy / (area * 1e-15) : 0;                       // W
-    for (let i = 0; i < NT; i++) { Ii[i] *= scale; I[i] += Ii[i]; }
-    parts.push({ launch: key, name: F.P.name, energy, peak: Math.max(...Ii) });
-  }
-  const S = new Float64Array(NF);
-  for (const SP of spec.values()) for (let q = 0; q < NF; q++) S[q] += SP.s[0][q] ** 2 + SP.s[1][q] ** 2 + SP.p[0][q] ** 2 + SP.p[1][q] ** 2;
-  // the transform limit of the strongest branch's spectrum as it arrives
-  const tl = (() => {
-    const b = main, M = 400, tt = Array.from({ length: M }, (_, i) => (i / (M - 1) - 0.5) * 6 * tau0), v = new Float64Array(M);
-    for (let q = 0; q < NF; q += Math.max(1, Math.floor(NF / 512))) {
-      const d = ds[q]; if (d < b.pts[0].d || d > b.pts[b.pts.length - 1].d) continue;
-      const a = Math.sqrt(pulseSpectrum(b.P, d)) * Math.hypot(interp(b, d, 'as', 0), interp(b, d, 'as', 1), interp(b, d, 'ap', 0), interp(b, d, 'ap', 1));
-      for (let i = 0; i < M; i++) v[i] += a * Math.cos(d * tt[i]);
-    }
-    return fwhmOf(tt, Array.from(v, x => x * x));
-  })();
-  const dur = fwhmOf(ts, Array.from(I));
-  const nmAt = d => 2 * Math.PI * C_FS / (G0.w0 + d);
-  return {
-    branches: branches.map((b, i) => ({ n: i + 1, source: b.src.name, launch: b.launch, pol: b.pol ? 'p' : 's', arrive: b.GD - tMin, GD: b.GD, GDD: b.GDD, TOD: b.TOD,
-      share: b.share, dur: est(b), chirpY: b.chirpY, angD: b.angD, pft: b.pft, shown: near.includes(b) })),
-    t: ts, I: Array.from(I), dur, tl, tau0, peak: Math.max(...I), parts, tMin,
-    nm: ds.map(nmAt), S: Array.from(S), spectralPhase: (() => {
-      const b = main;
-      return ds.map(d => d < b.pts[0].d || d > b.pts[b.pts.length - 1].d ? NaN : polyAt(b.c, d / b.G.dW) - b.c[0] - b.c[1] * d / b.G.dW);
-    })(),
-    main: branches.indexOf(main) + 1, hidden: branches.length - near.length,
-  };
-}
-export const fmtFs = v => { const a = Math.abs(v); return a >= 1e6 ? +(v / 1e6).toPrecision(4) + ' ns' : a >= 1e3 ? +(v / 1e3).toPrecision(4) + ' ps' : +v.toPrecision(4) + ' fs'; };
-export const fmtFs2 = v => { const a = Math.abs(v); return a >= 1e6 ? +(v / 1e6).toPrecision(4) + ' ps²' : Math.abs(v) < 0.05 ? '0 fs²' : +v.toPrecision(4) + ' fs²'; };
-const fmtFs3 = v => { const a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPrecision(4) + ' ps³' : Math.abs(v) < 0.5 ? '0 fs³' : +v.toPrecision(4) + ' fs³'; };
-export const fmtW = v => v >= 1e6 ? +(v / 1e6).toPrecision(4) + ' MW' : v >= 1e3 ? +(v / 1e3).toPrecision(4) + ' kW' : v >= 1 ? +v.toPrecision(4) + ' W' : +(v * 1e3).toPrecision(4) + ' mW';
-const fmtJ = v => v >= 1e-6 ? +(v * 1e6).toPrecision(4) + ' µJ' : v >= 1e-9 ? +(v * 1e9).toPrecision(4) + ' nJ' : +(v * 1e12).toPrecision(4) + ' pJ';
 function drawPulse(cv, el, view) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 160;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
@@ -327,35 +125,6 @@ function pulseSection(el) {
   });
   panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit. A pulse whose spectrum a fibre\u2019s nonlinearity reshaped (self-phase modulation) carries that spectrum and its phase on top.'));
 }
-/* What a trap solution means for its particle: intensity, depth, frequencies, scattering */
-export function trapReport(el, T) {
-  if (!T || T.error) return T || null;
-  const I = 0.5 * T.nMed * EPS0 * C_SI * T.E2;                            // W/m^2
-  const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
-    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
-  if (T.isAtom) {
-    const nm = el.trap && lastTraceNm(el);
-    out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s
-    const k = 2 * Math.PI / (nm * 1e-9), Erec = HBAR * HBAR * k * k / (2 * T.mass);
-    out.heat = (2 * Erec / KB) * out.sc / 3;
-    const A = TRAP_ATOMS[el.trap];
-    out.near = Math.min(...['D1', 'D2'].map(q => Math.abs(C_SI / (nm * 1e-9) - A[q][0]))) < 1e12;
-  } else {
-    const S = T.sphere;
-    out.kT = -T.U / (KB * el.trapT);
-    out.Psc = S.sigma * I;                                                // W scattered
-    out.Fscat = T.nMed * S.sigma * I / C_SI;                              // N, one beam's worth
-    out.np = S.np; out.m = S.m; out.ka = S.ka;
-    // damping by the medium, and each direction's quality factor
-    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
-    if (el.trapMed === 'air') { const g = gasDamping(el.trapR, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
-    else if (el.trapMed === 'bench' && water) { out.G = waterDamping(el.trapR, T.mass, el.trapT); out.dampBy = 'water'; }
-    else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
-    out.Q = [T.fx, T.fy, T.fz].map(f => f && out.G > 0 ? 2 * Math.PI * f / out.G : null);
-  }
-  return out;
-}
-const lastTraceNm = el => { const all = (lastTrace.screens && lastTrace.screens[el.id]) || []; const c = all.find(t => t.chief); return c ? c.nm : 1064; };
 /* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
   panel.append(h('h3', null, 'Optical trap'));
@@ -690,115 +459,6 @@ function drawAberPlot(cv, note, el) {
   note.textContent = text;
 }
 
-/* The field across the screen, in bins.
-   Rays of one source, one wavelength and one path form a beam, and a beam is a sampled
-   wavefront: with interpolation on, each beam is laid onto the bin centres before the
-   fields are added, which is what stops the fringes aliasing against the ray spacing.
-   Wavelengths and separate sources add as intensities, never as fields. */
-export const binCache = new Map();
-/* the key carries the binning settings, so a change shows up at once */
-export const binKey = el => el.id + '|' + el.binWidth + '|' + (el.binInterp !== false);
-export function binnedField(el) {
-  const key = binKey(el);
-  if (binCache.has(key)) return binCache.get(key);
-  const out = binnedFieldRaw(el);
-  binCache.set(key, out);
-  return out;
-}
-function binnedFieldRaw(el) {
-  const all = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
-  if (!all.length) return null;
-  let lo = Infinity, hi = -Infinity;
-  for (const t of all) { if (t.y < lo) lo = t.y; if (t.y > hi) hi = t.y; }
-  let span = hi - lo;
-  if (!(span > 0)) { lo -= 0.005; hi += 0.005; span = hi - lo; }
-
-  const n = el.binWidth > 0 ? Math.min(4000, Math.max(1, Math.round(span / el.binWidth))) : 96;
-  const width = span / n;
-  const interp = el.binInterp !== false;
-
-  const coh = new Float64Array(n), inc = new Float64Array(n);
-  const byNm = new Map();
-  for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, []); byNm.get(t.nm).push(t); }
-
-  for (const [nm, list] of byNm) {
-    const lam = nm * 1e-6;
-    // Rays are binned per path family (one source's rays down one branch), each with its mean
-    // optical path in each bin. Families of one launch (one laser, split or not) add as
-    // fields, each pair weighted by gamma of their path difference; launches add as powers.
-    const fams = new Map();
-    for (const t of list) {
-      const key = t.id.split(':')[0] + '|' + t.fam + '|' + t.path;
-      if (!fams.has(key)) fams.set(key, []);
-      fams.get(key).push(t);
-    }
-    const own = [];
-    let acc = null, Lw = null;
-    const deposit = (b, sr, si, pr, pi, opl, gp) => {
-      const ph = 2 * Math.PI * (opl / lam);
-      const c = Math.cos(ph), s2 = Math.sin(ph);
-      acc[b * 4] += sr * c - si * s2; acc[b * 4 + 1] += sr * s2 + si * c;
-      acc[b * 4 + 2] += pr * c - pi * s2; acc[b * 4 + 3] += pr * s2 + pi * c;
-      const w = sr * sr + si * si + pr * pr + pi * pi;
-      inc[b] += w;
-      Lw[b * 2] += w * (gp === undefined ? opl : gp); Lw[b * 2 + 1] += w;
-    };
-    for (const fam of fams.values()) {
-      const src = getEl(fam[0].id.split(':')[0]);
-      acc = new Float64Array(n * 4); Lw = new Float64Array(n * 2);
-      own.push({ acc, Lw, fam: fam[0].fam, lag: lagOf(src), g: src ? cohGamma(splitRoot(src)) : null });
-      if (!interp || fam.length < 2) {
-        for (const t of fam) deposit(Math.min(n - 1, Math.floor((t.y - lo) / width)), t.sr, t.si, t.pr, t.pi, t.opl, t.gpl);
-        continue;
-      }
-      fam.sort((a, b) => a.y - b.y);
-      let j = 0;
-      for (let b = 0; b < n; b++) {
-        const yb = lo + width * (b + 0.5);
-        if (yb < fam[0].y || yb > fam[fam.length - 1].y) continue;
-        while (j < fam.length - 2 && fam[j + 1].y < yb) j++;
-        const a = fam[j], c2 = fam[j + 1];
-        const dy0 = c2.y - a.y;
-        const u = dy0 === 0 ? 0 : (yb - a.y) / dy0;
-        const L = (p0, p1) => p0 + (p1 - p0) * u;
-        deposit(b, L(a.sr, c2.sr), L(a.si, c2.si), L(a.pr, c2.pr), L(a.pi, c2.pi), L(a.opl, c2.opl), L(a.gpl, c2.gpl));
-      }
-    }
-    const launches = new Map();
-    for (const F of own) { if (!launches.has(F.fam)) launches.set(F.fam, []); launches.get(F.fam).push(F); }
-    for (const Fs of launches.values()) for (let b = 0; b < n; b++) {
-      const on = Fs.filter(F => F.Lw[b * 2 + 1] > 0), o = b * 4;
-      for (let i = 0; i < on.length; i++) for (let j = i; j < on.length; j++) {
-        const A = on[i], B = on[j];
-        const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
-        const g = i === j || !A.g ? 1 : A.g(A.Lw[b * 2] / A.Lw[b * 2 + 1] + A.lag - B.Lw[b * 2] / B.Lw[b * 2 + 1] - B.lag);
-        coh[b] += (i === j ? 1 : 2 * g) * d;
-      }
-    }
-  }
-
-  let cMax = 0, iMax = 0, sumC = 0, sumI = 0;
-  for (let b = 0; b < n; b++) {
-    sumC += coh[b]; sumI += inc[b];
-    if (coh[b] > cMax) cMax = coh[b];
-    if (inc[b] > iMax) iMax = inc[b];
-  }
-  let vis = null;
-  if (cMax > 0.05 * iMax) {
-    let vlo = Infinity, vhi = 0, lit = 0;
-    for (let b = 0; b < n; b++) {
-      if (inc[b] < 0.05 * iMax) continue;
-      lit++;
-      if (coh[b] < vlo) vlo = coh[b];
-      if (coh[b] > vhi) vhi = coh[b];
-    }
-    if (lit > 2 && vhi > 0) vis = (vhi - vlo) / (vhi + vlo);
-  }
-  return { lo, hi, width, n, interp, coh, inc, max: cMax, incMax: iMax,
-    visibility: vis, interference: sumI > 0 ? sumC / sumI : null,
-    total: all.reduce((a, t) => a + t.w, 0) };
-}
-
 function drawRayPlot(cv, note, el) {
   const all = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
   const st = screenStats(el);
@@ -982,11 +642,6 @@ function blockNote(el) {
   return h('p', { style: 'margin-top:0.6rem' }, matLabel(el.material) + ' n = ' + refIndex(el.material, nm).toFixed(4) + ' at ' + fmtWl(nm) + '.' +
     (el.source ? ' Imported from ' + el.source + '.' : ''));
 }
-/* The source wavelengths on the bench, for readouts that depend on wavelength */
-export function benchNms() {
-  const v = [...new Set(project.elements.filter(e => e.type === 'source').flatMap(e => sourceLines(e)).map(x => +x.toFixed(2)))];
-  return v.length ? v : [633];
-}
 export const readoutBox = kind => h('div', { class: 'rt-readout', 'data-readout': kind });
 export function gratingPanel(el) {
   panel.append(h('h3', null, 'Grating'));
@@ -1105,7 +760,6 @@ export function filterPanel(el) {
   panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, rf, 'Reflect what it blocks (a dichroic)'));
   panel.append(readoutBox('filter'));
 }
-export const fmtMw = v => v === 0 ? '0 mW' : Math.abs(v) >= 0.01 ? (+v.toPrecision(4)) + ' mW' : (+(v * 1000).toPrecision(4)) + ' \u00b5W';
 /* power leaving and entering a port, mW */
 export function portPower(el, p) {
   const net = lastTrace.net;
@@ -1585,5 +1239,4 @@ export function stopPanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An opaque plate of the outer size. Rays through an opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the pair of slits, the comb, the edge or the block) along the stop. A double slit\u2019s separation and a comb\u2019s pitch run centre to centre; a slit\u2019s height is its length out of the bench plane, blank for unlimited. Out of the bench plane an iris and a block are circles and slits run to their height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the width to watch a system vignette, or the separation to walk Young\u2019s fringes.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));
 }
-
 

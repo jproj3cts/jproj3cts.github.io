@@ -1,15 +1,17 @@
-import { APP_SRC, EMBED, STORE_KEY, TEST_MODE } from '../core/constants.js';
+import { EMBED, STORE_KEY, TEST_MODE } from '../core/constants.js';
+import { installHooks } from '../core/hooks.js';
 import { refIndex } from '../core/glass.js';
 import { atomLines, gasDamping, sphereAlpha, trapAlpha, trapPhysics, waterViscosity } from '../core/traps.js';
 import { zeemanLines, zeemanStates } from '../core/zeeman.js';
 import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, faddeeva, nlcPeriod } from '../core/nlc.js';
 import { MODS } from '../core/modulators.js';
 import { fibreGamma, fibreSPM } from '../core/pulses.js';
-import { lgComps } from '../core/beams-hom.js';
+import { beamAt, lgComps } from '../core/beams-hom.js';
 import { TYPE_LABEL, project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
+import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
-import { addBench, onTab, renderBenchTabs, switchTab } from '../state/tabs.js';
+import { onTab } from '../state/tabs.js';
 import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
 import {
@@ -17,31 +19,32 @@ import {
   traceStore, traceStoreHits
 } from '../engines/trace.js';
 import {
-  bez, fibreSegs, handlePos, hornShape, modS, requestRender, resize, segPlanes, selection,
+  benchStyleShown, bez, fibreSegs, handlePos, hornShape, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender
 } from './render.js';
 import { wirePointer } from './pointer.js';
-import { getPath, setParam } from './params.js';
+import { getPath, setParam } from '../state/params.js';
 import {
-  fieldFrames, fieldRendered, pauseAll, play, playing, renderedPeriod, stepValue, sweepJob,
-  updateActivity
+  fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playing, renderedPeriod, showActivityNow,
+  stepValue, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, detectorReading, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
+import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
 import { V3D } from './view3d.js';
 import { INST, osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from './instruments.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
-import { pinBoxes, pins, renderPanel, setPins, togglePin, viewState, vs } from './panel.js';
-import { portPower, pulseReport, trapReport } from './panels.js';
+import { pinBoxes, pins, renderPanel, setPins, syncPanel, togglePin, viewState, vs } from './panel.js';
+import { portPower } from './panels.js';
 import { materialOptions, partAssumptions } from './plots.js';
-import { beamAt, laserState } from './panel-cavity.js';
+import { cavityLater } from './panel-cavity.js';
 import {
   besselJ01, besselZerosJ0, hankel, ihankel, popFieldSeries, popGaussian, popLeg, popPower, popRadii,
   popStats, popSurface, popW, qdht, setBAB_N
 } from '../engines/field.js';
-import { cavEventABCD, cavModes, cavRunCache, cavSolved, findCavities } from '../engines/cavity.js';
+import { cavEventABCD, cavModes, cavRunCache, cavSolved, findCavities, laserState } from '../engines/cavity.js';
 import { vfPupil } from '../engines/vector-focus.js';
 import { popScreen } from '../engines/phase-screen.js';
 import { interp2, popGaussian2, popLeg2, popStats2, popSurface2 } from '../engines/field2d.js';
@@ -49,11 +52,14 @@ import { popGroupCut, popGroups, popKeyOf, popRun, popSources, popStepCache, seg
 import { closeupInfoAt, fieldAlongLine, fieldAtPoint, volData, volDisp } from '../engines/volume.js';
 import { HEAVY_MS, fieldCost } from './heavy.js';
 import { popScreenPrep } from '../engines/diffraction.js';
-import { aberCache, aberrations, diffraction, liveScreens, popScreenCache, screenStats, viaCavity } from '../engines/pd-cavity.js';
+import { aberCache, aberrations, diffraction, liveScreens, popScreenCache, viaCavity } from '../engines/pd-cavity.js';
+import { pulseReport } from '../engines/pulse.js';
+import { screenStats, trapReport } from '../engines/screen-stats.js';
 import {
   addElement, alignEls, changed, clipOf, fitView, measureOpl, measureSnap, pasteClip, rotateEls,
   setStatus, toast, updateUndoButtons, wireActions
 } from './actions.js';
+import { addBench, renderBenchTabs, switchTab } from './tabs.js';
 import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
 import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
@@ -64,16 +70,24 @@ import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlEle
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine } from './myparts.js';
-import { PACKS, normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
+import { normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
 import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
-import { modAsk, modHash, modJonesM, modLoad, modPrepare, modReadoutResults, modReset, modStatus, wireMods } from '../io/mods.js';
-import { FW, TW, workerShim } from '../worker/field-worker.js';
+import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
+import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
+/* the engines reach the page through these, and nowhere else */
+installHooks({
+  requestRender, renderPanel, syncPanel, showActivityNow, cavityLater, toast,
+  benchStyleShown: () => requestAnimationFrame(() => benchStyleShown()),
+  view3dReset: () => { try { V3D.reset(); } catch (e) { /* not set up yet */ } },
+  playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
+  fieldWorker, fwRequest, fwMismatch, modAsk,
+});
 wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
@@ -227,10 +241,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // trace: whatever the page's code does at its top level must still run in a worker
     workerProbe() {
       return new Promise(resolve => {
-        if (!APP_SRC || typeof Worker === 'undefined') { resolve({ ok: false, err: 'no worker here' }); return; }
-        const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-        const w = new Worker(url);
-        URL.revokeObjectURL(url);
+        if (!WORKERS_OK) { resolve({ ok: false, err: 'no worker here' }); return; }
+        const w = newAppWorker();
         let timer = null;
         const done = r => { clearTimeout(timer); w.terminate(); resolve(r); };
         timer = setTimeout(() => done({ ok: false, err: 'no answer' }), 10000);

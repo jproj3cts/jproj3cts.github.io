@@ -1,11 +1,11 @@
+import { clamp } from '../core/constants.js';
 import { CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
-import { DRAW_SHAPES } from '../ui/drawings.js';
-import { clamp } from '../ui/params.js';
+import { DRAW_SHAPES } from './drawings.js';
+import { lensKind } from './elements.js';
 import { FC } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
-import { lensKind } from '../ui/plots.js';
-import { modName } from '../io/mods.js';
+import { modName } from '../engines/mods.js';
 
 /* ==========================================================================
    Project state
@@ -109,3 +109,4 @@ export function bandCoat(spec, tag) {
   return normCoat({ mode: 'band', R: spec.R, lo: spec.lo, hi: spec.hi, label: spec.label + ' (-' + tag + ')' });
 }
 
+export const V = () => project.view;

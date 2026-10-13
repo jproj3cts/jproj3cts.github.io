@@ -1,8 +1,8 @@
+import { clamp } from './constants.js';
+import { fanFromGauss } from './beams-hom.js';
 import { num } from '../state/project.js';
 import { lastTrace } from '../engines/trace.js';
-import { clamp } from '../ui/params.js';
 import { netPower } from '../engines/fibre.js';
-import { fanFromGauss } from '../ui/panel-cavity.js';
 
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that
@@ -56,10 +56,6 @@ export function applyRf(el) {
   el.colourAuto = false; el.colour = '#e0a030';
   fanFromGauss(el);
 }
-export const fmtGHz = nm => { const f = C_NM_GHZ / nm; return f >= 1000 ? +(f / 1000).toPrecision(4) + ' THz' : +f.toPrecision(4) + ' GHz'; };
-/* a wavelength as a readout says it: in nm, or for an RF beam as its frequency */
-export const fmtWl = nm => nm > 1e5 ? fmtGHz(nm) : nm + ' nm';
-export const fmtDbm = mw => mw > 0 ? (10 * Math.log10(mw)).toFixed(2) + ' dBm' : '\u2212\u221e dBm';
 export const DETECTOR_MATERIALS = {
   si: { name: 'Silicon', wl: [350, 400, 500, 600, 700, 800, 900, 960, 1000, 1050, 1100, 1150], r: [0.08, 0.12, 0.26, 0.36, 0.45, 0.53, 0.60, 0.62, 0.55, 0.35, 0.12, 0.02] },
   ingaas: { name: 'InGaAs', wl: [800, 900, 1000, 1100, 1300, 1550, 1600, 1650, 1700, 1750], r: [0.2, 0.55, 0.65, 0.75, 0.9, 1.0, 1.0, 0.9, 0.4, 0.05] },

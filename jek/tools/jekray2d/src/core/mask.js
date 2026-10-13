@@ -1,7 +1,7 @@
+import { clamp } from './constants.js';
 import { deg } from '../state/project.js';
 import { sagFn } from './geometry.js';
-import { clamp } from '../ui/params.js';
-import { modMaskFns } from '../io/mods.js';
+import { modMaskFns } from '../engines/mods.js';
 
 /* ---------- Mask functions ----------
    An amplitude or a delay given as a formula in x (along the element, in the bench

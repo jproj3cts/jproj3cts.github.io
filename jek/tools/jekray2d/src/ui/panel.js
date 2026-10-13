@@ -1,36 +1,37 @@
 import { BEAM_Z } from '../core/constants.js';
+import { fmtFs, fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { FIBRE_NG, cohGamma, lagOf, splitChain, splitRoot } from '../core/coherence.js';
 import { applyPulse, gsmModes, m2Of, syncLine } from '../core/pulses.js';
-import { isHigherMode, lgComps, modeM2 } from '../core/beams-hom.js';
+import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
 import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
 import { getEl, lightOf, selected } from '../state/elements.js';
-import { checkpoint, selectEl, switchTab } from '../state/tabs.js';
 import { STL_UNITS, meshHullCache } from '../core/stl.js';
 import { RAY_PATTERNS, rayPattern, tippable } from '../engines/trace.js';
 import { requestRender, selFibre, selection, setSelFibreId } from './render.js';
 import { drawBarShown, drawPanel } from './drawings.js';
-import { getPath, setParam } from './params.js';
+import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  FIELD_FRAMES, SWEEP_STEPS_MAX, WAVES, advOpen, fieldPossible, isPlaying, pause, play,
-  setFieldRendered, swPool, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey,
-  sweepValue
+  FIELD_FRAMES, WAVES, advOpen, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
+  swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { applyFibre } from '../engines/fibre-face.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
+import { updateReadouts } from './readouts.js';
 import {
   cellPanel, crystalPanel, cubePanel, detectorPanel, faradayPanel, fcompPanel, fibreLinkPanel,
-  fibrePanel, filterPanel, fmtFs, gainPanel, gratingPanel, groupPanel, jonesPanel, linkPanel,
-  maskPanel, modulatorPanel, nlcPanel, prismPanel, pulseLine, pulseToggle, readoutBox, readoutTabs,
-  rfHornPanel, screenPanel, stopPanel
+  fibrePanel, filterPanel, gainPanel, gratingPanel, groupPanel, jonesPanel, linkPanel, maskPanel,
+  modulatorPanel, nlcPanel, prismPanel, pulseLine, pulseToggle, readoutBox, readoutTabs, rfHornPanel,
+  screenPanel, stopPanel
 } from './panels.js';
 import { assumedBox, lensPanel } from './plots.js';
-import { cavitiesOf, fanFromGauss, fmtHz, gaussFromFan, renderOverview, setBenchTab } from './panel-cavity.js';
+import { renderOverview, setBenchTab } from './panel-cavity.js';
+import { cavitiesOf, gaussFromFan } from '../engines/cavity.js';
 import { popNote } from './heavy.js';
-import { updateReadouts } from '../engines/pd-cavity.js';
 import { changed, duplicate, removeEl } from './actions.js';
+import { checkpoint, selectEl, switchTab } from './tabs.js';
 import { importStl } from './experimental.js';
 import { saveToMine } from './myparts.js';
 import { modPanel } from '../io/mods.js';
@@ -55,26 +56,6 @@ export const pinBoxes = new Map();
 let editing = false;
 export let fid = 0;
 export function setFid(v) { return (fid = v); }
-
-export function fmtNum(v) {
-  if (v === null || v === undefined || !isFinite(v)) return '';
-  return String(+(+v).toPrecision(8));
-}
-export function fmtFreq(hz) {
-  if (!isFinite(hz)) return '∞';
-  if (hz >= 1e9) return (+(hz / 1e9).toPrecision(4)) + ' GHz';
-  if (hz >= 1e6) return (+(hz / 1e6).toPrecision(4)) + ' MHz';
-  return (+(hz / 1e3).toPrecision(4)) + ' kHz';
-}
-export function fmtLen(mm) {
-  if (!isFinite(mm)) return '∞';
-  const a = Math.abs(mm);
-  if (a < 1e-9) return '0 mm';
-  if (a >= 1000) return (mm / 1000).toPrecision(4) + ' m';
-  if (a >= 1 || a === 0) return (+mm.toPrecision(5)) + ' mm';
-  if (a < 1e-3) return (+(mm * 1e6).toPrecision(4)) + ' nm';
-  return (+(mm * 1000).toPrecision(4)) + ' µm';
-}
 
 export function beginEdit() { if (!editing) { checkpoint(); editing = true; } }
 export function endEdit() { editing = false; }
@@ -751,7 +732,6 @@ function sourcePanel(el) {
   if (el.pol === 'linear') prows.append(param('Angle from p (°)', el, 'polAngle'));
   panel.append(prows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
-
 
   // the laser's own line: how far apart two paths can be and still interfere
   panel.append(h('h3', null, 'Coherence'));

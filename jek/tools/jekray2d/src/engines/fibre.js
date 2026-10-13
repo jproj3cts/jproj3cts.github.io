@@ -1,17 +1,17 @@
+import { clamp } from '../core/constants.js';
 import { C_SI, HPL } from '../core/cells.js';
 import { C_MM, MODS, cmul, eomSidebands, famAt } from '../core/modulators.js';
 import { FIBRE_NG, cohGamma, splitRoot } from '../core/coherence.js';
 import { fibreGDD, fibreSPMLater } from '../core/pulses.js';
+import { fanFromGauss } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { deg, project } from '../state/project.js';
+import { V, deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toWorld, toWorldDir } from '../core/mask.js';
-import { V, modS } from '../ui/render.js';
-import { clamp } from '../ui/params.js';
 import { arrivalField, faceArrivals, fanFromFibre, fibreMode, mmShare } from './fibre-face.js';
 import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
-import { fanFromGauss } from '../ui/panel-cavity.js';
+import { modS } from './mods.js';
 
 /* ==========================================================================
    Fibre subsystems

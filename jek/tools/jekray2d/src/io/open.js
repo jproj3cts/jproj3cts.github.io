@@ -3,7 +3,6 @@ import { GLASS, glassKey } from '../core/glass.js';
 import { RF_MAT } from '../core/rf.js';
 import { TYPE_LABEL, history, project, selectOne, setProject, typeLabel } from '../state/project.js';
 import { loadProject } from '../state/elements.js';
-import { checkpoint, keepSnapshot, renderBenchTabs } from '../state/tabs.js';
 import { dropTraceStore, tippable } from '../engines/trace.js';
 import { setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
@@ -13,8 +12,10 @@ import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';
 import { updateSweepButtons } from '../ui/optimise.js';
 import { changed, fitView, toast, updateUndoButtons } from '../ui/actions.js';
+import { checkpoint, renderBenchTabs } from '../ui/tabs.js';
 import { applyUi } from './share.js';
 import { cloudLink } from './cloud.js';
+import { keepSnapshot } from './autosave.js';
 import { modsOffer } from './mods.js';
 
 /* ---------- Opening a project someone (or something) else wrote ----------
@@ -248,3 +249,4 @@ export function wireOpen() {
   }
 
 }
+

@@ -1,17 +1,18 @@
+import { clamp } from '../core/constants.js';
+import { fmtGHz, fmtLen } from '../core/format.js';
 import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
-import { RF_MAT, fmtGHz } from '../core/rf.js';
+import { RF_MAT } from '../core/rf.js';
 import { deg, normMat, project } from '../state/project.js';
-import { getEl } from '../state/elements.js';
-import { checkpoint } from '../state/tabs.js';
+import { PACKS } from '../state/packs.js';
+import { benchNms, getEl } from '../state/elements.js';
 import { getCss, niceStep } from './render.js';
-import { clamp } from './params.js';
 import { playing } from './sweeps.js';
 import { pctTxt, stopSweepsFor } from './optimise.js';
-import { bindSync, fid, fmtLen, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
-import { benchNms, coatingRows } from './panels.js';
+import { bindSync, fid, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
+import { coatingRows } from './panels.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
-import { PACKS } from '../io/packs.js';
+import { checkpoint } from './tabs.js';
 
 /* ---------- Zooming a panel plot ----------
    Each plot of each element keeps its own window: a zoom factor and a centre for each
@@ -553,11 +554,6 @@ function drawDiff(cv, D, el) {
     c.textAlign = 'right'; c.fillText('solid: in the plane, dashed: out', w - 28, A.t - 8);
   }
   updateSyncButtons();
-}
-
-export function lensKind(el) {
-  if (el.surfaces.some(s => s.k !== 0 || s.a2 !== 0 || s.A.some(a => a !== 0))) return 'Aspheric lens';
-  return 'Lens';
 }
 
 export function pickMaterial(v, old) {

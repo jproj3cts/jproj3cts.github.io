@@ -1,9 +1,9 @@
-import { extraSel, project, selectedId, setExtraSel, setSelectedId, typeLabel } from '../state/project.js';
+import { V, extraSel, project, selectedId, setExtraSel, setSelectedId, typeLabel } from '../state/project.js';
 import { STL_KEEP, meshEncode, meshTris } from '../core/stl.js';
 import { exporting, setExporting } from '../engines/trace.js';
 import {
-  DPR, H, V, W, canvas, ctx, draw, getCss, halfSize, requestRender, selection, setCtx, setDPR, setH,
-  setW, wx, wy
+  DPR, H, W, canvas, ctx, draw, getCss, halfSize, requestRender, selection, setCtx, setDPR, setH, setW,
+  wx, wy
 } from './render.js';
 import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';

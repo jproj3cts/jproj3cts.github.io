@@ -1,8 +1,10 @@
+import { clamp } from '../core/constants.js';
+import { fmtHz } from '../core/format.js';
 import { MODS } from '../core/modulators.js';
 import { pdResp, responsivity } from '../core/rf.js';
-import { deg, nextName, num, project } from '../state/project.js';
-import { VSRC, getEl, normElement, setVSRC } from '../state/elements.js';
-import { addBench, benchName, checkpoint, selectEl } from '../state/tabs.js';
+import { V, deg, nextName, num, project } from '../state/project.js';
+import { VSRC, benchNms, getEl, normElement, setVSRC } from '../state/elements.js';
+import { benchName } from '../state/tabs.js';
 import { makeSurf } from '../core/geometry.js';
 import { frame } from '../core/mask.js';
 import {
@@ -10,23 +12,23 @@ import {
   traceScene, traceSceneRaw
 } from './trace.js';
 import {
-  V, bodyFill, ctx, detR, draw, getCss, modBlockH, modHAt, modNAt, pathLocal, portFill, portsInUse,
-  removeFibre, selInk, srcBody, sx, sy
+  bodyFill, ctx, detR, draw, getCss, pathLocal, portFill, portsInUse, removeFibre, selInk, srcBody, sx,
+  sy
 } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
-import { clamp } from '../ui/params.js';
 import { fieldHeld } from '../ui/sweeps.js';
 import { detectorReading } from './fibre-face.js';
 import { FC_H, FC_W, netPower, pkey, portName, portWorld, portsOf, portsOfOptic } from './fibre.js';
+import { modBlockH, modHAt, modNAt, modStatus } from './mods.js';
 import { INST, pdNetMw, pdSignal } from '../ui/instruments.js';
 import { bindSync, h, panel, param, selectField, textField } from '../ui/panel.js';
-import { benchNms, binCache, readoutBox } from '../ui/panels.js';
+import { readoutBox } from '../ui/panels.js';
 import { plotSaveRow } from '../ui/plots.js';
-import { fmtHz } from '../ui/panel-cavity.js';
 import { diffCache } from './diffraction.js';
 import { detFieldGen, detectorFieldResult, statsCache } from './pd-cavity.js';
+import { binCache } from './screen-stats.js';
 import { changed } from '../ui/actions.js';
-import { modStatus } from '../io/mods.js';
+import { addBench, checkpoint, selectEl } from '../ui/tabs.js';
 
 /* ==========================================================================
    Electronics

@@ -1,15 +1,16 @@
+import { cdotc } from '../core/maths.js';
+import { fmtHz, fmtMw, fmtTime } from '../core/format.js';
 import { C_MM } from '../core/modulators.js';
 import { pdResp, responsivity } from '../core/rf.js';
 import { cohGamma, splitRoot } from '../core/coherence.js';
 import { deg } from '../state/project.js';
+import { benchNms } from '../state/elements.js';
 import { lastTrace, loadGen } from '../engines/trace.js';
 import { arrivalField, arrivalWindow, detectorReading, deviceMemo, faceArrivals } from '../engines/fibre-face.js';
 import { netPower } from '../engines/fibre.js';
 import { ELEC } from '../engines/elec.js';
 import { bindSync, fid, h, panel, param, setFid, vs } from './panel.js';
-import { benchNms, fmtMw } from './panels.js';
 import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
-import { fmtHz } from './panel-cavity.js';
 import { detectorFieldResult, viaCavity } from '../engines/pd-cavity.js';
 
 /* ==========================================================================
@@ -277,14 +278,6 @@ export const INST = (() => {
   return { CH, scope, spectrum, record, trace, scopeControls, spectrumControls, autoSpan };
 })();
 
-/* ---------- A photodiode's signal: its DC and the beat notes in it ----------
-   Light of one laser at two offsets f_a and f_b beats at f_b - f_a: the power carries
-   2 Re(E_a . E_b* e^{i 2 pi (f_b - f_a) t}), E the fields summed over the diode (for a fibre
-   photodiode, the fibre's two polarisations), each pair of paths weighted by the laser's
-   gamma of their delay. Two different lasers beat at the difference of their frequencies,
-   but with a phase that wanders and a line as wide as both of theirs: those are listed as
-   such. The amplifier passes each tone through its bandwidth, a single pole. */
-export const cdotc = (A, B) => [A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3], A[1] * B[0] - A[0] * B[1] + A[3] * B[2] - A[2] * B[3]];   // A . conj(B)
 /* tones from pairs [{fo, dl, E, root, key, nm}]: same launch pairs at different offsets, and different lasers */
 function beatTones(parts) {
   const tones = new Map(), add = (f, re, im, incoh) => {
@@ -515,7 +508,6 @@ function pdSignalAll(el) {
     .concat(S.tones.filter(t => t.incoh)).sort((a, b) => a.f - b.f);
   return Object.assign({}, S, { Vdc: E.dc, dc: k > 0 ? E.dc / k : S.dc, tones, unit: E.unit, driven: true, vmax: el.diode ? Infinity : S.vmax });
 }
-const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
 /* the signal section of a photodiode's panel */
 /* what a photodiode's Signal views show: the signal its electrical output carries (beat notes,
    the bench's drives, its noise), with beats between different lasers as tones of no fixed phase */

@@ -1,35 +1,36 @@
-import { BEAM_Z, IN_WORKER } from '../core/constants.js';
+import { BEAM_Z, clamp } from '../core/constants.js';
+import { fmtHz, fmtLen } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { C_NM_GHZ } from '../core/rf.js';
-import { m2Env } from '../core/beams-hom.js';
+import { beamAt, m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
-import { DOVE_RATIO, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
-import { FIBRE_COLOUR, getEl, lightOf, selected } from '../state/elements.js';
-import { benchName, checkpoint, linkPartner, onTab, scheduleSave } from '../state/tabs.js';
+import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
+import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected } from '../state/elements.js';
+import { benchName, linkPartner, onTab } from '../state/tabs.js';
 import { dsagFn, lensSurfaces, polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, maskFns, stopBlades, toLocal, toWorld } from '../core/mask.js';
 import { exporting, lastTrace } from '../engines/trace.js';
 import { drawDrawing, drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
 import { drag } from './pointer.js';
-import { clamp } from './params.js';
 import { FC, FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
-import { fmtLen, h, renderPanel } from './panel.js';
-import { benchNms } from './panels.js';
+import { updateReadouts } from './readouts.js';
+import { h, renderPanel } from './panel.js';
 import { partAssumptions } from './plots.js';
-import { beamAt, fmtHz } from './panel-cavity.js';
 import { popSources } from '../engines/beam-tree.js';
-import { closeupOn, drawCloseup, setCloseupOn } from '../engines/closeup.js';
+import { closeupOn, setCloseupOn } from '../engines/closeup.js';
 import { drawPop } from './heavy.js';
-import { screenStats, updateReadouts } from '../engines/pd-cavity.js';
+import { drawCloseup } from './closeup.js';
+import { screenStats } from '../engines/screen-stats.js';
 import { changed, drawMeasures, drawMinimap } from './actions.js';
+import { checkpoint } from './tabs.js';
 import { cssColour } from '../io/layout.js';
+import { scheduleSave } from '../io/autosave.js';
 import { updateEmpty } from './tours.js';
-import { modDefOf, modParams, modResult } from '../io/mods.js';
-import { TW, traceLater } from '../worker/field-worker.js';
+import { TW, traceLater } from '../page/workers.js';
 
 /* ==========================================================================
    Rendering
@@ -53,7 +54,6 @@ export function resize() {
 }
 /* the tool is the whole window; the page itself does not scroll */
 
-export const V = () => project.view;
 export const sx = x => W / 2 + (x - V().cx) * V().scale;
 export const sy = y => H / 2 - (y - V().cy) * V().scale;
 export const wx = px => V().cx + (px - W / 2) / V().scale;
@@ -773,7 +773,6 @@ function drawSelection() {
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
-export const ZOOM_MAX = 1e5;          // px per mm: 10 nm a pixel, enough to see a standing wave's fringes
 export function niceStep(target) {
   const p = Math.pow(10, Math.floor(Math.log10(target)));
   for (const m of [1, 2, 5, 10]) if (m * p >= target) return m * p;
@@ -793,13 +792,6 @@ function drawScaleBar() {
 }
 
 const cssCache = {};
-/* A canvas to draw into off screen: in the worker, an OffscreenCanvas */
-export function mkCanvas(w, h) {
-  w = Math.max(1, Math.round(w || 1)); h = Math.max(1, Math.round(h || 1));
-  if (IN_WORKER) return new OffscreenCanvas(w, h);
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  return c;
-}
 export function getCss(v) {
   if (!(v in cssCache)) cssCache[v] = getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#000';
   return cssCache[v];
@@ -1093,34 +1085,6 @@ const FSYM = (() => {
   }
   return { draw };
 })();
-/* ---------- a mod's component and block: their answers, as the fibre network and the electronics take them ---------- */
-export function modS(el, nm) {
-  const D = modDefOf(el);
-  if (!D || D.kind !== 'component') return [];
-  const p = modParams(el), n = el.mod.ports.length, r = modResult(el, 'S', { nm, p, n }, nm + '|' + n + '|' + JSON.stringify(p));
-  return r ? r.map(q => [q[0], q[1], [[[q[2], q[3]], [q[4], q[5]]], [[q[6], q[7]], [q[8], q[9]]]]]) : [];
-}
-// a block's response on its grid: f = 0, then fmin to fmax at perDecade points a decade
-export function modBlockH(el) {
-  const D = modDefOf(el);
-  if (!D || D.kind !== 'block') return null;
-  const n = Math.round(Math.log10(D.fmax / D.fmin) * D.perDecade) + 1, fs = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) fs[i + 1] = D.fmin * Math.pow(10, i / D.perDecade);
-  const p = modParams(el), ni = el.mod.ins.length, no = el.mod.outs.length;
-  const r = modResult(el, 'H', { fs, p, ni, no }, D.fmin + '|' + D.fmax + '|' + D.perDecade + '|' + ni + '|' + no + '|' + JSON.stringify(p));
-  return r ? { fs, H: r.H, N: r.N, ni, no, noise: D.noise, lo: Math.log10(D.fmin), per: D.perDecade, n } : null;
-}
-export function modHAt(R, f, o, i) {
-  const at = k => { const w = 2 * ((k * R.no + o) * R.ni + i); return [R.H[w], R.H[w + 1]]; };
-  if (!(f > 0)) return at(0);
-  const x = clamp((Math.log10(f) - R.lo) * R.per, 0, R.n - 1), k = Math.min(R.n - 2, Math.floor(x)), t = x - k, a = at(k + 1), b = at(Math.min(R.n, k + 2));
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-}
-export function modNAt(R, f, o) {
-  const x = clamp((Math.log10(Math.max(f, 1e-300)) - R.lo) * R.per, 0, R.n - 1), k = Math.min(R.n - 2, Math.floor(x)), t = x - k;
-  const a = R.N[(k + 1) * R.no + o], b = R.N[Math.min(R.n, k + 2) * R.no + o];
-  return a + (b - a) * t;
-}
 function drawFcomp(el, sel) {
   if (FSYM.draw(el, sel)) { drawPorts(el); return; }
   const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = fcH(el) / 2, s = V().scale;

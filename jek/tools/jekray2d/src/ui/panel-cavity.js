@@ -1,36 +1,27 @@
-import { TEST_MODE } from '../core/constants.js';
-import { gainAt, gainSmall } from '../core/crystals.js';
-import { m2Of } from '../core/pulses.js';
-import { cavLine, modeM2 } from '../core/beams-hom.js';
-import { wavelengthColour } from '../core/colour.js';
+import { TEST_MODE, clamp } from '../core/constants.js';
+import { fmtHz, fmtLen, fmtW } from '../core/format.js';
+import { cavLine } from '../core/beams-hom.js';
 import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
-import { checkpoint, curBench, scheduleSave, selectEl } from '../state/tabs.js';
+import { curBench } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
 import { getCss, requestRender } from './render.js';
-import { clamp } from './params.js';
 import { V3D } from './view3d.js';
-import {
-  BENCH_PIN, bindSync, fid, fmtLen, h, numInput, panel, pinTitle, renderPanel, selectField, setFid,
-  syncPanel
-} from './panel.js';
-import { fmtW } from './panels.js';
+import { updateReadouts } from './readouts.js';
+import { BENCH_PIN, bindSync, fid, h, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
 import {
   axisFont, drawAxes, magma, plotArea, plotCsv, plotFrame, plotZoom, updateSyncButtons, zoomControls,
   zoomRange
 } from './plots.js';
 import { popRadii, popStats, qdht } from '../engines/field.js';
-import { cavModes, cavRunCache, cavSolved, findCavities, mfree, qThrough } from '../engines/cavity.js';
+import { cavModes, cavRunCache, cavSolved, findCavities, laserState } from '../engines/cavity.js';
 import { interp2, popStats2 } from '../engines/field2d.js';
 import { popRunGen } from '../engines/beam-tree.js';
-import { updateReadouts } from '../engines/pd-cavity.js';
 import { changed } from './actions.js';
-import { fieldWorker, fwRequest } from '../worker/field-worker.js';
+import { checkpoint, selectEl } from './tabs.js';
+import { scheduleSave } from '../io/autosave.js';
+import { fieldWorker, fwRequest } from '../page/workers.js';
 
-/* ---------- Cavities in the panels ----------
-   Every cavity found shows as a card: in the bench overview, and in the panel of each
-   element on its loop (so it pins like any panel) */
-export const fmtHz = v => { const a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPrecision(4) + ' GHz' : a >= 1e6 ? +(v / 1e6).toPrecision(4) + ' MHz' : a >= 1e3 ? +(v / 1e3).toPrecision(4) + ' kHz' : +v.toPrecision(3) + ' Hz'; };
 /* A card with nothing solved yet starts a field run of the bench in the background, in
    slices, and the panels refresh when it is done */
 export let cavJob = null;
@@ -55,110 +46,6 @@ export function cavityLater() {
   };
   setTimeout(step, 20);
 }
-/* A cavity with gain in its loop, as a laser. The round trip's passive loss is what the
-   pilot lost less what the gain gave it; the small-signal gain against that loss says whether
-   it lases. If it does, each gain element saturates as a homogeneous medium does with every
-   beam through it at once (Rigrod 1965): I+ I- is constant through it, so every pass sees the
-   same gain G, ln G = ln G0 - (G - 1) S / Psat, S the power entering it summed over its passes,
-   Psat = Isat pi w^2 / 2 over the cavity mode there. Walking the loop with the mirrors'
-   reflectances (and the rest of the passive loss spread evenly) gives S for a power X on the
-   output coupler, and X is where the round trip is one. What leaves through each partly
-   transmitting mirror is the power arriving there times its transmission. */
-export function laserState(c) {
-  if (c.rho === null || !(c.rho > 0)) return null;
-  const count = new Map();
-  c.surfaces.forEach((id, j) => { const e = getEl(id); if (e && e.type === 'gain') { const k = count.get(id); count.set(id, k ? { e, k: k.k + 1, j: k.j } : { e, k: 1, j }); } });
-  if (!count.size) return null;
-  const nm = c.lam0 * 1e6;
-  const G = [...count.values()].map(({ e, k, j }) => {
-    const a = c.mode.along[j];
-    const w = a ? Math.sqrt(a.wx * a.wy) : null;
-    return { e, k, g0: gainSmall(e, nm), used: gainAt(e, nm), Psat: e.isat > 0 && w ? e.isat * 10 * Math.PI * w * w / 2 : 0, w };
-  });
-  const lnPassive = 2 * Math.log(c.rho) - G.reduce((a, g) => a + g.k * Math.log(g.used), 0);
-  const lnNet0 = lnPassive + G.reduce((a, g) => a + g.k * Math.log(g.g0), 0);
-  const need = Math.exp(-lnPassive / G.reduce((a, g) => a + g.k, 0) - 0) ;   // one gain element's pass gain at threshold
-  const out = { nm, G, lnPassive, lnNet0, above: lnNet0 > 0, need, sat: G.every(g => g.Psat > 0) };
-  if (!out.above || !out.sat) return out;
-  // the partly transmitting mirrors round the loop; the walk starts at the most transmitting
-  const n = c.surfaces.length, els = c.surfaces.map(getEl);
-  out.outs = [];
-  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: 1 - e.reflect / 100 }); });
-  const oc = out.outs.length ? out.outs.reduce((a, b) => b.T > a.T ? b : a) : null, j0 = oc ? oc.j : 0;
-  const Rof = (j, Roc) => { const e = els[j]; return e && e.type === 'mirror' ? (oc && j === oc.j && Roc !== undefined ? Roc : Math.min(1, e.reflect / 100)) : 1; };
-  const rest = (lnPassive - els.reduce((a, e, j) => a + Math.log(Rof(j)), 0)) / n;
-  const byId = new Map(G.map(g => [g.e.id, g]));
-  // the loop walked from the output coupler with power X on it and gains Gv: the power arriving
-  // at each surface, the power entering each gain element (summed over its passes), the return
-  const walk = (X, Gv, Roc) => {
-    const inc = new Array(n).fill(0), S = new Map(G.map(g => [g.e.id, 0]));
-    let p = X;
-    for (let i = 0; i < n; i++) {
-      const j = (j0 + i) % n, e = els[j];
-      inc[j] = p;
-      if (e && byId.has(e.id)) { S.set(e.id, S.get(e.id) + p); p *= Gv.get(e.id); }
-      else p *= Rof(j, Roc);
-      p *= Math.exp(rest);
-    }
-    return { inc, S, ret: p / X };
-  };
-  // one element's gain for the power S entering it: ln G = ln G0 - (G - 1) S / Psat
-  const satG = (g, S) => {
-    if (!(g.g0 > 1)) return g.g0;
-    let lo = 1, hi = g.g0;
-    for (let i = 0; i < 60; i++) { const m = 0.5 * (lo + hi); Math.log(g.g0) - Math.log(m) - (m - 1) * S / g.Psat > 0 ? lo = m : hi = m; }
-    return 0.5 * (lo + hi);
-  };
-  const lnMirD = Roc => oc && Roc !== undefined ? Math.log(Math.max(1e-12, Roc)) - Math.log(Math.max(1e-12, 1 - oc.T)) : 0;
-  // the steady state whose round trip's log gain is target (0: it lases; slightly below for the tracer)
-  const solve = (target, Roc) => {
-    const lnP = lnPassive + lnMirD(Roc);
-    if (lnP + G.reduce((a, g) => a + g.k * Math.log(g.g0), 0) <= target) return null;
-    if (G.length === 1) {
-      // one gain element: the round trip fixes its gain, and the power follows from it
-      const g = G[0], Gs = Math.exp((target - lnP) / g.k), Gv = new Map([[g.e.id, Gs]]);
-      const s1 = walk(1, Gv, Roc).S.get(g.e.id);
-      const X = Gs - 1 > 1e-12 ? Math.min(1e12, g.Psat * (Math.log(g.g0) - Math.log(Gs)) / ((Gs - 1) * s1)) : 1e12;
-      return Object.assign(walk(X, Gv, Roc), { X, Gv });
-    }
-    // several: for a power X, their gains by iteration; X where the round trip is target
-    const at = X => {
-      let Gv = new Map(G.map(g => [g.e.id, g.g0])), W;
-      for (let it = 0; it < 200; it++) {
-        W = walk(X, Gv, Roc);
-        let d = 0; const nx = new Map();
-        for (const g of G) { const v = Math.sqrt(Gv.get(g.e.id) * satG(g, W.S.get(g.e.id))); d = Math.max(d, Math.abs(v / Gv.get(g.e.id) - 1)); nx.set(g.e.id, v); }
-        Gv = nx; if (d < 1e-12) break;
-      }
-      W = walk(X, Gv, Roc);
-      return Object.assign(W, { X, Gv });
-    };
-    let hi = 1e-3; while (Math.log(at(hi).ret) > target && hi < 1e12) hi *= 4;
-    let lo = 0; for (let i = 0; i < 100; i++) { const m = 0.5 * (lo + hi); Math.log(at(m).ret) > target ? lo = m : hi = m; }
-    return at(0.5 * (lo + hi));
-  };
-  const W = solve(0);
-  out.P = W ? Math.max(...W.inc) : 0;                 // the most power anywhere in the loop
-  out.Gsat = G.map(g => W ? W.Gv.get(g.e.id) : g.g0);
-  // the gain the tracer uses: a hair below threshold, so the seed's round trips stay finite
-  const Wt = solve(Math.log(0.995));
-  out.clamp = new Map(G.map(g => [g.e.id, Wt && g.g0 > 1 ? Math.log(Wt.Gv.get(g.e.id)) / Math.log(g.g0) : 1]));
-  for (const o of out.outs) o.P = W ? W.inc[o.j] * o.T : 0;
-  if (oc) {
-    const Pof = R => { const S = solve(0, R); return S ? S.inc[oc.j] * (1 - R) : 0; };
-    // most of the range is below threshold (no output at all): find the peak on a grid of
-    // transmissions first, then close in on it
-    let kb = 0, Tg = [];
-    for (let i = 0; i <= 240; i++) Tg.push(Math.pow(10, -5 + 5 * i / 240));
-    const Pg = Tg.map(T => Pof(1 - T));
-    for (let i = 1; i < Pg.length; i++) if (Pg[i] > Pg[kb]) kb = i;
-    let a = Tg[Math.max(0, kb - 1)], b = Tg[Math.min(Tg.length - 1, kb + 1)];
-    for (let i = 0; i < 60; i++) { const m1 = a + (b - a) * 0.382, m2 = a + (b - a) * 0.618; Pof(1 - m1) < Pof(1 - m2) ? a = m1 : b = m2; }
-    const Tb = 0.5 * (a + b);
-    out.best = { e: oc.e, R: 1 - Tb, P: Pof(1 - Tb) };
-  }
-  return out;
-}
 function cavGainRows(c) {
   const L = laserState(c);
   if (!L) return [];
@@ -172,37 +59,6 @@ function cavGainRows(c) {
   if (L.best) rows.push(['Best output coupler', 'R ' + (+(100 * L.best.R).toPrecision(3)) + '% on ' + L.best.e.name + ' gives ' + fmtW(L.best.P)]);
   return rows;
 }
-/* The beams a lasing cavity sends out: from each partly transmitting mirror, the cavity mode
-   as it arrives there, carried on out through the mirror with the output power */
-export function laserSources() {
-  const out = [];
-  for (const c of findCavities()) {
-    const L = laserState(c);
-    if (!L || !L.P || !L.outs) continue;
-    for (const o of L.outs) {
-      if (!(o.P > 0)) continue;
-      const p = c.p, jm = (o.j - 1 + p) % p, a = c.mode.along[jm], B = c.segs;
-      if (!a || !B[jm] || !B[o.j]) continue;
-      const q = qThrough(mfree(a.len, a.n), a.qx), lam = c.lam0;
-      const dx = B[jm].dx, dy = B[jm].dy, off = 1e-3;
-      const zR = q[1], w0 = Math.sqrt(lam * zR / Math.PI);
-      const J = B[jm].J, jn = Math.hypot(...J) || 1;
-      const nm = L.nm, mir = o.e;
-      const v = {
-        type: 'source', virtual: true, laser: true, id: 'laser~' + c.id + '~' + o.j, name: mir.name + ' (laser output)', bench: mir.bench,
-        x: B[o.j].x0 + dx * off, y: B[o.j].y0 + dy * off, angle: Math.atan2(dy, dx) / deg, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
-        gauss: true, w0, z0: -q[0] - off, m2: 1, rays: 3, traceRays: true, popN: 256, popModel: 'auto',
-        pol: 's', polAngle: 0, coh: 0, lineshape: 'lorentz', power: o.P * 1000, tau: 0, pshape: 'sech2', rep: 80, gdd0: 0,
-        vJ: J.map(x => x / jn), vLag: 0, vKey: 'laser~' + c.id + ':q', vFo: 0, sweeps: {},
-      };
-      v.vRoot = v;
-      fanFromGauss(v);
-      out.push(v);
-    }
-  }
-  return out;
-}
-export function cavitiesOf(el) { return findCavities().filter(c => !el || c.surfaces.includes(el.id)); }
 function cavityCard(c) {
   const box = h('div', { class: 'rt-cavity' });
   const head = h('h3', null, c.name + ': ' + (c.kind === 'linear' ? 'linear, ' : 'ring, ') + c.names.join(' \u2192 ') + (c.kind === 'ring' ? ' \u2192 ' + c.names[0] : ''));
@@ -474,53 +330,5 @@ export function renderOverview() {
   aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
   if (aboutNode) panel.append(aboutNode);
   updateReadouts();
-}
-
-/* The ray fan and the Gaussian beam describe the same light, so keep them in step:
-   the rays are the wavefront normals, and the fan's width is the beam diameter. */
-export function gaussFromFan(el) {
-  const lam = el.wavelength * 1e-6 * m2Of(el);    // an M^2 beam spreads as if its wavelength were M^2 times longer
-  // a higher-order mode is sqrt(M^2) wider than the Gaussian it is built on, and w0 is that Gaussian's
-  const fm = Math.sqrt(modeM2(el)[0]);
-  const wsrc = el.width / 2 / fm;
-  const half = el.divergence * deg / 2;
-  if (wsrc <= 0) {                       // a point source: the divergence alone fixes the waist
-    const th = Math.max(1e-9, Math.abs(Math.tan(half)));
-    el.w0 = fm * lam / (Math.PI * th);
-    el.z0 = 0;
-    return;
-  }
-  const invR = half === 0 ? 0 : Math.tan(half) / (wsrc * fm);
-  const invI = -lam / (Math.PI * wsrc * wsrc);
-  const den = invR * invR + invI * invI;
-  el.w0 = Math.sqrt(Math.max(1e-12, lam * (-invI / den) / Math.PI));
-  el.z0 = -(invR / den);
-}
-export function fanFromGauss(el) {
-  const lam = el.wavelength * 1e-6 * m2Of(el);
-  const qr = -el.z0, qi = Math.PI * el.w0 * el.w0 / lam;
-  const den = qr * qr + qi * qi;
-  if (!den) return;
-  const invR = qr / den, invI = -qi / den;
-  const wsrc = Math.sqrt(Math.max(0, -lam / (Math.PI * invI))) * Math.sqrt(modeM2(el)[0]);
-  el.width = 2 * wsrc;
-  el.divergence = clamp(2 * Math.atan(wsrc * invR) / deg, -179, 179);
-}
-
-/* Beam radius, wavefront radius and waist from the complex parameter q */
-export function beamAt(qr, qi, n, nm, M2) {
-  const den = qr * qr + qi * qi;
-  if (!den) return null;
-  const invR = qr / den, invI = -qi / den;          // 1/q
-  const lam = nm * 1e-6;                             // mm, in vacuum
-  const M = Math.sqrt(M2 || 1);                      // q is the embedded Gaussian's; the beam is M times wider
-  const w = M * Math.sqrt(Math.max(0, -lam / (Math.PI * n * invI)));
-  const zR = qi;
-  return {
-    w, zR,
-    R: Math.abs(invR) < 1e-12 ? Infinity : 1 / invR,
-    waistDist: -qr,                                  // positive: the waist is still ahead
-    w0: M * Math.sqrt(Math.max(0, lam * qi / (Math.PI * n))),
-  };
 }
 

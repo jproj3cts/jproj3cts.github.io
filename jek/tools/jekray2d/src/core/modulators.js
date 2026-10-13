@@ -1,5 +1,5 @@
+import { clamp } from './constants.js';
 import { deg, num } from '../state/project.js';
-import { clamp } from '../ui/params.js';
 import { jonesOf } from '../engines/polarisation.js';
 
 /* ---------- Modulators: light shifted in frequency ----------
@@ -103,3 +103,4 @@ export function normModRef(m, type) {
 }
 
 /* Photodiode responsivity (A/W) against wavelength: typical curves for each material */
+

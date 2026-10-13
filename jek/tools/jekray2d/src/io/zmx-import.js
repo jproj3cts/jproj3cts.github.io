@@ -1,6 +1,5 @@
 import { glassKey } from '../core/glass.js';
-import { bandCoat, coatingFromPart, normCoat } from '../state/project.js';
-import { V } from '../ui/render.js';
+import { V, bandCoat, coatingFromPart, normCoat } from '../state/project.js';
 import { snapVal } from '../ui/pointer.js';
 
 /* ==========================================================================

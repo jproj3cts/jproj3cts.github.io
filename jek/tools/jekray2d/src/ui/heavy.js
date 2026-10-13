@@ -1,13 +1,11 @@
-import { TEST_MODE } from '../core/constants.js';
+import { TEST_MODE, clamp } from '../core/constants.js';
 import { m2Of } from '../core/pulses.js';
 import { isHigherMode, srcModes } from '../core/beams-hom.js';
-import { project } from '../state/project.js';
+import { V, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
-import { checkpoint } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { DPR, V, clipSegPlanes, ctx, glowA, glowOp, requestRender, segPlanes, sx, sy } from './render.js';
+import { DPR, clipSegPlanes, ctx, glowA, glowOp, requestRender, segPlanes, sx, sy } from './render.js';
 import { drag } from './pointer.js';
-import { clamp } from './params.js';
 import { benchFrame, fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from './sweeps.js';
 import { h, syncPanel } from './panel.js';
 import {
@@ -15,7 +13,8 @@ import {
   popState
 } from '../engines/beam-tree.js';
 import { changed, toast } from './actions.js';
-import { fieldWorker, fwMismatch, fwRequest, fwUnpackRun } from '../worker/field-worker.js';
+import { checkpoint } from './tabs.js';
+import { fieldWorker, fwMismatch, fwRequest, fwUnpackRun } from '../page/workers.js';
 
 /* ---------- A heavy field, said before it is worked out ----------
    What a field run will cost, from what the tracer made: the Gaussian segments each source's

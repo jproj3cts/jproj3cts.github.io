@@ -1,3 +1,4 @@
+import { clamp } from '../core/constants.js';
 import { AMU, C_SI } from '../core/cells.js';
 import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
@@ -5,7 +6,6 @@ import { deg, project } from '../state/project.js';
 import { allSources, getEl } from '../state/elements.js';
 import { frame, toLocal } from '../core/mask.js';
 import { lastTrace } from './trace.js';
-import { clamp } from '../ui/params.js';
 import { arrival3 } from './fibre-face.js';
 import {
   besselJ01, field2LineAt, halfWidthOf, ihankel, interpL, popAxis, popFieldSeries, popGuard, popInside,

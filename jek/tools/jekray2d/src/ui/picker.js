@@ -1,10 +1,11 @@
 import { EMBED } from '../core/constants.js';
+import { PACKS } from '../state/packs.js';
 import { h } from './panel.js';
 import { typingIn } from './actions.js';
 import { PALETTE_NAMES, addPart, palette, palettesOn, partGroups, partTile, partsOf, recentParts } from './experimental.js';
 import { setPalette } from './rail.js';
 import { MINE, loadMine, mineBody, mineChanged, mineOn, mineTile, placeMine } from './myparts.js';
-import { PACKS, packHits, packTile, packsBody } from '../io/packs.js';
+import { packHits, packTile, packsBody } from '../io/packs.js';
 
 /* ---------- the picker ---------- */
 export const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });

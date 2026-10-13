@@ -1,21 +1,22 @@
-import { APP_SRC, TEST_MODE } from '../core/constants.js';
+import { APP_SRC, DEV_WORKER, TEST_MODE } from '../core/constants.js';
 import { project } from '../state/project.js';
 import { VSRC, getEl, serialize } from '../state/elements.js';
 import {
-  afterTrace, lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey, setLastTraceMs,
-  setTraceCount, traceCount, traceKeyNow, traceScene
+  TW_FREE, afterTrace, lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey,
+  setLastTraceMs, setTraceCount, traceCount, traceKeyNow, traceScene
 } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { drag } from '../ui/pointer.js';
 import { playing, showActivityNow } from '../ui/sweeps.js';
+import { modDelta } from '../engines/mods.js';
 import { syncPanel } from '../ui/panel.js';
-import { binCache } from '../ui/panels.js';
 import { popLeg } from '../engines/field.js';
 import { cavAtOf, cavSolved } from '../engines/cavity.js';
 import { popLeg2 } from '../engines/field2d.js';
 import { diffCache } from '../engines/diffraction.js';
 import { statsCache } from '../engines/pd-cavity.js';
-import { modDelta } from '../io/mods.js';
+import { binCache } from '../engines/screen-stats.js';
+import { workerShim } from '../worker/shim.js';
 
 /* ==========================================================================
    The field worker
@@ -30,33 +31,23 @@ import { modDelta } from '../io/mods.js';
    available, or one fails, everything runs on the page as before, a slice at a time.
    ========================================================================== */
 
-/* Stand-ins for the page, set up in the worker before the script runs: whatever the script
-   reaches for while setting itself up gets a harmless object that accepts anything */
-export function workerShim() {
-  const stub = new Proxy(function () {}, {
-    get: (t, k) => k === Symbol.toPrimitive ? () => '' : k === Symbol.iterator ? function* () {} : k === 'then' ? undefined : stub,
-    set: () => true, apply: () => stub, construct: () => stub, has: () => false, deleteProperty: () => true,
-  });
-  Object.assign(self, {
-    window: self, document: stub,
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    getComputedStyle: () => ({ getPropertyValue: () => '' }),
-    ResizeObserver: class { observe() {} disconnect() {} },
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),
-    requestAnimationFrame: () => 0, cancelAnimationFrame() {}, alert() {}, confirm: () => false,
-    HTMLElement: class {}, Element: class {}, Node: class {},
-  });
+/* a worker running this app: the page's own script with the shim in front, or on the dev page
+   the modules as a module worker; null where there can be none */
+export const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
+export function newAppWorker() {
+  if (!APP_SRC) return new Worker(DEV_WORKER, { type: 'module' });
+  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
+  const w = new Worker(url);
+  URL.revokeObjectURL(url);
+  return w;
 }
 
 export const FW = { w: null, failed: false, seq: 0, queue: [], busy: null, sent: null };
 export function fieldWorker() {
   if (FW.w) return FW.w;
-  if (FW.failed || TEST_MODE || !APP_SRC || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
+  if (FW.failed || TEST_MODE || !WORKERS_OK || typeof OffscreenCanvas === 'undefined') return null;
   try {
-    const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-    const w = new Worker(url);
-    URL.revokeObjectURL(url);
+    const w = newAppWorker();
     w.onmessage = fwReply;
     w.onerror = e => { e.preventDefault(); fwFail(e.message || 'the field worker stopped'); };
     FW.w = w;
@@ -122,42 +113,12 @@ function fwFail(msg) {
   for (const j of all) j.reject(new Error(msg));
 }
 
-/* A field run as plain data: each segment by its beam's index and its source's id, with its
-   starting field; the drawn slices as images. The page puts the rest back (fwUnpackRun). */
-export function fwPackRun(R, transfer) {
-  const segs = R.segs.map(sg => {
-    let draw = null;
-    if (sg.draw) {
-      const bm = sg.draw.cv.transferToImageBitmap();
-      transfer.push(bm);
-      draw = Object.assign({}, sg.draw, { cv: bm });
-    }
-    return { i: sg.i, src: sg.src.id, eng: sg.eng, F0: sg.F0, root: sg.root, clipped: sg.clipped, repr: sg.repr, boost: sg.boost, mode: sg.mode, coh: sg.coh, draw };
-  });
-  return { segs, notes: R.notes, truncated: R.truncated, ms: R.ms };
-}
 export function fwUnpackRun(R, beams) {
   for (const sg of R.segs) {
     sg.b = beams[sg.i]; sg.src = getEl(sg.src);
     sg.leg = sg.eng === '2d' ? popLeg2(sg.F0) : popLeg(sg.F0);
   }
   return R;
-}
-/* a screen's figures without their functions (diffFns puts them back) */
-export function fwPackD(D) {
-  if (!D) return null;
-  const o = {};
-  for (const k in D) if (typeof D[k] !== 'function') o[k] = D[k];
-  return o;
-}
-/* the cavities a job solved, for the cards; their responses rebuilt from the Krylov space */
-export function fwPackCavities(before) {
-  const out = [], pr = r => r && { Q: r.Q, H: r.H, m: r.m, beta: r.beta, scan: r.scan, dLock: r.dLock, P0: r.P0, Plock: r.Plock };
-  for (const [k, v] of cavSolved) {
-    if (v.trace !== lastTrace || (before && before.get(k) === v)) continue;
-    out.push({ k, eng: v.eng, delta: v.delta, mode: v.mode, res: pr(v.res), others: (v.others || []).map(o => ({ delta: o.delta, res: pr(o.res) })) });
-  }
-  return out;
 }
 function fwCavities(list, trace) {
   if (trace !== lastTrace) return;
@@ -177,11 +138,9 @@ const TRACE_FULL_MS = 150;          // a bench slower than this is traced in ful
 export const TW = { w: null, failed: false, busy: false, want: null, rays: null, n: 0, lastSync: 0, timer: null, full: null };
 function traceWorker() {
   if (TW.w) return TW.w;
-  if (TW.failed || TEST_MODE || !APP_SRC || typeof Worker === 'undefined') return null;
+  if (TW.failed || TEST_MODE || !WORKERS_OK) return null;
   try {
-    const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-    TW.w = new Worker(url);
-    URL.revokeObjectURL(url);
+    TW.w = newAppWorker();
     TW.w.onmessage = e => {
       TW.busy = false;
       if (e.data.ok && e.data.out.T) adoptTrace(e.data.out);
@@ -212,10 +171,6 @@ function adoptTrace(out) {
   afterTrace();
   syncPanel();
 }
-/* A bench whose trace can be done wholly in the worker: one with nothing that carries state
-   from trace to trace on this page (fibre networks, lasers, vapour cells, crystals) */
-export const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', 'prism', 'cube', 'crystal', 'waveplate', 'polariser', 'grating',
-  'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link', 'draw']);
 const fullOffload = () => lastTraceMs > TRACE_FULL_MS && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
 /* Brings the trace up to date, or has it brought up to date in the background; true while
    what is drawn comes from the background (the full trace is behind the bench) */

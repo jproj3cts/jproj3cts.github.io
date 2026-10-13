@@ -1,4 +1,5 @@
-import { FORMAT, VERSION } from '../core/constants.js';
+import { FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
 import { glassKey } from '../core/glass.js';
 import { CRYSTALS, CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
 import { ATOMS } from '../core/cells.js';
@@ -8,6 +9,7 @@ import { normModRef } from '../core/modulators.js';
 import { DETECTOR_MATERIALS, applyRf, normRf } from '../core/rf.js';
 import { CMODES, applyPulse, isLaserLike, syncLine } from '../core/pulses.js';
 import { wavelengthColour } from '../core/colour.js';
+import { normDraw } from './drawings.js';
 import {
   PRISM_SHAPES, TYPE_LABEL, deg, nextName, normCoat, normMat, num, project, selectedId, setProject,
   uid
@@ -15,17 +17,13 @@ import {
 import { ensureBenches } from './tabs.js';
 import { STL_UNITS, stlMeshNorm } from '../core/stl.js';
 import { STOP_SHAPES } from '../core/mask.js';
-import { RAY_PATTERNS, loadGen, setLoadGen, tippable } from '../engines/trace.js';
-import { ZOOM_MAX, benchStyleShown } from '../ui/render.js';
-import { normDraw } from '../ui/drawings.js';
-import { clamp, getPath } from '../ui/params.js';
-import { SWEEP_STEPS_MAX } from '../ui/sweeps.js';
+import { RAY_PATTERNS, loadGen, setLoadGen, sourceLines, tippable } from '../engines/trace.js';
+import { SWEEP_STEPS_MAX, getPath } from './params.js';
 import { applyFibre } from '../engines/fibre-face.js';
 import { CONNS, FC, FIBRE_POLS, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
-import { V3D } from '../ui/view3d.js';
-import { modsCarried, normCarried } from '../io/mods.js';
+import { modsCarried, normCarried } from '../engines/mods.js';
 
 function normSurface(s) {
   s = s || {};
@@ -475,7 +473,7 @@ export function demoProject() {
    every beam's field.) */
 /* how many decades a log scale of the field spans: 0 for linear, 3 (30 dB) or 6 (60 dB) */
 export const fieldDec = sc => sc === 'log60' ? 6 : sc === 'log' ? 3 : 0;
-function normLight(L, els) {
+export function normLight(L, els) {
   L = L && typeof L === 'object' ? L : null;
   const any = k => (els || []).some(e => e && (e.beamView === k || e.emitView === k));
   // a bench saved with one choice for its beams (envelope, field or none) takes the same picture
@@ -507,51 +505,8 @@ export function serialize() {
   };
 }
 
-export function loadProject(data) {
-  try { V3D.reset(); } catch (e) { /* not set up yet */ }        // another project: back to 2D, its views forgotten
-  setLoadGen(loadGen + 1);
-  if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
-  if (data.format !== FORMAT) throw new Error('This file is not a .jekray project.');
-  if (data.version > VERSION) throw new Error('This project was saved by a newer version of the ray tracer.');
-  if (!Array.isArray(data.elements)) throw new Error('The project has no element list.');
-  const p = {
-    name: String(data.name || 'Untitled bench'),
-    view: {
-      cx: num(data.view && data.view.cx, 0), cy: num(data.view && data.view.cy, 0),
-      scale: Math.min(ZOOM_MAX, Math.max(0.05, num(data.view && data.view.scale, 4))),
-    },
-    snap: num(data.snap, 1),
-    maxBounces: Math.round(Math.min(100000, Math.max(1, num(data.maxBounces, 200)))),
-    ghosts: data.ghosts === true,
-    light: normLight(data.light, data.elements),
-    minPower: Math.min(50, Math.max(1e-6, num(data.minPower, 0.1))),
-    library: (Array.isArray(data.library) ? data.library : []).map(normMat).filter(m => m.table),
-    cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
-    elements: [],
-    mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
-  };
-  setProject(p);
-  for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
-  if (Array.isArray(data.benches) && data.benches.length) {
-    const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
-    p.benches = data.benches.filter(b => b && typeof b.id === 'string').map((b, i) => ({ id: b.id, name: String(b.name || 'Bench ' + (i + 1)).slice(0, 40), view: vw(b.view) }));
-    p.tab = data.tab;
-  } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
-  ensureBenches(p);
-  p.fibres = normFibres(data.fibres, p.elements);
-  p.measures = normMeasures(data.measures, p.benches);
-  p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
-  if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
-  // the bench's colour and its holes (View › Bench colour)
-  const st = data.style && typeof data.style === 'object' ? data.style : {};
-  p.style = {};
-  if (typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) p.style.bg = st.bg.toLowerCase();
-  if (st.holes === false) p.style.holes = false;
-  requestAnimationFrame(() => benchStyleShown());      // after the page is set up, on first load
-  return p;
-}
 /* Rulers and angles left on the bench: points, and for those on a beam its direction there */
-function normMeasures(list, benches) {
+export function normMeasures(list, benches) {
   const ids = new Set(benches.map(b => b.id)), out = [];
   for (const m of Array.isArray(list) ? list : []) {
     if (!m || (m.type !== 'ruler' && m.type !== 'angle') || !ids.has(m.bench) || !Array.isArray(m.pts) || m.pts.length !== (m.type === 'ruler' ? 2 : 3)) continue;
@@ -566,7 +521,7 @@ function normMeasures(list, benches) {
   return out;
 }
 /* Fibres: port to port, each port taking one; length in m, loss in dB/km */
-function normFibres(list, els) {
+export function normFibres(list, els) {
   const byId = new Map(els.map(e => [e.id, e])), used = new Set(), out = [];
   const nPorts = e => (e.type === 'fcomp' ? (FC[e.kind] ? fcPortsOf(e).length : 0) : e.type === 'fibre' ? 1 : e.type === 'pic' ? PIC.ports(e).length : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e).length : 0) : 0) + (e.type !== 'elec' ? ELEC.extra(e).length : 0);
   // ELEC hook: an electrical port's direction, for wires
@@ -614,3 +569,61 @@ export const getEl = id => project.elements.find(e => e.id === id) || VSRC.get(i
 export const allSources = () => project.elements.filter(e => e.type === 'source').concat([...VSRC.values()]);
 export const selected = () => selectedId ? getEl(selectedId) : null;
 
+/* The source wavelengths on the bench, for readouts that depend on wavelength */
+export function benchNms() {
+  const v = [...new Set(project.elements.filter(e => e.type === 'source').flatMap(e => sourceLines(e)).map(x => +x.toFixed(2)))];
+  return v.length ? v : [633];
+}
+
+export function lensKind(el) {
+  if (el.surfaces.some(s => s.k !== 0 || s.a2 !== 0 || s.A.some(a => a !== 0))) return 'Aspheric lens';
+  return 'Lens';
+}
+
+/* the parts the 3D view can show: a bench with others on it cannot go to 3D */
+export const FREE_3D = new Set(['source', 'detector', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
+  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
+
+export function loadProject(data) {
+  hooks.view3dReset();        // another project: back to 2D, its views forgotten
+  setLoadGen(loadGen + 1);
+  if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
+  if (data.format !== FORMAT) throw new Error('This file is not a .jekray project.');
+  if (data.version > VERSION) throw new Error('This project was saved by a newer version of the ray tracer.');
+  if (!Array.isArray(data.elements)) throw new Error('The project has no element list.');
+  const p = {
+    name: String(data.name || 'Untitled bench'),
+    view: {
+      cx: num(data.view && data.view.cx, 0), cy: num(data.view && data.view.cy, 0),
+      scale: Math.min(ZOOM_MAX, Math.max(0.05, num(data.view && data.view.scale, 4))),
+    },
+    snap: num(data.snap, 1),
+    maxBounces: Math.round(Math.min(100000, Math.max(1, num(data.maxBounces, 200)))),
+    ghosts: data.ghosts === true,
+    light: normLight(data.light, data.elements),
+    minPower: Math.min(50, Math.max(1e-6, num(data.minPower, 0.1))),
+    library: (Array.isArray(data.library) ? data.library : []).map(normMat).filter(m => m.table),
+    cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
+    elements: [],
+    mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
+  };
+  setProject(p);
+  for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
+  if (Array.isArray(data.benches) && data.benches.length) {
+    const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
+    p.benches = data.benches.filter(b => b && typeof b.id === 'string').map((b, i) => ({ id: b.id, name: String(b.name || 'Bench ' + (i + 1)).slice(0, 40), view: vw(b.view) }));
+    p.tab = data.tab;
+  } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
+  ensureBenches(p);
+  p.fibres = normFibres(data.fibres, p.elements);
+  p.measures = normMeasures(data.measures, p.benches);
+  p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
+  if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
+  // the bench's colour and its holes (View › Bench colour)
+  const st = data.style && typeof data.style === 'object' ? data.style : {};
+  p.style = {};
+  if (typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) p.style.bg = st.bg.toLowerCase();
+  if (st.holes === false) p.style.holes = false;
+  hooks.benchStyleShown();      // after the page is set up, on first load
+  return p;
+}

@@ -1,4 +1,6 @@
+import { clamp } from './constants.js';
 import { gsmModes, hermite, laguerre, m2Of } from './pulses.js';
+import { deg } from '../state/project.js';
 
 /* ---------- Higher-order beams ----------
    A Gaussian source can launch a Hermite-Gauss mode HG_mn (m nodes across the bench plane, n
@@ -90,3 +92,30 @@ export function cavLine(res, Lopt, src) {
   return res._line;
 }
 
+export function fanFromGauss(el) {
+  const lam = el.wavelength * 1e-6 * m2Of(el);
+  const qr = -el.z0, qi = Math.PI * el.w0 * el.w0 / lam;
+  const den = qr * qr + qi * qi;
+  if (!den) return;
+  const invR = qr / den, invI = -qi / den;
+  const wsrc = Math.sqrt(Math.max(0, -lam / (Math.PI * invI))) * Math.sqrt(modeM2(el)[0]);
+  el.width = 2 * wsrc;
+  el.divergence = clamp(2 * Math.atan(wsrc * invR) / deg, -179, 179);
+}
+
+/* Beam radius, wavefront radius and waist from the complex parameter q */
+export function beamAt(qr, qi, n, nm, M2) {
+  const den = qr * qr + qi * qi;
+  if (!den) return null;
+  const invR = qr / den, invI = -qi / den;          // 1/q
+  const lam = nm * 1e-6;                             // mm, in vacuum
+  const M = Math.sqrt(M2 || 1);                      // q is the embedded Gaussian's; the beam is M times wider
+  const w = M * Math.sqrt(Math.max(0, -lam / (Math.PI * n * invI)));
+  const zR = qi;
+  return {
+    w, zR,
+    R: Math.abs(invR) < 1e-12 ? Infinity : 1 / invR,
+    waistDist: -qr,                                  // positive: the waist is still ahead
+    w0: M * Math.sqrt(Math.max(0, lam * qi / (Math.PI * n))),
+  };
+}

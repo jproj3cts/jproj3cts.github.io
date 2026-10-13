@@ -1611,8 +1611,6 @@ const TESTS = [
     why: 'the bench works its fields out in a worker; a page-only feature used at the top level of the code (a MutationObserver, from 4 October) stopped it, and every field then ran on the page, holding it up for seconds at a time',
     want: 1, tol: 0, unit: '',
     run: async J => {
-      // the dev page loads the modules directly: there is no page script for a worker to start from (stage 3 of the split)
-      if (/jekray2d-dev\.html/.test(document.getElementById('rig').contentWindow.location.pathname)) { TESTS_EXPECT.workerErr = ''; return 1; }
       J.load(bench('worker', [src({ gauss: true, w0: 1, width: 2, rays: 3 }), screen({})]));
       const r = await J.workerProbe();
       TESTS_EXPECT.workerErr = r.ok ? '' : r.err;

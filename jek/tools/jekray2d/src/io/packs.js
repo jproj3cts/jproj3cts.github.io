@@ -1,8 +1,11 @@
 import { EMBED, TEST_MODE } from '../core/constants.js';
-import { normMat, num, project, typeLabel, uid } from '../state/project.js';
+import { packText } from '../core/format.js';
+import { V, normMat, num, project, typeLabel, uid } from '../state/project.js';
+import { PACKS } from '../state/packs.js';
 import { normElement } from '../state/elements.js';
-import { V, canvas, selection, wx, wy } from '../ui/render.js';
+import { canvas, selection, wx, wy } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
+import { MOD_CODE_MAX } from '../engines/mods.js';
 import { V3D } from '../ui/view3d.js';
 import { h } from '../ui/panel.js';
 import { clipOf, downloadFile, pasteClip, saveFile, toast } from '../ui/actions.js';
@@ -10,7 +13,7 @@ import { PART_DRAG, exp } from '../ui/experimental.js';
 import { fillPicker, picker } from '../ui/picker.js';
 import { clipIcon, palOf } from '../ui/myparts.js';
 import { startTour } from '../ui/tours.js';
-import { MOD_CODE_MAX, modConfirmText, modPrepare, modsSync } from './mods.js';
+import { modConfirmText, modPrepare, modsSync } from './mods.js';
 
 /* ==========================================================================
    Part packs: sets of parts and glasses made by others (a maker's catalogue, a course's kit),
@@ -27,8 +30,6 @@ import { MOD_CODE_MAX, modConfirmText, modPrepare, modsSync } from './mods.js';
    for mods that run code, in a sandbox, which this version does not: such a pack is refused.
    ========================================================================== */
 export const PACK_FORMAT = 'jekpack', PACK_VERSION = 2, PACK_MAX = 8 * 1024 * 1024;
-export const PACKS = { list: [], ready: false, icons: new Map() };
-export const packText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';
 /* a pack as found, checked and tidied: { pack, notes } or throws with why it cannot be used */
 export function normPack(raw, sizeHint) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('it is not a part pack');

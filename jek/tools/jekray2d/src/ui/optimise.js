@@ -1,18 +1,21 @@
+import { clamp } from '../core/constants.js';
+import { fmtFs, fmtFs2, fmtLen } from '../core/format.js';
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { paraxial, traceScene, traceStoreOn } from '../engines/trace.js';
 import { getCss, requestRender } from './render.js';
-import { clamp, getPath, setParam } from './params.js';
+import { getPath, setParam } from '../state/params.js';
 import {
   allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
   renderedPeriod, sampleShown, setAnimFrame, setAnimLast, setClockT, setPlayStep, setStepSince,
   stepSince, stepValue
 } from './sweeps.js';
 import { detectorReading, fibreCoupling } from '../engines/fibre-face.js';
-import { fmtLen, syncPanel } from './panel.js';
-import { fmtFs, fmtFs2, pulseReport } from './panels.js';
+import { syncPanel } from './panel.js';
 import { drawAxes, plotArea, plotCsv } from './plots.js';
-import { blockedPct, diffraction, screenStats } from '../engines/pd-cavity.js';
+import { blockedPct, diffraction } from '../engines/pd-cavity.js';
+import { pulseReport } from '../engines/pulse.js';
+import { screenStats } from '../engines/screen-stats.js';
 import { changed } from './actions.js';
 
 /* ---------- One-parameter search over a swept range ---------- */

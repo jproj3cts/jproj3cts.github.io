@@ -5358,6 +5358,34 @@ const TESTS = [
   },
   { group: 'The 3D view' },
   {
+    name: 'Interfering beams fill their 3D field to the part they end on',
+    why: 'the Michelson\u2019s two arms, added as fields to the output port: every cut of each such segment, its last (at the screen) included, keeps the beam\u2019s reach, rather than a last cut of none that left the light short of the screen (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const v = J.vol3d(), coh = v.segs.filter(s => s.coh);
+      return coh.length >= 2 && coh.every(s => Math.min(...s.rmax) > 0.5 * Math.max(...s.rmax) && s.axis[s.axis.length - 1] > 0) ? 1 : 0;
+    },
+  },
+  {
+    name: 'A panel closes with its \u00d7',
+    why: 'the Bench panel\u2019s \u00d7 hides the panel, the bench taking its width; selecting a part opens it again; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel');
+      J.load(JSON.parse(getDemo('michelson'))); J.select(null);
+      P.querySelector('.rt-close').click();
+      const shut = getComputedStyle(P).display === 'none' && P.parentElement.classList.contains('rt-nopanel');
+      J.select('Laser');
+      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel');
+      P.querySelector('.rt-pin:not(.rt-close)').click();                   // pin the Laser
+      const pinned = doc.querySelectorAll('.rt-pinned').length === 1;
+      doc.querySelector('.rt-pinned .rt-close').click();
+      const unpinned = doc.querySelectorAll('.rt-pinned').length === 0;
+      return shut && back && pinned && unpinned ? 1 : 0;
+    },
+  },
+  {
     name: 'The bench\u2019s Light ticks redraw the 3D view',
     why: 'the Michelson in 3D: unticking Show the rays takes its rays out, unticking the envelope its beams, and ticking them again brings them back (1 when all hold)',
     want: 1, tol: 0, unit: '',

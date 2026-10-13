@@ -119,6 +119,7 @@
     gap: 0.75rem;
     align-items: start;
   }
+  .rt-grid.rt-nopanel { grid-template-columns: minmax(240px, 1fr); }
 
   .rt-stage {
     position: relative;
@@ -253,6 +254,8 @@
   }
   .rt-pin:hover { color: var(--jek-ink); border-color: var(--jek-ink-soft); }
   .rt-pin.on { color: #fff; background: var(--jek-bar); border-color: var(--jek-bar); }
+  .rt-close { margin-left: 0.3rem; font-size: 1.15rem; line-height: 1; }
+  .rt-close:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-pin:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-pinned h2 { cursor: pointer; }
   .rt-cavity { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); }
@@ -1229,6 +1232,7 @@
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
+            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its \u00d7 closed it">Show the side panel</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
@@ -13332,7 +13336,7 @@ const V3D = (() => {
           // the two cuts each at this distance from the axis (not the same share of their reach),
           // only between the surfaces the segment runs from and to
           if (dot(uP0.xyz, p) + uP0.w >= 0.0 && dot(uP1.xyz, p) + uP1.w >= 0.0) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
-          ds = min(min(uRm[lo], uRm[hi]) * 0.12 / side, gap * 0.5 / along);
+          ds = min(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);   // a cut with almost no reach does not stall the march
         }
         sp += max(ds, minStep);
       }
@@ -13378,7 +13382,13 @@ const V3D = (() => {
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
       o.renderOrder = 2 + rank.get(s);
       o.userData.vol = s; o.userData.texs = [tex];
-      o.onBeforeRender = (r, sc, cam) => { m3.uniforms.uCam.value.copy(cam.position).applyMatrix4(o.matrixWorld.clone().invert()); };
+      // its near faces are drawn, so the depth test is where the light starts along each line of sight, and
+      // a part behind the beam (a screen with its pattern on its face) does not hide light in front of it;
+      // from inside the box, its far faces (the march itself starts at the eye)
+      o.onBeforeRender = (r, sc, cam) => {
+        const c = m3.uniforms.uCam.value.copy(cam.position).applyMatrix4(o.matrixWorld.clone().invert()), pad = 1e-3 * (Rm + zb - za);
+        m3.side = Math.abs(c.x) < Rm + pad && Math.abs(c.y) < Rm + pad && c.z > za - pad && c.z < zb + pad ? T.BackSide : T.FrontSide;
+      };
       G.add(o);
     }
   }
@@ -14032,6 +14042,8 @@ const V3D = (() => {
       pointOnScreen(p) { if (!R) return null; sync(); const v = new T.Vector3(...p).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
       // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
       field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
+      // each piece of the field volume: where it starts, its direction, and its extent along it
+      fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
@@ -15426,10 +15438,19 @@ function pinTitle(title, id, onSelect) {
     title: pinned ? 'Unpin: let this panel close when something else is selected' : 'Pin: keep this panel open while you select other things',
     onclick: () => togglePinId(id) });
   pinBtn.innerHTML = PIN_SVG;
-  title.append(pinBtn);
+  // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
+  // something is selected again (or View › Show the side panel)
+  const main = panel === mainPanel;
+  const closeBtn = h('button', { class: 'rt-pin rt-close', type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
+    'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
+    onclick: () => {
+      if (!main) { togglePinId(id); return; }
+      selectOne(null); selFibreId = null; panelClosed = true; renderPanel(); requestRender();
+    } }, '\u00d7');
+  title.append(pinBtn, closeBtn);
   if (panel !== mainPanel) {
     const box = panel;                          // the panel being built now (panel is reassigned after)
-    title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });
+    title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });   // (the close button is an .rt-pin too)
     title.addEventListener('pointerdown', e => dragPinned(e, title, box, id));
   }
 }
@@ -15488,6 +15509,7 @@ function dragPinned(e, title, box, id) {
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
+let panelClosed = false;           // the main panel closed with its ×
 function renderPanel() {
   pins = pins.filter(pinOk);
   for (const [id, box] of pinBoxes) if (!pins.includes(id)) { box.remove(); pinBoxes.delete(id); }
@@ -15496,11 +15518,15 @@ function renderPanel() {
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
-  // with nothing selected the main panel would show the Bench: not if that is pinned
-  const mainShows = sel ? !pins.includes(sel.id) : !(pins.includes(BENCH_PIN) && !selFibre());
+  // a closed panel opens again with the next thing selected
+  if (panelClosed && (sel || selFibre())) panelClosed = false;
+  // with nothing selected the main panel would show the Bench: not if that is pinned, or closed
+  const mainShows = !panelClosed && (sel ? !pins.includes(sel.id) : !(pins.includes(BENCH_PIN) && !selFibre()));
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
-  mainPanel.parentElement.style.setProperty('--rt-cols', String((mainShows ? 1 : 0) + pins.length));
+  const cols = (mainShows ? 1 : 0) + pins.length;
+  mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
+  mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
   if (mainShows) renderInto(mainPanel, sel);
   let after = mainPanel;
   for (const id of pins) {
@@ -22537,8 +22563,10 @@ function volData(segs, tab, bb, only) {
         // reach: each member's few widths about its axis, as seen from this one's
         let R = 0;
         for (const { m } of members) {
-          const tm = (b.x0 + b.dx * t - m.b.x0) * m.b.dx + (b.y0 + b.dy * t - m.b.y0) * m.b.dy;
-          if (tm < 0 || tm > m.b.len) continue;
+          // (a cut at an end, its place rounded to single precision, still counts as on the segment)
+          const tm0 = (b.x0 + b.dx * t - m.b.x0) * m.b.dx + (b.y0 + b.dy * t - m.b.y0) * m.b.dy;
+          if (tm0 < -1e-3 || tm0 > m.b.len + 1e-3) continue;
+          const tm = clamp(tm0, 0, m.b.len);
           const off = (m.b.x0 + m.b.dx * tm - b.x0 - b.dx * t) * nX + (m.b.y0 + m.b.dy * tm - b.y0 - b.dy * t) * nY;
           let w = 0; try { w = volLegBase(m.leg).cutC(tm).w || 0; } catch (err) { /* none */ }
           R = Math.max(R, Math.abs(off) + 3.2 * w);
@@ -22756,7 +22784,7 @@ function volRayMax(s, ro, rd) {
       };
       const v = at1(lo) * (1 - f) + at1(hi) * f;
       if (v > best) { best = v; at = sp; }
-      ds = Math.min(Math.min(s.rmax[lo], s.rmax[hi]) * 0.12 / side, gap * 0.5 / along);
+      ds = Math.min(Math.max(Math.min(s.rmax[lo], s.rmax[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);
     }
     sp += Math.max(ds, minStep);
   }
@@ -28443,6 +28471,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',
     'Glasses <b>D-ZK3M</b> (CDGM\u2019s moulding glass, in Thorlabs\u2019 C350TMD and others) and <b>N-SK5</b> (and its twin D-ZK3). A lens of a glass the tracer does not know, with no index given for it, now says so in its panel: it traces as n = 1.5 until you choose the glass.',
     'Denser panels: each setting is one row, its label beside its box, X and Y (and Tip and Roll) side by side. Sweeping is the \u223f button at the end of a row; a swept number shows its sweep folded to one line with Play, and opens to edit, one at a time. Sections fold under their headings and stay as you left them, readouts gather in a Readout section, and the longer explanations sit under About this part.',
@@ -28927,6 +28956,7 @@ function openZmx(toMine) {
 }
 document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
 document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
+document.getElementById('btnShowPanel').addEventListener('click', () => { panelClosed = false; renderPanel(); requestRender(); });
 document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) importStl(f); e.target.value = ''; });
 {

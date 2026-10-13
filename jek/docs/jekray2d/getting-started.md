@@ -71,7 +71,7 @@ The 3D view is a view of the same bench: select a part and its panel opens as us
 
 ## Settings and sweeps
 
-Every number in a panel can be typed or dragged. Beside most is the sweep button, **∿**: it moves the value back and forth over a range, and the bench follows as it plays. A swept number shows its sweep folded to one line, with Play; click the line, or ∿, to edit it. A panel's sections fold away under their headings, and the longer explanations are kept under **About this part** at the foot. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study.
+Every number in a panel can be typed or dragged. Beside most is the sweep button, **∿**: it moves the value back and forth over a range, and the bench follows as it plays. A swept number shows its sweep folded to one line, with Play; click the line, or ∿, to edit it. A panel's sections fold away under their headings, and the longer explanations are kept under **About this part** at the foot. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu also holds an optimiser and a tolerance study. The pin at the top of a panel keeps it open while you select other things, and its **×** closes it: a pinned panel is unpinned, and the main panel goes until you select something again (or choose **View › Show the side panel**).
 
 How the light is drawn is set for the whole bench, under **Light** in the Bench panel (click an empty part of the bench): three ticks for the rays, the Gaussian beams' envelope and their diffracted field, each on or off. The field's **Field intensity** is linear, or logarithmic over 30 dB or 60 dB. With both on, the envelope marks the field's 1/e² edge.
 

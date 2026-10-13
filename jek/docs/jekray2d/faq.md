@@ -55,7 +55,7 @@ A source can launch a *ray fan*, many rays across its width, and a *Gaussian bea
 
 ### How do I model a part from a catalogue?
 
-Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a Zemax file: **File › Import a lens (.zmx)** reads the files Thorlabs, Edmund and other makers publish. With JEKrayPro you can keep parts in **My parts** to use on any bench.
+Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a Zemax file: **File › Import a lens (.zmx)** reads the files Thorlabs, Edmund and other makers publish. To take a lens the other way, **File › Export a lens (.zmx)** writes the lenses you have selected as a prescription that lens-design programs open; see [Lens](/jek/docs/jekray2d/free-space/lens/#exporting-a-lens). With JEKrayPro you can keep parts in **My parts** to use on any bench.
 
 ### Can an AI assistant build a bench for me?
 

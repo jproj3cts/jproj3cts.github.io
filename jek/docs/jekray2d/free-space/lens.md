@@ -76,6 +76,22 @@ Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list 
 
 **File › Import a lens (.zmx)** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands, for example), the surfaces are given it.
 
+## Exporting a lens
+
+**File › Export a lens (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It holds:
+
+- every face's radius, conic and aspheric terms (even or odd), its glass and its semi-diameter;
+- the wavelengths of the bench's sources, the first as the primary;
+- an object at infinity, the stop on the first face, and the image at the paraxial back focus at the primary wavelength.
+
+Several lenses and [windows](/jek/docs/jekray2d/free-space/prism/) on one axis are written as one system, with the air between them. The faces are written in the order the light meets them, going away from a source on the axis; with no source there, the way most of the parts face. A lens turned round is written with its faces reversed. A single mirror can be exported too.
+
+A catalogue glass is written by its catalogue name. Any other material, such as a fixed index, a measured table or an RF dielectric, is written as a model glass, by its index and Abbe number at the d line. A lens designer may want to replace those with the real glass.
+
+Coatings, tilts and decentres are not written. Cylindrical lenses, lenses that are not on one axis, and other parts are refused, with the reason.
+
+The .zmx format is plain text. Reading or writing it needs no licence. Zemax and OpticStudio are trademarks of Ansys, Inc. JEKray2D is not affiliated with or endorsed by Ansys.
+
 ## Assumptions
 
 <div class="dx-warn" markdown="1">

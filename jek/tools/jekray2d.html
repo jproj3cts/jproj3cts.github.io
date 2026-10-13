@@ -1140,6 +1140,7 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others: a maker's catalogue, a course's kit">Part packs…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
@@ -26255,6 +26256,163 @@ function zmxToElement(Z, fileName, mode) {
   return Object.assign(pos, { type: 'lens', angle: 0, diameter, surfaces, gaps, materials });
 }
 
+/* ==========================================================================
+   .zmx lens file export
+   A lens, a run of lenses and windows on one axis, or a mirror, written as a sequential
+   prescription that lens-design programs read: object at infinity, the stop on the first
+   face, each face's curvature, conic and aspheric terms, its glass and its semi-diameter,
+   then the image at the paraxial focus. Coatings, tilts and decentres are not written.
+   ========================================================================== */
+
+// the name a lens-design catalogue knows our glasses by; the rest go as model glasses
+const ZMX_CAT = { 'Fused silica': 'F_SILICA', CaF2: 'CAF2', MgF2: 'MGF2', Sapphire: 'SAPPHIRE', ZnSe: 'ZNSE',
+  Silicon: 'SILICON', Germanium: 'GERMANIUM', Water: 'WATER', Polystyrene: 'POLYSTYR' };
+const zmxNum = v => (Math.abs(v) < 1e-300 ? 0 : v).toExponential(14).toUpperCase();
+/* nd and Vd of a material, worked out from its index */
+function zmxNdVd(mat) {
+  const nd = refIndex(mat, 587.5618), nF = refIndex(mat, 486.1327), nC = refIndex(mat, 656.2725);
+  const dn = nF - nC;
+  return { nd, vd: dn > 1e-9 ? (nd - 1) / dn : 0 };
+}
+function zmxGlass(mat) {
+  const { nd, vd } = zmxNdVd(mat);
+  const tail = ' ' + [zmxNum(nd), zmxNum(vd), 0, 0, 0, 0, 0, 0].join(' ');
+  const key = !mat.table && !mat.nlc ? glassKey(mat.glass) : null;
+  if (key) return 'GLAS ' + (ZMX_CAT[key] || key) + ' 0 0' + tail;
+  // a model glass: its index and dispersion at d
+  return 'GLAS ___BLANK 1 0' + tail;
+}
+
+/* The faces of the parts chosen, in order along a common axis, or a reason they can't be */
+function zmxSystem(els) {
+  if (!els.length) throw new Error('Select a lens, a window or a mirror to export.');
+  const mirrors = els.filter(e => e.type === 'mirror');
+  if (mirrors.length) {
+    if (els.length > 1) throw new Error('A mirror can only be exported on its own.');
+    return { mirror: mirrors[0], name: mirrors[0].name || 'Mirror', warnings: new Set() };
+  }
+  const ok = e => (e.type === 'lens' && !e.cyl) || (e.type === 'prism' && e.shape === 'window');
+  const bad = els.find(e => !ok(e));
+  if (bad) {
+    throw new Error(bad.type === 'lens' ? (bad.name || 'A lens') + ' is cylindrical, which a rotationally symmetric prescription can’t hold.'
+      : (bad.name || typeLabel(bad)) + ' can’t be exported: only lenses, windows and mirrors can.');
+  }
+  const a0 = els[0].angle * deg, d = [Math.cos(a0), Math.sin(a0)];
+  const warnings = new Set();
+  const turned = e => { const da = ((((e.angle - els[0].angle) % 360) + 360) % 360); return Math.abs(da - 180) < 1e-6; };
+  // the light goes away from a source on the axis; without one, the way most of them face,
+  // or, as many each way, left to right across the bench
+  const nt = els.filter(turned).length;
+  const half = Math.max(...els.map(e => (e.diameter || e.size || 0) / 2));
+  const src = project.elements.filter(e => e.type === 'source' && onTab(e) &&
+    Math.abs(-(e.x - els[0].x) * d[1] + (e.y - els[0].y) * d[0]) < half)
+    .sort((p, q) => Math.hypot(p.x - els[0].x, p.y - els[0].y) - Math.hypot(q.x - els[0].x, q.y - els[0].y))[0];
+  const back = src ? (src.x - els[0].x) * d[0] + (src.y - els[0].y) * d[1] > 0
+    : 2 * nt > els.length || (2 * nt === els.length && (d[0] < -1e-9 || (Math.abs(d[0]) <= 1e-9 && d[1] < 0)));
+  if (back) { d[0] = -d[0]; d[1] = -d[1]; }
+  const groups = els.map(e => {
+    const da = ((((e.angle - els[0].angle) % 360) + 360) % 360);
+    const flip = turned(e) !== back;
+    if (!turned(e) && Math.min(da, 360 - da) > 1e-6) throw new Error((e.name || typeLabel(e)) + ' is not on the same axis as ' + (els[0].name || 'the first part') + ': it faces another way.');
+    const rx = e.x - els[0].x, ry = e.y - els[0].y;
+    if (Math.abs(-rx * d[1] + ry * d[0]) > 1e-3) throw new Error((e.name || typeLabel(e)) + ' is off the axis of ' + (els[0].name || 'the first part') + '. Line them up to export them together.');
+    let surfaces, gaps, materials;
+    if (e.type === 'lens') {
+      surfaces = e.surfaces.map(s => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, semi: s.semi || e.diameter / 2 }));
+      gaps = e.gaps.slice(); materials = e.materials.slice();
+    } else {
+      const s = { R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2 };
+      surfaces = [s, Object.assign({}, s)]; gaps = [e.thickness]; materials = [e.material];
+    }
+    if (flip) {
+      // turned round: its faces meet the light in the other order, each sag of the other sign
+      surfaces = surfaces.reverse().map(s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v),
+        odd: s.odd ? s.odd.map(v => -v) : null, semi: s.semi }));
+      gaps.reverse(); materials.reverse();
+    }
+    const T = gaps.reduce((a, b) => a + b, 0), c = rx * d[0] + ry * d[1];
+    const coats = e.type === 'lens' ? e.surfaces.map(s => s.coat) : [e.coat];
+    if (coats.some(c => c && c.mode !== 'bare')) warnings.add('coatings are not written');
+    return { e, z0: c - T / 2, z1: c + T / 2, surfaces, gaps, materials };
+  }).sort((a, b) => a.z0 - b.z0);
+  const surfaces = [], gaps = [], materials = [];
+  groups.forEach((g, i) => {
+    if (i) {
+      const air = g.z0 - groups[i - 1].z1;
+      if (air < -1e-6) throw new Error((g.e.name || typeLabel(g.e)) + ' overlaps ' + (groups[i - 1].e.name || typeLabel(groups[i - 1].e)) + '.');
+      gaps.push(Math.max(0, air)); materials.push({ glass: 'AIR' });
+    }
+    surfaces.push(...g.surfaces); gaps.push(...g.gaps); materials.push(...g.materials);
+  });
+  return { surfaces, gaps, materials, name: els.length === 1 ? (els[0].name || typeLabel(els[0])) : 'Lens system', warnings };
+}
+
+/* The .zmx text for the parts chosen; nms, the wavelengths to list, the first being primary */
+function zmxExport(els, nms) {
+  const S = zmxSystem(els);
+  nms = (nms && nms.length ? nms : [587.56]).slice(0, 24);
+  const L = [];
+  const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
+  L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
+    'NOTE 0 Exported from JEKray2D. Coatings, tilts and decentres are not included.',
+    'UNIT MM X W X CM MR CPMM', 'ENPD ' + zmxNum(2 * semiFirst), 'GCAT SCHOTT OHARA MISC',
+    'FTYP 0 0 1 ' + nms.length + ' 0 0 0', 'XFLN 0', 'YFLN 0', 'FWGN 1');
+  nms.forEach((nm, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(nm / 1000) + ' 1'));
+  L.push('PWAV 1');
+  let n = 0;
+  const surf = (lines) => { L.push('SURF ' + n++); for (const l of lines) L.push('  ' + l); };
+  const diam = semi => 'DIAM ' + zmxNum(semi) + ' 1 0 0 1 ""';
+  surf(['TYPE STANDARD', 'CURV 0', 'DISZ INFINITY']);
+  if (S.mirror) {
+    const m = S.mirror;
+    if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
+    const lines = ['STOP', 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k), 'GLAS MIRROR 0 0 0 0 0 0 0 0 0 0',
+      'DISZ ' + zmxNum(m.R === null ? 0 : -m.R / 2), diam(m.length / 2)];
+    surf(lines);
+    surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(m.length / 2)]);
+    return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings };
+  }
+  const p = paraxial({ surfaces: S.surfaces, gaps: S.gaps, materials: S.materials }, nms[0]);
+  if (!isFinite(p.bfl)) S.warnings.add('it is afocal, so the image is placed at the last face');
+  S.surfaces.forEach((s, i) => {
+    const lines = i === 0 ? ['STOP'] : [];
+    const A = s.A.slice();
+    if (s.odd) {
+      // all powers r^1 to r^8, the even ones carrying the even terms
+      const b = Array.from({ length: 8 }, (_, q) => s.odd[q] || 0);
+      b[1] += s.a2; [3, 5, 7].forEach((q, j) => { b[q] += A[j] || 0; });
+      if (A.length > 3) S.warnings.add('aspheric terms beyond r⁸ on an odd asphere are not written');
+      lines.push('TYPE ODDASPH');
+      lines.push('CURV ' + zmxNum(s.R === null ? 0 : 1 / s.R), 'CONI ' + zmxNum(s.k));
+      b.forEach((v, q) => lines.push('PARM ' + (q + 1) + ' ' + zmxNum(v)));
+    } else if (s.a2 || A.some(v => v)) {
+      if (A.length > 7) S.warnings.add('aspheric terms beyond r¹⁶ are not written');
+      lines.push('TYPE EVENASPH');
+      lines.push('CURV ' + zmxNum(s.R === null ? 0 : 1 / s.R), 'CONI ' + zmxNum(s.k));
+      lines.push('PARM 1 ' + zmxNum(s.a2));
+      for (let q = 0; q < 7; q++) lines.push('PARM ' + (q + 2) + ' ' + zmxNum(A[q] || 0));
+    } else {
+      lines.push('TYPE STANDARD', 'CURV ' + zmxNum(s.R === null ? 0 : 1 / s.R), 'CONI ' + zmxNum(s.k));
+    }
+    const last = i === S.surfaces.length - 1;
+    const m = last ? null : S.materials[i];
+    if (m && m.glass !== 'AIR') lines.push(zmxGlass(m));
+    lines.push('DISZ ' + zmxNum(last ? (isFinite(p.bfl) ? p.bfl : 0) : S.gaps[i]), diam(s.semi));
+    surf(lines);
+  });
+  surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(S.surfaces[S.surfaces.length - 1].semi)]);
+  return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: p.efl, bfl: p.bfl };
+}
+function exportZmx() {
+  try {
+    const out = zmxExport(selection(), benchNms());
+    const fname = safeFileName(out.name) + '.zmx';
+    downloadFile(fname, new Blob([out.text], { type: 'text/plain' }));
+    const w = [...out.warnings];
+    toast('Exported ' + fname + (w.length ? '. Note: ' + w.join('; ') + '.' : ''));
+  } catch (err) { toast(err.message, true); }
+}
+
 /* a .zmx file read into a part: Z (the parsed file, with its warnings) and the element */
 function zmxElement(file, mode) {
   return new Promise((resolve, reject) => {
@@ -28057,6 +28215,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Export a lens (.zmx)</b> (File menu): the lenses selected, as a sequential prescription that lens-design programs open, with every face\u2019s radius, conic, aspheric terms, glass and aperture, the bench\u2019s wavelengths, and the image at the paraxial focus. Lenses and windows on one axis go as one system; a mirror can go on its own.',
     'Beams are cut along the surfaces they meet, in 2D and 3D, their envelope and their diffracted field alike: at a 45\u00b0 mirror the beam in ends on the mirror and the beam out starts from it, where before each ended square across its axis, half of it past the mirror and half short of it.',
     'Experimental: <b>Mods</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the mods it uses, and offers them when opened. An example mod and a guide to writing one are in the documentation.',
     'Experimental: <b>RF and millimetre waves</b> (Help \u2192 Experimental features\u2026), a new <b>RF</b> tab of parts for quasi-optics from 1 GHz to 3 THz. A <b>feed horn</b> (corrugated, smooth-wall, diagonal or ideal) launches the Gaussian beam that fits its aperture, set by its frequency in GHz and its power in dBm; a <b>receiving horn</b> takes in the overlap with its own mode, in dBm and as a share of what arrives. <b>RF lenses</b>, white, of the RF dielectrics (HDPE, PTFE, Rexolite, TPX, silicon, quartz, alumina, nylon), absorb by their loss tangent, and metal mirrors, wire grids, film beam splitters and absorber loads complete the bench. A new example, <b>Millimetre-wave link, 150 GHz</b>, and a page in the documentation. Optical sources now stop at 1 mm (and start at 100 nm): longer waves are the RF tab\u2019s.',
@@ -28536,6 +28695,7 @@ function openZmx(toMine) {
   document.getElementById('zmxDialog').showModal();
 }
 document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
+document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) importStl(f); e.target.value = ''; });
 {
@@ -29904,6 +30064,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return optimise(this.byName(name), path, this.byName(targetName), key, goal, targetVal);
     },
     importZmxText(text, fileName, mode) { return zmxToElement(parseZmx(text, fileName), fileName, mode || 'auto'); },
+    exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },
     // several at once: the clipboard, turning and lining up, as the menu and panel do them

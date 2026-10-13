@@ -2493,6 +2493,81 @@ const TESTS = [
     run: () => TESTS_EXPECT.zmx.gaps[0],
   },
   {
+    name: '.zmx export reads back as the same lens',
+    why: 'an even asphere cemented to a model glass, exported and imported again: radii, conic, aspheric terms, thicknesses and glasses all come back, the model glass by its nd',
+    want: 0, tol: 1e-9, unit: ' worst difference',
+    run: J => {
+      J.load(bench('zx', [{ type: 'lens', name: 'Asph doublet', x: 0, y: 0, angle: 0, diameter: 20,
+        surfaces: [{ R: 30, k: -0.8, a2: 0, A: [-2e-6, 3e-9] }, { R: -25 }, { R: -80, semi: 8 }],
+        gaps: [5, 2], materials: [{ glass: 'N-BK7' }, { glass: 'custom', n: 1.72 }] }]));
+      const out = J.exportZmx(['Asph doublet']);
+      const el = J.importZmxText(out.text, 'x.zmx', 'lens');
+      const S = el.surfaces;
+      const d = [S[0].R - 30, S[0].k + 0.8, (S[0].A[0] + 2e-6) * 1e6, (S[0].A[1] - 3e-9) * 1e9, S[1].R + 25, S[2].R + 80,
+        el.gaps[0] - 5, el.gaps[1] - 2, S[2].semi - 8, el.diameter - 20, el.materials[0].glass === 'N-BK7' ? 0 : 1, el.materials[1].nd - 1.72];
+      return Math.max(...d.map(Math.abs));
+    },
+  },
+  {
+    name: '.zmx export puts the image at the back focus',
+    why: 'a plano-convex N-BK7 lens, curved face first, R = 51.5 mm, 4 mm thick, at 633 nm: BFL = R/(n−1) − t/n',
+    want: 51.5 / (1.515089 - 1) - 4 / 1.515089, tol: 0.002, unit: ' mm',
+    run: J => {
+      J.load(bench('zb', [bk7Lens({ surfaces: [{ R: 51.5 }, { R: null }], gaps: [4] })]));
+      const out = J.exportZmx(['Lens'], [633]);
+      TESTS_EXPECT.zbfl = out.text;
+      return out.bfl;
+    },
+    extra: () => /\r\n  DISZ 9\.\d+E\+1\r\n  DIAM/.test(TESTS_EXPECT.zbfl) ? '' : ' (no DISZ for the image)',
+  },
+  {
+    name: '.zmx export writes lenses on one axis as one system',
+    why: 'two lenses 4 mm thick, centres 30 mm apart, the second turned round: 26 mm of air between, and the turned one’s faces in the other order with their signs swapped',
+    want: 26, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('zs', [bk7Lens({ name: 'A', surfaces: [{ R: 40 }, { R: null }], gaps: [4] }),
+        bk7Lens({ name: 'B', x: 30, angle: 180, surfaces: [{ R: 60 }, { R: -90 }], gaps: [4] })]));
+      const el = J.importZmxText(J.exportZmx(['B', 'A']).text, 'x.zmx', 'lens');
+      TESTS_EXPECT.zsys = el;
+      return el.gaps[1];
+    },
+    extra: () => { const S = TESTS_EXPECT.zsys.surfaces; return S.length === 4 && Math.abs(S[0].R - 40) < 1e-9 && S[1].R === null && Math.abs(S[2].R - 90) < 1e-9 && Math.abs(S[3].R + 60) < 1e-9 ? '' : ' (faces wrong)'; },
+  },
+  {
+    name: '.zmx export writes a lens in the order the light meets it',
+    why: 'a plano-convex lens turned round, its flat face towards the source: the flat face is written first',
+    want: -40, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('zt', [src({ name: 'HeNe', x: -50 }), bk7Lens({ name: 'T', angle: 180, surfaces: [{ R: 40 }, { R: null }], gaps: [4] })]));
+      const S = J.importZmxText(J.exportZmx(['T']).text, 'x.zmx', 'lens').surfaces;
+      return S[0].R === null ? S[1].R : NaN;
+    },
+  },
+  {
+    name: '.zmx export turns away what it can’t write',
+    why: 'a cylindrical lens, a lens off the axis of another, and a mirror with a lens each give a reason instead of a file',
+    want: 3, tol: 0, unit: ' refused',
+    run: J => {
+      J.load(bench('zr', [bk7Lens({ name: 'A' }), bk7Lens({ name: 'C', x: 40, cyl: 'plane' }), bk7Lens({ name: 'D', x: 60, y: 2 }),
+        { type: 'mirror', id: 'M', name: 'M', x: 90, y: 0, angle: 180, length: 25.4 }]));
+      let n = 0;
+      for (const set of [['C'], ['A', 'D'], ['A', 'M']]) { try { J.exportZmx(set); } catch (e) { if (e.message) n++; } }
+      return n;
+    },
+  },
+  {
+    name: '.zmx export writes a mirror with its focus',
+    why: 'a concave mirror of R = 200 mm reads back as R = 200 mm, its image 100 mm back towards the light',
+    want: 200, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load(bench('zm', [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 25.4, R: 200 }]));
+      const t = J.exportZmx(['M']).text;
+      TESTS_EXPECT.zmir = t;
+      return J.importZmxText(t, 'x.zmx', 'mirror').R;
+    },
+    extra: () => /GLAS MIRROR[^\n]*\r\n  DISZ -1\.0+E\+2/.test(TESTS_EXPECT.zmir) ? '' : ' (image distance wrong)',
+  },
+  {
     name: 'Save and reopen leaves the answer alone',
     why: 'a .jekray round trip is lossless',
     want: 0, tol: 1e-9, unit: ' mm difference',

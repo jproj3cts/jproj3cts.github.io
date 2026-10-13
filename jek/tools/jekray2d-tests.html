@@ -5330,6 +5330,30 @@ const TESTS = [
     },
   },
   {
+    name: 'Panels: one sweep open at a time, sections fold and stay folded',
+    why: 'the fixed mirror\u2019s panel: \u223f on X sweeps it and opens its controls; \u223f on z then sweeps z and folds X to its one-line summary; folding Position hides it and is remembered on the next panel; the long text is under About this part, folded (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      J.select('Fixed mirror');
+      const doc = document.getElementById('rig').contentDocument;
+      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-f').querySelectorAll('.rt-sweep-toggle')[t === 'Y (mm)' ? 1 : 0];
+      tog('X (mm)').click();
+      const a = !!doc.querySelector('#panel .rt-sweep') && J.byName('Fixed mirror').sweeps.x;
+      tog('z (mm)').click();
+      const b = doc.querySelectorAll('#panel .rt-sweep').length === 1 && doc.querySelectorAll('#panel .rt-sweep-sum').length === 1 && J.byName('Fixed mirror').sweeps.z;
+      const pos = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'Position');
+      pos.click();
+      J.select('Moving mirror');
+      const pos2 = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'Position');
+      const c = pos2.closest('.rt-sec').classList.contains('shut');
+      pos2.click();
+      const about = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'About this part');
+      const d = about && about.closest('.rt-sec').classList.contains('shut') && about.closest('.rt-sec').querySelector('p');
+      return a && b && c && d ? 1 : 0;
+    },
+  },
+  {
     name: 'A part\u2019s z, tip and roll can be swept like any other number',
     why: 'the Michelson\u2019s fixed mirror: each of z, Tip and Roll has its Sweep button, and setting them as a sweep does lands them where the panel would (1 when all hold)',
     want: 1, tol: 0, unit: '',

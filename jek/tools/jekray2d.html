@@ -385,8 +385,8 @@
   .rt-plot:hover .rt-sync.rt-freeze, .rt-sync.rt-freeze:focus-visible { opacity: 1; }
   .rt-sync.rt-freeze[aria-pressed=true] { opacity: 1; color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-panel h3 {
-    margin: 1rem 0 0.5rem;
-    padding-top: 0.75rem;
+    margin: 0.7rem 0 0.4rem;
+    padding-top: 0.5rem;
     border-top: 1px solid var(--jek-line);
     font-size: 0.875rem;
     color: var(--jek-ink);
@@ -394,8 +394,24 @@
   .rt-panel p { margin: 0 0 0.6rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
   .rt-panel .kind { font-weight: 400; color: var(--jek-ink-soft); font-size: 0.875rem; margin-left: 0.35rem; }
 
-  .rt-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 0.6rem; }
+  /* settings as a list: each a row of its label, its box and its sweep button (\u223f) */
+  .rt-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
   .rt-rows .wide { grid-column: 1 / -1; }
+  .rt-rows > .rt-f {
+    display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 1.35rem;
+    align-items: center; column-gap: 0.4rem; row-gap: 0.3rem;
+  }
+  .rt-rows > .rt-f > .rt-lab { display: contents; }
+  .rt-rows > .rt-f > label, .rt-rows > .rt-f > .rt-lab > label, .rt-rows > .rt-f > .rt-plab { grid-column: 1; grid-row: 1; line-height: 1.2; }
+  .rt-rows > .rt-f > :nth-child(2) { grid-column: 2; grid-row: 1; }
+  .rt-rows > .rt-f > .rt-lab > .rt-sweep-toggle { grid-column: 3; grid-row: 1; }
+  /* a box with no sweep button reaches to the edge */
+  .rt-rows > .rt-f:not(:has(.rt-sweep-toggle)):not(.rt-pair) > :nth-child(2) { grid-column: 2 / 4; }
+  .rt-rows > .rt-f > :nth-child(n+3) { grid-column: 1 / -1; }
+  .rt-rows > .rt-f.rt-pair > .rt-pairbox { grid-column: 2 / 4; }
+  .rt-pairbox { display: grid; grid-template-columns: minmax(0, 1fr) 1.35rem minmax(0, 1fr) 1.35rem; align-items: center; column-gap: 0.4rem; }
+  .rt-plab { font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
+  .rt-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .rt-f { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
   .rt-wrap [hidden], .rt-dialog [hidden] { display: none !important; }   /* a styled field must still hide */
   .rt-f label, .rt-check {
@@ -417,12 +433,16 @@
   .rt-f select { font-family: var(--jek-sans); cursor: pointer; }
   /* one height for a typed box and a menu, so side by side they line up */
   .rt-f > input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .rt-f > select { box-sizing: border-box; height: 2.05rem; }
+  .rt-rows > .rt-f > input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .rt-rows > .rt-f > select,
+  .rt-pairbox > input { box-sizing: border-box; height: 1.75rem; padding: 0.2rem 0.4rem; width: 100%; min-width: 0; }
+  .rt-pairbox > input { font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: #fff; border: 1px solid var(--jek-line-2); border-radius: 2px; }
+  .rt-pairbox > input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-check { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; cursor: pointer; }
   .rt-f .rt-check input { width: auto; flex: none; padding: 0; margin: 0; }   /* a checkbox inside a field, as in a sweep */
   /* side by side, a field's box sits at the foot of its cell, so a label that wraps to two lines leaves its box level with its neighbour's */
-  .rt-rows > .rt-f > input:first-of-type, .rt-rows > .rt-f > select:first-of-type { margin-top: auto; }
+
   /* a checkbox level with the first line of a label that wraps */
   .rt-check { align-items: flex-start; }
   .rt-check > input[type=checkbox], .rt-check > input[type=radio] { flex: none; margin: 0.1rem 0 0; }
@@ -458,7 +478,6 @@
   .rt-muted { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-lab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 0.5rem; }
-  /* a label keeps to one line beside its Sweep button when there is room; one too long for its box wraps within it */
   .rt-lab label { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .rt-sweep-toggle, .rt-link {
     padding: 0;
@@ -471,7 +490,34 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .rt-sweep-toggle:hover, .rt-link:hover { text-decoration: underline; }
+  .rt-link:hover { text-decoration: underline; }
+  /* the sweep button: a faint wave, coloured when the number is swept */
+  .rt-sweep-toggle {
+    width: 1.35rem; height: 1.35rem; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; line-height: 1; font-weight: 400; color: var(--jek-ink-soft); opacity: 0.45; border-radius: 2px;
+  }
+  .rt-sweep-toggle:hover, .rt-sweep-toggle:focus-visible { opacity: 1; color: var(--jek-cyan-dark); background: var(--jek-well); }
+  .rt-sweep-toggle.on { opacity: 1; color: #fff; background: var(--jek-cyan); }
+  .rt-sweep-toggle.on:hover { background: var(--jek-cyan-dark); color: #fff; }
+  .rt-sweep-sum { display: flex; align-items: center; gap: 0.5rem; }
+  .rt-sweep-sum .rt-play { width: 3.4rem; padding: 0.15rem 0; font-size: 0.75rem; }
+  .rt-sweep-line {
+    flex: 1; min-width: 0; padding: 0.15rem 0; text-align: left; font: inherit; font-size: 0.75rem; font-family: var(--jek-mono);
+    color: var(--jek-ink-soft); background: none; border: none; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rt-sweep-line:hover { color: var(--jek-ink); text-decoration: underline; }
+  .rt-sweep-line:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-sweep-foot .rt-link { font-size: 0.75rem; }
+  .rt-sweep-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+  /* sections that fold */
+  .rt-sech { display: flex; align-items: center; gap: 0.3rem; cursor: pointer; user-select: none; }
+  .rt-secbtn { flex: none; width: 1rem; height: 1rem; padding: 0; background: none; border: none; cursor: pointer; color: var(--jek-ink-soft); }
+  .rt-secbtn::before { content: ''; display: block; margin: 0 auto; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; transition: transform 0.12s; }
+  .rt-sec.shut .rt-secbtn::before { transform: rotate(-90deg); }
+  .rt-secbtn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
+  .rt-sec.shut > .rt-secbody { display: none; }
+  .rt-sec + .rt-tabs { margin-top: 0.7rem; padding-top: 0.35rem; border-top: 1px solid var(--jek-line); }
+  .rt-about h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-sweep-toggle:focus-visible, .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-inline { display: flex; gap: 1rem; }
   .rt-stack {
@@ -483,13 +529,15 @@
   .rt-layer { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--jek-line-2); }
 
   .rt-f.swept {
-    padding: 0.5rem 0.6rem 0.6rem;
+    padding: 0.35rem 0.6rem 0.4rem;
     margin: 0 -0.6rem;
     background: var(--jek-well);
     border-left: 3px solid var(--jek-cyan);
     border-radius: 0 2px 2px 0;
   }
-  .rt-sweep { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.35rem; }
+  .rt-sweep { display: flex; flex-direction: column; gap: 0.35rem; }
+  .rt-sweep .rt-f > input { height: 1.75rem; padding: 0.2rem 0.4rem; }
+  .rt-sweep-range { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
   .rt-sweep-range { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); gap: 0.4rem; }
   .rt-adv summary {
     font-size: 0.75rem;
@@ -15120,36 +15168,50 @@ function numInput(id, get, onValue, opts = {}) {
 }
 
 /* An element parameter with its optional sweep controls */
-function param(label, el, path, opts = {}) {
-  const id = 'rtf' + (++fid);
+/* A number's input, its sweep button (∿) and, when it is swept, its sweep: folded to one line,
+   or open to edit (one sweep open at a time) */
+const sweepOpen = new Set();
+function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
-  const sw = sweeps[path];
+  const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
   const inp = numInput(id, () => getPath(el, path), v => { pause(el, path); setParam(el, path, v); }, opts);
-  const toggle = h('button', {
-    class: 'rt-sweep-toggle', type: 'button', 'aria-pressed': sw ? 'true' : 'false',
-    title: sw ? 'Remove the sweep' : 'Sweep this value over a range',
+  const name = label.replace(/\s*\(.*\)$/, '');
+  const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';
+  const toggle = opts.noSweep ? null : h('button', {
+    class: 'rt-sweep-toggle' + (sw ? ' on' : ''), type: 'button', 'aria-pressed': sw ? 'true' : 'false',
+    'aria-expanded': sw ? String(open) : undefined, title: tip, 'aria-label': tip,
     onclick: () => {
+      if (sweeps[path]) { sweepOpen.clear(); if (!open) sweepOpen.add(key); renderPanel(); return; }
       checkpoint();
-      if (sweeps[path]) { pause(el, path); delete sweeps[path]; }
-      else sweeps[path] = sweepDefault(path, getPath(el, path));
+      sweeps[path] = sweepDefault(path, getPath(el, path));
+      sweepOpen.clear(); sweepOpen.add(key);
       changed(true);
     },
-  }, sw ? 'Remove sweep' : 'Sweep');
-  const wrap = h('div', { class: 'rt-f' + (opts.wide || sw ? ' wide' : '') + (sw ? ' swept' : '') },
-    h('div', { class: 'rt-lab' }, h('label', { for: id }, label), ...(opts.noSweep ? [] : [toggle])), inp);
-  if (sw) wrap.append(sweepControls(el, path, sw, label));
+  }, '\u223f');
+  const box = !sw ? null : open ? sweepControls(el, path, sw, label) : sweepSummary(el, path, sw, label, opts.prefix);
+  return { inp, toggle, box, sw };
+}
+function param(label, el, path, opts = {}) {
+  const id = 'rtf' + (++fid);
+  const P = paramBits(label, el, path, opts, id);
+  const wrap = h('div', { class: 'rt-f' + (P.sw ? ' swept' : '') },
+    h('div', { class: 'rt-lab' }, h('label', { for: id }, label), P.toggle), P.inp);
+  if (P.box) wrap.append(P.box);
   return wrap;
 }
-
-function sweepControls(el, path, sw, label) {
-  const box = h('div', { class: 'rt-sweep' });
-  const small = (text, key, check) => {
+/* two numbers on one row, as X and Y, or Tip and Roll: each its own input and sweep */
+function paramPair(label, el, items, opts = {}) {
+  const cells = h('div', { class: 'rt-pairbox' }), boxes = [];
+  for (const [path, sub] of items) {
     const id = 'rtf' + (++fid);
-    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; });
-    return h('div', { class: 'rt-f' }, h('label', { for: id }, text), inp);
-  };
-  box.append(h('div', { class: 'rt-sweep-range' }, small('From', 'min'), small('To', 'max')));
-
+    const P = paramBits(sub, el, path, Object.assign({ prefix: sub.replace(/\s*\(.*\)$/, '') }, opts), id);
+    cells.append(h('label', { for: id, class: 'rt-sr' }, sub), P.inp, P.toggle || h('span'));
+    if (P.box) boxes.push(P.box);
+  }
+  return h('div', { class: 'rt-f rt-pair' + (boxes.length ? ' swept' : '') }, h('span', { class: 'rt-plab' }, label), cells, ...boxes);
+}
+/* a sweep's play button */
+function sweepPlay(el, path, label) {
   const btn = h('button', { class: 'rt-play', type: 'button' });
   const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
   btn.addEventListener('click', () => rendering() ? sweepJob.cancel() : isPlaying(el, path) ? pause(el, path) : play(el, path));
@@ -15159,6 +15221,32 @@ function sweepControls(el, path, sw, label) {
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', (on ? 'Pause ' : 'Play ') + label + ' sweep');
   });
+  return btn;
+}
+/* a sweep folded to one line: its range, waveform and rate, with play; click to edit */
+function sweepSummary(el, path, sw, label, prefix) {
+  const key = sweepKey(el, path);
+  const txt = h('button', { class: 'rt-sweep-line', type: 'button', title: 'Edit this sweep',
+    onclick: () => { sweepOpen.clear(); sweepOpen.add(key); renderPanel(); } });
+  bindSync(txt, () => {
+    txt.textContent = (prefix ? prefix + ': ' : '') + fmtNum(sw.min) + ' \u2192 ' + fmtNum(sw.max) + ' \u00b7 ' +
+      (WAVES[sw.wave] || '').replace(/ \(.*\)$/, '').toLowerCase() + ' \u00b7 ' + (+(+sw.freq).toPrecision(3)) + ' Hz';
+  });
+  return h('div', { class: 'rt-sweep-sum' }, sweepPlay(el, path, label), txt);
+}
+
+function sweepControls(el, path, sw, label) {
+  const box = h('div', { class: 'rt-sweep' });
+  const small = (text, key, check) => {
+    const id = 'rtf' + (++fid);
+    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; });
+    return h('div', { class: 'rt-f' }, h('label', { for: id }, text), inp);
+  };
+  const range = h('div', { class: 'rt-sweep-range' }, small('From', 'min'), small('To', 'max'));
+  box.append(range);
+
+  const btn = sweepPlay(el, path, label);
+  const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
   const slider = h('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': label + ' within the sweep range' });
   slider.addEventListener('input', () => {
     if (isPlaying(el, path)) pause(el, path);
@@ -15179,7 +15267,7 @@ function sweepControls(el, path, sw, label) {
       fieldRendered = null;
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
-    box.append(h('div', { class: 'rt-sweep-range' }, h('div', { class: 'rt-f' }, h('label', { for: id }, 'Steps a cycle'), inp)));
+    range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
   }
   // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
   if (fieldPossible() || sw.field) {
@@ -15190,10 +15278,10 @@ function sweepControls(el, path, sw, label) {
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
         : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.'
-        : 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.';
+        : '';
       status.hidden = !status.textContent;
     });
-    box.append(h('label', { class: 'rt-check', style: 'margin-top:0.4rem' }, fc, 'Render the diffracted field (slow)'), status);
+    box.append(h('label', { class: 'rt-check', title: 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.' }, fc, 'Render the diffracted field (slow)'), status);
     // the render workers warmed up while the sweep is in view, so Play does not wait for them to start
     if (sw.field && swPool()) swRelease();
   }
@@ -15215,7 +15303,8 @@ function sweepControls(el, path, sw, label) {
       small('Phase (°)', 'phase'),
       h('div', { class: 'rt-f' }, h('label', { for: waveId }, 'Waveform'), wave)),
     period);
-  box.append(adv);
+  box.append(h('div', { class: 'rt-sweep-foot' }, adv, h('button', { class: 'rt-link', type: 'button',
+    onclick: () => { checkpoint(); pause(el, path); delete el.sweeps[path]; sweepOpen.delete(key); changed(true); } }, 'Remove sweep')));
   return box;
 }
 
@@ -15422,20 +15511,83 @@ function renderInto(box, el) {
   refs = [];
   try { renderPanelBody(el); } finally { box._refs = refs; panel = saved; refs = []; }
 }
+/* ---------- A panel's sections ----------
+   Each heading and what follows it is a section that folds away, remembered for the kind of
+   part (About, the long explanations gathered at the foot, starts folded). Readouts set among a
+   section's settings are gathered into a Readout section of their own. */
+const SEC_KEY = 'jek-rt-sections';
+const secState = (() => { try { return JSON.parse(localStorage.getItem(SEC_KEY)) || {}; } catch (err) { return {}; } })();
+function secOpenOf(key, dflt) { return key in secState ? !!secState[key] : dflt; }
+function makeSection(h3, body, key, dflt) {
+  const open = secOpenOf(key, dflt);
+  const text = h3.textContent.trim();
+  const btn = h('button', { class: 'rt-secbtn', type: 'button', 'aria-expanded': String(open), 'aria-label': (open ? 'Fold ' : 'Show ') + text });
+  h3.prepend(btn);
+  h3.classList.add('rt-sech');
+  const sec = h('section', { class: 'rt-sec' + (open ? '' : ' shut') }, h3, body);
+  const flip = () => {
+    const now = sec.classList.toggle('shut');
+    btn.setAttribute('aria-expanded', String(!now));
+    btn.setAttribute('aria-label', (now ? 'Show ' : 'Fold ') + text);
+    secState[key] = !now;
+    try { localStorage.setItem(SEC_KEY, JSON.stringify(secState)); } catch (err) { /* kept for this visit only */ }
+  };
+  h3.addEventListener('click', e => { if (e.target === btn || !e.target.closest('a, button, input, select, label')) flip(); });
+  return sec;
+}
+function sectionise(box, kind) {
+  const kids = [...box.children];
+  const order = [], secs = [], about = [], reads = [];
+  let cur = null;
+  const longText = k => k.tagName === 'P' && !k.className && k.textContent.length > 90;
+  for (const k of kids) {
+    k.remove();
+    if (k.tagName === 'H3') { cur = { h3: k, body: h('div', { class: 'rt-secbody' }) }; secs.push(cur); order.push(cur); continue; }
+    // a part's tabs stand between sections, not in one
+    if (k.classList.contains('rt-tabs')) { cur = null; order.push(k); continue; }
+    if (longText(k)) { about.push([cur && cur.h3.textContent.trim(), k]); continue; }
+    if (!cur) { order.push(k); continue; }
+    if (k.classList.contains('rt-readout')) reads.push([cur, k]);
+    else cur.body.append(k);
+  }
+  // a section of readouts alone keeps them; the rest go to a Readout section after the settings
+  for (const c of secs) c.only = !c.body.children.length;
+  let readSec = null;
+  for (const [c, k] of reads) {
+    if (c.only) c.body.append(k);
+    else (readSec || (readSec = { h3: h('h3', null, 'Readout'), body: h('div', { class: 'rt-secbody' }) })).body.append(k);
+  }
+  if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
+  for (const o of order) {
+    if (o instanceof Node) box.append(o);
+    else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), true));
+  }
+  if (about.length) {
+    const body = h('div', { class: 'rt-secbody rt-about' });
+    let last;
+    for (const [head, p] of about) {
+      if (head && head !== last && head !== 'Position') body.append(h('h4', null, head));
+      last = head;
+      body.append(p);
+    }
+    box.append(makeSection(h('h3', null, 'About this part'), body, kind + '|About', false));
+  }
+}
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
   if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : F.wire ? ELEC.wirePanel : fibreLinkPanel)(F); else renderOverview(); return; }   // PIC hook
+  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC.wgPanel : F.wire ? ELEC.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   pinTitle(title, el.id, () => selectEl(el));
   panel.append(title);
+  panel.append(h('div', { class: 'rt-rows' },
+    textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
-    textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true }),
-    param('X (mm)', el, 'x', { noSweep: el.type === 'draw' }),
-    param('Y (mm)', el, 'y', { noSweep: el.type === 'draw' }),
+    paramPair('X, Y (mm)', el, [['x', 'X (mm)'], ['y', 'Y (mm)']], { noSweep: el.type === 'draw' }),
     param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
       stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
       faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)', cell: 'Orientation (\u00b0)', nlc: 'Orientation (\u00b0)',
@@ -15449,14 +15601,14 @@ function renderPanelBody(el) {
   }
   // a part tipped up or down out of the plane, as a mount's vertical knob does
   if (tippable(el)) {
-    const tp = param('Tip (\u00b0)', el, 'tip');
+    const tp = paramPair('Tip, Roll (\u00b0)', el, [['tip', 'Tip (\u00b0)'], ['roll', 'Roll (\u00b0)']]);
     tp.title = el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does; Facing turns it across, as the other knob does. The reflected light rises or falls by twice the tip.'
       : el.type === 'source' ? 'Sends the light up (positive) or down out of the bench plane, at this angle.' : 'Tips the part up (positive) or down out of the bench plane, about its own across axis.';
     // and rolled about its own axis: a cylinder's power, a grating's grooves, a Dove prism's image turned
-    const rp = param('Roll (\u00b0)', el, 'roll');
-    rp.title = el.type === 'source' ? 'Turns the source about its beam: its pattern across the beam and its polarisation with it.'
-      : 'Turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).';
-    rows.append(tp, rp);
+    tp.title += ' Roll: ' + (el.type === 'source' ? 'turns the source about its beam: its pattern across the beam and its polarisation with it.'
+      : 'turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).');
+    tp.title = 'Tip: ' + tp.title;
+    rows.append(tp);
   }
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
@@ -15499,6 +15651,7 @@ function renderPanelBody(el) {
       h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); benchTab = 'cavity'; renderPanel(); requestRender(); } }, 'Show')));
   }
 
+  sectionise(panel, el.type);
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
@@ -18379,7 +18532,7 @@ function renderOverview() {
   panel.append(h('h3', null, 'Using the bench'));
   panel.append(h('ul', { class: 'rt-keys' },
     h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
-    h('li', null, 'Choose Sweep next to any value to give it a range, then drag its slider or press Play.'),
+    h('li', null, 'Choose \u223f at the end of any value\u2019s row to give it a range, then drag its slider or press Play.'),
     h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
     h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
     h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
@@ -28215,6 +28368,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Denser panels: each setting is one row, its label beside its box, X and Y (and Tip and Roll) side by side. Sweeping is the \u223f button at the end of a row; a swept number shows its sweep folded to one line with Play, and opens to edit, one at a time. Sections fold under their headings and stay as you left them, readouts gather in a Readout section, and the longer explanations sit under About this part.',
     '<b>Export a lens (.zmx)</b> (File menu): the lenses selected, as a sequential prescription that lens-design programs open, with every face\u2019s radius, conic, aspheric terms, glass and aperture, the bench\u2019s wavelengths, and the image at the paraxial focus. Lenses and windows on one axis go as one system; a mirror can go on its own.',
     'Beams are cut along the surfaces they meet, in 2D and 3D, their envelope and their diffracted field alike: at a 45\u00b0 mirror the beam in ends on the mirror and the beam out starts from it, where before each ended square across its axis, half of it past the mirror and half short of it.',
     'Experimental: <b>Mods</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the mods it uses, and offers them when opened. An example mod and a guide to writing one are in the documentation.',

@@ -13,6 +13,7 @@ import { splitOffset, splitRoot } from '../core/coherence.js';
 import { gddPath, isLaserLike, m2Of, pulseGrid, pulseOf, syncLine, syncSplit } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
+import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { stackAmp } from '../core/coatings.js';
 import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
@@ -320,24 +321,13 @@ export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.t
 export function setRoll(el, v) { if (!isFinite(v)) return; v = ((+v + 180) % 360 + 360) % 360 - 180; if (Math.abs(v) < 1e-9) delete el.roll; else el.roll = +v.toFixed(6); }
 export function setTip(el, v) { if (!isFinite(v)) return; v = clamp(+v, -90, 90); if (Math.abs(v) < 1e-9) delete el.tip; else el.tip = +v.toFixed(6); }
 // a part's aperture out of the plane: round about its centre (a lens, a mirror, a plate), or a
-// square band as tall as it is wide (a screen, a cube, a block)
-const Z_SQUARE = new Set(['screen', 'link', 'cube', 'prism', 'crystal', 'grating', 'aom', 'eom', 'nlc', 'stop', 'chopper']);
-function zHalf(el, semi) {
-  switch (el.type) {
-    case 'cube': return el.size / 2;
-    case 'prism': return el.size / 2;
-    case 'aom': return (el.length || 10) / 2 * 0.6;
-    case 'eom': return Math.max(1.5, (el.length || 10) / 4);
-    case 'nlc': return Math.max(0.5, (el.length || 10) / 2 * 0.3);
-    case 'stop': return el.outer / 2;
-    case 'chopper': return el.length;
-    default: return semi;
-  }
-}
+// square band as tall as it is wide (a screen, a cube, a block): the part says (zSquare, zHalf)
+const zSquare = el => !!(PARTS[el.type] && PARTS[el.type].zSquare);
+const zHalf = (el, semi) => { const P = PARTS[el.type]; return P && P.zHalf ? P.zHalf(el) : semi; };
 function zInside(s, yy, h) {
   const el = s.el;
   if (!el || !s.semi) return true;
-  if (Z_SQUARE.has(el.type)) return Math.abs(h) <= zHalf(el, s.semi) + 1e-9;
+  if (zSquare(el)) return Math.abs(h) <= zHalf(el, s.semi) + 1e-9;
   return yy * yy + h * h <= s.semi * s.semi * (1 + 1e-12) + 1e-12;
 }
 /* Out of the plane the trace is as exact as in it. A ray carries its in-plane direction (unit),
@@ -461,7 +451,7 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
   const y = fy + gy * t, z = qz + ez * t;
-  if (s.el && Z_SQUARE.has(s.el.type)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
+  if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
 }
 // its unit normal where a ray at (px, py) in the part's frame, h up, meets it: in the frame of

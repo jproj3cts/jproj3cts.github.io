@@ -7,7 +7,8 @@ import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, eva
 import { MODS } from '../core/modulators.js';
 import { fibreGamma, fibreSPM } from '../core/pulses.js';
 import { beamAt, lgComps } from '../core/beams-hom.js';
-import { TYPE_LABEL, project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
+import { TYPE_LABEL } from '../parts/registry.js';
+import { project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';

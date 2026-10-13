@@ -1,4 +1,6 @@
 import { TEST_MODE } from '../core/constants.js';
+import { RF } from '../parts/rf.js';
+import { FREE_GROUPS, FREE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
@@ -52,11 +54,7 @@ export function setExperimental(on, picks) {
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
 export const PALETTES = {
-  free: [['source', 'Source'], ['mirror', 'Mirror'], ['lens', 'Lens'], ['asphere', 'Asphere'], ['cube', 'Beam splitter'], ['prism', 'Prism'],
-    ['waveplate', 'Waveplate'], ['polariser', 'Polariser'], ['stop', 'Stop'], ['mask', 'Mask'], ['screen', 'Screen'],
-    ['cylinder', 'Cylindrical lens'], ['axicon', 'Axicon'], ['grating', 'Grating'], ['crystal', 'Crystal', 'Crystal: displacer, Wollaston, Glan\u2013Taylor'],
-    ['filter', 'Filter'], ['faraday', 'Faraday rotator'], ['isolator', 'Isolator'], ['gain', 'Gain medium'], ['cell', 'Vapour cell', 'Atomic vapour cell (Rb, Cs, K)'], ['nlc', 'Nonlinear crystal', 'Nonlinear crystal (second harmonic: PPLN, PPKTP)'], ['fibre', 'Fibre tip'],
-    ['detector', 'Photodetector'], ['elec:chopper', 'Chopper', 'Optical chopper'], ['aom', 'AOM', 'Acousto-optic modulator'], ['eom', 'EOM', 'Electro-optic modulator'], ['link', 'Link plane', 'Link plane (to another tab)']],
+  get free() { return pickerRows(FREE_PARTS); },                                           // from the parts (read when asked: the registry loads after this on the dev page)
   fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
     ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
@@ -65,9 +63,7 @@ export const PALETTES = {
     ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
     ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
   get elec() { return ELEC.PALETTE; },                                                       // ELEC hook (read when asked: ELEC is made after this table)
-  rf: [['rf:horn', 'Horn', 'Feed horn (source)'], ['rf:rx', 'Receiver', 'Receiving horn and detector'], ['rf:lens', 'RF lens', 'RF lens (HDPE)'],
-    ['rf:mirror', 'Mirror', 'Flat metal mirror'], ['rf:fmirror', 'Focusing mirror', 'Focusing metal mirror'], ['rf:grid', 'Wire grid', 'Wire-grid polariser'],
-    ['rf:bs', 'Beam splitter', 'Film beam splitter'], ['rf:load', 'Load', 'Absorber load']],
+  get rf() { return pickerRows([RF]); },
   get pic() { return PIC.PALETTE; },                                                         // PIC hook (likewise)
 };
 export let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
@@ -77,15 +73,13 @@ export function assignPalette(v) { return (palette = v); }
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
 export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', rf: 'RF', pic: 'Photonic', draw: 'Draw' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', elec: 'Elec', rf: 'RF', pic: 'Chip', draw: 'Draw' };
-const PART_GROUPS = {
-  free: [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']], ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'cylinder', 'axicon']],
-    ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']], ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
-    ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']], ['Tabs', ['link']]],
+export const PART_GROUPS = {
+  get free() { return FREE_GROUPS; },
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
     ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
     ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
     ['Ends and links', ['fibre', 'fmir', 'fm', 'term', 'thru']]],
-  rf: [['Horns', ['rf:horn', 'rf:rx']], ['Lenses and mirrors', ['rf:lens', 'rf:mirror', 'rf:fmirror']], ['Polarisation and splitting', ['rf:grid', 'rf:bs']], ['Loads', ['rf:load']]],
+  get rf() { return RF.groups; },
   pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
   elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
     ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],

@@ -138,7 +138,7 @@ export function loadTimeStatements(f, text) {
   }
   return out;
 }
-const ENGINE_SIDE = /^(core|state|engines|worker)\//, LAYER_EXCEPTIONS = new Set(['engines/elec.js', 'engines/pic.js']);
+const ENGINE_SIDE = /^(core|state|parts|engines|worker)\//, LAYER_EXCEPTIONS = new Set(['engines/elec.js', 'engines/pic.js']);
 export function lint() {
   const errors = [], warnings = [], mods = scan();
   for (const f of order()) for (const s of loadTimeStatements(f, read('src/' + f))) errors.push(f + ':' + s.line + ' runs code as it loads (' + s.text.trim() + '): a module only declares; put it in its wire function, called from boot.js');

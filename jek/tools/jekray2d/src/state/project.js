@@ -1,6 +1,7 @@
 import { clamp } from '../core/constants.js';
 import { CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
 import { DRAW_SHAPES } from './drawings.js';
+import { TYPE_LABEL } from '../parts/registry.js';
 import { lensKind } from './elements.js';
 import { FC } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -26,10 +27,6 @@ export const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 export const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 export const deg = Math.PI / 180;
 
-export const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: 'Screen', stop: 'Stop',
-  cube: 'Beam splitter cube', prism: 'Prism', waveplate: 'Waveplate', polariser: 'Polariser', mask: 'Mask',
-  grating: 'Grating', fibre: 'Fibre', detector: 'Photodetector', faraday: 'Faraday rotator', isolator: 'Optical isolator',
-  stl: 'STL object', crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper', draw: 'Drawing' };
 export const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism' };
 export const DOVE_RATIO = 4.224;              // a Dove prism's length over its height, for N-BK7 (as catalogue ones are)
 export const typeLabel = el => el.mod ? modName(el) : el.type === 'lens' && el.mmw ? 'RF lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]

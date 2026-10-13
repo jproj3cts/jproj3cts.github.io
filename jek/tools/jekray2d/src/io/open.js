@@ -1,7 +1,8 @@
 import { BEAM_Z, FORMAT, TEST_MODE, VERSION, cloud, cloudOpening } from '../core/constants.js';
 import { GLASS, glassKey } from '../core/glass.js';
 import { RF_MAT } from '../core/rf.js';
-import { TYPE_LABEL, history, project, selectOne, setProject, typeLabel } from '../state/project.js';
+import { TYPE_LABEL } from '../parts/registry.js';
+import { history, project, selectOne, setProject, typeLabel } from '../state/project.js';
 import { loadProject } from '../state/elements.js';
 import { dropTraceStore, tippable } from '../engines/trace.js';
 import { setSelFibreId } from '../ui/render.js';

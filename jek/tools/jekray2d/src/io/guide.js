@@ -1,9 +1,9 @@
 import { VERSION } from '../core/constants.js';
 import { GLASS } from '../core/glass.js';
 import { CRYSTALS, CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
-import { TRAP_ATOMS } from '../core/traps.js';
 import { DETECTOR_MATERIALS } from '../core/rf.js';
-import { PRISM_SHAPES, TYPE_LABEL } from '../state/project.js';
+import { PARTS, PART_ORDER, TYPE_LABEL } from '../parts/registry.js';
+import { PRISM_SHAPES } from '../state/project.js';
 import { normElementBase } from '../state/elements.js';
 import { STOP_SHAPES } from '../core/mask.js';
 import { FC, FC_ORDER } from '../engines/fibre.js';
@@ -19,140 +19,11 @@ import { ELEC } from '../engines/elec.js';
    field the tool has is described here.
    ========================================================================== */
 const AI_GUIDE_EXAMPLES = ['michelson', 'fabry-perot', 'pdh-lock', 'split-laser'];
-export const AI_ANGLE = {
-  draw: 'turns the drawing about its x, y.',
-  source: 'the direction the light leaves in (0 = travelling +x).',
-  mirror: 'the direction its reflecting face points (its normal, towards the light it reflects).',
-  screen: 'the direction its face points: towards the light it records.',
-  detector: 'the direction its face points: towards the light.',
-  fibre: 'the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.',
-  lens: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
-  cube: 'turns its internal diagonal. At 0 the diagonal runs like "/": light travelling +x reflects to +y, travelling −x reflects to −y, and it transmits straight on. At 90 the diagonal is "\\": +x reflects to −y.',
-  prism: 'rotates the prism about its centre; check the result on the bench.',
-  crystal: 'the direction of its entrance face’s normal (0 for light travelling ±x).',
-  grating: 'the direction its ruled face points (like a mirror for mode "reflect").',
-  stop: 'its normal: 0 for a beam travelling ±x (the blades then lie along y).',
-  waveplate: 'its normal: 0 for a beam travelling ±x.',
-  polariser: 'its normal: 0 for a beam travelling ±x.',
-  mask: 'its normal: 0 for a beam travelling ±x.',
-  filter: 'its normal: 0 for a beam travelling ±x.',
-  faraday: 'its normal, and the direction of its magnetic field: the sense of rotation depends on the direction of travel against it.',
-  isolator: 'its forward direction: light travelling along the angle passes, light travelling against it is blocked.',
-  gain: 'its normal: 0 for a beam travelling ±x.',
-  cell: 'its axis: 0 for a beam travelling ±x (the cell lies along x).',
-  nlc: 'its axis: 0 for a beam travelling ±x (the crystal lies along x).',
-  link: 'its normal. Light crossing one plane of a pair leaves its partner (on another tab) the same way relative to that plane.',
-  chopper: 'its blade\u2019s normal: 0 (or 180) across a beam travelling along x, as a stop.',
-  stl: 'the way the object\u2019s own +x (as in its file) points; its tip and roll turn it as any part\u2019s.',
-  aom: 'its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.',
-  eom: 'its normal: 0 for a beam travelling ±x.',
-};
-export const AI_WHAT = {
-  draw: 'A drawing for figures: a rectangle, an ellipse, a path of Bézier curves or a text, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.',
-  source: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
-  mirror: 'A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.',
-  lens: 'A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.',
-  screen: 'A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.',
-  stop: 'An aperture: iris, slit, double slit, slit comb, knife edge or beam block.',
-  cube: 'A beam-splitter cube: non-polarising ("npbs", reflect %) or polarising ("pbs", reflectS/reflectP %).',
-  prism: 'A glass prism or window.',
-  waveplate: 'A waveplate (retardance in waves).',
-  polariser: 'A linear polariser.',
-  mask: 'A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.',
-  grating: 'A diffraction grating, reflecting or transmitting.',
-  fibre: 'A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.',
-  detector: 'A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output.',
-  faraday: 'A Faraday rotator (non-reciprocal).',
-  isolator: 'An optical isolator (polariser, 45° Faraday rotator, polariser).',
-  crystal: 'A birefringent crystal: beam displacer, Wollaston prism or Glan–Taylor polariser.',
-  filter: 'A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).',
-  gain: 'A thin gain medium with a Lorentzian gain line that saturates: in a cavity above threshold the laser settles at its output power and the output leaves each partly transmitting mirror as a beam.',
-  nlc: 'A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the frequency of light polarised along its z axis: the second harmonic leaves as a beam of its own, from Boyd and Kleinman\u2019s theory for the focusing, the poling period and the temperature, and the fundamental leaves depleted. Put a lens before it so the beam focuses in its middle.',
-  cell: 'An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light\u2019s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source\u2019s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).',
-  link: 'One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.',
-  chopper: 'An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open).',
-  stl: 'An STL object: an opaque shape brought in from a .stl file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray2D when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open \u25be \u2192 Import an object (.stl), or drop the file on the bench.',
-  aom: 'A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.',
-  eom: 'A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.',
-};
+/* what the guide says of each part: its part's guide (parts/<type>.js) */
+export const AI_ANGLE = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.angle]));
+export const AI_WHAT = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.what]));
 /* each field: its meaning, units and limits, as the tool reads them */
-export const AI_FIELDS = {
-  draw: { shape: '"rect", "ellipse", "path" or "text".', fill: '"#rrggbb", or "none" (a text’s colour).', fillOpacity: '0 to 1.', stroke: '"#rrggbb", or "none".', strokeOpacity: '0 to 1.',
-    strokeWidth: 'mm.', dash: '"solid", "dash", "long", "dot" or "dashdot".', cap: '"butt", "round" or "square".', join: '"miter", "round" or "bevel".', opacity: '0 to 1: the whole drawing.',
-    layer: '"under" the beams and parts, or "over" them.', w: 'mm, a rectangle’s width.', h: 'mm, a rectangle’s height.', r: 'mm, a rectangle’s corner radius.',
-    rx: 'mm, an ellipse’s radius along x.', ry: 'mm, an ellipse’s radius along y.',
-    nodes: 'a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged.',
-    closed: 'true joins a path’s last node to its first.',
-    text: 'a text’s words; \\n starts a new line. x, y is where its first line starts, is centred or ends (align), on its baseline.', size: 'mm, a text’s font size.',
-    m: 'optional [a, b, c, d]: a skew (or scale) on the shape before its angle, x\u2032 = a x + c y, y\u2032 = b x + d y; left out, none.',
-    font: '"sans", "serif" or "mono".', bold: 'true for bold text.', italic: 'true for italic text.', align: '"left", "center" or "right".' },
-  source: {
-    wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
-    divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
-    gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
-    m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
-    popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
-    traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
-    polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
-    coh: 'coherence length in mm, with cmode "line"; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
-    cmode: '"single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere).',
-    bw: 'bandwidth in nm (FWHM), with cmode "broad": the coherence length is wavelength² / bw.',
-    splitFrom: 'id of another source this one is split from (same laser, so they interfere); null for a laser of its own.',
-    splitPhase: 'degrees of phase against the source it is split from.', splitPath: 'mm of extra fibre before this launch, against the other.',
-    fibre: 'optional {"core": µm, "na": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself.',
-    tau: 'fs: a mode-locked laser’s pulse duration (intensity FWHM at its transform limit); 0 for a continuous laser. Its bandwidth then sets coh.',
-    pshape: '"sech2" or "gauss": the pulse’s shape.', rep: 'MHz: the repetition rate (power is the average power).',
-    gdd0: 'fs²: the chirp the pulse leaves the laser with (0 at its transform limit).',
-  },
-  mirror: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
-    R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
-    k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
-    gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
-    mapScale: '"lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s).', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams arriving.',
-    mtfFreq: 'lp/mm at which its Diffraction tab quotes the MTF.' },
-  lens: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
-    gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
-    cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
-  screen: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
-    R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
-    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
-  stop: { shape: 'one of the stop shapes below.', aperture: 'mm: the opening (an iris’s diameter, a slit’s width).', outer: 'mm: the outer size (a beam block’s diameter).',
-    sep: 'mm: a double slit’s centre-to-centre separation.', pitch: 'mm: a slit comb’s pitch.', count: 'a comb’s number of slits, 2 to 400.',
-    offset: 'mm: the opening’s centre along the stop.', height: 'mm: a slit’s height out of the plane (0 unlimited).', side: '1 or −1: which side a knife edge covers.' },
-  cube: { size: 'mm edge length.', mode: '"npbs" or "pbs".', reflect: '% reflected, for "npbs".', reflectS: '% of s reflected, for "pbs".', reflectP: '% of p reflected, for "pbs".',
-    material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its outer faces (see Coatings).' },
-  prism: { shape: 'one of the prism shapes below.', size: 'mm.', thickness: 'mm (for a window).', material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
-  waveplate: { length: 'mm aperture.', retard: 'retardance in waves (0.25 quarter-wave, 0.5 half-wave, or any value).', axis: 'degrees: the fast axis from p.' },
-  polariser: { length: 'mm aperture.', axis: 'degrees: the transmission axis from p (0 passes p, 90 passes s).' },
-  mask: { length: 'mm aperture.', amp: 'amplitude transmission as a formula in x (mm along the mask), y (mm out of the plane), r, theta, lambda (mm) and pi; e.g. "1" or "circ(r/2)".',
-    delay: 'delay in waves as a formula in the same variables. An ideal lens of focal length f mm: "-(sqrt(r^2+f^2)-f)/lambda" (write f as a number).',
-    preset: 'leave "custom".' },
-  grating: { length: 'mm.', lpmm: 'lines per mm.', mode: '"reflect" or "transmit".', blaze: 'nm blaze wavelength.', eff: '% into the first order at the blaze.' },
-  fibre: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
-    emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
-    mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
-  nlc: { length: 'mm: the aperture across the beam.', nlLen: 'mm along the beam (10 to 50 is usual).', material: '"ppln" (MgO:PPLN, d_eff 14 pm/V) or "ppktp" (d_eff 9.5 pm/V).', period: 'poling period, µm; 0 (the default) picks the best period for the beam through it.', temp: '°C: tunes the phase matching (PPLN is usually run hot, 40 to 200).', axis: '"s" (z axis out of the bench plane: s light converts) or "p".', faces: '"ar" (end faces anti-reflection coated, 0.1%; the default) or "bare".' },
-  cell: { length: 'mm: the window diameter.', cellLen: 'mm along the beam (75 is usual).', atom: '"Rb" (natural), "Rb85", "Rb87", "Cs" or "K".', line: '"D2" or "D1".',
-    temp: '°C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60).', bField: 'gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none.' },
-  detector: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
-    bandwidth: 'Hz.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
-    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
-  faraday: { length: 'mm aperture.', rotation: 'degrees of rotation.' },
-  isolator: { length: 'mm aperture.', axis: 'degrees: the input polariser from p.', extinction: 'dB, 0 to 80.' },
-  crystal: { shape: 'one of the crystal shapes below.', crystal: 'one of the crystals below.', size: 'mm aperture.', length: 'mm length along the beam.',
-    axisAngle: 'degrees: the optic axis from the normal, for a displacer.', wedge: 'degrees: the wedge angle, for Wollaston and Glan–Taylor.' },
-  filter: { length: 'mm aperture.', ftype: 'one of the filter types below.', edge: 'nm: the edge of a long- or short-pass.', slope: 'nm: the 10–90% width of the edge.',
-    centre: 'nm: a band-pass centre.', fwhm: 'nm: a band-pass width.', od: 'optical density of an "nd" filter: it transmits 10^−od.', tmax: '% peak transmission.',
-    reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.' },
-  gain: { length: 'mm: its aperture across the beam (it is a thin sheet).', g0: 'small-signal single-pass power gain at the line centre (×); the pump sets it.', centre: 'nm line centre.', fwhm: 'nm line width.',
-    isat: 'kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam.' },
-  link: { length: 'mm width.', pair: 'the pair’s name: exactly two link planes share it, one on each tab.' },
-  chopper: { length: 'mm aperture across the beam.', f: 'Hz, the chopping frequency.', duty: '% of each cycle open.', phase: 'degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0).' },
-  stl: { mesh: 'its triangles, written by the tool when a .stl file is imported: leave it out.', units: 'the file\u2019s units: "mm", "cm", "m", "in", or "other" with "scale".', scale: 'mm per unit of the file, with "units": "other".', colour: '"#rrggbb": how it is drawn.' },
-  aom: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear).',
-    eff: '% into the order.', order: '+1 or −1.' },
-  eom: { length: 'mm aperture.', fm: 'MHz drive.', beta: 'modulation depth in radians.', emode: '"phase" (sidebands) or "amplitude".', bias: 'degrees, for "amplitude".', loss: 'dB insertion loss.' },
-};
+export const AI_FIELDS = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.fields]));
 const AI_SKIP = new Set(['beamView', 'beamScale', 'emitView', 'id', 'type', 'name', 'x', 'y', 'z', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked', 'group', 'label']);
 function aiDefaults(type) { return normElementBase({ type, name: 'x' }); }
 /* the fields of each type that the guide must describe: what the tool itself reads */

@@ -94,6 +94,6 @@ A pack is a `.jekpack` file, which is JSON text:
 
 Everything in a pack goes through the same checks as a bench opened from a file. An element of a type JEKray2D does not have, a glass with no data, or a fibre joining parts that are not in the same part is left out, and listed when the pack is installed. A pack can be at most 8 MB, with at most 500 parts and 200 glasses.
 
-### Packs hold no code
+### Packs and code
 
-A pack is data. Nothing in it runs, and JEKray2D refuses a pack with a `code` or `scripts` entry. Those names are kept for packs that bring new kinds of part with code of their own, run apart from the page, which a later version of JEKray2D will add.
+A version 1 pack is data. Nothing in it runs, and JEKray2D refuses one with a `code` or `scripts` entry. A pack that brings new kinds of part with code of their own is a version 2 pack, a [mod](/jek/docs/jekray2d/mods/), whose code runs in a sandbox apart from the page.

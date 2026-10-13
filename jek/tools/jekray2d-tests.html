@@ -156,6 +156,28 @@ const rfBench = (D, between, o = {}) => bench('rf', [
   { type: 'detector', name: 'Rx', x: D, y: 0, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: 7.5, L: 60 } },
 ], { minPower: 1e-6 });
 
+/* A mod for the tests: a thin lens as a plate, a half-wave plate, a fibre attenuator, a
+   first-order low-pass block, and a readout; installed with mods switched on */
+const TEST_MOD = `
+jek.element('lens', { name: 'Test lens', params: [{ key: 'f', label: 'Focal length (mm)', value: 100 }], aperture: 20, samples: 256,
+  transmit: (x, y, nm, p) => [1, -(x * x + y * y) / (2 * p.f * nm * 1e-6)] });
+jek.element('meta', { name: 'Wrapped lens', params: [{ key: 'f', label: 'Focal length (mm)', value: 100 }], aperture: 2, samples: 512,
+  transmit: (x, y, nm, p) => { const d = -(x * x + y * y) / (2 * p.f * nm * 1e-6); return [1, d - Math.floor(d)]; } });
+jek.plate('hwp', { name: 'Half-wave', jones: (nm, p) => [[1, 0], [0, -1]] });
+jek.component('att', { name: 'Mod attenuator', ports: ['a', 'b'], params: [{ key: 'db', label: 'Loss (dB)', value: 3 }],
+  S: (nm, p) => { const t = Math.pow(10, -p.db / 20); return [[0, 1, t], [1, 0, t]]; } });
+jek.block('lp', { name: 'Mod low-pass', ins: ['in'], outs: ['out'], params: [{ key: 'fc', label: 'Corner (Hz)', value: 1000 }],
+  H: (f, p) => { const d = 1 + (f / p.fc) ** 2; return [1 / d, -(f / p.fc) / d]; } });
+jek.readout('sum', { name: 'Map total', for: ['screen', 'detector'], compute: (d, p) => d.kind === 'detector' ? { rows: [['Power', d.mw]] }
+  : { rows: [['Power', d.power], ['Pixels', d.map.n * d.map.n]], series: [{ name: 'Middle row', x: Array.from({ length: d.map.n }, (_, i) => d.map.u0 + (d.map.u1 - d.map.u0) * i / (d.map.n - 1)), y: Array.from(d.map.I.slice(d.map.n * (d.map.n >> 1), d.map.n * ((d.map.n >> 1) + 1))) }] } });
+`;
+async function withTestMod(J, fn) {
+  J.experimental(true);
+  try { await J.packInstall({ format: 'jekpack', version: 2, id: 'test.mod', name: 'Test mod', author: 'Tests', code: TEST_MOD }); return await fn(); }
+  finally { J.experimental(false); }
+}
+const modRef = (def, p, o) => Object.assign({ id: 'test.mod', def, p: p || {} }, o || {});
+
 /* A one-surface-pair window, used for the Fresnel checks */
 const windowBlock = (angle, coat) => ({
   type: 'prism', name: 'Window', shape: 'window', x: 0, y: 0, angle,
@@ -5710,13 +5732,14 @@ const TESTS = [
     },
   },
   {
-    name: 'A part pack with code in it, or one this version cannot read, is refused',
-    why: 'packs hold data only: one with a "code" or "scripts" entry is refused, as are a newer pack version, a bench file, a malformed id and a pack with nothing usable in it; a well-formed one passes (1 when all hold)',
+    name: 'A part pack with code in it where it may not be, or one this version cannot read, is refused',
+    why: 'a version 1 pack holds data only: one with a "code" entry is refused, and so is any with "scripts"; a version 2 pack with code is refused while mods are off; so are a newer pack version, a bench file, a malformed id and a pack with nothing usable in it; a well-formed one passes (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const ok = { format: 'jekpack', version: 1, id: 'x.y', name: 'X', parts: [{ name: 'M', elements: [{ type: 'mirror', id: 'm', name: 'M', x: 0, y: 0 }] }] };
       const err = o => J.packCheck(Object.assign({}, ok, o)).error || '';
-      return !err({}) && /code/.test(err({ code: 'main.js' })) && /code/.test(err({ scripts: ['a.js'] })) && /newer/.test(err({ version: 2 })) &&
+      J.experimental(false);
+      return !err({}) && /version 1/.test(err({ code: 'main.js' })) && /scripts/.test(err({ scripts: ['a.js'] })) && /experimental/.test(err({ version: 2, code: 'jek.plate()' })) && /newer/.test(err({ version: 3 })) &&
         /bench/.test(err({ format: 'jekray' })) && /id/.test(err({ id: '../../x' })) && /no parts/.test(err({ parts: [{ elements: [{ type: 'nope' }] }] })) ? 1 : 0;
     },
   },
@@ -5822,7 +5845,189 @@ const TESTS = [
     why: 'a source set to 5 mm in a saved bench opens at 1 mm (1e6 nm), and one set to 50 nm at 100 nm, in nm summed',
     want: 1e6 + 100, tol: 0, unit: 'nm',
     run: J => { J.load(bench('lim', [src({ name: 'A', wavelength: 5e6 }), src({ name: 'B', y: 10, wavelength: 50 })])); return J.byName('A').wavelength + J.byName('B').wavelength; },
-  },  { group: 'Heights' },
+  },  { group: 'Mods' },
+  {
+    name: 'A mod’s plate focuses as the delay it gives says',
+    why: 'a mod plate whose delay is −r²/(2fλ) waves (a thin lens, f = 100 mm, in the masks’ sign: a delay that falls away from the axis converges), sampled 256 × 256 across 20 mm and read between samples by a cubic: the system’s focal length, in mm',
+    want: 100, tol: 0.001, rel: true, unit: 'mm',
+    run: J => withTestMod(J, async () => {
+      J.load(bench('modlens', [src({ width: 6, rays: 11 }), { type: 'mask', name: 'L', x: 20, y: 0, angle: 0, length: 20, mod: modRef('lens', { f: 100 }) }, screen({ x: 120 })]));
+      await J.modsSettle();
+      return J.system().efl;
+    }),
+  },
+  {
+    name: '… and its diffracted field focuses as the same lens written as a mask does',
+    why: 'a Gaussian beam (w₀ = 2 mm, 633 nm) through the mod’s lens (f = 80 mm, its delay given whole, some 1000 waves at its edge) and through a mask with the same formula: the spot’s 1/e² radius on a screen at the focus, the mod’s over the mask’s',
+    want: 1, tol: 1e-6, rel: true, unit: '',
+    run: J => withTestMod(J, async () => {
+      const mk = L => bench('modfield', [src({ gauss: true, w0: 2, z0: 0, width: 4, rays: 3, popModel: '2d' }), L, screen({ name: 'Sc', x: 105, length: 4 })]);
+      J.load(mk({ type: 'mask', name: 'L', x: 25, y: 0, angle: 0, length: 20, mod: modRef('lens', { f: 80 }) }));
+      J.diffraction('Sc'); await J.modsSettle(); J.diffraction('Sc'); await J.modsSettle();
+      const a = J.diffraction('Sc').wx;
+      J.load(mk({ type: 'mask', name: 'L', x: 25, y: 0, angle: 0, length: 20, amp: '1', delay: '-(r^2)/(2*80*lambda)' }));
+      return a / J.diffraction('Sc').wx;
+    }),
+  },
+  {
+    name: '… and a delay given wrapped, within one wave, is read across its wraps',
+    why: 'the same lens (f = 100 mm, 2 mm across) with its delay wrapped into one wave, sampled 512 × 512, against the mask with the same wrapped formula: the focused spot’s 1/e² radius, the mod’s over the mask’s',
+    want: 1, tol: 0.01, rel: true, unit: '',
+    run: J => withTestMod(J, async () => {
+      const mk = L => bench('modwrap', [src({ gauss: true, w0: 0.5, z0: 0, width: 1, rays: 3, popModel: '2d' }), L, screen({ name: 'Sc', x: 125, length: 2 })]);
+      J.load(mk({ type: 'mask', name: 'L', x: 25, y: 0, angle: 0, length: 2, mod: modRef('meta', { f: 100 }) }));
+      J.diffraction('Sc'); await J.modsSettle(); J.diffraction('Sc'); await J.modsSettle();
+      const a = J.diffraction('Sc').wx;
+      J.load(mk({ type: 'mask', name: 'L', x: 25, y: 0, angle: 0, length: 2, amp: '1', delay: 'mod(-(r^2)/(2*100*lambda), 1)' }));
+      return a / J.diffraction('Sc').wx;
+    }),
+  },
+  {
+    name: 'A mod’s polarisation plate turns the light as its Jones matrix says',
+    why: 'light at 45° from p through a plate of matrix diag(1, −1) (a half-wave plate with its axis along p) leaves at −45°: a polariser at +45° then passes none of it, one at −45° all (passed at +45° over passed at −45°)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => withTestMod(J, async () => {
+      const at = async ax => {
+        J.load(bench('modhwp', [src({ width: 2, rays: 1, pol: 'linear', polAngle: 45 }), { type: 'waveplate', name: 'H', x: 20, y: 0, angle: 0, length: 20, mod: modRef('hwp') },
+          { type: 'polariser', name: 'P', x: 40, y: 0, angle: 0, axis: ax }, { type: 'detector', name: 'D', x: 60, y: 0, angle: 180, length: 10, material: 'si' }]));
+        await J.modsSettle();
+        return J.detector('D').mw;
+      };
+      const plus = await at(45), minus = await at(-45);
+      return minus > 0 ? plus / minus : NaN;
+    }),
+  },
+  {
+    name: 'A mod’s fibre component passes light as its matrix says',
+    why: '1 mW through a mod component of 3 dB loss (its matrix 10^(−3/20) between its two ports): the power at the photodiode, in mW',
+    wantFrom: () => Math.pow(10, -0.3), tol: 1e-9, unit: ' mW',
+    run: J => withTestMod(J, async () => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), { type: 'fcomp', kind: 'mod', name: 'A', id: 'A', x: 0, y: 0, angle: 0, mod: modRef('att', { db: 3 }, { ports: ['a', 'b'] }) }, fc('pd', 'P')],
+        [['L', 0, 'A', 0], ['A', 1, 'P', 0]]));
+      J.fibrePd('P');
+      await J.modsSettle();
+      return J.fibrePd('P');
+    }),
+  },
+  {
+    name: 'A mod’s electronics block filters as its response says',
+    why: 'a 1 V, 1 kHz sine through a mod block H = 1/(1 + i f/fc), fc = 1 kHz, sampled 40 points a decade: the output’s amplitude, 1/√2 V',
+    wantFrom: () => Math.SQRT1_2, tol: 1e-9, unit: ' V',
+    run: J => withTestMod(J, async () => {
+      J.load(elecBench([elecPart('sig', 'G', { f: 1000, amp: 1 }), { type: 'elec', kind: 'mod.test.mod.lp', name: 'B', id: 'B', x: 20, y: 0, mod: modRef('lp', { fc: 1000 }, { ins: ['in'], outs: ['out'] }) }], [['G', 0, 'B', 0]]));
+      J.elec.signal('B', 0);
+      await J.modsSettle();
+      const S = J.elec.signal('B', 0), t = S && S.tones.find(q => Math.abs(q.f - 1000) < 1e-6);
+      return t ? t.amp : NaN;
+    }),
+  },
+  {
+    name: 'A mod’s readout reads what a screen and a detector read',
+    why: 'a readout given a screen’s diffracted map and a detector’s reading, returning the power each reads, the map’s size and its middle row as a series: the screen’s power as the screen itself gives it, and the detector’s (largest relative difference)',
+    want: 0, tol: 1e-12, unit: '',
+    run: J => withTestMod(J, async () => {
+      J.load(bench('modread', [src({ width: 2, rays: 1, gauss: true, w0: 1, z0: 0, power: 2 }), screen({ name: 'Sc', x: 50, length: 10, absorb: false }), { type: 'detector', name: 'D', x: 80, y: 0, angle: 180, length: 10, material: 'si' }]));
+      J.modReadout('Sc'); J.modReadout('D');
+      await J.modsSettle();
+      const a = J.modReadout('Sc')[0], b = J.modReadout('D')[0], st = J.diffraction('Sc');
+      if (!a || !a.r || !b || !b.r) throw new Error('no readout: ' + JSON.stringify([a, b]));
+      const P = +a.r.rows[0][1], Pd = +b.r.rows[0][1];
+      if (a.r.series.length !== 1 || a.r.series[0].x.length < 16) throw new Error('no series');
+      return Math.max(Math.abs(P / st.power - 1), Math.abs(Pd / J.detector('D').mw - 1)) > 1e-5 ? 1 : 0;
+    }),
+  },
+  {
+    name: 'The example mod installs, and its ring resonator notches as a ring does',
+    why: 'the example pack served with the docs: five parts (two plates, a polarisation plate, a component, a block) and a readout; its ring (r = 0.98, 3 dB/cm, 50 µm radius, group index 4.2) on a resonance near 1550 nm passes ((r − a)/(1 − r a))² of a laser’s power, a its round-trip amplitude',
+    wantFrom: () => { const L = 2 * Math.PI * 0.05, a = Math.pow(10, -3 * L / 10 / 20), r = 0.98; return ((r - a) / (1 - r * a)) ** 2; },
+    tol: 1e-9, unit: ' mW',
+    run: async J => {
+      J.experimental(true);
+      try {
+        const raw = await (await fetch('/jek/tools/mods/example.jekpack')).json();
+        await J.packInstall(raw);
+        const P = J.packs().find(p => p.id === 'jek.example');
+        if (!P || P.parts.length !== 5) throw new Error('parts: ' + JSON.stringify(P && P.parts));
+        const L = 2 * Math.PI * 0.05, m = Math.round(4.2 * L / 1550e-6), nm = 4.2 * L / m * 1e6;
+        J.load(fnet([fc('laser', 'L', { power: 1, wavelength: nm }), { type: 'fcomp', kind: 'mod', name: 'R', id: 'R', x: 0, y: 0, angle: 0, mod: { id: 'jek.example', def: 'ring', ports: ['in', 'through'], p: {} } }, fc('pd', 'P')],
+          [['L', 0, 'R', 0], ['R', 1, 'P', 0]]));
+        J.fibrePd('P'); await J.modsSettle();
+        return J.fibrePd('P');
+      } finally { J.experimental(false); }
+    },
+  },
+  {
+    name: 'A mod’s code cannot reach the network, storage or the page',
+    why: 'code that, as it starts, looks for fetch, XMLHttpRequest, WebSocket, EventSource, importScripts, indexedDB, caches, BroadcastChannel and Worker (on itself and on its prototypes), a document, cookies and its own origin: each missing, and its origin opaque ("null"), reported back as a part’s summary (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const code = `var found = [];
+        ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'indexedDB', 'caches', 'BroadcastChannel', 'Worker'].forEach(function (k) {
+          var o = self; while (o) { try { if (o[k] !== undefined) found.push(k); } catch (e) {} o = Object.getPrototypeOf(o); } });
+        if (typeof document !== 'undefined') found.push('document');
+        jek.readout('probe', { name: 'Probe', summary: JSON.stringify({ found: found, origin: String(self.origin) }), compute: function () { return {}; } });`;
+      const r = await J.modRaw(code);
+      if (r.err) throw new Error(r.err);
+      const o = JSON.parse(r.defs[0].d.summary);
+      return o.found.length === 0 && o.origin === 'null' ? 1 : (console.log('found', o), 0);
+    },
+  },
+  {
+    name: 'A mod that runs too long is stopped, and the next one still works',
+    why: 'a part whose code never returns, with the limit set to 0.5 s: the call fails as having taken too long (within 2 s), the sandbox is taken down, and a sound mod then loads and answers (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.modTimeout(500);
+      try {
+        const t0 = performance.now();
+        const r = await J.modRaw(`jek.plate('spin', { name: 'Spin', jones: function () { for (;;) {} } });`, 'spin', 'jones', { nm: 633, p: {} });
+        const dt = performance.now() - t0;
+        const ok = await J.modRaw(`jek.plate('fine', { name: 'Fine', jones: function () { return 1; } });`, 'fine', 'jones', { nm: 633, p: {} });
+        return /longer than 0.5 s/.test(r.err || '') && dt < 2000 && ok.out && ok.out[0] === 1 ? 1 : (console.log(r, dt, ok), 0);
+      } finally { J.modTimeout(0); }
+    },
+  },
+  {
+    name: 'A mod that sends what no one asked for is stopped',
+    why: 'code that posts messages of its own as it starts (a flood, or a forged answer) has its worker ended at the first: loading it fails, saying so (1 when it does)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const r = await J.modRaw(`for (var i = 0; i < 1000; i++) postMessage({ id: -7, ok: true, out: 'forged' }); jek.plate('x', { name: 'X', jones: function () { return 1; } });`);
+      return /no one asked/.test(r.err || '') ? 1 : (console.log(r), 0);
+    },
+  },
+  {
+    name: 'A mod’s answers are checked before they are used',
+    why: 'a component that answers with ports it does not have, text, NaN and a matrix of the wrong shape: only its one good entry is kept, and its bad numbers read as 0 (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => withTestMod(J, async () => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), { type: 'fcomp', kind: 'mod', name: 'A', id: 'A', x: 0, y: 0, angle: 0, mod: modRef('att', { db: 0 }, { ports: ['a', 'b'] }) }, fc('pd', 'P')],
+        [['L', 0, 'A', 0], ['A', 1, 'P', 0]]));
+      const r = await J.modRaw(`jek.component('bad', { name: 'Bad', ports: 2, S: function () { return [[0, 1, 1], [5, 0, 1], [0, 9, 1], 'text', [1, 0, NaN], [0, 1, [[1, 2, 3]]]]; } });`, 'bad', 'S', { nm: 1550, p: {}, n: 2 });
+      const rows = r.out || [];
+      // the worker returns rows of 10 numbers; the page then keeps those with ports in range
+      const kept = rows.filter(q => q[0] >= 0 && q[0] < 2 && q[1] >= 0 && q[1] < 2);
+      return rows.every(q => q.length === 10 && q.every(v => Number.isFinite(v))) && kept.length === 3 && kept[1][2] === 0 ? 1 : (console.log(JSON.stringify(rows)), 0);
+    }),
+  },
+  {
+    name: 'A bench carries its mods’ code, and opening it runs nothing',
+    why: 'a bench made with a mod part saves the mod’s code with it; opened where the mod is not installed, the code is kept (and saved again) but never loaded, and the part stands in, saying its mod is not installed (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => withTestMod(J, async () => {
+      J.load(bench('carry', [src({ width: 2, rays: 1 }), { type: 'mask', name: 'L', x: 20, y: 0, angle: 0, length: 20, mod: modRef('lens', { f: 50 }) }]));
+      const saved = J.serialize();
+      const carried = saved.mods && saved.mods.length === 1 && saved.mods[0].id === 'test.mod' && /jek\.element/.test(saved.mods[0].code);
+      const hash = saved.mods[0].hash;
+      await J.packRemove('test.mod');
+      J.load(JSON.parse(JSON.stringify(Object.assign(saved, { mods: [Object.assign({}, saved.mods[0], { id: 'other.mod' })] }))).elements ? Object.assign(JSON.parse(JSON.stringify(saved)), { elements: saved.elements.map(e => e.mod ? Object.assign({}, e, { mod: Object.assign({}, e.mod, { id: 'other.mod' }) }) : e), mods: [Object.assign({}, saved.mods[0], { id: 'other.mod', hash: '0'.repeat(64) })] }) : saved);
+      const notRun = !J.modsInfo().loaded.includes('0'.repeat(64)) && !J.modsInfo().packs.includes('other.mod');
+      const stands = /not installed/.test(J.modStatus('L'));
+      const again = J.serialize().mods;
+      return carried && hash && notRun && stands && again.length === 1 && again[0].id === 'other.mod' ? 1 : (console.log(carried, notRun, stands, again), 0);
+    }),
+  },
+  { group: 'Heights' },
   {
     name: 'Light crossing a vapour cell at an angle, turned or tipped, goes further through the vapour',
     why: 'a weak probe on the Rb87 F = 2 \u2192 3 line through a 40 \u00b0C cell, the cell turned 30\u00b0 in the plane and tipped 30\u00b0 out of it: its optical depth grows by 1 / cos 30\u00b0 = 1.155 either way (largest relative error)',

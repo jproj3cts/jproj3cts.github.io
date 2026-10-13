@@ -2381,6 +2381,32 @@ function jonesAt(el, fwd, sg) {
   return fwd ? jmul(P2, jmul(rot, P1)) : jmul(P1, jmul(rot, P2));
 }
 const JONES_TYPES = new Set(['waveplate', 'polariser', 'faraday', 'isolator']);
+/* Mods (see "Mods" near the end): their state is here, early, as the tracer reads it. Results
+   are what mods worked out (sampled tables, matrices), by a key of the mod's code, its part,
+   the settings and what was asked; rev moves on whenever one arrives, so traces and fields
+   made without it are made again. */
+const MODS = { packs: new Map(), results: new Map(), waiting: new Map(), failed: new Map(), rev: 0, sent: new WeakMap(), frame: null, calls: new Map(), seq: 0, loaded: new Map(), offered: new Set() };
+const MOD_COLOURS = { grey: '#9aa5ad', blue: '#5aa9e6', green: '#5bbf7a', yellow: '#e6c45a', orange: '#f29b4b', red: '#e0605a', purple: '#a586e0', white: '#e8e8e2' };
+const modText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';
+const modNames = (list, n, dflt) => Array.from({ length: n }, (_, i) => modText(Array.isArray(list) ? String(list[i] === undefined ? '' : list[i]) : '', 12) || dflt(i));
+/* a part's mod reference, as an element carries it: which mod and part, the code's hash it was
+   made with, its settings, and enough of the part's shape (its ports) to stand in without the mod */
+function normModRef(m, type) {
+  if (!m || typeof m !== 'object') return null;
+  const id = modText(m.id, 64).toLowerCase(), def = modText(m.def, 40);
+  if (!/^[a-z0-9][a-z0-9._-]{1,63}$/.test(id) || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(def)) return null;
+  const o = { id, def, hash: /^[0-9a-f]{64}$/.test(m.hash) ? m.hash : '', p: {} };
+  if (m.p && typeof m.p === 'object') for (const [k, v] of Object.entries(m.p).slice(0, 24)) if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && (typeof v === 'string' ? v.length <= 30 : isFinite(v))) o.p[k] = typeof v === 'string' ? v : +v;
+  o.name = modText(m.name, 50) || def;
+  if (type === 'fcomp') o.ports = modNames(m.ports, Math.round(clamp(Array.isArray(m.ports) ? m.ports.length : 2, 1, 8)), i => String(i + 1));
+  if (type === 'elec') {
+    o.ins = modNames(m.ins, Math.round(clamp(Array.isArray(m.ins) ? m.ins.length : 1, 0, 4)), i => 'in' + (i + 1));
+    o.outs = modNames(m.outs, Math.round(clamp(Array.isArray(m.outs) ? m.outs.length : 1, 1, 4)), i => 'out' + (i + 1));
+  }
+  if (MOD_COLOURS[m.colour]) o.colour = m.colour;
+  if (typeof m.tag === 'string') o.tag = modText(m.tag, 8);
+  return o;
+}
 
 /* Photodiode responsivity (A/W) against wavelength: typical curves for each material */
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
@@ -2919,7 +2945,7 @@ const TYPE_LABEL = { source: 'Source', mirror: 'Mirror', lens: 'Lens', screen: '
   stl: 'STL object', crystal: 'Crystal', filter: 'Filter', gain: 'Gain medium', cell: 'Vapour cell', nlc: 'Nonlinear crystal', link: 'Link plane', aom: 'Acousto-optic modulator', eom: 'Electro-optic modulator', chopper: 'Optical chopper', draw: 'Drawing' };
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism' };
 const DOVE_RATIO = 4.224;              // a Dove prism's length over its height, for N-BK7 (as catalogue ones are)
-const typeLabel = el => el.type === 'lens' && el.mmw ? 'RF lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.mod ? modName(el) : el.type === 'lens' && el.mmw ? 'RF lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -3103,6 +3129,7 @@ function normElementBase(e) {
   if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(6), -180, 180);
   if (typeof e.group === 'string' && e.group) base.group = e.group.slice(0, 40);     // one of a group, picked and moved together
   if (e.mmw && typeof e.mmw === 'object') base.mmw = normRf(e.mmw, e.type);              // an RF part: the RF palette's, a horn's settings
+  if (e.mod && typeof e.mod === 'object') { const m = normModRef(e.mod, e.type); if (m) base.mod = m; }   // a mod's part: which mod, its settings
   // its name moved off its usual place (mm from the part) or made bigger or smaller
   if (e.label && isFinite(e.label.dx) && isFinite(e.label.dy)) base.label = { dx: +e.label.dx, dy: +e.label.dy, s: clamp(num(e.label.s, 1), 0.4, 8) };
   switch (e.type) {
@@ -3522,6 +3549,7 @@ function serialize() {
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
+    ...(project.elements.some(e => e.mod) ? { mods: modsCarried() } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
 }
@@ -3547,6 +3575,7 @@ function loadProject(data) {
     library: (Array.isArray(data.library) ? data.library : []).map(normMat).filter(m => m.table),
     cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
     elements: [],
+    mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
   };
   project = p;
   for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
@@ -4383,6 +4412,7 @@ function compileMaskExpr(src) {
 const maskCache = new Map();
 /* The element's pair (amplitude, delay in waves) as one function, and any error */
 function maskFns(el) {
+  if (el.mod) return modMaskFns(el);                       // a mod's plate: its table, not a formula
   const key = el.amp + '\u0000' + el.delay;
   if (maskCache.has(key)) return maskCache.get(key);
   let out;
@@ -4448,7 +4478,8 @@ const MASK_EDGE_SHARE = 0.5;
    singular or jumps there: the mean of its slopes at four points 2 um away, each taken modulo
    whole waves, or 0 unless all four are smooth (a binary step bends nothing) */
 function maskMeanSlope(fn, u, lam) {
-  const h = 1e-4, e = 2e-3, w = d => d - Math.round(d);
+  // round a sampled delay's core (a mod's table), far enough out that the samples hold the vortex
+  const h = 1e-4, e = Math.max(2e-3, 2.5 * (fn.cell || 0)), w = d => d - Math.round(d);
   let sum = 0;
   for (const [a, b] of [[e, 0], [-e, 0], [0, e], [0, -e]]) {
     const D = (x) => fn(u + a + x, b, lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
@@ -4777,7 +4808,7 @@ function sourceLines(src) {
    sweep plays (see traceLater), so the page keeps up and draws the rays as they come. */
 let lastTraceKey = null, lastTraceMs = 0, loadGen = 0, traceCount = 0;
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
-const traceKeyNow = () => loadGen + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
+const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
@@ -5504,8 +5535,8 @@ function traceSceneOnce() {
           last = s;
           continue;
         }
-        if (s.kind === 'jones' && (s.el.type === 'faraday' || s.el.type === 'isolator')) {
-          const M = rollJones(jonesAt(s.el, ldx > 0, par ? -1 : 1), jonesRoll(s.el, ldx, par));
+        if (s.kind === 'jones' && (s.el.type === 'faraday' || s.el.type === 'isolator' || s.el.mod)) {
+          const M = rollJones(s.el.mod ? modJonesM(s.el, nm) : jonesAt(s.el, ldx > 0, par ? -1 : 1), jonesRoll(s.el, ldx, par));
           if (isQ) { evt = passEv(); evt.jm = M; }
           const np = [cmul(M[0][0], [pr, pi]), cmul(M[0][1], [sr, si])], ns = [cmul(M[1][0], [pr, pi]), cmul(M[1][1], [sr, si])];
           pr = np[0][0] + np[1][0]; pi = np[0][1] + np[1][1]; sr = ns[0][0] + ns[1][0]; si = ns[0][1] + ns[1][1];
@@ -6925,18 +6956,24 @@ function drawStop(el, sel) {
   }
 }
 function drawMask(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale;
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, col = el.mod ? MOD_COLOURS[el.mod.colour || 'grey'] : '#d8b35a';   // a mod's plate in its own colour
   pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
-  ctx.fillStyle = 'rgba(216,179,90,0.16)'; ctx.fill();
-  ctx.strokeStyle = sel ? selInk() : '#d8b35a'; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
-  // its amplitude along it, as a trace beside the plate
-  const fn = maskFns(el).fn, n = 64, pts = [];
-  for (let i = 0; i <= n; i++) { const u = -L + 2 * L * i / n; pts.push([-(3 + 6 * Math.min(1, Math.max(0, fn(u, 0, 633e-6)[0]))) * k, u]); }
-  pathLocal(f, pts); ctx.strokeStyle = 'rgba(216,179,90,0.7)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = col + '29'; ctx.fill();
+  ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+  // its amplitude along it, as a trace beside the plate (a mod's at the bench's wavelength)
+  const fn = maskFns(el).fn, n = 64, pts = [], lam = el.mod ? benchNms()[0] * 1e-6 : 633e-6;
+  for (let i = 0; i <= n; i++) { const u = -L + 2 * L * i / n; pts.push([-(3 + 6 * Math.min(1, Math.max(0, fn(u, 0, lam)[0]))) * k, u]); }
+  pathLocal(f, pts); ctx.strokeStyle = col + 'b3'; ctx.lineWidth = 1; ctx.stroke();
 }
 function drawJones(el, sel) {
   const f = frame(el);
   const L = el.length / 2, k = 1 / V().scale;
+  if (el.mod) {                                       // a mod's polarisation plate: a plate in its colour, no axis to show
+    const col = MOD_COLOURS[el.mod.colour || 'grey'];
+    pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
+    ctx.fillStyle = col + '38'; ctx.fill(); ctx.strokeStyle = sel ? selInk() : col; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
+    return;
+  }
   pathLocal(f, [[-0.6 * k * 2, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
   ctx.fillStyle = el.type === 'polariser' ? 'rgba(157,107,255,0.22)' : 'rgba(115,185,202,0.18)';
   ctx.fill();
@@ -7117,6 +7154,34 @@ const FSYM = (() => {
   }
   return { draw };
 })();
+/* ---------- a mod's component and block: their answers, as the fibre network and the electronics take them ---------- */
+function modS(el, nm) {
+  const D = modDefOf(el);
+  if (!D || D.kind !== 'component') return [];
+  const p = modParams(el), n = el.mod.ports.length, r = modResult(el, 'S', { nm, p, n }, nm + '|' + n + '|' + JSON.stringify(p));
+  return r ? r.map(q => [q[0], q[1], [[[q[2], q[3]], [q[4], q[5]]], [[q[6], q[7]], [q[8], q[9]]]]]) : [];
+}
+// a block's response on its grid: f = 0, then fmin to fmax at perDecade points a decade
+function modBlockH(el) {
+  const D = modDefOf(el);
+  if (!D || D.kind !== 'block') return null;
+  const n = Math.round(Math.log10(D.fmax / D.fmin) * D.perDecade) + 1, fs = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) fs[i + 1] = D.fmin * Math.pow(10, i / D.perDecade);
+  const p = modParams(el), ni = el.mod.ins.length, no = el.mod.outs.length;
+  const r = modResult(el, 'H', { fs, p, ni, no }, D.fmin + '|' + D.fmax + '|' + D.perDecade + '|' + ni + '|' + no + '|' + JSON.stringify(p));
+  return r ? { fs, H: r.H, N: r.N, ni, no, noise: D.noise, lo: Math.log10(D.fmin), per: D.perDecade, n } : null;
+}
+function modHAt(R, f, o, i) {
+  const at = k => { const w = 2 * ((k * R.no + o) * R.ni + i); return [R.H[w], R.H[w + 1]]; };
+  if (!(f > 0)) return at(0);
+  const x = clamp((Math.log10(f) - R.lo) * R.per, 0, R.n - 1), k = Math.min(R.n - 2, Math.floor(x)), t = x - k, a = at(k + 1), b = at(Math.min(R.n, k + 2));
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+function modNAt(R, f, o) {
+  const x = clamp((Math.log10(Math.max(f, 1e-300)) - R.lo) * R.per, 0, R.n - 1), k = Math.min(R.n - 2, Math.floor(x)), t = x - k;
+  const a = R.N[(k + 1) * R.no + o], b = R.N[Math.min(R.n, k + 2) * R.no + o];
+  return a + (b - a) * t;
+}
 function drawFcomp(el, sel) {
   if (FSYM.draw(el, sel)) { drawPorts(el); return; }
   const f = frame(el), K = FC[el.kind], w = FC_W / 2, hh = fcH(el) / 2, s = V().scale;
@@ -9480,7 +9545,7 @@ function swAsk(W, proj, args, kind) {
   return new Promise((resolve, reject) => {
     const id = ++W.seq;
     W.jobs.set(id, { resolve, reject });
-    const msg = { id, kind: kind || 'step', args };
+    const msg = { id, kind: kind || 'step', args, mods: modDelta(W.w) };
     if (W.sent !== proj) { msg.proj = proj; W.sent = proj; }
     W.w.postMessage(msg);
   });
@@ -10170,6 +10235,14 @@ const FC = {
   eom: { label: 'Fibre EOM', tag: 'EOM', ports: [[-1, 0], [1, 0]], names: ['in', 'out'],
     params: [['fm', 'Drive (MHz)', 1000], ['beta', 'Depth \u03b2 (rad)', 1.08], ['bias', 'Bias (\u00b0, amplitude mode)', 90], ['loss', 'Insertion loss (dB)', 3]],
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
+  // a mod's component (see Mods): its ports, the first half down the left and the rest down the
+  // right, and its matrix as the mod gives it at each wavelength
+  mod: { label: 'Mod component', tag: el => el.mod ? el.mod.tag || el.mod.name.slice(0, 8) : 'MOD', ports: [[-1, 0], [1, 0]], names: ['1', '2'], params: [],
+    portsOf: el => { const n = el.mod ? el.mod.ports.length : 2, L = n === 1 ? 1 : Math.ceil(n / 2), R = n - L;
+      return [...Array.from({ length: L }, (_, i) => ({ x: -FC_W / 2, y: ((L - 1) / 2 - i) * SPLIT_P, dx: -1, dy: 0 })), ...Array.from({ length: R }, (_, j) => ({ x: FC_W / 2, y: ((R - 1) / 2 - j) * SPLIT_P, dx: 1, dy: 0 }))]; },
+    namesOf: el => el.mod ? el.mod.ports : ['1', '2'],
+    hOf: el => Math.max(FC_H, Math.ceil((el.mod ? el.mod.ports.length : 2) / 2) * SPLIT_P),
+    S: (el, nm) => modS(el, nm) },
 };
 for (const k of Object.keys(FC)) FC[k].portList = fcPorts(FC[k].ports);
 const BAL_PORTS = fcPorts([[-1, 0.5], [-1, -0.5]]);
@@ -10257,7 +10330,7 @@ function fibreNetCached() {
   const conn = new Set((project.fibres || []).filter(F => !F.wire).flatMap(F => [F.a[0], F.b[0]]));
   const arr = fels.filter(e => e.type === 'fibre' && conn.has(e.id)).map(e => faceArrivals(e).map(A => [A.qx, A.qy, A.u0, A.v0, A.vs, A.ldx, A.ldy, A.J, A.coh, A.opl, A.gpl, A.lag, A.nm, A.src.id, A.comps || 0]));
   const srcs = project.elements.filter(e => e.type === 'source').map(e => [e.id, e.power, e.coh, e.lineshape]);
-  const key = JSON.stringify([fels, project.fibres || [], arr, srcs]);
+  const key = JSON.stringify([fels, project.fibres || [], arr, srcs, fels.some(e => e.mod) ? MODS.rev : 0]);   // a mod's component: as its results stand
   if (fibreNetMemo.key !== key) {
     // amplifiers saturate on the total power reaching them: solve, set each one's gain from
     // what arrived, solve again; G = G0 / (1 + G Pin / Psat) at the band centre, the ratio of
@@ -11334,9 +11407,15 @@ const ELEC = (() => {
       ...K.outs.map((nm, i) => ({ x: W_BOX / 2, y: -side(K.outs.length, i), dx: 1, dy: 0, elec: 'out' }))];
   };
   const names = el => { const K = KINDS[el.kind]; return el.kind === 'node' ? ['node'] : [...K.ins, ...K.outs]; };
+  // a mod's block: a box as tall as its ports need, its tag in it
+  const modSym = K => { const hh = boxH(K) / 2 - 0.5;
+    return { L: () => 4.2, R: () => 4.2, draw(c) { c.beginPath(); c.rect(-4.2, -hh, 8.4, 2 * hh); c.fillStyle = bodyFill('#2b2a22'); c.fill(); c.stroke();
+      c.save(); c.fillStyle = c.strokeStyle; c.font = '2.2px ' + getCss('--jek-mono'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(K.tag || 'MOD').slice(0, 8), 0, 0); c.restore(); } }; };
 
   /* ---------- the element, as saved ---------- */
   function norm(e, base) {
+    // a mod's block (see Mods): a kind of its own, its ports as the part carries them
+    if (typeof e.kind === 'string' && /^mod\./.test(e.kind) && base.mod) KINDS[e.kind] = { label: base.mod.name, tag: base.mod.tag || base.mod.name.slice(0, 8), ins: base.mod.ins, outs: base.mod.outs, params: [], mod: true };
     const K = KINDS[e.kind];
     if (!K) return null;
     base.kind = e.kind;
@@ -11454,7 +11533,7 @@ const ELEC = (() => {
   }
   function draw(el, sel) {
     if (el.kind === 'node') return drawNode(el, sel);
-    const K = KINDS[el.kind], G = SYM[el.kind], s = V().scale, ports = portList(el);
+    const K = KINDS[el.kind], G = SYM[el.kind] || modSym(K), s = V().scale, ports = portList(el);   // a mod's block: a box with its tag
     const c = ctx;
     c.save();
     c.translate(sx(el.x), sy(el.y)); c.rotate(-el.angle * deg); c.scale(s, s);
@@ -11585,6 +11664,20 @@ const ELEC = (() => {
   }
   const tidy = S => { const pk = Math.max(Math.abs(S.dc), ...S.tones.map(t => Math.hypot(t.re, t.im)), 0); S.tones = S.tones.filter(t => Math.hypot(t.re, t.im) > 1e-12 * pk).sort((a, b) => a.f - b.f); return S; };
   /* through a linear block H(f) (complex [re, im]), with input noise n2 (density, the input's units) added first */
+  /* A mod's block: each output the sum of its inputs through the mod's responses, H(f) sampled
+     on its grid and read between in log f, plus the noise it adds at its output */
+  function modBlock(el, K, In, set, note) {
+    const R = modBlockH(el), st = modStatus(el);
+    if (!R) { K.outs.forEach((_, j) => set(j, zero())); note(st ? 'Not working: ' + st : 'Working it out\u2026'); return; }
+    const ni = K.ins.length;
+    K.outs.forEach((_, o) => {
+      let S = null;
+      for (let i = 0; i < ni; i++) { const T = through(In[i], f => modHAt(R, f, o, i), 'V'); S = S ? sum(S, T, 1, 1) : T; }
+      if (!S) S = zero('V');
+      if (R.noise) for (let k = 0; k < NF; k++) { const n = modNAt(R, FG[k], o); S.psd[k] += n * n; }
+      set(o, S);
+    });
+  }
   function through(S, H, unit, n2) {
     const out = zero(unit), H0 = H(0);
     out.dc = S.dc * H0[0];
@@ -11763,7 +11856,7 @@ const ELEC = (() => {
     const optical = wires.some(F => [F.a, F.b].some(p => { const E = getEl(p[0]); return E && E.type !== 'elec'; })) || project.elements.some(e => e.type === 'chopper');
     // what the network is: each block's settings and the wiring, not where a block sits on the bench
     const blocks = JSON.stringify([els.map(e => { const { x, y, angle, name, bench, sweeps, ...rest } = e; return rest; }), wires.map(F => [F.a, F.b])]);
-    const key = (optical ? traceKeyNow() + '|' + detFieldGen : '') + '|' + blocks;
+    const key = (optical ? traceKeyNow() + '|' + detFieldGen : '') + '|' + blocks + (els.some(e => e.mod) ? '|' + MODS.rev : '');   // a mod's block: as its results stand
     if (memo.key === key) return memo.R;
     const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
     const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
@@ -11820,7 +11913,8 @@ const ELEC = (() => {
       state.set(el.id, 1);
       const K = KINDS[el.kind], nIn = K.ins.length, set = (j, S) => out.set(pkey(el.id, nIn + j), S);
       const In = K.ins.map((_, i) => input(el, i));
-      switch (el.kind) {
+      if (K.mod) modBlock(el, K, In, set, m => note(el, m));
+      else switch (el.kind) {
         case 'dc': { const S = zero(); S.dc = el.v; set(0, S); break; }
         case 'sig': set(0, generator(el, false)); set(1, generator(el, true)); break;
         case 'noise': { const S = zero(), e2 = (el.psd * 1e-9) ** 2; for (let i = 0; i < NF; i++) S.psd[i] = FG[i] <= el.bw ? e2 : 0; set(0, S); break; }
@@ -12741,6 +12835,7 @@ const V3D = (() => {
         return g;
       }
       case 'waveplate': case 'polariser': {
+        if (el.mod) { add(mesh(disc(1.5, L), mat.glass(parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16), 0.45))); return g; }   // a mod's polarisation plate
         const pol = el.type === 'polariser';
         add(mesh(disc(pol ? 2.5 : 1.5, L), mat.glass(pol ? 0xb79bff : 0x73b9ca, pol ? 0.45 : 0.35)));
         // the axis across the face: p along the bench, s up
@@ -12749,7 +12844,7 @@ const V3D = (() => {
         return g;
       }
       case 'filter': add(mesh(disc(2, L), mat.glass(filterColour(el), 0.5))); return g;
-      case 'mask': add(mesh(disc(1.5, L), mat.glass(0xd8b35a, 0.45))); return g;
+      case 'mask': add(mesh(disc(1.5, L), mat.glass(el.mod ? parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16) : 0xd8b35a, 0.45))); return g;
       case 'gain': add(mesh(disc(4, L), mat.glass(0xff6a3d, 0.45))); return g;
       case 'faraday': case 'isolator': {
         add(mesh(disc(Math.max(8, L * 1.4), L), mat.metal(0xff9f6b, 0.35)));
@@ -15288,9 +15383,10 @@ function renderPanelBody(el) {
   if (el.type === 'mirror') mirrorPanel(el);
   if (el.type === 'screen') screenPanel(el);
   if (el.type === 'lens') lensPanel(el);
-  if (el.type === 'waveplate' || el.type === 'polariser') jonesPanel(el);
+  if (el.mod) modPanel(el);                                                                   // a mod's part
+  else if (el.type === 'waveplate' || el.type === 'polariser') jonesPanel(el);
   if (el.type === 'stop') stopPanel(el);
-  if (el.type === 'mask') maskPanel(el);
+  if (el.type === 'mask' && !el.mod) maskPanel(el);
   if (el.type === 'cube') cubePanel(el);
   if (el.type === 'prism') prismPanel(el);
   if (el.type === 'grating') gratingPanel(el);
@@ -15303,9 +15399,9 @@ function renderPanelBody(el) {
   if (el.type === 'cell') cellPanel(el);
   if (el.type === 'nlc') nlcPanel(el);
   if (el.type === 'link') linkPanel(el);
-  if (el.type === 'fcomp') fcompPanel(el);
+  if (el.type === 'fcomp' && !el.mod) fcompPanel(el);
   if (el.type === 'pic') PIC.panelFor(el);                                                    // PIC hook
-  if (el.type === 'elec') ELEC.panelFor(el);                                                  // ELEC hook
+  if (el.type === 'elec' && !el.mod) ELEC.panelFor(el);                                                  // ELEC hook
   if (el.type === 'aom' || el.type === 'eom') modulatorPanel(el);
   if (el.type === 'chopper') ELEC.chopperPanel(el);                                           // ELEC hook
   if (el.type === 'stl') stlPanel(el);
@@ -15959,7 +16055,7 @@ function pulseLine(el) {
     (P.gdd0 ? ' With that chirp it leaves ' + fmtFs(P.tau * Math.sqrt(1 + x * x)) + ' long.' : '');
 }
 function screenPanel(el) {
-  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap']])) return;
+  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Mods']] : [])])) return;
   screenParams(el);
 }
 /* The tabs of an element that reads the light arriving at it (a screen, a mirror's face):
@@ -15993,6 +16089,7 @@ function readoutTabs(el, stabs) {
   if (tab === 'aber') { aberSection(el); return true; }
   if (tab === 'pulse') { pulseSection(el); return true; }
   if (tab === 'trap') { trapSection(el); return true; }
+  if (tab === 'mods') { modReadoutSection(el); return true; }                   // the mods' readouts
   return false;
 }
 function screenParams(el) {
@@ -16555,6 +16652,7 @@ function detectorPanel(el) {
   panel.append(readoutBox('detector'));
   signalSection(el);
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
+  if (modReadouts('detector').length) modReadoutSection(el);                     // the mods' readouts
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the bandwidth.'));
 }
 function faradayPanel(el) {
@@ -19877,6 +19975,7 @@ function rollJones(M, phi) {
   return out;
 }
 function jonesOf(el) {
+  if (el.mod) return modJonesM(el, benchNms()[0]);
   const th = el.axis * deg, c = Math.cos(th), sn = Math.sin(th);
   if (el.type === 'polariser') return [[[c * c, 0], [c * sn, 0]], [[c * sn, 0], [sn * sn, 0]]];
   const d = 2 * Math.PI * el.retard, er = Math.cos(d), ei = Math.sin(d), cc = c * c, ss = sn * sn, cs = c * sn;
@@ -21285,7 +21384,7 @@ const popSources = () => lightOf().field ? allSources().filter(e => e.gauss) : [
    sees (a mask's formula, a coating), so the element's own settings go in with it */
 const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
 /* the element as the field sees it: how it is swept (or whether the 3D view draws it) is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
-const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d)) return e; const { sweeps, hide3d, ...rest } = e; return rest; };
+const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d || e.mod)) return e; const { sweeps, hide3d, ...rest } = e; return e.mod ? Object.assign(rest, { modRev: MODS.rev }) : rest; };   // a mod's part: as its results stand
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
@@ -25805,6 +25904,7 @@ function openProjectData(data, label) {
   if (!raw.view) fitView();
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
+  if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
   // a link (or an example) may say which panels to show and how
   if (raw.ui) applyUi(raw.ui);
   return notes;
@@ -26139,6 +26239,7 @@ async function zmxIntoMine(files, mode) {
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
+  { key: 'mods', name: 'Mods (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
   { key: 'rf', name: 'RF and millimetre waves', what: 'a set of parts of its own (Add part, and the rail), in yellow: feed horns set in GHz and dBm, receiving horns, RF lenses of dielectrics (HDPE, PTFE, silicon\u2026) and metal mirrors, wire grids and loads, for quasi-optics from 1 GHz to 3 THz. Beams are Gaussian beams; checked against Goldsmith\u2019s formulas for horns and their coupling.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
@@ -26155,6 +26256,7 @@ function setExperimental(on, picks) {
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !expOn;
+  modsSync();
   layoutPalette(); renderPanel(); requestRender();
   if (typeof accountShown === 'function') accountShown();
 }
@@ -26611,7 +26713,7 @@ function mineBody(after) {
    after showing what is in them, and kept in this browser (IndexedDB). A "code" entry is kept
    for mods that run code, in a sandbox, which this version does not: such a pack is refused.
    ========================================================================== */
-const PACK_FORMAT = 'jekpack', PACK_VERSION = 1, PACK_MAX = 8 * 1024 * 1024;
+const PACK_FORMAT = 'jekpack', PACK_VERSION = 2, PACK_MAX = 8 * 1024 * 1024;
 const PACKS = { list: [], ready: false, icons: new Map() };
 const packText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';
 /* a pack as found, checked and tidied: { pack, notes } or throws with why it cannot be used */
@@ -26620,14 +26722,22 @@ function normPack(raw, sizeHint) {
   if (raw.format !== PACK_FORMAT) throw new Error(raw.format === 'jekray' ? 'it is a bench, not a part pack: open it with Open a .jekray file' : 'it is not a part pack (its "format" is not "' + PACK_FORMAT + '")');
   if (!(num(raw.version, 0) >= 1)) throw new Error('its "version" is missing');
   if (raw.version > PACK_VERSION) throw new Error('it is for a newer JEKray2D (pack version ' + raw.version + '); reload the page to update');
-  if (raw.code !== undefined || raw.scripts !== undefined) throw new Error('it has code in it, which this version of JEKray2D does not run: packs here hold parts and data only');
+  if (raw.scripts !== undefined) throw new Error('it has "scripts" in it: a mod\u2019s code goes in "code"');
+  // a mod: its code (run only in the sandbox, once installed); only a version 2 pack has any
+  if (raw.code !== undefined) {
+    if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a mod is a version 2 pack');
+    if (typeof raw.code !== 'string' || !raw.code.trim()) throw new Error('its "code" is not a script');
+    if (raw.code.length > MOD_CODE_MAX) throw new Error('its code is larger than ' + (MOD_CODE_MAX >> 10) + ' KB');
+    if (!exp('mods')) throw new Error('it is a mod (it has code), and mods are an experimental feature: turn them on under Help \u203a Experimental features first');
+  }
   if ((sizeHint || JSON.stringify(raw).length) > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
   const id = packText(raw.id, 64).toLowerCase();
   if (!/^[a-z0-9][a-z0-9._-]{1,63}$/.test(id)) throw new Error('its "id" should be 2 to 64 letters, digits, dots, dashes or underscores, as "maker.lenses"');
   const notes = [];
-  const pack = { format: PACK_FORMAT, version: PACK_VERSION, id, name: packText(raw.name, 60) || id, author: packText(raw.author, 80), packVersion: packText(String(raw.packVersion || '1'), 20),
+  const pack = { format: PACK_FORMAT, version: raw.code !== undefined ? 2 : 1, id, name: packText(raw.name, 60) || id, author: packText(raw.author, 80), packVersion: packText(String(raw.packVersion || '1'), 20),
     description: packText(raw.description, 600), licence: packText(raw.licence || raw.license, 60), glasses: [], parts: [] };
   if (typeof raw.homepage === 'string' && /^https:\/\/[^\s"<>]{3,200}$/.test(raw.homepage)) pack.homepage = raw.homepage;
+  if (raw.code !== undefined) { pack.code = raw.code; pack.rawParts = Array.isArray(raw.parts) ? JSON.parse(JSON.stringify(raw.parts.slice(0, 500))) : []; return { pack, notes: [] }; }   // a mod's parts once its code is read (modPrepare)
   // its glasses: measured n (and k) by wavelength, or an Abbe pair
   for (const g of Array.isArray(raw.glasses) ? raw.glasses.slice(0, 200) : []) {
     const name = packText(g && g.glass, 40);
@@ -26698,7 +26808,7 @@ async function packRemove(id) {
   const st = await packStore('readwrite'); if (st) await idbDo(st.delete(id));
   packsChanged();
 }
-function packsChanged() { if (!picker.hidden) fillPicker(''); const d = document.getElementById('packDialog'); if (d && d.open) packDialogFill(); }
+function packsChanged() { modsSync(); if (!picker.hidden) fillPicker(''); const d = document.getElementById('packDialog'); if (d && d.open) packDialogFill(); }
 /* a part of a pack onto the bench: where it was dropped, or in the middle of the view */
 function placePackPart(pk, i, at) {
   const P = pk && pk.parts[i];
@@ -26739,7 +26849,9 @@ const packHits = words => PACKS.list.flatMap(pk => pk.parts.map((P, i) => ({ pk,
 async function packFromText(txt, where) {
   let raw;
   try { raw = JSON.parse(txt); } catch (err) { throw new Error((where || 'It') + ' is not JSON'); }
-  return normPack(raw, txt.length);
+  const r = normPack(raw, txt.length);
+  if (r.pack.code) await modPrepare(r.pack, r.notes);
+  return r;
 }
 // what is in it, and Install or Cancel; resolves true when installed
 function packConfirm(pack, notes, from) {
@@ -26751,12 +26863,12 @@ function packConfirm(pack, notes, from) {
     dlg.append(h('h2', null, (old ? 'Update ' : 'Install ') + pack.name + '?'),
       h('p', null, (pack.author ? 'By ' + pack.author + '. ' : '') + 'Version ' + pack.packVersion + (old ? ' (installed: ' + old.packVersion + ')' : '') + (pack.licence ? '. Licence: ' + pack.licence : '') + '.'),
       pack.description ? h('p', null, pack.description) : '',
-      h('p', null, nP + ' part' + (nP === 1 ? '' : 's') + (nG ? ' and ' + nG + ' glass' + (nG === 1 ? '' : 'es') : '') + '. ' + (from ? 'From ' + from + '. ' : '') +
+      pack.code ? modConfirmText(pack, from) : h('p', null, nP + ' part' + (nP === 1 ? '' : 's') + (nG ? ' and ' + nG + ' glass' + (nG === 1 ? '' : 'es') : '') + '. ' + (from ? 'From ' + from + '. ' : '') +
         'A pack holds parts and data only, never code. Its parts appear under + Add part, in the Packs tab, and its glasses in each lens’s material menu.'),
       pack.homepage ? h('p', { class: 'rt-hint' }, 'Its home page: ', h('a', { href: pack.homepage, target: '_blank', rel: 'noopener noreferrer' }, pack.homepage)) : '',
       notes.length ? h('details', null, h('summary', null, notes.length + ' thing' + (notes.length === 1 ? '' : 's') + ' left out'), h('ul', null, ...notes.slice(0, 50).map(n => h('li', null, n)))) : '',
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
-        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, old ? 'Update' : 'Install')));
+        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' mod' : ''))));
     dlg.addEventListener('cancel', e => { e.preventDefault(); done(false); });
     document.body.append(dlg); dlg.showModal();
   });
@@ -26802,7 +26914,7 @@ function packDialogFill() {
   if (!PACKS.list.length) { list.append(h('p', { class: 'rt-hint' }, 'None installed yet.')); return; }
   for (const pk of PACKS.list) {
     const rm = h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => { if (!confirm('Remove ' + pk.name + '? Parts already on your benches stay as they are.')) return; await packRemove(pk.id); toast('Removed ' + pk.name); } }, 'Remove');
-    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')),
+    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': mods are off, so its parts stand in') }, 'Mod') : null,
       h('div', { class: 'rt-hint' }, pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : ''))), rm));
   }
 }
@@ -27853,6 +27965,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Experimental: <b>Mods</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the mods it uses, and offers them when opened. An example mod and a guide to writing one are in the documentation.',
     'Experimental: <b>RF and millimetre waves</b> (Help \u2192 Experimental features\u2026), a new <b>RF</b> tab of parts for quasi-optics from 1 GHz to 3 THz. A <b>feed horn</b> (corrugated, smooth-wall, diagonal or ideal) launches the Gaussian beam that fits its aperture, set by its frequency in GHz and its power in dBm; a <b>receiving horn</b> takes in the overlap with its own mode, in dBm and as a share of what arrives. <b>RF lenses</b>, white, of the RF dielectrics (HDPE, PTFE, Rexolite, TPX, silicon, quartz, alumina, nylon), absorb by their loss tangent, and metal mirrors, wire grids, film beam splitters and absorber loads complete the bench. A new example, <b>Millimetre-wave link, 150 GHz</b>, and a page in the documentation. Optical sources now stop at 1 mm (and start at 100 nm): longer waves are the RF tab\u2019s.',
     '<b>Fly</b> is part of the tool, no longer experimental: the bird on the 3D view\u2019s bar flies you through the bench, full screen (W A S D to move, the mouse to look, Q and E to roll, Space and Ctrl up and down, Esc to land).',
     'In the 3D view, beams of one laser running together now add as <b>fields</b>: an interferometer\u2019s dark port is dark there, as on its screen. The 3D field is worked out on several of the computer\u2019s cores at once. A screen with light from several lasers weighs each by its power.',
@@ -28117,6 +28230,8 @@ const EXAMPLES = [
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
   ['Electronics', false, [
     ['lockin-absorption', 'Lock-in absorption measurement', 'A sample’s transmission from two lock-ins, the light square-wave modulated at 1 kHz.']]],
+  ['Mods', false, [
+    ['mod-vortex', 'A mod: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a mod.', 'mods']]],
   ['RF and millimetre waves', false, [
     ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf']]],
   ['Photonic circuits', false, [
@@ -28671,6 +28786,535 @@ stage.addEventListener('drop', e => {
 });
 
 /* ==========================================================================
+   Mods: parts whose behaviour is code, written by anyone, run in a sandbox
+   A mod comes in a part pack (version 2) as "code": a script that defines parts through the
+   jek object (jek.element, jek.plate, jek.component, jek.block, jek.readout). The code never
+   runs on this page. It runs in a Web Worker started inside a hidden frame of its own, which
+   has an opaque origin (no cookies, storage, account or page to reach) and a content
+   security policy that blocks every request, and the worker has the network taken out of
+   it besides. The page asks it for numbers (a plate's transmission sampled across its face, a
+   component's matrix at a wavelength, a block's response over frequency, a readout's rows)
+   and checks every answer's shape and size before using it. Answers are kept by a key of the
+   code's hash, the part, its settings and the question; the tracer and the background
+   workers only ever see those numbers, so they never need the code. A call that runs past
+   its time limit, or a worker that misbehaves, has its frame taken down (which ends every
+   worker in it) and the part reads as not working, with the reason in its panel.
+   ========================================================================== */
+const MOD_API = 1, MOD_TIMEOUT = 20000, MOD_CODE_MAX = 512 * 1024, MOD_KINDS = ['element', 'plate', 'component', 'block', 'readout'];
+// the frame: an opaque origin that may run inline script and workers from blobs, and nothing else
+const MOD_FRAME_SRC = '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' blob:; worker-src blob:">' +
+  '<script>"use strict";(function () {' +
+  'var W = new Map(), send = function (m) { parent.postMessage(m, "*"); };' +
+  'addEventListener("message", function (e) {' +
+  ' if (e.source !== parent) return; var m = e.data || {};' +
+  ' if (m.op === "load") {' +
+  '  var old = W.get(m.key); if (old) old.w.terminate();' +
+  '  var w; try { w = new Worker(URL.createObjectURL(new Blob([m.src], { type: "text/javascript" }))); } catch (err) { send({ id: m.id, ok: false, err: "its worker could not start" }); return; }' +
+  '  var rec = { w: w, open: new Set([m.id]) }; W.set(m.key, rec);' +
+  // a worker that answers what no one asked is ended there and then: it cannot flood the page
+  '  w.onmessage = function (ev) { var r = ev.data || {}; if (!rec.open.has(r.id)) { w.terminate(); W.delete(m.key); send({ key: m.key, bad: "it sent a message no one asked for" }); return; } rec.open.delete(r.id); send(r); };' +
+  '  w.onerror = function (ev) { ev.preventDefault(); w.terminate(); W.delete(m.key); rec.open.forEach(function (id) { send({ id: id, ok: false, err: String(ev.message || "its code failed").slice(0, 300) }); }); rec.open.clear(); };' +
+  '  w.postMessage({ id: m.id, op: "defs" });' +
+  ' } else if (m.op === "call") { var rec2 = W.get(m.key); if (!rec2) { send({ id: m.id, ok: false, err: "not loaded" }); return; } rec2.open.add(m.id); rec2.w.postMessage(m); }' +
+  '});' +
+  'send({ ready: true });' +
+  '})();<\/script>';
+/* What runs in the worker before the mod's code: the network and storage taken away, and the
+   jek object a mod defines its parts through. After it, the mod's code; after that, the part
+   that answers the page's questions. */
+const MOD_PRELUDE = `"use strict";
+(function () {
+  var gone = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'WebTransport', 'importScripts', 'indexedDB', 'caches', 'BroadcastChannel', 'Worker', 'SharedWorker', 'RTCPeerConnection', 'Request', 'Response', 'Notification'];
+  for (var i = 0; i < gone.length; i++) {
+    var k = gone[i], o = self;
+    while (o) { try { if (Object.prototype.hasOwnProperty.call(o, k)) delete o[k]; } catch (e) {} o = Object.getPrototypeOf(o); }
+    try { Object.defineProperty(self, k, { value: undefined, writable: false, configurable: false }); } catch (e) {}
+  }
+})();
+var __DEFS = Object.create(null);
+function __def(kind, key, d) {
+  if (typeof key !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(key)) throw new Error('a part key is 1 to 40 letters, digits, dashes or underscores: ' + JSON.stringify(key));
+  if (__DEFS[key]) throw new Error('two parts called ' + key);
+  if (!d || typeof d !== 'object') throw new Error(key + ': give its definition as an object');
+  __DEFS[key] = { kind: kind, d: d };
+}
+var jek = Object.freeze({ api: ${MOD_API},
+  element: function (k, d) { __def('element', k, d); }, plate: function (k, d) { __def('plate', k, d); },
+  component: function (k, d) { __def('component', k, d); }, block: function (k, d) { __def('block', k, d); },
+  readout: function (k, d) { __def('readout', k, d); } });
+`;
+const MOD_POSTLUDE = `
+;(function () {
+  var num = function (v) { v = +v; return isFinite(v) ? v : 0; };
+  // a complex number as [re, im] (a plain number is real)
+  var cx = function (v) { return typeof v === 'number' ? [num(v), 0] : Array.isArray(v) ? [num(v[0]), num(v[1])] : [0, 0]; };
+  // a 2x2 complex matrix as 8 numbers, [11, 12, 21, 22] each re then im (a plain value is that times the identity)
+  var mat = function (v) {
+    if (Array.isArray(v) && v.length === 2 && Array.isArray(v[0]) && Array.isArray(v[1])) { var a = cx(v[0][0]), b = cx(v[0][1]), c = cx(v[1][0]), d = cx(v[1][1]); return [a[0], a[1], b[0], b[1], c[0], c[1], d[0], d[1]]; }
+    var z = cx(v); return [z[0], z[1], 0, 0, 0, 0, z[0], z[1]];
+  };
+  var info = function (key) {
+    var D = __DEFS[key], d = D.d, has = {};
+    ['transmit', 'jones', 'S', 'H', 'noise', 'compute'].forEach(function (f) { has[f] = typeof d[f] === 'function'; });
+    var plain = {};
+    ['name', 'summary', 'params', 'ports', 'ins', 'outs', 'for', 'samples', 'aperture', 'colour', 'color', 'tag', 'fmin', 'fmax', 'perDecade'].forEach(function (f) { if (d[f] !== undefined && typeof d[f] !== 'function') plain[f] = d[f]; });
+    return JSON.parse(JSON.stringify({ key: key, kind: D.kind, has: has, d: plain }));
+  };
+  var run = function (m, tr) {
+    if (m.op === 'defs') return Object.keys(__DEFS).map(info);
+    var D = __DEFS[m.def]; if (!D) throw new Error('it has no part called ' + m.def);
+    var d = D.d, a = m.args || {}, p = Object.freeze(a.p || {});
+    if (m.fn === 'transmit') {
+      // the plate's transmission at N x N points across its face, -R to R both ways: amplitude, then delay in waves
+      var N = a.N, R = a.R, out = new Float64Array(2 * N * N), h = 2 * R / (N - 1);
+      for (var j = 0; j < N; j++) for (var i = 0; i < N; i++) {
+        var t = d.transmit(-R + i * h, -R + j * h, a.nm, p), q = 2 * (j * N + i);
+        out[q] = Array.isArray(t) ? num(t[0]) : num(t); out[q + 1] = Array.isArray(t) ? num(t[1]) : 0;
+      }
+      tr.push(out.buffer); return out;
+    }
+    if (m.fn === 'jones') return mat(d.jones(a.nm, p));
+    if (m.fn === 'S') {
+      var list = d.S(a.nm, p) || [], res = [];
+      for (var e = 0; e < list.length && e < 4096; e++) { var r = list[e]; if (Array.isArray(r) && r.length >= 3) res.push([r[0] | 0, r[1] | 0].concat(mat(r[2]))); }
+      return res;
+    }
+    if (m.fn === 'H') {
+      var fs = a.fs, ni = a.ni, no = a.no, Hs = new Float64Array(fs.length * no * ni * 2), Ns = new Float64Array(fs.length * no);
+      for (var f = 0; f < fs.length; f++) {
+        var Hv = d.H(fs[f], p);
+        for (var o = 0; o < no; o++) for (var n = 0; n < ni; n++) {
+          var z = ni === 1 && no === 1 ? cx(Hv) : cx(Array.isArray(Hv) && Array.isArray(Hv[o]) ? Hv[o][n] : 0), w = 2 * ((f * no + o) * ni + n);
+          Hs[w] = z[0]; Hs[w + 1] = z[1];
+        }
+        if (d.noise) { var nv = d.noise(fs[f], p); for (var o2 = 0; o2 < no; o2++) Ns[f * no + o2] = Math.max(0, num(Array.isArray(nv) ? nv[o2] : nv)); }
+      }
+      tr.push(Hs.buffer, Ns.buffer); return { H: Hs, N: Ns };
+    }
+    if (m.fn === 'compute') return JSON.parse(JSON.stringify(d.compute(a.data, p) || {}));
+    throw new Error('no such question');
+  };
+  self.onmessage = function (e) {
+    var m = e.data || {}, tr = [];
+    try { var out = run(m, tr); postMessage({ id: m.id, ok: true, out: out }, tr); }
+    catch (err) { postMessage({ id: m.id, ok: false, err: String((err && err.message) || err).slice(0, 300) }); }
+  };
+})();
+`;
+/* the frame, made when first wanted; resolves once it is listening */
+function modFrame() {
+  if (IN_WORKER || typeof document === 'undefined') return Promise.reject(new Error('mods run on the page only'));
+  if (MODS.frame) return MODS.frame.ready;
+  const f = document.createElement('iframe');
+  f.setAttribute('sandbox', 'allow-scripts');
+  f.setAttribute('aria-hidden', 'true');
+  f.tabIndex = -1;
+  f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+  const F = { el: f, ready: null };
+  F.ready = new Promise((res, rej) => { F.ok = res; F.fail = rej; setTimeout(() => rej(new Error('the mod sandbox did not start')), 10000); });
+  MODS.frame = F;
+  f.srcdoc = MOD_FRAME_SRC;
+  document.body.append(f);
+  return F.ready;
+}
+if (!IN_WORKER) window.addEventListener('message', e => {
+  const F = MODS.frame;
+  if (!F || e.source !== F.el.contentWindow) return;            // only the sandbox's own frame is listened to
+  const m = e.data;
+  if (!m || typeof m !== 'object') return;
+  if (m.ready) { F.ok(); return; }
+  if (m.bad && typeof m.key === 'string') { modDrop(m.key, 'it ' + String(m.bad).slice(0, 80).replace(/^it /, '')); return; }
+  const C = MODS.calls.get(m.id);
+  if (!C) return;
+  MODS.calls.delete(m.id); clearTimeout(C.timer);
+  if (m.ok) C.resolve(m.out); else C.reject(new Error(typeof m.err === 'string' ? m.err.slice(0, 300) : 'it failed'));
+});
+// a mod's worker gone (it misbehaved): its calls fail, and it is loaded again when next wanted
+function modDrop(hash, why) {
+  MODS.loaded.delete(hash);
+  for (const [id, C] of MODS.calls) if (C.hash === hash) { MODS.calls.delete(id); clearTimeout(C.timer); C.reject(new Error(why)); }
+}
+// the frame taken down (a call ran too long): every worker in it ends
+function modReset(why) {
+  const F = MODS.frame;
+  MODS.frame = null; MODS.loaded.clear();
+  if (F) F.el.remove();
+  for (const [id, C] of MODS.calls) { MODS.calls.delete(id); clearTimeout(C.timer); C.reject(new Error(why)); }
+}
+function modPost(hash, msg, transfer) {
+  return new Promise((resolve, reject) => {
+    const id = ++MODS.seq;
+    const T = MODS.timeout || MOD_TIMEOUT, C = { hash, resolve, reject, timer: setTimeout(() => { modReset('it took longer than ' + T / 1000 + ' s'); }, T) };
+    MODS.calls.set(id, C);
+    MODS.frame.el.contentWindow.postMessage(Object.assign({ id }, msg), '*', transfer || []);
+  });
+}
+/* the mod's code in its worker (once per frame); resolves with what it defines */
+async function modLoad(pk) {
+  await modFrame();
+  if (!MODS.loaded.has(pk.hash)) MODS.loaded.set(pk.hash, modPost(pk.hash, { op: 'load', key: pk.hash, src: MOD_PRELUDE + '\n' + pk.code + '\n' + MOD_POSTLUDE }).catch(err => { MODS.loaded.delete(pk.hash); throw err; }));
+  return MODS.loaded.get(pk.hash);
+}
+async function modAsk(pk, def, fn, args, transfer) {
+  await modLoad(pk);
+  return modPost(pk.hash, { op: 'call', key: pk.hash, def, fn, args, transfer }, transfer);
+}
+async function modHash(code) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+  return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/* ---------- what a mod defines, as the page keeps it (checked: nothing in it runs) ---------- */
+function normModParams(list) {
+  const out = [];
+  for (const q of Array.isArray(list) ? list.slice(0, 24) : []) {
+    if (!q || typeof q !== 'object' || typeof q.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(q.key)) continue;
+    const P = { key: q.key, label: packText(q.label, 50) || q.key };
+    if (Array.isArray(q.options)) { P.options = q.options.slice(0, 20).map(o => Array.isArray(o) ? [packText(String(o[0]), 30), packText(String(o[1] !== undefined ? o[1] : o[0]), 40)] : [packText(String(o), 30), packText(String(o), 40)]).filter(o => o[0]); P.value = P.options.some(o => o[0] === String(q.value)) ? String(q.value) : (P.options[0] || [''])[0]; }
+    else { P.value = num(q.value, 0); if (isFinite(q.min)) P.min = +q.min; if (isFinite(q.max)) P.max = +q.max; }
+    out.push(P);
+  }
+  return out;
+}
+function normModDef(D) {
+  if (!D || typeof D !== 'object' || !MOD_KINDS.includes(D.kind) || typeof D.key !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(D.key)) return null;
+  const d = D.d || {}, has = D.has || {};
+  const o = { key: D.key, kind: D.kind, name: packText(d.name, 50) || D.key, summary: packText(d.summary, 120), params: normModParams(d.params),
+    colour: MOD_COLOURS[d.colour || d.color] ? (d.colour || d.color) : 'grey', tag: packText(d.tag, 8) };
+  if (D.kind === 'element') { if (!has.transmit) return null; o.aperture = clamp(num(d.aperture, 25.4), 0.01, 1000); o.samples = Math.round(clamp(num(d.samples, 256), 16, 512)); }
+  if (D.kind === 'plate') { if (!has.jones) return null; o.aperture = clamp(num(d.aperture, 25.4), 0.01, 1000); }
+  if (D.kind === 'component') { if (!has.S) return null; const n = Math.round(clamp(num(Array.isArray(d.ports) ? d.ports.length : d.ports, 2), 1, 8)); o.ports = modNames(d.ports, n, i => String(i + 1)); }
+  if (D.kind === 'block') {
+    if (!has.H) return null;
+    const ni = Math.round(clamp(Array.isArray(d.ins) ? d.ins.length : num(d.ins, 1), 0, 4)), no = Math.round(clamp(Array.isArray(d.outs) ? d.outs.length : num(d.outs, 1), 1, 4));
+    o.ins = modNames(d.ins, ni, i => ni === 1 ? 'in' : 'in' + (i + 1)); o.outs = modNames(d.outs, no, i => no === 1 ? 'out' : 'out' + (i + 1));
+    o.fmin = clamp(num(d.fmin, 1e-2), 1e-6, 1e12); o.fmax = clamp(num(d.fmax, 1e9), o.fmin * 10, 1e13); o.perDecade = Math.round(clamp(num(d.perDecade, 40), 5, 400)); o.noise = !!has.noise;
+  }
+  if (D.kind === 'readout') { if (!has.compute) return null; o.for = (Array.isArray(d.for) ? d.for : [d.for || 'screen']).filter(t => t === 'screen' || t === 'detector').slice(0, 2); if (!o.for.length) o.for = ['screen']; }
+  return o;
+}
+/* the installed mod a part asks for, and the definition of its part (null if not installed) */
+const modPack = el => el && el.mod ? MODS.packs.get(el.mod.id) || null : null;
+// what a mod's part is called: as its mod names it, else as the part carries it
+const modName = el => { const D = modDefOf(el); return D ? D.name : el.mod.name; };
+const modDefOf = el => { const pk = modPack(el); return pk && pk.defs ? pk.defs.find(D => D.key === el.mod.def) || null : null; };
+// a part's settings: its own, else its definition's defaults
+function modParams(el) {
+  const D = modDefOf(el), p = {};
+  for (const q of D ? D.params : []) p[q.key] = el.mod.p[q.key] !== undefined ? el.mod.p[q.key] : q.value;
+  return p;
+}
+/* Why a mod part is not working, or '' when it is: not installed, failed, still working out */
+function modStatus(el) {
+  const pk = modPack(el);
+  if (!pk) return MODS.packs.size || !IN_WORKER ? 'its mod, ' + el.mod.id + ', is not installed here' : '';
+  if (!modDefOf(el)) return 'its mod has no part called ' + el.mod.def;
+  const f = MODS.failed.get(pk.hash + '|' + el.mod.def);
+  return f ? 'its mod failed: ' + f : '';
+}
+/* A result: kept, else asked for (on the page) and null meanwhile; when it comes, the bench is
+   traced again. On a background worker, only what the page has sent it. */
+function modResult(el, fn, args, key, transfer) {
+  const pk = modPack(el);
+  if (!pk) return null;
+  const k = pk.hash + '|' + el.mod.def + '|' + fn + '|' + key;
+  if (MODS.results.has(k)) { const v = MODS.results.get(k); MODS.results.delete(k); MODS.results.set(k, v); return v; }
+  if (IN_WORKER || MODS.failed.has(pk.hash + '|' + el.mod.def) || !modDefOf(el)) return null;
+  if (!MODS.waiting.has(k)) {
+    const P = modAsk(pk, el.mod.def, fn, args, transfer).then(out => {
+      const v = modCheck(fn, out, args);
+      MODS.results.set(k, v);
+      // kept to a bounded size: the oldest go first
+      let bytes = 0; for (const x of MODS.results.values()) bytes += x && x.byteLength ? x.byteLength : 64;
+      for (const old of MODS.results.keys()) { if (bytes <= 256 * 1024 * 1024 || old === k) break; const x = MODS.results.get(old); bytes -= x && x.byteLength ? x.byteLength : 64; MODS.results.delete(old); }
+    }, err => { MODS.failed.set(pk.hash + '|' + el.mod.def, err.message); })
+      .finally(() => { MODS.waiting.delete(k); MODS.rev++; if (!TEST_MODE) { lastTraceKey = null; requestRender(); renderPanel(); } });
+    MODS.waiting.set(k, P);
+  }
+  return null;
+}
+// every answer checked for its shape before it is kept
+function modCheck(fn, out, args) {
+  if (fn === 'transmit') { if (!(out instanceof Float64Array) || out.length !== 2 * args.N * args.N) throw new Error('its transmission is the wrong size'); return out; }
+  if (fn === 'jones') { if (!Array.isArray(out) || out.length !== 8 || !out.every(v => typeof v === 'number' && isFinite(v))) throw new Error('its Jones matrix is not a 2 x 2 of complex numbers'); return out; }
+  if (fn === 'S') {
+    if (!Array.isArray(out)) throw new Error('its matrix is not a list');
+    return out.filter(r => Array.isArray(r) && r.length === 10 && r.every(v => typeof v === 'number' && isFinite(v)) && r[0] >= 0 && r[0] < args.n && r[1] >= 0 && r[1] < args.n);
+  }
+  if (fn === 'H') { if (!out || !(out.H instanceof Float64Array) || out.H.length !== args.fs.length * args.no * args.ni * 2) throw new Error('its response is the wrong size'); return out; }
+  if (fn === 'compute') return modReadoutCheck(out);
+  throw new Error('no such question');
+}
+
+/* ---------- an element: a thin plate whose amplitude and delay the mod gives across its face ----------
+   It is a mask (see Mask functions) whose formula is the mod's table: sampled at N x N points
+   over the aperture at each wavelength the light has, and read between them by a cubic
+   (Catmull-Rom, exact for a quadratic), so its delay has a smooth slope for the rays and a
+   curvature for the beam. A delay given whole (a lens's, hundreds of waves at its edge) is read
+   as it is; one given wrapped, within a single wave (a metasurface's or a kinoform's), has its
+   neighbours read modulo whole waves, as the tracer reads a mask's, and must then change by
+   less than half a wave between samples. Until its table comes (and if its mod is missing or
+   fails), the plate passes nothing. */
+function modTable(el, nm) {
+  const D = modDefOf(el);
+  if (!D || D.kind !== 'element') return null;
+  const N = D.samples, R = el.length / 2, p = modParams(el);
+  return modResult(el, 'transmit', { nm, R, N, p }, nm + '|' + R + '|' + N + '|' + JSON.stringify(p));
+}
+const CR = t => [((-t + 2) * t - 1) * t / 2, ((3 * t - 5) * t * t + 2) / 2, ((-3 * t + 4) * t + 1) * t / 2, (t - 1) * t * t / 2];
+function modTableAt(T, N, R, u, v) {
+  if (T.wrapped === undefined) { let lo = Infinity, hi = -Infinity; for (let q = 1; q < T.length; q += 2) { lo = Math.min(lo, T[q]); hi = Math.max(hi, T[q]); } T.wrapped = hi - lo <= 1 + 1e-9; }
+  const h = 2 * R / (N - 1), fx = clamp((u + R) / h, 0, N - 1), fy = clamp((v + R) / h, 0, N - 1), W = T.wrapped ? 1 : 0;
+  const i = Math.min(N - 2, Math.floor(fx)), j = Math.min(N - 2, Math.floor(fy)), wx = CR(fx - i), wy = CR(fy - j), d0 = T[2 * (j * N + i) + 1];
+  const A = MOD_NB, Dl = MOD_NB2;
+  for (let b = 0; b < 4; b++) {
+    const jj = clamp(j - 1 + b, 0, N - 1);
+    for (let c = 0; c < 4; c++) { const q = 2 * (jj * N + clamp(i - 1 + c, 0, N - 1)), dv = T[q + 1]; A[b * 4 + c] = T[q]; Dl[b * 4 + c] = dv - W * Math.round(dv - d0); }
+  }
+  // a wrapped delay that jumps by a third of a wave or more between neighbours is no smooth
+  // phase (no sampled one can change that fast): a step, or a vortex's core. Read there as the
+  // nearest sample, so the step stays a step, for the tracer and the field to find
+  if (W) for (let b = 0; b < 4; b++) for (let c = 0; c < 4; c++) {
+    const k = b * 4 + c;
+    if ((c < 3 && Math.abs(Dl[k + 1] - Dl[k]) > 0.34) || (b < 3 && Math.abs(Dl[k + 4] - Dl[k]) > 0.34)) {
+      const q = 2 * (Math.round(fy) * N + Math.round(fx));
+      return [T[q], T[q + 1]];
+    }
+  }
+  let a = 0, d = 0;
+  for (let b = 0; b < 4; b++) for (let c = 0; c < 4; c++) { const w = wx[c] * wy[b]; a += w * A[b * 4 + c]; d += w * Dl[b * 4 + c]; }
+  return [a, d];
+}
+const MOD_NB = new Float64Array(16), MOD_NB2 = new Float64Array(16);
+const modMaskMemo = new Map();
+function modMaskFns(el) {
+  const key = JSON.stringify(el.mod) + '|' + el.length + '|' + MODS.rev + '|' + MODS.packs.size;
+  if (modMaskMemo.has(key)) return modMaskMemo.get(key);
+  const D = modDefOf(el), N = D ? D.samples : 0, R = el.length / 2, byNm = new Map();
+  const fn = (u, v, lam) => {
+    const nm = Math.round(lam * 1e12) / 1e6;
+    if (!byNm.has(nm)) byNm.set(nm, modTable(el, nm));
+    const T = byNm.get(nm);
+    return T ? modTableAt(T, N, R, u, v) : [0, 0];
+  };
+  fn.cell = N > 1 ? 2 * R / (N - 1) : 0;                   // its samples' spacing (see maskMeanSlope)
+  const out = { fn, err: modStatus(el) || null };
+  if (modMaskMemo.size > 200) modMaskMemo.clear();
+  modMaskMemo.set(key, out);
+  return out;
+}
+/* ---------- a plate: one Jones matrix across its face, at each wavelength ----------
+   In the beam's frame: x across it in the bench plane (p), y up (s); [[Jxx, Jxy], [Jyx, Jyy]].
+   Light going either way meets it as written, as it meets a waveplate. */
+function modJonesM(el, nm) {
+  const p = modParams(el), z = (modDefOf(el) || {}).kind === 'plate' ? modResult(el, 'jones', { nm, p }, nm + '|' + JSON.stringify(p)) : null;
+  const m = z || [0, 0, 0, 0, 0, 0, 0, 0];
+  return [[[m[0], m[1]], [m[2], m[3]]], [[m[4], m[5]], [m[6], m[7]]]];
+}
+/* ---------- the panel of a mod's part: its settings, and how it stands ---------- */
+function modPanel(el) {
+  const pk = modPack(el), D = modDefOf(el), st = modStatus(el);
+  panel.append(h('h3', null, modName(el)));
+  panel.append(h('p', { class: 'rt-hint' }, 'A part from the mod ' + (pk ? pk.name + (pk.author ? ' by ' + pk.author : '') + ', version ' + pk.packVersion : el.mod.id) + '.' + (D && D.summary ? ' ' + D.summary : '')));
+  if (st) panel.append(h('p', { class: 'note warn' }, 'Not working: ' + st + '.' + (pk ? '' : ' Its parts stand in, and pass nothing, until it is installed (File › Part packs…, or open a bench that carries it).')));
+  else if (MODS.waiting.size) panel.append(h('p', { class: 'note' }, 'Working it out…'));
+  if (pk && el.mod.hash && pk.hash !== el.mod.hash) panel.append(h('p', { class: 'note' }, 'Made with another version of the mod: this browser runs the one installed (' + pk.packVersion + ').'));
+  const rows = h('div', { class: 'rt-rows' });
+  if (el.type === 'mask' || el.type === 'waveplate') rows.append(param('Aperture (mm)', el, 'length'));
+  for (const q of D ? D.params : []) {
+    if (el.mod.p[q.key] === undefined) el.mod.p[q.key] = q.value;
+    rows.append(q.options ? selectField(q.label, q.options, () => String(el.mod.p[q.key]), v => { el.mod.p[q.key] = v; }) : param(q.label, el, 'mod.p.' + q.key));
+  }
+  panel.append(rows);
+}
+
+/* ---------- installing: a version 2 pack's code read in the sandbox, its parts made ---------- */
+// a part of a mod's, as an element: a plate is a mask, a polarisation plate a waveplate, a
+// component a fibre part, a block an electronics part, each carrying its mod reference
+function modElement(pk, D, extra) {
+  const ref = { id: pk.id, def: D.key, hash: pk.hash, name: D.name, p: Object.fromEntries(D.params.map(q => [q.key, q.value])), colour: D.colour, tag: D.tag };
+  if (D.kind === 'component') ref.ports = D.ports;
+  if (D.kind === 'block') { ref.ins = D.ins; ref.outs = D.outs; }
+  const e = D.kind === 'element' ? { type: 'mask', length: D.aperture, amp: '1', delay: '0' } : D.kind === 'plate' ? { type: 'waveplate', length: D.aperture }
+    : D.kind === 'component' ? { type: 'fcomp', kind: 'mod' } : { type: 'elec', kind: 'mod.' + pk.id + '.' + D.key };
+  return Object.assign({ name: D.name, x: 0, y: 0, angle: 0 }, e, extra || {}, { mod: Object.assign(ref, extra && extra.mod && extra.mod.p ? { p: Object.assign(ref.p, extra.mod.p) } : {}) });
+}
+async function modPrepare(pack, notes) {
+  pack.hash = await modHash(pack.code);
+  let raw;
+  try { raw = await modLoad(pack); } catch (err) { throw new Error('its code did not run: ' + err.message); }
+  pack.defs = [];
+  for (const D of Array.isArray(raw) ? raw.slice(0, 64) : []) {
+    const d = normModDef(D);
+    if (d) pack.defs.push(d); else notes.push('Its part ' + JSON.stringify(D && D.key) + ' is missing what a ' + (D && D.kind) + ' needs (see the mod guide): left out.');
+  }
+  if (!pack.defs.length) throw new Error('its code defines no parts JEKray2D can use');
+  const parts = [], used = new Set();
+  // the pack's own parts: an element naming one of its definitions ("mod": { "def": key }) becomes that part
+  pack.rawParts.forEach((P, i) => {
+    const pname = packText(P && P.name, 60) || 'Part ' + (i + 1), els = [];
+    for (const e of Array.isArray(P && P.elements) ? P.elements : []) {
+      const D = e && e.mod && pack.defs.find(d => d.key === e.mod.def);
+      if (e && e.mod && !D) { notes.push(pname + ': it uses a part the code does not define, ' + JSON.stringify(e.mod.def) + ': left out.'); continue; }
+      const n = normElement(D ? modElement(pack, D, e) : e);
+      if (!n) { notes.push(pname + ': an element of type ' + JSON.stringify(e && e.type) + ' is not one JEKray2D has: left out.'); continue; }
+      if (D) used.add(D.key);
+      els.push(n);
+    }
+    if (els.length) parts.push({ name: pname, summary: packText(P.summary, 120) || typeLabel(els[0]), group: packText(P.group, 40), palette: palOf(els[0]), clip: { format: 'jekray-clip', version: 1, from: null, elements: els, fibres: [] } });
+  });
+  // and one of each part it defines that none of those uses (a readout is no part: it appears on the screens)
+  for (const D of pack.defs) {
+    if (used.has(D.key) || D.kind === 'readout') continue;
+    const n = normElement(modElement(pack, D));
+    if (n) parts.push({ name: D.name, summary: D.summary || { element: 'Plate', plate: 'Polarisation plate', component: 'Fibre component', block: 'Electronics block' }[D.kind], group: '', palette: palOf(n), clip: { format: 'jekray-clip', version: 1, from: null, elements: [n], fibres: [] } });
+  }
+  pack.parts = parts;
+  delete pack.rawParts;
+}
+function modConfirmText(pack, from) {
+  const kinds = { element: 'a plate', plate: 'a polarisation plate', component: 'a fibre component', block: 'an electronics block', readout: 'a readout for screens and detectors' };
+  return h('div', null,
+    h('p', { class: 'note warn' }, 'This pack is a mod: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
+    h('p', null, 'It defines:'),
+    h('ul', null, ...pack.defs.map(D => h('li', null, h('b', null, D.name), ', ' + kinds[D.kind] + (D.summary ? ': ' + D.summary : '')))),
+    h('p', { class: 'rt-hint' }, 'Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'));
+}
+/* the mods in use: the installed packs with code, when mods are on */
+function modsSync() {
+  const on = typeof exp === 'function' && exp('mods');
+  MODS.packs = new Map(on ? PACKS.list.filter(p => p.code && p.hash).map(p => [p.id, p]) : []);
+  MODS.rev++;
+  if (!IN_WORKER && !TEST_MODE) { lastTraceKey = null; requestRender(); }
+}
+/* ---------- a bench carries the code of the mods its parts use ----------
+   Saved with it (so a file, a share link or a QR code opens complete), never run on opening:
+   someone opening it is asked whether to install each mod not yet installed (or installed in
+   another version), with the same prompt as any mod. Until then its parts stand in. */
+function modsCarried() {
+  const ids = new Set(project.elements.filter(e => e.mod).map(e => e.mod.id)), out = [];
+  for (const id of ids) {
+    const pk = MODS.packs.get(id) || PACKS.list.find(p => p.id === id && p.code), was = (project.mods || []).find(m => m.id === id);
+    if (pk) out.push({ id, name: pk.name, author: pk.author, packVersion: pk.packVersion, licence: pk.licence, description: pk.description, hash: pk.hash, code: pk.code });
+    else if (was) out.push(was);
+  }
+  return out;
+}
+function normCarried(list) {
+  return (Array.isArray(list) ? list.slice(0, 16) : []).filter(m => m && typeof m.code === 'string' && m.code.length <= MOD_CODE_MAX && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(m.id))
+    .map(m => ({ id: m.id, name: modText(m.name, 60) || m.id, author: modText(m.author, 80), packVersion: modText(String(m.packVersion || '1'), 20), licence: modText(m.licence, 60),
+      description: modText(m.description, 600), hash: /^[0-9a-f]{64}$/.test(m.hash) ? m.hash : '', code: m.code }));
+}
+// after a bench opens: its mods not installed here, offered one at a time
+async function modsOffer() {
+  if (IN_WORKER || TEST_MODE || EMBED) return;
+  // by the code's own hash, worked out here: what a file says of it is not taken on trust
+  for (const m of project.mods || []) m.hash = await modHash(m.code);
+  const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
+  if (!want.length) return;
+  if (!exp('mods')) { toast('This bench uses mods (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn mods on under Help › Experimental features to run them'); return; }
+  for (const m of want) {
+    MODS.offered.add(m.id + '|' + m.hash);
+    try {
+      const raw = { format: PACK_FORMAT, version: 2, id: m.id, name: m.name, author: m.author, packVersion: m.packVersion, licence: m.licence, description: m.description, code: m.code };
+      const r = normPack(raw); await modPrepare(r.pack, r.notes);
+      await packConfirm(r.pack, r.notes, 'this bench');
+    } catch (err) { toast('This bench’s mod ' + m.name + ' could not be used: ' + err.message, true); }
+  }
+}
+/* ---------- a readout's answer: rows of figures, and series to plot, checked ---------- */
+function modReadoutCheck(out) {
+  const o = { rows: [], series: [] };
+  if (!out || typeof out !== 'object') return o;
+  for (const r of Array.isArray(out.rows) ? out.rows.slice(0, 40) : []) if (Array.isArray(r) && r.length >= 2) o.rows.push([modText(String(r[0]), 60), modText(typeof r[1] === 'number' ? String(+r[1].toPrecision(6)) : String(r[1]), 80)]);
+  for (const S of Array.isArray(out.series) ? out.series.slice(0, 4) : []) {
+    if (!S || !Array.isArray(S.x) || !Array.isArray(S.y)) continue;
+    const n = Math.min(S.x.length, S.y.length, 4096), x = [], y = [];
+    for (let i = 0; i < n; i++) { const a = +S.x[i], b = +S.y[i]; if (isFinite(a) && isFinite(b)) { x.push(a); y.push(b); } }
+    if (x.length >= 2) o.series.push({ name: modText(S.name, 40), x, y, xLabel: modText(S.xLabel, 40), yLabel: modText(S.yLabel, 40), log: !!S.log });
+  }
+  return o;
+}
+
+/* ---------- readouts: a mod's figures for a screen or a detector, from what it reads ----------
+   A readout is given what the part reads (a screen: its diffracted intensity map with its
+   extent and its figures; a detector: its power, current and output) and returns rows of
+   figures and series to plot, which the page draws in the part's panel. */
+const modReadouts = type => [...MODS.packs.values()].flatMap(pk => (pk.defs || []).filter(D => D.kind === 'readout' && D.for.includes(type)).map(D => ({ pk, D })));
+function modReadoutData(el) {
+  if (el.type === 'detector') { const r = detectorReading(el); return { kind: 'detector', mw: r.mw, mA: r.mA, V: r.V, noiseV: r.noiseV }; }
+  const D = diffraction(el);
+  if (!D || !D.map || !D.map.v) return null;
+  const M = D.map, I = Float64Array.from(M.v);
+  return { kind: 'screen', nm: D.nm, power: D.power, wx: D.wx, wy: D.wy, fwhm: D.fwhm, strehl: D.strehl, stokes: D.stokes ? Array.from(D.stokes) : null,
+    map: { n: M.n, u0: M.u0, u1: M.u1, v0: M.v0, v1: M.v1, I } };
+}
+// each readout for a part: its result (null while worked out), or why it failed, or that there is nothing to read
+function modReadoutResults(el) {
+  const list = modReadouts(el.type === 'detector' ? 'detector' : 'screen');
+  if (!list.length) return [];
+  const data = modReadoutData(el);
+  let fp = '';
+  if (data) { fp = JSON.stringify(Object.assign({}, data, { map: undefined })); if (data.map) { let a = 0; for (let i = 0; i < data.map.I.length; i += 97) a += data.map.I[i] * (i + 1); fp += '|' + data.map.n + '|' + a; } }
+  return list.map(({ pk, D }) => {
+    const ref = { mod: { id: pk.id, def: D.key, p: {} } }, fail = MODS.failed.get(pk.hash + '|' + D.key);
+    return { pk, D, none: !data, fail, r: !data || fail ? null : modResult(ref, 'compute', { data, p: modParams(ref) }, fp) };
+  });
+}
+function modReadoutSection(el) {
+  for (const { pk, D, none, fail, r } of modReadoutResults(el)) {
+    panel.append(h('h3', null, D.name, h('small', { class: 'rt-pby' }, ' from ' + pk.name)));
+    if (none) panel.append(h('p', { class: 'note' }, el.type === 'detector' ? 'Nothing reaches it.' : 'Waiting for the diffracted field on this screen (nothing reaches it, or it is being worked out).'));
+    else if (fail) panel.append(h('p', { class: 'note warn' }, 'Not working: ' + fail + '.'));
+    else if (!r) panel.append(h('p', { class: 'note' }, 'Working it out…'));
+    else {
+      if (r.rows.length) panel.append(h('div', { class: 'rt-readout' }, h('table', null, ...r.rows.map(([k, v]) => h('tr', null, h('th', null, k), h('td', null, v))))));
+      for (const S of r.series) panel.append(modSeriesSvg(S));
+    }
+  }
+}
+// a series as a small line plot: its ranges on the axes, its labels under them. Built node by
+// node, its text set as text: nothing a mod sends can become markup
+function modSeriesSvg(S) {
+  const W = 300, H = 150, l = 44, b = 26, t = 18, rgt = 8, xs = S.x, ys = S.log ? S.y.map(v => v > 0 ? Math.log10(v) : NaN) : S.y;
+  const fin = ys.filter(isFinite), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...fin), y1 = Math.max(...fin);
+  const X = v => l + (v - x0) / ((x1 - x0) || 1) * (W - l - rgt), Y = v => t + (1 - (v - y0) / ((y1 - y0) || 1)) * (H - t - b);
+  const NS = 'http://www.w3.org/2000/svg', node = (tag, at, text) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(at)) n.setAttribute(k, v); if (text !== undefined) n.textContent = text; return n; };
+  const f = v => String(+v.toPrecision(3)), y = (v) => S.log ? '1e' + f(v) : f(v);
+  const svg = node('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img' });
+  svg.setAttribute('aria-label', S.name || 'plot');
+  svg.append(node('rect', { x: l, y: t, width: W - l - rgt, height: H - t - b, fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.3 }),
+    node('polyline', { points: xs.map((x, i) => isFinite(ys[i]) ? X(x).toFixed(1) + ',' + Y(ys[i]).toFixed(1) : '').filter(Boolean).join(' '), fill: 'none', stroke: 'var(--jek-orange)', 'stroke-width': 1.6 }),
+    node('text', { x: l, y: 12, 'font-size': 10, fill: 'currentColor' }, S.name || ''),
+    node('text', { x: l - 4, y: t + 8, 'font-size': 9, 'text-anchor': 'end', fill: 'currentColor' }, y(y1)),
+    node('text', { x: l - 4, y: H - b, 'font-size': 9, 'text-anchor': 'end', fill: 'currentColor' }, y(y0)),
+    node('text', { x: l, y: H - b + 12, 'font-size': 9, fill: 'currentColor' }, f(x0)),
+    node('text', { x: W - rgt, y: H - b + 12, 'font-size': 9, 'text-anchor': 'end', fill: 'currentColor' }, f(x1)),
+    node('text', { x: (W + l) / 2, y: H - 3, 'font-size': 9, 'text-anchor': 'middle', fill: 'currentColor' }, S.xLabel || ''),
+    node('text', { x: 9, y: (H - b + t) / 2, 'font-size': 9, 'text-anchor': 'middle', fill: 'currentColor', transform: 'rotate(-90 9 ' + (H - b + t) / 2 + ')' }, S.yLabel || ''));
+  return h('div', { class: 'rt-modplot' }, svg);
+}
+/* ---------- the background workers get the results they need, each once ---------- */
+function modDelta(w) {
+  if (!MODS.packs.size || !w) return undefined;
+  let seen = MODS.sent.get(w);
+  if (!seen) { seen = new Set(); MODS.sent.set(w, seen); }
+  const packs = [...MODS.packs.values()].map(pk => ({ id: pk.id, hash: pk.hash, defs: pk.defs }));
+  const pkKey = JSON.stringify(packs.map(p => p.hash));
+  const res = [];
+  for (const [k, v] of MODS.results) if (!seen.has(k)) { seen.add(k); res.push([k, v]); }
+  if (!res.length && seen.has(pkKey)) return undefined;
+  seen.add(pkKey);
+  return { packs, res, rev: MODS.rev };
+}
+function modAbsorb(D) {
+  if (!D) return;
+  MODS.packs = new Map(D.packs.map(p => [p.id, p]));
+  for (const [k, v] of D.res) MODS.results.set(k, v);
+  MODS.rev = D.rev;
+}
+
+/* ==========================================================================
    The field worker
    The diffracted field (the bench's, each screen's, a cavity's steady state, the close-up
    and a sweep's frames rendered ahead) is worked out in a background thread, so the page
@@ -28717,7 +29361,7 @@ function fieldWorker() {
   return FW.w;
 }
 /* the bench as the worker needs it: what is saved, less the view and the time */
-function fwProject() { const d = serialize(); d.saved = ''; d.view = null; d.tab = null; d.benches = d.benches.map(b => ({ id: b.id, name: b.name })); return JSON.stringify(d); }
+function fwProject() { const d = serialize(); delete d.mods; d.saved = ''; d.view = null; d.tab = null; d.benches = d.benches.map(b => ({ id: b.id, name: b.name })); return JSON.stringify(d); }
 /* Asks the worker for a job; resolves with its answer, or null if it was replaced or
    abandoned, and rejects if the worker failed (the caller then does it on the page) */
 function fwRequest(kind, slot, args) {
@@ -28737,7 +29381,7 @@ function fwPump() {
   if (FW.busy || !FW.queue.length || midDrag() || !fieldWorker()) return;
   const job = FW.queue.shift();
   FW.busy = job; job.t0 = performance.now(); job.id = ++FW.seq;
-  const msg = { id: job.id, kind: job.kind, args: job.args };
+  const msg = { id: job.id, kind: job.kind, args: job.args, mods: modDelta(FW.w) };
   if (job.proj !== FW.sent) { msg.proj = job.proj; FW.sent = job.proj; }
   FW.w.postMessage(msg);
 }
@@ -28850,7 +29494,7 @@ function traceWorker() {
 function twPump() {
   if (TW.busy || !TW.want || !traceWorker()) return;
   TW.busy = true;
-  TW.w.postMessage({ id: ++TW.n, kind: TW.want.full ? 'full' : 'trace', proj: TW.want.proj, args: { key: TW.want.key } });
+  TW.w.postMessage({ id: ++TW.n, kind: TW.want.full ? 'full' : 'trace', proj: TW.want.proj, args: { key: TW.want.key }, mods: modDelta(TW.w) });
   TW.want = null;
 }
 /* A full trace from the worker, taken as this page's own if the bench is still as it was
@@ -28898,7 +29542,9 @@ function workerMain() {
   self.onmessage = e => {
     const { id, kind, proj, args } = e.data;
     try {
+      if (e.data.mods) modAbsorb(e.data.mods);                 // the mods' results the page has (their code never comes here)
       if (proj) { loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; }
+      else if (e.data.mods) { traceScene(); bench = { key: null, R: null }; }   // traced again with them
       const before = kind === 'cavity' ? null : new Map(cavSolved);
       const transfer = [];
       let out = null;
@@ -29007,7 +29653,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },
-    async packInstall(raw) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); await packPut(pack); return pack.id; },
+    async packInstall(raw) { const { pack, notes } = normPack(JSON.parse(JSON.stringify(raw))); if (pack.code) await modPrepare(pack, notes); await packPut(pack); return pack.id; },
     packs: () => PACKS.list.map(p => ({ id: p.id, name: p.name, parts: p.parts.map(P => P.name), glasses: p.glasses.map(g => g.glass) })),
     packPlace(id, i) { placePackPart(PACKS.list.find(p => p.id === id), i); return selection().map(e => e.name); },
     packRemove: id => packRemove(id),
@@ -29091,6 +29737,17 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     version: () => APP_VERSION,
     // experimental features: switch them on or off, and whether one is on
     palettesOn: () => palettesOn(),
+    // mods: wait until every result asked for has come (traced again after each), and how they stand
+    async modsSettle() { for (let i = 0; i < 30; i++) { lastTraceKey = null; traceScene(); if (!MODS.waiting.size) break; await Promise.allSettled([...MODS.waiting.values()]); } lastTraceKey = null; traceScene(); },
+    modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
+    modTimeout(ms) { MODS.timeout = ms || 0; },
+    modStatus(name) { return modStatus(this.byName(name)); },
+    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean'))); },
+    maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
+    modReadout(name) { return modReadoutResults(this.byName(name)).map(x => ({ name: x.D.name, none: x.none, fail: x.fail || null, r: x.r })); },
+    modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },
+    async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
+    modReset: why => modReset(why || 'reset'),
     typeLabel(name) { return typeLabel(this.byName(name)); },
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },

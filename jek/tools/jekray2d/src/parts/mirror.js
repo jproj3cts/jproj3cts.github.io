@@ -1,5 +1,6 @@
 import { clamp } from '../core/constants.js';
 import { nextName, num } from '../state/project.js';
+import { RF_METALS } from '../core/rf.js';
 
 /* Mirror: A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100. */
 export const MIRROR = {
@@ -15,6 +16,9 @@ export const MIRROR = {
       k: num(e.k, 0),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
+      // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
+      ...(RF_METALS[e.metal] ? { metal: e.metal } : {}),
+      ...(e.film && typeof e.film === 'object' ? { film: { n: clamp(num(e.film.n, 1.73), 1, 20), t: clamp(num(e.film.t, 0.1), 1e-4, 100) } } : {}),
       // its readouts of the light arriving, as a screen's
       mapScale: e.mapScale === 'log' ? 'log' : 'lin',
       vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
@@ -28,6 +32,8 @@ export const MIRROR = {
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
+    metal: 'an RF metal mirror: "Al", "Cu", "Au", "brass", "steel" or "ideal", for its loss by surface resistance.',
+    film: 'a film beam splitter (RF): { "n": index, "t": mm thickness } of a dielectric sheet, reflecting by its two faces\u2019 interference; then reflect is ignored.',
     mapScale: '"lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s).', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams arriving.',
     mtfFreq: 'lp/mm at which its Diffraction tab quotes the MTF.' },
   },

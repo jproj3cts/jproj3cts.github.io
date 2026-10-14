@@ -6072,6 +6072,92 @@ const TESTS = [
     run: J => { J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: {} }], { rays: 11 })); return J.system().efl; },
   },
   {
+    name: 'A wire grid reflects the field along its wires by its inductance: 1 / (1 + 4X²), X = (g/λ) Xn(2a/g)',
+    why: 'a grid of 25 µm pitch and 10 µm wires (2a/g = 0.4) at 150 GHz (λ = 2 mm), square on, s light along its upright wires: Xn = 0.51 − 1.19 u + 0.53 u² + 0.11 u³ with u = ln(2πa/g) (Chuss et al. 2012), and the share that leaks through is 1 − 1/(1 + 4X²): the leak in the beam past the grid over the beam before it (relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(bench('grid', [{ type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: 3, pol: 's', mmw: { kind: 'corrugated', ghz: 150, dbm: 0, a: 7.5, L: 60 } },
+        { type: 'polariser', name: 'G', x: 100, y: 0, angle: 180, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: {} }, { type: 'screen', name: 'Sc', x: 200, y: 0, angle: 180, length: 100 }], { minPower: 1e-9 }));
+      const T = J.lastTrace(), t = T.beams.find(b => b.ev && b.ev.kind === 'grid' && b.ev.mode === 'T'), p = t && T.beams[t.parent];
+      if (!t || !p) return NaN;
+      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, u = Math.log(2 * Math.PI * a / g), Xn = 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u, X = (g / lam) * Xn;
+      return Math.abs((t.w / p.w) / (1 - 1 / (1 + 4 * X * X)) - 1);
+    },
+  },
+  {
+    name: '… and leaks a little of the field across them by its capacitance, scaled by cos θ at 45°',
+    why: 'the same grid at 45°, p light (across its upright wires): B = 4 (g/λ) ln sec(πw/2g) cos 45°, w = 4a, and the share reflected is B²/(4 + B²): the reflected beam over the incident (relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      J.load(bench('grid2', [{ type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: 3, pol: 'p', mmw: { kind: 'corrugated', ghz: 150, dbm: 0, a: 7.5, L: 60 } },
+        { type: 'polariser', name: 'G', x: 100, y: 0, angle: 135, axis: 0, length: 200, grid: { g: 0.025, a: 0.005 }, mmw: {} }, { type: 'screen', name: 'Sc', x: 200, y: 0, angle: 180, length: 100 }], { minPower: 1e-9 }));
+      const T = J.lastTrace(), r = T.beams.find(b => b.ev && b.ev.kind === 'grid' && b.ev.mode === 'R'), p = r && T.beams[r.parent];
+      if (!r || !p) return NaN;
+      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, c = Math.SQRT1_2, B = 4 * (g / lam) * Math.log(1 / Math.cos(Math.PI * 4 * a / (2 * g))) * c;
+      return Math.abs((r.w / p.w) / (B * B / (4 + B * B)) - 1);
+    },
+  },
+  {
+    name: 'A film beam splitter reflects by its two faces’ interference: a quarter-wave film ((n² − 1)/(n² + 1))²',
+    why: 'a Mylar film (n = 1.73) a quarter wave thick at 150 GHz (t = λ/4n = 0.289 mm), square on: the Airy sum gives R = ((n² − 1)/(n² + 1))² = 0.2491 (the reflected beam over the incident, relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const n = 1.73, lam = 299792458 / 150 * 1e-6, t = lam / (4 * n);
+      J.load(rfBench(200, [{ type: 'mirror', name: 'F', x: 100, y: 0, angle: 180, length: 100, reflect: 50, film: { n, t }, mmw: {} }], { ghz: 150 }));
+      const T = J.lastTrace(), r = T.beams.find(b => b.ev && b.ev.kind === 'mirror' && b.ev.mode === 'R'), p = r && T.beams[r.parent];
+      if (!r || !p) return NaN;
+      return Math.abs((r.w / p.w) / (((n * n - 1) / (n * n + 1)) ** 2) - 1);
+    },
+  },
+  {
+    name: 'A metal mirror loses 4 Rs / Z0 to its surface resistance',
+    why: 'a stainless-steel mirror (σ = 1.4 MS/m) at 150 GHz: Rs = √(π f μ0 / σ) = 0.650 Ω, so it reflects 1 − 4 Rs / 376.73 Ω = 99.31 % (the reflected beam over the incident, relative error)',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      J.load(rfBench(200, [{ type: 'mirror', name: 'M', x: 100, y: 0, angle: 135, length: 100, metal: 'steel', mmw: {} }], { ghz: 150 }));
+      const T = J.lastTrace(), r = T.beams.find(b => b.ev && b.ev.kind === 'mirror' && b.ev.mode === 'R'), p = r && T.beams[r.parent];
+      if (!r || !p) return NaN;
+      const Rs = Math.sqrt(Math.PI * 150e9 * 4e-7 * Math.PI / 1.4e6);
+      return Math.abs((r.w / p.w) / (1 - 4 * Rs / 376.73) - 1);
+    },
+  },
+  {
+    name: 'An inductive mesh passes 1 / (1 + 1/(4ω²L²)), L = ln csc(πa/g), ω = g/λ (Ulrich)',
+    why: 'a mesh of 0.5 mm period and 0.1 mm lines at 150 GHz (ω = 0.25): L = ln csc(0.1π) = 1.174, so it passes 25.6 % (the beam past it over the beam before it, relative error); a band-pass mesh at its centre passes all but its loss',
+    want: 0, tol: 1e-9, unit: '',
+    run: J => {
+      const mesh = o => Object.assign({ type: 'filter', name: 'Me', x: 100, y: 0, angle: 0, length: 100, ftype: 'mesh', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0, reflect: true, mmw: {} }, o);
+      const through = () => { const T = J.lastTrace(), t = T.beams.find(b => b.ev && b.ev.kind === 'filter' && b.ev.mode === 'T'), p = t && T.beams[t.parent]; return t && p ? t.w / p.w : NaN; };
+      J.load(rfBench(200, [mesh({ mesh: 'inductive' })], { ghz: 150 }));
+      const om = 0.5 / (299792458 / 150 * 1e-6), L = Math.log(1 / Math.sin(0.1 * Math.PI)), want = 1 / (1 + 1 / (4 * om * om * L * L)), a = Math.abs(through() / want - 1);
+      J.load(rfBench(200, [mesh({ mesh: 'bandpass', meshLoss: 0.3 })], { ghz: 150 }));
+      const b = Math.abs(through() / Math.pow(10, -0.03) - 1);
+      return Math.max(a, b);
+    },
+  },
+  {
+    name: 'A receiver’s frequency sweep reads, at the bench’s frequency, what the receiver reads, and its link budget adds up to it',
+    why: 'two horns 300 mm apart with a band-pass mesh between: the sweep’s S21 at the centre against 10 log10 of the power the receiver takes in over the power launched, and the link budget’s total against the same (largest difference, dB)',
+    want: 0, tol: 1e-6, unit: 'dB',
+    run: J => {
+      J.load(rfBench(300, [{ type: 'filter', name: 'Me', x: 150, y: 0, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.3, reflect: true, mmw: {} }], { ghz: 150 }));
+      const el = J.byName('Rx'); el.mmw.span = 20; el.mmw.points = 11;
+      const S = J.rfSweep('Rx'), L = J.linkBudget('Rx'), r = J.detector('Rx').rf, want = 10 * Math.log10(r.mw / J.byName('Horn').power);
+      const at = S.ghz.findIndex(f => Math.abs(f - 150) < 1e-6);
+      return Math.max(Math.abs(S.s21[at] - want), Math.abs(L.total - want));
+    },
+  },
+  {
+    name: 'A polymer’s loss grows with frequency: a slab absorbs four times the nepers at twice the frequency',
+    why: 'an HDPE slab 20 mm thick, its faces set to reflect nothing: α = 2π n tan δ / λ with tan δ ∝ f for the polymers, so −ln T at 300 GHz over −ln T at 150 GHz is 4 (relative error)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      const slab = { type: 'lens', name: 'S', x: 100, y: 0, diameter: 100, surfaces: [{ R: null, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }], gaps: [20], materials: [{ glass: 'HDPE' }], mmw: {} };
+      const nep = ghz => { J.load(rfBench(300, [JSON.parse(JSON.stringify(slab))], { ghz })); const T = J.lastTrace(), out = T.beams.filter(b => b.ev && b.ev.mode === 'T'); const last = out[out.length - 1]; return -Math.log(last.w / T.beams[0].w); };
+      return Math.abs(nep(300) / nep(150) / 4 - 1);
+    },
+  },
+  {
     name: 'A dielectric slab absorbs as its loss tangent says',
     why: 'a 30 mm slab of nylon (n = 1.73, tan δ = 0.011, faces with no reflection) between the horns at 100 GHz: the power arriving falls by exp(−2π n tan δ t / λ)',
     wantFrom: () => Math.exp(-2 * Math.PI * 1.73 * 0.011 * 30 / (299792458 / 100 * 1e-6)),
@@ -6110,7 +6196,7 @@ const TESTS = [
           { type: 'lens', name: 'L2', x: 300, y: 50, diameter: 25, surfaces: [{ R: 50 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }], { ghz: 150 }));
         const label = J.typeLabel('L1') === 'RF lens' && J.typeLabel('L2') !== 'RF lens';
         const rfm = J.materialOptions(J.byName('L1')), opt = J.materialOptions(J.byName('L2'));
-        const rfOk = rfm.length === 9 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && !rfm.some(o => o[0] === 'N-BK7');
+        const rfOk = rfm.length === 10 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && !rfm.some(o => o[0] === 'N-BK7');
         const optOk = !opt.some(o => o[0] === 'HDPE' || o[0] === 'PTFE') && opt.some(o => o[0] === 'N-BK7');
         return off && on && unticked && label && rfOk && optOk ? 1 : 0;
       } finally { J.experimental(false, { rf: true }); }

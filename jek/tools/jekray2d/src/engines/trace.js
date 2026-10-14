@@ -2,6 +2,7 @@ import { BEAM_Z, EPS, FAR, IN_WORKER, TEST_MODE, TRACE_BUDGET, clamp } from '../
 import { hooks } from '../core/hooks.js';
 import { absorbAt, refIndex } from '../core/glass.js';
 import { bireAxis, birefIndex, filterT, gainAt, gainSat, setGainSat, walkOff } from '../core/crystals.js';
+import { C_NM_GHZ, filmCoef, gridCoef, metalR } from '../core/rf.js';
 import { C_SI } from '../core/cells.js';
 import { cellJones, cellPolar, circShares } from '../core/zeeman.js';
 import {
@@ -235,6 +236,8 @@ export function setLoadGen(v) { return (loadGen = v); }
 export function setLastTraceMs(v) { return (lastTraceMs = v); }
 export function setLastTraceKey(v) { return (lastTraceKey = v); }
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
+/* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
+export const rfNotes = new Set();
 export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 export function traceScene() {
@@ -499,6 +502,7 @@ function fromSurfFrame(J, sLoc, d, sig, fx) {
 }
 function traceSceneOnce() {
   ensureBenches(project);
+  rfNotes.clear();
   // each bench's surfaces on their own: a ray meets only those of the bench it is on
   const surfsBy = new Map(), segsBy = new Map(), NONE = [];
   for (const b of project.benches) { surfsBy.set(b.id, []); segsBy.set(b.id, []); }
@@ -1179,7 +1183,7 @@ function traceSceneOnce() {
         // leaving is turned back into its own frame. A crystal's faces keep the ray's frame.
         let sLoc = null;
         const fxL = [s.f.c, -s.f.s, 0];        // the bench's x in this surface's frame
-        if ((ldz || nz) && !probe && (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'refract' || s.kind === 'split')
+        if ((ldz || nz) && !probe && (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid' || s.kind === 'refract' || s.kind === 'split')
           && (s.tilt || !(s.front && s.front.bire) && !(s.back && s.back.bire))) {
           const d = [ldx, ldy, ldz], sig = par ? -1 : 1, [S, P] = polFrame(d, sig, fxL);
           let a = [ny * ldz - nz * ldy, nz * ldx - nx * ldz, nx * ldy - ny * ldx];
@@ -1241,7 +1245,7 @@ function traceSceneOnce() {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
-            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter') && cosd >= 0,
+            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && cosd >= 0,
               n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = kapIn(s, ly);
@@ -1264,29 +1268,37 @@ function traceSceneOnce() {
           }
           qT = tr.q; evT = tr.ev; qRf = rf.q; evR = rf.ev;
         }
-        const Rm = s.kind === 'filter' ? 1 - filterT(s.el, nm) : s.kind === 'mirror' ? s.el.reflect / 100 : 0;
-        if ((s.kind === 'mirror' || s.kind === 'filter') && probe) {
+        // what a reflecting sheet sends back, s and p: a mirror's reflectance (a metal one's by its
+        // surface resistance), a filter's rejection, a film's two faces interfering, a wire grid's
+        // pitch and wires (the field along its wires reflected, the other leaked a little)
+        let Rms = 0, Rmp = 0, metalA = 1;
+        if (s.kind === 'filter') Rms = Rmp = 1 - filterT(s.el, nm);
+        else if (s.kind === 'grid') { const G = gridCoef(s.el.grid, nm, cosd, Math.abs(((s.el.axis % 180) + 180) % 180 - 90) < 45); if (G.grating) rfNotes.add(s.el.id); const up = Math.abs(((s.el.axis % 180) + 180) % 180 - 90) >= 45; Rms = up ? G.Rpar : G.Rperp; Rmp = up ? G.Rperp : G.Rpar; }
+        else if (s.kind === 'mirror' && s.el.film) { const F = filmCoef(s.el.film, nm, cosd); Rms = F.Rs; Rmp = F.Rp; }
+        else if (s.kind === 'mirror') { Rms = Rmp = s.el.reflect / 100; if (s.el.metal) metalA = Math.sqrt(metalR(s.el.metal, C_NM_GHZ / nm)); }
+        const Rm = (Rms + Rmp) / 2;
+        if ((s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && probe) {
           // a probe is a measuring ray, not light: it follows whichever arm is stronger
           if (Rm >= 0.5) {
             if (cosd >= 0) break;
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
           }
-        } else if (s.kind === 'mirror' || s.kind === 'filter') {
+        } else if (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') {
           // a reflective filter (a dichroic) is a partial mirror whose reflectance is what it rejects
-          const R = Rm;
           // A mirror turns the field over from its coated face: half a wave. From behind, a
           // partial mirror reflects the other way up, as a lossless one must (Stokes: t t' - r r'
           // = 1). With the same sign both ways a cavity would not conserve energy, and its
           // reflected light would not cancel on resonance.
-          const a = cosd >= 0 ? Math.sqrt(R) : -Math.sqrt(R);
-          if (R >= 1) {
-            if (cosd >= 0 && s.kind === 'mirror') break;           // back of a full mirror absorbs
+          const sg = cosd >= 0 ? 1 : -1, as = sg * Math.sqrt(Rms) * metalA, ap = sg * Math.sqrt(Rmp) * metalA;
+          if (Rms >= 1 && Rmp >= 1) {
+            if (cosd >= 0 && s.kind === 'mirror' && !s.el.film) break;           // back of a full mirror absorbs
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
             opl += reflExtra;
-            sr = -sr; si = -si; pr = -pr; pi = -pi;
-          } else if (R > 0) branch(a, 0, a, 0);
+            sr = -sr * metalA; si = -si * metalA; pr = -pr * metalA; pi = -pi * metalA;
+            if (metalA !== 1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          } else if (Rms > 0 || Rmp > 0) branch(as, 0, ap, 0);
         } else {
           const goingBack = cosd > 0;
           // Entering a crystal: its two polarisations go their own ways from here, so the ray

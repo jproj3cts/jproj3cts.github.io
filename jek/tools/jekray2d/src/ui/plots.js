@@ -580,7 +580,7 @@ export const unknownGlassNote = m => h('p', { class: 'rt-glasswarn wide' }, m.gl
 /* everything a part's import assumed, and any glass it has that traces as n = 1.5 */
 export function partAssumptions(el) {
   const out = [...(el.assumed || [])];
-  const mats = el.type === 'lens' ? el.materials || [] : el.material ? [el.material] : [];
+  const mats = el.type === 'lens' ? el.materials || [] : el.material && typeof el.material === 'object' ? [el.material] : [];   // (a detector's material is a name, not a glass)
   for (const m of mats) if (unknownGlass(m)) out.push(m.glass + ' is not in the glass catalogue and no index came with it, so it traces as n = 1.5: choose it under Material.');
   return [...new Set(out)];
 }

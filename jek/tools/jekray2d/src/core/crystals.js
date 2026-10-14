@@ -1,3 +1,4 @@
+import { meshT } from './rf.js';
 import { deg } from '../state/project.js';
 
 /* ==========================================================================
@@ -44,6 +45,7 @@ export function walkOff(m, nm, th) {
    is flat-topped (an eighth-order Butterworth) with its FWHM between the half points. */
 export const FILTER_TYPES = { longpass: 'Long-pass', shortpass: 'Short-pass', bandpass: 'Band-pass', nd: 'Neutral density' };
 export function filterT(el, nm) {
+  if (el.ftype === 'mesh') return meshT(el, nm);
   if (el.ftype === 'nd') return Math.pow(10, -el.od);
   const t = el.tmax / 100, w = el.slope / 4.394;
   if (el.ftype === 'longpass') return t / (1 + Math.exp(-(nm - el.edge) / w));

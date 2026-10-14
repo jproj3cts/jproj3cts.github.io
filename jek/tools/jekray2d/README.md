@@ -8,7 +8,7 @@ The tool is served as one page, `jek/tools/jekray2d.html`. That page is built fr
   - `core/`: constants, maths, formats, glasses, materials physics, geometry, masks, STL meshes, and `hooks.js`;
   - `state/`: the project, its elements, drawings, benches, parameters, installed packs;
   - `parts/`: one module per part type (`mirror.js`, `lens.js`, ...) and `registry.js`, which gathers them;
-  - `engines/`: ray tracing, the diffracted field, cavities, fibre, electronics, photonic circuits, modules' results, screen figures;
+  - `engines/`: ray tracing, the diffracted field, cavities, fibre, electronics, photonic circuits, modules' results, screen figures, an RF receiver's frequency sweep and link budget;
   - `ui/`: rendering, drawings, the pointer, panels, readouts, plots, sweeps, tabs, the close-up, the 3D view, wiring, and `ui/parts/`, one module per part (how it is drawn, picked and edited) with its own `registry.js`;
   - `io/`: saving and opening, autosave, share links, .zmx, part packs, modules, the cloud, the AI guide;
   - `page/`: the page's workers (the field worker's client, the trace worker, the shim);

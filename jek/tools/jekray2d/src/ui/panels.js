@@ -1,5 +1,5 @@
 import { clamp } from '../core/constants.js';
-import { fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
+import { fmtDbm, fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
 import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
 import { ATOMS, ATOM_ISO, C_SI, KB } from '../core/cells.js';
 import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, trapFLabel } from '../core/traps.js';
@@ -11,8 +11,9 @@ import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
 import { COAT_MATERIALS, coatPreset, qwot, stackAmp } from '../core/coatings.js';
-import { getEl, normElement } from '../state/elements.js';
+import { benchNms, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
+import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { getCss, removeFibre } from './render.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
@@ -529,11 +530,12 @@ export function coatingRows(el, holder, label) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
-      [['bare', 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
-        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack']],
+      [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
+        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : [])],
       () => holder.coat.mode,
       v => {
         const keep = holder.coat;
+        if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
         holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
           lo: keep.lo, hi: keep.hi, label: keep.label });
         if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
@@ -632,6 +634,53 @@ export function blockNote(el) {
     (el.source ? ' Imported from ' + el.source + '.' : ''));
 }
 export const readoutBox = kind => h('div', { class: 'rt-readout', 'data-readout': kind });
+/* a receiving horn's frequency sweep (S21 against frequency, the bench traced at each step) and
+   its link budget down the strongest beam that reaches it */
+function rfReceiverSections(el) {
+  panel.append(h('h3', null, 'Frequency sweep'));
+  panel.append(h('div', { class: 'rt-rows' }, param('Span (% of the frequency)', el, 'mmw.span'), param('Points', el, 'mmw.points')));
+  const cv = h('canvas', { height: '190', style: 'width:100%;display:block' });
+  const info = h('p', { class: 'note' });
+  panel.append(cv, plotSaveRow(cv), info);
+  bindSync(cv, () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 190, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const S = rfSweep(el);
+    if (!S) { info.textContent = 'No feed horn on the bench to sweep.'; return; }
+    const lo = S.ghz[0], hi = S.ghz[S.ghz.length - 1], vals = S.s21.filter(v => v > -199);
+    const top = vals.length ? Math.ceil(Math.max(...vals) / 5) * 5 : 0, bot = Math.max(top - 60, vals.length ? Math.floor(Math.min(...vals) / 5) * 5 : -60);
+    const sy = { kind: 'plain', title: 'S21, dB' }, sx = { kind: 'plain', title: 'frequency, GHz' };
+    const A = plotArea(c, w, hgt, [bot, top], sy), X = x => A.l + (x - lo) / (hi - lo) * A.w, Y = v => A.t + A.h - (Math.max(bot, Math.min(top, v)) - bot) / (top - bot) * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
+    S.ghz.forEach((x, i) => { const y = Y(S.s21[i]); i ? c.lineTo(X(x), y) : c.moveTo(X(x), y); }); c.stroke();
+    // the frequency the bench is at
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(X(S.f0), A.t); c.lineTo(X(S.f0), A.t + A.h); c.stroke(); c.setLineDash([]);
+    c.restore();
+    drawAxes(c, A, [lo, hi], [bot, top], sx, sy);
+    plotCsv(cv, el.name + ' sweep', ['frequency_GHz', 'S21_dB', 'coupling'], () => S.ghz.map((x, i) => [x, S.s21[i], S.eff[i]]));
+    const at = S.ghz.reduce((m, x, i) => (Math.abs(x - S.f0) < Math.abs(S.ghz[m] - S.f0) ? i : m), 0);
+    info.textContent = 'The power into this horn\u2019s mode over the power launched, every feed horn swept together; ' + S.ghz.length + ' points, the bench traced at each (' + Math.round(S.ms) + ' ms). At ' + (+S.f0.toPrecision(4)) + ' GHz: ' + S.s21[at].toFixed(2) + ' dB.';
+  });
+  panel.append(h('h3', null, 'Link budget'));
+  const box = h('div', { class: 'rt-readout' });
+  panel.append(box);
+  bindSync(box, () => {
+    const L = linkBudget(el);
+    if (!L) { box.replaceChildren(h('p', { class: 'note' }, 'Nothing reaches this horn.')); return; }
+    const f = v => (isFinite(v) ? (v > 0 ? '+' : '') + v.toFixed(2) + ' dB' : '\u2212\u221e');
+    box.replaceChildren(h('table', null, h('tbody', null,
+      ...L.rows.map(r => h('tr', null, h('td', null, r.what + (r.note ? ', ' + r.note : '')), h('td', null, r.note === 'launched' ? fmtDbm(L.inMw) : f(r.db)))),
+      h('tr', null, h('td', null, h('b', null, 'Received')), h('td', null, h('b', null, f(L.total) + ', ' + fmtDbm(L.mw)))))),
+      h('p', { class: 'note' }, 'Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'));
+  });
+}
+/* a dielectric face matched at the bench's frequency: a quarter wave of index \u221an */
+export function matchLayer(nGlass, nm) {
+  const n1 = Math.sqrt(nGlass);
+  return normCoat({ mode: 'stack', design: nm, layers: [{ n: n1, d: nm / (4 * n1) }], label: 'Matching layer' });
+}
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;
    the beam it launches, or takes in, from those (Goldsmith's fit of the aperture's field) */
 export function rfHornPanel(el) {
@@ -644,6 +693,7 @@ export function rfHornPanel(el) {
     param(el.mmw.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
     param('Slant length (mm)', el, 'mmw.L'));
   panel.append(rows);
+  if (!tx) rfReceiverSections(el);
   if (!tx) {
     panel.append(h('h3', null, 'Detector'));
     panel.append(h('div', { class: 'rt-rows' },

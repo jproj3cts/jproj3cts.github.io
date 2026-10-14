@@ -273,6 +273,7 @@ export function elementSurfaces(el) {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve
     return [makeSurf(el, 0, c, 0, 0, [], el.length / 2, { kind: 'screen' })];
   }
+  if (el.type === 'polariser' && el.grid) return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grid' })];   // a wire grid reflects what it stops
   if (el.type === 'waveplate' || el.type === 'polariser') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'mask') {
     const s = makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mask' });

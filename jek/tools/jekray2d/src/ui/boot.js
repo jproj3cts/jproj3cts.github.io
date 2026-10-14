@@ -34,6 +34,7 @@ import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
+import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { V3D, wireView3d } from './view3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
@@ -169,6 +170,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
     eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
     arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
+    // a receiving horn against frequency, and its link budget (RF)
+    rfSweep(name) { return rfSweep(this.byName(name)); },
+    linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw } : null }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },

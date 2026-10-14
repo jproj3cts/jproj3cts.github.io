@@ -1855,7 +1855,7 @@ function absorbAt(mat, nm) {
   }
   if (mat.abs > 0) return mat.abs;
   // an RF dielectric by its loss tangent: power absorbed per mm, 2 pi n tan(delta) / lambda
-  if (RF_MAT[mat.glass]) return 2 * Math.PI * RF_MAT[mat.glass].n * RF_MAT[mat.glass].tand / (nm * 1e-6);
+  if (RF_MAT[mat.glass]) { const M = RF_MAT[mat.glass]; return 2 * Math.PI * M.n * rfTanD(M, C_NM_GHZ / nm) / (nm * 1e-6); }
   return 0;
 }
 
@@ -1910,6 +1910,7 @@ function walkOff(m, nm, th) {
    is flat-topped (an eighth-order Butterworth) with its FWHM between the half points. */
 const FILTER_TYPES = { longpass: 'Long-pass', shortpass: 'Short-pass', bandpass: 'Band-pass', nd: 'Neutral density' };
 function filterT(el, nm) {
+  if (el.ftype === 'mesh') return meshT(el, nm);
   if (el.ftype === 'nd') return Math.pow(10, -el.od);
   const t = el.tmax / 100, w = el.slope / 4.394;
   if (el.ftype === 'longpass') return t / (1 + Math.exp(-(nm - el.edge) / w));
@@ -2623,17 +2624,95 @@ function normModRef(m, type) {
    receivers (feed horns, by their Gaussian beam: Goldsmith, Quasioptical Systems, 1998, ch. 7),
    the dielectrics lenses are made of at these frequencies, and units of GHz and dBm. */
 const C_NM_GHZ = 299792458;                                   // wavelength (nm) x frequency (GHz)
-/* dielectrics near 100 to 300 GHz: index and loss tangent (Lamb, Int. J. IR MM Waves 17, 1997, and makers' data) */
+/* Dielectrics for millimetre waves: index, and loss tangent at a reference frequency f0 (GHz) with
+   the power it grows by (tan δ ∝ f^β: about 1 for the polymers, whose absorption goes as f², about
+   0 for silicon and the crystals). Lamb, Int. J. IR MM Waves 17, 1997, and makers' data; the index
+   is taken constant over the band, which holds to a few parts in a thousand for these */
 const RF_MAT = {
-  'HDPE': { n: 1.526, tand: 3.1e-4, name: 'HDPE (polyethylene)' },
-  'PTFE': { n: 1.44, tand: 3e-4, name: 'PTFE (Teflon)' },
-  'Rexolite': { n: 1.59, tand: 6.6e-4, name: 'Rexolite (polystyrene)' },
-  'TPX': { n: 1.46, tand: 6e-4, name: 'TPX (polymethylpentene)' },
-  'HR silicon': { n: 3.4175, tand: 1e-5, name: 'High-resistivity silicon' },
-  'Fused quartz (RF)': { n: 1.952, tand: 1e-4, name: 'Fused quartz' },
-  'Alumina': { n: 3.13, tand: 2e-4, name: 'Alumina' },
-  'Nylon': { n: 1.73, tand: 1.1e-2, name: 'Nylon' },
+  'HDPE': { n: 1.526, tand: 3.1e-4, f0: 150, beta: 1, name: 'HDPE (polyethylene)' },
+  'PTFE': { n: 1.44, tand: 3e-4, f0: 150, beta: 1, name: 'PTFE (Teflon)' },
+  'Polypropylene': { n: 1.502, tand: 2.5e-4, f0: 150, beta: 1, name: 'Polypropylene' },
+  'Rexolite': { n: 1.59, tand: 6.6e-4, f0: 150, beta: 1, name: 'Rexolite (polystyrene)' },
+  'TPX': { n: 1.46, tand: 6e-4, f0: 150, beta: 1, name: 'TPX (polymethylpentene)' },
+  'HR silicon': { n: 3.4175, tand: 1e-5, f0: 150, beta: 0, name: 'High-resistivity silicon' },
+  'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
+  'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
+  'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
 };
+/* a dielectric's loss tangent at a frequency (GHz) */
+const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
+/* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */
+const RF_METALS = {
+  Al: { name: 'Aluminium', sigma: 3.5e7 }, Cu: { name: 'Copper', sigma: 5.8e7 }, Au: { name: 'Gold', sigma: 4.1e7 },
+  brass: { name: 'Brass', sigma: 1.5e7 }, steel: { name: 'Stainless steel', sigma: 1.4e6 }, ideal: { name: 'Perfect conductor', sigma: Infinity },
+};
+/* a metal mirror's reflectance at a frequency (GHz): 1 − 4 Rs / Z0 at normal incidence, Rs = √(π f μ0 / σ)
+   the surface resistance (the skin-depth loss; at an angle, within a few parts in ten thousand of this) */
+function metalR(key, ghz) {
+  const M = RF_METALS[key] || RF_METALS.Al;
+  if (!isFinite(M.sigma)) return 1;
+  const Rs = Math.sqrt(Math.PI * ghz * 1e9 * 4e-7 * Math.PI / M.sigma);
+  return Math.max(0, 1 - 4 * Rs / 376.73);
+}
+/* ---------- A wire grid: wires of radius a (mm) at pitch g (mm), E along the wires reflected ----------
+   The grid is a sheet reactance across a transmission line: for the field along the wires an
+   inductance X = (g/λ) Xn, Xn the quasi-static inductance of the grid as a function of its filling
+   2a/g (Chuss et al., Appl. Opt. 51, 197 (2012), an interpolation of full-wave simulations that
+   agrees with Marcuvitz's ln(g/2πa) for sparse grids and holds to 2a/g = 1), which reflects
+   R = 1/(1 + 4X²); across the wires a capacitance B = 4 (g/λ) ln sec(πw/2g), w = 4a the wires'
+   width as strips (Marcuvitz, capacitive strips, by Babinet), which leaks R = B²/(4 + B²). Met at
+   an angle θ, a sheet's reactance seen by the wave scales with the wave impedance: by cos θ for
+   wires across the plane of incidence, 1/cos θ for wires in it. Valid while g < λ (no diffraction):
+   past that the grid is a grating, and the figures are marked. Lossless: the wires' ohmic loss, a
+   few parts in a thousand at most, is left out. */
+function gridCoef(grid, nm, cth, inPlane) {
+  const lam = nm * 1e-6, g = grid.g, a = grid.a, c = Math.max(0.05, Math.abs(cth) || 1);
+  const u = Math.log(2 * Math.PI * a / g), Xn = Math.max(0.02, 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u);
+  const X = (g / lam) * Xn * (inPlane ? 1 / c : c);
+  const Rpar = 1 / (1 + 4 * X * X);
+  const w = Math.min(4 * a, 0.9 * g), B = 4 * (g / lam) * Math.log(1 / Math.cos(Math.PI * w / (2 * g))) * (inPlane ? 1 / c : c);
+  const Rperp = B * B / (4 + B * B);
+  return { Rpar, Rperp, X, B, grating: g >= lam };
+}
+/* ---------- A film beam splitter: a dielectric sheet of index n and thickness t (mm) ----------
+   Its two faces interfere (an etalon): r = r12 (1 − e^{−2iδ}) / (1 − r12² e^{−2iδ}), δ = 2π n t cos θt / λ,
+   with Fresnel's r12 for s and p at the angle of incidence. Lossless. */
+function filmCoef(film, nm, cth) {
+  const lam = nm * 1e-6, n = film.n, ci = Math.max(1e-6, Math.min(1, Math.abs(cth) || 1)), si = Math.sqrt(1 - ci * ci);
+  const ct = Math.sqrt(Math.max(0, 1 - (si / n) * (si / n)));
+  const rs = (ci - n * ct) / (ci + n * ct), rp = (n * ci - ct) / (n * ci + ct);
+  const d = 2 * Math.PI * n * film.t * ct / lam, c2 = Math.cos(2 * d), s2 = Math.sin(2 * d);
+  const one = r => {
+    // r (1 − e^{−2iδ}) / (1 − r² e^{−2iδ})
+    const nr = r * (1 - c2), ni = r * s2, dr = 1 - r * r * c2, di = r * r * s2, den = dr * dr + di * di;
+    return ((nr * dr + ni * di) ** 2 + (ni * dr - nr * di) ** 2) / (den * den);
+  };
+  return { Rs: Math.min(1, one(rs)), Rp: Math.min(1, one(rp)) };
+}
+/* ---------- Metal meshes: filters for millimetre waves (Ulrich, Infrared Phys. 7, 37 (1967)) ----------
+   In the non-diffracting region (g < λ) a mesh of period g with lines (or gaps) of width 2a is a
+   lumped element across the line, in the normalised frequency ω = g/λ: an inductive mesh (a grid of
+   square holes) a shunt inductance L = ln csc(πa/g), which passes |t|² = 1 / (1 + 1/(4ω²L²)), the
+   long waves reflected; a capacitive mesh (free-standing squares) a shunt capacitance C = 4 ln csc(πa/g),
+   |t|² = 1 / (1 + ω²C²/4), the short waves reflected; a resonant mesh (crosses, or cross-shaped slots)
+   a tuned circuit, band-stop or band-pass about f0 with a quality factor Q: |t|² = 1 / (1 + Q²(f/f0 − f0/f)²)
+   for the band-pass, one less that for the band-stop. What a mesh does not pass it reflects, but for
+   its loss. */
+const MESH_TYPES = { inductive: 'Inductive (high-pass)', capacitive: 'Capacitive (low-pass)', bandpass: 'Resonant, band-pass (cross slots)', bandstop: 'Resonant, band-stop (crosses)' };
+function meshT(el, nm) {
+  const ghz = C_NM_GHZ / nm, loss = Math.pow(10, -(el.meshLoss || 0) / 10);
+  let T;
+  if (el.mesh === 'bandpass' || el.mesh === 'bandstop') {
+    const u = el.meshQ * (ghz / el.meshF0 - el.meshF0 / ghz), bp = 1 / (1 + u * u);
+    T = el.mesh === 'bandpass' ? bp : 1 - bp;
+  } else {
+    const lam = nm * 1e-6, om = el.meshG / lam, lc = Math.log(1 / Math.sin(Math.PI * Math.min(0.499, el.meshA / el.meshG) / 1));
+    if (el.mesh === 'capacitive') { const C = 4 * lc; T = 1 / (1 + om * om * C * C / 4); }
+    else { const L = lc; T = 1 / (1 + 1 / (4 * om * om * L * L)); }
+  }
+  return Math.max(0, Math.min(1, T * loss));
+}
+const meshGrating = (el, nm) => (el.mesh === 'inductive' || el.mesh === 'capacitive') && el.meshG >= nm * 1e-6;
 /* feed horns: the Gaussian that fits the aperture field (w = k a, a the aperture's radius, or half
    its side for a diagonal horn), and the share of the power in that Gaussian (Goldsmith table 7.1) */
 const RF_HORNS = {
@@ -2654,6 +2733,7 @@ function normRf(r, type) {
   if (type !== 'source' && type !== 'detector') return { part: true };
   const o = { kind: RF_HORNS[r.kind] ? r.kind : 'corrugated', a: clamp(num(r.a, 7.5), 0.05, 2000), L: clamp(num(r.L, 60), 0.5, 1e5) };
   if (type === 'source') { o.ghz = clamp(num(r.ghz, 100), 1, 3000); o.dbm = clamp(num(r.dbm, 0), -120, 60); }
+  if (type === 'detector') { o.span = clamp(num(r.span, 40), 1, 190); o.points = clamp(Math.round(num(r.points, 61)), 5, 401); }   // its frequency sweep: % of the frequency, and points
   return o;
 }
 /* a horn sets its own beam: a source its wavelength, waist, power (the share in the Gaussian) and
@@ -3321,6 +3401,9 @@ const MIRROR = {
       k: num(e.k, 0),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
+      // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
+      ...(RF_METALS[e.metal] ? { metal: e.metal } : {}),
+      ...(e.film && typeof e.film === 'object' ? { film: { n: clamp(num(e.film.n, 1.73), 1, 20), t: clamp(num(e.film.t, 0.1), 1e-4, 100) } } : {}),
       // its readouts of the light arriving, as a screen's
       mapScale: e.mapScale === 'log' ? 'log' : 'lin',
       vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
@@ -3334,6 +3417,8 @@ const MIRROR = {
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
+    metal: 'an RF metal mirror: "Al", "Cu", "Au", "brass", "steel" or "ideal", for its loss by surface resistance.',
+    film: 'a film beam splitter (RF): { "n": index, "t": mm thickness } of a dielectric sheet, reflecting by its two faces\u2019 interference; then reflect is ignored.',
     mapScale: '"lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s).', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams arriving.',
     mtfFreq: 'lp/mm at which its Diffraction tab quotes the MTF.' },
   },
@@ -3406,12 +3491,15 @@ const POLARISER = {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25.4)),
       axis: num(e.axis, 0),
+      // a wire grid (RF): pitch g and wire radius a, mm; its axis 0 for wires across the bench (upright), 90 for wires in its plane
+      ...(e.grid && typeof e.grid === 'object' ? { grid: { g: Math.max(1e-4, num(e.grid.g, 0.025)), a: Math.max(1e-5, num(e.grid.a, 0.005)) } } : {}),
     });
   },
   guide: {
     what: 'A linear polariser.',
     angle: 'its normal: 0 for a beam travelling ±x.',
-    fields: { length: 'mm aperture.', axis: 'degrees: the transmission axis from p (0 passes p, 90 passes s).' },
+    fields: { length: 'mm aperture.', axis: 'degrees: the transmission axis from p (0 passes p, 90 passes s).',
+      grid: 'a wire grid (RF): { "g": mm pitch, "a": mm wire radius }; it then reflects the field along its wires (axis 0: wires upright, reflecting s; 90: wires in the bench plane, reflecting p) by its pitch and wire size, and leaks a little of the other.' },
   },
 };
 /* Mask: A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective. */
@@ -3695,7 +3783,10 @@ const FILTER = {
   norm(e, base) {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25)),
-      ftype: FILTER_TYPES[e.ftype] ? e.ftype : 'longpass',
+      ftype: FILTER_TYPES[e.ftype] ? e.ftype : e.ftype === 'mesh' ? 'mesh' : 'longpass',
+      // a metal mesh (RF): its kind, period and line width (mm), and for a resonant one its centre (GHz) and Q; its loss, dB
+      ...(e.ftype === 'mesh' ? { mesh: MESH_TYPES[e.mesh] ? e.mesh : 'inductive', meshG: Math.max(1e-4, num(e.meshG, 0.5)), meshA: Math.max(1e-5, num(e.meshA, 0.05)),
+        meshF0: clamp(num(e.meshF0, 150), 1, 3000), meshQ: clamp(num(e.meshQ, 5), 0.1, 1000), meshLoss: clamp(num(e.meshLoss, 0.2), 0, 60) } : {}),
       edge: clamp(num(e.edge, 600), 100, 20000), slope: Math.max(0.1, num(e.slope, 10)),
       centre: clamp(num(e.centre, 550), 100, 20000), fwhm: Math.max(0.1, num(e.fwhm, 10)),
       od: clamp(num(e.od, 1), 0, 10), tmax: clamp(num(e.tmax, 95), 0, 100),
@@ -3707,7 +3798,8 @@ const FILTER = {
     angle: 'its normal: 0 for a beam travelling ±x.',
     fields: { length: 'mm aperture.', ftype: 'one of the filter types below.', edge: 'nm: the edge of a long- or short-pass.', slope: 'nm: the 10–90% width of the edge.',
     centre: 'nm: a band-pass centre.', fwhm: 'nm: a band-pass width.', od: 'optical density of an "nd" filter: it transmits 10^−od.', tmax: '% peak transmission.',
-    reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.' },
+    reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.',
+    mesh: 'with ftype "mesh" (RF): "inductive", "capacitive", "bandpass" or "bandstop"; meshG mm period and meshA mm line (or gap) width for the first two, meshF0 GHz and meshQ for the resonant ones, meshLoss dB.' },
   },
 };
 /* Link plane: One of a pair of link planes joining two tabs: the pair is one plane seen from two benches. */
@@ -3938,10 +4030,10 @@ const GAIN = {
    as the palette's, with its sizes and materials */
 const RF = {
   family: 'rf',
-  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
+  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:mesh', short: 'Mesh filter', long: 'Metal mesh filter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
   groups: [['Horns', ['rf:horn', 'rf:rx']],
   ['Lenses and mirrors', ['rf:lens', 'rf:mirror', 'rf:fmirror']],
-  ['Polarisation and splitting', ['rf:grid', 'rf:bs']],
+  ['Polarisation, splitting and filtering', ['rf:grid', 'rf:bs', 'rf:mesh']],
   ['Loads', ['rf:load']]],
   make(x, y, kind) {
     const rf = { part: true };
@@ -3949,10 +4041,11 @@ const RF = {
       case 'horn': return ({ type: 'source', name: nextName('Horn'), x, y, angle: 0, rays: 3, mmw: { kind: 'corrugated', ghz: 100, dbm: 0, a: 7.5, L: 60 } });
       case 'rx': return ({ type: 'detector', name: nextName('Receiver'), x, y, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: 7.5, L: 60 } });
       case 'lens': return ({ type: 'lens', name: nextName('RF lens'), x, y, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: rf });
-      case 'mirror': return ({ type: 'mirror', name: nextName('Flat mirror'), x, y, angle: 135, length: 100, mmw: rf });
-      case 'fmirror': return ({ type: 'mirror', name: nextName('Focusing mirror'), x, y, angle: 180, length: 100, R: 300, mmw: rf });
-      case 'grid': return ({ type: 'polariser', name: nextName('Wire grid'), x, y, angle: 0, axis: 0, length: 100, mmw: rf });
-      case 'bs': return ({ type: 'mirror', name: nextName('Film beam splitter'), x, y, angle: 135, length: 100, reflect: 50, mmw: rf });
+      case 'mirror': return ({ type: 'mirror', name: nextName('Flat mirror'), x, y, angle: 135, length: 100, metal: 'Al', mmw: rf });
+      case 'fmirror': return ({ type: 'mirror', name: nextName('Focusing mirror'), x, y, angle: 180, length: 100, R: 300, metal: 'Al', mmw: rf });
+      case 'grid': return ({ type: 'polariser', name: nextName('Wire grid'), x, y, angle: 135, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: rf });
+      case 'bs': return ({ type: 'mirror', name: nextName('Film beam splitter'), x, y, angle: 135, length: 100, reflect: 50, film: { n: 1.73, t: 0.1 }, mmw: rf });
+      case 'mesh': return ({ type: 'filter', name: nextName('Mesh filter'), x, y, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.2, reflect: true, mmw: rf });
       case 'load': return ({ type: 'screen', name: nextName('Absorber load'), x, y, angle: 180, length: 50, mmw: rf });
     }
     return null;
@@ -4859,6 +4952,7 @@ function elementSurfaces(el) {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve
     return [makeSurf(el, 0, c, 0, 0, [], el.length / 2, { kind: 'screen' })];
   }
+  if (el.type === 'polariser' && el.grid) return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grid' })];   // a wire grid reflects what it stops
   if (el.type === 'waveplate' || el.type === 'polariser') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'mask') {
     const s = makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mask' });
@@ -5377,6 +5471,8 @@ function setLoadGen(v) { return (loadGen = v); }
 function setLastTraceMs(v) { return (lastTraceMs = v); }
 function setLastTraceKey(v) { return (lastTraceKey = v); }
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
+/* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
+const rfNotes = new Set();
 const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
 function traceScene() {
@@ -5641,6 +5737,7 @@ function fromSurfFrame(J, sLoc, d, sig, fx) {
 }
 function traceSceneOnce() {
   ensureBenches(project);
+  rfNotes.clear();
   // each bench's surfaces on their own: a ray meets only those of the bench it is on
   const surfsBy = new Map(), segsBy = new Map(), NONE = [];
   for (const b of project.benches) { surfsBy.set(b.id, []); segsBy.set(b.id, []); }
@@ -6321,7 +6418,7 @@ function traceSceneOnce() {
         // leaving is turned back into its own frame. A crystal's faces keep the ray's frame.
         let sLoc = null;
         const fxL = [s.f.c, -s.f.s, 0];        // the bench's x in this surface's frame
-        if ((ldz || nz) && !probe && (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'refract' || s.kind === 'split')
+        if ((ldz || nz) && !probe && (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid' || s.kind === 'refract' || s.kind === 'split')
           && (s.tilt || !(s.front && s.front.bire) && !(s.back && s.back.bire))) {
           const d = [ldx, ldy, ldz], sig = par ? -1 : 1, [S, P] = polFrame(d, sig, fxL);
           let a = [ny * ldz - nz * ldy, nz * ldx - nx * ldz, nx * ldy - ny * ldx];
@@ -6383,7 +6480,7 @@ function traceSceneOnce() {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
-            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter') && cosd >= 0,
+            return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && cosd >= 0,
               n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = kapIn(s, ly);
@@ -6406,29 +6503,37 @@ function traceSceneOnce() {
           }
           qT = tr.q; evT = tr.ev; qRf = rf.q; evR = rf.ev;
         }
-        const Rm = s.kind === 'filter' ? 1 - filterT(s.el, nm) : s.kind === 'mirror' ? s.el.reflect / 100 : 0;
-        if ((s.kind === 'mirror' || s.kind === 'filter') && probe) {
+        // what a reflecting sheet sends back, s and p: a mirror's reflectance (a metal one's by its
+        // surface resistance), a filter's rejection, a film's two faces interfering, a wire grid's
+        // pitch and wires (the field along its wires reflected, the other leaked a little)
+        let Rms = 0, Rmp = 0, metalA = 1;
+        if (s.kind === 'filter') Rms = Rmp = 1 - filterT(s.el, nm);
+        else if (s.kind === 'grid') { const G = gridCoef(s.el.grid, nm, cosd, Math.abs(((s.el.axis % 180) + 180) % 180 - 90) < 45); if (G.grating) rfNotes.add(s.el.id); const up = Math.abs(((s.el.axis % 180) + 180) % 180 - 90) >= 45; Rms = up ? G.Rpar : G.Rperp; Rmp = up ? G.Rperp : G.Rpar; }
+        else if (s.kind === 'mirror' && s.el.film) { const F = filmCoef(s.el.film, nm, cosd); Rms = F.Rs; Rmp = F.Rp; }
+        else if (s.kind === 'mirror') { Rms = Rmp = s.el.reflect / 100; if (s.el.metal) metalA = Math.sqrt(metalR(s.el.metal, C_NM_GHZ / nm)); }
+        const Rm = (Rms + Rmp) / 2;
+        if ((s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && probe) {
           // a probe is a measuring ray, not light: it follows whichever arm is stronger
           if (Rm >= 0.5) {
             if (cosd >= 0) break;
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
           }
-        } else if (s.kind === 'mirror' || s.kind === 'filter') {
+        } else if (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') {
           // a reflective filter (a dichroic) is a partial mirror whose reflectance is what it rejects
-          const R = Rm;
           // A mirror turns the field over from its coated face: half a wave. From behind, a
           // partial mirror reflects the other way up, as a lossless one must (Stokes: t t' - r r'
           // = 1). With the same sign both ways a cavity would not conserve energy, and its
           // reflected light would not cancel on resonance.
-          const a = cosd >= 0 ? Math.sqrt(R) : -Math.sqrt(R);
-          if (R >= 1) {
-            if (cosd >= 0 && s.kind === 'mirror') break;           // back of a full mirror absorbs
+          const sg = cosd >= 0 ? 1 : -1, as = sg * Math.sqrt(Rms) * metalA, ap = sg * Math.sqrt(Rmp) * metalA;
+          if (Rms >= 1 && Rmp >= 1) {
+            if (cosd >= 0 && s.kind === 'mirror' && !s.el.film) break;           // back of a full mirror absorbs
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
             opl += reflExtra;
-            sr = -sr; si = -si; pr = -pr; pi = -pi;
-          } else if (R > 0) branch(a, 0, a, 0);
+            sr = -sr * metalA; si = -si * metalA; pr = -pr * metalA; pi = -pi * metalA;
+            if (metalA !== 1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          } else if (Rms > 0 || Rmp > 0) branch(as, 0, ap, 0);
         } else {
           const goingBack = cosd > 0;
           // Entering a crystal: its two polarisations go their own ways from here, so the ray
@@ -12737,6 +12842,59 @@ function pdInstSignal(el) {
   const S = ELEC.detSignalFull(el), inc = pdSignal(el).tones.filter(t => t.incoh);
   return inc.length ? Object.assign({}, S, { tones: S.tones.concat(inc.map(t => ({ f: t.f, re: t.V, im: 0, incoh: true }))) }) : S;
 }
+/* ---------- A receiving horn against frequency, and its link budget ----------
+   The sweep: every feed horn on the bench taken through a band about its frequency (each in
+   proportion to its own, when there are several), the bench traced again at each step, and what
+   the receiver takes in read there: S21, the power into its mode over the power launched, in dB.
+   Everything on the way is at its value for that frequency: a dielectric's index and loss, a
+   mesh's transmission, a grid's leak, a film's interference, the horns' own beams. Kept for the
+   bench as it stands. */
+const cache = { key: '', out: null };
+const rfSources = () => project.elements.filter(e => e.type === 'source' && e.mmw && !e.mmw.part);
+function rfSweep(rx) {
+  const srcs = rfSources();
+  if (!srcs.length || !rx.mmw || rx.mmw.part) return null;
+  const key = JSON.stringify(project.elements) + '|' + rx.id;
+  if (cache.key === key) return cache.out;
+  const f0 = srcs[0].mmw.ghz, span = rx.mmw.span / 100, N = rx.mmw.points, saved = srcs.map(s => s.mmw.ghz);
+  const ghz = [], s21 = [], eff = [];
+  const t0 = performance.now();
+  for (let k = 0; k < N; k++) {
+    const f = f0 * (1 - span / 2 + span * k / (N - 1));
+    srcs.forEach((s, i) => { s.mmw.ghz = saved[i] * f / f0; applyRf(s); });
+    setLastTraceKey(null); traceScene();
+    const C = rfCoupling(rx), Pin = srcs.reduce((a, s) => a + s.power, 0);
+    ghz.push(f); s21.push(C && C.mw > 0 && Pin > 0 ? 10 * Math.log10(C.mw / Pin) : -200); eff.push(C ? C.eff : 0);
+  }
+  srcs.forEach((s, i) => { s.mmw.ghz = saved[i]; applyRf(s); });
+  setLastTraceKey(null); traceScene();
+  cache.key = key; cache.out = { ghz, s21, eff, f0, ms: performance.now() - t0 };
+  return cache.out;
+}
+/* The link budget: down the strongest beam arriving at the receiver, from its horn, each part
+   met and what the power did there (dB, reflections and transmissions, a dielectric's loss),
+   then the coupling into the receiver's mode and the whole */
+function linkBudget(rx) {
+  const arr = faceArrivals(rx), B = lastTrace.beams || [];
+  if (!arr.length) return null;
+  const P = a => a.J.reduce((s, v) => s + v * v, 0);
+  const A = arr.reduce((m, a) => (P(a) > P(m) ? a : m), arr[0]);
+  const chain = [];
+  for (let j = B.indexOf(A.b); j >= 0; j = B[j].parent) chain.push(j);
+  chain.reverse();
+  const src = getEl(B[chain[0]].src), rows = [], dB = r => (r > 0 ? 10 * Math.log10(r) : -Infinity);
+  rows.push({ what: src ? src.name : 'Source', note: 'launched', db: 0, w: B[chain[0]].w });
+  for (let c = 1; c < chain.length; c++) {
+    const b = B[chain[c]], p = B[chain[c - 1]], ev = b.ev, el = ev && getEl(ev.el);
+    const r = p.w > 0 ? b.w / p.w : 0, mode = ev ? (ev.mode === 'R' ? 'reflected' : ev.mode === 'T' ? 'through' : 'passed') : '';
+    if (el) rows.push({ what: el.name, note: mode, db: dB(r), w: b.w });
+  }
+  // the last beam's own path: a dielectric's absorption is in its power at the end (see beams' w)
+  const C = rfCoupling(rx);
+  if (C) rows.push({ what: rx.name, note: 'into its mode', db: dB(C.eff), w: null });
+  const Pin = rfSources().reduce((a, s) => a + s.power, 0);
+  return { rows, total: C && Pin > 0 ? dB(C.mw / Pin) : -Infinity, mw: C ? C.mw : 0, inMw: Pin };
+}
 /* ==========================================================================
    3D view: a tab of free-space parts seen in three dimensions, turned and zoomed as in a CAD
    program (the default mouse: right-drag turns, middle-drag pans, the wheel zooms;
@@ -15459,15 +15617,26 @@ function drawMirror(el, sel) {
 function mirrorPanel(el) {
   // what arrives at its face: the rays, the diffracted field and a pulse, read as a screen reads them
   if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
-  panel.append(h('h3', null, 'Mirror'));
+  panel.append(h('h3', null, el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
+  const nm = benchNms()[0], ghz = C_NM_GHZ / nm;
+  if (el.film) {
+    const F45 = filmCoef(el.film, nm, Math.SQRT1_2), pc = v => (100 * v).toPrecision(3) + ' %';
+    panel.append(h('div', { class: 'rt-rows' },
+      param('Length (mm)', el, 'length'), param('Film index', el, 'film.n'), param('Thickness (mm)', el, 'film.t', { wide: true })));
+    panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,
+      h('tr', null, h('td', null, 'At ' + (+ghz.toPrecision(4)) + ' GHz, 45\u00b0'), h('td', null, 'reflects ' + pc(F45.Rs) + ' of s, ' + pc(F45.Rp) + ' of p'))))));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A dielectric sheet (Mylar is 1.73): its two faces interfere, so what it reflects goes with its thickness over the wavelength, the angle, and the polarisation. Lossless.'));
+    return;
+  }
   panel.append(h('div', { class: 'rt-rows' },
     param('Length (mm)', el, 'length'),
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    param('Reflectance (%)', el, 'reflect'),
+    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
     param('Conic k', el, 'k', { blank: 0 }),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));
+  if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));
   if (el.source) panel.append(h('p', { class: 'note' }, 'Imported from ' + el.source + '.'));
 }
@@ -15745,6 +15914,13 @@ function drawJones(el, sel) {
   pathLocal(f, [[-0.6 * k * 2, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
   ctx.fillStyle = el.type === 'polariser' ? 'rgba(157,107,255,0.22)' : 'rgba(115,185,202,0.18)';
   ctx.fill();
+  if (el.grid) {
+    // a wire grid: its wires, as ticks along the plate (upright wires seen end on as dots)
+    const up = Math.abs(((el.axis % 180) + 180) % 180 - 90) >= 45, n = Math.max(6, Math.min(40, Math.round(el.length / 4)));
+    ctx.strokeStyle = sel ? selInk() : '#d9cfff'; ctx.lineWidth = 1;
+    for (let i = 0; i <= n; i++) { const y = -L + 2 * L * i / n; pathLocal(f, up ? [[-1.2 * k, y], [1.2 * k, y]] : [[-2.4 * k, y], [2.4 * k, y]]); ctx.stroke(); }
+    if (!up) { pathLocal(f, [[0, -L], [0, L]]); ctx.lineWidth = 2; ctx.stroke(); }
+  }
   ctx.strokeStyle = sel ? selInk() : (el.type === 'polariser' ? '#b79bff' : '#73b9ca');
   ctx.lineWidth = sel ? 2.5 : 1.6;
   ctx.stroke();
@@ -15763,6 +15939,7 @@ function drawJones(el, sel) {
 
 function jonesPanel(el) {
   const wp = el.type === 'waveplate';
+  if (el.grid) { gridPanel(el); return; }
   panel.append(h('h3', null, wp ? 'Waveplate' : 'Polariser'));
   const rows = h('div', { class: 'rt-rows' },
     param('Aperture (mm)', el, 'length', { wide: true }),
@@ -15785,6 +15962,25 @@ function jonesPanel(el) {
 const WAVEPLATE_UI = {
   draw: drawJones, hit: hitThin, panel: jonesPanel, rank: 1, noModPanel: true,
 };
+
+/* a wire grid: its pitch and wires, which way they run, and what it does to the light at the bench's frequency */
+function gridPanel(el) {
+  panel.append(h('h3', null, 'Wire grid'));
+  const up = Math.abs(((el.axis % 180) + 180) % 180 - 90) >= 45;
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Aperture (mm)', el, 'length'),
+    selectField('Wires', [['0', 'Upright, across the bench (reflect s)'], ['90', 'In the bench plane (reflect p)']], () => (up ? '0' : '90'), v => { el.axis = +v; }),
+    param('Pitch g (mm)', el, 'grid.g'), param('Wire radius a (mm)', el, 'grid.a')));
+  const nm = benchNms()[0], G = gridCoef(el.grid, nm, 1, !up), pc = v => (100 * v).toPrecision(3) + ' %';
+  panel.append(h('div', { class: 'rt-readout' },
+    h('table', null, h('tbody', null,
+      h('tr', null, h('td', null, 'At ' + (+(C_NM_GHZ / nm).toPrecision(4)) + ' GHz, square on'), h('td', null, '')),
+      h('tr', null, h('td', null, 'Along the wires: reflected'), h('td', null, pc(G.Rpar) + ' (' + (10 * Math.log10(Math.max(1e-12, 1 - G.Rpar))).toFixed(1) + ' dB leaks through)')),
+      h('tr', null, h('td', null, 'Across the wires: passed'), h('td', null, pc(1 - G.Rperp) + ' (' + (10 * Math.log10(Math.max(1e-12, G.Rperp))).toFixed(1) + ' dB reflected)')),
+      h('tr', null, h('td', null, 'Filling 2a/g'), h('td', null, (2 * el.grid.a / el.grid.g).toPrecision(3)))))));
+  if (G.grating) panel.append(h('p', { class: 'rt-assumed' }, 'Its pitch is more than the wavelength: the grid diffracts as a grating, which the model does not follow; the figures above hold for g < \u03bb.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A grid of round wires: the field along the wires sees them as a shunt inductance across the line, (g/\u03bb) X\u2099(2a/g), and is reflected 1/(1 + 4X\u00b2); the field across them sees a small capacitance and passes, leaking B\u00b2/(4 + B\u00b2). Met at an angle, the wires\u2019 reactance scales with the wave impedance (cos \u03b8 for upright wires, 1/cos \u03b8 for wires in the plane). Lossless; valid while g < \u03bb. Chuss et al. 2012, after Marcuvitz.'));
+}
 /* Polariser on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/polariser.js */
 
 const POLARISER_UI = {
@@ -16061,6 +16257,7 @@ const CRYSTAL_UI = {
 /* Filter on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/filter.js */
 
 function filterPanel(el) {
+  if (el.ftype === 'mesh') { meshPanel(el); return; }
   panel.append(h('h3', null, 'Filter'));
   const rows = h('div', { class: 'rt-rows' },
     selectField('Type', Object.entries(FILTER_TYPES), () => el.ftype, v => { el.ftype = v; }, { wide: true }));
@@ -16082,6 +16279,26 @@ function drawFilter(el, sel) { const c = filterColour(el); drawPlate(el, sel, c,
 const FILTER_UI = {
   draw: drawFilter, hit: hitPlate, panel: filterPanel, rank: 1,
 };
+
+/* a metal mesh: its kind and geometry, and what it passes at the bench's frequency */
+function meshPanel(el) {
+  panel.append(h('h3', null, 'Mesh filter'));
+  const res = el.mesh === 'bandpass' || el.mesh === 'bandstop';
+  const rows = h('div', { class: 'rt-rows' },
+    selectField('Mesh', Object.entries(MESH_TYPES), () => el.mesh, v => { el.mesh = v; }, { wide: true }));
+  if (res) rows.append(param('Centre (GHz)', el, 'meshF0'), param('Q', el, 'meshQ'));
+  else rows.append(param('Period g (mm)', el, 'meshG'), param(el.mesh === 'capacitive' ? 'Gap 2a (mm)' : 'Line 2a (mm)', el, 'meshA'));
+  rows.append(param('Loss (dB)', el, 'meshLoss'), param('Aperture (mm)', el, 'length'));
+  panel.append(rows);
+  const nm = benchNms()[0], T = filterT(el, nm);
+  panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,
+    h('tr', null, h('td', null, 'At ' + (+(C_NM_GHZ / nm).toPrecision(4)) + ' GHz'), h('td', null, 'passes ' + (100 * T).toPrecision(3) + ' % (' + (10 * Math.log10(Math.max(1e-12, T))).toFixed(2) + ' dB), reflects the rest'))))));
+  if (meshGrating(el, nm)) panel.append(h('p', { class: 'rt-assumed' }, 'Its period is more than the wavelength: the mesh diffracts, which the model does not follow; the figures hold for g < \u03bb.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, res
+    ? 'A resonant mesh (crosses, or cross-shaped slots) is a tuned circuit across the line: |t|\u00b2 = 1/(1 + Q\u00b2(f/f\u2080 \u2212 f\u2080/f)\u00b2) for the band-pass, one less that for the band-stop. Its centre and Q come from the cross\u2019s size and arms; set them from the maker\u2019s curve.'
+    : 'In the non-diffracting region a mesh is a lumped element across the line (Ulrich 1967): a grid of square holes a shunt inductance L = ln csc(\u03c0a/g), passing 1/(1 + 1/(4\u03c9\u00b2L\u00b2)) with \u03c9 = g/\u03bb, so the long waves are reflected; free-standing squares a shunt capacitance C = 4 ln csc(\u03c0a/g), passing 1/(1 + \u03c9\u00b2C\u00b2/4), so the short waves are. What it does not pass it reflects, but for its loss.'));
+  panel.append(readoutBox('filter'));
+}
 /* Gain medium on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/gain.js */
 
 function gainPanel(el) {
@@ -16624,7 +16841,7 @@ function updateReadoutsIn(container, el) {
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);
     parts = [rows, ''];
   } else if (el.type === 'filter' || el.type === 'gain') {
-    const rows = benchNms().slice(0, 6).map(nm => [nm + ' nm', el.type === 'filter' ? (100 * filterT(el, nm)).toPrecision(4) + '% through'
+    const rows = benchNms().slice(0, 6).map(nm => [el.mmw ? fmtGHz(C_NM_GHZ / nm) : nm + ' nm', el.type === 'filter' ? (100 * filterT(el, nm)).toPrecision(4) + '% through'
       : '×' + (+gainAt(el, nm).toPrecision(4)) + ' a pass']);
     parts = [rows, el.type === 'filter' ? 'Transmission at each source wavelength.' : 'Power gain at each source wavelength.'];
   } else if (el.type === 'stop') {
@@ -18184,11 +18401,12 @@ function coatingRows(el, holder, label) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
-      [['bare', 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
-        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack']],
+      [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
+        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : [])],
       () => holder.coat.mode,
       v => {
         const keep = holder.coat;
+        if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
         holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
           lo: keep.lo, hi: keep.hi, label: keep.label });
         if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
@@ -18287,6 +18505,53 @@ function blockNote(el) {
     (el.source ? ' Imported from ' + el.source + '.' : ''));
 }
 const readoutBox = kind => h('div', { class: 'rt-readout', 'data-readout': kind });
+/* a receiving horn's frequency sweep (S21 against frequency, the bench traced at each step) and
+   its link budget down the strongest beam that reaches it */
+function rfReceiverSections(el) {
+  panel.append(h('h3', null, 'Frequency sweep'));
+  panel.append(h('div', { class: 'rt-rows' }, param('Span (% of the frequency)', el, 'mmw.span'), param('Points', el, 'mmw.points')));
+  const cv = h('canvas', { height: '190', style: 'width:100%;display:block' });
+  const info = h('p', { class: 'note' });
+  panel.append(cv, plotSaveRow(cv), info);
+  bindSync(cv, () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 190, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const S = rfSweep(el);
+    if (!S) { info.textContent = 'No feed horn on the bench to sweep.'; return; }
+    const lo = S.ghz[0], hi = S.ghz[S.ghz.length - 1], vals = S.s21.filter(v => v > -199);
+    const top = vals.length ? Math.ceil(Math.max(...vals) / 5) * 5 : 0, bot = Math.max(top - 60, vals.length ? Math.floor(Math.min(...vals) / 5) * 5 : -60);
+    const sy = { kind: 'plain', title: 'S21, dB' }, sx = { kind: 'plain', title: 'frequency, GHz' };
+    const A = plotArea(c, w, hgt, [bot, top], sy), X = x => A.l + (x - lo) / (hi - lo) * A.w, Y = v => A.t + A.h - (Math.max(bot, Math.min(top, v)) - bot) / (top - bot) * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
+    S.ghz.forEach((x, i) => { const y = Y(S.s21[i]); i ? c.lineTo(X(x), y) : c.moveTo(X(x), y); }); c.stroke();
+    // the frequency the bench is at
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(X(S.f0), A.t); c.lineTo(X(S.f0), A.t + A.h); c.stroke(); c.setLineDash([]);
+    c.restore();
+    drawAxes(c, A, [lo, hi], [bot, top], sx, sy);
+    plotCsv(cv, el.name + ' sweep', ['frequency_GHz', 'S21_dB', 'coupling'], () => S.ghz.map((x, i) => [x, S.s21[i], S.eff[i]]));
+    const at = S.ghz.reduce((m, x, i) => (Math.abs(x - S.f0) < Math.abs(S.ghz[m] - S.f0) ? i : m), 0);
+    info.textContent = 'The power into this horn\u2019s mode over the power launched, every feed horn swept together; ' + S.ghz.length + ' points, the bench traced at each (' + Math.round(S.ms) + ' ms). At ' + (+S.f0.toPrecision(4)) + ' GHz: ' + S.s21[at].toFixed(2) + ' dB.';
+  });
+  panel.append(h('h3', null, 'Link budget'));
+  const box = h('div', { class: 'rt-readout' });
+  panel.append(box);
+  bindSync(box, () => {
+    const L = linkBudget(el);
+    if (!L) { box.replaceChildren(h('p', { class: 'note' }, 'Nothing reaches this horn.')); return; }
+    const f = v => (isFinite(v) ? (v > 0 ? '+' : '') + v.toFixed(2) + ' dB' : '\u2212\u221e');
+    box.replaceChildren(h('table', null, h('tbody', null,
+      ...L.rows.map(r => h('tr', null, h('td', null, r.what + (r.note ? ', ' + r.note : '')), h('td', null, r.note === 'launched' ? fmtDbm(L.inMw) : f(r.db)))),
+      h('tr', null, h('td', null, h('b', null, 'Received')), h('td', null, h('b', null, f(L.total) + ', ' + fmtDbm(L.mw)))))),
+      h('p', { class: 'note' }, 'Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'));
+  });
+}
+/* a dielectric face matched at the bench's frequency: a quarter wave of index \u221an */
+function matchLayer(nGlass, nm) {
+  const n1 = Math.sqrt(nGlass);
+  return normCoat({ mode: 'stack', design: nm, layers: [{ n: n1, d: nm / (4 * n1) }], label: 'Matching layer' });
+}
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;
    the beam it launches, or takes in, from those (Goldsmith's fit of the aperture's field) */
 function rfHornPanel(el) {
@@ -18299,6 +18564,7 @@ function rfHornPanel(el) {
     param(el.mmw.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
     param('Slant length (mm)', el, 'mmw.L'));
   panel.append(rows);
+  if (!tx) rfReceiverSections(el);
   if (!tx) {
     panel.append(h('h3', null, 'Detector'));
     panel.append(h('div', { class: 'rt-rows' },
@@ -19050,7 +19316,7 @@ const unknownGlassNote = m => h('p', { class: 'rt-glasswarn wide' }, m.glass + '
 /* everything a part's import assumed, and any glass it has that traces as n = 1.5 */
 function partAssumptions(el) {
   const out = [...(el.assumed || [])];
-  const mats = el.type === 'lens' ? el.materials || [] : el.material ? [el.material] : [];
+  const mats = el.type === 'lens' ? el.materials || [] : el.material && typeof el.material === 'object' ? [el.material] : [];   // (a detector's material is a name, not a glass)
   for (const m of mats) if (unknownGlass(m)) out.push(m.glass + ' is not in the glass catalogue and no index came with it, so it traces as n = 1.5: choose it under Material.');
   return [...new Set(out)];
 }
@@ -29670,6 +29936,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',
     'A sweep of every example and of benches sent in, for polish and physics. <b>Light</b>: rays are as bright as the light they carry, on a log scale against the strongest ray of their own source, so a window\u2019s 4 % reflection is plainly fainter than the beam it came off, a cavity\u2019s hundreds of passes no longer paint the bench solid, a fibre tip fed through a lossy network is as bright as a laser, and a 5 % leak through a mirror still shows, in 2D and 3D; a dense fan is drawn at twice the resolution, so lines and pixels no longer beat; a laser\u2019s aperture takes in light that reaches it instead of passing it through the housing. <b>The 3D field</b>: each beam as bright as the light it carries (a 5 % leak is 5 % as bright, where every beam was drawn at its laser\u2019s power); a beam clipped by a lens\u2019s rim added to the light round the rim where each cut is taken (the old interpolation between far-apart cuts had left such beams all but dark); a laser\u2019s two polarisation halves added, where one was dropped; rays that meet nothing end a little past the parts. <b>Sweeps</b>: one rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there; a bench with a module renders ahead and runs its field off the page, the module\u2019s results fetched for each step. <b>The bench</b>: dragging the view with the field shown is smooth however many slices it has; fit view keeps every part clear of the rail and tabs, and the 3D fit comes in as close as the corners allow; names sit under their part whichever way it is turned, step off one another and off port names and sockets, and stay readable at any zoom; an iris shows its opening as a gap; a screen\u2019s profile is a plot with a baseline, as tall as the light is strong. <b>Physics</b>: a surface that turns the wavefront faster than the grid can follow (a high-NA objective) takes the field on a finer grid, and rows finer than the drawn field average their fringes; the field past a narrow slit is sampled across the slit, so its minima land where \u03bbL/a says; a lens narrower than the beam says so in its panel, with the share of light round its rim. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
@@ -29825,7 +30092,9 @@ const EXAMPLES = [
   ['Modules', false, [
     ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
-    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf']]],
+    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf'],
+    ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.', 'rf'],
+    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.', 'rf']]],
   ['Photonic circuits', false, [
     ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [
@@ -31256,6 +31525,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
     eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
     arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
+    // a receiving horn against frequency, and its link budget (RF)
+    rfSweep(name) { return rfSweep(this.byName(name)); },
+    linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw } : null }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },

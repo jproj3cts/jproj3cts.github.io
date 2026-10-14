@@ -67,6 +67,7 @@ import './engines/pic.js';
 import './engines/elec.js';
 import './engines/mods.js';
 import './engines/detector.js';
+import './engines/rf-sweep.js';
 import './ui/view3d.js';
 import './ui/instruments.js';
 import './ui/elec.js';

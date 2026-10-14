@@ -212,7 +212,7 @@ function updateReadoutsIn(container, el) {
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);
     parts = [rows, ''];
   } else if (el.type === 'filter' || el.type === 'gain') {
-    const rows = benchNms().slice(0, 6).map(nm => [nm + ' nm', el.type === 'filter' ? (100 * filterT(el, nm)).toPrecision(4) + '% through'
+    const rows = benchNms().slice(0, 6).map(nm => [el.mmw ? fmtGHz(C_NM_GHZ / nm) : nm + ' nm', el.type === 'filter' ? (100 * filterT(el, nm)).toPrecision(4) + '% through'
       : '×' + (+gainAt(el, nm).toPrecision(4)) + ' a pass']);
     parts = [rows, el.type === 'filter' ? 'Transmission at each source wavelength.' : 'Power gain at each source wavelength.'];
   } else if (el.type === 'stop') {

@@ -67,6 +67,7 @@
  "engines/elec.js",
  "engines/mods.js",
  "engines/detector.js",
+ "engines/rf-sweep.js",
  "ui/view3d.js",
  "ui/instruments.js",
  "ui/elec.js",

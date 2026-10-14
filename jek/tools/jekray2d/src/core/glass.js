@@ -1,5 +1,5 @@
 import { NLC } from './nlc.js';
-import { RF_MAT } from './rf.js';
+import { C_NM_GHZ, RF_MAT, rfTanD } from './rf.js';
 
 /* ==========================================================================
    Glass: Sellmeier B1 B2 B3 C1 C2 C3, wavelength in µm
@@ -124,7 +124,7 @@ export function absorbAt(mat, nm) {
   }
   if (mat.abs > 0) return mat.abs;
   // an RF dielectric by its loss tangent: power absorbed per mm, 2 pi n tan(delta) / lambda
-  if (RF_MAT[mat.glass]) return 2 * Math.PI * RF_MAT[mat.glass].n * RF_MAT[mat.glass].tand / (nm * 1e-6);
+  if (RF_MAT[mat.glass]) { const M = RF_MAT[mat.glass]; return 2 * Math.PI * M.n * rfTanD(M, C_NM_GHZ / nm) / (nm * 1e-6); }
   return 0;
 }
 

@@ -987,9 +987,21 @@
   .rt-acctmenu .rt-accthead .rt-avatar { grid-row: span 3; width: 2.2rem; height: 2.2rem; font-size: 0.75rem; }
   #acctBody .rt-acctpic { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
   #acctBody .rt-acctpic .rt-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  #acctBody > label, #acctBody > p, #acctBody > .rt-row { text-align: left; }
   #acctBody label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.2rem; }
   #acctBody input[type="text"] { width: min(20rem, 100%); box-sizing: border-box; font: inherit; padding: 0.35rem 0.5rem; }
   #acctBody .rt-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  /* comparing and merging versions */
+  #diffBody p, #mergeBody p { margin: 0.3rem 0 0.6rem; }
+  #diffBody h3, #mergeBody h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  .rt-difflist { margin: 0; padding: 0; list-style: none; font-size: 0.85rem; max-height: 22rem; overflow: auto; border: 1px solid var(--jek-line); border-radius: 2px; }
+  .rt-difflist li { padding: 0.35rem 0.6rem; border-top: 1px solid var(--jek-line); }
+  .rt-difflist li:first-child { border-top: 0; }
+  .rt-difflist .tag { display: inline-block; min-width: 4.2rem; margin-right: 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-difflist .tag.added { color: #2e8b57; } .rt-difflist .tag.removed { color: var(--jek-red); } .rt-difflist .tag.changed { color: var(--jek-cyan-dark); }
+  .rt-difflist .fields { display: block; color: var(--jek-ink-soft); margin-top: 0.15rem; }
+  .rt-difflist.conflicts li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.3rem 1rem; align-items: center; }
+  .rt-difflist.conflicts label { white-space: nowrap; font-size: 0.82rem; }
   /* someone else is editing the cloud bench open here */
   .rt-lock { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem); padding: 0.45rem 0.7rem; background: #fff8e6; border: 1px solid #e3c36f; border-radius: 3px; box-shadow: var(--jek-shadow); font-size: 0.85rem; color: var(--jek-ink); }
   .rt-lock .rt-lockwho { display: inline-flex; }
@@ -1549,6 +1561,18 @@
     <h2 id="uniTitle">University licence</h2>
     <div id="uniBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="diffDialog" aria-labelledby="diffTitle">
+    <h2 id="diffTitle">Compare</h2>
+    <div id="diffBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="diffClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="mergeDialog" aria-labelledby="mergeTitle">
+    <h2 id="mergeTitle">Merge</h2>
+    <div id="mergeBody"></div>
+    <div class="rt-actions"><button class="rt-btn" id="mergeCancel">Cancel</button><button class="rt-btn primary" id="mergeGo">Open the merged bench</button></div>
   </dialog>
 
   <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
@@ -30702,6 +30726,140 @@ function wirePacks() {
   document.getElementById('btnSave').addEventListener('click', saveFile);
 
 }
+/* ---------- Comparing and merging benches ----------
+   A saved bench is a few bench-wide settings and some lists keyed by id: elements, fibres, the
+   tabs (benches), the parts it carries (library). Two versions are compared item by item and
+   field by field; three (a common base and the two sides that grew from it) merge the git way:
+   a change on one side goes in, the same change on both goes in once, and a different change
+   to the same field (or one side changing what the other removed) is a conflict to be chosen.
+   Nothing here knows the physics: the merged bench is for the person to look at before keeping. */
+
+/* the lists keyed by id, and the settings compared whole; the rest (format, version, saved,
+   the name) is left to the bench the merge lands in */
+const KEYED = ['elements', 'fibres', 'benches', 'library'];
+const SETTINGS = ['view', 'snap', 'maxBounces', 'minPower', 'ghosts', 'light', 'cavityLock', 'notes', 'labelMm', 'style', 'tab', 'measures', 'mods'];
+const same = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+const copy = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+const listOf = (p, k) => Array.isArray(p && p[k]) ? p[k].filter(e => e && typeof e === 'object' && typeof e.id === 'string') : [];
+const mapOf = (p, k) => new Map(listOf(p, k).map(e => [e.id, e]));
+/* what an item is called, for a person */
+function itemLabel(kind, e) {
+  if (!e) return '';
+  if (kind === 'elements') return (e.name || e.type || 'element') + (e.type && e.name && e.name.toLowerCase() !== e.type.toLowerCase() ? ' (' + e.type + ')' : '');
+  if (kind === 'fibres') return (e.wire ? 'wire ' : 'fibre ') + (Array.isArray(e.a) ? e.a[0] : '?') + ' to ' + (Array.isArray(e.b) ? e.b[0] : '?');
+  if (kind === 'benches') return 'tab “' + (e.name || e.id) + '”';
+  if (kind === 'library') return 'part “' + (e.name || e.id) + '”';
+  return e.id;
+}
+const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', settings: 'setting' };
+/* a value as a person reads it */
+function showValue(v) {
+  if (v === undefined || v === null) return 'none';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(+v.toPrecision(5));
+  if (typeof v === 'string') return v.length > 40 ? '“' + v.slice(0, 37) + '…”' : '“' + v + '”';
+  if (typeof v === 'boolean') return v ? 'on' : 'off';
+  const s = JSON.stringify(v);
+  return s.length > 48 ? s.slice(0, 45) + '…' : s;
+}
+/* the fields of two items that differ: [{key, from, to}] */
+function fieldDiff(a, b) {
+  const out = [];
+  for (const key of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    if (key === 'id' || same(a && a[key], b && b[key])) continue;
+    out.push({ key, from: copy(a && a[key]), to: copy(b && b[key]) });
+  }
+  return out;
+}
+/* ---------- compare ----------
+   from a to b: for each keyed list, the items added, removed and changed (with their fields);
+   and the settings that differ. `count` is the number of changes in all. */
+function diffProject(a, b) {
+  const out = { items: [], settings: [], count: 0 };
+  for (const kind of KEYED) {
+    const A = mapOf(a, kind), B = mapOf(b, kind);
+    for (const [id, e] of A) {
+      if (!B.has(id)) out.items.push({ kind, id, change: 'removed', label: itemLabel(kind, e), item: copy(e) });
+      else { const f = fieldDiff(e, B.get(id)); if (f.length) out.items.push({ kind, id, change: 'changed', label: itemLabel(kind, B.get(id)), fields: f }); }
+    }
+    for (const [id, e] of B) if (!A.has(id)) out.items.push({ kind, id, change: 'added', label: itemLabel(kind, e), item: copy(e) });
+  }
+  for (const key of SETTINGS) if (!same(a && a[key], b && b[key])) out.settings.push({ key, from: copy(a && a[key]), to: copy(b && b[key]) });
+  out.count = out.items.length + out.settings.length;
+  return out;
+}
+/* ---------- merge ----------
+   base is where both sides started; the result keeps `target`'s order, name and anything
+   neither side touched, takes each side's own changes, and lists the conflicts:
+     {kind, id, label, key?, base, target, source, choice}   choice: 'target' | 'source' | null
+   A conflict without a key is about the item as a whole (one side removed it, the other
+   changed it; or both added an item of that id, differently). `taken` counts what went in from
+   each side. Call resolve() with the choices made to get the bench. */
+function merge3(base, target, source) {
+  const conflicts = [], taken = { target: 0, source: 0, both: 0 };
+  const result = copy(target) || {};
+  for (const kind of KEYED) {
+    const B = mapOf(base, kind), T = mapOf(target, kind), S = mapOf(source, kind);
+    const outList = [], seen = new Set();
+    const push = e => { if (e && !seen.has(e.id)) { seen.add(e.id); outList.push(e); } };
+    // in target's order first, then what the source added
+    const ids = [...listOf(target, kind).map(e => e.id), ...listOf(source, kind).map(e => e.id).filter(id => !T.has(id))];
+    for (const id of ids) {
+      const b = B.get(id), t = T.get(id), s = S.get(id);
+      if (!b) {
+        // new on one side, or on both
+        if (t && s) { if (same(t, s)) { push(copy(t)); taken.both++; } else conflicts.push({ kind, id, label: itemLabel(kind, t), key: null, base: null, target: copy(t), source: copy(s), choice: null }); }
+        else if (t) { push(copy(t)); taken.target++; }
+        else if (s) { push(copy(s)); taken.source++; }
+        continue;
+      }
+      if (!t && !s) continue;                                       // gone on both
+      if (!t || !s) {
+        // removed on one side: fine unless the other changed it
+        const kept = t || s, side = t ? 'target' : 'source';
+        if (same(b, kept)) { taken[side === 'target' ? 'source' : 'target']++; continue; }
+        conflicts.push({ kind, id, label: itemLabel(kind, kept), key: null, base: copy(b), target: copy(t), source: copy(s), choice: null });
+        continue;
+      }
+      // in all three: field by field
+      const merged = copy(t);
+      let fromT = false, fromS = false;
+      for (const key of new Set([...Object.keys(b), ...Object.keys(t), ...Object.keys(s)])) {
+        if (key === 'id') continue;
+        const tChanged = !same(b[key], t[key]), sChanged = !same(b[key], s[key]);
+        if (!sChanged) { if (tChanged) fromT = true; continue; }                    // target's, or nobody's
+        if (!tChanged || same(t[key], s[key])) { if (s[key] === undefined) delete merged[key]; else merged[key] = copy(s[key]); if (tChanged) fromT = true; else fromS = true; continue; }
+        conflicts.push({ kind, id, label: itemLabel(kind, t), key, base: copy(b[key]), target: copy(t[key]), source: copy(s[key]), choice: null });
+      }
+      if (fromT && fromS) taken.both++; else if (fromT) taken.target++; else if (fromS) taken.source++;
+      push(merged);
+    }
+    result[kind] = outList;
+  }
+  for (const key of SETTINGS) {
+    const b = base && base[key], t = target && target[key], s = source && source[key];
+    const tChanged = !same(b, t), sChanged = !same(b, s);
+    if (!sChanged) continue;
+    if (!tChanged || same(t, s)) { if (s === undefined) delete result[key]; else result[key] = copy(s); taken.source++; continue; }
+    conflicts.push({ kind: 'settings', id: key, label: key, key, base: copy(b), target: copy(t), source: copy(s), choice: null });
+  }
+  return { result, conflicts, taken };
+}
+/* the merged bench with each conflict settled: a choice of 'target' or 'source' on every one */
+function resolve(merge) {
+  const out = copy(merge.result);
+  for (const c of merge.conflicts) {
+    const side = c.choice === 'source' ? 'source' : 'target';
+    const v = c[side];
+    if (c.kind === 'settings') { if (v === undefined) delete out[c.key]; else out[c.key] = copy(v); continue; }
+    const list = out[c.kind] || (out[c.kind] = []);
+    const at = list.findIndex(e => e.id === c.id);
+    if (c.key) { if (at >= 0) { if (v === undefined) delete list[at][c.key]; else list[at][c.key] = copy(v); } continue; }
+    // the whole item: the chosen side's, or none
+    if (v) { if (at >= 0) list[at] = copy(v); else list.push(copy(v)); }
+    else if (at >= 0) list.splice(at, 1);
+  }
+  return out;
+}
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
    provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
@@ -31389,10 +31547,10 @@ async function cloudPush(opts = {}) {
     const out = await api('/v1/benches/' + link.id, {
       method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
       headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
-      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint }),
+      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint || !!link.label, label: link.label || undefined }),
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
-    link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
+    link.version = out.version; link.dirty = cloudAgain; link.name = out.name; delete link.label;
     cloudKeep();
     cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (!opts.keepalive) cloudThumb(link, opts.checkpoint);
@@ -31522,7 +31680,7 @@ function cloudConflict(theirs, by, at) {
    or as rows. A card's ⋯ menu opens, forks, renames, moves and deletes; a bench's history
    opens a copy of any version, forks from it, or restores it. Opened from the File menu, the
    bar's My benches button, or #benches; Esc or Back returns to the bench. */
-const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null };
+const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null, cmp: null };
 const HOME_KEY = 'jek-home-view';
 const homeView = { sort: 'changed', rows: false };
 const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
@@ -31614,6 +31772,78 @@ function homeFork(b, version, after) {
     if (after) after(f); else cloudPlace.flash = f.id;
     return f;
   }, f => 'Forked as “' + f.name + '”')();
+}
+/* ---------- compare and merge ----------
+   Compare: two versions of a bench, item by item (src/io/merge.js). Merge: a fork back into
+   the bench it came from, or that bench's changes into the fork, from the version the fork
+   left at. The bench it lands in is checkpointed first ("Before merging"), the merged bench
+   is opened on the bench to look at, and its next save is a labelled version. */
+function diffNodes(d, fromName, toName) {
+  if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
+  const word = i => KIND_WORD[i.kind] + ' ' + i.label;
+  const rows = d.items.map(i => h('li', null, h('span', { class: 'tag ' + i.change }, i.change), word(i),
+    i.fields ? h('span', { class: 'fields' }, i.fields.map(f => f.key + ': ' + showValue(f.from) + ' to ' + showValue(f.to)).join(' · ')) : null));
+  const sets = d.settings.map(f => h('li', null, h('span', { class: 'tag changed' }, 'setting'), f.key, h('span', { class: 'fields' }, showValue(f.from) + ' to ' + showValue(f.to))));
+  return [h('p', null, 'From ' + fromName + ' to ' + toName + ': ' + d.count + (d.count === 1 ? ' change.' : ' changes.')), h('ul', { class: 'rt-difflist' }, ...rows, ...sets)];
+}
+const versionContent = async (id, v) => JSON.parse((await api('/v1/benches/' + id + '/versions/' + v)).content);
+async function homeCompare(b, va, vb) {
+  const dlg = document.getElementById('diffDialog'), body = document.getElementById('diffBody');
+  const [lo, hi] = va < vb ? [va, vb] : [vb, va];
+  document.getElementById('diffTitle').textContent = '“' + b.name + '”: version ' + lo + ' to ' + hi;
+  body.replaceChildren(h('p', null, 'Comparing…'));
+  if (!dlg.open) dlg.showModal();
+  try {
+    const [A, B] = await Promise.all([versionContent(b.id, lo), versionContent(b.id, hi)]);
+    body.replaceChildren(...diffNodes(diffProject(A, B), 'version ' + lo, 'version ' + hi));
+  } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); }
+}
+async function homeMerge(target, source, baseVersion, baseBench) {
+  const dlg = document.getElementById('mergeDialog'), body = document.getElementById('mergeBody'), go = document.getElementById('mergeGo');
+  document.getElementById('mergeTitle').textContent = 'Merge “' + source.name + '” into “' + target.name + '”';
+  body.replaceChildren(h('p', null, 'Working out the merge…'));
+  go.disabled = true;
+  if (!dlg.open) dlg.showModal();
+  let m, T, S;
+  try {
+    const [base, t, s] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]);
+    T = t; S = s;
+    m = merge3(base, JSON.parse(T.content), JSON.parse(S.content));
+  } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
+  const brings = diffProject(JSON.parse(T.content), resolve(m));
+  const n = m.taken.source + m.taken.both;
+  const rows = m.conflicts.map((c, i) => {
+    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : '“' + source.name + '”: ') + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
+    return h('li', null, h('span', null, KIND_WORD[c.kind] + ' ' + c.label + (c.key && c.kind !== 'settings' ? ', ' + c.key : '')), pick('target'), pick('source'));
+  });
+  body.replaceChildren(
+    h('p', null, 'From “' + source.name + '” (version ' + S.version + ', since version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”): ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
+      (m.conflicts.length ? 'Both changed the same thing in ' + m.conflicts.length + (m.conflicts.length === 1 ? ' place: choose which to keep.' : ' places: choose which to keep.') : 'Nothing clashes.')),
+    ...(m.conflicts.length ? [h('h3', null, 'Choose'), h('ul', { class: 'rt-difflist conflicts' }, ...rows)] : []),
+    h('h3', null, 'What “' + target.name + '” will gain'), ...diffNodes(brings, 'now', 'merged').slice(1),
+    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“Before merging”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
+  // the gains list follows the choices
+  body.addEventListener('change', () => { const d = diffProject(JSON.parse(T.content), resolve(m)); const ul = body.querySelectorAll('ul.rt-difflist:not(.conflicts)')[0]; const fresh = diffNodes(d, 'now', 'merged').slice(1)[0]; if (ul && fresh) ul.replaceWith(fresh); });
+  go.disabled = false;
+  go.onclick = async () => {
+    go.disabled = true;
+    try {
+      if (cloud && cloud.dirty && cloud.id !== target.id) await cloudPush({ quiet: true });
+      // the target as it is now, kept: a version to come back to
+      const kept = await api('/v1/benches/' + target.id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': '"' + T.version + '"' },
+        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: 'Before merging “' + source.name + '”' }) });
+      const merged = resolve(m); merged.name = T.name;
+      setCloudOpening(true);
+      try { openProjectData(merged, '“' + T.name + '” merged with “' + source.name + '”'); } finally { setCloudOpening(false); }
+      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: 'Merged from “' + source.name + '”, version ' + S.version });
+      cloudChanged();
+      dlg.close(); closeHome();
+      toast('Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.');
+    } catch (err) {
+      toast(err.status === 423 ? (err.editing ? err.editing.name : 'Someone') + ' is editing “' + target.name + '”: merge when they are done.' : err.status === 409 ? '“' + target.name + '” changed just now: open the merge again.' : err.message, true);
+      go.disabled = false;
+    }
+  };
 }
 async function fillHome() {
   const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
@@ -31709,7 +31939,7 @@ async function fillHome() {
     // a fork or an original in another workspace: shown in its own, with its own rights
     if (data.bench.workspace_id !== ws && places.some(w => w.id === data.bench.workspace_id)) { P.ws = data.bench.workspace_id; fillHome(); return; }
     const b = data.bench, mine = cloud && cloud.id === b.id, origin = data.forked_from;
-    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name } }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
+    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name }, cmp: null }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
     const side = h('div', { class: 'rt-hside' },
       b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
@@ -31746,6 +31976,9 @@ async function fillHome() {
           h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
           h('span', { class: 'acts' },
             link('Open a copy', () => homeOpenBench(b.id, v.version)),
+            P.cmp === v.version ? link('Cancel compare', () => { P.cmp = null; fillHome(); })
+              : P.cmp ? link('Compare with v' + P.cmp, () => { const a = P.cmp; P.cmp = null; fillHome(); homeCompare(b, a, v.version); })
+              : link('Compare…', () => { P.cmp = v.version; fillHome(); toast('Now choose the version to compare it with'); }),
             can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
             can && v.version !== b.version ? link('Restore', homeSay(async () => {
               await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
@@ -31758,10 +31991,14 @@ async function fillHome() {
           f.thumb ? h('img', { class: 'thumb', src: API_BASE + f.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
           h('span', { class: 'what' }, homeIcon('fork'), ' ', link(f.name, toHist(f.id, f.name)), ' ',
             h('small', null, ['forked from version ' + f.version, f.created_by, whenAgo(f.created_at), f.forks ? (f.forks === 1 ? '1 fork of its own' : f.forks + ' forks of its own') : null].filter(Boolean).join(' · '))),
-          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name))));
+          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name)),
+            can ? link('Merge into this bench…', () => homeMerge({ id: b.id, name: b.name }, { id: f.id, name: f.name }, f.version, b.id)) : null));
       }
       return h('div', { class: 'rt-hev origin' },
-        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version));
+        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version),
+        h('span', { class: 'acts' },
+          link('Merge this fork into it…', () => homeMerge({ id: origin.id, name: origin.name }, { id: b.id, name: b.name }, origin.version, origin.id)),
+          can ? link('Bring its changes in…', () => homeMerge({ id: b.id, name: b.name }, { id: origin.id, name: origin.name }, origin.version, origin.id)) : null));
     });
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'rt-hlines'); svg.setAttribute('aria-hidden', 'true');
@@ -31977,6 +32214,8 @@ function wireCloud() {
         toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
       } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
+    document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
+    document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
     document.getElementById('cloudLockTake').addEventListener('click', async () => {
       if (!cloud) return;
       const name = lease.editing ? lease.editing.name : 'them';
@@ -32079,7 +32318,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it.',
+    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it. <b>Compare and merge</b>: in a bench\u2019s history, Compare\u2026 on any two versions lists what changed, part by part and setting by setting; a fork\u2019s row offers <b>Merge into this bench\u2026</b> (and a fork\u2019s own history, merging into its original or bringing the original\u2019s changes in), the git way, from the version the fork left at: each side\u2019s own changes go in, and where both changed the same thing you choose. The bench is kept as a version first, the merged bench opens for you to look at, and it is saved as a labelled version of its own.',
     '<b>The makers\u2019 glass catalogues</b>: Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, the crystals, and the optical plastics (PMMA, polycarbonate, Zeonex E48R) and B 270, so an imported lens traces in the glass its maker chose, named as its file spells it (N-BK7, H-K9L, S-LAH64, M-TAF1, K-VC89). <b>Search the glass catalogues\u2026</b> under Material finds any by name, and the panel gives its maker, nd and Vd. <b>Lens import</b> is stronger: .zar archives open (the .zmx inside, and the glass catalogue the archive carries for any glass the tool lacks), files in a Windows code page and UTF-16 read, floating apertures, cylindrical lenses from toroidal surfaces, the design wavelength kept, a moulded asphere\u2019s cover glass left out and said so, and Thorlabs\u2019 moulded glasses (D-ZK3M, D-ZLAF52LAM, H-LAK54M) at their moulded index. Edmund\u2019s coating codes (EO_VIS0 and the rest) set the AR band, and Corning 7980 is known by every name their files give it. The test suite now imports real Thorlabs and Edmund files and checks their focal lengths and back focal lengths against the makers\u2019 own figures.',
     'RF, round two: <b>feed horns launch their real aperture fields</b>. A corrugated horn\u2019s HE\u2081\u2081, a smooth-wall horn\u2019s TE\u2081\u2081 and a diagonal horn\u2019s TE\u2081\u2080 + TE\u2080\u2081 are carried as Hermite\u2013Gauss modes of the fitted Gaussian, so the beam has the horn\u2019s sidelobes and M\u00b2 and its Gaussicity is Goldsmith\u2019s (0.98, 0.91, 0.84); a <b>far-field pattern</b> plot on every horn (E- and H-plane and cross-polar cuts, directivity, half-power widths, first sidelobes); a receiving horn takes in by its own aperture mode, in <b>one polarisation</b> with its cross-polar field across it, or both. And the horns join the <b>electronics</b>: a receiver\u2019s front end is a <b>video detector</b> (V/W, NEP, video bandwidth) or a <b>mixer</b> whose IF out carries each carrier at |f \u2212 f\u2097\u2092|, less its conversion loss, over k (T\u2090\u2099\u209c + T\u1d63\u2093) R, with the system temperature, noise floor and signal to noise in its readout; a feed horn can be an <b>upconverter</b> with an IF in port, so a tone from a signal generator goes up, across the bench and down into a spectrum analyser. A new example, <b>Heterodyne link, 150 GHz</b>.',
     'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',

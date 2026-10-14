@@ -139,6 +139,7 @@ import './ui/picker.js';
 import './ui/rail.js';
 import './ui/myparts.js';
 import './io/packs.js';
+import './io/merge.js';
 import './io/account.js';
 import './io/cloud.js';
 import './io/autosave.js';

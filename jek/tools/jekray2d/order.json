@@ -139,6 +139,7 @@
  "ui/rail.js",
  "ui/myparts.js",
  "io/packs.js",
+ "io/merge.js",
  "io/account.js",
  "io/cloud.js",
  "io/autosave.js",

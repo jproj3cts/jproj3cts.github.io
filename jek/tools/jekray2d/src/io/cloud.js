@@ -7,6 +7,7 @@ import { H, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } fr
 import { h } from '../ui/panel.js';
 import { setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
+import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
 import { PALETTE_NAMES } from '../ui/experimental.js';
 import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
@@ -121,10 +122,10 @@ export async function cloudPush(opts = {}) {
     const out = await api('/v1/benches/' + link.id, {
       method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
       headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
-      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint }),
+      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint || !!link.label, label: link.label || undefined }),
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
-    link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
+    link.version = out.version; link.dirty = cloudAgain; link.name = out.name; delete link.label;
     cloudKeep();
     cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (!opts.keepalive) cloudThumb(link, opts.checkpoint);
@@ -254,7 +255,7 @@ function cloudConflict(theirs, by, at) {
    or as rows. A card's ⋯ menu opens, forks, renames, moves and deletes; a bench's history
    opens a copy of any version, forks from it, or restores it. Opened from the File menu, the
    bar's My benches button, or #benches; Esc or Back returns to the bench. */
-export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null };
+export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null, cmp: null };
 const HOME_KEY = 'jek-home-view';
 const homeView = { sort: 'changed', rows: false };
 export const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
@@ -346,6 +347,78 @@ function homeFork(b, version, after) {
     if (after) after(f); else cloudPlace.flash = f.id;
     return f;
   }, f => 'Forked as “' + f.name + '”')();
+}
+/* ---------- compare and merge ----------
+   Compare: two versions of a bench, item by item (src/io/merge.js). Merge: a fork back into
+   the bench it came from, or that bench's changes into the fork, from the version the fork
+   left at. The bench it lands in is checkpointed first ("Before merging"), the merged bench
+   is opened on the bench to look at, and its next save is a labelled version. */
+function diffNodes(d, fromName, toName) {
+  if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
+  const word = i => KIND_WORD[i.kind] + ' ' + i.label;
+  const rows = d.items.map(i => h('li', null, h('span', { class: 'tag ' + i.change }, i.change), word(i),
+    i.fields ? h('span', { class: 'fields' }, i.fields.map(f => f.key + ': ' + showValue(f.from) + ' to ' + showValue(f.to)).join(' · ')) : null));
+  const sets = d.settings.map(f => h('li', null, h('span', { class: 'tag changed' }, 'setting'), f.key, h('span', { class: 'fields' }, showValue(f.from) + ' to ' + showValue(f.to))));
+  return [h('p', null, 'From ' + fromName + ' to ' + toName + ': ' + d.count + (d.count === 1 ? ' change.' : ' changes.')), h('ul', { class: 'rt-difflist' }, ...rows, ...sets)];
+}
+const versionContent = async (id, v) => JSON.parse((await api('/v1/benches/' + id + '/versions/' + v)).content);
+async function homeCompare(b, va, vb) {
+  const dlg = document.getElementById('diffDialog'), body = document.getElementById('diffBody');
+  const [lo, hi] = va < vb ? [va, vb] : [vb, va];
+  document.getElementById('diffTitle').textContent = '“' + b.name + '”: version ' + lo + ' to ' + hi;
+  body.replaceChildren(h('p', null, 'Comparing…'));
+  if (!dlg.open) dlg.showModal();
+  try {
+    const [A, B] = await Promise.all([versionContent(b.id, lo), versionContent(b.id, hi)]);
+    body.replaceChildren(...diffNodes(diffProject(A, B), 'version ' + lo, 'version ' + hi));
+  } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); }
+}
+async function homeMerge(target, source, baseVersion, baseBench) {
+  const dlg = document.getElementById('mergeDialog'), body = document.getElementById('mergeBody'), go = document.getElementById('mergeGo');
+  document.getElementById('mergeTitle').textContent = 'Merge “' + source.name + '” into “' + target.name + '”';
+  body.replaceChildren(h('p', null, 'Working out the merge…'));
+  go.disabled = true;
+  if (!dlg.open) dlg.showModal();
+  let m, T, S;
+  try {
+    const [base, t, s] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]);
+    T = t; S = s;
+    m = merge3(base, JSON.parse(T.content), JSON.parse(S.content));
+  } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
+  const brings = diffProject(JSON.parse(T.content), resolve(m));
+  const n = m.taken.source + m.taken.both;
+  const rows = m.conflicts.map((c, i) => {
+    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : '“' + source.name + '”: ') + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
+    return h('li', null, h('span', null, KIND_WORD[c.kind] + ' ' + c.label + (c.key && c.kind !== 'settings' ? ', ' + c.key : '')), pick('target'), pick('source'));
+  });
+  body.replaceChildren(
+    h('p', null, 'From “' + source.name + '” (version ' + S.version + ', since version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”): ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
+      (m.conflicts.length ? 'Both changed the same thing in ' + m.conflicts.length + (m.conflicts.length === 1 ? ' place: choose which to keep.' : ' places: choose which to keep.') : 'Nothing clashes.')),
+    ...(m.conflicts.length ? [h('h3', null, 'Choose'), h('ul', { class: 'rt-difflist conflicts' }, ...rows)] : []),
+    h('h3', null, 'What “' + target.name + '” will gain'), ...diffNodes(brings, 'now', 'merged').slice(1),
+    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“Before merging”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
+  // the gains list follows the choices
+  body.addEventListener('change', () => { const d = diffProject(JSON.parse(T.content), resolve(m)); const ul = body.querySelectorAll('ul.rt-difflist:not(.conflicts)')[0]; const fresh = diffNodes(d, 'now', 'merged').slice(1)[0]; if (ul && fresh) ul.replaceWith(fresh); });
+  go.disabled = false;
+  go.onclick = async () => {
+    go.disabled = true;
+    try {
+      if (cloud && cloud.dirty && cloud.id !== target.id) await cloudPush({ quiet: true });
+      // the target as it is now, kept: a version to come back to
+      const kept = await api('/v1/benches/' + target.id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': '"' + T.version + '"' },
+        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: 'Before merging “' + source.name + '”' }) });
+      const merged = resolve(m); merged.name = T.name;
+      setCloudOpening(true);
+      try { openProjectData(merged, '“' + T.name + '” merged with “' + source.name + '”'); } finally { setCloudOpening(false); }
+      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: 'Merged from “' + source.name + '”, version ' + S.version });
+      cloudChanged();
+      dlg.close(); closeHome();
+      toast('Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.');
+    } catch (err) {
+      toast(err.status === 423 ? (err.editing ? err.editing.name : 'Someone') + ' is editing “' + target.name + '”: merge when they are done.' : err.status === 409 ? '“' + target.name + '” changed just now: open the merge again.' : err.message, true);
+      go.disabled = false;
+    }
+  };
 }
 export async function fillHome() {
   const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
@@ -441,7 +514,7 @@ export async function fillHome() {
     // a fork or an original in another workspace: shown in its own, with its own rights
     if (data.bench.workspace_id !== ws && places.some(w => w.id === data.bench.workspace_id)) { P.ws = data.bench.workspace_id; fillHome(); return; }
     const b = data.bench, mine = cloud && cloud.id === b.id, origin = data.forked_from;
-    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name } }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
+    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name }, cmp: null }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
     const side = h('div', { class: 'rt-hside' },
       b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
@@ -478,6 +551,9 @@ export async function fillHome() {
           h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
           h('span', { class: 'acts' },
             link('Open a copy', () => homeOpenBench(b.id, v.version)),
+            P.cmp === v.version ? link('Cancel compare', () => { P.cmp = null; fillHome(); })
+              : P.cmp ? link('Compare with v' + P.cmp, () => { const a = P.cmp; P.cmp = null; fillHome(); homeCompare(b, a, v.version); })
+              : link('Compare…', () => { P.cmp = v.version; fillHome(); toast('Now choose the version to compare it with'); }),
             can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
             can && v.version !== b.version ? link('Restore', homeSay(async () => {
               await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
@@ -490,10 +566,14 @@ export async function fillHome() {
           f.thumb ? h('img', { class: 'thumb', src: API_BASE + f.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
           h('span', { class: 'what' }, homeIcon('fork'), ' ', link(f.name, toHist(f.id, f.name)), ' ',
             h('small', null, ['forked from version ' + f.version, f.created_by, whenAgo(f.created_at), f.forks ? (f.forks === 1 ? '1 fork of its own' : f.forks + ' forks of its own') : null].filter(Boolean).join(' · '))),
-          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name))));
+          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name)),
+            can ? link('Merge into this bench…', () => homeMerge({ id: b.id, name: b.name }, { id: f.id, name: f.name }, f.version, b.id)) : null));
       }
       return h('div', { class: 'rt-hev origin' },
-        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version));
+        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version),
+        h('span', { class: 'acts' },
+          link('Merge this fork into it…', () => homeMerge({ id: origin.id, name: origin.name }, { id: b.id, name: b.name }, origin.version, origin.id)),
+          can ? link('Bring its changes in…', () => homeMerge({ id: b.id, name: b.name }, { id: origin.id, name: origin.name }, origin.version, origin.id)) : null));
     });
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'rt-hlines'); svg.setAttribute('aria-hidden', 'true');
@@ -709,6 +789,8 @@ export function wireCloud() {
         toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
       } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
+    document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
+    document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
     document.getElementById('cloudLockTake').addEventListener('click', async () => {
       if (!cloud) return;
       const name = lease.editing ? lease.editing.name : 'them';

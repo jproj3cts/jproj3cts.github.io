@@ -974,9 +974,21 @@
   .rt-acctmenu .rt-accthead .rt-avatar { grid-row: span 3; width: 2.2rem; height: 2.2rem; font-size: 0.75rem; }
   #acctBody .rt-acctpic { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
   #acctBody .rt-acctpic .rt-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  #acctBody > label, #acctBody > p, #acctBody > .rt-row { text-align: left; }
   #acctBody label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.2rem; }
   #acctBody input[type="text"] { width: min(20rem, 100%); box-sizing: border-box; font: inherit; padding: 0.35rem 0.5rem; }
   #acctBody .rt-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  /* comparing and merging versions */
+  #diffBody p, #mergeBody p { margin: 0.3rem 0 0.6rem; }
+  #diffBody h3, #mergeBody h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  .rt-difflist { margin: 0; padding: 0; list-style: none; font-size: 0.85rem; max-height: 22rem; overflow: auto; border: 1px solid var(--jek-line); border-radius: 2px; }
+  .rt-difflist li { padding: 0.35rem 0.6rem; border-top: 1px solid var(--jek-line); }
+  .rt-difflist li:first-child { border-top: 0; }
+  .rt-difflist .tag { display: inline-block; min-width: 4.2rem; margin-right: 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-difflist .tag.added { color: #2e8b57; } .rt-difflist .tag.removed { color: var(--jek-red); } .rt-difflist .tag.changed { color: var(--jek-cyan-dark); }
+  .rt-difflist .fields { display: block; color: var(--jek-ink-soft); margin-top: 0.15rem; }
+  .rt-difflist.conflicts li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.3rem 1rem; align-items: center; }
+  .rt-difflist.conflicts label { white-space: nowrap; font-size: 0.82rem; }
   /* someone else is editing the cloud bench open here */
   .rt-lock { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem); padding: 0.45rem 0.7rem; background: #fff8e6; border: 1px solid #e3c36f; border-radius: 3px; box-shadow: var(--jek-shadow); font-size: 0.85rem; color: var(--jek-ink); }
   .rt-lock .rt-lockwho { display: inline-flex; }

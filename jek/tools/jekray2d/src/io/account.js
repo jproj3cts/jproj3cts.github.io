@@ -43,13 +43,15 @@ const shortDate = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric',
 function planText(w) {
   if (w.kind === 'institution') return 'you look after its JEKrayPro licence';
   const p = w.plan, lic = w.kind === 'personal' && account && account.licence;
+  // a paid seat in a team, unless they pay for their own as well
+  if (w.kind === 'personal' && account && account.team_seat && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKrayPro through your team';
   // a university's licence, unless they pay for their own as well
   if (lic && !(p && p.billing && w.active && p.status !== 'past_due')) return 'JEKrayPro through ' + lic.name;
   // their university has a licence, but every place in its tier is taken
   const full = w.kind === 'personal' && !w.active && account && account.licence_full;
   if (full) return full.name + '\u2019s licence is full: ask whoever looks after it for a larger tier';
-  if (!p) return 'No subscription yet';
-  const name = p.plan === 'academic' ? 'JEKrayPro (academic)' : 'JEKrayPro';
+  if (!p) return w.kind === 'team' ? (w.role === 'owner' ? 'team, no subscription yet' : 'team, ' + ROLE_NAMES[w.role].toLowerCase()) : 'No subscription yet';
+  const name = p.plan === 'team' ? 'Team plan, ' + p.seats + ' seat' + (p.seats === 1 ? '' : 's') : p.plan === 'academic' ? 'JEKrayPro (academic)' : 'JEKrayPro';
   if (!p.billing) return w.active ? name : 'Plan ended';
   if (p.status === 'past_due') return w.active ? name + ': payment failed, please update your card in Billing' : 'Paused: payment failed';
   if (!w.active) return 'Subscription ' + (p.status === 'canceled' ? 'ended' : p.status.replace(/_/g, ' '));
@@ -69,16 +71,21 @@ export async function showSubscribe() {
   const mine = account && account.workspaces.find(w => w.kind === 'personal');
   const tabs = h('div', { class: 'rt-subtabs', role: 'radiogroup', 'aria-label': 'Billing period' },
     ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': subInterval === v ? 'true' : 'false', class: 'rt-btn', onclick: () => { subInterval = v; showSubscribe(); } }, label)));
-  const card = (tier, title, blurb, extra) => {
+  const card = (tier, title, blurb, extra = {}) => {
     const p = prices[tier + (subInterval === 'year' ? '_yearly' : '_monthly')];
     if (!p) return null;
     const month = prices[tier + '_monthly'];
     const saving = subInterval === 'year' && month ? Math.round(100 * (1 - p.amount / (12 * month.amount))) : 0;
-    const go = h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(mine.id, tier, go) }, 'Continue to payment');
-    if (extra && extra.locked) go.disabled = true;
-    return h('div', { class: 'rt-subcard' }, h('h3', null, title), h('p', { class: 'rt-subprice' }, h('b', null, money(p.amount, p.currency)), ' a ' + (subInterval === 'year' ? 'year' : 'month'), saving > 0 ? h('small', null, ' · save ' + saving + '%') : null),
-      h('p', null, blurb), extra ? extra.node : null, go);
+    const go = extra.go || h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(mine.id, tier, go) }, 'Continue to payment');
+    if (extra.locked) go.disabled = true;
+    return h('div', { class: 'rt-subcard' }, h('h3', null, title), h('p', { class: 'rt-subprice' }, h('b', null, money(p.amount, p.currency)), (extra.seat ? ' a seat' : '') + ' a ' + (subInterval === 'year' ? 'year' : 'month'), saving > 0 ? h('small', null, ' · save ' + saving + '%') : null),
+      h('p', null, blurb), extra.node || null, go);
   };
+  // the team card: a team of theirs without a plan is subscribed for; else one is made first
+  const unpaid = (account ? account.workspaces : []).find(w => w.kind === 'team' && w.role === 'owner' && !w.active);
+  const teamGo = unpaid
+    ? h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(unpaid.id, 'team', teamGo) }, 'Subscribe for ' + unpaid.name)
+    : h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { dlg.close(); createTeam(); } }, 'Create a team…');
   const ac = account && account.academic;
   const check = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     check.disabled = true; check.textContent = 'Checking…';
@@ -134,16 +141,19 @@ export async function showSubscribe() {
     ': with your university Google or Microsoft account it shows on its own; or confirm your university email address under Academic below, or ask your university\u2019s licence administrator to invite you.');
   box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
     card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device.'),
-    card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac })));
+    card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac }),
+    card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }
 async function startCheckout(ws, tier, btn) {
+  const was = btn.textContent;
   btn.disabled = true; btn.textContent = 'Opening secure payment…';
   try {
+    try { sessionStorage.setItem('jekcheckout', ws); } catch (err) { /* the personal workspace is assumed on return */ }
     const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekbilling'); ret.searchParams.delete('jekauth');
     if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
     const { url } = await api('/v1/workspaces/' + ws + '/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: tier, interval: subInterval, return: ret.toString() }) });
     location.href = url;
-  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = 'Continue to payment'; }
+  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = was; }
 }
 async function openPortal(ws) {
   try {
@@ -159,11 +169,17 @@ async function switchInterval(ws, interval) {
 }
 // back from Stripe Checkout: the webhook may take a moment to arrive
 export async function awaitPlan(tries = 12) {
+  let wsId = null;
+  try { wsId = sessionStorage.getItem('jekcheckout'); sessionStorage.removeItem('jekcheckout'); } catch (err) { /* the personal workspace, then */ }
   for (let i = 0; i < tries; i++) {
     await new Promise(r => setTimeout(r, i ? 2000 : 500));
     try { account = await api('/v1/me'); } catch (err) { continue; }
-    const mine = account.workspaces.find(w => w.kind === 'personal');
-    if (mine && mine.active) { fillAccount(); toast('Welcome to JEKrayPro. Thank you!'); if (cloud && cloud.dirty) cloudPush({ quiet: true }); return; }
+    const mine = account.workspaces.find(w => w.id === wsId) || account.workspaces.find(w => w.kind === 'personal');
+    if (mine && mine.active) {
+      fillAccount();
+      if (mine.kind === 'team') { toast('Your team plan is active. Thank you!'); showTeam(mine.id); } else toast('Welcome to JEKrayPro. Thank you!');
+      if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
+    }
   }
   fillAccount(); toast('Payment received. Your plan will show here in a minute or two; reload if it does not.');
 }
@@ -186,6 +202,9 @@ export function fillAccount() {
       h('div', { class: 'sep' })].filter(Boolean);
     // a university's licence, for those who look after it there
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
+    // their teams, and a new one
+    for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
+    rows.push(item('users', 'Create a team…', createTeam));
     // the personal workspace's plan: subscribe, or manage it
     const mine = ws.find(w => w.kind === 'personal');
     if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKrayPro…', () => showSubscribe()));
@@ -206,6 +225,170 @@ export function fillAccount() {
   }
   menuIcons(menu);
   cloudMenuShown();
+}
+/* ---------- Teams ----------
+   A team is a workspace several people share, paid for by its owner with a seat for each
+   owner, admin and editor (viewers are free, at least three seats). Owners and admins invite
+   by email (a link that works for 14 days), set roles and remove people, and see the team's
+   activity record; the owner hands the team on or deletes it. The seats follow the members:
+   the API brings the subscription's quantity to the paid members on every change. */
+const ROLE_NAMES = { owner: 'Owner', admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+const ROLE_NOTES = { admin: 'invites, removes and sets roles; takes a seat', editor: 'saves benches; takes a seat', viewer: 'opens and exports benches; free' };
+const jsonReq = (method, obj) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+const when = t => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export async function createTeam() {
+  if (!account) { toast('Sign in first (account menu, top right)', true); return; }
+  const name = (prompt('Name the team: your lab, group or company', '') || '').trim();
+  if (!name) return;
+  try {
+    const t = await api('/v1/teams', jsonReq('POST', { name }));
+    await loadAccount();
+    toast('Team created. Invite people, then subscribe for its seats.');
+    showTeam(t.id);
+  } catch (err) { toast(err.message, true); }
+}
+let teamPrices = null;
+export async function showTeam(id) {
+  const dlg = document.getElementById('teamDialog'), body = document.getElementById('teamBody');
+  if (!dlg.open) dlg.showModal();
+  body.replaceChildren(h('p', null, 'Loading…'));
+  let t;
+  try { t = await api('/v1/teams/' + id); }
+  catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
+  if (!teamPrices) try { teamPrices = await api('/v1/billing/prices'); } catch (err) { teamPrices = {}; }
+  const again = () => showTeam(id);
+  const act = (fn, done) => async () => { try { await fn(); if (done) toast(done); await loadAccount(); again(); } catch (err) { if (!err.quiet) toast(err.message, true); } };
+  const manages = t.role === 'owner' || t.role === 'admin', owner = t.role === 'owner';
+  const me = account && account.user, owning = t.members.find(m => m.role === 'owner');
+  document.getElementById('teamTitle').textContent = t.name;
+  // the name
+  const rename = manages ? h('button', { type: 'button', class: 'rt-link', onclick: act(async () => { const name = (prompt('Rename the team', t.name) || '').trim(); if (!name || name === t.name) throw Object.assign(new Error(''), { quiet: true }); await api('/v1/teams/' + id, jsonReq('PATCH', { name })); }) }, 'Rename') : null;
+  // the plan and its seats
+  const p = t.plan, pm = teamPrices.team_monthly, py = teamPrices.team_yearly;
+  const seatsLine = t.seats.paid + ' paid seat' + (t.seats.paid === 1 ? '' : 's') + ' (owner, admins and editors; at least ' + t.seats.min + ' are billed)' + (t.seats.billed ? ', ' + t.seats.billed + ' billed' : '');
+  const plan = [];
+  if (t.active && p) {
+    plan.push(h('p', null, h('b', null, 'Team plan'), ', ' + (p.interval === 'year' ? 'yearly' : 'monthly') + (p.status === 'past_due' ? ', payment failed: update the card in Billing' : p.cancel_at ? ', ends ' + shortDate(p.cancel_at) : p.period_end ? ', renews ' + shortDate(p.period_end) : '') + '. ' + seatsLine + '.'));
+    if (owner && p.billing) {
+      const other = p.interval === 'month' ? 'year' : 'month';
+      plan.push(h('div', { class: 'uni-row' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => openPortal(id) }, 'Billing and invoices…'),
+        !p.cancel_at && p.interval ? h('button', { type: 'button', class: 'rt-btn', onclick: () => switchInterval(id, other) }, other === 'year' ? 'Switch to yearly billing' : 'Switch to monthly billing') : null));
+    }
+  } else {
+    plan.push(h('p', null, h('b', null, p ? 'The team’s subscription has ' + (p.status === 'past_due' ? 'paused: a payment failed' : 'ended') : 'No subscription yet'), '. Until the team is subscribed its members can open and export its benches but not save to it. ' + seatsLine + '.'));
+    if (owner) {
+      const tabs = h('div', { class: 'rt-subtabs', role: 'radiogroup', 'aria-label': 'Billing period' },
+        ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': subInterval === v ? 'true' : 'false', class: 'rt-btn', onclick: () => { subInterval = v; again(); } }, label)));
+      const price = subInterval === 'year' ? py : pm;
+      const n = Math.max(t.seats.min, t.seats.paid);
+      const go = h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(id, 'team', go) }, 'Subscribe for ' + n + ' seats');
+      plan.push(h('div', { class: 'uni-row' }, tabs, price ? h('span', null, h('b', null, money(price.amount, price.currency)), ' a seat a ' + (subInterval === 'year' ? 'year' : 'month') + ': ', h('b', null, money(price.amount * n, price.currency)), ' now') : h('span', { class: 'team-muted' }, 'Prices are not available just now.'), go),
+        h('p', { class: 'rt-subsmall' }, 'Seats added later are charged for the rest of the period; seats freed come off at the next renewal. Prices include VAT where it applies; payment by Stripe. By subscribing you agree to the ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'JEKrayPro Terms'), '.'));
+    } else plan.push(h('p', null, 'Only the owner, ' + (owning ? owning.name : 'the owner') + ', can subscribe for the team.'));
+  }
+  // the members
+  const canSet = m => m.role !== 'owner' && (owner || (m.role !== 'admin' || m.user_id === me.id));
+  const roleCell = m => {
+    if (!manages || !canSet(m)) return h('td', null, ROLE_NAMES[m.role] + (m.seat ? '' : ' (free)'));
+    const sel = h('select', { 'aria-label': 'Role of ' + m.name }, ...['admin', 'editor', 'viewer'].filter(r => owner || r !== 'admin' || r === m.role).map(r => h('option', { value: r, selected: r === m.role }, ROLE_NAMES[r])));
+    sel.addEventListener('change', act(() => api('/v1/teams/' + id + '/members/' + m.user_id, jsonReq('PATCH', { role: sel.value })), 'Role changed'));
+    return h('td', null, sel);
+  };
+  const members = h('table', null, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Name'), manages ? h('th', { scope: 'col' }, 'Email') : null, h('th', { scope: 'col' }, 'Role'), h('th', { scope: 'col' }, 'Since'), h('th', { scope: 'col' }))),
+    h('tbody', null, ...t.members.map(m => h('tr', null, h('td', null, m.name + (me && m.user_id === me.id ? ' (you)' : '')), manages ? h('td', { class: 'team-muted' }, m.email || '') : null, roleCell(m), h('td', { class: 'team-muted' }, shortDate(m.joined_at)),
+      h('td', { class: 'team-act' }, manages && canSet(m) && !(me && m.user_id === me.id) ? h('button', { type: 'button', class: 'rt-link', onclick: act(async () => { if (!confirm('Remove ' + m.name + ' from the team? Their benches here stay with the team.')) throw Object.assign(new Error(''), { quiet: true }); await api('/v1/teams/' + id + '/members/' + m.user_id, { method: 'DELETE' }); }, 'Removed') }, 'Remove') : null)))));
+  // invitations
+  const invites = [];
+  if (manages) {
+    const email = h('input', { type: 'email', 'aria-label': 'Email address to invite', placeholder: 'colleague@example.com', autocomplete: 'off' });
+    const role = h('select', { 'aria-label': 'Role' }, ...(owner ? ['admin', 'editor', 'viewer'] : ['editor', 'viewer']).map(r => h('option', { value: r, selected: r === 'editor' }, ROLE_NAMES[r] + ': ' + ROLE_NOTES[r])));
+    const said = h('div', null);
+    const go = h('button', { type: 'button', class: 'rt-btn' }, 'Invite');
+    const doInvite = async () => {
+      go.disabled = true;
+      try {
+        const r = await api('/v1/teams/' + id + '/invites', jsonReq('POST', { email: email.value, role: role.value }));
+        if (r.invited.sent) { toast('Invitation emailed to ' + r.invited.email); again(); }
+        else {
+          // no email went: the link is theirs to pass on
+          const url = h('input', { type: 'text', readonly: true, value: r.invited.link, 'aria-label': 'Invitation link' });
+          said.replaceChildren(h('p', null, 'We could not email ' + r.invited.email + '. Send them this link yourself; it works for 14 days, once:'),
+            h('div', { class: 'team-link' }, url, h('button', { type: 'button', class: 'rt-btn', onclick: () => { url.select(); try { navigator.clipboard.writeText(r.invited.link); toast('Link copied'); } catch (err) { toast('Copy the link from the box', true); } } }, 'Copy')));
+          email.value = '';
+        }
+      } catch (err) { toast(err.message, true); }
+      go.disabled = false;
+    };
+    go.addEventListener('click', doInvite);
+    email.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doInvite(); } });
+    invites.push(h('h3', null, 'Invite someone'),
+      h('p', null, 'They get an email with a link; they sign in with Google or Microsoft and are in. A new editor or admin adds a seat' + (t.active && t.seats.paid >= t.seats.min ? ', charged for the rest of the period' : '') + '; a viewer is free.'),
+      h('div', { class: 'uni-row' }, email, role, go), said);
+    if (t.invites && t.invites.length) invites.push(h('h3', null, 'Invited, not yet joined'), h('ul', { class: 'uni-list' }, ...t.invites.map(i => h('li', null, h('span', null, i.email + ' as ' + ROLE_NAMES[i.role].toLowerCase()), h('span', { class: 'team-muted' }, 'until ' + shortDate(i.expires_at)),
+      h('button', { type: 'button', class: 'rt-link', onclick: act(() => api('/v1/teams/' + id + '/invites/' + i.id, { method: 'DELETE' }), 'Invitation withdrawn') }, 'Withdraw')))));
+  }
+  // leaving, handing on, deleting
+  const ends = [h('h3', null, owner ? 'The team' : 'Leaving')];
+  if (owner) {
+    const others = t.members.filter(m => m.user_id !== me.id);
+    if (others.length) {
+      const sel = h('select', { 'aria-label': 'New owner' }, ...others.map(m => h('option', { value: m.user_id }, m.name)));
+      ends.push(h('p', null, 'Hand the team on: the new owner takes over its subscription and billing, and you stay as an admin.'),
+        h('div', { class: 'uni-row' }, sel, h('button', { type: 'button', class: 'rt-btn', onclick: act(async () => { const m = others.find(o => o.user_id === sel.value); if (!confirm('Make ' + m.name + ' the owner of ' + t.name + '? They take over its billing.')) throw Object.assign(new Error(''), { quiet: true }); await api('/v1/teams/' + id + '/transfer', jsonReq('POST', { user_id: sel.value })); }, 'The team has a new owner') }, 'Hand on')));
+    }
+    ends.push(h('p', null, 'Deleting the team cancels its subscription now and takes every bench in it, with its history, for everyone. It cannot be undone.'),
+      h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => {
+        if ((prompt('To delete the team and all its benches, type its name: ' + t.name) || '').trim() !== t.name) return;
+        try { await api('/v1/teams/' + id, { method: 'DELETE' }); dlg.close(); await loadAccount(); toast('Team deleted'); } catch (err) { toast(err.message, true); }
+      } }, 'Delete the team…'));
+  } else {
+    ends.push(h('p', null, 'Benches you saved here stay with the team.'), h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+      if (!confirm('Leave ' + t.name + '?')) return;
+      try { await api('/v1/teams/' + id + '/leave', { method: 'POST' }); dlg.close(); await loadAccount(); toast('You have left ' + t.name); } catch (err) { toast(err.message, true); }
+    } }, 'Leave the team'));
+  }
+  // the activity record
+  const log = manages && t.activity ? [h('h3', null, 'Activity'), t.activity.length ? h('div', { class: 'team-log' }, h('table', null, h('tbody', null, ...t.activity.map(a => h('tr', null, h('td', { class: 'team-muted' }, when(a.at)), h('td', null, a.who || 'Someone'), h('td', null, a.action.replace('.', ': ').replace(/_/g, ' ') + (a.target ? ' — ' + a.target : ''))))))) : h('p', null, 'Nothing yet.')] : [];
+  body.replaceChildren(...[
+    h('p', null, 'You are ' + (t.role === 'owner' ? 'the owner' : 'an ' + ROLE_NAMES[t.role].toLowerCase()) + ' of this team. ', rename),
+    h('h3', null, 'Plan'), ...plan,
+    h('h3', null, 'Members'), members,
+    ...invites, ...ends, ...log].filter(Boolean));
+}
+/* an invitation link (?jekinvite=<token>) taken from the address and kept across the sign-in it
+   may need; once signed in, what it is for is shown and, on a yes, accepted */
+export function takeInvite() {
+  const q = new URLSearchParams(location.search), token = q.get('jekinvite');
+  if (!token) return;
+  q.delete('jekinvite');
+  window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  try { sessionStorage.setItem('jekinvite', token); } catch (err) { toast('This browser cannot keep the invitation: open the link again once signed in', true); }
+}
+let inviteBusy = false;
+async function handleInvite() {
+  let token = null;
+  try { token = sessionStorage.getItem('jekinvite'); } catch (err) { return; }
+  if (!token || inviteBusy) return;
+  inviteBusy = true;
+  const drop = () => { try { sessionStorage.removeItem('jekinvite'); } catch (err) { /* it will be asked about again */ } };
+  try {
+    if (!account) {
+      const btn = document.getElementById('btnAcct');
+      if (btn && document.getElementById('acctMenu').hidden) btn.click();
+      toast('You have been invited to a team: sign in to join it');
+      return;
+    }
+    let inv;
+    try { inv = await api('/v1/invitations/' + encodeURIComponent(token)); }
+    catch (err) { drop(); toast(err.message, true); return; }
+    if (!confirm(inv.inviter + ' has invited you to join the team “' + inv.team + '” as ' + (inv.role === 'admin' ? 'an admin' : 'a ' + inv.role) + '. Join it?')) { drop(); return; }
+    const r = await api('/v1/invitations/accept', jsonReq('POST', { token }));
+    drop();
+    await loadAccount();
+    toast('You are in ' + r.team.name);
+    showTeam(r.team.id);
+  } catch (err) { toast(err.message, true); }
+  finally { inviteBusy = false; }
 }
 /* A university's licence, for the people who look after it there: its state, its tier and
    how many use it each month, what it covers, invitations for people without a university
@@ -297,6 +480,7 @@ async function loadAccount() {
   }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
+  handleInvite();
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 export const accountsOn = () => !TEST_MODE && !EMBED;
@@ -322,6 +506,8 @@ export function accountShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireAccount() {
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
+  document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
+  takeInvite();
 
   {
     const dlg = document.getElementById('deleteDialog'), input = document.getElementById('deleteConfirm'), go = document.getElementById('deleteGo'), err = document.getElementById('deleteError');

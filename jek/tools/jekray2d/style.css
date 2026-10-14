@@ -71,15 +71,22 @@
   .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-red); }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
-  #uniBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
-  #uniBody p { margin: 0.3rem 0 0.6rem; }
-  #uniBody table { border-collapse: collapse; font-size: 0.85rem; margin: 0.2rem 0 0.4rem; }
-  #uniBody th, #uniBody td { padding: 0.2rem 0.9rem 0.2rem 0; text-align: left; font-variant-numeric: tabular-nums; }
-  #uniBody th { font-weight: 600; color: var(--jek-ink-soft); }
-  #uniBody .uni-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.3rem 0; }
-  #uniBody .uni-row input { flex: 1 1 14rem; min-width: 0; padding: 0.4rem; font: inherit; font-size: 0.875rem; }
-  #uniBody .uni-list { margin: 0.2rem 0 0.4rem; padding: 0; list-style: none; font-size: 0.875rem; }
-  #uniBody .uni-list li { display: flex; gap: 0.75rem; align-items: center; padding: 0.15rem 0; }
+  #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
+  #uniBody p, #teamBody p { margin: 0.3rem 0 0.6rem; }
+  #uniBody table, #teamBody table { border-collapse: collapse; font-size: 0.85rem; margin: 0.2rem 0 0.4rem; }
+  #uniBody th, #uniBody td, #teamBody th, #teamBody td { padding: 0.2rem 0.9rem 0.2rem 0; text-align: left; font-variant-numeric: tabular-nums; }
+  #uniBody th, #teamBody th { font-weight: 600; color: var(--jek-ink-soft); }
+  #uniBody .uni-row, #teamBody .uni-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.3rem 0; }
+  #uniBody .uni-row input, #teamBody .uni-row input { flex: 1 1 14rem; min-width: 0; padding: 0.4rem; font: inherit; font-size: 0.875rem; }
+  #uniBody .uni-list, #teamBody .uni-list { margin: 0.2rem 0 0.4rem; padding: 0; list-style: none; font-size: 0.875rem; }
+  #teamBody table { width: 100%; }
+  #teamBody td.team-act { white-space: nowrap; text-align: right; padding-right: 0; }
+  #teamBody select, #teamBody .uni-row select { font: inherit; font-size: 0.85rem; padding: 0.3rem; }
+  #teamBody .team-muted { color: var(--jek-ink-soft); }
+  #teamBody .team-link { display: flex; gap: 0.5rem; align-items: center; margin: 0.3rem 0 0.6rem; }
+  #teamBody .team-link input { flex: 1 1 10rem; min-width: 0; font-family: var(--jek-mono); font-size: 0.75rem; padding: 0.3rem; }
+  #teamBody .team-log { max-height: 14rem; overflow: auto; }
+  #uniBody .uni-list li, #teamBody .uni-list li { display: flex; gap: 0.75rem; align-items: center; padding: 0.15rem 0; }
   dialog.rt-dialog #deleteConfirm { width: min(20rem, 100%); box-sizing: border-box; font: inherit; margin-top: 0.3rem; }
 
   .rt-name {

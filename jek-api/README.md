@@ -24,12 +24,27 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   R2 (on create, on Save, every 10 minutes of editing, before a restore;
   the last 50 kept, then one a day for 90 days); folders; `GET /v1/me/export`
   as a zip. Saving needs an active plan; reading and export never do.
-- Stripe: Checkout for the individual and academic plans, the customer
-  portal, switching monthly/yearly, and the webhook at `/stripe/webhook`
-  that mirrors each subscription (7 days' grace after a failed payment).
-  Prices are found by lookup key: `pro_monthly`, `pro_yearly`,
-  `academic_monthly`, `academic_yearly`. The academic price needs a
-  university email or a current university role on ORCID (`/v1/me/academic`).
+- Stripe: Checkout for the individual, academic and team plans, the
+  customer portal, switching monthly/yearly, and the webhook at
+  `/stripe/webhook` that mirrors each subscription (7 days' grace after a
+  failed payment). Prices are found by lookup key: `pro_monthly`,
+  `pro_yearly`, `academic_monthly`, `academic_yearly`, `team_monthly`,
+  `team_yearly` (the team prices are for one seat; the subscription's
+  quantity is the seats). Each must exist in Stripe as an active recurring
+  price with that lookup key. The academic price needs a university email
+  or a current university role on ORCID (`/v1/me/academic`).
+- Teams (`src/teams.js`): `POST /v1/teams` makes a workspace of kind
+  'team' owned by the caller; `GET/PATCH/DELETE /v1/teams/:id`; invitations
+  by email (`POST /v1/teams/:id/invites` {email, role}, a link
+  `APP_URL?jekinvite=<token>` emailed through Resend, or handed back to the
+  inviter when no email goes; `GET /v1/invitations/:token` to see what it
+  is for; `POST /v1/invitations/accept` {token}); members
+  (`PATCH/DELETE /v1/teams/:id/members/:u`, `POST /v1/teams/:id/leave`,
+  `POST /v1/teams/:id/transfer`). Owners, admins and editors take a seat,
+  viewers none; the Stripe quantity is kept at max(3, paid members): up
+  with `always_invoice`, down with no proration. A paid seat on an active
+  team plan makes the member's personal workspace active too. Everything
+  that changes a team is written to `audit`, shown to owner and admins.
 - Deleting an account (`DELETE /v1/me` with `{"confirm": "delete my account"}`):
   any live Stripe subscription is cancelled first (nothing is deleted if
   Stripe cannot be reached), then every workspace the person owns alone goes
@@ -84,7 +99,8 @@ In the app, the Sign in button appears with the experimental feature
 "JEKrayPro accounts" switched on; signed in, the File menu gains My
 benches and Save to cloud.
 
-Next: workspaces, members, invitations, roles and team billing.
+Teams: see `src/teams.js` above. Before the team plan sells, create the two
+team prices in Stripe with lookup keys `team_monthly` and `team_yearly`.
 
 ## Giving an account a plan by hand
 

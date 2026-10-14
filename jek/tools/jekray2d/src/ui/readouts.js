@@ -5,7 +5,8 @@ import { CRYSTALS, bireMat, filterT, gainAt, walkOff } from '../core/crystals.js
 import { cellPolar } from '../core/zeeman.js';
 import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
-import { C_NM_GHZ, fibrePdNm, pdResp, responsivity, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, fibrePdNm, hornLam, pdResp, responsivity, rfBeam } from '../core/rf.js';
+import { hornComps, hornPattern } from '../core/horns.js';
 import { deg, project } from '../state/project.js';
 import { benchNms, getEl, selected } from '../state/elements.js';
 import { meshSize } from '../core/stl.js';
@@ -140,19 +141,26 @@ function updateReadoutsIn(container, el) {
     }
     parts = [rows, el.mm ? 'Efficiency is the share of what arrives that lands on the core within the acceptance cone.' : 'Efficiency is what enters the fibre’s mode against what arrives on its face.'];
   } else if (el.mmw && !el.mmw.part) {
-    const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
-    const C = el.type === 'detector' ? rfCoupling(el) : null, ghz = el.type === 'source' ? el.mmw.ghz : C && C.beam ? C_NM_GHZ / (C.beam.lam * 1e6) : null;
-    const B = ghz ? rfBeam(el.mmw, ghz) : null;
-    const beamRows = B ? [['Wavelength at ' + fmtGHz(C_NM_GHZ / ghz), fmtLen(B.lam)], ['Gaussian at the aperture, w', fmtLen(B.wa)],
-      ['Waist, w₀', fmtLen(B.w0) + ', ' + fmtLen(B.dz) + ' behind the aperture'], ['Rayleigh range', fmtLen(B.zR)],
-      ['Divergence, 1/e² half-angle', (B.theta / deg).toPrecision(3) + '°'], ['Share in the Gaussian', (100 * B.g).toPrecision(3) + '%'],
-      ['Gain', (10 * Math.log10(8 * Math.PI * Math.PI * B.w0 * B.w0 / (B.lam * B.lam) * B.g)).toFixed(1) + ' dBi']] : [];
-    if (el.type === 'source') parts = [[['Power in the beam', fmtDbm(el.power) + ' (' + fmtMw(el.power) + ')'], ...beamRows], 'The horn’s Gaussian (Goldsmith’s fit to its aperture field). Gain is the far field’s on the axis.'];
-    else {
+    const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3), rf = el.mmw;
+    const C = el.type === 'detector' ? rfCoupling(el) : null, ghz = el.type === 'source' ? rf.ghz : C && C.beam ? C_NM_GHZ / (C.beam.lam * 1e6) : null;
+    const B = ghz ? rfBeam(rf, ghz) : null, M = hornComps(rf.kind), P = hornPattern(rf.kind, rf.a, rf.L, hornLam(el));
+    const beamRows = B ? [['Wavelength at ' + fmtGHz(C_NM_GHZ / ghz), fmtLen(B.lam)], ['Fitted Gaussian at the aperture, w', fmtLen(B.wa)],
+      ['Waist, w\u2080', fmtLen(B.w0) + ', ' + fmtLen(B.dz) + ' behind the aperture'], ['Rayleigh range', fmtLen(B.zR)],
+      ['Divergence, 1/e\u00b2 half-angle', (B.theta / deg).toPrecision(3) + '\u00b0'],
+      ['Gaussicity', (100 * M.gauss).toPrecision(3) + '%' + (M.comps.length > 1 ? '; ' + M.comps.length + ' modes carry ' + (100 * M.carried).toPrecision(3) + '%' + (M.cross > 1e-4 ? ', ' + (100 * M.cross).toPrecision(2) + '% is cross-polar' : '') : '')],
+      ['Directivity', P.dir.toFixed(1) + ' dBi']] : [];
+    if (el.type === 'source') {
+      parts = [[['Power in the beam', fmtDbm(el.power) + ' (' + fmtMw(el.power) + ')' + (rf.tx === 'up' ? ', at its nominal power' : '')], ...beamRows],
+        rf.tx === 'up' ? 'An upconverter: the bench is traced at its nominal power, and the electronics scale the link by what comes into its IF port.' : 'The field across its aperture, carried as modes of the fitted Gaussian. Directivity is the far field\u2019s on the axis.'];
+    } else {
       const r = detectorReading(el);
-      parts = [[['Arriving', C ? fmtDbm(C.inMw) : 'nothing'], ['Taken in', C ? fmtDbm(C.mw) + ', ' + (100 * C.eff).toPrecision(4) + '% of what arrives' : '—'],
-        ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB'], ...beamRows],
-        C ? 'Its mode at the frequency arriving.' : 'Nothing arrives on its aperture. The beam figures show once something does.'];
+      const front = r.mixer ? [...r.lines.map(ln => { const src = getEl(ln.id); return ['IF from ' + (src ? src.name : '?'), fmtHz(ln.fif) + ', ' + fmtDbm(ln.mw * Math.pow(10, -rf.cl / 10))]; }),
+        ['System temperature', (+r.tsys.toPrecision(4)) + ' K (' + rf.tant + ' K looked into, ' + rf.trx + ' K receiver)'],
+        ['Noise floor', r.floor.toFixed(1) + ' dBm/Hz at the input; ' + fmtDbm(r.mds) + ' in the ' + (+rf.ifbw.toPrecision(4)) + ' MHz IF band'],
+        ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB in the IF band']]
+        : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Noise', f(r.noiseV * 1e3) + ' mV rms (' + fmtDbm(r.mds) + ' equivalent)'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']];
+      parts = [[['Arriving', C ? fmtDbm(C.inMw) : 'nothing'], ['Taken in', C ? fmtDbm(C.mw) + ', ' + (100 * C.eff).toPrecision(4) + '% of what arrives' : '\u2014'], ...front, ...beamRows],
+        C ? 'Its mode at the frequency arriving' + (rf.pol === 'both' ? ', either polarisation.' : ', the ' + rf.pol + ' polarisation (the cross-polar field across it).') : 'Nothing arrives on its aperture. The beam figures show once something does.'];
     }
   } else if (el.type === 'detector') {
     const r = detectorReading(el), nm = benchNms()[0];

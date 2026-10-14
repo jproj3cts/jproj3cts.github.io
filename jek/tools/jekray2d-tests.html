@@ -6059,11 +6059,11 @@ const TESTS = [
   },
   {
     name: 'Two horns face to face couple as their Gaussians overlap',
-    why: 'identical corrugated horns 40 mm apart: their waists are D + 2 dz apart, so the overlap is 1 / (1 + (D + 2 dz)^2 / (4 zR^2)), times each horn’s Gaussian share (0.98 each); received over sent at 0 dBm, from the receiver’s aperture field',
+    why: 'identical ideal Gaussian horns 40 mm apart: their waists are D + 2 dz apart, so the overlap is 1 / (1 + (D + 2 dz)^2 / (4 zR^2)); received over sent at 0 dBm, from the receiver’s aperture field (a corrugated horn, launching its HE11 field, couples a little more: its field is wider than the fitted Gaussian)',
     wantFrom: () => { const wa = 0.6435 * 7.5, lam = 299792458 / 100 * 1e-6, x = Math.PI * wa * wa / (lam * 60), w0 = wa / Math.sqrt(1 + x * x), dz = 60 / (1 + 1 / (x * x)), zR = Math.PI * w0 * w0 / lam, d = 40 + 2 * dz;
-      return 0.98 * 0.98 / (1 + d * d / (4 * zR * zR)); },
+      return 1 / (1 + d * d / (4 * zR * zR)); },
     rel: true, tol: 0.003, unit: '',
-    run: J => { J.load(rfBench(40, [])); return J.detector('Rx').mw; },
+    run: J => { const B = rfBench(40, []); B.elements[0].mmw.kind = 'gauss'; B.elements[1].mmw.kind = 'gauss'; J.load(B); return J.detector('Rx').mw; },
   },
   {
     name: 'A plano-convex HDPE lens has f = R / (n − 1)',
@@ -6166,6 +6166,76 @@ const TESTS = [
       J.load(rfBench(120, [])); const a = J.detector('Rx').rf.inMw;
       J.load(rfBench(120, [{ type: 'lens', name: 'Slab', x: 60, y: 0, diameter: 100, surfaces: [{ R: null, coat: { mode: 'custom', R: 0 } }, { R: null, coat: { mode: 'custom', R: 0 } }], gaps: [30], materials: [{ glass: 'Nylon' }], mmw: {} }]));
       return J.detector('Rx').rf.inMw / a;
+    },
+  },
+  {
+    name: 'A horn’s aperture field, as modes: its Gaussicity is Goldsmith’s',
+    why: 'the field each horn leaves across its aperture (HE11 for a corrugated horn, TE11 for a smooth-wall one, TE10 + TE01 along a diagonal for a diagonal horn) is carried as Hermite–Gauss modes of the Gaussian that fits it best: the fundamental’s share is 0.98, 0.91 (of the co-polar power) and 0.84 (Goldsmith, table 7.1); a corrugated horn has no cross-polar field, a diagonal one about a tenth of its power in it (1 when all hold within 0.01)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const c = J.hornModes('corrugated'), sm = J.hornModes('smooth'), d = J.hornModes('diagonal'), g = J.hornModes('gauss');
+      return Math.abs(c.gauss - 0.98) < 0.01 && c.cross < 1e-6 && c.carried > 0.998 && Math.abs(sm.gauss / sm.co - 0.91) < 0.01 && Math.abs(d.gauss - 0.84) < 0.01 && Math.abs(d.cross - 0.1) < 0.02
+        && g.n === 1 && g.gauss === 1 && c.n > 10 && sm.m2[1] > sm.m2[0] ? 1 : 0;
+    },
+  },
+  {
+    name: 'Two ideal Gaussian horns face to face couple by their curvatures, not fully',
+    why: 'two identical horns almost touching: each beam’s phase front curves away from its own apex, the receiving mode’s towards it, so the overlap of two Gaussians of one radius w and curvatures ±L is 1 / (1 + (π w² / λ L)²): w = 0.6435 a, a 7.5 mm, L 60 mm at 100 GHz',
+    wantFrom: () => { const w = 0.6435 * 7.5, lam = 299792458 / 100 * 1e-6; return 1 / (1 + (Math.PI * w * w / (lam * 60)) ** 2); },
+    rel: true, tol: 3e-3, unit: '',
+    run: J => {
+      const B = rfBench(0.02, [], { ghz: 100 }); B.elements[0].mmw.kind = 'gauss'; B.elements[1].mmw.kind = 'gauss'; J.load(B);
+      return J.detector('Rx').rf.eff;
+    },
+  },
+  {
+    name: 'A receiving horn of one polarisation takes in the field along it, and the cross-polar field across it',
+    why: 'an s-polarised corrugated horn into a smooth-wall receiver: set to take s it takes in what it takes in set to both; set to take p it takes in only through its own cross-polar field (the smooth-wall horn’s is 4% of its mode), under 3% of that (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const at = pol => { const B = rfBench(120, [], { ghz: 100 }); B.elements[0].pol = 's'; B.elements[1].mmw.kind = 'smooth'; B.elements[1].mmw.pol = pol; J.load(B); return J.detector('Rx').rf.eff; };
+      const both = at('both'), s = at('s'), p = at('p');
+      return Math.abs(s / both - 1) < 1e-3 && p < 0.03 * s && p > 0 ? 1 : 0;
+    },
+  },
+  {
+    name: 'A video detector puts out its responsivity times the power, over its NEP',
+    why: 'a receiving horn with a square-law detector of 1000 V/W and 5 pW/√Hz over a 1 MHz video bandwidth: its output is 1000 V/W times the power its mode takes in, and the noise 5 µV rms; the volts read against the power, per watt',
+    want: 1000, tol: 1e-6, unit: 'V/W',
+    run: J => { const B = rfBench(120, []); Object.assign(B.elements[1].mmw, { rx: 'video', rv: 1000, nep: 5, vbw: 1 }); J.load(B); const r = J.detector('Rx'); return r.V / (r.mw * 1e-3); },
+  },
+  {
+    name: 'A mixer brings the carrier down to its IF, at the power it took in less the conversion loss, over k T R',
+    why: 'a 150 GHz horn into a receiver with a 149 GHz local oscillator, 6 dB conversion loss, 1000 K receiver looking into 295 K: the IF out is a 1 GHz tone of √(2 · 50 Ω · P) volts peak, P the power taken in less 6 dB, and its noise density k (295 + 1000) · 50 Ω less 6 dB, V²/Hz (1 when both hold to 1e-6)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.experimental(true);
+      try {
+        const B = rfBench(120, [elecPart('scope', 'SC', { x: 200, y: 40 })], { ghz: 150 }); Object.assign(B.elements[2].mmw, { rx: 'mixer', lo: 149, cl: 6, trx: 1000, tant: 295, ifbw: 5000 }); B.elements[2].id = 'R';
+        B.fibres = [{ a: ['R', 0], b: ['SC', 0], wire: true }]; J.load(B);
+        const P = J.detector('Rx').mw * 1e-3 * Math.pow(10, -0.6), S = J.elec.signal('Rx', 0), t = S.tones.find(q => Math.abs(q.f - 1e9) < 1), H = f => 1 / Math.sqrt(1 + (f / 5e9) ** 2);
+        const ok1 = t && Math.abs(t.amp / (Math.sqrt(2 * 50 * P) * H(1e9)) - 1) < 1e-6 && S.tones.length === 1;
+        const ok2 = Math.abs(S.psd(1e6) / (1.380649e-23 * 1295 * 50 * Math.pow(10, -0.6) * H(1e6) ** 2) - 1) < 1e-6;
+        return ok1 && ok2 ? 1 : 0;
+      } finally { J.experimental(false); }
+    },
+  },
+  {
+    name: 'An upconverting horn sends its IF up and a mixer brings it down: the link is linear in the IF voltage',
+    why: 'a 1 GHz, 1 V generator into a 150 GHz upconverter (6 dB conversion loss) sends two sidebands, 149 and 151 GHz, across to a mixer with a 149 GHz local oscillator (6 dB, a 5 GHz IF band): the IF out has the upper sideband at 2 GHz, half the drive times √(G · 10^-1.2), G the link’s power transfer from the horn’s nominal power to what the receiver takes in, through the IF band’s pole; and a video detector in its place reads the mean carrier power, (1 V)² / 2 / 50 Ω less 6 dB, through the link, times its 1000 V/W (1 when both hold to 1%)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.experimental(true);
+      try {
+        const mk = rxo => { const B = rfBench(120, [elecPart('sig', 'G', { f: 1e9, amp: 1, x: -60, y: 40 })], { ghz: 150 }); B.elements[0].id = 'H'; B.elements[0].mmw.tx = 'up'; B.elements[0].mmw.cl = 6; Object.assign(B.elements[2].mmw, rxo); B.elements[2].id = 'R'; B.fibres = [{ a: ['G', 0], b: ['H', 0], wire: true }]; return B; };
+        J.load(mk({ rx: 'mixer', lo: 149, cl: 6, ifbw: 5000 }));
+        const G = J.detector('Rx').mw / 1;                                    // from the nominal 0 dBm
+        const S = J.elec.signal('Rx', 0), t = S.tones.find(q => Math.abs(q.f - 2e9) < 1);
+        const ok1 = t && Math.abs(t.amp / (0.5 * Math.sqrt(G * Math.pow(10, -1.2)) / Math.sqrt(1 + (2e9 / 5e9) ** 2)) - 1) < 1e-6;
+        J.load(mk({ rx: 'video', rv: 1000, nep: 5, vbw: 5000 }));
+        const V = J.elec.signal('Rx', 0).dc, want = 1000 * G * 0.5 / 50 * Math.pow(10, -0.6);
+        return ok1 && Math.abs(V / want - 1) < 0.01 ? 1 : 0;
+      } finally { J.experimental(false); }
     },
   },
   {

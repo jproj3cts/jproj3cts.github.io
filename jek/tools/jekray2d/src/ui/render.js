@@ -1,10 +1,10 @@
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen } from '../core/format.js';
-import { C_NM_GHZ } from '../core/rf.js';
+import { hornGeom } from '../core/rf.js';
 import { beamAt, m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
 import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
-import { FIBRE_COLOUR, benchNms, getEl, lightOf, selected, srcBody } from '../state/elements.js';
+import { FIBRE_COLOUR, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
 import { polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
@@ -232,12 +232,6 @@ export function surfPoints(s, n = 48, reverse = false, f = null) {
 
 /* a feed horn from above: its flare from the waveguide to the aperture (on the part's place, facing
    the way it sends or takes light), in the RF palette's amber, and the aperture in the beam's colour */
-/* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
-export function hornLam(el) {
-  if (el.type === 'source') return C_NM_GHZ / el.mmw.ghz * 1e-6;
-  const nm = benchNms().find(v => v > 1e5);
-  return nm ? nm * 1e-6 : 3;
-}
 /* A horn's shape in its own frame (x along its beam, the aperture at 0, the rest behind). The
    flare is the cone whose slant length L runs from the apex to the aperture's rim, so its
    half-angle is asin(a / L); it narrows to the waveguide, sized for the one mode at its
@@ -247,10 +241,7 @@ export function hornLam(el) {
    wavelength. A diagonal horn is square across (a its half-side). The upper half's outline,
    and a corrugated horn's grooved inner wall from the aperture back to the throat. */
 export function hornShape(el) {
-  const { a, L, kind } = el.mmw, lam = hornLam(el);
-  const Lax = Math.sqrt(Math.max(1e-6, L * L - a * a)), tanA = a / Lax;
-  const rg = Math.min(0.36 * lam, 0.9 * a), Lf = (a - rg) / tanA;
-  const xb = -Lf - 2 * lam, rFl = Math.max(2.2 * rg, rg + 1), back = xb - Math.max(0.4 * lam, 0.5);
+  const { kind } = el.mmw, { a, lam, tanA, rg, Lf, xb, rFl, back } = hornGeom(el);
   const corr = kind === 'corrugated', D = corr ? lam / 4 : 0, wall = corr ? Math.max(0.04 * a, 0.3) : 0, rAt = x => a + x * tanA;
   const upper = [[0, a + D + wall], [-Lf, rg + D + wall], ...(corr ? [[-Lf, rg]] : []), [xb, rg], [xb, Math.max(rFl, rg + D + wall)], [back, Math.max(rFl, rg + D + wall)]];
   let grooves = null;

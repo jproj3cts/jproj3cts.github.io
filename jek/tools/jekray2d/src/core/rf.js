@@ -1,6 +1,8 @@
 import { clamp } from './constants.js';
 import { fanFromGauss } from './beams-hom.js';
+import { hornComps } from './horns.js';
 import { num } from '../state/project.js';
+import { benchNms } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
 import { netPower } from '../engines/fibre.js';
 
@@ -100,13 +102,17 @@ export function meshT(el, nm) {
 }
 export const meshGrating = (el, nm) => (el.mesh === 'inductive' || el.mesh === 'capacitive') && el.meshG >= nm * 1e-6;
 /* feed horns: the Gaussian that fits the aperture field (w = k a, a the aperture's radius, or half
-   its side for a diagonal horn), and the share of the power in that Gaussian (Goldsmith table 7.1) */
+   its side for a diagonal horn; Goldsmith table 7.1). The field itself, and its Hermite-Gauss
+   modes, are in horns.js: g is the share of the power the modes carried hold */
 export const RF_HORNS = {
-  corrugated: { name: 'Corrugated conical', k: 0.6435, g: 0.98 },
-  smooth: { name: 'Smooth-wall conical', k: 0.765, g: 0.91 },
-  diagonal: { name: 'Diagonal', k: 0.86, g: 0.84 },
+  corrugated: { name: 'Corrugated conical', k: 0.6435, get g() { return hornComps('corrugated').carried; } },
+  smooth: { name: 'Smooth-wall conical', k: 0.765, get g() { return hornComps('smooth').carried; } },
+  diagonal: { name: 'Diagonal', k: 0.86, get g() { return hornComps('diagonal').carried; } },
   gauss: { name: 'Ideal Gaussian', k: 0.6435, g: 1 },
 };
+/* a receiving horn's front end, and a feed horn's drive (see elec.js for what they do with the electronics) */
+export const RF_RX = { video: 'Video detector (square law)', mixer: 'Mixer: IF out' };
+export const RF_TX = { cw: 'Carrier at its power', up: 'Upconverter: IF in' };
 /* a horn's beam at a frequency (GHz): its aperture's Gaussian (wa, its phase radius the slant length
    L), and the waist it comes from, w0, dz behind the aperture (Goldsmith 7.6) */
 export function rfBeam(rf, ghz) {
@@ -115,14 +121,42 @@ export function rfBeam(rf, ghz) {
   const w0 = wa / Math.sqrt(1 + x * x), dz = rf.L / (1 + 1 / (x * x)), zR = Math.PI * w0 * w0 / lam;
   return { lam, wa, w0, dz, zR, g: H.g, theta: Math.atan(lam / (Math.PI * w0)), R: rf.L };
 }
+/* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
+export function hornLam(el) {
+  if (el.type === 'source') return C_NM_GHZ / el.mmw.ghz * 1e-6;
+  const nm = benchNms().find(v => v > 1e5);
+  return nm ? nm * 1e-6 : 3;
+}
+/* a horn's build in its own frame (x along its beam, the aperture at 0, the rest behind): the flare
+   is the cone whose slant length L runs from the apex to the aperture's rim (half-angle asin(a / L)),
+   narrowing to a waveguide sized for one mode (r = 0.36 lambda: TE11 alone), then two wavelengths of
+   guide and a flange; back is where it ends, where its connector and electrical ports sit */
+export function hornGeom(el) {
+  const { a, L } = el.mmw, lam = hornLam(el);
+  const Lax = Math.sqrt(Math.max(1e-6, L * L - a * a)), tanA = a / Lax;
+  const rg = Math.min(0.36 * lam, 0.9 * a), Lf = (a - rg) / tanA;
+  const xb = -Lf - 2 * lam, rFl = Math.max(2.2 * rg, rg + 1), back = xb - Math.max(0.4 * lam, 0.5);
+  return { a, lam, Lax, tanA, rg, Lf, xb, rFl, back };
+}
 export function normRf(r, type) {
   if (type !== 'source' && type !== 'detector') return { part: true };
   const o = { kind: RF_HORNS[r.kind] ? r.kind : 'corrugated', a: clamp(num(r.a, 7.5), 0.05, 2000), L: clamp(num(r.L, 60), 0.5, 1e5) };
-  if (type === 'source') { o.ghz = clamp(num(r.ghz, 100), 1, 3000); o.dbm = clamp(num(r.dbm, 0), -120, 60); }
-  if (type === 'detector') { o.span = clamp(num(r.span, 40), 1, 190); o.points = clamp(Math.round(num(r.points, 61)), 5, 401); }   // its frequency sweep: % of the frequency, and points
+  if (type === 'source') {
+    o.ghz = clamp(num(r.ghz, 100), 1, 3000); o.dbm = clamp(num(r.dbm, 0), -120, 60);
+    o.tx = RF_TX[r.tx] ? r.tx : 'cw';
+    if (o.tx === 'up') o.cl = clamp(num(r.cl, 6), 0, 60);                                   // the upconverter's conversion loss, dB, from its 50 ohm IF input
+  }
+  if (type === 'detector') {
+    o.span = clamp(num(r.span, 40), 1, 190); o.points = clamp(Math.round(num(r.points, 61)), 5, 401);   // its frequency sweep: % of the frequency, and points
+    o.pol = r.pol === 's' || r.pol === 'p' ? r.pol : 'both';                                 // the polarisation its mode takes in: s (out of the bench plane), p, or both
+    o.rx = RF_RX[r.rx] ? r.rx : 'video';
+    o.tant = clamp(num(r.tant, 295), 0, 1e5);                                                // what it looks into, K
+    if (o.rx === 'video') { o.rv = clamp(num(r.rv, 1000), 1e-3, 1e7); o.nep = clamp(num(r.nep, 5), 1e-4, 1e6); o.vbw = clamp(num(r.vbw, 1), 1e-6, 1e5); }   // V/W, pW/rtHz, MHz
+    else { o.lo = clamp(num(r.lo, 100), 1, 3000); o.cl = clamp(num(r.cl, 6), 0, 60); o.trx = clamp(num(r.trx, 1000), 0, 1e6); o.ifbw = clamp(num(r.ifbw, 1000), 1e-3, 1e5); }   // GHz, dB, K, MHz
+  }
   return o;
 }
-/* a horn sets its own beam: a source its wavelength, waist, power (the share in the Gaussian) and
+/* a horn sets its own beam: a source its wavelength, waist, power (the share its modes carry) and
    rays; a receiver its aperture */
 export function applyRf(el) {
   const rf = el.mmw;
@@ -130,7 +164,7 @@ export function applyRf(el) {
   if (el.type === 'detector') { el.length = 2 * rf.a; return; }
   const B = rfBeam(rf, rf.ghz);
   el.wavelength = C_NM_GHZ / rf.ghz;
-  el.gauss = true; el.w0 = B.w0; el.z0 = -B.dz; el.m2 = 1; el.tem = 'gauss';
+  el.gauss = true; el.w0 = B.w0; el.z0 = -B.dz; el.m2 = 1; el.tem = rf.kind === 'gauss' ? 'gauss' : 'horn';
   el.power = Math.pow(10, rf.dbm / 10) * B.g;
   el.colourAuto = false; el.colour = '#e0a030';
   fanFromGauss(el);

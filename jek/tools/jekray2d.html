@@ -2714,13 +2714,17 @@ function meshT(el, nm) {
 }
 const meshGrating = (el, nm) => (el.mesh === 'inductive' || el.mesh === 'capacitive') && el.meshG >= nm * 1e-6;
 /* feed horns: the Gaussian that fits the aperture field (w = k a, a the aperture's radius, or half
-   its side for a diagonal horn), and the share of the power in that Gaussian (Goldsmith table 7.1) */
+   its side for a diagonal horn; Goldsmith table 7.1). The field itself, and its Hermite-Gauss
+   modes, are in horns.js: g is the share of the power the modes carried hold */
 const RF_HORNS = {
-  corrugated: { name: 'Corrugated conical', k: 0.6435, g: 0.98 },
-  smooth: { name: 'Smooth-wall conical', k: 0.765, g: 0.91 },
-  diagonal: { name: 'Diagonal', k: 0.86, g: 0.84 },
+  corrugated: { name: 'Corrugated conical', k: 0.6435, get g() { return hornComps('corrugated').carried; } },
+  smooth: { name: 'Smooth-wall conical', k: 0.765, get g() { return hornComps('smooth').carried; } },
+  diagonal: { name: 'Diagonal', k: 0.86, get g() { return hornComps('diagonal').carried; } },
   gauss: { name: 'Ideal Gaussian', k: 0.6435, g: 1 },
 };
+/* a receiving horn's front end, and a feed horn's drive (see elec.js for what they do with the electronics) */
+const RF_RX = { video: 'Video detector (square law)', mixer: 'Mixer: IF out' };
+const RF_TX = { cw: 'Carrier at its power', up: 'Upconverter: IF in' };
 /* a horn's beam at a frequency (GHz): its aperture's Gaussian (wa, its phase radius the slant length
    L), and the waist it comes from, w0, dz behind the aperture (Goldsmith 7.6) */
 function rfBeam(rf, ghz) {
@@ -2729,14 +2733,42 @@ function rfBeam(rf, ghz) {
   const w0 = wa / Math.sqrt(1 + x * x), dz = rf.L / (1 + 1 / (x * x)), zR = Math.PI * w0 * w0 / lam;
   return { lam, wa, w0, dz, zR, g: H.g, theta: Math.atan(lam / (Math.PI * w0)), R: rf.L };
 }
+/* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
+function hornLam(el) {
+  if (el.type === 'source') return C_NM_GHZ / el.mmw.ghz * 1e-6;
+  const nm = benchNms().find(v => v > 1e5);
+  return nm ? nm * 1e-6 : 3;
+}
+/* a horn's build in its own frame (x along its beam, the aperture at 0, the rest behind): the flare
+   is the cone whose slant length L runs from the apex to the aperture's rim (half-angle asin(a / L)),
+   narrowing to a waveguide sized for one mode (r = 0.36 lambda: TE11 alone), then two wavelengths of
+   guide and a flange; back is where it ends, where its connector and electrical ports sit */
+function hornGeom(el) {
+  const { a, L } = el.mmw, lam = hornLam(el);
+  const Lax = Math.sqrt(Math.max(1e-6, L * L - a * a)), tanA = a / Lax;
+  const rg = Math.min(0.36 * lam, 0.9 * a), Lf = (a - rg) / tanA;
+  const xb = -Lf - 2 * lam, rFl = Math.max(2.2 * rg, rg + 1), back = xb - Math.max(0.4 * lam, 0.5);
+  return { a, lam, Lax, tanA, rg, Lf, xb, rFl, back };
+}
 function normRf(r, type) {
   if (type !== 'source' && type !== 'detector') return { part: true };
   const o = { kind: RF_HORNS[r.kind] ? r.kind : 'corrugated', a: clamp(num(r.a, 7.5), 0.05, 2000), L: clamp(num(r.L, 60), 0.5, 1e5) };
-  if (type === 'source') { o.ghz = clamp(num(r.ghz, 100), 1, 3000); o.dbm = clamp(num(r.dbm, 0), -120, 60); }
-  if (type === 'detector') { o.span = clamp(num(r.span, 40), 1, 190); o.points = clamp(Math.round(num(r.points, 61)), 5, 401); }   // its frequency sweep: % of the frequency, and points
+  if (type === 'source') {
+    o.ghz = clamp(num(r.ghz, 100), 1, 3000); o.dbm = clamp(num(r.dbm, 0), -120, 60);
+    o.tx = RF_TX[r.tx] ? r.tx : 'cw';
+    if (o.tx === 'up') o.cl = clamp(num(r.cl, 6), 0, 60);                                   // the upconverter's conversion loss, dB, from its 50 ohm IF input
+  }
+  if (type === 'detector') {
+    o.span = clamp(num(r.span, 40), 1, 190); o.points = clamp(Math.round(num(r.points, 61)), 5, 401);   // its frequency sweep: % of the frequency, and points
+    o.pol = r.pol === 's' || r.pol === 'p' ? r.pol : 'both';                                 // the polarisation its mode takes in: s (out of the bench plane), p, or both
+    o.rx = RF_RX[r.rx] ? r.rx : 'video';
+    o.tant = clamp(num(r.tant, 295), 0, 1e5);                                                // what it looks into, K
+    if (o.rx === 'video') { o.rv = clamp(num(r.rv, 1000), 1e-3, 1e7); o.nep = clamp(num(r.nep, 5), 1e-4, 1e6); o.vbw = clamp(num(r.vbw, 1), 1e-6, 1e5); }   // V/W, pW/rtHz, MHz
+    else { o.lo = clamp(num(r.lo, 100), 1, 3000); o.cl = clamp(num(r.cl, 6), 0, 60); o.trx = clamp(num(r.trx, 1000), 0, 1e6); o.ifbw = clamp(num(r.ifbw, 1000), 1e-3, 1e5); }   // GHz, dB, K, MHz
+  }
   return o;
 }
-/* a horn sets its own beam: a source its wavelength, waist, power (the share in the Gaussian) and
+/* a horn sets its own beam: a source its wavelength, waist, power (the share its modes carry) and
    rays; a receiver its aperture */
 function applyRf(el) {
   const rf = el.mmw;
@@ -2744,7 +2776,7 @@ function applyRf(el) {
   if (el.type === 'detector') { el.length = 2 * rf.a; return; }
   const B = rfBeam(rf, rf.ghz);
   el.wavelength = C_NM_GHZ / rf.ghz;
-  el.gauss = true; el.w0 = B.w0; el.z0 = -B.dz; el.m2 = 1; el.tem = 'gauss';
+  el.gauss = true; el.w0 = B.w0; el.z0 = -B.dz; el.m2 = 1; el.tem = rf.kind === 'gauss' ? 'gauss' : 'horn';
   el.power = Math.pow(10, rf.dbm / 10) * B.g;
   el.colourAuto = false; el.colour = '#e0a030';
   fanFromGauss(el);
@@ -3098,6 +3130,122 @@ function laguerre(p, a, x) {
   for (let k = 1; k < p; k++) { const l2 = ((2 * k + 1 + a - x) * l1 - (k + a) * l0) / (k + 1); l0 = l1; l1 = l2; }
   return l1;
 }
+/* ---------- Feed horns: the field across the aperture ----------
+   A horn launches the field its waveguide mode leaves across its aperture, on a spherical
+   phase front centred on its apex (Goldsmith, Quasioptical Systems, ch. 7):
+     corrugated   the balanced hybrid HE11 mode, J0(2.405 r/a), zero at the wall and of one
+                  polarisation: next to no cross-polar field
+     smooth-wall  the TE11 mode of a round guide, J0(rho) - J2(rho) cos 2 phi along the field
+                  (rho = 1.841 r/a; J1(rho)/rho in the E-plane, J1'(rho) in the H-plane, so it
+                  reaches the wall in the E-plane) and J2(rho) sin 2 phi across it
+     diagonal     the TE10 and TE01 modes of a square guide of side 2a, equal and polarised along
+                  a diagonal: cos(pi x'/2a) + cos(pi y'/2a) along it, and their difference across
+     Gaussian     the ideal, exp(-r^2 / w^2) with w the fit below, and nothing outside it
+   Each is carried as a coherent sum of Hermite-Gauss modes of the Gaussian that fits it best
+   (w = k a at the aperture, Goldsmith's table 7.1), found once by overlap on the aperture. The
+   fundamental's share is the horn's Gaussicity; the sum stops at order 12 and what it leaves
+   out (the sharp edge of the field at the wall) is lost with the cross-polar field, both
+   reported. The far-field pattern is the Fourier transform of the aperture field itself. */
+function hornBessel(n, x) {
+  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
+  let sum = term;
+  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
+  return sum;
+}
+const CHI = 1.8411837813, J0Z = 2.4048255577;
+/* the field at (x, y) in units of the aperture's radius a (half its side for a diagonal horn), as
+   [along the polarisation, across it]; k is the fitted Gaussian's radius over a */
+const HORN_FIELDS = {
+  corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [hornBessel(0, J0Z * r), 0]; } },
+  smooth: { k: 0.765, field: (x, y) => {
+    const r = Math.hypot(x, y); if (r > 1) return [0, 0];
+    const rho = CHI * r, j0 = hornBessel(0, rho), j2 = hornBessel(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
+    return [j0 - j2 * c2, j2 * s2];                      // the field along y: phi from the H-plane (x)
+  } },
+  diagonal: { k: 0.86, field: (x, y) => {
+    const u = (x + y) * Math.SQRT1_2, v = (y - x) * Math.SQRT1_2;     // the guide's sides, at 45 degrees to the field
+    if (Math.abs(u) > 1 || Math.abs(v) > 1) return [0, 0];
+    const cu = Math.cos(Math.PI * u / 2), cv = Math.cos(Math.PI * v / 2);
+    return [0.5 * (cu + cv), 0.5 * (cv - cu)];
+  } },
+  gauss: { k: 0.6435, field: null },
+};
+const NMAX = 12;
+const K = 321;
+const fact = m => { let f = 1; for (let i = 2; i <= m; i++) f *= i; return f; };
+const cmemo = new Map();
+/* a horn's beam as Hermite-Gauss modes of the fitted Gaussian, [m, n, re, im] of one norm summing to
+   one in power: comps; the share of the power they carry (carried), in the fundamental alone
+   (gauss), along the polarisation (co) and across it (cross); and the beam's M^2 each way */
+function hornComps(kind) {
+  const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated;
+  if (!H.field) return { comps: [[0, 0, 1, 0]], carried: 1, gauss: 1, co: 1, cross: 0, m2: [1, 1] };
+  if (cmemo.has(kind)) return cmemo.get(kind);
+  const w = H.k, h = 2 / K, xs = Float64Array.from({ length: K }, (_, i) => -1 + (i + 0.5) * h);
+  // the modes along one axis, of one norm on w: H_m(sqrt2 x / w) e^{-x^2/w^2} / sqrt(2^m m!) times (2 / pi w^2)^{1/4}
+  const ax = [];
+  for (let m = 0; m <= NMAX; m += 2) { const a = new Float64Array(K), nm = Math.sqrt(Math.pow(2, m) * fact(m)); for (let i = 0; i < K; i++) a[i] = hermite(m, Math.SQRT2 * xs[i] / w) * Math.exp(-xs[i] * xs[i] / (w * w)) / nm; ax.push(a); }
+  const pairs = [];
+  for (let m = 0; m <= NMAX; m += 2) for (let n = 0; m + n <= NMAX; n += 2) pairs.push([m, n]);
+  const c = new Float64Array(pairs.length);
+  let pt = 0, pco = 0;
+  for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) {
+    const [fc, fx] = H.field(xs[i], xs[j]);
+    if (!fc && !fx) continue;
+    pt += fc * fc + fx * fx; pco += fc * fc;
+    for (let p = 0; p < pairs.length; p++) c[p] += fc * ax[pairs[p][0] / 2][i] * ax[pairs[p][1] / 2][j];
+  }
+  const norm = Math.sqrt(2 / (Math.PI * w * w)) * h * h / Math.sqrt(pt * h * h);
+  let carried = 0, m2x = 0, m2y = 0;
+  const comps = [];
+  for (let p = 0; p < pairs.length; p++) { const v = c[p] * norm, v2 = v * v; if (v2 < 1e-7) continue; carried += v2; m2x += v2 * (2 * pairs[p][0] + 1); m2y += v2 * (2 * pairs[p][1] + 1); comps.push([pairs[p][0], pairs[p][1], v, 0]); }
+  const s = 1 / Math.sqrt(carried);
+  for (const q of comps) q[2] *= s;
+  const R = { comps, carried, gauss: (c[0] * norm) ** 2, co: pco / pt, cross: 1 - pco / pt, m2: [m2x / carried, m2y / carried] };
+  cmemo.set(kind, R);
+  return R;
+}
+/* the far field of the aperture, at a frequency (lam, a and L in mm): cuts through the pattern in
+   dB against the angle from the axis (deg), along the polarisation (E), across it (H) and the
+   cross-polar field in the plane between; its directivity (dBi), half-power widths, first
+   sidelobes and cross-polar peak */
+const pmemo = new Map();
+function hornPattern(kind, a, L, lam) {
+  const key = kind + '|' + a + '|' + L + '|' + lam;
+  if (pmemo.has(key)) return pmemo.get(key);
+  const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated, w = H.k;
+  const field = H.field || ((x, y) => { const r2 = x * x + y * y; return r2 > 1 ? [0, 0] : [Math.exp(-r2 / (w * w)), 0]; });
+  const KP = 161, h = 2 / KP, k = 2 * Math.PI / lam;
+  const pts = [];
+  let pt = 0;
+  for (let j = 0; j < KP; j++) for (let i = 0; i < KP; i++) {
+    const x = -1 + (i + 0.5) * h, y = -1 + (j + 0.5) * h, [fc, fx] = field(x, y);
+    if (!fc && !fx) continue;
+    const ph = -k * a * a * (x * x + y * y) / (2 * L);     // the spherical front, out from the apex
+    pts.push([x * a, y * a, fc * Math.cos(ph), fc * Math.sin(ph), fx * Math.cos(ph), fx * Math.sin(ph)]);
+    pt += fc * fc + fx * fx;
+  }
+  const dA = h * h * a * a;
+  pt *= dA;
+  const th0 = Math.atan(lam / (Math.PI * w * a)) * 180 / Math.PI;
+  const tmax = Math.min(89, Math.max(5 * th0, 10)), N = 241;
+  const th = Array.from({ length: N }, (_, i) => -tmax + 2 * tmax * i / (N - 1));
+  const cut = (cx, cy, pol) => th.map(t => {
+    const s = Math.sin(t * Math.PI / 180), ob = (1 + Math.cos(t * Math.PI / 180)) / 2, kx = k * s * cx, ky = k * s * cy;
+    let re = 0, im = 0;
+    for (const p of pts) { const ph = -(kx * p[0] + ky * p[1]), c = Math.cos(ph), sn = Math.sin(ph), fr = p[2 + pol], fi = p[3 + pol]; re += fr * c - fi * sn; im += fr * sn + fi * c; }
+    return (re * re + im * im) * dA * dA * ob * ob;
+  });
+  const E = cut(0, 1, 0), Hc = cut(1, 0, 0), X = cut(Math.SQRT1_2, Math.SQRT1_2, 2);
+  const peak = Math.max(...E, ...Hc), db = v => 10 * Math.log10(Math.max(v, 1e-30) / peak);
+  const dir = 10 * Math.log10(4 * Math.PI * peak / (lam * lam * pt));
+  const width = P => { const i0 = (N - 1) / 2; let i = i0; while (i < N - 1 && P[i] > peak / 2) i++; const t = (P[i - 1] - peak / 2) / (P[i - 1] - P[i]); return 2 * ((i - 1 - i0) + t) * (2 * tmax / (N - 1)); };
+  const lobe = P => { let best = null; for (let i = (N + 1) / 2; i < N - 1; i++) if (P[i] > P[i - 1] && P[i] >= P[i + 1] && P[i] < peak / 2) { best = db(P[i]); break; } return best; };
+  const R = { th, E: E.map(db), H: Hc.map(db), X: X.map(db), dir, hpbw: [width(E), width(Hc)], lobes: [lobe(E), lobe(Hc)], xpol: Math.max(...X.map(db)) };
+  if (pmemo.size > 40) pmemo.clear();
+  pmemo.set(key, R);
+  return R;
+}
 /* ---------- Higher-order beams ----------
    A Gaussian source can launch a Hermite-Gauss mode HG_mn (m nodes across the bench plane, n
    out of it) or a Laguerre-Gauss mode LG_pl (p rings, and for l != 0 a vortex of charge l, its
@@ -3105,9 +3253,11 @@ function laguerre(p, a, x) {
    of waist w0. Every such beam is carried as a coherent sum of Hermite-Gauss modes of that
    Gaussian: LG_pl is a sum of the HG modes of order 2p + |l|, found once by overlap on the
    waist. Each mode then keeps its own Gouy phase, so a cylindrical lens pair turns LG into HG
-   as it does in the lab. Its M^2 is 2m + 1 (and 2n + 1 out of the plane), or 2p + |l| + 1. */
-const isHigherMode = src => !!(src && src.gauss && !src.fibre && (src.tem === 'hg' || src.tem === 'lg'));
+   as it does in the lab. Its M^2 is 2m + 1 (and 2n + 1 out of the plane), or 2p + |l| + 1. A
+   feed horn's aperture field is carried the same way (see horns.js). */
+const isHigherMode = src => !!(src && src.gauss && !src.fibre && (src.tem === 'hg' || src.tem === 'lg' || (src.tem === 'horn' && src.mmw)));
 const modeM2 = src => !isHigherMode(src) ? [1, 1]
+  : src.tem === 'horn' ? hornComps(src.mmw.kind).m2
   : src.tem === 'hg' ? [2 * src.hm + 1, 2 * src.hn + 1] : [2 * src.lp + Math.abs(src.ll) + 1, 2 * src.lp + Math.abs(src.ll) + 1];
 /* the width factor the beam's envelope is drawn with, in the bench plane: its M^2 */
 const m2Env = src => m2Of(src) * modeM2(src)[0];
@@ -3140,7 +3290,7 @@ function lgComps(p, l) {
    one norm, summing to 1 in power). A plain Gaussian is one part of one mode; a beam of M^2
    above 1, one part per mode (gsmModes); a higher-order mode, one part of one or several. */
 function srcModes(src) {
-  if (isHigherMode(src)) return [{ w: 1, c: src.tem === 'hg' ? [[src.hm, src.hn, 1, 0]] : lgComps(src.lp, src.ll) }];
+  if (isHigherMode(src)) return [{ w: 1, c: src.tem === 'horn' ? hornComps(src.mmw.kind).comps : src.tem === 'hg' ? [[src.hm, src.hn, 1, 0]] : lgComps(src.lp, src.ll) }];
   return gsmModes(m2Of(src)).map(([m, n, w]) => ({ w, c: [[m, n, 1, 0]] }));
 }
 /* A cavity driven by a laser with a line of its own: the circulating power averaged over
@@ -7036,12 +7186,6 @@ function surfPoints(s, n = 48, reverse = false, f = null) {
 
 /* a feed horn from above: its flare from the waveguide to the aperture (on the part's place, facing
    the way it sends or takes light), in the RF palette's amber, and the aperture in the beam's colour */
-/* the wavelength a horn is built for, mm: a feed horn's own; a receiver's, the bench's RF beam (3 mm without one) */
-function hornLam(el) {
-  if (el.type === 'source') return C_NM_GHZ / el.mmw.ghz * 1e-6;
-  const nm = benchNms().find(v => v > 1e5);
-  return nm ? nm * 1e-6 : 3;
-}
 /* A horn's shape in its own frame (x along its beam, the aperture at 0, the rest behind). The
    flare is the cone whose slant length L runs from the apex to the aperture's rim, so its
    half-angle is asin(a / L); it narrows to the waveguide, sized for the one mode at its
@@ -7051,10 +7195,7 @@ function hornLam(el) {
    wavelength. A diagonal horn is square across (a its half-side). The upper half's outline,
    and a corrugated horn's grooved inner wall from the aperture back to the throat. */
 function hornShape(el) {
-  const { a, L, kind } = el.mmw, lam = hornLam(el);
-  const Lax = Math.sqrt(Math.max(1e-6, L * L - a * a)), tanA = a / Lax;
-  const rg = Math.min(0.36 * lam, 0.9 * a), Lf = (a - rg) / tanA;
-  const xb = -Lf - 2 * lam, rFl = Math.max(2.2 * rg, rg + 1), back = xb - Math.max(0.4 * lam, 0.5);
+  const { kind } = el.mmw, { a, lam, tanA, rg, Lf, xb, rFl, back } = hornGeom(el);
   const corr = kind === 'corrugated', D = corr ? lam / 4 : 0, wall = corr ? Math.max(0.04 * a, 0.3) : 0, rAt = x => a + x * tanA;
   const upper = [[0, a + D + wall], [-Lf, rg + D + wall], ...(corr ? [[-Lf, rg]] : []), [xb, rg], [xb, Math.max(rFl, rg + D + wall)], [back, Math.max(rFl, rg + D + wall)]];
   let grooves = null;
@@ -10112,8 +10253,11 @@ function faceArrivals(el) {
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
+    // the modes' amplitudes are given on the launch plane (as the field engine takes them); here
+    // each mode's Gouy phase is counted from the waist, so the launch plane's is put in first
+    const g0 = Math.atan2(r0.qi, r0.qr), launch = c => c.map(([m, n, a2, b2]) => { const p = (m + n) * g0, cs = Math.cos(p), sn = Math.sin(p); return [m, n, a2 * cs - b2 * sn, a2 * sn + b2 * cs]; });
     // a higher-order beam through parts that turn or treat its axes apart: its modes along its way (see beamQM)
-    const withModes = (A2, c) => { const QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
+    const withModes = (A2, c0) => { const c = launch(c0), QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
     if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] && !src.roll ? A : withModes(A, modes[0].c));
     else modes.forEach(({ w, c }, k) => out.push(withModes(Object.assign({}, A, { J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k }), c)));
   });
@@ -10276,49 +10420,82 @@ function fibreCoupling(el) {
     return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
   });
 }
-/* A receiving horn takes in the overlap of the arriving field with its own aperture mode: a
-   Gaussian of radius wa whose phase converges on the horn's apex, the slant length L behind the
-   aperture (a horn launching the same beam backwards), times the share of the power its mode
-   holds. Fields of one launch add; separate launches add as powers. In mW, and the share. */
+/* A receiving horn takes in the overlap of the arriving field with its own aperture mode: the
+   field its horn would launch (horns.js), on a phase front converging on the horn's apex, the
+   slant length L behind the aperture. The mode is of one polarisation (pol: s, out of the bench
+   plane, or p), with its cross-polar part across it; a horn set to take both polarisations
+   (a dual-polarisation horn, or one feeding a bolometer) takes each by the co-polar field.
+   Fields of one launch add; separate launches add as powers. In mW, and the share; and by
+   source (lines), for a mixer behind it. */
 function rfCoupling(el) {
   return deviceMemo(el, () => {
     const arr = faceArrivals(el);
     if (!arr.length) return null;
-    const N = 96;
+    const N = 96, rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a;
     let inMw = 0, coupledMw = 0, inS = 0, gotS = 0, beam = null;
+    const lines = new Map();
     for (const G of groupsOf(arr)) {
-      const nm = G[0].nm, B = rfBeam(el.mmw, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = 3.5 * wa, d = 2 * L / N;
+      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * a : 3.5 * wa, d = 2 * L / N;
       beam = B;
-      let cs = [0, 0], cp = [0, 0], pin = 0;
-      for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
-      const mAmp = Math.sqrt(2 / (Math.PI * wa * wa));
+      // the mode on the grid, [co, cross] at each point, of unit power
+      const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
+      let pm = 0;
       for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, r2 = u * u + v * v;
+        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, o = i * N + j;
+        const F = H.field ? H.field(u / a, v / a) : [Math.exp(-(u * u + v * v) / (wa * wa)), 0];
+        mc[o] = F[0]; mx[o] = F[1]; rr[o] = u * u + v * v; pm += F[0] * F[0] + F[1] * F[1];
+      }
+      const mAmp = 1 / Math.sqrt(pm * d * d);
+      let cr = 0, ci = 0, pin = 0;
+      let c2r = 0, c2i = 0;                                 // the other polarisation, when the horn takes both
+      for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const o = i * N + j;
+        if (!mc[o] && !mx[o]) continue;
+        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d;
         // the mode, M = |M| e^{+i k r^2 / 2L} (the field going as e^{-ikz}): conj(M) multiplies the field
-        const m = mAmp * Math.exp(-r2 / (wa * wa)), ph = k * r2 / (2 * B.R), mr = m * Math.cos(ph), mi = m * Math.sin(ph);
+        const ph = k * rr[o] / (2 * B.R), cs = Math.cos(ph), sn = Math.sin(ph);
+        const co = mAmp * mc[o], cx = mAmp * mx[o];
+        // the mode's two components: along s and p
+        const Ms = rf.pol === 'p' ? cx : co, Mp = rf.pol === 's' ? cx : co;
         for (const A of G) {
           const E = arrivalField(A, u, v);
-          cs[0] += E[0] * mr + E[1] * mi; cs[1] += E[1] * mr - E[0] * mi;
-          cp[0] += E[2] * mr + E[3] * mi; cp[1] += E[3] * mr - E[2] * mi;
+          if (rf.pol === 'both') {
+            cr += (E[0] * cs + E[1] * sn) * co; ci += (E[1] * cs - E[0] * sn) * co;
+            c2r += (E[2] * cs + E[3] * sn) * co; c2i += (E[3] * cs - E[2] * sn) * co;
+          } else {
+            cr += (E[0] * cs + E[1] * sn) * Ms + (E[2] * cs + E[3] * sn) * Mp;
+            ci += (E[1] * cs - E[0] * sn) * Ms + (E[3] * cs - E[2] * sn) * Mp;
+          }
         }
       }
-      const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d * B.g;
-      const P = splitRoot(G[0].src).power;
+      const got = (cr * cr + ci * ci + c2r * c2r + c2i * c2i) * d * d * d * d;
+      const root = splitRoot(G[0].src), P = root.power;
       inS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
+      const key = root.id, ln = lines.get(key) || { id: key, ghz: C_NM_GHZ / nm, mw: 0, inMw: 0, got: 0, ph: 0, top: -1 };
+      ln.mw += got * P; ln.inMw += pin * P; ln.got += got;
+      const [pr, pi] = cr * cr + ci * ci >= c2r * c2r + c2i * c2i ? [cr, ci] : [c2r, c2i];   // the phase of the stronger polarisation
+      if (got > ln.top) { ln.top = got; ln.ph = Math.atan2(pi, pr); }
+      lines.set(key, ln);
     }
-    return { eff: inS > 0 ? gotS / inS : 0, mw: coupledMw, inMw, beam };
+    return { eff: inS > 0 ? gotS / inS : 0, mw: coupledMw, inMw, beam, lines: [...lines.values()] };
   }, 'rf');
 }
 /* What a photodiode sees, and what its amplifier makes of it */
 function detectorReading(el) {
   return deviceMemo(el, () => {
     if (el.mmw) {
-      // a receiving horn: what its mode takes in, read by its detector (a fixed responsivity)
-      const C = rfCoupling(el), P = C ? C.mw : 0, Ia = P * el.resp * 1e-3;
-      const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = el.bandwidth;
-      const noiseI = Math.sqrt(2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B), V = Ia * el.gain;
-      return { mw: P, mA: Ia * 1e3, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending: false, field: true, rf: C,
-        snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
+      // a receiving horn: what its mode takes in, read by its front end (see elec.js for the two)
+      const C = rfCoupling(el), P = C ? C.mw : 0, rf = el.mmw, kB = 1.380649e-23;
+      if (rf.rx === 'mixer') {
+        const g = Math.pow(10, -rf.cl / 10), Tsys = rf.tant + rf.trx, B = rf.ifbw * 1e6, Pn = kB * Tsys * B * 1e3;   // the noise in the IF band, referred to the input, mW
+        const V = Math.sqrt(2 * 50 * P * 1e-3 * g);
+        return { mw: P, ifMw: P * g, V, sat: false, noiseV: Math.sqrt(2 * 50 * Pn * 1e-3 * g), pending: false, field: true, rf: C, mixer: true, tsys: Tsys, mds: Pn,
+          floor: 10 * Math.log10(kB * Tsys * 1e3), snr: P > 0 ? 10 * Math.log10(P / Pn) : null, lines: C ? C.lines.map(ln => Object.assign({ fif: Math.abs(ln.ghz - rf.lo) * 1e9 }, ln)) : [] };
+      }
+      const V = P * 1e-3 * rf.rv, noiseV = rf.rv * rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6);
+      return { mw: P, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV, pending: false, field: true, rf: C, mds: rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6) * 1e3,
+        snr: V > 0 ? 20 * Math.log10(V / noiseV) : null };
     }
     const a = el.length / 2;
     let I = 0, P = 0, pending = false;
@@ -11853,6 +12030,7 @@ function solve() {
         if (isDet(E) && elecExtra(E).length) dets.push(E);
       }
       driven = drives.length > 0;
+      curDrives = drives;
       const OS = opticalSignals(drives, dets);
       for (const E of dets) out.set(pkey(E.id, portsOf(E).length - 1), detOutput(E, OS.P.get(E.id), m => note(E, m)));
       for (const m of OS.notes) for (const E of dets) if (wires.some(F => F.a[0] === E.id)) note(E, m);
@@ -12003,8 +12181,15 @@ const CHOP_HUB = 5;                                          // mm: the chopper'
 function elecExtra(el) {
   const k = 1 / V().scale;
   switch (el.type) {
-    case 'detector': return [{ x: -detR(el), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];          // at the back of its semicircle
+    case 'detector':                                         // at the back of its semicircle; a receiving horn's at its connector
+      if (el.mmw && !el.mmw.part) return [{ x: hornGeom(el).back, y: 0, dx: -1, dy: 0, elec: 'out', name: el.mmw.rx === 'mixer' ? 'IF' : 'out' }];
+      return [{ x: -detR(el), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];
     case 'source': {                                         // power and frequency modulation, on its back, when under external control
+      if (el.mmw && !el.mmw.part) {                          // a feed horn: an upconverter's IF in, or its modulation inputs, at its connector
+        const G = hornGeom(el), d = Math.max(1.5, 0.6 * G.rFl);
+        if (el.mmw.tx === 'up') return [{ x: G.back, y: 0, dx: -1, dy: 0, elec: 'in', name: 'if' }];
+        return !el.ext ? [] : [{ x: G.back, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: G.back, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
+      }
       if (!el.ext) return [];
       const { L, hw } = srcBody(el), d = hw / 2;
       return [{ x: -L, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -L, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
@@ -12044,13 +12229,15 @@ const isLaser = el => el.type === 'source' || (el.type === 'fcomp' && el.kind ==
    over the swing, with nothing on the bench whose response depends on the power: no gain medium,
    amplifier, doubling crystal, vapour cell (they saturate) and no pulse (fibre nonlinearity) */
 function linearDrive(d, lo, hi) {
-  if (!isLaser(d.el) || d.port === 'fm') return false;
+  if (!isLaser(d.el) || d.port === 'fm' || d.port === 'if') return false;
   if (Math.min(1 + modk(d.el) / 100 * lo, 1 + modk(d.el) / 100 * hi) < 0) return false;
   return !project.elements.some(e => e.type === 'gain' || e.type === 'nlc' || e.type === 'cell' || (e.type === 'fcomp' && (e.kind === 'amp' || e.kind === 'soa')) || (isLaser(e) && e.tau > 0));
 }
 function applyDrive(el, v, port) {
   // a laser's frequency by fmk GHz per volt: its vacuum wavelength moves by -lambda^2 df / c
-  if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
+  // an upconverting horn: the carrier's power follows the square of the IF voltage into its 50 ohm, less its conversion loss
+  if (isLaser(el) && port === 'if') el.power = el.mmw ? 1000 * v * v / 50 * Math.pow(10, -(el.mmw.cl || 0) / 10) : 0;
+  else if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
   else if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
   else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
@@ -12206,7 +12393,9 @@ function opticalSignals(drives, dets) {
 /* a photodiode's output, from the light on it (mW, through time): a current for a bare
    diode, a voltage through the amplifier of a photodetector, with the beat notes the light
    carries, shot noise and the amplifier's own */
+let curDrives = [];
 function detOutput(el, P, note) {
+  if (el.mmw && !el.mmw.part) return el.mmw.rx === 'mixer' ? rfMixerOutput(el, P, note) : rfVideoOutput(el, P, note);
   const fibre = el.type === 'fcomp' || el.type === 'pic', diode = !!el.diode, PS = pdSignal(el);
   const rd = fibre ? null : detectorReading(el);
   const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]);
@@ -12220,6 +12409,52 @@ function detOutput(el, P, note) {
   if (!diode && peak(S) > el.vmax) note('The output would reach ' + elecFmtSig(peak(S), 'V') + ', past its ' + elecFmtSig(el.vmax, 'V') + ' limit: it would clip');
   if (PS.tones.some(t => t.incoh)) note('Beat notes between different lasers are left out: their phase wanders');
   return S;
+}
+/* ---------- receiving horns ----------
+   A video detector (a square-law diode) puts out its responsivity (V/W) times the power its
+   mode takes in, with its NEP as noise, through its video bandwidth. A mixer puts out the IF:
+   each feed horn's carrier comes down to |f - f_LO|, at the power it delivers less the
+   conversion loss, as a tone of sqrt(2 R P) volts across 50 ohm, with the phase of the field at
+   the horn (so two paths to one horn beat as they should). The receiver's noise temperature
+   and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. A feed horn
+   that is an upconverter sends its IF input up and this mixer brings it down: the IF out is the
+   drive, scaled by the link, mixed with the difference of the two local oscillators. A carrier
+   whose power the bench's drives move puts its square root on the IF (linearised about the
+   mean). */
+const R_IF = 50;
+function rfVideoOutput(el, P, note) {
+  const rf = el.mmw, L = scaled(P, 1e-3 * rf.rv, 'V'), n2 = (rf.rv * rf.nep * 1e-12) ** 2;
+  const S = through(L, pole(1, rf.vbw * 1e6), 'V', () => n2);
+  if (peak(S) > el.vmax) note('The output would reach ' + elecFmtSig(peak(S), 'V') + ', past its ' + elecFmtSig(el.vmax, 'V') + ' limit: it would clip');
+  return S;
+}
+function rfMixerOutput(el, P, note) {
+  const rf = el.mmw, C = rfCoupling(el), gcl = Math.pow(10, -rf.cl / 10);
+  let out = zero('V');
+  const tone = (f, ph) => { const T = zero('V'); if (f > 0) addTone(T.tones, f, Math.cos(ph), Math.sin(ph)); else T.dc = Math.cos(ph); return T; };
+  if (C) for (const ln of C.lines) {
+    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9;
+    if (fif > 1e10) { note('The IF from ' + (src ? src.name : 'a horn') + ' would be ' + fmtHz(fif) + ', past the electronics\u2019 10 GHz: left out'); continue; }
+    if (src && src.mmw && src.mmw.tx === 'up') {
+      const d = curDrives.find(q => q.el.id === ln.id && q.port === 'if');
+      if (!d || !d.S) { note((src.name) + ' is an upconverter with nothing on its IF input: no carrier'); continue; }
+      // from the IF in to the IF out: the bench, traced at the horn's nominal power, gives the link's power gain
+      const G = ln.mw / Math.pow(10, src.mmw.dbm / 10) * Math.pow(10, -src.mmw.cl / 10) * gcl;
+      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ln.ph), 1), 1, 1);
+      continue;
+    }
+    const Vp = Math.sqrt(2 * R_IF * ln.mw * 1e-3 * gcl), A = zero('V');
+    A.dc = Vp;
+    if (P && P.dc > 0) {                                   // the carrier's power moved by the bench's drives: its square root, about the mean
+      for (const t of P.tones) addTone(A.tones, t.f, Vp * t.re / (2 * P.dc), Vp * t.im / (2 * P.dc));
+      for (let i = 0; i < NF; i++) A.psd[i] = Vp * Vp * P.psd[i] / (4 * P.dc * P.dc);
+      const sw = P.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
+      if (sw > 0.3 * P.dc) note('The carrier\u2019s power swings by more than 30%: the IF follows its square root, taken as a straight line about the mean');
+    }
+    out = sum(out, mixer(A, tone(fif, ln.ph), 1), 1, 1);
+  }
+  const n2 = KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;
+  return through(out, pole(1, rf.ifbw * 1e6), 'V', () => n2);
 }
 /* the chopper's reference output: 0 to 5 V, rising as it opens */
 const chopRef = el => chopWave(el, 5);
@@ -12239,7 +12474,7 @@ function elecMoreReadout(el, parts) {
     const p = pkey(el.id, base + k), F = wires.filter(G => pkey(...G.a) === p || pkey(...G.b) === p);
     if (!F.length) return;
     const ends = F.map(G => { const o = pkey(...G.a) === p ? G.b : G.a, E = getEl(o[0]); return E ? E.name + ' ' + portName(E, o[1]) : '?'; });
-    rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port', drive: 'Drive in port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
+    rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port', drive: 'Drive in port', if: 'IF in port', IF: 'IF out port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
     if (P.elec === 'out' && isDet(el)) rows.push(...describe(solve().out.get(p) || zero()));
   });
   for (const w of solve().warn.get(el.id) || []) rows.push(['Note', w]);
@@ -15075,7 +15310,7 @@ function elecOpticPanel(el) {
       () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
     what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
       'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
- } else if (isLaser(el)) {
+ } else if (isLaser(el) && !(el.mmw && el.mmw.tx === 'up')) {
     const tick = h('input', { type: 'checkbox' });
     tick.checked = !!el.ext;
     tick.addEventListener('change', () => {
@@ -16769,19 +17004,26 @@ function updateReadoutsIn(container, el) {
     }
     parts = [rows, el.mm ? 'Efficiency is the share of what arrives that lands on the core within the acceptance cone.' : 'Efficiency is what enters the fibre’s mode against what arrives on its face.'];
   } else if (el.mmw && !el.mmw.part) {
-    const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
-    const C = el.type === 'detector' ? rfCoupling(el) : null, ghz = el.type === 'source' ? el.mmw.ghz : C && C.beam ? C_NM_GHZ / (C.beam.lam * 1e6) : null;
-    const B = ghz ? rfBeam(el.mmw, ghz) : null;
-    const beamRows = B ? [['Wavelength at ' + fmtGHz(C_NM_GHZ / ghz), fmtLen(B.lam)], ['Gaussian at the aperture, w', fmtLen(B.wa)],
-      ['Waist, w₀', fmtLen(B.w0) + ', ' + fmtLen(B.dz) + ' behind the aperture'], ['Rayleigh range', fmtLen(B.zR)],
-      ['Divergence, 1/e² half-angle', (B.theta / deg).toPrecision(3) + '°'], ['Share in the Gaussian', (100 * B.g).toPrecision(3) + '%'],
-      ['Gain', (10 * Math.log10(8 * Math.PI * Math.PI * B.w0 * B.w0 / (B.lam * B.lam) * B.g)).toFixed(1) + ' dBi']] : [];
-    if (el.type === 'source') parts = [[['Power in the beam', fmtDbm(el.power) + ' (' + fmtMw(el.power) + ')'], ...beamRows], 'The horn’s Gaussian (Goldsmith’s fit to its aperture field). Gain is the far field’s on the axis.'];
-    else {
+    const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3), rf = el.mmw;
+    const C = el.type === 'detector' ? rfCoupling(el) : null, ghz = el.type === 'source' ? rf.ghz : C && C.beam ? C_NM_GHZ / (C.beam.lam * 1e6) : null;
+    const B = ghz ? rfBeam(rf, ghz) : null, M = hornComps(rf.kind), P = hornPattern(rf.kind, rf.a, rf.L, hornLam(el));
+    const beamRows = B ? [['Wavelength at ' + fmtGHz(C_NM_GHZ / ghz), fmtLen(B.lam)], ['Fitted Gaussian at the aperture, w', fmtLen(B.wa)],
+      ['Waist, w\u2080', fmtLen(B.w0) + ', ' + fmtLen(B.dz) + ' behind the aperture'], ['Rayleigh range', fmtLen(B.zR)],
+      ['Divergence, 1/e\u00b2 half-angle', (B.theta / deg).toPrecision(3) + '\u00b0'],
+      ['Gaussicity', (100 * M.gauss).toPrecision(3) + '%' + (M.comps.length > 1 ? '; ' + M.comps.length + ' modes carry ' + (100 * M.carried).toPrecision(3) + '%' + (M.cross > 1e-4 ? ', ' + (100 * M.cross).toPrecision(2) + '% is cross-polar' : '') : '')],
+      ['Directivity', P.dir.toFixed(1) + ' dBi']] : [];
+    if (el.type === 'source') {
+      parts = [[['Power in the beam', fmtDbm(el.power) + ' (' + fmtMw(el.power) + ')' + (rf.tx === 'up' ? ', at its nominal power' : '')], ...beamRows],
+        rf.tx === 'up' ? 'An upconverter: the bench is traced at its nominal power, and the electronics scale the link by what comes into its IF port.' : 'The field across its aperture, carried as modes of the fitted Gaussian. Directivity is the far field\u2019s on the axis.'];
+    } else {
       const r = detectorReading(el);
-      parts = [[['Arriving', C ? fmtDbm(C.inMw) : 'nothing'], ['Taken in', C ? fmtDbm(C.mw) + ', ' + (100 * C.eff).toPrecision(4) + '% of what arrives' : '—'],
-        ['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB'], ...beamRows],
-        C ? 'Its mode at the frequency arriving.' : 'Nothing arrives on its aperture. The beam figures show once something does.'];
+      const front = r.mixer ? [...r.lines.map(ln => { const src = getEl(ln.id); return ['IF from ' + (src ? src.name : '?'), fmtHz(ln.fif) + ', ' + fmtDbm(ln.mw * Math.pow(10, -rf.cl / 10))]; }),
+        ['System temperature', (+r.tsys.toPrecision(4)) + ' K (' + rf.tant + ' K looked into, ' + rf.trx + ' K receiver)'],
+        ['Noise floor', r.floor.toFixed(1) + ' dBm/Hz at the input; ' + fmtDbm(r.mds) + ' in the ' + (+rf.ifbw.toPrecision(4)) + ' MHz IF band'],
+        ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB in the IF band']]
+        : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Noise', f(r.noiseV * 1e3) + ' mV rms (' + fmtDbm(r.mds) + ' equivalent)'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']];
+      parts = [[['Arriving', C ? fmtDbm(C.inMw) : 'nothing'], ['Taken in', C ? fmtDbm(C.mw) + ', ' + (100 * C.eff).toPrecision(4) + '% of what arrives' : '\u2014'], ...front, ...beamRows],
+        C ? 'Its mode at the frequency arriving' + (rf.pol === 'both' ? ', either polarisation.' : ', the ' + rf.pol + ' polarisation (the cross-polar field across it).') : 'Nothing arrives on its aperture. The beam figures show once something does.'];
     }
   } else if (el.type === 'detector') {
     const r = detectorReading(el), nm = benchNms()[0];
@@ -18552,30 +18794,78 @@ function matchLayer(nGlass, nm) {
   const n1 = Math.sqrt(nGlass);
   return normCoat({ mode: 'stack', design: nm, layers: [{ n: n1, d: nm / (4 * n1) }], label: 'Matching layer' });
 }
+/* a horn's far-field pattern: cuts through it along and across the polarisation and the
+   cross-polar field between, in dB against the angle, from the aperture field itself */
+function rfPatternSection(el) {
+  panel.append(h('h3', null, 'Far-field pattern'));
+  const cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
+  const box = h('div', { class: 'rt-readout' });
+  panel.append(cv, plotSaveRow(cv), box);
+  bindSync(cv, () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const lam = hornLam(el), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, lam), lo = P.th[0], hi = P.th[P.th.length - 1];
+    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, \u00b0' };
+    const A = plotArea(c, w, hgt, [-50, 0], sy), X = x => A.l + (x - lo) / (hi - lo) * A.w, Y = v => A.t + A.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    const line = (ys, col, dash) => { c.strokeStyle = col; c.lineWidth = 1.5; c.setLineDash(dash || []); c.beginPath(); P.th.forEach((x, i) => { const y = Y(ys[i]); i ? c.lineTo(X(x), y) : c.moveTo(X(x), y); }); c.stroke(); c.setLineDash([]); };
+    line(P.E, '#e0a030'); line(P.H, '#7ee0a1'); line(P.X, 'rgba(255,255,255,0.55)', [3, 3]);
+    c.restore();
+    drawAxes(c, A, [lo, hi], [-50, 0], sx, sy);
+    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
+    [['E-plane (along the field)', '#e0a030'], ['H-plane', '#7ee0a1'], ['cross-polar, 45\u00b0 plane', 'rgba(255,255,255,0.7)']].forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, A.l + 8, A.t + 14 + 13 * k); });
+    plotCsv(cv, el.name + ' pattern', ['angle_deg', 'E_dB', 'H_dB', 'xpol_dB'], () => P.th.map((x, i) => [x, P.E[i], P.H[i], P.X[i]]));
+    const M = hornComps(el.mmw.kind), f1 = v => v === null ? 'none' : v.toFixed(1) + ' dB';
+    box.replaceChildren(h('table', null, h('tbody', null,
+      h('tr', null, h('td', null, 'Directivity'), h('td', null, P.dir.toFixed(1) + ' dBi')),
+      h('tr', null, h('td', null, 'Half-power width, E / H'), h('td', null, P.hpbw[0].toFixed(2) + '\u00b0 / ' + P.hpbw[1].toFixed(2) + '\u00b0')),
+      h('tr', null, h('td', null, 'First sidelobe, E / H'), h('td', null, f1(P.lobes[0]) + ' / ' + f1(P.lobes[1]))),
+      h('tr', null, h('td', null, 'Cross-polar peak'), h('td', null, P.xpol < -100 ? 'none' : P.xpol.toFixed(1) + ' dB')),
+      h('tr', null, h('td', null, 'Gaussicity'), h('td', null, (100 * M.gauss).toPrecision(3) + '% of the power in the fitted Gaussian')),
+      h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
+      h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
+  });
+}
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;
-   the beam it launches, or takes in, from those (Goldsmith's fit of the aperture's field) */
+   the beam it launches, or takes in, from those (the field across its aperture, as modes) */
 function rfHornPanel(el) {
-  const tx = el.type === 'source';
+  const tx = el.type === 'source', rf = el.mmw;
+  const reset = () => { el.mmw = normRf(el.mmw, el.type); applyRf(el); };
   panel.append(h('h3', null, tx ? 'Feed horn' : 'Receiving horn'));
   const rows = h('div', { class: 'rt-rows' });
-  if (tx) rows.append(param('Frequency (GHz)', el, 'mmw.ghz'), param('Power (dBm)', el, 'mmw.dbm'));
+  if (tx) rows.append(param(rf.tx === 'up' ? 'Nominal power (dBm), traced at' : 'Power (dBm)', el, 'mmw.dbm'), param('Frequency (GHz)', el, 'mmw.ghz'));
   rows.append(
-    selectField('Horn', Object.entries(RF_HORNS).map(([k, v]) => [k, v.name]), () => el.mmw.kind, v => { el.mmw.kind = v; applyRf(el); }, { wide: true }),
-    param(el.mmw.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
+    selectField('Horn', Object.entries(RF_HORNS).map(([k, v]) => [k, v.name]), () => rf.kind, v => { rf.kind = v; applyRf(el); }, { wide: true }),
+    param(rf.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
     param('Slant length (mm)', el, 'mmw.L'));
   panel.append(rows);
-  if (!tx) rfReceiverSections(el);
-  if (!tx) {
-    panel.append(h('h3', null, 'Detector'));
-    panel.append(h('div', { class: 'rt-rows' },
-      param('Responsivity (A/W)', el, 'resp'), param('Gain (V/A)', el, 'gain'),
-      param('Bandwidth (Hz)', el, 'bandwidth'), param('Noise (pA/√Hz)', el, 'ampNoise')));
+  panel.append(h('h3', null, tx ? 'Drive' : 'Front end'));
+  const fe = h('div', { class: 'rt-rows' });
+  if (tx) {
+    fe.append(selectField('Carrier', Object.entries(RF_TX), () => rf.tx, v => {
+      rf.tx = v;
+      // its inputs change: the wires to them go
+      project.fibres = (project.fibres || []).filter(F => !(F.wire && F.b[0] === el.id));
+      reset();
+    }, { wide: true }));
+    if (rf.tx === 'up') fe.append(param('Conversion loss (dB)', el, 'mmw.cl'));
+  } else {
+    fe.append(selectField('Takes in', [['both', 'Both polarisations'], ['s', 's: the field out of the bench plane'], ['p', 'p: the field in the bench plane']], () => rf.pol, v => { rf.pol = v; reset(); }, { wide: true }),
+      selectField('Front end', Object.entries(RF_RX), () => rf.rx, v => { rf.rx = v; reset(); }, { wide: true }));
+    if (rf.rx === 'video') fe.append(param('Responsivity (V/W)', el, 'mmw.rv'), param('NEP (pW/\u221aHz)', el, 'mmw.nep'), param('Video bandwidth (MHz)', el, 'mmw.vbw'), param('Output limit (V)', el, 'vmax'));
+    else fe.append(param('Local oscillator (GHz)', el, 'mmw.lo'), param('Conversion loss (dB)', el, 'mmw.cl'), param('Noise temperature (K)', el, 'mmw.trx'), param('IF bandwidth (MHz)', el, 'mmw.ifbw'), param('Looks into (K)', el, 'mmw.tant'));
   }
+  panel.append(fe);
   panel.append(readoutBox('rfhorn'));
+  if (!tx) rfReceiverSections(el);
+  rfPatternSection(el);
   if (!tx) signalSection(el);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, tx
-    ? 'Launches the Gaussian beam that best fits the field across its aperture: its waist sits a little behind the aperture, and the rest of the power (the share outside that Gaussian) goes into sidelobes, which are left out. The beam then goes through the bench as any Gaussian does: lenses of the RF dielectrics, mirrors, wire grids.'
-    : 'Takes in the overlap of the field arriving on its aperture with its own mode (the beam it would launch, sent backwards), so a wrong size, a wrong focus, an offset or a tilt each cost what they should. The power taken in is read by a detector of fixed responsivity.'));
+    ? 'Launches the field across its aperture (the waveguide mode its type leaves there, on a phase front from its apex), carried as Hermite\u2013Gauss modes of the Gaussian that fits it best: the Gaussian itself, and the modes that give its sidelobes. The cross-polar field, and the sharp edge at the wall that the modes stop short of, are left out and counted. The beam then goes through the bench as any beam does.'
+    + (rf.tx === 'up' ? ' As an upconverter it sends up what comes into its IF port: the carrier\u2019s power is the IF voltage squared over 50 \u03a9, less the conversion loss, and a mixer behind a receiving horn brings it down again.' : ' Under external control its power and frequency follow the electronics.')
+    : 'Takes in the overlap of the field arriving on its aperture with its own mode (the field its horn would launch, sent backwards), so a wrong size, a wrong focus, an offset or a tilt each cost what they should. '
+    + (rf.rx === 'mixer' ? 'The mixer puts out each carrier at its IF, |f \u2212 f\u2097\u2092|, less the conversion loss, as volts across 50 \u03a9, over the noise of its temperature and what it looks into.' : 'The video detector puts out its responsivity times the power, over its NEP.')));
 }
 /* power leaving and entering a port, mW */
 function portPower(el, p) {
@@ -29936,6 +30226,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'RF, round two: <b>feed horns launch their real aperture fields</b>. A corrugated horn\u2019s HE\u2081\u2081, a smooth-wall horn\u2019s TE\u2081\u2081 and a diagonal horn\u2019s TE\u2081\u2080 + TE\u2080\u2081 are carried as Hermite\u2013Gauss modes of the fitted Gaussian, so the beam has the horn\u2019s sidelobes and M\u00b2 and its Gaussicity is Goldsmith\u2019s (0.98, 0.91, 0.84); a <b>far-field pattern</b> plot on every horn (E- and H-plane and cross-polar cuts, directivity, half-power widths, first sidelobes); a receiving horn takes in by its own aperture mode, in <b>one polarisation</b> with its cross-polar field across it, or both. And the horns join the <b>electronics</b>: a receiver\u2019s front end is a <b>video detector</b> (V/W, NEP, video bandwidth) or a <b>mixer</b> whose IF out carries each carrier at |f \u2212 f\u2097\u2092|, less its conversion loss, over k (T\u2090\u2099\u209c + T\u1d63\u2093) R, with the system temperature, noise floor and signal to noise in its readout; a feed horn can be an <b>upconverter</b> with an IF in port, so a tone from a signal generator goes up, across the bench and down into a spectrum analyser. A new example, <b>Heterodyne link, 150 GHz</b>.',
     'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',
     'A sweep of every example and of benches sent in, for polish and physics. <b>Light</b>: rays are as bright as the light they carry, on a log scale against the strongest ray of their own source, so a window\u2019s 4 % reflection is plainly fainter than the beam it came off, a cavity\u2019s hundreds of passes no longer paint the bench solid, a fibre tip fed through a lossy network is as bright as a laser, and a 5 % leak through a mirror still shows, in 2D and 3D; a dense fan is drawn at twice the resolution, so lines and pixels no longer beat; a laser\u2019s aperture takes in light that reaches it instead of passing it through the housing. <b>The 3D field</b>: each beam as bright as the light it carries (a 5 % leak is 5 % as bright, where every beam was drawn at its laser\u2019s power); a beam clipped by a lens\u2019s rim added to the light round the rim where each cut is taken (the old interpolation between far-apart cuts had left such beams all but dark); a laser\u2019s two polarisation halves added, where one was dropped; rays that meet nothing end a little past the parts. <b>Sweeps</b>: one rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there; a bench with a module renders ahead and runs its field off the page, the module\u2019s results fetched for each step. <b>The bench</b>: dragging the view with the field shown is smooth however many slices it has; fit view keeps every part clear of the rail and tabs, and the 3D fit comes in as close as the corners allow; names sit under their part whichever way it is turned, step off one another and off port names and sockets, and stay readable at any zoom; an iris shows its opening as a gap; a screen\u2019s profile is a plot with a baseline, as tall as the light is strong. <b>Physics</b>: a surface that turns the wavefront faster than the grid can follow (a high-NA objective) takes the field on a finer grid, and rows finer than the drawn field average their fringes; the field past a narrow slit is sampled across the slit, so its minima land where \u03bbL/a says; a lens narrower than the beam says so in its panel, with the share of light round its rim. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
@@ -30094,7 +30385,8 @@ const EXAMPLES = [
   ['RF and millimetre waves', false, [
     ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf'],
     ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.', 'rf'],
-    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.', 'rf']]],
+    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.', 'rf'],
+    ['mm-wave-heterodyne', 'Heterodyne link, 150 GHz', 'A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.', 'rf']]],
   ['Photonic circuits', false, [
     ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [
@@ -31528,7 +31820,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // a receiving horn against frequency, and its link budget (RF)
     rfSweep(name) { return rfSweep(this.byName(name)); },
     linkBudget(name) { return linkBudget(this.byName(name)); },
-    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw } : null }; },
+    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
+    hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
+    hornPattern(name) { const el = this.byName(name), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, hornLam(el)); return { dir: P.dir, hpbw: P.hpbw, lobes: P.lobes, xpol: P.xpol }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },
     portPower(name, p) { return portPower(this.byName(name), p); },

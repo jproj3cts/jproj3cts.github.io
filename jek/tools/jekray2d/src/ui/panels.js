@@ -6,7 +6,8 @@ import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, trapFLabel } from '../core/traps
 import { MU_B } from '../core/zeeman.js';
 import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert } from '../core/nlc.js';
 import { C_MM } from '../core/modulators.js';
-import { RF_HORNS, applyRf } from '../core/rf.js';
+import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf } from '../core/rf.js';
+import { hornComps, hornPattern } from '../core/horns.js';
 import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
@@ -681,30 +682,78 @@ export function matchLayer(nGlass, nm) {
   const n1 = Math.sqrt(nGlass);
   return normCoat({ mode: 'stack', design: nm, layers: [{ n: n1, d: nm / (4 * n1) }], label: 'Matching layer' });
 }
+/* a horn's far-field pattern: cuts through it along and across the polarisation and the
+   cross-polar field between, in dB against the angle, from the aperture field itself */
+function rfPatternSection(el) {
+  panel.append(h('h3', null, 'Far-field pattern'));
+  const cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
+  const box = h('div', { class: 'rt-readout' });
+  panel.append(cv, plotSaveRow(cv), box);
+  bindSync(cv, () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const lam = hornLam(el), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, lam), lo = P.th[0], hi = P.th[P.th.length - 1];
+    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, \u00b0' };
+    const A = plotArea(c, w, hgt, [-50, 0], sy), X = x => A.l + (x - lo) / (hi - lo) * A.w, Y = v => A.t + A.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    const line = (ys, col, dash) => { c.strokeStyle = col; c.lineWidth = 1.5; c.setLineDash(dash || []); c.beginPath(); P.th.forEach((x, i) => { const y = Y(ys[i]); i ? c.lineTo(X(x), y) : c.moveTo(X(x), y); }); c.stroke(); c.setLineDash([]); };
+    line(P.E, '#e0a030'); line(P.H, '#7ee0a1'); line(P.X, 'rgba(255,255,255,0.55)', [3, 3]);
+    c.restore();
+    drawAxes(c, A, [lo, hi], [-50, 0], sx, sy);
+    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
+    [['E-plane (along the field)', '#e0a030'], ['H-plane', '#7ee0a1'], ['cross-polar, 45\u00b0 plane', 'rgba(255,255,255,0.7)']].forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, A.l + 8, A.t + 14 + 13 * k); });
+    plotCsv(cv, el.name + ' pattern', ['angle_deg', 'E_dB', 'H_dB', 'xpol_dB'], () => P.th.map((x, i) => [x, P.E[i], P.H[i], P.X[i]]));
+    const M = hornComps(el.mmw.kind), f1 = v => v === null ? 'none' : v.toFixed(1) + ' dB';
+    box.replaceChildren(h('table', null, h('tbody', null,
+      h('tr', null, h('td', null, 'Directivity'), h('td', null, P.dir.toFixed(1) + ' dBi')),
+      h('tr', null, h('td', null, 'Half-power width, E / H'), h('td', null, P.hpbw[0].toFixed(2) + '\u00b0 / ' + P.hpbw[1].toFixed(2) + '\u00b0')),
+      h('tr', null, h('td', null, 'First sidelobe, E / H'), h('td', null, f1(P.lobes[0]) + ' / ' + f1(P.lobes[1]))),
+      h('tr', null, h('td', null, 'Cross-polar peak'), h('td', null, P.xpol < -100 ? 'none' : P.xpol.toFixed(1) + ' dB')),
+      h('tr', null, h('td', null, 'Gaussicity'), h('td', null, (100 * M.gauss).toPrecision(3) + '% of the power in the fitted Gaussian')),
+      h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
+      h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
+  });
+}
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;
-   the beam it launches, or takes in, from those (Goldsmith's fit of the aperture's field) */
+   the beam it launches, or takes in, from those (the field across its aperture, as modes) */
 export function rfHornPanel(el) {
-  const tx = el.type === 'source';
+  const tx = el.type === 'source', rf = el.mmw;
+  const reset = () => { el.mmw = normRf(el.mmw, el.type); applyRf(el); };
   panel.append(h('h3', null, tx ? 'Feed horn' : 'Receiving horn'));
   const rows = h('div', { class: 'rt-rows' });
-  if (tx) rows.append(param('Frequency (GHz)', el, 'mmw.ghz'), param('Power (dBm)', el, 'mmw.dbm'));
+  if (tx) rows.append(param(rf.tx === 'up' ? 'Nominal power (dBm), traced at' : 'Power (dBm)', el, 'mmw.dbm'), param('Frequency (GHz)', el, 'mmw.ghz'));
   rows.append(
-    selectField('Horn', Object.entries(RF_HORNS).map(([k, v]) => [k, v.name]), () => el.mmw.kind, v => { el.mmw.kind = v; applyRf(el); }, { wide: true }),
-    param(el.mmw.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
+    selectField('Horn', Object.entries(RF_HORNS).map(([k, v]) => [k, v.name]), () => rf.kind, v => { rf.kind = v; applyRf(el); }, { wide: true }),
+    param(rf.kind === 'diagonal' ? 'Aperture half-side (mm)' : 'Aperture radius (mm)', el, 'mmw.a'),
     param('Slant length (mm)', el, 'mmw.L'));
   panel.append(rows);
-  if (!tx) rfReceiverSections(el);
-  if (!tx) {
-    panel.append(h('h3', null, 'Detector'));
-    panel.append(h('div', { class: 'rt-rows' },
-      param('Responsivity (A/W)', el, 'resp'), param('Gain (V/A)', el, 'gain'),
-      param('Bandwidth (Hz)', el, 'bandwidth'), param('Noise (pA/√Hz)', el, 'ampNoise')));
+  panel.append(h('h3', null, tx ? 'Drive' : 'Front end'));
+  const fe = h('div', { class: 'rt-rows' });
+  if (tx) {
+    fe.append(selectField('Carrier', Object.entries(RF_TX), () => rf.tx, v => {
+      rf.tx = v;
+      // its inputs change: the wires to them go
+      project.fibres = (project.fibres || []).filter(F => !(F.wire && F.b[0] === el.id));
+      reset();
+    }, { wide: true }));
+    if (rf.tx === 'up') fe.append(param('Conversion loss (dB)', el, 'mmw.cl'));
+  } else {
+    fe.append(selectField('Takes in', [['both', 'Both polarisations'], ['s', 's: the field out of the bench plane'], ['p', 'p: the field in the bench plane']], () => rf.pol, v => { rf.pol = v; reset(); }, { wide: true }),
+      selectField('Front end', Object.entries(RF_RX), () => rf.rx, v => { rf.rx = v; reset(); }, { wide: true }));
+    if (rf.rx === 'video') fe.append(param('Responsivity (V/W)', el, 'mmw.rv'), param('NEP (pW/\u221aHz)', el, 'mmw.nep'), param('Video bandwidth (MHz)', el, 'mmw.vbw'), param('Output limit (V)', el, 'vmax'));
+    else fe.append(param('Local oscillator (GHz)', el, 'mmw.lo'), param('Conversion loss (dB)', el, 'mmw.cl'), param('Noise temperature (K)', el, 'mmw.trx'), param('IF bandwidth (MHz)', el, 'mmw.ifbw'), param('Looks into (K)', el, 'mmw.tant'));
   }
+  panel.append(fe);
   panel.append(readoutBox('rfhorn'));
+  if (!tx) rfReceiverSections(el);
+  rfPatternSection(el);
   if (!tx) signalSection(el);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, tx
-    ? 'Launches the Gaussian beam that best fits the field across its aperture: its waist sits a little behind the aperture, and the rest of the power (the share outside that Gaussian) goes into sidelobes, which are left out. The beam then goes through the bench as any Gaussian does: lenses of the RF dielectrics, mirrors, wire grids.'
-    : 'Takes in the overlap of the field arriving on its aperture with its own mode (the beam it would launch, sent backwards), so a wrong size, a wrong focus, an offset or a tilt each cost what they should. The power taken in is read by a detector of fixed responsivity.'));
+    ? 'Launches the field across its aperture (the waveguide mode its type leaves there, on a phase front from its apex), carried as Hermite\u2013Gauss modes of the Gaussian that fits it best: the Gaussian itself, and the modes that give its sidelobes. The cross-polar field, and the sharp edge at the wall that the modes stop short of, are left out and counted. The beam then goes through the bench as any beam does.'
+    + (rf.tx === 'up' ? ' As an upconverter it sends up what comes into its IF port: the carrier\u2019s power is the IF voltage squared over 50 \u03a9, less the conversion loss, and a mixer behind a receiving horn brings it down again.' : ' Under external control its power and frequency follow the electronics.')
+    : 'Takes in the overlap of the field arriving on its aperture with its own mode (the field its horn would launch, sent backwards), so a wrong size, a wrong focus, an offset or a tilt each cost what they should. '
+    + (rf.rx === 'mixer' ? 'The mixer puts out each carrier at its IF, |f \u2212 f\u2097\u2092|, less the conversion loss, as volts across 50 \u03a9, over the noise of its temperature and what it looks into.' : 'The video detector puts out its responsivity times the power, over its NEP.')));
 }
 /* power leaving and entering a port, mW */
 export function portPower(el, p) {

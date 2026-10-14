@@ -1,5 +1,6 @@
 import { clamp } from './constants.js';
 import { gsmModes, hermite, laguerre, m2Of } from './pulses.js';
+import { hornComps } from './horns.js';
 import { deg } from '../state/project.js';
 
 /* ---------- Higher-order beams ----------
@@ -9,9 +10,11 @@ import { deg } from '../state/project.js';
    of waist w0. Every such beam is carried as a coherent sum of Hermite-Gauss modes of that
    Gaussian: LG_pl is a sum of the HG modes of order 2p + |l|, found once by overlap on the
    waist. Each mode then keeps its own Gouy phase, so a cylindrical lens pair turns LG into HG
-   as it does in the lab. Its M^2 is 2m + 1 (and 2n + 1 out of the plane), or 2p + |l| + 1. */
-export const isHigherMode = src => !!(src && src.gauss && !src.fibre && (src.tem === 'hg' || src.tem === 'lg'));
+   as it does in the lab. Its M^2 is 2m + 1 (and 2n + 1 out of the plane), or 2p + |l| + 1. A
+   feed horn's aperture field is carried the same way (see horns.js). */
+export const isHigherMode = src => !!(src && src.gauss && !src.fibre && (src.tem === 'hg' || src.tem === 'lg' || (src.tem === 'horn' && src.mmw)));
 export const modeM2 = src => !isHigherMode(src) ? [1, 1]
+  : src.tem === 'horn' ? hornComps(src.mmw.kind).m2
   : src.tem === 'hg' ? [2 * src.hm + 1, 2 * src.hn + 1] : [2 * src.lp + Math.abs(src.ll) + 1, 2 * src.lp + Math.abs(src.ll) + 1];
 /* the width factor the beam's envelope is drawn with, in the bench plane: its M^2 */
 export const m2Env = src => m2Of(src) * modeM2(src)[0];
@@ -44,7 +47,7 @@ export function lgComps(p, l) {
    one norm, summing to 1 in power). A plain Gaussian is one part of one mode; a beam of M^2
    above 1, one part per mode (gsmModes); a higher-order mode, one part of one or several. */
 export function srcModes(src) {
-  if (isHigherMode(src)) return [{ w: 1, c: src.tem === 'hg' ? [[src.hm, src.hn, 1, 0]] : lgComps(src.lp, src.ll) }];
+  if (isHigherMode(src)) return [{ w: 1, c: src.tem === 'horn' ? hornComps(src.mmw.kind).comps : src.tem === 'hg' ? [[src.hm, src.hn, 1, 0]] : lgComps(src.lp, src.ll) }];
   return gsmModes(m2Of(src)).map(([m, n, w]) => ({ w, c: [[m, n, 1, 0]] }));
 }
 /* A cavity driven by a laser with a line of its own: the circulating power averaged over

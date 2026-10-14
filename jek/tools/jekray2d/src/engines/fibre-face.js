@@ -1,5 +1,6 @@
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { C_NM_GHZ, responsivity, rfBeam } from '../core/rf.js';
+import { HORN_FIELDS } from '../core/horns.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { hermite, m2Of } from '../core/pulses.js';
 import { fanFromGauss, srcModes } from '../core/beams-hom.js';
@@ -93,8 +94,11 @@ export function faceArrivals(el) {
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
+    // the modes' amplitudes are given on the launch plane (as the field engine takes them); here
+    // each mode's Gouy phase is counted from the waist, so the launch plane's is put in first
+    const g0 = Math.atan2(r0.qi, r0.qr), launch = c => c.map(([m, n, a2, b2]) => { const p = (m + n) * g0, cs = Math.cos(p), sn = Math.sin(p); return [m, n, a2 * cs - b2 * sn, a2 * sn + b2 * cs]; });
     // a higher-order beam through parts that turn or treat its axes apart: its modes along its way (see beamQM)
-    const withModes = (A2, c) => { const QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
+    const withModes = (A2, c0) => { const c = launch(c0), QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
     if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] && !src.roll ? A : withModes(A, modes[0].c));
     else modes.forEach(({ w, c }, k) => out.push(withModes(Object.assign({}, A, { J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k }), c)));
   });
@@ -257,49 +261,82 @@ export function fibreCoupling(el) {
     return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
   });
 }
-/* A receiving horn takes in the overlap of the arriving field with its own aperture mode: a
-   Gaussian of radius wa whose phase converges on the horn's apex, the slant length L behind the
-   aperture (a horn launching the same beam backwards), times the share of the power its mode
-   holds. Fields of one launch add; separate launches add as powers. In mW, and the share. */
+/* A receiving horn takes in the overlap of the arriving field with its own aperture mode: the
+   field its horn would launch (horns.js), on a phase front converging on the horn's apex, the
+   slant length L behind the aperture. The mode is of one polarisation (pol: s, out of the bench
+   plane, or p), with its cross-polar part across it; a horn set to take both polarisations
+   (a dual-polarisation horn, or one feeding a bolometer) takes each by the co-polar field.
+   Fields of one launch add; separate launches add as powers. In mW, and the share; and by
+   source (lines), for a mixer behind it. */
 export function rfCoupling(el) {
   return deviceMemo(el, () => {
     const arr = faceArrivals(el);
     if (!arr.length) return null;
-    const N = 96;
+    const N = 96, rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a;
     let inMw = 0, coupledMw = 0, inS = 0, gotS = 0, beam = null;
+    const lines = new Map();
     for (const G of groupsOf(arr)) {
-      const nm = G[0].nm, B = rfBeam(el.mmw, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = 3.5 * wa, d = 2 * L / N;
+      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * a : 3.5 * wa, d = 2 * L / N;
       beam = B;
-      let cs = [0, 0], cp = [0, 0], pin = 0;
-      for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
-      const mAmp = Math.sqrt(2 / (Math.PI * wa * wa));
+      // the mode on the grid, [co, cross] at each point, of unit power
+      const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
+      let pm = 0;
       for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, r2 = u * u + v * v;
+        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, o = i * N + j;
+        const F = H.field ? H.field(u / a, v / a) : [Math.exp(-(u * u + v * v) / (wa * wa)), 0];
+        mc[o] = F[0]; mx[o] = F[1]; rr[o] = u * u + v * v; pm += F[0] * F[0] + F[1] * F[1];
+      }
+      const mAmp = 1 / Math.sqrt(pm * d * d);
+      let cr = 0, ci = 0, pin = 0;
+      let c2r = 0, c2i = 0;                                 // the other polarisation, when the horn takes both
+      for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const o = i * N + j;
+        if (!mc[o] && !mx[o]) continue;
+        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d;
         // the mode, M = |M| e^{+i k r^2 / 2L} (the field going as e^{-ikz}): conj(M) multiplies the field
-        const m = mAmp * Math.exp(-r2 / (wa * wa)), ph = k * r2 / (2 * B.R), mr = m * Math.cos(ph), mi = m * Math.sin(ph);
+        const ph = k * rr[o] / (2 * B.R), cs = Math.cos(ph), sn = Math.sin(ph);
+        const co = mAmp * mc[o], cx = mAmp * mx[o];
+        // the mode's two components: along s and p
+        const Ms = rf.pol === 'p' ? cx : co, Mp = rf.pol === 's' ? cx : co;
         for (const A of G) {
           const E = arrivalField(A, u, v);
-          cs[0] += E[0] * mr + E[1] * mi; cs[1] += E[1] * mr - E[0] * mi;
-          cp[0] += E[2] * mr + E[3] * mi; cp[1] += E[3] * mr - E[2] * mi;
+          if (rf.pol === 'both') {
+            cr += (E[0] * cs + E[1] * sn) * co; ci += (E[1] * cs - E[0] * sn) * co;
+            c2r += (E[2] * cs + E[3] * sn) * co; c2i += (E[3] * cs - E[2] * sn) * co;
+          } else {
+            cr += (E[0] * cs + E[1] * sn) * Ms + (E[2] * cs + E[3] * sn) * Mp;
+            ci += (E[1] * cs - E[0] * sn) * Ms + (E[3] * cs - E[2] * sn) * Mp;
+          }
         }
       }
-      const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d * B.g;
-      const P = splitRoot(G[0].src).power;
+      const got = (cr * cr + ci * ci + c2r * c2r + c2i * c2i) * d * d * d * d;
+      const root = splitRoot(G[0].src), P = root.power;
       inS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
+      const key = root.id, ln = lines.get(key) || { id: key, ghz: C_NM_GHZ / nm, mw: 0, inMw: 0, got: 0, ph: 0, top: -1 };
+      ln.mw += got * P; ln.inMw += pin * P; ln.got += got;
+      const [pr, pi] = cr * cr + ci * ci >= c2r * c2r + c2i * c2i ? [cr, ci] : [c2r, c2i];   // the phase of the stronger polarisation
+      if (got > ln.top) { ln.top = got; ln.ph = Math.atan2(pi, pr); }
+      lines.set(key, ln);
     }
-    return { eff: inS > 0 ? gotS / inS : 0, mw: coupledMw, inMw, beam };
+    return { eff: inS > 0 ? gotS / inS : 0, mw: coupledMw, inMw, beam, lines: [...lines.values()] };
   }, 'rf');
 }
 /* What a photodiode sees, and what its amplifier makes of it */
 export function detectorReading(el) {
   return deviceMemo(el, () => {
     if (el.mmw) {
-      // a receiving horn: what its mode takes in, read by its detector (a fixed responsivity)
-      const C = rfCoupling(el), P = C ? C.mw : 0, Ia = P * el.resp * 1e-3;
-      const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = el.bandwidth;
-      const noiseI = Math.sqrt(2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B), V = Ia * el.gain;
-      return { mw: P, mA: Ia * 1e3, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending: false, field: true, rf: C,
-        snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
+      // a receiving horn: what its mode takes in, read by its front end (see elec.js for the two)
+      const C = rfCoupling(el), P = C ? C.mw : 0, rf = el.mmw, kB = 1.380649e-23;
+      if (rf.rx === 'mixer') {
+        const g = Math.pow(10, -rf.cl / 10), Tsys = rf.tant + rf.trx, B = rf.ifbw * 1e6, Pn = kB * Tsys * B * 1e3;   // the noise in the IF band, referred to the input, mW
+        const V = Math.sqrt(2 * 50 * P * 1e-3 * g);
+        return { mw: P, ifMw: P * g, V, sat: false, noiseV: Math.sqrt(2 * 50 * Pn * 1e-3 * g), pending: false, field: true, rf: C, mixer: true, tsys: Tsys, mds: Pn,
+          floor: 10 * Math.log10(kB * Tsys * 1e3), snr: P > 0 ? 10 * Math.log10(P / Pn) : null, lines: C ? C.lines.map(ln => Object.assign({ fif: Math.abs(ln.ghz - rf.lo) * 1e9 }, ln)) : [] };
+      }
+      const V = P * 1e-3 * rf.rv, noiseV = rf.rv * rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6);
+      return { mw: P, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV, pending: false, field: true, rf: C, mds: rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6) * 1e3,
+        snr: V > 0 ? 20 * Math.log10(V / noiseV) : null };
     }
     const a = el.length / 2;
     let I = 0, P = 0, pending = false;

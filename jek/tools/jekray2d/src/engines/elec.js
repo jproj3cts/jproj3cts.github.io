@@ -2,7 +2,7 @@ import { clamp } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { fmtHz } from '../core/format.js';
 import { MODS } from '../core/modulators.js';
-import { pdResp, responsivity } from '../core/rf.js';
+import { hornGeom, pdResp, responsivity } from '../core/rf.js';
 import { V, nextName, num, project } from '../state/project.js';
 import { VSRC, benchNms, detR, getEl, normElement, setVSRC, srcBody } from '../state/elements.js';
 import { makeSurf } from '../core/geometry.js';
@@ -10,7 +10,7 @@ import {
   lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey, setLastTraceMs, traceKeyNow,
   traceScene, traceSceneRaw
 } from './trace.js';
-import { detectorReading } from './fibre-face.js';
+import { detectorReading, rfCoupling } from './fibre-face.js';
 import { FC_H, FC_W, netPower, pkey, portName, portsOf } from './fibre.js';
 import { modBlockH, modHAt, modNAt, modStatus } from './mods.js';
 import { pdNetMw, pdSignal } from './detector.js';
@@ -376,6 +376,7 @@ export function solve() {
         if (isDet(E) && elecExtra(E).length) dets.push(E);
       }
       driven = drives.length > 0;
+      curDrives = drives;
       const OS = opticalSignals(drives, dets);
       for (const E of dets) out.set(pkey(E.id, portsOf(E).length - 1), detOutput(E, OS.P.get(E.id), m => note(E, m)));
       for (const m of OS.notes) for (const E of dets) if (wires.some(F => F.a[0] === E.id)) note(E, m);
@@ -526,8 +527,15 @@ export const CHOP_HUB = 5;                                          // mm: the c
 export function elecExtra(el) {
   const k = 1 / V().scale;
   switch (el.type) {
-    case 'detector': return [{ x: -detR(el), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];          // at the back of its semicircle
+    case 'detector':                                         // at the back of its semicircle; a receiving horn's at its connector
+      if (el.mmw && !el.mmw.part) return [{ x: hornGeom(el).back, y: 0, dx: -1, dy: 0, elec: 'out', name: el.mmw.rx === 'mixer' ? 'IF' : 'out' }];
+      return [{ x: -detR(el), y: 0, dx: -1, dy: 0, elec: 'out', name: 'out' }];
     case 'source': {                                         // power and frequency modulation, on its back, when under external control
+      if (el.mmw && !el.mmw.part) {                          // a feed horn: an upconverter's IF in, or its modulation inputs, at its connector
+        const G = hornGeom(el), d = Math.max(1.5, 0.6 * G.rFl);
+        if (el.mmw.tx === 'up') return [{ x: G.back, y: 0, dx: -1, dy: 0, elec: 'in', name: 'if' }];
+        return !el.ext ? [] : [{ x: G.back, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: G.back, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
+      }
       if (!el.ext) return [];
       const { L, hw } = srcBody(el), d = hw / 2;
       return [{ x: -L, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -L, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
@@ -567,13 +575,15 @@ export const isLaser = el => el.type === 'source' || (el.type === 'fcomp' && el.
    over the swing, with nothing on the bench whose response depends on the power: no gain medium,
    amplifier, doubling crystal, vapour cell (they saturate) and no pulse (fibre nonlinearity) */
 function linearDrive(d, lo, hi) {
-  if (!isLaser(d.el) || d.port === 'fm') return false;
+  if (!isLaser(d.el) || d.port === 'fm' || d.port === 'if') return false;
   if (Math.min(1 + modk(d.el) / 100 * lo, 1 + modk(d.el) / 100 * hi) < 0) return false;
   return !project.elements.some(e => e.type === 'gain' || e.type === 'nlc' || e.type === 'cell' || (e.type === 'fcomp' && (e.kind === 'amp' || e.kind === 'soa')) || (isLaser(e) && e.tau > 0));
 }
 function applyDrive(el, v, port) {
   // a laser's frequency by fmk GHz per volt: its vacuum wavelength moves by -lambda^2 df / c
-  if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
+  // an upconverting horn: the carrier's power follows the square of the IF voltage into its 50 ohm, less its conversion loss
+  if (isLaser(el) && port === 'if') el.power = el.mmw ? 1000 * v * v / 50 * Math.pow(10, -(el.mmw.cl || 0) / 10) : 0;
+  else if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
   else if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
   else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
@@ -729,7 +739,9 @@ function opticalSignals(drives, dets) {
 /* a photodiode's output, from the light on it (mW, through time): a current for a bare
    diode, a voltage through the amplifier of a photodetector, with the beat notes the light
    carries, shot noise and the amplifier's own */
+let curDrives = [];
 function detOutput(el, P, note) {
+  if (el.mmw && !el.mmw.part) return el.mmw.rx === 'mixer' ? rfMixerOutput(el, P, note) : rfVideoOutput(el, P, note);
   const fibre = el.type === 'fcomp' || el.type === 'pic', diode = !!el.diode, PS = pdSignal(el);
   const rd = fibre ? null : detectorReading(el);
   const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]);
@@ -743,6 +755,52 @@ function detOutput(el, P, note) {
   if (!diode && peak(S) > el.vmax) note('The output would reach ' + elecFmtSig(peak(S), 'V') + ', past its ' + elecFmtSig(el.vmax, 'V') + ' limit: it would clip');
   if (PS.tones.some(t => t.incoh)) note('Beat notes between different lasers are left out: their phase wanders');
   return S;
+}
+/* ---------- receiving horns ----------
+   A video detector (a square-law diode) puts out its responsivity (V/W) times the power its
+   mode takes in, with its NEP as noise, through its video bandwidth. A mixer puts out the IF:
+   each feed horn's carrier comes down to |f - f_LO|, at the power it delivers less the
+   conversion loss, as a tone of sqrt(2 R P) volts across 50 ohm, with the phase of the field at
+   the horn (so two paths to one horn beat as they should). The receiver's noise temperature
+   and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. A feed horn
+   that is an upconverter sends its IF input up and this mixer brings it down: the IF out is the
+   drive, scaled by the link, mixed with the difference of the two local oscillators. A carrier
+   whose power the bench's drives move puts its square root on the IF (linearised about the
+   mean). */
+const R_IF = 50;
+function rfVideoOutput(el, P, note) {
+  const rf = el.mmw, L = scaled(P, 1e-3 * rf.rv, 'V'), n2 = (rf.rv * rf.nep * 1e-12) ** 2;
+  const S = through(L, pole(1, rf.vbw * 1e6), 'V', () => n2);
+  if (peak(S) > el.vmax) note('The output would reach ' + elecFmtSig(peak(S), 'V') + ', past its ' + elecFmtSig(el.vmax, 'V') + ' limit: it would clip');
+  return S;
+}
+function rfMixerOutput(el, P, note) {
+  const rf = el.mmw, C = rfCoupling(el), gcl = Math.pow(10, -rf.cl / 10);
+  let out = zero('V');
+  const tone = (f, ph) => { const T = zero('V'); if (f > 0) addTone(T.tones, f, Math.cos(ph), Math.sin(ph)); else T.dc = Math.cos(ph); return T; };
+  if (C) for (const ln of C.lines) {
+    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9;
+    if (fif > 1e10) { note('The IF from ' + (src ? src.name : 'a horn') + ' would be ' + fmtHz(fif) + ', past the electronics\u2019 10 GHz: left out'); continue; }
+    if (src && src.mmw && src.mmw.tx === 'up') {
+      const d = curDrives.find(q => q.el.id === ln.id && q.port === 'if');
+      if (!d || !d.S) { note((src.name) + ' is an upconverter with nothing on its IF input: no carrier'); continue; }
+      // from the IF in to the IF out: the bench, traced at the horn's nominal power, gives the link's power gain
+      const G = ln.mw / Math.pow(10, src.mmw.dbm / 10) * Math.pow(10, -src.mmw.cl / 10) * gcl;
+      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ln.ph), 1), 1, 1);
+      continue;
+    }
+    const Vp = Math.sqrt(2 * R_IF * ln.mw * 1e-3 * gcl), A = zero('V');
+    A.dc = Vp;
+    if (P && P.dc > 0) {                                   // the carrier's power moved by the bench's drives: its square root, about the mean
+      for (const t of P.tones) addTone(A.tones, t.f, Vp * t.re / (2 * P.dc), Vp * t.im / (2 * P.dc));
+      for (let i = 0; i < NF; i++) A.psd[i] = Vp * Vp * P.psd[i] / (4 * P.dc * P.dc);
+      const sw = P.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
+      if (sw > 0.3 * P.dc) note('The carrier\u2019s power swings by more than 30%: the IF follows its square root, taken as a straight line about the mean');
+    }
+    out = sum(out, mixer(A, tone(fif, ln.ph), 1), 1, 1);
+  }
+  const n2 = KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;
+  return through(out, pole(1, rf.ifbw * 1e6), 'V', () => n2);
 }
 /* the chopper's reference output: 0 to 5 V, rising as it opens */
 const chopRef = el => chopWave(el, 5);
@@ -762,7 +820,7 @@ function elecMoreReadout(el, parts) {
     const p = pkey(el.id, base + k), F = wires.filter(G => pkey(...G.a) === p || pkey(...G.b) === p);
     if (!F.length) return;
     const ends = F.map(G => { const o = pkey(...G.a) === p ? G.b : G.a, E = getEl(o[0]); return E ? E.name + ' ' + portName(E, o[1]) : '?'; });
-    rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port', drive: 'Drive in port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
+    rows.push([{ out: 'Out port', mod: 'Mod in port', fm: 'FM in port', rf: 'RF in port', ref: 'Ref out port', drive: 'Drive in port', if: 'IF in port', IF: 'IF out port' }[P.name] || P.name, (P.elec === 'out' ? '→ ' : '← ') + ends.join(', ')]);
     if (P.elec === 'out' && isDet(el)) rows.push(...describe(solve().out.get(p) || zero()));
   });
   for (const w of solve().warn.get(el.id) || []) rows.push(['Note', w]);

@@ -1,0 +1,160 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Heterodyne link, 150 GHz",
+ "view": {
+  "cx": 200,
+  "cy": 0,
+  "scale": 1.3
+ },
+ "maxBounces": 40,
+ "minPower": 1e-06,
+ "notes": "Experimental: RF and millimetre waves, and the electronics (Help, Experimental features). A 1 GHz, 1 V tone from the signal generator goes into a feed horn set as an upconverter: the horn sends it up on a 150 GHz carrier (6 dB conversion loss) as two sidebands, 149 and 151 GHz, through two HDPE lenses, and into a receiving horn whose mixer has a 147 GHz local oscillator, so they come down to 2 and 4 GHz. The spectrum analyser on the IF shows them over the receiver's noise (1000 K, looking into the room). Select either horn for its far-field pattern, the receiver for its link budget and signal to noise, or set its front end to a video detector to read the carrier's power instead.",
+ "elements": [
+  {
+   "type": "elec",
+   "id": "sg",
+   "name": "Signal generator",
+   "x": -80,
+   "y": -45,
+   "angle": 0,
+   "kind": "sig",
+   "wave": "sine",
+   "f": 1000000000.0,
+   "amp": 1,
+   "offset": 0,
+   "phase": 0,
+   "duty": 50
+  },
+  {
+   "type": "source",
+   "id": "tx",
+   "name": "Feed horn",
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "rays": 3,
+   "mmw": {
+    "kind": "corrugated",
+    "ghz": 150,
+    "dbm": 0,
+    "a": 7.5,
+    "L": 60,
+    "tx": "up",
+    "cl": 6
+   }
+  },
+  {
+   "type": "lens",
+   "id": "l1",
+   "name": "Lens 1",
+   "x": 130.3,
+   "y": 0,
+   "angle": 0,
+   "diameter": 100,
+   "surfaces": [
+    {
+     "R": null
+    },
+    {
+     "R": -78.9
+    }
+   ],
+   "gaps": [
+    22
+   ],
+   "materials": [
+    {
+     "glass": "HDPE"
+    }
+   ],
+   "mmw": {}
+  },
+  {
+   "type": "lens",
+   "id": "l2",
+   "name": "Lens 2",
+   "x": 330.3,
+   "y": 0,
+   "angle": 0,
+   "diameter": 100,
+   "surfaces": [
+    {
+     "R": 78.9
+    },
+    {
+     "R": null
+    }
+   ],
+   "gaps": [
+    22
+   ],
+   "materials": [
+    {
+     "glass": "HDPE"
+    }
+   ],
+   "mmw": {}
+  },
+  {
+   "type": "detector",
+   "id": "rx",
+   "name": "Receiver",
+   "x": 460.6,
+   "y": 0,
+   "angle": 180,
+   "material": "custom",
+   "mmw": {
+    "kind": "corrugated",
+    "a": 7.5,
+    "L": 60,
+    "pol": "both",
+    "rx": "mixer",
+    "lo": 147,
+    "cl": 6,
+    "trx": 1000,
+    "ifbw": 5000,
+    "tant": 295
+   }
+  },
+  {
+   "type": "elec",
+   "id": "sa",
+   "name": "Spectrum analyser",
+   "x": 540,
+   "y": -45,
+   "angle": 0,
+   "kind": "spec",
+   "scale": "linear",
+   "rbw": 1000000.0,
+   "fmin": 100000000.0,
+   "fmax": 5000000000.0,
+   "dbdiv": 0,
+   "ref": 0
+  }
+ ],
+ "fibres": [
+  {
+   "a": [
+    "sg",
+    0
+   ],
+   "b": [
+    "tx",
+    0
+   ],
+   "wire": true
+  },
+  {
+   "a": [
+    "rx",
+    0
+   ],
+   "b": [
+    "sa",
+    0
+   ],
+   "wire": true
+  }
+ ]
+}

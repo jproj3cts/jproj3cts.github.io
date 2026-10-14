@@ -13,6 +13,7 @@ import './core/modulators.js';
 import './core/rf.js';
 import './core/coherence.js';
 import './core/pulses.js';
+import './core/horns.js';
 import './core/beams-hom.js';
 import './core/colour.js';
 import './state/drawings.js';

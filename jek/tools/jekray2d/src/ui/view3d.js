@@ -3,6 +3,7 @@ import { fmtIrr } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
+import { hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
@@ -11,7 +12,7 @@ import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, rayAlpha, rayDensity, rayTops,
+  benchBg, benchHoles, benchLight, draw, filterColour, hornShape, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selection, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';

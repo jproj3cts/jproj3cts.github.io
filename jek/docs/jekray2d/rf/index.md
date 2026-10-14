@@ -29,14 +29,16 @@ A horn goes from 1 GHz to 3 THz. Optical sources stop at 1 mm (300 GHz), so a be
 
 ## Feed horns
 
-A horn's aperture field is close to a Gaussian. The Gaussian that fits it best has radius $$w_a = k\,a$$ at the aperture, where $$a$$ is the aperture's radius (half its side, for a diagonal horn). Its phase front is curved with radius $$R = L$$, the horn's slant length. The share $$g$$ of the horn's power in that Gaussian is its *Gaussicity*. The rest goes into sidelobes, which are left out.
+A horn launches the field its waveguide mode leaves across the aperture, on a phase front centred on the horn's apex, a distance $$L$$ (the slant length) behind it:
 
-| Horn | Beam width over aperture | Gaussicity |
-|---|---|---|
-| Corrugated conical | 0.6435 | 0.98 |
-| Smooth-wall conical | 0.765 | 0.91 |
-| Diagonal | 0.86 | 0.84 |
-| Ideal Gaussian | 0.6435 | 1 |
+| Horn | Aperture field | Beam width over aperture | Gaussicity | Cross-polar |
+|---|---|---|---|---|
+| Corrugated conical | HE₁₁, $$J_0(2.405\,r/a)$$ | 0.6435 | 0.98 | none |
+| Smooth-wall conical | TE₁₁, $$J_0(\rho) - J_2(\rho)\cos 2\phi$$ along the field, $$J_2(\rho)\sin 2\phi$$ across it, $$\rho = 1.841\,r/a$$ | 0.765 | 0.91 of the co-polar power | 4% of the power |
+| Diagonal | TE₁₀ + TE₀₁ of a square guide of side $$2a$$, polarised along a diagonal | 0.86 | 0.84 | 9% |
+| Ideal Gaussian | $$e^{-r^2/w_a^2}$$ | 0.6435 | 1 | none |
+
+The Gaussian that fits each best has radius $$w_a = k\,a$$ at the aperture ($$a$$ the aperture's radius, or half its side for a diagonal horn; Goldsmith, table 7.1), and the share of the power in it is the horn's *Gaussicity*. The field is carried as a coherent sum of Hermite–Gauss modes of that Gaussian, found once by overlap on the aperture: the fundamental, and the modes up to order 12 that make the sidelobes. The sum stops short of the sharp edge of the field at the wall (which is what a smooth-wall horn's field has in its E-plane), so a smooth-wall horn carries 94% of its power and a diagonal horn 88%; the rest, with the cross-polar field, is left out and counted in the panel. Each mode then keeps its own Gouy phase through the bench, so the beam's sidelobes and the horn's $$M^2$$ (1.09 for a corrugated horn, 1.2 by 1.5 for a smooth-wall one) go through lenses and mirrors as they should.
 
 The beam is traced back from the aperture to its waist. With
 
@@ -50,11 +52,7 @@ $$
 w_0 = \frac{w_a}{\sqrt{1 + x^2}}, \qquad \Delta z = \frac{L}{1 + 1/x^2}.
 $$
 
-The horn launches that Gaussian with power $$g\,P$$. Its panel gives the waist, the Rayleigh range $$z_R = \pi w_0^2/\lambda$$, the divergence $$\theta = \lambda/(\pi w_0)$$, and the gain on the axis in the far field:
-
-$$
-G = g\,\frac{8 \pi^2 w_0^2}{\lambda^2}.
-$$
+The panel gives the waist, the Rayleigh range $$z_R = \pi w_0^2/\lambda$$, the divergence $$\theta = \lambda/(\pi w_0)$$ and the Gaussicity, and under **Far-field pattern** the pattern itself: the Fourier transform of the aperture field (the horn's type, size and slant length at the frequency), cut along the field (E-plane), across it (H-plane) and the cross-polar field in the plane between, in dB against the angle from the axis, with the directivity in dBi, the half-power widths, the first sidelobes and the cross-polar peak. It saves as CSV.
 
 A horn also traces a small fan of rays along its beam, so lenses and mirrors show their focus as rays do.
 
@@ -64,19 +62,30 @@ A horn is drawn as it would be built. Its flare is the cone whose slant length $
 
 ## Receiving horns
 
-A receiving horn takes in the overlap of the field arriving on its aperture with its own mode. Its mode is the beam it would launch, sent backwards: a Gaussian of radius $$w_a$$ whose phase converges on the horn's apex, $$L$$ behind the aperture. For each polarisation, with the beams of one launch added as fields first,
+A receiving horn takes in the overlap of the field arriving on its aperture with its own mode: the field its horn would launch, sent backwards, on a phase front converging on the apex, $$L$$ behind the aperture. With the beams of one launch added as fields first, and launches added as powers,
 
 $$
-P_\text{in} = g \, \left| \iint E(u, v)\, M^*(u, v)\, \mathrm du\, \mathrm dv \right|^2 .
+P_\text{in} = \left| \iint \mathbf E(u, v) \cdot \mathbf M^*(u, v)\, \mathrm du\, \mathrm dv \right|^2 .
 $$
 
-So a wrong beam size, a wrong focus, an offset or a tilt each cost what they should. Two identical horns facing each other a distance $$D$$ apart have their waists $$d = D + 2\Delta z$$ apart, and couple
+So a wrong beam size, a wrong focus, an offset or a tilt each cost what they should. The mode has one polarisation, set under **Takes in**: $$s$$ (out of the bench plane) or $$p$$, with the horn's cross-polar field across it, so a smooth-wall horn takes in a little of the other polarisation and a corrugated horn none. Set to **both** it takes each polarisation by its co-polar field, as a dual-polarisation horn or one feeding a bolometer does. Two identical ideal Gaussian horns facing each other a distance $$D$$ apart have their waists $$d = D + 2\Delta z$$ apart, and couple
 
 $$
-\frac{P_\text{in}}{P} = \frac{g^2}{1 + d^2 / (4 z_R^2)}.
+\frac{P_\text{in}}{P} = \frac{1}{1 + d^2 / (4 z_R^2)}.
 $$
 
-The power taken in is read by a detector of fixed responsivity, in A/W, with an amplifier, as a [photodetector](/jek/docs/jekray2d/free-space/detector/) is. Its readout gives the power arriving and the power taken in, in dBm, and the share taken in.
+Its readout gives the power arriving and the power taken in, in dBm, and the share taken in.
+
+### Front end
+
+What reads the power is the horn's **Front end**:
+
+- A **video detector** (a square-law diode) puts out its responsivity, in V/W, times the power taken in, with its noise-equivalent power as noise ($$\text{NEP}\sqrt{B}$$ over its video bandwidth $$B$$) and an output limit. The readout gives the volts, the noise, the signal to noise and the NEP in dBm over the band.
+- A **mixer** puts out the IF. Each feed horn's carrier comes down to $$|f - f_\text{LO}|$$ at the power taken in less the conversion loss, as a tone of $$\sqrt{2 R P}$$ volts peak across $$R = 50\ \Omega$$, with the phase of the field at the horn, so two paths to one receiver beat as they should. The noise is $$k (T_\text{ant} + T_\text{rx}) R$$ in V²/Hz, less the conversion loss too: the receiver's noise temperature, referred to its input, and the temperature of what it looks into. The readout gives each IF, its power, the system temperature, the noise floor in dBm/Hz and the minimum detectable power in the IF bandwidth, and the signal to noise in that band.
+
+## Electronics
+
+A horn joins the [electronics](/jek/docs/jekray2d/electronics/) at its connector, as a photodetector does. A receiving horn's **out** port carries its video detector's volts, or its mixer's IF, to an amplifier, a spectrum analyser or a lock-in. A feed horn under **external control** has the modulation inputs a laser has, for its power and its frequency (in GHz per volt). Set as an **upconverter** it has an **IF in** port instead: the carrier it sends is the voltage into its 50 Ω port, squared, less its conversion loss, so a tone into it goes up and, through a receiver's mixer, comes down again as the same tone times the link's loss: a transmission line through the air. The bench is traced at the horn's nominal power, and the electronics scale the link by what comes in. A video detector behind an upconverter reads the mean carrier power; a mixer reads the IF voltage itself, with the drive's noise on it. The IF has to be below the electronics' 10 GHz.
 
 ## Dielectrics
 
@@ -158,7 +167,8 @@ Below it, the **link budget**: down the strongest beam that reaches the receiver
 ## Assumptions
 
 <div class="dx-warn" markdown="1">
-- Beams are Gaussian beams, as quasi-optics takes them. A horn's sidelobes are left out, and a beam only a wavelength or two across is less accurate, as the paraxial approximation fails.
+- Beams are paraxial Gaussian beams and their Hermite–Gauss modes, as quasi-optics takes them. A horn's field is carried to order 12; its cross-polar field is not launched; a beam only a wavelength or two across is less accurate.
+- A mixer and an upconverter are ideal, apart from their conversion loss and noise temperature: no image, no harmonics, no LO leakage, and a carrier moved by a modulation input puts the square root of its power on the IF, linearised about the mean.
 - A dielectric's index is constant with frequency (true to a few parts in a thousand for these over 50 GHz to 1 THz); its loss tangent goes as $$f^\beta$$ from a reference frequency, with $$\beta = 1$$ for the polymers, 0 for silicon and $$\tfrac12$$ for fused quartz.
 - The bench is in the far field of nothing: there are no near-field antennas, wires or circuits here. Waveguides and circuit-level RF belong to the [electronics](/jek/docs/jekray2d/electronics/).
 </div>
@@ -166,4 +176,4 @@ Below it, the **link budget**: down the strongest beam that reaches the receiver
 ## Related
 
 - [Free-space optics: Gaussian beams](/jek/docs/jekray2d/free-space/#gaussian-beams), the model the beams follow.
-- [Photodetector](/jek/docs/jekray2d/free-space/detector/), which the receiver's detector follows.
+- [Electronics](/jek/docs/jekray2d/electronics/), where a horn's IF and video outputs go, and where an upconverter's drive comes from.

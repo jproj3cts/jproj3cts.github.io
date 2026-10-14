@@ -275,7 +275,7 @@ function elecOpticPanel(el) {
       () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
     what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
       'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
- } else if (isLaser(el)) {
+ } else if (isLaser(el) && !(el.mmw && el.mmw.tx === 'up')) {
     const tick = h('input', { type: 'checkbox' });
     tick.checked = !!el.ext;
     tick.addEventListener('change', () => {

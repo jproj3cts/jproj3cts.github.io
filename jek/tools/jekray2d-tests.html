@@ -3101,7 +3101,7 @@ const TESTS = [
     why: 'S-LAH64 (Ohara), M-TAF1 (Hoya’s polynomial formula), H-K9L (CDGM) and K-VC89 (Sumita) each trace at their catalogue nd; a lens in S-LAH64 names Ohara and its nd and Vd under Material, whose menu offers the catalogue search (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
-      const ok = [['S-LAH64', 1.7880], ['M-TAF1', 1.7725], ['H-K9L', 1.5168], ['K-VC89', 1.8100], ['N-SF11', 1.7847], ['Zeonex E48R', 1.5309]].every(([g, nd]) => Math.abs(J.index({ glass: g }, 587.6) - nd) < 3e-4);
+      const ok = [['S-LAH64', 1.7880], ['M-TAF1', 1.7725], ['H-K9L', 1.5168], ['K-VC89', 1.8100], ['N-SF11', 1.7847], ['Zeonex E48R', 1.5305]].every(([g, nd]) => Math.abs(J.index({ glass: g }, 587.6) - nd) < 3e-4);
       const doc = document.getElementById('rig').contentDocument;
       J.load(bench('cat', [bk7Lens({ name: 'L', materials: [{ glass: 'S-LAH64' }] })]));
       J.select('L');

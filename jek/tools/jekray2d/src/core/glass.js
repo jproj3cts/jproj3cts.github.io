@@ -62,7 +62,7 @@ const GLASS_ALIAS = {
   'BK7': 'N-BK7', 'NBK7': 'N-BK7', 'SK5': 'N-SK5',
   'F_SILICA': 'Fused silica', 'SILICA': 'Fused silica', 'FUSED SILICA': 'Fused silica',
   'UVFS': 'Fused silica', 'FUSEDSILICA': 'Fused silica', 'SIO2': 'Fused silica',
-  'CORNING7980': 'Fused silica', 'INFRASIL': 'Fused silica', 'SUPRASIL': 'Fused silica',
+  'CORNING7980': 'Fused silica', 'C79-80': 'Fused silica', 'C7980': 'Fused silica', '7980': 'Fused silica', 'INFRASIL': 'Fused silica', 'SUPRASIL': 'Fused silica', 'HPFS': 'Fused silica', 'JGS1': 'Fused silica', 'JGS2': 'Fused silica',
   'CAF2': 'CaF2', 'CALCIUM FLUORIDE': 'CaF2',
   'MGF2': 'MgF2', 'AL2O3': 'Sapphire', 'SAPPHIRE': 'Sapphire',
   'SI': 'Silicon', 'SILICON': 'Silicon', 'GE': 'Germanium', 'GERMANIUM': 'Germanium',

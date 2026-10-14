@@ -615,6 +615,554 @@ MNUM 1 1
 `,
 };
 
+/* Edmund Optics' lens files, trimmed of their long tables, with the figures their product pages state */
+const EO_FILES = {
+  '47-637': { efl: 50.00, bfl: 43.53, sub: 'N-BAF10 / N-SF10', text: `VERS 171115
+MODE SEQ
+NAME 47637 Achromatic Lens
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 47637
+  STOP
+
+  CURV 2.896032435563280008E-02
+  COAT EO_VIS0_673
+  DISZ 9
+  GLAS N-BAF10
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV -4.549590536851679662E-02
+  DISZ 2.5
+  GLAS N-SF10
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV -4.659180915994969724E-03
+  COAT EO_VIS0_717
+  DISZ 43.569821170222589
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 4
+
+  CURV 0.0
+  DISZ 0
+` },
+  '62-492': { efl: -50.00, bfl: -53.33, sub: 'N-BAF10 / N-SF10', text: `VERS 171115
+MODE SEQ
+NAME 62492 Negative Achromatic Lens
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 62492
+  STOP
+
+  CURV -2.816108138552519957E-02
+  COAT EO_VIS0_673
+  DISZ 2.5
+  GLAS N-BAF10
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV 4.068348250610250016E-02
+  DISZ 4.0599999999999996
+  GLAS N-SF10
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV 4.587366392953800415E-03
+  COAT EO_VIS0_717
+  DISZ -53.3522136994984
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 4
+
+  CURV 0.0
+  DISZ 0
+` },
+  '32-624': { efl: 50.00, bfl: 48.29, sub: 'N-BK7', text: `VERS 171115
+MODE SEQ
+NAME 32624
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+  COMM 32624
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  STOP
+
+  CURV 1.968503937007870172E-02
+  DISZ 5
+  GLAS N-BK7
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV -1.968503937007870172E-02
+  DISZ 48.310597287650992
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '69-859': { efl: 12.50, bfl: 9.35, sub: 'L-BAL35', text: `VERS 180508
+MODE SEQ
+NAME 69859 Asphere F/1.0
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 12.5
+GCAT SCHOTT OHARA 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 69859
+  STOP
+  TYPE EVENASPH
+
+  CURV 1.357957631721890268E-01
+  COAT EO_MGF2(550NM)
+  PARM 1 0
+  PARM 2 0.00015739249999999999
+  PARM 3 4.1597840000000002e-07
+  PARM 4 -3.7200000000000001e-10
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 5
+  GLAS L-BAL35
+  CONI -1.058074
+  DIAM 5.75 1 0 0 1 ""
+  CLAP 0 5.75 0
+SURF 2
+
+  CURV 0.0
+  COAT EO_VIS0_613
+  DISZ 9.353457270344677
+  DIAM 5.75 1 0 0 1 ""
+  CLAP 0 5.75 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '67-095': { efl: 50.00, bfl: 46.00, sub: 'Fused Silica (Corning 7980)', text: `VERS 171115
+MODE SEQ
+NAME 67095
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+  COMM 67095
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  STOP
+
+  CURV 4.362430746411900123E-02
+  DISZ 5.8399999999999999
+  GLAS C79-80
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV 0.0
+  DISZ 45.995180141980498
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '88-164': { efl: 50.00, bfl: 46.58, sub: 'Calcium Fluoride (CaF2)', text: `VERS 171115
+MODE SEQ
+NAME 88163
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT CDGM MISC 
+WAVM 1 0.26600000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 88164
+  STOP
+
+  CURV 4.328067517853278340E-02
+  DISZ 5
+  GLAS CAF2
+  DIAM 12.5 1 0 0 1 ""
+  FLAP 0 12.5 0
+SURF 2
+
+  CURV 0.0
+  DISZ 41.992208644144185
+  DIAM 12.5 1 0 0 1 ""
+  FLAP 0 12.5 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '68-064': { efl: -50.00, bfl: -52.64, sub: 'N-BK7', text: `VERS 171115
+MODE SEQ
+NAME 68064 PCV cylinder
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT INFRARED MISC 
+WAVM 1 0.48609999999999998 1
+WAVM 2 0.58760000000000001 1
+WAVM 3 0.65629999999999999 1
+PWAV 2
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 68064
+  STOP
+  TYPE TOROIDAL
+
+  CURV -3.869969040247678294E-02
+  PARM 0 0
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  XDAT 1 0.000000000000E+00 0 0 1.000000000000E+00 0.000000000000E+00 0 ""
+  XDAT 2 1.000000000000E+02 0 0 1.000000000000E+00 0.000000000000E+00 0 ""
+  DISZ 4
+  GLAS N-BK7
+  DIAM 12.5 1 0 0 1 ""
+  SQAP 25 12.5 0
+SURF 2
+  TYPE TOROIDAL
+
+  CURV 0.0
+  PARM 0 0
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  XDAT 1 0.000000000000E+00 0 0 1.000000000000E+00 0.000000000000E+00 0 ""
+  XDAT 2 1.000000000000E+02 0 0 1.000000000000E+00 0.000000000000E+00 0 ""
+  DISZ -52.637284649510065
+  DIAM 12.5 2 1 0 1 ""
+  FLAP 0 12.5 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '32-996': { efl: -50.00, bfl: -50.82, sub: 'N-BK7', text: `VERS 171115
+MODE SEQ
+NAME 32996
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+  COMM 32996
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  STOP
+
+  CURV -1.919385796545109921E-02
+  DISZ 2.5
+  GLAS N-BK7
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV 1.919385796545109921E-02
+  DISZ -50.815210178951624
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+  '32-323': { efl: 50.00, bfl: 43.53, sub: 'N-BAF10 / N-SF10', text: `VERS 171115
+MODE SEQ
+NAME 32323 Achromatic Lens
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 32323
+  STOP
+
+  CURV 2.896032435563280008E-02
+  COAT EO_MGF2(550nm)
+  DISZ 9
+  GLAS N-BAF10
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV -4.549590536851679662E-02
+  DISZ 2.5
+  GLAS N-SF10
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV -4.659180915994969724E-03
+  COAT EO_MGF2(550nm)
+  DISZ 43.569821170222589
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 4
+
+  CURV 0.0
+  DISZ 0
+` },
+  '47-697': { efl: 50.00, bfl: 48.61, sub: 'N-BK7 / N-SF5', text: `VERS 171115
+MODE SEQ
+NAME 47697 Achromatic Lens
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 6.25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  COMM 47697
+  STOP
+
+  CURV 3.249918752031200064E-02
+  COAT EO_VIS0_517
+  DISZ 2
+  GLAS N-BK7
+  DIAM 2.8125 1 0 0 1 ""
+  CLAP 0 2.8125 0
+SURF 2
+
+  CURV -4.535147392290250073E-02
+  DISZ 1
+  GLAS N-SF5
+  DIAM 2.8125 1 0 0 1 ""
+  FLAP 0 2.8125 0
+SURF 3
+
+  CURV -1.547987616099069999E-02
+  COAT EO_VIS0_673
+  DISZ 48.590426163557034
+  DIAM 2.8125 1 0 0 1 ""
+  CLAP 0 2.8125 0
+SURF 4
+
+  CURV 0.0
+  DISZ 0
+` },
+  '18-417': { efl: 12.50, bfl: 9.42, sub: 'N-BK7', text: `VERS 210628 829 123309 L123309
+MODE SEQ
+NAME 18417
+AUTH 
+LANG 0
+UNIT MM X W X CM MR CPMM
+FLOA
+GCAT CDGM SCHOTT 
+RAIM 0 1 1 1 0 0 0 0 0 1
+PUSH 0 0 0 0 0 0
+XAIM 0
+YAIM 0
+ZAIM 0
+WAVM 1 0.58756180000000002 1
+WAVM 2 0.65627250000000004 1
+WAVM 3 0.48613269999999997 1
+WAVM 4 0.55000000000000004 1
+WAVM 5 0.55000000000000004 1
+WAVM 6 0.55000000000000004 1
+WAVM 7 0.55000000000000004 1
+WAVM 8 0.55000000000000004 1
+WAVM 9 0.55000000000000004 1
+WAVM 10 0.55000000000000004 1
+WAVM 11 0.55000000000000004 1
+WAVM 12 0.55000000000000004 1
+WAVM 13 0.55000000000000004 1
+WAVM 14 0.55000000000000004 1
+WAVM 15 0.55000000000000004 1
+WAVM 16 0.55000000000000004 1
+WAVM 17 0.55000000000000004 1
+WAVM 18 0.55000000000000004 1
+WAVM 19 0.55000000000000004 1
+WAVM 20 0.55000000000000004 1
+WAVM 21 0.55000000000000004 1
+WAVM 22 0.55000000000000004 1
+WAVM 23 0.55000000000000004 1
+WAVM 24 0.55000000000000004 1
+PWAV 1
+POLS 1 0 1 0 0 1 0
+GSTD 0 100.000 100.000 100.000 100.000 100.000 100.000 0 1 1 0 0 1 1 1 1 1 1
+NSCD 100 500 0 0.001 10 9.9999999999999995e-07 0 0 0 0 0 0 1000000 0 2
+LUID 3
+SURF 0
+  SSID 0
+  COMM 18417
+  TYPE STANDARD
+
+  CURV 0.0 0 0 0 0 ""
+  DISZ 21.916395774080399
+  VDSZ 0 0
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  SSID 1
+  STOP
+  TYPE EVENASPH
+
+  CURV 8.828462964597863505E-02 0 0 0 0 ""
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 8.1999999999999993
+  GLAS N-BK7 0 0 1.5 40 0 0 0 0 0 0 
+  CONI -2.2999999999999998
+  DIAM 5.625 1 0 0 1 ""
+  FLAP 0 5.625 0
+SURF 2
+  SSID 3
+  TYPE EVENASPH
+
+  CURV -8.828462964597863505E-02 4 1 -1 0 ""
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 21.916395774080399
+  CONI -2.2999999999999998
+  PZUP 0 1 0 0
+  DIAM 5.625 1 0 0 1 ""
+  PKUP 1 1.000000000000E+00 0
+  FLAP 0 5.625 0
+SURF 3
+  SSID 2
+  TYPE STANDARD
+
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 0.00030085702406790205 0 0 0 1 ""
+EFFL 0 1 0 0 0 0 12.5 1 0 0
+PMAG 0 1 0 0 0 0 -1 1 0 0
+ETVA 1 0 0 0 0 0 0 0 0 0
+DMFS 0 0 0 0 0 0 0 0 0 0
+TRCX 0 1 0 0 0.33571068701972878 0 0 0.87266462599716021 0 0
+TRCY 0 1 0 0 0.33571068701972878 0 0 0.87266462599716021 0 0
+TRCX 0 1 0 0 0.70710678118654757 0 0 1.3962634015954636 0 0
+TRCY 0 1 0 0 0.70710678118654757 0 0 1.3962634015954636 0 0
+TRCX 0 1 0 0 0.94196514511989338 0 0 0.87266462599716021 0 0
+TRCY 0 1 0 0 0.94196514511989338 0 0 0.87266462599716021 0 0
+MNUM 1 1
+` },
+  '45-028': { efl: -50.00, bfl: -52.31, sub: 'N-BK7', text: `VERS 171115
+MODE SEQ
+NAME 45028
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 25
+GCAT SCHOTT OHARA MISC CORNING INFRARED 
+WAVM 1 0.58760000000000001 1
+PWAV 1
+SURF 0
+  COMM 45028
+
+  CURV 0.0
+  DISZ INFINITY
+SURF 1
+  STOP
+
+  CURV -3.869969040247679681E-02
+  DISZ 3.5
+  GLAS N-BK7
+  DIAM 12 1 0 0 1 ""
+  CLAP 0 12 0
+SURF 2
+
+  CURV 0.0
+  DISZ -52.307642959813563
+  DIAM 12 1 0 0 1 ""
+  FLAP 0 12 0
+SURF 3
+
+  CURV 0.0
+  DISZ 0
+` },
+};
 /* bytes in the encodings the makers' files come in */
 const latin1Bytes = t => Uint8Array.from(t, ch => ch.charCodeAt(0) & 255);
 const utf16Bytes = t => { const b = new Uint8Array(2 + 2 * t.length); b[0] = 0xFF; b[1] = 0xFE; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); b[2 + 2 * i] = c & 255; b[3 + 2 * i] = c >> 8; } return b; };
@@ -3085,6 +3633,36 @@ const TESTS = [
       const B = J.importZmxBytes(utf16Bytes(ZMX_FILES['354330-C']), '354330-C.zmx'), b = zmxOnBench(J, B.el), pb = J.paraxial('ZL', 830);
       const okB = b.materials[0].glass === 'D-ZK3M' && Math.abs(pb.efl - 3.10) < 0.01 && Math.abs(pb.bfl - 1.76) < 0.01 && b.surfaces[1].k < -12;
       return okA && okB ? 1 : 0;
+    },
+  },
+  {
+    name: 'Edmund Optics’ lens files trace to the focal lengths their product pages state',
+    why: 'twelve TECHSPEC files as Edmund publishes them (achromats positive and negative, a 6.25 mm achromat in N-BK7 and N-SF5, double-convex and double-concave, plano-concave, an L-BAL35 asphere, a double-sided asphere, a fused-silica laser-grade PCX naming Corning 7980 as C79-80, a CaF2 PCX at 266 nm, a UTF-16 file, and a PCV cylinder): each imports and gives the EFL and BFL the product page states, to 0.05 mm or 0.1%, at the stated wavelength (the number that do)',
+    want: 12, tol: 0, unit: ' of 12',
+    run: J => {
+      let ok = 0;
+      for (const [stock, F] of Object.entries(EO_FILES)) {
+        const A = J.importZmxBytes(utf16Bytes(F.text), stock + '.zmx'), el = zmxOnBench(J, A.el);
+        const nm = stock === '88-164' ? 266 : 587.6, p = J.paraxial('ZL', nm);
+        const tol = Math.max(0.05, 1e-3 * Math.abs(F.efl));
+        const good = Math.abs(p.efl - F.efl) <= tol && Math.abs(p.bfl - F.bfl) <= tol && !A.warnings.some(w => /n = 1\.5/.test(w));
+        if (good) ok++; else console.log('Edmund', stock, p.efl, p.bfl, F.efl, F.bfl, A.warnings);
+      }
+      return ok;
+    },
+  },
+  {
+    name: 'Edmund’s files carry their glasses, coatings and shapes as their pages describe them',
+    why: 'the VIS 0° achromat 47-637 reads its EO_VIS0 coating as a 0.4% band over 425–675 nm, N-BAF10 cemented to N-SF10; the asphere 69-859 is in Ohara’s L-BAL35 with k = −1.058; 67-095’s C79-80 is Corning 7980 fused silica; the PCV cylinder 68-064 is a cylinder with power in the bench plane (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const a = J.importZmxBytes(utf16Bytes(EO_FILES['47-637'].text), '47-637.zmx').el, c = a.surfaces[0].coat;
+      const okA = c.mode === 'band' && c.R === 0.4 && c.lo === 425 && c.hi === 675 && a.materials.map(m => m.glass).join('/') === 'N-BAF10/N-SF10' && a.gaps.join(',') === '9,2.5';
+      const b = J.importZmxBytes(utf16Bytes(EO_FILES['69-859'].text), '69-859.zmx').el;
+      const okB = b.materials[0].glass === 'L-BAL35' && Math.abs(b.surfaces[0].k + 1.058074) < 1e-6 && b.surfaces[0].A.length >= 2;
+      const cc = J.importZmxBytes(utf16Bytes(EO_FILES['67-095'].text), '67-095.zmx').el, okC = cc.materials[0].glass === 'Fused silica';
+      const d = J.importZmxBytes(utf16Bytes(EO_FILES['68-064'].text), '68-064.zmx').el, okD = d.cyl === 'plane' && d.surfaces[0].R < 0;
+      return okA && okB && okC && okD ? 1 : 0;
     },
   },
   {

@@ -170,12 +170,24 @@ export function zmxToElement(Z, fileName, mode) {
   // Thorlabs put the coating band in the part number; the file itself only names a coating
   const partCoat = coatingFromPart(fileName.replace(/\.zmx$/i, '')) || coatingFromPart(name);
   const anyCoatLine = surfs.some(t => t.coat);
+  // a maker's coating by the name its file gives it: Edmund's EO_ codes carry the band
+  const EO = [[/^EO_VIS0/i, 0.4, 425, 675, 'VIS 0\u00b0'], [/^EO_VIS_?NIR/i, 0.5, 400, 1000, 'VIS-NIR'], [/^EO_VIS_?EXT/i, 0.5, 350, 700, 'VIS-EXT'], [/^EO_NIR_?I\b|^EO_NIR1/i, 0.5, 600, 1050, 'NIR I'],
+    [/^EO_NIR_?II|^EO_NIR2/i, 0.5, 750, 1550, 'NIR II'], [/^EO_SWIR/i, 0.5, 900, 1700, 'SWIR'], [/^EO_UV_?AR|^EO_UVAR/i, 0.5, 250, 425, 'UV-AR'], [/^EO_MGF2/i, 1.75, 400, 700, 'MgF\u2082']];
+  const namedCoat = () => {
+    for (const t of surfs) { const c = t.coat && EO.find(e => e[0].test(t.coat)); if (c) return c; }
+    return null;
+  };
   const arCoat = () => {
     if (partCoat && partCoat.kind === 'ar') {
       warnings.add('the part number ends in -' + partCoat.tag + ', so its surfaces were given a nominal ' +
         partCoat.spec.R + '% AR coating over ' + partCoat.spec.lo + '\u2013' + partCoat.spec.hi +
         ' nm; outside that band they trace as bare glass');
       return bandCoat(partCoat.spec, partCoat.tag);
+    }
+    const nc = namedCoat();
+    if (nc) {
+      warnings.add('the file names an Edmund ' + nc[4] + ' coating, so its surfaces were given a nominal ' + nc[1] + '% AR over ' + nc[2] + '\u2013' + nc[3] + ' nm; outside that band they trace as bare glass');
+      return normCoat({ mode: 'band', R: nc[1], lo: nc[2], hi: nc[3], label: 'AR, ' + nc[4] });
     }
     if (anyCoatLine) {
       warnings.add('the file names a coating but not its design, so a nominal 0.5% AR was assumed across the visible and near infrared');

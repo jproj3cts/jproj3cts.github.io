@@ -77,7 +77,10 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Masthead — five brand bars, black nav strip, wordmark overlay
+   Masthead — a thin spectrum stripe, then one dark bar: the wordmark at the
+   left, the nav centred, the cart at the right. The markup (five bars, the
+   nav strip and the wordmark overlay) is the same on every page; only this
+   styling changed.
    -------------------------------------------------------------------------- */
 
 .top-container {
@@ -86,11 +89,11 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 72px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  --jek-stripe: 7px;
+  --jek-gutter: clamp(1rem, 4vw, 2rem);
 }
 
-.bar  { flex: 1; min-height: 7px; }
+.bar  { flex: 0 0 auto; min-height: 0; height: calc(var(--jek-stripe) / 5); }
 .bar1 { background: var(--jek-amber); }
 .bar2 { background: var(--jek-orange); }
 .bar3 { background: var(--jek-red); }
@@ -103,8 +106,8 @@ body {
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.15rem 0.1rem;
-  min-height: 34px;
-  padding: 0.35rem 0.75rem;
+  min-height: 3rem;
+  padding: 0.35rem 9.5rem;
   background: var(--jek-bar);
   font-size: 0.8125rem;
   letter-spacing: 0.04em;
@@ -191,24 +194,29 @@ body {
   .nav-drop.open .nav-drop-menu { display: flex; }
 }
 
-/* Wordmark sits over the colour bars, clear of the nav strip */
+/* Wordmark at the left of the dark bar, under the stripe */
 .text-overlay {
   position: absolute;
-  top: 0;
+  top: var(--jek-stripe);
   left: 0;
-  width: 100%;
-  height: 38px;
+  height: 3rem;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  font-size: clamp(1rem, 0.85rem + 0.6vw, 1.35rem);
+  padding-left: var(--jek-gutter);
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  /* White wordmark, as on the rest of the site; shadow lifts it off the bars */
+  letter-spacing: 0.02em;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   pointer-events: none;
   z-index: 20;
+}
+/* narrow screens: the wordmark on a row of its own between the stripe and the nav */
+@media (max-width: 760px) {
+  .bar6 { padding-left: 0.75rem; padding-right: 0.75rem; min-height: 2.6rem; }
+  .top-container .bar { order: 0; }
+  .text-overlay { position: static; order: 1; height: 2.4rem; justify-content: center; padding: 0; background: var(--jek-bar); border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+  .top-container .bar6 { order: 2; }
 }
 
 /* --------------------------------------------------------------------------
@@ -594,6 +602,100 @@ footer .bar6 {
   min-height: 38px;
 }
 
+
+/* --------------------------------------------------------------------------
+   Marketing pages — the home page and the software product pages: a page of
+   full-width sections (main.jek-flush drops the shell's padding), each with a
+   .jek-wrap column; one orange primary action, quiet outlined ones beside it.
+   -------------------------------------------------------------------------- */
+
+main.main-content.jek-flush { padding: 0; text-align: left; align-items: stretch; }
+.jek-wrap { width: 100%; max-width: 1160px; margin: 0 auto; padding-left: clamp(1rem, 4vw, 2rem); padding-right: clamp(1rem, 4vw, 2rem); box-sizing: border-box; text-align: left; }
+.jek-section { width: 100%; padding-block: 2.5rem; }
+.jek-section > .jek-wrap > h2 { margin: 0 0 1.2rem; font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--jek-ink); text-wrap: balance; }
+.jek-band { background: var(--jek-panel); border-top: 1px solid var(--jek-line); border-bottom: 1px solid var(--jek-line); }
+.jek-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-lede { font-size: 1.05rem; line-height: 1.55; color: var(--jek-ink-soft); max-width: 60ch; margin: 0 0 1.4rem; }
+.jek-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 1.3rem; border-radius: var(--jek-radius); border: 1px solid transparent; font: 700 0.95rem var(--jek-sans); line-height: 1.2; text-decoration: none; cursor: pointer; transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.06s ease; }
+.jek-btn.primary { background: var(--jek-orange); color: #fff; }
+.jek-btn.primary:hover { background: #e35f27; color: #fff; text-decoration: none; }
+.jek-btn.quiet { background: transparent; color: var(--jek-ink); border-color: var(--jek-line-2); }
+.jek-btn.quiet:hover { background: var(--jek-panel); text-decoration: none; }
+.jek-btn:active { transform: translateY(1px); }
+.jek-btn:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+.jek-btn.small { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
+
+/* the hero: one claim, one picture, one action */
+.jek-hero { padding-block: 3rem 2.5rem; }
+.jek-hero .jek-wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2.5rem; align-items: center; }
+.jek-hero h1 { margin: 0; font-size: clamp(2.2rem, 4.5vw, 3.4rem); line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink); text-align: left; text-wrap: balance; }
+.jek-hero .jek-tag { margin: 0.8rem 0 0; font-size: 1.25rem; line-height: 1.35; color: var(--jek-ink); max-width: 30ch; }
+.jek-hero .jek-lede { margin: 1rem 0 0; font-size: 1rem; max-width: 46ch; }
+.jek-hero .jek-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.4rem; margin-top: 1.6rem; }
+.jek-hero .jek-acts a:not(.jek-btn) { color: var(--jek-cyan-dark); font-weight: 600; }
+.jek-hero .jek-facts { margin-top: 1.4rem; display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; font-size: 0.86rem; color: var(--jek-ink-soft); }
+.jek-hero .jek-facts span + span::before { content: "·"; margin-right: 0.6rem; }
+
+/* a screenshot in a dark frame, with an optional caption */
+.jek-shot { margin: 0; background: #1f2529; border: 1px solid var(--jek-line); border-radius: var(--jek-radius); overflow: hidden; }
+.jek-shot img, .jek-shot video { display: block; width: 100%; height: auto; }
+.jek-shot.cover img { aspect-ratio: 8 / 5; object-fit: cover; }
+.jek-shot figcaption { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--jek-ink-soft); background: var(--jek-panel); border-top: 1px solid var(--jek-line); }
+
+/* the proof strip under the hero */
+.jek-proof .jek-wrap { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 1.4rem; align-items: center; padding-block: 1.1rem; }
+.jek-proof .lead { font-weight: 700; font-size: 0.9rem; max-width: 10ch; }
+.jek-proof p { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.jek-proof p b { display: block; font-size: 0.9rem; color: var(--jek-ink); }
+
+/* cards in a row: the same edges, padding and baseline on each */
+.jek-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.jek-cards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.jek-card { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 1.1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); color: inherit; text-decoration: none; }
+.jek-card h3 { margin: 0; font-size: 1.05rem; line-height: 1.25; color: var(--jek-ink); }
+.jek-card p { margin: 0; font-size: 0.93rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.jek-card .jek-more { margin-top: auto; font-size: 0.9rem; font-weight: 600; color: var(--jek-cyan-dark); }
+.jek-card img { display: block; width: calc(100% + 2.4rem); margin: -1.1rem -1.2rem 0.4rem; aspect-ratio: 8 / 5; object-fit: cover; background: #1f2529; border-bottom: 1px solid var(--jek-line); }
+a.jek-card:hover { border-color: var(--jek-orange); text-decoration: none; }
+a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+/* a feature: a picture beside a short explanation, sides alternating */
+.jek-feature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.2rem; align-items: center; padding-block: 1.8rem; border-top: 1px solid var(--jek-line); }
+.jek-feature:first-of-type { border-top: 0; }
+.jek-feature:nth-of-type(even) .jek-shot { order: -1; }
+.jek-feature h3, .jek-feature h2 { margin: 0; font-size: 1.35rem; line-height: 1.2; color: var(--jek-ink); text-wrap: balance; }
+.jek-feature .jek-eyebrow { display: block; margin-bottom: 0.4rem; }
+.jek-feature p { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 52ch; }
+.jek-feature p a { color: var(--jek-cyan-dark); }
+
+/* the pricing table */
+.jek-plans { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.8rem; }
+.jek-plan { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 1.1rem 1.1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
+.jek-plan.featured { border-color: var(--jek-orange); }
+.jek-plan .price { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--jek-ink); }
+.jek-plan .price small { font-size: 0.8rem; font-weight: 400; color: var(--jek-ink-soft); }
+.jek-plan ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; line-height: 1.45; color: var(--jek-ink-soft); display: grid; gap: 0.25rem; }
+.jek-plan li::marker { color: var(--jek-orange); }
+.jek-plan .jek-btn { margin-top: auto; align-self: flex-start; }
+
+/* resource columns */
+.jek-resources .jek-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }
+.jek-resources h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--jek-ink); }
+.jek-resources ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.jek-resources a { color: var(--jek-cyan-dark); }
+
+@media (max-width: 900px) {
+  .jek-hero .jek-wrap { grid-template-columns: 1fr; }
+  .jek-proof .jek-wrap { grid-template-columns: 1fr 1fr; }
+  .jek-cards, .jek-cards.four, .jek-resources .jek-wrap { grid-template-columns: 1fr 1fr; }
+  .jek-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jek-feature { grid-template-columns: 1fr; gap: 1rem; }
+  .jek-feature:nth-of-type(even) .jek-shot { order: 0; }
+}
+@media (max-width: 520px) {
+  .jek-proof .jek-wrap, .jek-cards, .jek-cards.four, .jek-resources .jek-wrap, .jek-plans { grid-template-columns: 1fr; }
+  .jek-hero { padding-block: 2rem 1.5rem; }
+}
 
 /* --------------------------------------------------------------------------
    Prose — body copy on Bio, Contact, product descriptions
@@ -1254,7 +1356,9 @@ form#searchForm {
    Quote cart — nav link, product buttons, cart table
    -------------------------------------------------------------------------- */
 
-/* Cart sits hard right in the nav strip, clear of the centred links */
+/* Cart sits hard right in the nav strip, clear of the centred links; the footer's
+   contact strip has no wordmark or cart, so it keeps symmetric padding */
+footer .bar6 { padding: 0.35rem 0.75rem; min-height: 2.6rem; }
 .top-container .bar6 {
   position: relative;
   /* The bar clips overflow-x, and a browser cannot clip one axis alone: it turns the
@@ -1265,7 +1369,7 @@ form#searchForm {
 
 .top-container .bar6 .nav-cart {
   position: absolute;
-  right: 0.75rem;
+  right: var(--jek-gutter, 0.75rem);
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;

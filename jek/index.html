@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JEK Systems</title>
+<title>JEK Systems | Photonics instruments and design software</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
 </head>
@@ -32,12 +32,60 @@
     <div class="text-overlay">JEK Systems</div>
   </div>
 
-  <main class="main-content">
-    <h1 class="page-title">Search the Site</h1>
-    <form id="searchForm" onsubmit="handleSubmit(event)">
-      <input id="searchInput" type="search" placeholder="Search..." />
-      <button type="submit" id="searchButton">Search</button>
-    </form>
+  <main class="main-content jek-flush">
+
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <div class="jek-eyebrow">Photonics instruments and design software</div>
+          <h1>JEK Systems</h1>
+          <p class="jek-tag">Detectors, electronics and lab hardware for optics, and a simulator to design the bench first.</p>
+          <p class="jek-lede">Amplified and biased photodetectors, RF filters and mixers, control systems, optical mounts and sample holders; custom optical, electronic and mechanical design when the catalogue has no answer; and JEKray2D, the free optical bench simulator that runs in your browser.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/products.html">Browse the products</a>
+            <a class="jek-btn quiet" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
+            <a href="/jek/custom-solutions.html">Custom solutions</a>
+          </div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="/jek/products/design-software/jekray2d/img/jekray2d-demo.jpg" alt="The JEKray2D bench in its 3D view: a grating spectrometer, the mercury lines fanning out past the grating" width="1280" height="800">
+          <figcaption>JEKray2D: lay out an optical system, trace it, and see the waves as well as the rays.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <h2>What we make</h2>
+        <div class="jek-cards four">
+          <a class="jek-card" href="/jek/products/photodetectors/"><img src="/jek/products/design-software/jekray2d/img/michelson.png" alt="" loading="lazy"><h3>Photonics</h3><p>Amplified and biased photodetectors for the bench and the beamline.</p><span class="jek-more">Photodetectors &rarr;</span></a>
+          <a class="jek-card" href="/jek/products/signal-processing/"><img src="/jek/assets/img/qpd.jpg" alt="" loading="lazy"><h3>Electronics</h3><p>RF filters, mixers and active control systems for locking and measurement.</p><span class="jek-more">Electronics &rarr;</span></a>
+          <a class="jek-card" href="/jek/products/lab-accessories/"><img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" alt="" loading="lazy"><h3>Lab accessories</h3><p>Optical mounts, sample holders and transport racks, machined for the vacuum lab.</p><span class="jek-more">Lab accessories &rarr;</span></a>
+          <a class="jek-card" href="/jek/products/design-software/jekray2d/"><img src="/jek/products/design-software/jekray2d/img/field-3d.png" alt="" loading="lazy"><h3>JEKray2D</h3><p>The optical bench simulator: free in your browser, with JEKrayPro for the cloud and teams.</p><span class="jek-more">About JEKray2D &rarr;</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <div class="jek-cards">
+          <div class="jek-card"><h3>Custom solutions</h3><p>Consultancy and contract design in optical, electronic and mechanical engineering, handled together in-house, from a single part to a whole instrument.</p><a class="jek-more" href="/jek/custom-solutions.html">How we work &rarr;</a></div>
+          <div class="jek-card"><h3>Calculators</h3><p>Gaussian beams, cavities, fibre coupling, pulses, power density and more: quick optics calculations with their equations shown.</p><a class="jek-more" href="/jek/calculators/">Open the calculators &rarr;</a></div>
+          <div class="jek-card"><h3>For universities</h3><p>One JEKrayPro licence covers everyone at a university, with no seats to manage and nothing for IT to run.</p><a class="jek-more" href="/jek/universities.html">JEKrayPro for universities &rarr;</a></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section jek-band" style="padding-block: 1.8rem">
+      <div class="jek-wrap">
+        <h2 style="font-size: 1.15rem; margin-bottom: 0.6rem">Search the site</h2>
+        <form id="searchForm" onsubmit="handleSubmit(event)">
+          <input id="searchInput" type="search" placeholder="Search..." aria-label="Search the site" />
+          <button type="submit" id="searchButton">Search</button>
+        </form>
+      </div>
+    </section>
+
   </main>
 
 <footer>

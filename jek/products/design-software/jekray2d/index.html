@@ -7,142 +7,48 @@
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
 <style>
-.product-price .licence-links { display: block; margin-top: 0.3rem; font-family: var(--jek-sans); font-size: 0.85rem; font-weight: 400; color: var(--jek-cyan-dark); }
-.product-price .licence-link { color: inherit; }
-  /* The screenshots are exports of the dark bench, so they fill the frame edge to edge */
-  .gallery-frame.bench { padding: 0; background: #1f2529; }
-  .gallery-frame.bench img { width: 100%; height: 100%; object-fit: cover; }
-
-  .product-tagline {
-    margin: 0 0 1rem;
-    font-size: 1rem;
-    color: var(--jek-ink-soft);
-  }
-  .product-info ul { margin: 1.25rem 0 0; padding-left: 1.2rem; font-size: 0.9375rem; line-height: 1.55; }
-  .product-info li { margin-bottom: 0.35rem; }
-  .product-info li::marker { color: var(--jek-orange); }
-  .product-actions a { text-decoration: none; }
-  .rt-feature p a, .rt-examples > p a, .product-info li a { color: var(--jek-cyan-dark); }
-  /* JEKrayPro's own button: black, beside the orange Launch */
-  .rt-pro-button, .rt-feature a.rt-pro-button { display: inline-block; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; text-decoration: none; background: #111; border: 2px solid #111; border-radius: 2px; transition: background-color 0.12s ease, transform 0.06s ease; }
-  .rt-pro-button:hover, .rt-feature a.rt-pro-button:hover { background: #333; border-color: #333; color: #fff; text-decoration: none; }
-  .rt-pro-button:active { transform: translateY(1px); }
-  @media (max-width: 520px) { .product-actions .rt-pro-button { flex: 1 1 100%; text-align: center; } }
-  .rt-pro-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
-  .rt-notify { margin: 0.9rem 0 0; font-size: 0.875rem; color: var(--jek-ink-soft); }
-  .rt-notify a { color: var(--jek-cyan-dark); font-weight: 600; }
-  .rt-video { width: 100%; max-width: 1040px; margin: 0 0 2.75rem; text-align: left; }
-  .rt-video h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--jek-ink); }
-  .rt-video > p { margin: 0 0 1rem; font-size: 0.9375rem; color: var(--jek-ink-soft); }
-  .rt-video figure { margin: 0; overflow: hidden; background: #1f2529; border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
-  .rt-video video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #e2c9b6; }
-  .rt-video .rt-links { margin: 0.9rem 0 0; font-size: 0.9375rem; }
+  /* See it work: the recording, full width of the column */
+  .rt-video > p { margin: 0 0 1rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
+  .rt-video video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #1f2529; }
+  .rt-video .rt-links { margin: 0.9rem 0 0; font-size: 0.95rem; }
   .rt-video .rt-links a { color: var(--jek-cyan-dark); font-weight: 600; }
 
-  .product-description--full {
-    width: 100%;
-    max-width: 1040px;
-    margin: 0 0 2.5rem;
-    text-align: left;
-    box-sizing: border-box;
-  }
-
-  /* Feature rows: a bench export beside a short explanation, alternating sides */
-  .rt-feature {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 2rem;
-    width: 100%;
-    max-width: 1040px;
-    margin-bottom: 2.5rem;
-    text-align: left;
-  }
-  .rt-feature:nth-of-type(even) .rt-shot { order: 2; }
-  .rt-shot {
-    margin: 0;
-    overflow: hidden;
-    background: #1f2529;
-    border: 1px solid var(--jek-line);
-    border-radius: var(--jek-radius);
-    box-shadow: var(--jek-shadow);
-  }
-  .rt-shot img { display: block; width: 100%; height: auto; }
-  .rt-shot figcaption {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--jek-ink-soft);
-    background: var(--jek-panel);
-    border-top: 1px solid var(--jek-line);
-  }
-  .rt-feature h2 { margin: 0 0 0.6rem; font-size: 1.2rem; color: var(--jek-ink); }
-  .rt-feature p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.6; }
-  .rt-feature p:last-child { margin-bottom: 0; }
-
   /* Examples: each opens in the tool with #demo=<name> */
-  .rt-examples {
-    width: 100%;
-    max-width: 1040px;
-    margin-bottom: 2.5rem;
-    text-align: left;
-  }
-  .rt-examples > h2 { margin: 0 0 0.35rem; font-size: 1.2rem; color: var(--jek-ink); }
-  .rt-examples > p { margin: 0 0 1.25rem; font-size: 0.9375rem; color: var(--jek-ink-soft); }
-  .rt-examples > .rt-exgroup { margin: 1.6rem 0 0.8rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-examples > p { margin: 0 0 1.25rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
+  .rt-examples > p a { color: var(--jek-cyan-dark); }
+  .rt-examples > .rt-exgroup { margin: 1.6rem 0 0.8rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
   .rt-examples > p + .rt-exgroup { margin-top: 0; }
-  .rt-example-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 1.25rem;
-  }
-  .rt-example {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    color: inherit;
-    text-decoration: none;
-    background: var(--jek-panel);
-    border: 1px solid var(--jek-line);
-    border-radius: var(--jek-radius);
-    box-shadow: var(--jek-shadow);
-    transition: border-color 0.12s ease, transform 0.12s ease;
-  }
-  .rt-example:hover { border-color: var(--jek-orange); transform: translateY(-2px); text-decoration: none; }
+  .rt-example-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+  .rt-example { display: flex; flex-direction: column; overflow: hidden; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); transition: border-color 0.12s ease; }
+  .rt-example:hover { border-color: var(--jek-orange); text-decoration: none; }
   .rt-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-example img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
   .rt-example-body { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.8rem 0.95rem 0.95rem; flex: 1; }
   .rt-example h3 { margin: 0; font-size: 1rem; color: var(--jek-ink); }
   .rt-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
   .rt-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
-
-  /* every example, by topic: full white boxes that open */
-  .rt-exdrop { margin-top: 0.75rem; background: #ffffff; border: 1px solid var(--jek-line); border-radius: 2px; box-shadow: var(--jek-shadow); }
+  .rt-example-grid.rt-featured { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  /* every example, by topic: white boxes that open */
+  .rt-exdrop { margin-top: 0.75rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
   .rt-examples > .rt-example-grid + .rt-exdrop { margin-top: 2rem; }
   .rt-exdrop > summary { display: flex; align-items: center; gap: 0.75rem; padding: 0.95rem 1.15rem; cursor: pointer; list-style: none; user-select: none; }
   .rt-exdrop > summary::-webkit-details-marker { display: none; }
   .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
-  .rt-exdrop-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: #7a5a44; }   /* the page's sand, deepened to read on white */
+  .rt-exdrop-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--jek-ink); }
   .rt-exdrop-count { font-size: 0.8125rem; color: var(--jek-ink-soft); }
-  .rt-beta { display: inline-block; margin-left: 0.55rem; padding: 0.12rem 0.5rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 0.15em; }
-  .rt-exdrop > summary::after { content: '\25BE'; font-size: 0.95rem; color: #7a5a44; transition: transform 0.2s ease; }
+  .rt-exdrop > summary::after { content: '\25BE'; font-size: 0.95rem; color: var(--jek-ink-soft); transition: transform 0.2s ease; }
   .rt-exdrop[open] > summary::after { transform: rotate(180deg); }
-  .rt-exdrop > summary:hover .rt-exdrop-title { color: #5e4332; }
   .rt-exdrop > .rt-example-grid { padding: 0.25rem 1.15rem 1.25rem; }
   .rt-exdrop .rt-example { background: var(--jek-well); }
-  .rt-example-grid.rt-featured { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-  .tech-section p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.55; text-align: left; }
+  .rt-beta { display: inline-block; margin-left: 0.55rem; padding: 0.12rem 0.5rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; }
 
-  @media (max-width: 760px) {
-    .rt-feature { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-    .rt-feature:nth-of-type(even) .rt-shot { order: 0; }
-  }
-  /* the AI assistant panel holds more than the site's dropdowns allow for */
+  /* Resources: the site's dropdowns, in the page's column */
+  .tech-section { max-width: none; margin: 0; }
+  .tech-section h2 { border-bottom-color: var(--jek-orange); }
+  .tech-section p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.55; text-align: left; }
   .dropdown.open .dropdown-panel.rt-tall { max-height: 900px; }
   .rt-tall p, .rt-tall li { font-size: 0.9rem; line-height: 1.5; margin: 0.25rem 0; }
   .rt-tall ul { margin: 0 0 0.3rem; padding-left: 1.2rem; }
-
-  /* example cards stay put on hover, as the site's cards do */
-  .rt-example:hover { transform: none; }
 </style>
 </head>
 
@@ -171,235 +77,106 @@
   <div class="text-overlay">JEK Systems</div>
 </div>
 
-  <main class="main-content">
+  <main class="main-content jek-flush">
 
-    <div class="product-wrap">
-
-      <!-- Left side: image gallery (exports from the editor's "Export layout" button) -->
-      <div class="product-gallery">
-        <div class="gallery-frame bench">
-          <img id="galleryImage" src="img/michelson.png" alt="A Michelson interferometer on the JEKray2D bench">
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <div class="jek-eyebrow">Design software</div>
+          <h1>JEKray2D</h1>
+          <p class="jek-tag">An optical bench simulator that shows the waves as well as the rays.</p>
+          <p class="jek-lede">Lay out sources, lenses, mirrors, fibre and detectors on a virtual breadboard and see the light traced as you move them: exact rays through real glass, diffracted Gaussian beams with interference and polarisation, in 2D and 3D.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
+            <a class="jek-btn quiet" href="#examples">Try an example</a>
+            <a href="#pricing">Pricing</a>
+          </div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Open beta</span></div>
         </div>
-        <div class="gallery-pips" id="galleryPips">
-          <button class="pip active" data-src="img/michelson.png" data-alt="A Michelson interferometer on the JEKray2D bench" aria-label="Image 1"></button>
-          <button class="pip" data-src="img/mach-zehnder.png" data-alt="A Mach–Zehnder interferometer with two beam splitter cubes" aria-label="Image 2"></button>
-          <button class="pip" data-src="img/plano-convex.png" data-alt="Two plano-convex lenses, one each way round, focusing ray fans" aria-label="Image 3"></button>
-          <button class="pip" data-src="img/maltese-cross.png" data-alt="A steep lens focusing through a polariser onto a screen" aria-label="Image 4"></button>
-          <button class="pip" data-src="img/dispersing-prism.png" data-alt="White light dispersed into its colours by an N-SF11 prism" aria-label="Image 5"></button>
-          <button class="pip" data-src="img/fibre-michelson.png" data-alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" aria-label="Image 6"></button>
+        <figure class="jek-shot cover">
+          <img src="img/jekray2d-demo.jpg" alt="The JEKray2D bench in its 3D view: a grating spectrometer, the mercury lines fanning out past the grating onto the detector plane" width="1280" height="800">
+          <figcaption>A grating spectrometer, turned in the 3D view. Drag any part and the light follows.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="jek-proof jek-band">
+      <div class="jek-wrap">
+        <div class="lead">Checked against published results</div>
+        <p><b>Makers&rsquo; lens files</b>Thorlabs and Edmund .zmx and .zar files import and focus to the makers&rsquo; stated focal lengths and back focal lengths.</p>
+        <p><b>Published results</b>Fox and Li&rsquo;s resonator losses, Safronova&rsquo;s atomic polarisabilities, measured rubidium absorption and a levitated nanosphere&rsquo;s damping, reproduced from the papers.</p>
+        <p><b>Lens design</b>Real rays, Seidel aberrations and Strehl ratios of a singlet and a Cooke triplet against an independent ray tracer. <a href="/jek/tools/jekray2d-validation.html">The validation page</a>.</p>
+      </div>
+    </section>
+
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <h2>Who it is for</h2>
+        <div class="jek-cards">
+          <div class="jek-card"><h3>Research groups</h3><p>Plan a bench before cutting metal: mode-match a laser to a cavity, lay out an interferometer, check a lock error signal. Keep the group&rsquo;s benches in one team workspace with their history.</p><a class="jek-more" href="/jek/tools/jekray2d.html#demo=fox-li">A cavity finding its mode</a></div>
+          <div class="jek-card"><h3>Teaching</h3><p>Forty-two examples students can open and break: a Michelson, a Fabry&ndash;P&eacute;rot, a grating spectrometer, optical tweezers. One licence covers a whole university, with no seats to manage.</p><a class="jek-more" href="/jek/universities.html">For universities</a></div>
+          <div class="jek-card"><h3>Industry design review</h3><p>Import a maker&rsquo;s lens file, check the working distance, send a link to a colleague. Export a prescription back to your lens-design program.</p><a class="jek-more" href="/jek/docs/jekray2d/free-space/lens/#exporting-a-lens">Lens import and export</a></div>
         </div>
       </div>
+    </section>
 
-      <!-- Right side: title, launch -->
-      <div class="product-info">
-        <h1>JEKray2D Optical Bench Simulator<span class="rt-beta">Open beta</span></h1>
-        <p class="product-tagline">Lay out an optical system, trace it, and see the waves as well as the rays.</p>
-        <p class="product-price">Free. Runs in your browser. <span class="licence-links"><a class="licence-link" href="/jek/tools/jekray2d-licence.html">Licence terms</a> &middot; <a class="licence-link" href="/jek/docs/jekray2d/">Documentation</a></span></p>
-        <div class="product-actions accent-orange">
-          <a class="buy-button" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
-          <a class="rt-pro-button" href="#pro">JEKrayPro</a>
-          <a class="quote-button" href="#examples">Try an example</a>
+    <section class="jek-section" style="padding-top: 0">
+      <div class="jek-wrap">
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">Waves, not just rays</span><h2>Interference, cavities and polarisation</h2><p>Each ray carries its polarisation and optical path, so interferometers show fringes and cavities resonate. A Gaussian beam is followed through every branch, and the diffracted field is worked out where the rays cannot tell the story: slits, masks, a tight focus, a vortex beam.</p></div>
+          <figure class="jek-shot"><img src="img/michelson.png" alt="A Michelson interferometer on the bench" loading="lazy"></figure>
         </div>
-        <p class="rt-notify"><strong>JEKrayPro</strong>, cloud saving for JEKray2D, keeps your benches in the cloud, with their history, on any computer: &pound;9.99 a month or &pound;99 a year, half that for students and university staff, and the same a seat for a team. <a href="#pro">About Pro</a> &middot; <a href="/jek/universities.html">For universities</a></p>
-        <ul>
-          <li>Nothing to install and no account needed; a two-minute guided tour and 42 examples to start from</li>
-          <li>Exact rays through real glass, and diffracted Gaussian beams with interference and polarisation</li>
-          <li>A 3D view: raise, tip and roll any part, and the light follows, periscopes and misaligned cavities included; bring in mounts and housings from CAD as STL files</li>
-          <li>The diffracted field in 3D, glowing along each beam in calibrated W/cm&sup2;, interference and all; point at it to read it</li>
-          <li>Lenses, mirrors, prisms, gratings, polarisation optics, filters, fibre subsystems and the electronics after the detector, across as many tabs as you like</li>
-          <li>Cavities, lasers, photodiode signals, oscilloscopes, lock-ins and lock error signals</li>
-          <li>Aberrations, pulses, broadband light, nonlinear optics, vapour cells and optical traps</li>
-          <li>Share benches as links or live embeds, import makers&rsquo; .zmx and .zar lens files with the Schott, Ohara, Hoya, CDGM and Sumita glass catalogues built in, export a lens as a .zmx prescription, install part packs of others&rsquo; parts and glasses, export pictures and data</li>
-          <li>A lens narrower than its beam says so, with the share of light that goes round its rim; an imported part that needed assumptions says which</li>
-          <li>Experimental: millimetre-wave quasi-optics from 1 GHz to 3 THz, with feed horns launching their real aperture fields (far-field pattern, Gaussicity, cross-polar), dielectric lenses, wire grids, film splitters and mesh filters modelled as the real things, a receiver&rsquo;s S21 against frequency and its link budget, and horns wired into the electronics as upconverters, mixers and video detectors</li>
-          <li>With JEKrayPro, benches save to the cloud as you work, with their whole history, and fork like code, and your own parts wait in My parts; sign in with Google or Microsoft</li>
-          <li>Design with an AI assistant using the <a href="/jek/tools/jekray2d-ai-guide.md" download>JEKray2D guide</a></li>
-        </ul>
-      </div>
-
-    </div>
-
-    <!-- Full-width description -->
-    <div class="product-description product-description--full">
-      <h2>Description</h2>
-      <p>
-        JEKray2D is an optical bench simulator that runs in the browser. You place sources, lenses, mirrors and other parts on a virtual breadboard, drag them into position, and the light is traced through them as you move them. You see the result straight away: where the beam goes, where it focuses, what arrives on each screen, and how much power reaches it.
-      </p>
-      <p>
-        It does more than a basic ray tracer. Each ray carries its polarisation and its optical path, so interferometers show fringes and cavities resonate. A Gaussian beam is followed through every branch of the system. The diffracted field is propagated surface by surface by physical optics propagation, so slits, stops and tight focuses behave as they do on a real bench.
-      </p>
-      <p>
-        <strong>JEKray2D is in open beta.</strong> Everything here works and is checked against published results on the <a href="/jek/tools/jekray2d-validation.html">validation page</a>, and it is still growing quickly. If something looks wrong, use Report a bug in the tool: it comes straight to us.
-      </p>
-    </div>
-
-    <!-- A short screen recording of the editor -->
-    <section class="rt-video">
-      <h2>See it work</h2>
-      <p>Open an example from the gallery and drag a lens: the light is traced again as you move. Read the spectrum on the detector, turn the bench in 3D, find any part in the picker, and save the bench to the cloud with JEKrayPro, beside your team&rsquo;s.</p>
-      <figure>
-        <video id="demoVideo" src="img/jekray2d-demo.webm" poster="img/jekray2d-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
-          aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the bench turned in the 3D view, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches beside a team's benches"></video>
-      </figure>
-      <p class="rt-links"><a href="/jek/tools/jekray2d.html#tour=focus">Take the two-minute tour →</a> &nbsp; <a href="/jek/tools/jekray2d.html#examples">Browse all the examples →</a></p>
-    </section>
-
-    <!-- What it does, each point shown with an export from the editor -->
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/michelson.png" alt="A Michelson interferometer: laser, 50/50 cube, fixed and moving mirrors, input and output screens" loading="lazy">
-        <figcaption>Michelson interferometer, built from the parts picker</figcaption>
-      </figure>
-      <div>
-        <h2>Build a bench in minutes</h2>
-        <p>Add parts from the parts picker, by search or by palette, or from the rail beside the bench, and drag or rotate them into place on a 25 mm breadboard grid. Click any part to open its settings: radii, conic and aspheric terms, glass, coatings, reflectivity, wavelength, beam size and more.</p>
-        <p>Any setting can be swept: set a range and press play to watch the system change as a mirror moves or a lens tilts. The same ranges feed an optimiser, which varies several values at once against several weighted goals, and a Monte Carlo tolerance study.</p>
-        <p>Share a bench as a link: it opens as you left it, with the same panels pinned, on the same tabs and scrolled to the same place, its sweeps ready to play. Or embed it, live, in a web page or course notes, where readers can drag, zoom and play it.</p>
-        <p>New to it? The <a href="/jek/tools/jekray2d.html#tour=focus">guided tour</a> builds a focusing lens and then a Michelson interferometer with you, a step at a time, and a third builds a periscope in 3D.</p>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">Real glass</span><h2>The makers&rsquo; catalogues, built in</h2><p>Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, plus the crystals and optical plastics. Import a Thorlabs or Edmund lens file and it traces in the glass its maker chose; export a lens as a prescription your lens-design program opens.</p></div>
+          <figure class="jek-shot"><img src="img/lens-aberrations.png" alt="Ray fans through a thick lens, showing its aberrations" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">Three dimensions</span><h2>The diffracted field in 3D</h2><p>Raise, tip and roll any part and the light follows, periscopes and misaligned cavities included. The field glows along each beam in calibrated W/cm&sup2;, interference and all; point at it to read it. Bring mounts and housings in from CAD as STL files.</p></div>
+          <figure class="jek-shot"><img src="img/field-3d.png" alt="The diffracted field drawn as a glowing volume in the 3D view" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">One bench</span><h2>Fibre, free space and the signals between</h2><p>Fibre subsystems, free-space optics and the electronics after the detector on one bench, across as many tabs as you like: photodiode signals, oscilloscopes, lock-ins and lock error signals. Spectra, ultrafast pulses, nonlinear optics, vapour cells and optical traps, and millimetre-wave quasi-optics as an experimental tab.</p></div>
+          <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature" id="pro">
+          <div><span class="jek-eyebrow">JEKrayPro</span><h2>Your benches in the cloud, for you or a team</h2><p>Sign in with Google or Microsoft and benches save as you work, with their whole history. Fork one to try an idea and merge it back. Keep your own parts in My parts. A team shares one workspace with roles, invitations by email, one editor at a time and an activity record. Export everything at any time, and delete your account whenever you like.</p><p><a href="/jek/tools/jekray2d.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
+          <figure class="jek-shot" style="background: var(--jek-panel)"><img src="img/jekray2d-pro.png" alt="My benches in JEKrayPro: folders down the side and saved benches as cards with their pictures" loading="lazy"></figure>
+        </div>
       </div>
     </section>
 
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/plano-convex.png" alt="Two plano-convex lenses focusing collimated beams, showing different spherical aberration" loading="lazy">
-        <figcaption>Plano-convex lens, curved side first against flat side first</figcaption>
-      </figure>
-      <div>
-        <h2>Exact rays through real glass</h2>
-        <p>Rays are traced exactly through spherical, conic and aspheric surfaces, with the refractive index of real glasses (N-BK7, S-LAH64 and others) at each wavelength. Reflection, refraction, total internal reflection, Fresnel losses and thin-film coatings are all included.</p>
-        <p>Each screen reports spot size, wavefront error, point spread, Strehl ratio, MTF and enclosed energy. In this example you can see why a plano-convex lens should face its curved side to the collimated beam.</p>
-        <p>The Aberrations tab sweeps a source across the field and reads the system’s aberrations at the image: Seidel’s coefficients (spherical, coma, astigmatism with field curvature, distortion), Zernike terms along the meridian, a spot diagram across the whole field, ray fans, wavefronts, the field curve and distortion.</p>
+    <section class="jek-section jek-band rt-video">
+      <div class="jek-wrap">
+        <h2>See it work</h2>
+        <p>Open an example from the gallery and drag a lens: the light is traced again as you move. Read the spectrum on the detector, turn the bench in 3D, find any part in the picker, and save the bench to the cloud with JEKrayPro, beside your team&rsquo;s.</p>
+        <figure class="jek-shot">
+          <video id="demoVideo" src="img/jekray2d-demo.webm" poster="img/jekray2d-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
+            aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the bench turned in the 3D view, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches beside a team's benches"></video>
+        </figure>
+        <p class="rt-links"><a href="/jek/tools/jekray2d.html#tour=focus">Take the two-minute tour &rarr;</a> &nbsp; <a href="/jek/tools/jekray2d.html#examples">Browse all the examples &rarr;</a></p>
       </div>
     </section>
 
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/poissons-spot.png" alt="A beam block in a laser beam, with the diffracted field reaching a screen 500 mm away" loading="lazy">
-        <figcaption>Poisson’s spot: light diffracted around a beam block</figcaption>
-      </figure>
-      <div>
-        <h2>Waves, not just rays</h2>
-        <p>The field of each beam is propagated through the system, and every surface acts on it with the phase found by the ray trace. Slits, irises, knife edges, beam blocks and masks, whose amplitude and delay you write as a formula, act on the field as well as on the rays.</p>
-        <p>Branches of the same beam add as fields wherever they meet, so double slits, interferometers and standing waves come out as they should. Zoom in below 50 µm to see the field computed on every pixel. Every screen maps the irradiance arriving, its phase, and its polarisation point by point, with Stokes parameters, the PSF, MTF and enclosed energy; lasers of different powers each count for what they are.</p>
+    <section class="jek-section" id="pricing">
+      <div class="jek-wrap">
+        <h2>Pricing</h2>
+        <p class="jek-lede">The simulator is free, with or without an account, under the <a href="/jek/tools/jekray2d-licence.html">JEKray2D Licence</a>. JEKrayPro adds the cloud. Prices include VAT where it applies; payment is taken by Stripe and you can cancel any time. If a subscription ends, every bench can still be opened and exported.</p>
+        <div class="jek-plans">
+          <div class="jek-plan"><div class="jek-eyebrow">Free</div><div class="price">&pound;0</div><ul><li>The whole simulator</li><li>42 examples and a guided tour</li><li>Save .jekray files and share links</li><li>Import .zmx and .zar lens files</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray2d.html">Launch</a></div>
+          <div class="jek-plan featured"><div class="jek-eyebrow">Pro</div><div class="price">&pound;9.99 <small>a month, or &pound;99 a year</small></div><ul><li>Benches saved as you work</li><li>Version history, forks and merges</li><li>My parts on any bench</li><li>Any computer, any browser</li></ul><a class="jek-btn primary small" href="/jek/tools/jekray2d.html#pro">Subscribe</a></div>
+          <div class="jek-plan"><div class="jek-eyebrow">Academic</div><div class="price">&pound;4.99 <small>a month, or &pound;49 a year</small></div><ul><li>Everything in Pro</li><li>For students and university staff</li><li>Confirmed by a university address</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray2d.html#pro">Check I qualify</a></div>
+          <div class="jek-plan"><div class="jek-eyebrow">Team</div><div class="price">&pound;9.99 <small>a seat a month, or &pound;99 a year; at least 3</small></div><ul><li>One shared workspace</li><li>Owner, admins and editors; viewers free</li><li>Invitations by email</li><li>One editor at a time, activity record</li><li>Pro on each member&rsquo;s own benches</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray2d.html#pro">Create a team</a></div>
+          <div class="jek-plan"><div class="jek-eyebrow">University</div><div class="price">Per year <small>by invoice</small></div><ul><li>Everyone at the university</li><li>No seats to manage</li><li>Signs in with the university account</li><li>Data protection agreement</li></ul><a class="jek-btn quiet small" href="/jek/universities.html">Ask for a quote</a></div>
+        </div>
+        <p class="jek-lede" style="margin: 1.2rem 0 0; font-size: 0.9rem"><a href="/jek/terms.html">JEKrayPro Terms</a> &middot; <a href="/jek/privacy.html">Privacy</a> &middot; <a href="/jek/security.html">Security</a> &middot; <a href="/jek/accessibility.html">Accessibility</a></p>
       </div>
     </section>
 
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/three-d.png" alt="A periscope in the 3D view: two mirrors tipped 45 degrees lift a laser beam 100 mm, through a cylindrical lens rolled 30 degrees onto a screen" loading="lazy">
-        <figcaption>A periscope and a rolled cylindrical lens, in 3D</figcaption>
-      </figure>
-      <div>
-        <h2>In three dimensions</h2>
-        <p>Switch any bench of free-space parts to 3D and see it on a breadboard, turned and zoomed as in a CAD program, or from any face, edge or corner of the view cube. Click a part for arrows to move it along x, y and up, and again for rings to turn, tip and roll it, each one the colour of its axis. Bring in mounts, posts and housings from CAD as STL files: they stop the light where it meets them, and save with the bench or to your own parts library. Hide any part in 3D to see past it, and the light still meets it.</p>
-        <p>The light follows exactly. Rays are traced through real surfaces met off-centre and at an angle, Gaussian beams through turned optics as general astigmatic beams with their higher-order modes, and the diffracted field through all of it. Periscopes turn the polarisation and the image as real ones do, a rolled Dove prism turns the image by twice its roll, and a cavity with a mirror tipped a few microradians walks its light round to its own axis, with the mode matching and alignment sensitivities to show for it.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/field-3d.png" alt="A Mach–Zehnder interferometer in the 3D view, its beams glowing by their irradiance: the light leaving the combiner for one output is bright, for the other dark, with a key in W/cm² and the pointer reading 61.7 mW/cm²" loading="lazy">
-        <figcaption>A Mach–Zehnder in 3D: the field, its dark port, and a reading</figcaption>
-      </figure>
-      <div>
-        <h2>The diffracted field in 3D</h2>
-        <p>With the diffracted field shown, the 3D view draws every beam as a glowing volume coloured by its irradiance: a focus pinching to its waist, an iris&rsquo;s rings spreading behind it, a vortex&rsquo;s dark core, the lobes of a higher-order mode. It is a measurement, not a picture: the key is in W/cm&sup2; for the lasers&rsquo; own powers, linear or logarithmic over 30 or 60 dB, and pointing at the light reads the irradiance there and where it is.</p>
-        <p>Beams of one laser that run together add as fields, so an interferometer&rsquo;s dark port is dark in 3D as on its screen. Each beam is as bright as the light it carries: the 5&nbsp;% that leaks through a mirror&rsquo;s back is 5&nbsp;% as bright, and a beam clipped by a lens&rsquo;s rim is drawn with the light that went round it. The field is worked out off the page, across the computer&rsquo;s cores, and kept, so a sweep plays smoothly once it has been round, in 2D and in 3D.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/fabry-perot.png" alt="A Fabry–Perot cavity between an input coupler and an end mirror, with reflected and transmitted screens" loading="lazy">
-        <figcaption>Fabry–Perot cavity, found and analysed automatically</figcaption>
-      </figure>
-      <div>
-        <h2>Cavities and polarisation</h2>
-        <p>When light loops back on itself, JEKray2D finds the cavity for you and reports its free spectral range, finesse, linewidth, stability, Gaussian mode and losses. It also solves the steady-state field and the cavity’s own modes, in the same way as the Fox–Li method.</p>
-        <p>Put a gain medium inside and it tells you whether the cavity lases and, above threshold, the power it settles at, which leaves the output coupler as a beam on the bench. Polarisation is tracked as complex s and p amplitudes through every mirror, coating, waveplate and polariser, and through birefringent crystals (beam displacers, Wollaston and Glan–Taylor prisms) and Faraday isolators, which pass light one way only. For steep focusing it switches to a full vector calculation of the focal field.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/split-laser.png" alt="A fibre laser split by a coupler into two fibre launches, collimated and recombined on a 50/50 cube in front of a photodiode" loading="lazy">
-        <figcaption>Two fibre launches from one laser, recombined in free space</figcaption>
-      </figure>
-      <div>
-        <h2>Fibre, free space and the signals between</h2>
-        <p>Draw fibre subsystems next to the free-space optics: lasers and LEDs, couplers, 1&times;N splitters and star couplers, WDMs, circulators, polarisation beam splitters, Bragg gratings, switches, delay lines, stretchers, tunable filters, depolarisers, semiconductor amplifiers, AOMs and EOMs, joined port to port with fibres you shape by dragging. Their connectors reflect as PC, APC or flat ends do. Fibre tips send light into free space and take it back in by mode overlap, and link planes carry beams between bench tabs, so a large system can be built as subsystems.</p>
-        <p>Photodiodes and balanced detectors read what real ones would: DC power with dark current and amplifier noise, the RF spectrum of every beat note, the trace on an oscilloscope and a mixer’s output; an optical spectrum analyser shows what is in the fibre. Launches split from one laser interfere, washed out by its coherence length, and an EOM’s sidebands off a cavity give the Pound–Drever–Hall error signal. Electrical feedthroughs carry signals between tabs, so the optics can sit on one bench and the rack of electronics on another. Fibre amplifiers saturate and add their spontaneous emission, and the photodiodes read its beat noise; atomic vapour cells give the Doppler-broadened and saturated-absorption spectra a laser is locked to. Put a magnetic field on a cell and its lines split into their Zeeman components, worked out exactly from weak fields to the Paschen–Back regime, so DAVLL locks, Faraday filters and polarisation spectroscopy work as on the bench.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/pulse-compressor.png" alt="A stretched pulse compressed by two parallel diffraction gratings" loading="lazy">
-        <figcaption>A Treacy grating compressor, from 458 fs back to 102 fs</figcaption>
-      </figure>
-      <div>
-        <h2>Spectra and ultrafast pulses</h2>
-        <p>Every source can carry several wavelengths, so gratings and prisms spread light into its spectrum and chromatic focal shift shows up on its own. Filters and dichroics pass or reflect by wavelength. A source’s coherence is yours to set: a single frequency, a line of its own, or incoherent broadband light such as an LED’s, which adds as powers except near equal paths, where white-light fringes appear.</p>
-        <p>Give a laser a pulse duration and JEKray2D traces its spectrum through glass, prism and grating compressors, chirped mirrors and fibre. Any screen or photodiode shows the pulse that arrives: its duration against the transform limit, peak power, group delay dispersion and third-order dispersion, spatial chirp and pulse-front tilt.</p>
-        <p>Nonlinear optics too: periodically poled PPLN and PPKTP crystals double a laser’s frequency (1560 → 780 nm, 1064 → 532 nm) from Boyd and Kleinman’s theory, with the focusing, poling period and temperature tuning and the fundamental used up as it converts. In fibre, strong pulses pick up self-phase modulation, worked out by the nonlinear Schrödinger equation: their spectra broaden, and in anomalous dispersion they can travel as solitons.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot" style="background: var(--jek-panel)">
-        <img src="img/structured-light.png" alt="Two irradiance maps: a Hermite-Gauss mode turned 45 degrees after a cylindrical-lens mode converter, and a dark-centred vortex ring focused from a fork hologram" loading="lazy">
-        <figcaption>Structured light: a mode converter and an SLM fork hologram</figcaption>
-      </figure>
-      <div>
-        <h2>Structured light</h2>
-        <p>A source can launch a Hermite–Gauss or Laguerre–Gauss mode, a vortex of any charge, carried as a coherent sum of modes that each keep their own Gouy phase. A pair of cylindrical lenses turns a vortex into a Hermite–Gauss mode, as it does in the lab.</p>
-        <p>Masks cover what a spatial light modulator shows: spiral phase plates, fork holograms, blazed gratings and any phase you can write as a formula. Rays and beams follow a blazed pattern into its first order, and a mask with detail finer than the field’s grid is flagged rather than quietly smoothed.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/levitated-trap.png" alt="The standing wave where two counter-propagating beams meet at a focus, computed on every pixel" loading="lazy">
-        <figcaption>The standing-wave trap of a levitated-particle experiment</figcaption>
-      </figure>
-      <div>
-        <h2>Optical traps, atoms to nanoparticles</h2>
-        <p>Put a screen at a focus and its Trap tab reads the trap the light makes for rubidium, caesium, potassium or sodium atoms, or for a dielectric sphere of any glass. It finds where the particle settles, with radiation pressure pushing it along, and gives the depth, the trap frequency in each direction and the light it scatters.</p>
-        <p>Every beam through the focus counts, as its full vector field: counter-propagating beams make a standing wave, crossed ones a lattice, and a steep focus traps more softly along its polarisation. The particle can sit in vacuum, in air at a set pressure, which gives its damping and quality factor, or in water on the bench.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature">
-      <figure class="rt-shot">
-        <img src="img/lockin-absorption.png" alt="A laser modulated by a 1 kHz square wave, split onto a reference and a sample detector, each read by a lock-in amplifier, with an oscilloscope" loading="lazy">
-        <figcaption>A lock-in absorption measurement</figcaption>
-      </figure>
-      <div>
-        <h2>Electronics and instruments</h2>
-        <p>The signal after the detector has a palette of its own: sources, amplifiers and a transimpedance amplifier, filters, an attenuator, a mixer, a summing junction, a bias tee and a comparator, wired port to port.</p>
-        <p>Read them as on the bench: an oscilloscope (normal or rolling), a spectrum analyser, a lock-in amplifier and a DAQ, with its sampling, aliasing and quantisation. An optical chopper or a modulated laser puts the signal on the light in the first place.</p>
-      </div>
-    </section>
-
-    <section class="rt-feature" id="pro">
-      <figure class="rt-shot" style="background: var(--jek-panel)">
-        <img src="img/jekray2d-pro.png" alt="My benches in JEKrayPro: folders down the side and saved benches as cards with their pictures, one of them a fork of the Michelson interferometer" loading="lazy">
-        <figcaption>My benches, in JEKrayPro</figcaption>
-      </figure>
-      <div>
-        <h2>JEKrayPro<span class="rt-beta">Open beta</span></h2>
-        <p>JEKrayPro is cloud saving for JEKray2D. Sign in with Google or Microsoft (a university or work account), and your benches save to the cloud as you work. Open them on any computer from My benches, a page of their own with a picture of each and folders down the side, and go back to any earlier version. Fork a bench, or any version of it, to try an idea without touching the original: the fork remembers where it came from. And keep your own parts in My parts, from a lens you have set up to a whole assembly, ready to drop onto any bench. Export everything at any time, and delete your account whenever you like.</p>
-        <p>&pound;9.99 a month or &pound;99 a year. Students and university staff pay half: &pound;4.99 a month or &pound;49 a year. If a subscription ends, every bench can still be opened and exported. Subscribe from the account menu in JEKray2D; the simulator itself stays free, with or without an account.</p>
-        <p><strong>Teams.</strong> A lab, group or company shares one workspace: everyone works on the same benches, with roles (owner, admins and editors save; viewers open and export), invitations by email and an activity record. &pound;9.99 a seat a month or &pound;99 a seat a year, at least three seats; viewers are free, and each seat has JEKrayPro on their own benches too. Create a team from the account menu, invite people, and subscribe for its seats; seats follow the members from then on.</p>
-        <p>For a whole university, one licence covers everyone there, with no seats to manage: see <a href="/jek/universities.html">JEKrayPro for universities</a>.</p>
-        <p><a class="rt-pro-button" href="/jek/tools/jekray2d.html#pro">Get JEKrayPro</a></p>
-        <p><a href="/jek/terms.html">JEKrayPro Terms</a> &middot; <a href="/jek/privacy.html">Privacy</a> &middot; <a href="/jek/security.html">Security</a></p>
-      </div>
-    </section>
-
+    <section class="jek-section jek-band" style="padding-top: 2rem">
+    <div class="jek-wrap">
     <!-- Examples: moved here from the editor -->
     <div class="rt-examples" id="examples">
-      <h2>Examples</h2>
+      <h2 style="margin: 0 0 0.6rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
       <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. A few to start with, then every example by topic, or <a href="/jek/tools/jekray2d.html#examples">browse them all in the editor’s gallery</a>.</p>
       <h3 class="rt-exgroup">Key examples</h3>
       <div class="rt-example-grid rt-featured">
@@ -819,9 +596,14 @@
       </details>
     </div>
 
-    <!-- Central technical info section -->
+    </div>
+    </section>
+
+    <section class="jek-section">
+    <div class="jek-wrap">
+    <!-- Resources: the site's dropdowns -->
     <div class="tech-section">
-      <h2>Technical Information</h2>
+      <h2>Resources</h2>
 
       <div class="dropdown">
         <button class="dropdown-toggle" type="button">
@@ -888,6 +670,8 @@
         </div>
       </div>
     </div>
+    </div>
+    </section>
 
   </main>
 
@@ -904,18 +688,6 @@
 </footer>
 
 <script>
-  // Gallery pip switching
-  const galleryImage = document.getElementById('galleryImage');
-  const pips = document.querySelectorAll('.pip');
-  pips.forEach(pip => {
-    pip.addEventListener('click', () => {
-      galleryImage.src = pip.getAttribute('data-src');
-      galleryImage.alt = pip.getAttribute('data-alt');
-      pips.forEach(p => p.classList.remove('active'));
-      pip.classList.add('active');
-    });
-  });
-
   // Dropdown toggles
   document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
     toggle.addEventListener('click', () => {

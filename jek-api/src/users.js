@@ -1,8 +1,9 @@
 // Users and their personal workspace, created together.
 
+import { avatarPath } from './benches.js';
 import { useLicence } from './institutions.js';
 import { orcidLegacy, orcidLegacyUntil } from './orcid.js';
-import { newId, now } from './util.js';
+import { ApiError, newId, now } from './util.js';
 
 // With `identity` ({ provider, subject }), the sign-in is attached in the
 // same batch, so a person is never left without a way in.
@@ -62,6 +63,15 @@ export async function teamSeatActive(env, user, t = now()) {
   return results.some((s) => planActive(s, t));
 }
 
+// PATCH /v1/me  {name} — the name the others see
+export async function patchMe(req, env, user) {
+  const body = (await req.json().catch(() => null)) || {};
+  const name = String(body.name || '').replace(/\s+/g, ' ').trim();
+  if (name.length < 1 || name.length > 80) throw new ApiError(400, 'bad_request', 'A name is 1 to 80 characters.');
+  await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, user.id).run();
+  return me(env, { ...user, name });
+}
+
 export async function me(env, user) {
   const [ids, ws] = await env.DB.batch([
     env.DB.prepare('SELECT provider, subject FROM identities WHERE user_id = ? ORDER BY provider').bind(
@@ -81,7 +91,7 @@ export async function me(env, user) {
   const licence = await useLicence(env, user, t);
   const seat = await teamSeatActive(env, user, t);
   return {
-    user,
+    user: { id: user.id, name: user.name, email: user.email, created_at: user.created_at, avatar: avatarPath(user.id, user.avatar_key) },
     academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via, email: ac.academic_email || null } : null,
     licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,
     // ORCID sign-in is ending (src/orcid.js): when, for someone who has it

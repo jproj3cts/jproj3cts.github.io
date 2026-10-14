@@ -65,6 +65,8 @@ export async function deleteAccount(req, env, user) {
       .all();
     for (let i = 0; i < ts.length; i += 1000) await env.BENCHES.delete(ts.slice(i, i + 1000).map((x) => x.thumb_key));
   }
+  const av = await env.DB.prepare('SELECT avatar_key FROM users WHERE id = ?').bind(user.id).first();
+  if (av && av.avatar_key) await env.BENCHES.delete(av.avatar_key);
   const del = (sql, ...args) => env.DB.prepare(sql).bind(...args);
   await env.DB.batch([
     // benches, versions, folders, members, invitations, the subscription and activity go with each workspace
@@ -74,6 +76,7 @@ export async function deleteAccount(req, env, user) {
       del('DELETE FROM workspaces WHERE id = ?', ws),
     ]),
     del('DELETE FROM members WHERE user_id = ?', user.id),
+    del('DELETE FROM bench_leases WHERE user_id = ?', user.id),
     del('DELETE FROM invitations WHERE invited_by = ?', user.id),
     del('DELETE FROM identities WHERE user_id = ?', user.id),
     del('DELETE FROM licences WHERE user_id = ?', user.id),
@@ -81,7 +84,7 @@ export async function deleteAccount(req, env, user) {
     del('DELETE FROM email_codes WHERE user_id = ?', user.id),
     del('DELETE FROM email_sends WHERE user_id = ?', user.id),
     del(
-      "UPDATE users SET name = 'Deleted user', email = NULL, academic_until = NULL, academic_via = NULL, academic_email = NULL, deleted_at = ? WHERE id = ?",
+      "UPDATE users SET name = 'Deleted user', email = NULL, academic_until = NULL, academic_via = NULL, academic_email = NULL, avatar_key = NULL, deleted_at = ? WHERE id = ?",
       now(), user.id,
     ),
   ]);

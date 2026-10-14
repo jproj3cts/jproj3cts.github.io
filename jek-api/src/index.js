@@ -15,7 +15,8 @@ import * as T from './teams.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
-import { me } from './users.js';
+import { me, patchMe } from './users.js';
+import { deleteAvatar, getAvatar, putAvatar } from './avatars.js';
 import { ApiError, errorResponse, json } from './util.js';
 
 const VERSION = '0.1.0';
@@ -38,6 +39,10 @@ const router = new Router()
     return json({ ok: true, version: VERSION });
   })
   .on('GET', '/v1/me', async (req, env, ctx) => json(await me(env, await requireUser(req, env, ctx))))
+  .on('PATCH', '/v1/me', async (req, env, ctx) => json(await patchMe(req, env, await requireUser(req, env, ctx))))
+  .on('PUT', '/v1/me/avatar', async (req, env, ctx) => json(await putAvatar(req, env, await requireUser(req, env, ctx))))
+  .on('DELETE', '/v1/me/avatar', async (req, env, ctx) => json(await deleteAvatar(env, await requireUser(req, env, ctx))))
+  .on('GET', '/v1/users/:u/avatar', async (req, env, ctx, { u }) => getAvatar(env, await requireUser(req, env, ctx), u))
   .on('DELETE', '/v1/me', async (req, env, ctx) => {
     const out = await deleteAccount(req, env, await requireUser(req, env, ctx));
     ctx.setCookie = clearCookie();
@@ -78,6 +83,8 @@ const router = new Router()
     const out = await B.save(req, env, await requireUser(req, env, ctx), b);
     return json(out, 200, { ETag: `"${out.version}"` });
   })
+  .on('POST', '/v1/benches/:b/lease', async (req, env, ctx, { b }) => json(await B.lease(req, env, await requireUser(req, env, ctx), b)))
+  .on('DELETE', '/v1/benches/:b/lease', async (req, env, ctx, { b }) => json(await B.release(env, await requireUser(req, env, ctx), b)))
   .on('PATCH', '/v1/benches/:b', async (req, env, ctx, { b }) => json(await B.patch(req, env, await requireUser(req, env, ctx), b)))
   .on('DELETE', '/v1/benches/:b', async (req, env, ctx, { b }) => {
     await B.remove(env, await requireUser(req, env, ctx), b);
@@ -183,6 +190,7 @@ export default {
   // and clear out expired sessions and abandoned sign-ins
   async scheduled(event, env, ctx) {
     ctx.waitUntil(B.purgeBin(env));
+    ctx.waitUntil(B.purgeLeases(env));
     ctx.waitUntil(purgeExpired(env));
     ctx.waitUntil(purgeOrcid(env));
   },

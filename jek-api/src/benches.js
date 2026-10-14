@@ -21,6 +21,8 @@ const KEEP_RECENT = 50;
 const KEEP_DAILY_MS = 90 * 24 * 60 * 60 * 1000;
 export const BIN_MS = 30 * 24 * 60 * 60 * 1000;
 const WRITERS = new Set(['owner', 'admin', 'editor']);
+// an editing lease: renewed by the app every minute while the bench is open
+export const LEASE_MS = 2 * 60 * 1000;
 
 const r2Key = (ws, bench, version) => `w/${ws}/b/${bench}/v/${version}.jekray`;
 const bytes = (s) => new TextEncoder().encode(s).length;
@@ -56,16 +58,19 @@ export async function workspaceAccess(env, user, wsId) {
 async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
-            b.updated_at, b.deleted_at, u.name AS updated_by_name, b.updated_by, b.thumb_key,
-            b.forked_from, b.forked_version, b.forked_name, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
+            b.updated_at, b.deleted_at, u.name AS updated_by_name, u.avatar_key AS updated_by_avatar, b.updated_by, b.thumb_key,
+            b.forked_from, b.forked_version, b.forked_name, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer,
+            l.user_id AS lease_user, l.since AS lease_since, l.until AS lease_until, lu.name AS lease_name, lu.avatar_key AS lease_avatar
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
        JOIN members m ON m.workspace_id = b.workspace_id AND m.user_id = ?
        LEFT JOIN subscriptions s ON s.workspace_id = b.workspace_id
        LEFT JOIN users u ON u.id = b.updated_by
+       LEFT JOIN bench_leases l ON l.bench_id = b.id AND l.until > ?
+       LEFT JOIN users lu ON lu.id = l.user_id
       WHERE b.id = ?`,
   )
-    .bind(user.id, benchId)
+    .bind(user.id, now(), benchId)
     .first();
   if (!row || (row.deleted_at && !bin)) throw new ApiError(404, 'not_found', 'No such bench.');
   return { bench: row, role: row.role, active: await activeFor(env, user, row), kind: row.kind };
@@ -78,6 +83,10 @@ export function canWrite(a, { plan = true } = {}) {
   if (plan && !a.active) throw new ApiError(402, 'no_plan', 'Saving to the cloud needs JEKrayPro.');
 }
 
+// a person as the app shows them: name and, when they have one, picture
+export const avatarPath = (id, key) => (key ? `/v1/users/${id}/avatar?k=${key.slice(key.lastIndexOf('/') + 1)}` : null);
+const person = (id, name, key) => (id ? { id, name, avatar: avatarPath(id, key) } : null);
+
 const meta = (b) => ({
   id: b.id,
   workspace_id: b.workspace_id,
@@ -87,7 +96,9 @@ const meta = (b) => ({
   size_bytes: b.size_bytes,
   created_at: b.created_at,
   updated_at: b.updated_at,
-  updated_by: b.updated_by ? { id: b.updated_by, name: b.updated_by_name } : null,
+  updated_by: person(b.updated_by, b.updated_by_name, b.updated_by_avatar),
+  // who holds its editing lease just now, if anyone
+  editing: b.lease_user ? { ...person(b.lease_user, b.lease_name, b.lease_avatar), since: b.lease_since, until: b.lease_until } : null,
   deleted_at: b.deleted_at,
   thumb: thumbPath(b.id, b.thumb_key),
   forked_from: b.forked_from ? { id: b.forked_from, version: b.forked_version, name: b.forked_name } : null,
@@ -215,11 +226,14 @@ export async function list(req, env, user, wsId) {
   const q = (url.searchParams.get('q') || '').trim();
   const folder = url.searchParams.get('folder');
   let sql = `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
-                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, b.thumb_key,
-                    b.forked_from, b.forked_version, b.forked_name
+                    b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, u.avatar_key AS updated_by_avatar, b.thumb_key,
+                    b.forked_from, b.forked_version, b.forked_name,
+                    l.user_id AS lease_user, l.since AS lease_since, l.until AS lease_until, lu.name AS lease_name, lu.avatar_key AS lease_avatar
                FROM benches b LEFT JOIN users u ON u.id = b.updated_by
+               LEFT JOIN bench_leases l ON l.bench_id = b.id AND l.until > ?
+               LEFT JOIN users lu ON lu.id = l.user_id
               WHERE b.workspace_id = ? AND b.deleted_at IS ${bin ? 'NOT NULL' : 'NULL'}`;
-  const args = [a.ws];
+  const args = [now(), a.ws];
   if (q) {
     sql += " AND b.name LIKE ? ESCAPE '\\'";
     args.push('%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%');
@@ -284,6 +298,10 @@ export async function save(req, env, user, benchId) {
   const body = await readJson(req);
   const content = benchContent(body);
   const b = a.bench;
+  // someone else is editing it: they hold its lease (take it over first, or open theirs)
+  if (b.lease_user && b.lease_user !== user.id) {
+    throw new ApiError(423, 'locked', `${b.lease_name} is editing this bench.`, { editing: meta(b).editing, version: b.head_version });
+  }
   const growth = bytes(content) - b.size_bytes;
   if (growth > 0) await checkQuota(env, b.workspace_id, a.kind, growth);
   const t = now();
@@ -296,9 +314,11 @@ export async function save(req, env, user, benchId) {
     .bind(content, next, bytes(content), t, user.id, cleanName(body.name, b.name), b.id, match)
     .run();
   if (!r.meta.changes) {
-    const cur = await env.DB.prepare('SELECT head_version FROM benches WHERE id = ?').bind(b.id).first();
+    const cur = await env.DB.prepare('SELECT b.head_version, b.updated_at, b.updated_by, u.name, u.avatar_key FROM benches b LEFT JOIN users u ON u.id = b.updated_by WHERE b.id = ?').bind(b.id).first();
     throw new ApiError(409, 'conflict', 'This bench was saved somewhere else since you opened it.', {
       version: cur ? cur.head_version : null,
+      updated_at: cur ? cur.updated_at : null,
+      updated_by: cur ? person(cur.updated_by, cur.name, cur.avatar_key) : null,
     });
   }
   const label = typeof body.label === 'string' ? cleanName(body.label, null) : null;
@@ -489,12 +509,56 @@ async function forksOf(env, user, benchId) {
 // My benches. One per bench, in R2 under a fresh name each time, so its URL
 // changes when it does and the browser can keep each one for good.
 
+// ---------- editing leases ----------
+// Whoever has a bench open to edit holds its lease, renewed by the app every
+// minute and good for LEASE_MS. Another person opening it is told who is
+// editing and can look, fork or take over; a save against someone else's
+// live lease is refused (423). A viewer, or someone without a plan, never
+// takes one: they only learn who holds it.
+
+// what the app polls: the lease, and the head it may be behind
+const leaseState = (b, held) => ({
+  held, editing: meta(b).editing, until: held ? b.lease_until : null,
+  version: b.head_version, updated_at: b.updated_at, updated_by: person(b.updated_by, b.updated_by_name, b.updated_by_avatar),
+});
+
+// POST /v1/benches/:b/lease  {take?} — take the lease if free (or theirs, or
+// expired), renew it if held, take it over with take: true.
+export async function lease(req, env, user, benchId) {
+  const a = await benchAccess(env, user, benchId);
+  const b = a.bench;
+  const body = (await req.json().catch(() => null)) || {};
+  const writer = a.kind !== 'institution' && WRITERS.has(a.role) && a.active;
+  const theirs = b.lease_user && b.lease_user !== user.id;
+  if (!writer || (theirs && !body.take)) return leaseState(b, false);
+  const t = now();
+  const since = b.lease_user === user.id ? b.lease_since : t;
+  await env.DB.prepare(
+    `INSERT INTO bench_leases (bench_id, user_id, since, until) VALUES (?, ?, ?, ?)
+       ON CONFLICT (bench_id) DO UPDATE SET user_id = excluded.user_id, since = excluded.since, until = excluded.until`,
+  ).bind(b.id, user.id, since, t + LEASE_MS).run();
+  if (theirs) await audit(env, b.workspace_id, user.id, 'bench.takeover', b.id);
+  return leaseState({ ...b, lease_user: user.id, lease_name: user.name, lease_avatar: user.avatar_key || null, lease_since: since, lease_until: t + LEASE_MS }, true);
+}
+
+// DELETE /v1/benches/:b/lease — let go of it (nothing happens if it is not theirs)
+export async function release(env, user, benchId) {
+  const { bench } = await benchAccess(env, user, benchId, { bin: true });
+  await env.DB.prepare('DELETE FROM bench_leases WHERE bench_id = ? AND user_id = ?').bind(bench.id, user.id).run();
+  return { ok: true };
+}
+
+// leases a day past their end are cleared out (the scheduled job)
+export async function purgeLeases(env) {
+  await env.DB.prepare('DELETE FROM bench_leases WHERE until < ?').bind(now() - 24 * 60 * 60 * 1000).run();
+}
+
 export const MAX_THUMB = 128 * 1024;
 const thumbPath = (id, key) => (key ? `/v1/benches/${id}/thumb?k=${key.slice(key.lastIndexOf('/') + 1)}` : null);
 
 // The image's type from its first bytes; anything else is refused, so what
 // is served back can only ever be one of these.
-function imageType(b) {
+export function imageType(b) {
   const at = (i, ...xs) => xs.every((x, j) => b[i + j] === x);
   if (b.length > 12 && at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp';
   if (b.length > 8 && at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';

@@ -29,7 +29,7 @@ export async function currentUser(req, env, ctx) {
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
   const hash = await sha256(token);
   const row = await env.DB.prepare(
-    `SELECT s.token_hash, s.expires_at, u.id, u.name, u.email, u.created_at
+    `SELECT s.token_hash, s.expires_at, u.id, u.name, u.email, u.created_at, u.avatar_key
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND u.deleted_at IS NULL`,
   )
@@ -48,7 +48,7 @@ export async function currentUser(req, env, ctx) {
     ctx.setCookie = setCookie(token, SESSION_MS / 1000);
   }
   ctx.sessionHash = hash;
-  return { id: row.id, name: row.name, email: row.email, created_at: row.created_at };
+  return { id: row.id, name: row.name, email: row.email, created_at: row.created_at, avatar_key: row.avatar_key || null };
 }
 
 export async function requireUser(req, env, ctx) {

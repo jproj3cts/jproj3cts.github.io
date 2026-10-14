@@ -5829,6 +5829,50 @@ const TESTS = [
     },
   },
   {
+    name: 'The 3D field through a 95 % mirror’s back is 5 % as bright, and the beam reflected off it 95 %',
+    why: 'a 1 mW, 1 mm beam onto a mirror of reflectance 95 %, a screen behind it: on the axis where they meet the mirror, the transmitted volume is 0.05 of the incident one and the reflected 0.95 (largest relative error)',
+    want: 0, tol: 0.03, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, light: { rays: false, envelope: false, field: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -80, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 1, z0: 0, rays: 1, width: 2, pol: 's' },
+        { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 25.4, reflect: 95, R: null },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 30 }] });
+      const v = J.vol3d(), at = (x, e) => v.segs.find(s => Math.abs(s.o[0] - x) < 1e-6 && Math.abs(s.e[0] - e) < 1e-6);
+      const inc = at(-80, 1), tr = at(0, 1), re = at(0, -1);
+      if (!inc || !tr || !re) return NaN;
+      const I0 = inc.axis[inc.axis.length - 1];
+      return Math.max(Math.abs(tr.axis[0] / I0 / 0.05 - 1), Math.abs(re.axis[0] / I0 / 0.95 - 1));
+    },
+  },
+  {
+    name: 'A beam clipped by a lens’s rim keeps its axis irradiance across the lens, with the light round the rim added as a field',
+    why: 'a 2 mm beam through a lens of 3 mm aperture (bare glass, 4 % a face): a third of the light goes round the rim and runs with the clipped beam, so the two are added as fields in one map; on the axis just past the lens that map is the incident beam’s axis irradiance less the two faces’ reflections, 0.92 (relative error, NaN unless the map is a coherent one)',
+    want: 0, tol: 0.2, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, light: { rays: false, envelope: false, field: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 2, z0: 0, rays: 1, width: 4, pol: 's' },
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 3, surfaces: [{ R: 51.5, k: 0, a2: 0, A: [], odd: null, semi: null, coat: { mode: 'bare', R: 4 } }, { R: null, k: 0, a2: 0, A: [], odd: null, semi: null, coat: { mode: 'bare', R: 4 } }], gaps: [4], materials: [{ glass: 'N-BK7', abs: 0 }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 30 }] });
+      const v = J.vol3d(), T = J.lastTrace();
+      const before = v.segs.find(s => s.o[0] < -50 && s.e[0] > 0), after = v.segs.filter(s => s.o[0] > 0 && s.o[0] < 5 && s.e[0] > 0 && (T.beams[s.i] || {}).ev && T.beams[s.i].ev.mode === 'T').sort((a, b) => b.peak - a.peak)[0];
+      if (!before || !after || !after.coh) return NaN;
+      return Math.abs(after.axis[0] / before.axis[before.axis.length - 1] / 0.92 - 1);
+    },
+  },
+  {
+    name: 'An unpolarised beam’s two launches add in a coherent map too: clipped by a rim, as bright as the polarised beam',
+    why: 'the clipped-lens bench with the source unpolarised (two launches of half the power, each with its own map of beam and rim light) against the same polarised: the brightest irradiance past the lens is the same (relative error)',
+    want: 0, tol: 0.03, unit: '',
+    run: J => {
+      const one = pol => { J.load({ format: 'jekray', version: 1, light: { rays: false, envelope: false, field: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, power: 1, gauss: true, w0: 2, z0: 0, rays: 1, width: 4, pol },
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 3, surfaces: [{ R: 51.5, k: 0, a2: 0, A: [], odd: null, semi: null, coat: { mode: 'bare', R: 4 } }, { R: null, k: 0, a2: 0, A: [], odd: null, semi: null, coat: { mode: 'bare', R: 4 } }], gaps: [4], materials: [{ glass: 'N-BK7', abs: 0 }] },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 30 }] });
+        const v = J.vol3d(); return Math.max(...v.segs.filter(s => s.o[0] > 0 && s.e[0] > 0).map(s => s.peak)); };
+      return Math.abs(one('unpolarised') / one('s') - 1);
+    },
+  },
+  {
     name: 'In the 3D view the field glows along the beam, with its key, and the pointer reads the irradiance there',
     why: 'the 1 mW, 1 mm beam with its diffracted field shown, in the 3D view from the front: one volume, the key in W/cm\u00b2 over 60 dB, and the reading under the pointer at the beam\u2019s middle is its peak, 63.66 mW/cm\u00b2, within 3% (1 when all hold)',
     want: 1, tol: 0, unit: '',

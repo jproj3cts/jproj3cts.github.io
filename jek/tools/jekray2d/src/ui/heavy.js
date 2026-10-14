@@ -187,6 +187,24 @@ export function drawPop() {
 }
 
 /* A line for the source panel on what the field run found */
+/* a lens (or window) whose rim clips the Gaussian beam: a note for its panel, with the share of the
+   light the tracer carries round it, or null when nothing is clipped there */
+export function clipNote(el) {
+  const R = popState.result;
+  if (!R || popState.key !== popKeyOf(lastTrace.beams, popSources()) || !R.notes.clipped.has(el.id)) return null;
+  // the light round the rim, as the tracer splits it off: against its siblings through the glass
+  // (a rim beam of a rim beam, the light passing the part again on its way back, has no sibling
+  // through the glass to count against)
+  let rim = 0, thru = 0;
+  for (const b of lastTrace.beams) if (b.ev && b.ev.el === el.id && b.ev.kind === 'split' && b.ev.mode === 'P') {
+    let t = 0;
+    for (const c of lastTrace.beams) if (c !== b && c.parent === b.parent && c.ev && c.ev.el === el.id && c.ev.mode === 'T') t += c.w;
+    if (t > 0) { rim += b.w; thru += t; }
+  }
+  const share = rim + thru > 0 ? Math.round(100 * rim / (rim + thru)) : 0;
+  return 'The beam is wider than this part: ' + (share > 0 ? 'about ' + share + ' % of its light' : 'some of its light') +
+    ' goes round the rim, traced on its own, and the field through it is clipped (its pilot beam refitted after). A larger aperture, or a smaller beam, keeps it whole.';
+}
 export function popNote(el) {
   const R = popState.result;
   if (!R || popState.key !== popKeyOf(lastTrace.beams, popSources())) return 'Computing the field\u2026';

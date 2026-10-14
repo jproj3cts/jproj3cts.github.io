@@ -15471,6 +15471,8 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true }),
     selectField('Shape', [['round', 'Round'], ['plane', 'Cylinder, power in the bench plane'], ['out', 'Cylinder, power out of the plane']],
       () => el.cyl || 'round', v => { el.cyl = v === 'round' ? undefined : v; }, { wide: true })));
+  const clip = clipNote(el);
+  if (clip) panel.append(h('p', { class: 'rt-assumed' }, clip));
 
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {
@@ -23928,6 +23930,24 @@ function drawPop() {
 }
 
 /* A line for the source panel on what the field run found */
+/* a lens (or window) whose rim clips the Gaussian beam: a note for its panel, with the share of the
+   light the tracer carries round it, or null when nothing is clipped there */
+function clipNote(el) {
+  const R = popState.result;
+  if (!R || popState.key !== popKeyOf(lastTrace.beams, popSources()) || !R.notes.clipped.has(el.id)) return null;
+  // the light round the rim, as the tracer splits it off: against its siblings through the glass
+  // (a rim beam of a rim beam, the light passing the part again on its way back, has no sibling
+  // through the glass to count against)
+  let rim = 0, thru = 0;
+  for (const b of lastTrace.beams) if (b.ev && b.ev.el === el.id && b.ev.kind === 'split' && b.ev.mode === 'P') {
+    let t = 0;
+    for (const c of lastTrace.beams) if (c !== b && c.parent === b.parent && c.ev && c.ev.el === el.id && c.ev.mode === 'T') t += c.w;
+    if (t > 0) { rim += b.w; thru += t; }
+  }
+  const share = rim + thru > 0 ? Math.round(100 * rim / (rim + thru)) : 0;
+  return 'The beam is wider than this part: ' + (share > 0 ? 'about ' + share + ' % of its light' : 'some of its light') +
+    ' goes round the rim, traced on its own, and the field through it is clipped (its pilot beam refitted after). A larger aperture, or a smaller beam, keeps it whole.';
+}
 function popNote(el) {
   const R = popState.result;
   if (!R || popState.key !== popKeyOf(lastTrace.beams, popSources())) return 'Computing the field\u2026';
@@ -24216,8 +24236,11 @@ function trapLegPart(sg, P0) {
   const G0 = sg.leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
   const zR = two ? Math.min(G0.ax.zR, G0.ay.zR) : G0.zR;
   // cuts along the beam a fiftieth of its Rayleigh range apart (half a wavelength at least):
-  // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search
-  return { sg, H: Math.max(0.02 * zR, 0.5 * lam), k, two, J: popJ(b), par: b.par, cuts: new Map() };
+  // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search;
+  // a beam clipped by a rim ripples along itself far faster than its Rayleigh range says, so its
+  // cuts are no further apart than 20 µm
+  const H = Math.max(0.5 * lam, sg.clipped ? Math.min(0.02 * zR, 0.02) : 0.02 * zR);
+  return { sg, H, k, two, J: popJ(b), par: b.par, cuts: new Map() };
 }
 function trapLegCut(L, i) {
   let c = L.cuts.get(i);
@@ -29566,7 +29589,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned (under a thick lens\u2019s whole body), step aside from one another and from the port names and sockets beside them, and stay readable at any zoom; in 3D they step up where they would overlap. A dense fan of rays is thinned to a lighter line, so a cavity\u2019s field stays a beam rather than a block, and an iris shows its opening as a gap, with no faint line across it. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
-    'The 3D field is as bright as the light: a beam that is 5 % of its laser (through a mirror\u2019s back, off a window) is 5 % as bright, where before every beam was drawn at its laser\u2019s power; where a beam clipped by a lens\u2019s rim runs with the light round the rim, the two are added where each cut is taken, rather than between cuts too far apart for a clipped beam\u2019s ripples, which had left the beam all but dark; and a laser\u2019s two polarisation halves add, where one was left out. Rays in 3D (and 2D) are bright against the strongest ray of their own source, so a fibre tip fed through a lossy network is as bright as a laser and a faint beam is never dropped: a 5 % leak through a mirror shows. A sweep rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there as it does in 2D.',
+    'The 3D field is as bright as the light: a beam that is 5 % of its laser (through a mirror\u2019s back, off a window) is 5 % as bright, where before every beam was drawn at its laser\u2019s power; where a beam clipped by a lens\u2019s rim runs with the light round the rim, the two are added where each cut is taken, rather than between cuts too far apart for a clipped beam\u2019s ripples, which had left the beam all but dark; and a laser\u2019s two polarisation halves add, where one was left out. Rays in 3D (and 2D) are bright against the strongest ray of their own source, so a fibre tip fed through a lossy network is as bright as a laser and a faint beam is never dropped: a 5 % leak through a mirror shows. A sweep rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there as it does in 2D. A lens narrower than the beam says so at the top of its panel, with the share of the light that goes round its rim.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',

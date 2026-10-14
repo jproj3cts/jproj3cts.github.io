@@ -197,8 +197,11 @@ export function trapLegPart(sg, P0) {
   const G0 = sg.leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
   const zR = two ? Math.min(G0.ax.zR, G0.ay.zR) : G0.zR;
   // cuts along the beam a fiftieth of its Rayleigh range apart (half a wavelength at least):
-  // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search
-  return { sg, H: Math.max(0.02 * zR, 0.5 * lam), k, two, J: popJ(b), par: b.par, cuts: new Map() };
+  // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search;
+  // a beam clipped by a rim ripples along itself far faster than its Rayleigh range says, so its
+  // cuts are no further apart than 20 µm
+  const H = Math.max(0.5 * lam, sg.clipped ? Math.min(0.02 * zR, 0.02) : 0.02 * zR);
+  return { sg, H, k, two, J: popJ(b), par: b.par, cuts: new Map() };
 }
 export function trapLegCut(L, i) {
   let c = L.cuts.get(i);

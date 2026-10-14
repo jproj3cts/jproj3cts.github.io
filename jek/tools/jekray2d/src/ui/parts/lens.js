@@ -6,6 +6,7 @@ import { frame } from '../../core/mask.js';
 import { ctx, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
 import { fid, h, numInput, panel, param, selectField, setFid } from '../panel.js';
 import { coatingRows } from '../panels.js';
+import { clipNote } from '../heavy.js';
 import {
   askForMaterial, flipLens, materialOptions, pickMaterial, removeSweeps, unknownGlass,
   unknownGlassNote
@@ -37,6 +38,8 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true }),
     selectField('Shape', [['round', 'Round'], ['plane', 'Cylinder, power in the bench plane'], ['out', 'Cylinder, power out of the plane']],
       () => el.cyl || 'round', v => { el.cyl = v === 'round' ? undefined : v; }, { wide: true })));
+  const clip = clipNote(el);
+  if (clip) panel.append(h('p', { class: 'rt-assumed' }, clip));
 
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {

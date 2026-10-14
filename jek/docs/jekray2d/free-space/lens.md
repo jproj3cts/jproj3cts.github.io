@@ -74,7 +74,9 @@ Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list 
 
 ## Importing a catalogue lens
 
-**File › Import a lens (.zmx)** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands, for example), the surfaces are given it.
+**File › Import a lens (.zmx)** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses: singlets, achromats and triplets, even aspheres with their conic and polynomial terms, cylindrical lenses (a toroidal surface with no curvature the other way), windows and beam splitter cubes. A .zar archive is read too: the .zmx inside it is taken, and the glass catalogue the archive carries supplies the dispersion of any glass the tool does not know. The file's primary wavelength is kept as the lens's design wavelength. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands, for example), the surfaces are given it. A moulded asphere's file often ends with the laser diode's cover glass; that window is left out, and the note says so.
+
+The glasses are the makers' own: Schott, Ohara, Hoya, CDGM and Sumita catalogues, some 1,200 glasses by their catalogue formulas, plus the crystals and the optical plastics (PMMA, polycarbonate, Zeonex E48R, polystyrene) and Schott's B 270, Borofloat and Zerodur. Names are read as the files spell them (N-BK7, NBK7, N-BK7_SCHOTT, H-K9L, S-LAH64, M-TAF1, K-VC89), and the moulded glasses of Thorlabs' aspheres (D-ZK3M, D-ZLAF52LAM, H-LAK54M) carry their moulded index. Under **Material**, **Search the glass catalogues…** finds any of them by name.
 
 When the import has to assume something (a coating from the part number, a fold it cannot follow, a glass it does not know), the part's panel opens with a red note listing each assumption, and the part carries a ringed red ! on the bench. **Dismiss** clears the notes once you have checked them. A glass with no index stays flagged until you choose it under **Material**.
 
@@ -100,7 +102,8 @@ The .zmx format is plain text. Reading or writing it needs no licence. Zemax and
 
 <div class="dx-warn" markdown="1">
 - Every surface is a figure of revolution about the lens's axis, which lies in the bench plane: no decentred or tilted surfaces within one lens. Tilt or move the whole lens instead.
-- A catalogue glass is described by its Sellmeier coefficients. A glass the tool does not know uses the $$n_d$$ and $$V_d$$ the file gives for it. With neither, it falls back to $$n = 1.5$$, and the import report and the lens's panel both say so: choose the glass, or its equivalent, under **Material**.
+- A catalogue glass is described by its maker's dispersion formula (Sellmeier, or Hoya's and Sumita's polynomial). A glass the tool does not know takes its formula from the catalogue in a .zar archive, or else the $$n_d$$ and $$V_d$$ the file gives for it. With none of those, it falls back to $$n = 1.5$$, and the import report and the lens's panel both say so: choose the glass, or its equivalent, under **Material**.
+- Non-sequential files (prisms and some mirrors are published that way) are not read: they fold the light in ways a sequential prescription cannot hold. Build the prism from the [prism](/jek/docs/jekray2d/free-space/prism/) part instead.
 - No thermal effects, stress birefringence or surface errors.
 </div>
 

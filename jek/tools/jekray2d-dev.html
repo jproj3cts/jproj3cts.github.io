@@ -155,6 +155,19 @@
     </div>
   </div>
 
+  <dialog class="rt-dialog" id="glassDialog">
+    <h2>Search the glass catalogues</h2>
+    <p class="rt-hint">Schott, Ohara, Hoya, CDGM and Sumita, by name as the makers and the lens files spell it, with the crystals and plastics.</p>
+    <div class="rt-rows">
+      <div class="rt-f wide"><label for="glassSearch">Name</label><input id="glassSearch" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. S-LAH64, N-SF11, M-TAF1, PMMA"></div>
+      <div class="rt-f wide"><label for="glassList">Matches</label><select id="glassList" size="9"></select></div>
+    </div>
+    <p id="glassNote" class="rt-hint"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="glassCancel">Cancel</button>
+      <button class="rt-btn rt-primary" id="glassUse">Use this glass</button>
+    </div>
+  </dialog>
   <dialog class="rt-dialog" id="matDialog">
     <h2>Import a material</h2>
     <ol>
@@ -383,7 +396,7 @@
   </details>
 
   <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
-  <input type="file" id="fileZmx" accept=".zmx,.ZMX" multiple hidden>
+  <input type="file" id="fileZmx" accept=".zmx,.ZMX,.zar,.ZAR" multiple hidden>
   <input type="file" id="fileStl" accept=".stl,.STL" hidden>
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 

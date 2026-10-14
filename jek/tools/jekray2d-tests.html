@@ -160,6 +160,489 @@ const rfBench = (D, between, o = {}) => bench('rf', [
   { type: 'detector', name: 'Rx', x: D, y: 0, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: 7.5, L: 60 } },
 ], { minPower: 1e-6 });
 
+/* Real makers' lens files, trimmed of their long tables (the surfaces and the lines that matter kept as they are) */
+const ZMX_FILES = {
+  'LA1131-A': `VERS 120928 0 30221
+MODE SEQ
+NAME LA1131 Plano-Convex - N-BK7
+UNIT MM X W X CM MR CPMM
+ENPD 2.286E+1
+GCAT SCHOTT INFRARED MISC
+WAVM 1 4.861E-1 1
+WAVM 2 5.876E-1 1
+WAVM 3 6.563E-1 1
+PWAV 2
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM LA1131-A
+  STOP
+  TYPE STANDARD
+  CURV 3.883495145631069700E-002 0 0 0 0 ""
+  COAT THORA
+  DISZ 5.34
+  GLAS N-BK7 0 0 0 0 0 0 0 0 0 0 
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 2
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  COAT THORA
+  DISZ 4.420486329487E+1
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 3.584516158236E-1 0 0 0 1 ""
+MNUM 1 1
+`,
+  'AC254-050-A': `VERS 120928 0 30221
+MODE SEQ
+NAME AC254-050-A AC254-050-A POSITIVE VISIBLE ACHROMATS: Infinite 50
+UNIT MM X W X CM MR CPMM
+ENPD 2.286E+1
+GCAT SCHOTT INFRARED MISC HIKARI
+WAVM 1 4.861E-1 1
+WAVM 2 5.876E-1 1
+WAVM 3 6.563E-1 1
+PWAV 2
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM AC254-050-A
+  STOP
+  TYPE STANDARD
+  CURV 2.999400119976000000E-002 0 0 0 0 ""
+  COAT THORASLAH64
+  DISZ 9.0
+  GLAS N-BAF10 0 0 0 0 0 0 0 0 0 0 
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 2
+  TYPE STANDARD
+  CURV -4.488330341113110100E-002 0 0 0 0 ""
+  DISZ 2.5
+  GLAS SF10 0 0 0 0 0 0 0 0 0 0 
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV -3.435599683924800200E-003 0 0 0 0 ""
+  COAT THORASLAH64
+  DISZ 4.322018758686E+1
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 4
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 4.712086319098E-2 0 0 0 1 ""
+MNUM 1 1
+`,
+  'LJ1695RM-A': `VERS 120928 0 30221
+MODE SEQ
+NAME LJ1695RM - Plano-Convex Cylindrical Lens - N-BK7
+UNIT MM X W X CM MR CPMM
+ENPD 2.1E+1
+GCAT SCHOTT INFRARED MISC
+WAVM 1 4.861E-1 1
+WAVM 2 5.876E-1 1
+WAVM 3 6.563E-1 1
+PWAV 2
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM LJ1695RM-A
+  STOP
+  TYPE TOROIDAL
+  CURV 3.869969040247679700E-002 0 0 0 0 ""
+  COAT THORA
+  PARM 0 0
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  XDAT 1 0.000000000000E+000 0 0 1.000000000000E+000 0.000000000000E+000 0 ""
+  XDAT 2 1.000000000000E+002 0 0 1.000000000000E+000 0.000000000000E+000 0 ""
+  DISZ 6.8
+  GLAS N-BK7 0 0 0 0 0 0 0 0 0 0 
+  DIAM 1.17E+1 1 0 0 1 ""
+  FLAP 0 1.17E+1 0
+SURF 2
+  TYPE TOROIDAL
+  CURV 0.0 0 0 0 0 ""
+  COAT THORA
+  PARM 0 0
+  PARM 1 0
+  PARM 2 0
+  PARM 3 0
+  PARM 4 0
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  XDAT 1 0.000000000000E+000 0 0 1.000000000000E+000 0.000000000000E+000 0 ""
+  XDAT 2 1.000000000000E+002 0 0 1.000000000000E+000 0.000000000000E+000 0 ""
+  DISZ 4.417693140519E+1
+  DIAM 1.17E+1 1 0 0 1 ""
+  CLAP 0 1.075E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 3.784591702966E-1 0 0 0 1 ""
+MNUM 1 1
+`,
+  'ACL25416U': `VERS 120928 1207 30221
+MODE SEQ
+NAME 
+UNIT MM X W X CM MR CPMM
+ENPD 2.286E+1
+GCAT SCHOTT
+WAVM 1 6.33E-1 1
+WAVM 2 1.05 1
+WAVM 3 3.5E-1 1
+PWAV 1
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  STOP
+  TYPE EVENASPH
+  CURV 1.134018728240511100E-001 0 0 0 0 ""
+  PARM 1 0
+  PARM 2 8.68216737142E-5
+  PARM 3 6.376012336251E-8
+  PARM 4 2.407308400812E-9
+  PARM 5 -1.718902114185E-11
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 1.4E+1
+  GLAS B270 0 0 1.5 4.0E+1 0 0 0 0 0 0 
+  CONI -9.991715230203E-1
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 2
+  TYPE STANDARD
+  CURV -1.428581996804618000E-002 0 0 0 0 ""
+  DISZ 7.292189047056
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 1 1 0 0 1 ""
+MNUM 1 1
+`,
+  '354330-C': `VERS 140124 308 36214
+MODE SEQ
+NAME Ø=6.33mm, f=3.10mm,  NA=0.68 D-ZK3 Asphere,-C
+UNIT MM X W X CM MR CPMM
+ENPD 5.0
+GCAT LIGHTPATH
+WAVM 1 8.3E-1 1
+WAVM 2 5.5E-1 1
+WAVM 3 5.5E-1 1
+PWAV 1
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM 354330-C
+  STOP
+  TYPE EVENASPH
+  CURV 3.669210850149012300E-001 0 0 0 0 ""
+  COAT THORC
+  PARM 1 0
+  PARM 2 -2.077710281508E-5
+  PARM 3 -1.373929859525E-4
+  PARM 4 2.029327872896E-5
+  PARM 5 -2.961194418229E-6
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 3.214106073867
+  GLAS D-ZK3M 0 0 0 0 0 0 0 0 0 0 
+  CONI -5.421234096046E-1
+  DIAM 2.5 0 0 0 1 ""
+SURF 2
+  TYPE EVENASPH
+  CURV -3.356784405862046600E-001 0 0 0 0 ""
+  PARM 1 0
+  PARM 2 8.068904748567E-3
+  PARM 3 -1.725894132603E-3
+  PARM 4 1.839071992368E-4
+  PARM 5 -8.936267158057E-6
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 1.760004021584
+  CONI -1.210285287639E+1
+  DIAM 1.920176352261 0 0 0 1 ""
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 5.395949343567E-5 0 0 0 1 ""
+MNUM 1 1
+`,
+  'A110TM-B': `VERS 150514 11 32384
+MODE SEQ
+NAME Mounted Ø=7.20mm, f=6.24mm, NA=0.40 H-LAK54 Asphere, -B Coated
+LANG 0
+UNIT MM X W X CM MR CPMM
+ENPD 5.0
+GCAT SCHOTT RPO
+WAVM 1 7.8E-1 1
+WAVM 2 5.5E-1 1
+WAVM 3 5.5E-1 1
+PWAV 1
+SURF 0
+  TYPE STANDARD
+  FIMP 
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  STOP
+  TYPE STANDARD
+  FIMP 
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 2.5 0 0 0 1 ""
+SURF 2
+  COMM A110TM-B
+  TYPE EVENASPH
+  FIMP 
+  CURV 2.100417483973085800E-001 0 0 0 0 ""
+  COAT THORB
+  PARM 1 0
+  PARM 2 7.74540419484E-4
+  PARM 3 -1.92092000506E-6
+  PARM 4 -1.782312436386E-7
+  PARM 5 0
+  PARM 6 0
+  PARM 7 0
+  PARM 8 0
+  DISZ 5.36
+  GLAS H-LAK54_MOLD 0 0 0 0 0 0 0 0 0 0 
+  CONI -1.25681325986
+  DIAM 3.6 1 0 0 1 ""
+  FLAP 0 3.6 0
+SURF 3
+  TYPE STANDARD
+  FIMP 
+  CURV -2.435062769515024300E-002 0 0 0 0 ""
+  COAT THORB
+  DISZ 2.456044241832
+  DIAM 3.6 1 0 0 1 ""
+  FLAP 0 3.6 0
+SURF 4
+  COMM diode coverwindow
+  TYPE STANDARD
+  FIMP 
+  CURV 0.0 0 0 0 0 ""
+  DISZ 2.75E-1
+  GLAS BK7 0 0 0 0 0 0 0 0 0 0 
+  DIAM 3.672990434264E-1 0 0 0 1 ""
+SURF 5
+  TYPE STANDARD
+  FIMP 
+  CURV 0.0 0 0 0 0 ""
+  DISZ 6.635608428584E-1
+  DIAM 2.913571208418E-1 0 0 0 1 ""
+SURF 6
+  TYPE STANDARD
+  FIMP 
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 1.960939349925E-4 0 0 0 1 ""
+MNUM 1 1
+`,
+  'AC508-200-A': `VERS 120928 0 30221
+MODE SEQ
+NAME AC508-200-A AC508-200-A POSITIVE VISIBLE ACHROMATS: Infinite 200
+UNIT MM X W X CM MR CPMM
+ENPD 4.572E+1
+GCAT SCHOTT INFRARED MISC
+WAVM 1 4.861E-1 1
+WAVM 2 5.876E-1 1
+WAVM 3 6.563E-1 1
+PWAV 2
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM AC508-200-A
+  STOP
+  TYPE STANDARD
+  CURV 9.102494083378799600E-003 0 0 0 0 ""
+  COAT THORA
+  DISZ 8.5
+  GLAS N-BK7 0 0 0 0 0 0 0 0 0 0 
+  DIAM 2.54E+1 1 0 0 1 ""
+  FLAP 0 2.54E+1 0
+SURF 2
+  TYPE STANDARD
+  CURV -1.073998496402110000E-002 0 0 0 0 ""
+  DISZ 2
+  GLAS SF2 0 0 0 0 0 0 0 0 0 0 
+  DIAM 2.54E+1 1 0 0 1 ""
+  FLAP 0 2.54E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV -2.657807308970099800E-003 0 0 0 0 ""
+  COAT THORA
+  DISZ 1.935995646394E+2
+  DIAM 2.54E+1 1 0 0 1 ""
+  FLAP 0 2.54E+1 0
+SURF 4
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 9.111206633357E-3 0 0 0 1 ""
+MNUM 1 1
+`,
+  'LA1951-A': `VERS 120928 0 30221
+MODE SEQ
+NAME LA1951 Plano-Convex - N-BK7
+UNIT MM X W X CM MR CPMM
+ENPD 2.286E+1
+GCAT SCHOTT INFRARED MISC
+WAVM 1 4.861E-1 1
+WAVM 2 5.876E-1 1
+WAVM 3 6.563E-1 1
+PWAV 2
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM LA1951-A
+  STOP
+  TYPE STANDARD
+  CURV 7.645259938837920000E-002 0 0 0 0 ""
+  COAT THORA
+  DISZ 1.174E+1
+  GLAS N-BK7 0 0 0 0 0 0 0 0 0 0 
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 2
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  COAT THORA
+  DISZ 1.263744392836E+1
+  DIAM 1.27E+1 1 0 0 1 ""
+  FLAP 0 1.27E+1 0
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 2.242127333352 0 0 0 1 ""
+MNUM 1 1
+`,
+  'AL1225-A': `VERS 120928 14 30221
+MODE SEQ
+NAME AL1225-A Ø12.5 mm, f=25 mm, NA=0.230, N-BK7 Aspheric Lens, ARC: 350-700 nm
+UNIT MM X W X CM MR CPMM
+ENPD 1.125E+1
+GCAT SCHOTT HOYA OHARA HERAEUS
+WAVM 1 7.8E-1 1
+WAVM 2 5.5E-1 1
+WAVM 3 5.5E-1 1
+PWAV 1
+SURF 0
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ INFINITY
+  DIAM 0 0 0 0 1 ""
+SURF 1
+  COMM AL1225-A
+  STOP
+  TYPE EVENASPH
+  CURV 7.824726134585290000E-002 0 0 0 0 ""
+  COAT THORA
+  PARM 1 0
+  PARM 2 1.842989761529E-6
+  PARM 3 -3.817225154451E-9
+  PARM 4 -2.434545726277E-11
+  PARM 5 3.173049559587E-14
+  PARM 6 -3.700237030871E-15
+  PARM 7 6.510782069663E-17
+  PARM 8 -4.960414659811E-19
+  DISZ 4.0
+  GLAS N-BK7 0 0 0 0 0 0 0 0 0 0 
+  CONI -6.E-1
+  DIAM 6.25 1 0 0 1 ""
+  FLAP 0 6.25 0
+SURF 2
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  COAT THORA
+  DISZ 2.235388375085E+1
+  DIAM 5.209452723053 0 0 0 1 ""
+  FLAP 0 5.209452723053 0
+SURF 3
+  TYPE STANDARD
+  CURV 0.0 0 0 0 0 ""
+  DISZ 0
+  DIAM 5.011143500155E-9 0 0 0 1 ""
+MNUM 1 1
+`,
+};
+
+/* bytes in the encodings the makers' files come in */
+const latin1Bytes = t => Uint8Array.from(t, ch => ch.charCodeAt(0) & 255);
+const utf16Bytes = t => { const b = new Uint8Array(2 + 2 * t.length); b[0] = 0xFF; b[1] = 0xFE; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); b[2 + 2 * i] = c & 255; b[3 + 2 * i] = c >> 8; } return b; };
+/* the plain LZW a Zemax archive uses (codes from 9 bits, growing, high bit first, no clear code) */
+function lzwEncode(bytes) {
+  const dict = new Map(); for (let i = 0; i < 256; i++) dict.set(String.fromCharCode(i), i);
+  let next = 256, bits = 9, w = '', buf = 0, nb = 0; const out = [];
+  const emit = code => { buf = (buf << bits) | code; nb += bits; while (nb >= 8) { out.push((buf >>> (nb - 8)) & 255); nb -= 8; } buf &= (1 << nb) - 1; if (next >= (1 << bits) && bits < 16) bits++; };
+  for (const b of bytes) { const c = String.fromCharCode(b), wc = w + c; if (dict.has(wc)) w = wc; else { emit(dict.get(w)); dict.set(wc, next++); w = c; } }
+  if (w) emit(dict.get(w));
+  if (nb) out.push((buf << (8 - nb)) & 255);
+  return Uint8Array.from(out);
+}
+/* a .zar archive (version 1004) of the files given: [name, bytes] */
+function makeZar(files) {
+  const parts = [];
+  files.forEach(([name, bytes], i) => {
+    const comp = lzwEncode(bytes), hdr = new Uint8Array(48 + 600 + comp.length), dv = new DataView(hdr.buffer);
+    dv.setUint32(0, 1004, true); dv.setUint32(4, i, true); dv.setUint32(8, 1, true); dv.setUint32(16, comp.length, true); dv.setUint32(24, bytes.length, true);
+    const nm = name + '.LZW'; for (let k = 0; k < nm.length; k++) { hdr[48 + 2 * k] = nm.charCodeAt(k) & 255; hdr[49 + 2 * k] = nm.charCodeAt(k) >> 8; }
+    hdr.set(comp, 648); parts.push(hdr);
+  });
+  const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; }
+  return all;
+}
+/* a maker's file onto a bench, for its paraxial figures at a wavelength */
+function zmxOnBench(J, el) { el.id = 'ZL'; el.name = 'ZL'; el.x = 0; el.y = 0; el.angle = 0; J.load(bench('zmx', [el])); return el; }
+
 /* A mod for the tests: a thin lens as a plate, a half-wave plate, a fibre attenuator, a
    first-order low-pass block, and a readout; installed with mods switched on */
 const TEST_MOD = `
@@ -2541,6 +3024,91 @@ const TESTS = [
     why: 'DISZ 4.2',
     want: 4.2, tol: 1e-9, unit: ' mm',
     run: () => TESTS_EXPECT.zmx.gaps[0],
+  },
+  {
+    name: 'Thorlabs’ plano-convex files trace to their catalogue focal lengths',
+    why: 'the LA1131-A and LA1951-A files as Thorlabs publishes them (N-BK7, R = 25.75 and 13.08 mm, 5.34 and 11.74 mm thick): the catalogue gives f = 50.0 and 25.4 mm and back focal lengths 46.3 and 17.6 mm at 587.6 nm; the diameter 25.4 mm and the -A coating band read from the part number (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const a = zmxOnBench(J, J.importZmxText(ZMX_FILES['LA1131-A'], 'LA1131-A.zmx')), pa = J.paraxial('ZL', 587.6);
+      const okA = Math.abs(pa.efl - 50.0) < 0.3 && Math.abs(pa.bfl - 46.3) < 0.1 && a.diameter === 25.4 && a.materials[0].glass === 'N-BK7' && a.surfaces[0].coat.mode === 'band' && a.design === 587.6;
+      const b = zmxOnBench(J, J.importZmxText(ZMX_FILES['LA1951-A'], 'LA1951-A.zmx')), pb = J.paraxial('ZL', 587.6);
+      const okB = Math.abs(pb.efl - 25.4) < 0.15 && Math.abs(pb.bfl - 17.6) < 0.1 && b.surfaces[1].R === null;
+      return okA && okB ? 1 : 0;
+    },
+  },
+  {
+    name: 'Thorlabs’ achromats trace to their catalogue focal lengths',
+    why: 'AC254-050-A (N-BAF10 and SF10, cemented) and AC508-200-A (N-BK7 and SF2): the catalogue gives f = 50.0 and 200.0 mm, back focal lengths 43.4 and 193.7 mm, at 587.6 nm; three surfaces, two glasses, both known (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const a = zmxOnBench(J, J.importZmxText(ZMX_FILES['AC254-050-A'], 'AC254-050-A.zmx')), pa = J.paraxial('ZL', 587.6);
+      const okA = Math.abs(pa.efl - 50.0) < 0.25 && Math.abs(pa.bfl - 43.4) < 0.1 && a.surfaces.length === 3 && a.materials.map(m => m.glass).join('/') === 'N-BAF10/SF10' && a.gaps[0] === 9 && a.gaps[1] === 2.5;
+      const b = zmxOnBench(J, J.importZmxText(ZMX_FILES['AC508-200-A'], 'AC508-200-A.zmx')), pb = J.paraxial('ZL', 587.6);
+      const okB = Math.abs(pb.efl - 200) < 0.5 && Math.abs(pb.bfl - 193.7) < 0.3 && b.diameter === 50.8 && b.materials[1].glass === 'SF2';
+      return okA && okB ? 1 : 0;
+    },
+  },
+  {
+    name: 'Thorlabs’ aspheres: a Windows code page, a placeholder glass, the design wavelength',
+    why: 'AL1225-A comes in Windows-1252 (an O-slash in its name) with an even asphere (k = −0.6, eight terms) and reads f = 25.00 mm at its 780 nm design wavelength; ACL25416U names B270 with a placeholder index of 1.5, and the catalogue B 270 (n = 1.523) gives it f = 16.0 mm at 633 nm (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const A = J.importZmxBytes(latin1Bytes(ZMX_FILES['AL1225-A']), 'AL1225-A.zmx'), a = zmxOnBench(J, A.el), pa = J.paraxial('ZL', 780);
+      const okA = A.design === 780 && a.surfaces[0].k === -0.6 && a.surfaces[0].A.length >= 3 && Math.abs(pa.efl - 25.0) < 0.05 && Math.abs(pa.bfl - 22.35) < 0.05 && a.diameter === 12.5;
+      const B = J.importZmxBytes(utf16Bytes(ZMX_FILES['ACL25416U']), 'ACL25416U.zmx'), b = zmxOnBench(J, B.el), pb = J.paraxial('ZL', 633);
+      const okB = b.materials[0].glass === 'B270' && Math.abs(J.index(b.materials[0], 587.6) - 1.523) < 1e-3 && Math.abs(pb.efl - 16.0) < 0.05 && B.design === 633;
+      return okA && okB ? 1 : 0;
+    },
+  },
+  {
+    name: 'Thorlabs’ moulded aspheres: the moulded glass, the cover glass left out, f and the working distance',
+    why: 'A110TM-B (H-LAK54_MOLD, in UTF-16, with the laser diode’s 0.275 mm cover glass behind it in the file) reads as one lens in H-LAK54M with f = 6.24 mm at 780 nm, the window dropped and a note saying so; 354330-C (D-ZK3M) gives f = 3.10 mm and a working distance of 1.76 mm at 830 nm, as the catalogue states (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const A = J.importZmxBytes(utf16Bytes(ZMX_FILES['A110TM-B']), 'A110TM-B.zmx'), a = zmxOnBench(J, A.el), pa = J.paraxial('ZL', 780);
+      const okA = a.surfaces.length === 2 && a.materials[0].glass === 'H-LAK54M' && Math.abs(pa.efl - 6.24) < 0.02 && A.warnings.some(w => /window/.test(w) && /left out/.test(w));
+      const B = J.importZmxBytes(utf16Bytes(ZMX_FILES['354330-C']), '354330-C.zmx'), b = zmxOnBench(J, B.el), pb = J.paraxial('ZL', 830);
+      const okB = b.materials[0].glass === 'D-ZK3M' && Math.abs(pb.efl - 3.10) < 0.01 && Math.abs(pb.bfl - 1.76) < 0.01 && b.surfaces[1].k < -12;
+      return okA && okB ? 1 : 0;
+    },
+  },
+  {
+    name: 'A toroidal surface with no curvature the other way is a cylindrical lens',
+    why: 'LJ1695RM-A, Thorlabs’ plano-convex cylindrical lens, is a toroidal surface with a zero radius of rotation: it imports as a cylindrical lens with its power in the bench plane, f = 50.0 mm, with no warning about the surface (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const A = J.importZmxBytes(latin1Bytes(ZMX_FILES['LJ1695RM-A']), 'LJ1695RM-A.zmx'), a = zmxOnBench(J, A.el), p = J.paraxial('ZL', 587.6);
+      return a.cyl === 'plane' && Math.abs(p.efl - 50.0) < 0.1 && !A.warnings.some(w => /toroidal/.test(w)) ? 1 : 0;
+    },
+  },
+  {
+    name: 'A .zar archive opens: the .zmx inside, and its catalogue supplies a glass the tool lacks',
+    why: 'an archive built as the lens-design program builds one (LZW-compressed entries behind their headers), holding the LA1131-A file with its glass renamed TESTGLASS and a catalogue giving TESTGLASS N-BK7’s Sellmeier coefficients: the lens imports with that glass’s dispersion (n = 1.5168 at 587.6 nm) and the same focal length, and the note says where the glass came from (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const zmx = ZMX_FILES['LA1131-A'].replace('GLAS N-BK7 0 0 0 0 0 0 0 0 0 0', 'GLAS TESTGLASS 0 0 0 0 0 0 0 0 0 0');
+      const agf = 'CC test catalogue\nNM TESTGLASS 2 0 1.5168 64.17 0 1 0\nCD 1.03961212 0.00600069867 0.231792344 0.0200179144 1.01046945 103.560653 0 0 0 0\n';
+      const zar = makeZar([['LA1131-A.zmx', utf16Bytes(zmx)], ['TEST.AGF', latin1Bytes(agf)]]);
+      const A = J.importZmxBytes(zar, 'LA1131-A.zar'), a = zmxOnBench(J, A.el), p = J.paraxial('ZL', 587.6);
+      const m = a.materials[0];
+      return A.inner === 'LA1131-A.zmx' && A.glasses === 1 && m.glass === 'TESTGLASS' && m.agf && m.agf.f === 2 && Math.abs(J.index(m, 587.6) - 1.5168) < 1e-4 && Math.abs(p.efl - 49.83) < 0.02
+        && A.warnings.some(w => /catalogue in the archive/.test(w)) ? 1 : 0;
+    },
+  },
+  {
+    name: 'The makers’ glass catalogues: a glass by its catalogue name, with its maker in the panel',
+    why: 'S-LAH64 (Ohara), M-TAF1 (Hoya’s polynomial formula), H-K9L (CDGM) and K-VC89 (Sumita) each trace at their catalogue nd; a lens in S-LAH64 names Ohara and its nd and Vd under Material, whose menu offers the catalogue search (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const ok = [['S-LAH64', 1.7880], ['M-TAF1', 1.7725], ['H-K9L', 1.5168], ['K-VC89', 1.8100], ['N-SF11', 1.7847], ['Zeonex E48R', 1.5309]].every(([g, nd]) => Math.abs(J.index({ glass: g }, 587.6) - nd) < 3e-4);
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(bench('cat', [bk7Lens({ name: 'L', materials: [{ glass: 'S-LAH64' }] })]));
+      J.select('L');
+      const sel = [...doc.querySelectorAll('#panel select')].find(s => [...s.options].some(o => o.value === 'search'));
+      const note = [...doc.querySelectorAll('#panel .rt-hint')].find(p => /Ohara/.test(p.textContent) && /S-LAH64/.test(p.textContent) && /1\.788/.test(p.textContent));
+      return ok && sel && sel.value === 'S-LAH64' && note ? 1 : 0;
+    },
   },
   {
     name: 'A Thorlabs moulded asphere in D-ZK3M has its catalogue focal length',

@@ -3,6 +3,7 @@
  "core/hooks.js",
  "core/maths.js",
  "core/format.js",
+ "core/glass-catalog.js",
  "core/glass.js",
  "core/crystals.js",
  "core/cells.js",

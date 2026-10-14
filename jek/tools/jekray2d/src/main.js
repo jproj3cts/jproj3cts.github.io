@@ -3,6 +3,7 @@ import './core/constants.js';
 import './core/hooks.js';
 import './core/maths.js';
 import './core/format.js';
+import './core/glass-catalog.js';
 import './core/glass.js';
 import './core/crystals.js';
 import './core/cells.js';

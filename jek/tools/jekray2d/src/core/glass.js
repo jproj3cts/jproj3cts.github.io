@@ -1,4 +1,5 @@
 import { NLC } from './nlc.js';
+import { CATALOG } from './glass-catalog.js';
 import { C_NM_GHZ, RF_MAT, rfTanD } from './rf.js';
 
 /* ==========================================================================
@@ -18,6 +19,10 @@ export const GLASS = {
   // CDGM's moulding glass (Thorlabs' C350TMD and others), as moulded: nd 1.5864, Vd 60.714 from its
   // datasheet, the N-SK5 curve (its unmoulded twin, D-ZK3) scaled to them; f = 4.50 mm at 980 nm for the C350TMD
   'D-ZK3M':       [0.986113808, 0.493305763, 1.10663096, 0.00522730467, 0.0172733646, 98.3594579],
+  // CDGM's D-ZLAF52LA and H-LAK54 as moulded (Thorlabs' C230TMD and A110TM aspheres): the glass's
+  // curve scaled so the lens has its catalogue focal length at 780 nm (f = 4.51 mm and 6.24 mm)
+  'D-ZLAF52LAM':  [1.869329554699754, 0.3008600597671278, 1.2453929134123993, 0.00984915169, 0.0406191391, 95.893604],
+  'H-LAK54M':     [1.196495299267877, 0.7305590444449283, 1.3448631417251433, 0.0176389155, 0.000666515982, 96.9938806],
   'N-FK51A':      [0.971247817, 0.216901417, 0.904651666, 0.00472301995, 0.0153575612, 168.68133],
   'N-PK51':       [1.15610775, 0.153229344, 0.785618966, 0.00585597402, 0.0194072416, 140.537046],
   'N-BAK1':       [1.12365662, 0.309276848, 0.881511957, 0.00644742752, 0.0222284402, 107.297751],
@@ -45,10 +50,16 @@ export const GLASS = {
   // standard 20 C values (1.33712, 1.33299, 1.33115 at the F, D and C lines); 0.2 to 1.1 um
   'Water':        [-0.00095737512, 0.5684027565, 0.1726177391, 0.02086189578, 0.1130748688, 0.005101829712, 0.01821153936, 0.02620722293, 10.69792721],
   'Polystyrene':  [1.4435, 0, 0, 0.020216, 0, 0],       // Sultanova et al. 2009
+  // the optical plastics (Sultanova et al. 2009, 0.44 to 1.05 um): acrylic, polycarbonate, Zeonex
+  'PMMA':         [1.1819, 0, 0, 0.011313, 0, 0],
+  'Polycarbonate': [1.4182, 0, 0, 0.021304, 0, 0],
+  'Zeonex E48R':  [1.2969, 0, 0, 0.011721, 0, 0],
+  // Schott B 270 (the crown window glass of condensers): n^2 = A + B / l^2 + C / l^4 fitted to the
+  // 1993 data sheet (nd 1.5230, Vd 58.7), as a constant with two Cauchy terms
+  'B270':         { cauchy: [2.279137203, 0.013667078, 8.4343511e-5] },
 };
 const GLASS_ALIAS = {
-  'BK7': 'N-BK7', 'NBK7': 'N-BK7', 'H-K9L': 'N-BK7', 'HK9L': 'N-BK7',
-  'D-ZK3': 'N-SK5', 'H-ZK3': 'N-SK5', 'ZK3': 'N-SK5', 'SK5': 'N-SK5',
+  'BK7': 'N-BK7', 'NBK7': 'N-BK7', 'SK5': 'N-SK5',
   'F_SILICA': 'Fused silica', 'SILICA': 'Fused silica', 'FUSED SILICA': 'Fused silica',
   'UVFS': 'Fused silica', 'FUSEDSILICA': 'Fused silica', 'SIO2': 'Fused silica',
   'CORNING7980': 'Fused silica', 'INFRASIL': 'Fused silica', 'SUPRASIL': 'Fused silica',
@@ -57,21 +68,62 @@ const GLASS_ALIAS = {
   'SI': 'Silicon', 'SILICON': 'Silicon', 'GE': 'Germanium', 'GERMANIUM': 'Germanium',
   'ZNSE': 'ZnSe', 'ZNSE_BROAD': 'ZnSe',
   'WATER': 'Water', 'H2O': 'Water', 'PS': 'Polystyrene', 'POLYSTYRENE': 'Polystyrene',
+  'ACRYLIC': 'PMMA', 'ACRYL': 'PMMA', 'PLEXIGLAS': 'PMMA', 'POLYMETHYLMETHACRYLATE': 'PMMA',
+  'PC': 'Polycarbonate', 'POLYCARB': 'Polycarbonate', 'LEXAN': 'Polycarbonate', 'MAKROLON': 'Polycarbonate',
+  'ZEONEX': 'Zeonex E48R', 'E48R': 'Zeonex E48R', 'ZEONEXE48R': 'Zeonex E48R', 'ZEONEX-E48R': 'Zeonex E48R', 'ZEONEX480R': 'Zeonex E48R',
+  'B-270': 'B270', 'B 270': 'B270', 'B270I': 'B270', 'B270-I': 'B270',
+  'H-LAK54_MOLD': 'H-LAK54M', 'H-LAK54MOLD': 'H-LAK54M', 'D-ZLAF52LA_MOLD': 'D-ZLAF52LAM', 'D-ZK3_MOLD': 'D-ZK3M',
 };
+/* the makers' catalogues (glass-catalog.js), by upper-case name and with the dashes taken out */
+let catIndex = null, glassIndex = null;
+const indexes = () => {
+  if (catIndex) return;
+  catIndex = new Map(); glassIndex = new Map(Object.keys(GLASS).map(k => [k.toUpperCase(), k]));
+  for (const k of Object.keys(CATALOG)) { const u = k.toUpperCase(); catIndex.set(u, k); if (!catIndex.has(u.replace(/-/g, ''))) catIndex.set(u.replace(/-/g, ''), k); }
+};
+/* a glass by any of the names the makers, the lens-design programs and the lens makers' files
+   give it: the built-in table first, then the catalogues; case, spaces and underscores do not
+   matter, nor a maker's suffix (N-BK7_SCHOTT), and a dash may be missing (NBK7) */
 export function glassKey(name) {
   if (!name) return null;
   if (GLASS[name]) return name;
+  if (CATALOG[name]) return name;
+  indexes();
   const u = String(name).toUpperCase().trim();
   const tries = [u, u.replace(/[_\s]+/g, ''), u.replace(/[_\s]+/g, '-'),
-    u.replace(/(HTULTRA|HT|_SCHOTT|_OHARA|_CDGM|_HOYA)$/, '')];
+    u.replace(/(HTULTRA|HT|_SCHOTT|_OHARA|_CDGM|_HOYA|_SUMITA)$/, ''), u.replace(/\s*\(.*\)$/, '')];
   for (const t of tries) {
-    if (GLASS[t]) return t;
+    if (glassIndex.has(t)) return glassIndex.get(t);
     if (GLASS_ALIAS[t]) return GLASS_ALIAS[t];
-    for (const k of Object.keys(GLASS)) if (k.toUpperCase() === t) return k;
+  }
+  for (const t of tries) {
+    if (catIndex.has(t)) return catIndex.get(t);
+    if (catIndex.has(t.replace(/-/g, ''))) return catIndex.get(t.replace(/-/g, ''));
   }
   return null;
 }
+/* a catalogue glass's maker, nd and Vd, for the panels */
+export const glassInfo = key => CATALOG[key] ? { maker: CATALOG[key][0], nd: CATALOG[key][2], vd: CATALOG[key][3], lo: CATALOG[key][4], hi: CATALOG[key][5] }
+  : GLASS[key] ? { maker: /^(N-|P-|SF|F2|K)/.test(key) ? 'Schott' : /^(S-|L-)/.test(key) ? 'Ohara' : /^D-/.test(key) ? 'CDGM' : /^H-/.test(key) ? 'CDGM' : 'built in', nd: sellmeier(GLASS[key], 0.5875618), vd: (sellmeier(GLASS[key], 0.5875618) - 1) / (sellmeier(GLASS[key], 0.4861327) - sellmeier(GLASS[key], 0.6562725)) } : null;
+/* every glass that can be chosen by name, with its maker: for the search */
+export function glassSearch(q) {
+  const t = String(q || '').toUpperCase().replace(/[\s_]+/g, '');
+  const out = [];
+  for (const k of Object.keys(GLASS)) if (k !== 'Water' && (!t || k.toUpperCase().replace(/-/g, '').includes(t.replace(/-/g, '')))) out.push([k, glassInfo(k).maker]);
+  for (const k of Object.keys(CATALOG)) if (!GLASS[k] && (!t || k.toUpperCase().replace(/-/g, '').includes(t.replace(/-/g, '')))) out.push([k, CATALOG[k][0]]);
+  return out;
+}
+/* refractiveindex.info's formulas: 1 and 2 are Sellmeier (the resonances as wavelengths, or
+   squared), 3 a polynomial in powers of the wavelength (Hoya's and Sumita's, and some of Ohara's) */
+function catalogIndex(row, um) {
+  const f = row[1], c = row.slice(6), l2 = um * um;
+  let n2;
+  if (f === 3) { n2 = c[0]; for (let i = 1; i < c.length - 1; i += 2) n2 += c[i] * Math.pow(um, c[i + 1]); }
+  else { n2 = 1 + c[0]; for (let i = 1; i < c.length - 1; i += 2) { const C = f === 1 ? c[i + 1] * c[i + 1] : c[i + 1]; n2 += c[i] * l2 / (l2 - C); } }
+  return Math.sqrt(Math.max(1, n2));
+}
 function sellmeier(c, um) {
+  if (c.cauchy) { const a = c.cauchy, l2 = um * um; return Math.sqrt(a[0] + a[1] / l2 + a[2] / (l2 * l2)); }
   // B1..Bk then C1..Ck; an odd count leads with a constant added to n^2
   const l2 = um * um, a0 = c.length % 2 ? 1 : 0, k = (c.length - a0) / 2;
   let n2 = 1 + (a0 ? c[0] : 0);
@@ -99,7 +151,8 @@ export function refIndex(mat, nm) {
     if (v !== null) return v;
   }
   const key = glassKey(mat.glass);
-  if (key) return sellmeier(GLASS[key], nm / 1000);
+  if (key) return GLASS[key] ? sellmeier(GLASS[key], nm / 1000) : catalogIndex(CATALOG[key], nm / 1000);
+  if (mat.agf && mat.agf.c) return agfIndex(mat.agf.f, mat.agf.c, nm / 1000);
   if (RF_MAT[mat.glass]) return RF_MAT[mat.glass].n;                 // an RF dielectric: its index near 100 to 300 GHz
   if (mat.glass === 'custom') return isFinite(mat.n) ? +mat.n : 1.5;
   if (isFinite(mat.nd)) {
@@ -112,6 +165,30 @@ export function refIndex(mat, nm) {
     return A + B / (um*um);
   }
   return 1.5;
+}
+/* the dispersion formulas as a lens-design program's .agf catalogue numbers them (its manual's
+   table): 1 Schott, 2 Sellmeier 1, 3 Herzberger, 4 Sellmeier 2, 5 Conrady, 6 Sellmeier 3,
+   7 Handbook 1, 8 Handbook 2, 9 Sellmeier 4, 10 Extended, 11 Sellmeier 5, 12 Extended 2, 13 Extended 3 */
+export function agfIndex(f, c, um) {
+  const L2 = um * um, a = i => c[i] || 0;
+  let n2;
+  switch (f) {
+    case 1: n2 = a(0) + a(1) * L2 + a(2) / L2 + a(3) / L2 ** 2 + a(4) / L2 ** 3 + a(5) / L2 ** 4; break;
+    case 2: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)); break;
+    case 3: { const L = 1 / (L2 - 0.028); return a(0) + a(1) * L + a(2) * L * L + a(3) * L2 + a(4) * L2 * L2 + a(5) * L2 ** 3; }
+    case 4: n2 = a(0) + a(1) * L2 / (L2 - a(2)) + a(3) / (L2 - a(4)); break;
+    case 5: return a(0) + a(1) / um + a(2) / Math.pow(um, 3.5);
+    case 6: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)) + a(6) * L2 / (L2 - a(7)); break;
+    case 7: n2 = a(0) + a(1) / (L2 - a(2)) - a(3) * L2; break;
+    case 8: n2 = a(0) + a(1) * L2 / (L2 - a(2)) - a(3) * L2; break;
+    case 9: n2 = a(0) + a(1) * L2 / (L2 - a(2)) + a(3) * L2 / (L2 - a(4)); break;
+    case 10: n2 = a(0) + a(1) * L2 + a(2) / L2 + a(3) / L2 ** 2 + a(4) / L2 ** 3 + a(5) / L2 ** 4 + a(6) / L2 ** 5 + a(7) / L2 ** 6; break;
+    case 11: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)) + a(6) * L2 / (L2 - a(7)) + a(8) * L2 / (L2 - a(9)); break;
+    case 12: n2 = a(0) + a(1) * L2 + a(2) / L2 + a(3) / L2 ** 2 + a(4) / L2 ** 3 + a(5) / L2 ** 4 + a(6) * L2 ** 2 + a(7) * L2 ** 3; break;
+    case 13: n2 = a(0) + a(1) * L2 + a(2) * L2 ** 2 + a(3) / L2 + a(4) / L2 ** 2 + a(5) / L2 ** 3 + a(6) / L2 ** 4 + a(7) / L2 ** 5 + a(8) / L2 ** 6; break;
+    default: return 1.5;
+  }
+  return Math.sqrt(Math.max(1, n2));
 }
 /* Absorption coefficient in 1/mm: intensity falls as exp(-alpha * path) */
 const absorbOf = mat => (mat && mat.abs > 0) ? mat.abs : 0;

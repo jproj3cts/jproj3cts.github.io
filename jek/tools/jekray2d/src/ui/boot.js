@@ -69,7 +69,7 @@ import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
 import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
-import { parseZmx, zmxToElement } from '../io/zmx-import.js';
+import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxExport, zmxPart } from '../io/zmx-export.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
@@ -296,6 +296,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return optimise(this.byName(name), path, this.byName(targetName), key, goal, targetVal);
     },
     importZmxText(text, fileName, mode) { return zmxToElement(parseZmx(text, fileName), fileName, mode || 'auto'); },
+    // a file's bytes (a .zmx in any encoding, or a .zar archive): the part, and what the file carried
+    importZmxBytes(bytes, fileName, mode) { const F = readZmxFile(bytes.buffer ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : bytes, fileName), Z = parseZmx(F.text, fileName, F.agf); return { el: zmxToElement(Z, fileName, mode || 'auto'), inner: F.inner || null, glasses: F.agf ? F.agf.size : 0, design: Z.design, warnings: [...Z.warnings] }; },
     // the parts the bench marks with a red ! (their import assumed something)
     assumedOn() { return project.elements.filter(e => onTab(e) && partAssumptions(e).length).map(e => e.name); },
     // a .zmx onto the bench as File › Import does it (selected, its assumptions kept)

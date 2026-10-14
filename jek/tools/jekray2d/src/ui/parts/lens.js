@@ -8,7 +8,7 @@ import { fid, h, numInput, panel, param, selectField, setFid } from '../panel.js
 import { coatingRows } from '../panels.js';
 import { clipNote } from '../heavy.js';
 import {
-  askForMaterial, flipLens, materialOptions, pickMaterial, removeSweeps, unknownGlass,
+  askForGlass, askForMaterial, flipLens, glassNote, materialOptions, pickMaterial, removeSweeps, unknownGlass,
   unknownGlassNote
 } from '../plots.js';
 import { changed } from '../actions.js';
@@ -74,10 +74,12 @@ function lensPanel(el) {
         selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
           const old = el.materials[i];
           if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
+          if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, `materials.${i}.`); el.materials[i] = pickMaterial(k, el.materials[i]); changed(true); }); return; }
           removeSweeps(el, `materials.${i}.`);
           el.materials[i] = pickMaterial(v, old);
         }),
       );
+      const gn = glassNote(m); if (gn) mrows.append(gn);
       if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
       if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
       if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));

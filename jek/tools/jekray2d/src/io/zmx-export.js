@@ -6,7 +6,7 @@ import { paraxial } from '../engines/trace.js';
 import { selection } from '../ui/render.js';
 import { changed, clipOf, downloadFile, safeFileName, toast } from '../ui/actions.js';
 import { checkpoint } from '../ui/tabs.js';
-import { decodeZmx, parseZmx, zmxToElement } from './zmx-import.js';
+import { parseZmx, readZmxFile, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
@@ -182,7 +182,7 @@ function zmxElement(file, mode) {
     const r = new FileReader();
     r.onload = () => {
       try {
-        const Z = parseZmx(decodeZmx(r.result), file.name);
+        const F = readZmxFile(r.result, file.name), Z = parseZmx(F.text, file.name, F.agf);
         resolve({ Z, el: zmxPart(Z, file.name, mode) });
       } catch (err) { reject(err); }
     };

@@ -81,7 +81,7 @@ function aiReference() {
     }
   }
   L.push('## Catalogues', '',
-    '**Glasses** ("material": {"glass": name}): ' + Object.keys(GLASS).join(', ') + '. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.', '',
+    '**Glasses** ("material": {"glass": name}): ' + Object.keys(GLASS).join(', ') + ', and any glass of the Schott, Ohara, Hoya, CDGM and Sumita catalogues by its catalogue name (N-SF11, S-LAH64, M-TAF1, H-K9L, K-VC89). Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2, PMMA, ACRYLIC) are understood.', '',
     '**Crystals** ("crystal"): ' + Object.entries(CRYSTALS).map(([k, c]) => '"' + k + '" (' + c.name + ')').join(', ') + '.', '',
     '**Crystal shapes** ("shape" of a crystal): ' + Object.entries(CRYSTAL_SHAPES).map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',
     '**Prism shapes**: ' + Object.entries(PRISM_SHAPES).map(([k, v]) => '"' + k + '" (' + v + ')').join(', ') + '.', '',

@@ -6,20 +6,94 @@ import { snapVal } from '../ui/pointer.js';
    .zmx lens file import
    ========================================================================== */
 
+/* ---------- .zar archives ----------
+   A Zemax archive holds the .zmx with the files it needs (a glass catalogue, coatings), each
+   LZW-compressed: a header (version 1002: 32 bytes, 1004: 48), the file's name (300 bytes of
+   ASCII, or 600 of UTF-16), then the compressed bytes. The LZW is the plain variable-width
+   kind, codes from 9 bits growing to 14, high bit first, no clear code. */
+const isZar = b => b.length > 48 && (b[0] === 0xEA || b[0] === 0xEC) && b[1] === 0x03 && b[2] === 0 && b[3] === 0;
+function lzwDecode(data, want) {
+  const out = new Uint8Array(want > 0 ? want : data.length * 4);
+  let n = 0;
+  const dict = [];                                          // each code: [prefix code, last byte, length]
+  for (let i = 0; i < 256; i++) dict.push([-1, i, 1]);
+  let next = 256, bits = 9, prev = -1, buf = 0, nb = 0, pos = 0;
+  const put = code => {                                     // the string of a code, written backwards into place
+    const L = dict[code][2];
+    if (n + L > out.length) return false;
+    let c = code; for (let k = L - 1; k >= 0; k--) { out[n + k] = dict[c][1]; c = dict[c][0]; }
+    n += L; return true;
+  };
+  const firstOf = code => { let c = code; while (dict[c][0] >= 0) c = dict[c][0]; return dict[c][1]; };
+  for (;;) {
+    while (nb < bits && pos < data.length) { buf = ((buf << 8) | data[pos++]) >>> 0; nb += 8; }
+    if (nb < bits) break;
+    const code = (buf >>> (nb - bits)) & ((1 << bits) - 1); nb -= bits; buf &= (1 << nb) - 1;
+    if (code < next) { if (!put(code)) break; }
+    else if (code === next && prev >= 0) { dict.push([prev, firstOf(prev), dict[prev][2] + 1]); if (!put(code)) break; prev = code; next++; if (next >= (1 << bits) && bits < 16) bits++; continue; }
+    else break;
+    if (prev >= 0 && next < (1 << 16)) { dict.push([prev, firstOf(code), dict[prev][2] + 1]); next++; }
+    if (next >= (1 << bits) && bits < 16) bits++;
+    prev = code;
+  }
+  return out.subarray(0, n);
+}
+const u32 = (b, i) => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0;
+export function unzar(buf) {
+  const b = new Uint8Array(buf), out = [];
+  let pos = 0;
+  while (pos + 32 <= b.length) {
+    const ver = u32(b, pos);
+    if (ver !== 1002 && ver !== 1003 && ver !== 1004) break;
+    const old = ver === 1002, hdr = old ? 32 : 48, nameLen = old ? 300 : 600;
+    const comp = u32(b, pos + (old ? 12 : 16)), raw = old ? 0 : u32(b, pos + 24);
+    const nb = b.subarray(pos + hdr, pos + hdr + nameLen);
+    const name = (old ? new TextDecoder('windows-1252').decode(nb) : new TextDecoder('utf-16le').decode(nb)).split('\0')[0];
+    const data = b.subarray(pos + hdr + nameLen, pos + hdr + nameLen + comp);
+    out.push({ name, raw, bytes: /\.LZW$/i.test(name) ? lzwDecode(data, raw) : data });
+    pos += hdr + nameLen + comp;
+  }
+  return out;
+}
+/* ---------- .agf glass catalogues ----------
+   The catalogue an archive carries: each glass NM name formula ... nd Vd, then CD its
+   coefficients, in the lens-design program's numbering of the dispersion formulas */
+export function parseAgf(text) {
+  const out = new Map();
+  let cur = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const t = raw.trim(), tok = t.split(/\s+/);
+    if (tok[0] === 'NM' && tok[1]) { cur = { name: tok[1], f: parseInt(tok[2], 10) || 2, nd: parseFloat(tok[4]), vd: parseFloat(tok[5]), c: [] }; out.set(tok[1].toUpperCase(), cur); }
+    else if (tok[0] === 'CD' && cur) cur.c = tok.slice(1).map(Number).map(v => isFinite(v) ? v : 0);
+  }
+  return out;
+}
+/* a lens file, or the .zmx inside an archive: its text, the name it carries, and the glasses its
+   catalogue holds */
+export function readZmxFile(buf, fileName) {
+  const b = new Uint8Array(buf);
+  if (!isZar(b)) return { text: decodeZmx(buf), fileName, agf: null };
+  const entries = unzar(b), lens = entries.find(e => /\.zmx(\.lzw)?$/i.test(e.name));
+  if (!lens) throw new Error('No .zmx file was found inside ' + fileName + '.');
+  let agf = null;
+  for (const e of entries) if (/\.agf(\.lzw)?$/i.test(e.name)) { const g = parseAgf(decodeZmx(e.bytes)); agf = agf ? new Map([...agf, ...g]) : g; }
+  return { text: decodeZmx(lens.bytes), fileName, inner: lens.name.replace(/\.lzw$/i, ''), agf };
+}
 export function decodeZmx(buf) {
   const b = new Uint8Array(buf);
-  if (b[0] === 0x50 && b[1] === 0x4B) throw new Error('That looks like a zip or .zar archive. Extract it and choose the .zmx file inside.');
+  if (b[0] === 0x50 && b[1] === 0x4B) throw new Error('That looks like a zip file. Extract it and choose the .zmx or .zar file inside.');
   if (b[0] === 0xFF && b[1] === 0xFE) return new TextDecoder('utf-16le').decode(b.subarray(2));
   if (b[0] === 0xFE && b[1] === 0xFF) return new TextDecoder('utf-16be').decode(b.subarray(2));
   // UTF-16 without BOM: every other byte zero
   if (b.length > 8 && b[1] === 0 && b[3] === 0) return new TextDecoder('utf-16le').decode(b);
-  return new TextDecoder('utf-8').decode(b);
+  // most files are plain ASCII; some makers' carry a Windows code page (an O-slash in a name)
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(b); } catch (e) { return new TextDecoder('windows-1252').decode(b); }
 }
 
-export function parseZmx(text, fileName) {
+export function parseZmx(text, fileName, agf) {
   const lines = text.split(/\r?\n/);
-  let unit = 1, title = null;
-  const surfs = [];
+  let unit = 1, title = null, pwav = 1;
+  const surfs = [], wavm = {};
   let cur = null;
   const warnings = new Set();
   for (const raw of lines) {
@@ -36,6 +110,10 @@ export function parseZmx(text, fileName) {
       warnings.add('the file holds ' + tok[1] + ' configurations; the first was used');
     } else if (key === 'NAME' && !cur) {
       title = t.slice(5).trim().replace(/^"|"$/g, '') || title;
+    } else if (key === 'WAVM' && !cur) {
+      wavm[parseInt(tok[1], 10)] = parseFloat(tok[2]);       // the design wavelengths, um
+    } else if (key === 'PWAV' && !cur) {
+      pwav = parseInt(tok[1], 10) || 1;                       // which of them is the primary
     } else if (key === 'SURF') {
       cur = { type: 'STANDARD', curv: 0, conic: 0, parm: {}, disz: 0, glass: null, diam: 0 };
       surfs.push(cur);
@@ -49,7 +127,8 @@ export function parseZmx(text, fileName) {
     else if (key === 'DIAM') cur.diam = parseFloat(tok[1]) || 0;
     else if (key === 'COAT') cur.coat = (tok[1] || '').replace(/^"|"$/g, '');
     else if (key === 'CLAP') cur.clap = parseFloat(tok[2]) || parseFloat(tok[1]) || 0;
-    else if (key === 'SQAP' || key === 'OBSC' || key === 'FLAP') warnings.add('a non-circular or obscuring aperture was ignored');
+    else if (key === 'FLAP') { /* a floating aperture: the surface's own diameter, as read */ }
+    else if (key === 'SQAP' || key === 'OBSC' || key === 'RAAP' || key === 'ELAP') warnings.add('a non-circular or obscuring aperture was ignored');
     else if (key === 'GLAS') {
       const name = tok[1];
       const nums = tok.slice(2).map(Number);
@@ -60,15 +139,24 @@ export function parseZmx(text, fileName) {
     }
   }
   if (surfs.length < 2) throw new Error('No surfaces were found in ' + fileName + '.');
-  return { title, unit, surfs, warnings };
+  const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
+  return { title, unit, surfs, warnings, design, agf: agf || null };
 }
 
 export const IMPORT_AS = { auto: 'Work it out from the file', lens: 'Lens', mirror: 'Mirror', cube: 'Beam splitter cube', prism: 'Right-angle prism', window: 'Window' };
 
-function zmxMaterial(g, warnings) {
-  const key = glassKey(g.name);
+/* a moulded glass's name: the maker's glass with _MOLD after it, or a CDGM D- glass with an M
+   (Thorlabs' and LightPath's aspheres); the moulded index is a little below the glass's, which the
+   catalogue carries for D-ZK3M and the file may carry as nd and Vd */
+function zmxMaterial(g, warnings, agf) {
+  let key = glassKey(g.name);
+  if (!key && /_MOLD$/i.test(g.name)) { key = glassKey(g.name.replace(/_MOLD$/i, '')); if (key) warnings.add(g.name + ' was read as ' + key + ', the glass it is moulded from (a moulded glass\u2019s index runs a few parts in a thousand lower)'); }
+  if (!key && /^D-.*[A-Z]M$/i.test(g.name) && !isFinite(g.nd)) { key = glassKey(g.name.replace(/M$/i, '')); if (key) warnings.add(g.name + ' was read as ' + key + ', the glass it is moulded from (a moulded glass\u2019s index runs a few parts in a thousand lower)'); }
   if (key) return { glass: key };
   const m = { glass: g.name };
+  // a glass the tool does not know, but the archive's catalogue does: its dispersion formula comes along
+  const A = agf && agf.get(String(g.name).toUpperCase());
+  if (A && A.c.length) { m.agf = { f: A.f, c: A.c }; if (isFinite(A.nd)) m.nd = A.nd; if (isFinite(A.vd)) m.vd = A.vd; warnings.add('glass ' + g.name + ' is not in the glass catalogue: its dispersion was taken from the catalogue in the archive'); return m; }
   if (isFinite(g.nd)) m.nd = g.nd;
   if (isFinite(g.vd) && g.vd > 0) m.vd = g.vd;
   if (!isFinite(m.nd)) warnings.add('glass ' + g.name + ' has no index in the file, so n = 1.5 was used');
@@ -166,7 +254,7 @@ export function zmxToElement(Z, fileName, mode) {
       block = { t: isFinite(g.disz) ? g.disz * unit : w, width: w, glass: g.glass };
       warnings.add('the surfaces are curved, so only the glass and size were used');
     }
-    const material = zmxMaterial(block.glass, warnings);
+    const material = zmxMaterial(block.glass, warnings, Z.agf);
     const coat = arCoat();
     if (mode === 'cube') return Object.assign(pos, { type: 'cube', angle: 0, size: block.t > 0 ? block.t : block.width, reflect: 50, material, coat });
     if (mode === 'prism') return Object.assign(pos, { type: 'prism', shape: 'right', angle: 0, size: block.t > 0 ? block.t : block.width, material, coat });
@@ -176,6 +264,17 @@ export function zmxToElement(Z, fileName, mode) {
   // lens
   if (first < 0) throw new Error(fileName + ' has no glass surfaces to build a lens from.');
   if (tilted) warnings.add('tilted surfaces (coordinate breaks) were ignored');
+  // a moulded asphere's file often ends with the laser diode's cover glass, a thin flat window an
+  // air gap behind the lens: the part is the lens, so the window goes
+  if (range.length >= 4) {
+    const n = range.length, w = range[n - 2], gapS = range[n - 3];
+    if (isGlass(w) && !isGlass(gapS) && !w.curv && !range[n - 1].curv && isFinite(w.disz) && w.disz * unit <= 1.5 && isFinite(gapS.disz) && gapS.disz > 0 && range.slice(0, n - 3).some(isGlass)) {
+      warnings.add('a ' + (+(w.disz * unit).toPrecision(3)) + ' mm ' + (w.glass ? w.glass.name : '') + ' window ' + (+(gapS.disz * unit).toPrecision(3)) + ' mm behind the lens (the laser diode\u2019s cover glass in the design) was left out');
+      range.splice(n - 3, 3, range[n - 3]);
+      range[range.length - 1] = Object.assign({}, range[range.length - 1], { glass: null });
+    }
+  }
+  let cylinder = false;
   const lensCoat = arCoat();
   const surfaces = range.map((s, si) => {
     const c = s.curv / unit;
@@ -194,8 +293,12 @@ export function zmxToElement(Z, fileName, mode) {
       for (let q = 2; q <= 8; q++) A.push((s.parm[q] || 0) * Math.pow(unit, 1 - 2 * q));
       while (A.length && A[A.length - 1] === 0) A.pop();
       out.A = A;
-    } else if (s.type === 'TOROIDAL' || s.type.startsWith('BICONIC')) {
-      warnings.add('toroidal or biconic surfaces were traced with their in-plane curvature only');
+    } else if (s.type === 'TOROIDAL') {
+      // CURV is the curvature in the YZ plane, PARM 1 the radius of rotation in XZ: 0 is a cylinder
+      if (!(s.parm[1] || 0)) cylinder = true;
+      else warnings.add('a toroidal surface was traced with its in-plane curvature only');
+    } else if (s.type.startsWith('BICONIC')) {
+      warnings.add('biconic surfaces were traced with their in-plane curvature only');
     } else if (s.type === 'PARAXIAL') {
       warnings.add('a paraxial (ideal lens) surface was skipped; it has no real shape to trace');
     } else if (s.type !== 'STANDARD') {
@@ -208,11 +311,11 @@ export function zmxToElement(Z, fileName, mode) {
     if (s.disz < 0) { warnings.add('a negative spacing (a fold in the prescription) was read as its magnitude'); return -s.disz * unit; }
     return s.disz * unit;
   });
-  const materials = range.slice(0, -1).map(s => isGlass(s) ? zmxMaterial(s.glass, warnings) : { glass: 'AIR' });
+  const materials = range.slice(0, -1).map(s => isGlass(s) ? zmxMaterial(s.glass, warnings, Z.agf) : { glass: 'AIR' });
   const semis = surfaces.map(s => s.semi).filter(Boolean);
   const diameter = semis.length ? 2 * Math.max(...semis) : 25.4;
   // keep per-surface apertures only where they differ from the lens diameter
   surfaces.forEach(s => { if (s.semi && Math.abs(s.semi * 2 - diameter) < 1e-6) s.semi = null; });
-  return Object.assign(pos, { type: 'lens', angle: 0, diameter, surfaces, gaps, materials });
+  return Object.assign(pos, { type: 'lens', angle: 0, diameter, surfaces, gaps, materials, ...(cylinder ? { cyl: 'plane' } : {}), ...(Z.design ? { design: Z.design } : {}) });
 }
 

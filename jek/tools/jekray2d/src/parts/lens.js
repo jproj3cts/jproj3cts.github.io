@@ -31,6 +31,7 @@ export const LENS = {
       surfaces, gaps, materials,
       cyl: e.cyl === 'plane' || e.cyl === 'out' ? e.cyl : undefined,    // cylindrical: power in the bench plane, or out of it
       source: typeof e.source === 'string' ? e.source : undefined,
+      design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
     });
   },
   guide: {
@@ -38,6 +39,7 @@ export const LENS = {
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
-    cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.' },
+    cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
+    design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.' },
   },
 };

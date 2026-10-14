@@ -1,6 +1,6 @@
 import { clamp } from '../core/constants.js';
 import { fmtGHz, fmtLen } from '../core/format.js';
-import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
+import { GLASS, glassKey, matLabel, refIndex, glassInfo, glassSearch } from '../core/glass.js';
 import { RF_MAT } from '../core/rf.js';
 import { normMat, project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
@@ -565,6 +565,35 @@ export function pickMaterial(v, old) {
 
 export let materialWanted = null;
 export function setMaterialWanted(v) { return (materialWanted = v); }
+/* the glass search: a name typed, the matches listed with their makers, one chosen */
+let glassWanted = null, glassWired = false;
+export function askForGlass(apply) {
+  glassWanted = apply;
+  const dlg = document.getElementById('glassDialog'), q = document.getElementById('glassSearch'), list = document.getElementById('glassList'), note = document.getElementById('glassNote');
+  const fill = () => {
+    const hits = glassSearch(q.value).slice(0, 400);
+    list.replaceChildren(...hits.map(([k, maker]) => { const I = glassInfo(k); return h('option', { value: k }, k + ' \u2014 ' + maker + (I && I.nd ? ', nd ' + (+I.nd.toFixed(4)) + (I.vd ? ', Vd ' + (+I.vd.toFixed(1)) : '') : '')); }));
+    if (hits.length) list.selectedIndex = 0;
+    note.textContent = hits.length ? hits.length + (hits.length === 400 ? '+' : '') + ' glasses match' : 'No glass of that name. Import a material from refractiveindex.info instead, or set a constant index.';
+  };
+  if (!glassWired) {
+    glassWired = true;
+    q.addEventListener('input', fill);
+    document.getElementById('glassCancel').addEventListener('click', () => dlg.close());
+    const use = () => { const k = list.value; if (!k) return; dlg.close(); const fn = glassWanted; glassWanted = null; if (fn) fn(k); };
+    document.getElementById('glassUse').addEventListener('click', use);
+    list.addEventListener('dblclick', use);
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); use(); } });
+  }
+  q.value = ''; fill();
+  dlg.showModal(); q.focus();
+}
+/* what a catalogue glass is: its maker, nd and Vd, for a note under the material */
+export function glassNote(m) {
+  const k = glassKey(m && m.glass), I = k && glassInfo(k);
+  if (!I || !(I.nd > 1)) return null;
+  return h('p', { class: 'rt-hint wide', style: 'margin:0.1rem 0 0' }, I.maker + (I.maker === 'built in' ? '' : '\u2019s') + ' ' + k + ': nd ' + (+I.nd.toFixed(4)) + (I.vd > 0 ? ', Vd ' + (+I.vd.toFixed(1)) : '') + (I.lo ? ', fitted over ' + (+(I.lo * 1000).toFixed(0)) + '\u2013' + (+(I.hi * 1000).toFixed(0)) + ' nm' : ''));
+}
 export function askForMaterial(apply) {
   materialWanted = apply;
   document.getElementById('matNote').textContent = '';
@@ -606,13 +635,15 @@ export function materialOptions(mat, rf) {
     return opts;
   }
   const opts = Object.keys(GLASS).map(k => [k, k]);
+  const ck = glassKey(mat.glass);
+  if (ck && !GLASS[ck]) { const I = glassInfo(ck); opts.unshift([ck, ck + (I ? ' (' + I.maker + ')' : '')]); }
   for (const [i, m] of (project.library || []).entries()) opts.push(['lib:' + i, m.glass + ' (imported)']);
   for (const pk of PACKS.list) pk.glasses.forEach((m, i) => opts.push(['pack:' + pk.id + ':' + i, m.glass + ' (' + pk.name + ')']));
   if (RF_MAT[mat.glass]) opts.push(rfOpts.find(o => o[0] === mat.glass));
   const known = glassKey(mat.glass) || RF_MAT[mat.glass];
   if (!known && !mat.table && mat.glass !== 'custom' && mat.glass !== 'AIR') opts.unshift([mat.glass, mat.glass + (isFinite(mat.nd) ? ' (from file)' : ' (unknown: n = 1.5)')]);
   if (mat.table) opts.unshift([mat.glass, mat.glass + ' (measured data)']);
-  opts.push(['AIR', 'Air gap'], ['custom', 'Constant index'], ['import', 'Import a material\u2026']);
+  opts.push(['AIR', 'Air gap'], ['custom', 'Constant index'], ['search', 'Search the glass catalogues\u2026'], ['import', 'Import a material\u2026']);
   return opts;
 }
 

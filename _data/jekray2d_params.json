@@ -249,6 +249,11 @@
      "k": "cyl",
      "def": null,
      "meaning": "optional: \"plane\" for a cylindrical lens with power in the bench plane, \"out\" for power out of it."
+    },
+    {
+     "k": "design",
+     "def": null,
+     "meaning": "optional: nm, the wavelength the lens was designed for (an imported lens file’s primary wavelength); for the reader only, it changes nothing in the trace."
     }
    ]
   },

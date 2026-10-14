@@ -204,6 +204,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) i
 | gaps | `[3]` | mm: centre thicknesses between successive surfaces (one fewer than surfaces). |
 | materials | `[{"glass":"N-BK7"}]` | one material per gap, e.g. {"glass": "N-BK7"}. |
 | cyl | (none) | optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it. |
+| design | (none) | optional: nm, the wavelength the lens was designed for (an imported lens file’s primary wavelength); for the reader only, it changes nothing in the trace. |
 
 ### "screen": Screen
 
@@ -1024,7 +1025,7 @@ Optical parts have electrical ports after their fibre ports: a "detector" (free 
 
 ## Catalogues
 
-**Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-SK5, D-ZK3M, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-F2, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene. Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2) are understood.
+**Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-SK5, D-ZK3M, D-ZLAF52LAM, H-LAK54M, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-F2, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene, PMMA, Polycarbonate, Zeonex E48R, B270, and any glass of the Schott, Ohara, Hoya, CDGM and Sumita catalogues by its catalogue name (N-SF11, S-LAH64, M-TAF1, H-K9L, K-VC89). Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2, PMMA, ACRYLIC) are understood.
 
 **Crystals** ("crystal"): "calcite" (Calcite), "yvo4" (YVO₄), "abbo" (α-BBO).
 

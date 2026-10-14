@@ -1161,3 +1161,7 @@
   }
 /* a phone: the minimap would cover a third of the bench */
 @media (max-width: 640px) { .rt-minimap { display: none !important; } }
+
+/* the glass search: its list of matches stands tall */
+#glassDialog { width: min(36rem, 92vw); }
+#glassList { height: auto; min-height: 13rem; font-family: ui-monospace, monospace; font-size: 0.85rem; }

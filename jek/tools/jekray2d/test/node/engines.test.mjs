@@ -57,3 +57,49 @@ test('a project survives serialize and loadProject', () => {
   assert.deepEqual(b.elements, a.elements);
   assert.equal(b.elements.length, 6);
 });
+
+/* ---------- the makers' glass catalogues ---------- */
+const GL = await import('../../src/core/glass.js');
+const { CATALOG } = await import('../../src/core/glass-catalog.js');
+test('glass catalogues: every glass gives its stated nd and Vd by its formula', () => {
+  let n = 0;
+  for (const [k, row] of Object.entries(CATALOG)) {
+    const [, , nd, vd] = row;
+    if (!(nd > 1)) continue;
+    const m = { glass: k }, d = GL.refIndex(m, 587.5618), F = GL.refIndex(m, 486.1327), C = GL.refIndex(m, 656.2725);
+    near(d, nd, 6e-4, k + ' nd');                                   // (the database rounds a few to three places)
+    if (vd > 10) near((d - 1) / (F - C), vd, 0.7, k + ' Vd');
+    n++;
+  }
+  assert.ok(n > 1100, 'glasses checked: ' + n);
+});
+test('glass names: the makers’ spellings, the lens files’ and the aliases all resolve', () => {
+  assert.equal(GL.glassKey('N-BK7_SCHOTT'), 'N-BK7');
+  assert.equal(GL.glassKey('nbk7'), 'N-BK7');
+  assert.equal(GL.glassKey('S-LAH64'), 'S-LAH64');
+  assert.equal(GL.glassKey('SLAH64'), 'S-LAH64');
+  assert.equal(GL.glassKey('H-K9L'), 'H-K9L');                   // CDGM's own, not an alias of N-BK7 any more
+  assert.equal(GL.glassKey('M-TAF1'), 'M-TAF1');
+  assert.equal(GL.glassKey('K-VC89'), 'K-VC89');
+  assert.equal(GL.glassKey('L-BAL35'), 'L-BAL35');
+  assert.equal(GL.glassKey('H-LAK54_MOLD'), 'H-LAK54M');
+  assert.equal(GL.glassKey('ZEONEX_E48R'), 'Zeonex E48R');
+  assert.equal(GL.glassKey('ACRYLIC'), 'PMMA');
+  assert.equal(GL.glassKey('B 270'), 'B270');
+  assert.equal(GL.glassKey('XYZ-123'), null);
+  near(GL.refIndex({ glass: 'B270' }, 587.56), 1.5230, 2e-4);
+  near(GL.refIndex({ glass: 'M-TAF1' }, 587.56), 1.7725, 2e-4);     // Hoya's polynomial formula
+  near(GL.refIndex({ glass: 'PMMA' }, 587.56), 1.4906, 3e-4);      // Sultanova's fit
+  assert.ok(GL.glassSearch('LAH').length > 40 && GL.glassSearch('LAH').every(([k]) => /LAH/i.test(k)));
+});
+test('a lens file’s own catalogue: the dispersion formulas as the program numbers them', () => {
+  // Sellmeier 1 (2): N-BK7's own coefficients
+  near(GL.agfIndex(2, [1.03961212, 0.00600069867, 0.231792344, 0.0200179144, 1.01046945, 103.560653], 0.5875618), 1.5168, 1e-4);
+  // Schott (1) and Extended (10): a constant alone is sqrt
+  near(GL.agfIndex(1, [2.25, 0, 0, 0, 0, 0], 0.6), 1.5, 1e-12);
+  near(GL.agfIndex(10, [2.25, 0, 0, 0, 0, 0, 0, 0], 0.6), 1.5, 1e-12);
+  // Conrady (5): n0 + A / l + B / l^3.5
+  near(GL.agfIndex(5, [1.5, 0.01, 0.001], 1), 1.511, 1e-12);
+  // Herzberger (3): a constant alone
+  near(GL.agfIndex(3, [1.6, 0, 0, 0, 0, 0], 0.5), 1.6, 1e-12);
+});

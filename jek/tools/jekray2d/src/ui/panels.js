@@ -23,7 +23,7 @@ import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
 import { bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, vs } from './panel.js';
 import {
-  askForMaterial, axisFont, diffractionSection, drawAxes, materialOptions, pickMaterial, plotArea,
+  askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,
   updateSyncButtons, zoomControls, zoomRange
 } from './plots.js';
@@ -620,9 +620,11 @@ export function materialRows(el) {
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField('Material', materialOptions(m), () => glassKey(m.glass) || m.glass, v => {
       if (v === 'import') { askForMaterial(mm => { el.material = mm; changed(true); }); return; }
+      if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, 'material.'); el.material = pickMaterial(k, el.material); changed(true); }); return; }
       removeSweeps(el, 'material.');
       el.material = pickMaterial(v, m);
     }, { wide: m.glass !== 'custom' }));
+  const gn = glassNote(m); if (gn) rows.append(gn);
   if (m.glass === 'custom') rows.append(param('Index n', el, 'material.n'));
   if (unknownGlass(m)) rows.append(unknownGlassNote(m));
   rows.append(param('Absorption (per mm)', el, 'material.abs', { wide: true }));

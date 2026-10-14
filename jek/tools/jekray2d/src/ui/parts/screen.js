@@ -72,7 +72,7 @@ function drawScreen(el, sel) {
 }
 
 function screenPanel(el) {
-  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Mods']] : [])])) return;
+  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Modules']] : [])])) return;
   screenParams(el);
 }
 

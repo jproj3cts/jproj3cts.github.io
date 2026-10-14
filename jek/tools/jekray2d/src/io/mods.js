@@ -131,7 +131,7 @@ const MOD_POSTLUDE = `
 `;
 /* the frame, made when first wanted; resolves once it is listening */
 function modFrame() {
-  if (IN_WORKER || typeof document === 'undefined') return Promise.reject(new Error('mods run on the page only'));
+  if (IN_WORKER || typeof document === 'undefined') return Promise.reject(new Error('modules run on the page only'));
   if (MODS.frame) return MODS.frame.ready;
   const f = document.createElement('iframe');
   f.setAttribute('sandbox', 'allow-scripts');
@@ -139,7 +139,7 @@ function modFrame() {
   f.tabIndex = -1;
   f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
   const F = { el: f, ready: null };
-  F.ready = new Promise((res, rej) => { F.ok = res; F.fail = rej; setTimeout(() => rej(new Error('the mod sandbox did not start')), 10000); });
+  F.ready = new Promise((res, rej) => { F.ok = res; F.fail = rej; setTimeout(() => rej(new Error('the module sandbox did not start')), 10000); });
   MODS.frame = F;
   f.srcdoc = MOD_FRAME_SRC;
   document.body.append(f);
@@ -183,7 +183,7 @@ export function modPanel(el) {
   panel.append(h('p', { class: 'rt-hint' }, 'A part from the mod ' + (pk ? pk.name + (pk.author ? ' by ' + pk.author : '') + ', version ' + pk.packVersion : el.mod.id) + '.' + (D && D.summary ? ' ' + D.summary : '')));
   if (st) panel.append(h('p', { class: 'note warn' }, 'Not working: ' + st + '.' + (pk ? '' : ' Its parts stand in, and pass nothing, until it is installed (File › Part packs…, or open a bench that carries it).')));
   else if (MODS.waiting.size) panel.append(h('p', { class: 'note' }, 'Working it out…'));
-  if (pk && el.mod.hash && pk.hash !== el.mod.hash) panel.append(h('p', { class: 'note' }, 'Made with another version of the mod: this browser runs the one installed (' + pk.packVersion + ').'));
+  if (pk && el.mod.hash && pk.hash !== el.mod.hash) panel.append(h('p', { class: 'note' }, 'Made with another version of the module: this browser runs the one installed (' + pk.packVersion + ').'));
   const rows = h('div', { class: 'rt-rows' });
   if (el.type === 'mask' || el.type === 'waveplate') rows.append(param('Aperture (mm)', el, 'length'));
   for (const q of D ? D.params : []) {
@@ -211,7 +211,7 @@ export async function modPrepare(pack, notes) {
   pack.defs = [];
   for (const D of Array.isArray(raw) ? raw.slice(0, 64) : []) {
     const d = normModDef(D);
-    if (d) pack.defs.push(d); else notes.push('Its part ' + JSON.stringify(D && D.key) + ' is missing what a ' + (D && D.kind) + ' needs (see the mod guide): left out.');
+    if (d) pack.defs.push(d); else notes.push('Its part ' + JSON.stringify(D && D.key) + ' is missing what a ' + (D && D.kind) + ' needs (see the module guide): left out.');
   }
   if (!pack.defs.length) throw new Error('its code defines no parts JEKray2D can use');
   const parts = [], used = new Set();
@@ -240,7 +240,7 @@ export async function modPrepare(pack, notes) {
 export function modConfirmText(pack, from) {
   const kinds = { element: 'a plate', plate: 'a polarisation plate', component: 'a fibre component', block: 'an electronics block', readout: 'a readout for screens and detectors' };
   return h('div', null,
-    h('p', { class: 'note warn' }, 'This pack is a mod: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
+    h('p', { class: 'note warn' }, 'This pack is a module: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
     h('p', null, 'It defines:'),
     h('ul', null, ...pack.defs.map(D => h('li', null, h('b', null, D.name), ', ' + kinds[D.kind] + (D.summary ? ': ' + D.summary : '')))),
     h('p', { class: 'rt-hint' }, 'Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'));
@@ -259,14 +259,14 @@ export async function modsOffer() {
   for (const m of project.mods || []) m.hash = await modHash(m.code);
   const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
   if (!want.length) return;
-  if (!exp('mods')) { toast('This bench uses mods (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn mods on under Help › Experimental features to run them'); return; }
+  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on under Help › Experimental features to run them'); return; }
   for (const m of want) {
     MODS.offered.add(m.id + '|' + m.hash);
     try {
       const raw = { format: PACK_FORMAT, version: 2, id: m.id, name: m.name, author: m.author, packVersion: m.packVersion, licence: m.licence, description: m.description, code: m.code };
       const r = normPack(raw); await modPrepare(r.pack, r.notes);
       await packConfirm(r.pack, r.notes, 'this bench');
-    } catch (err) { toast('This bench’s mod ' + m.name + ' could not be used: ' + err.message, true); }
+    } catch (err) { toast('This bench’s module ' + m.name + ' could not be used: ' + err.message, true); }
   }
 }
 

@@ -65,7 +65,7 @@ export function modStatus(el) {
   if (!pk) return MODS.packs.size || !IN_WORKER ? 'its mod, ' + el.mod.id + ', is not installed here' : '';
   if (!modDefOf(el)) return 'its mod has no part called ' + el.mod.def;
   const f = MODS.failed.get(pk.hash + '|' + el.mod.def);
-  return f ? 'its mod failed: ' + f : '';
+  return f ? 'its module failed: ' + f : '';
 }
 
 // every answer checked for its shape before it is kept

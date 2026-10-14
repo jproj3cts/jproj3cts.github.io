@@ -96,4 +96,4 @@ Everything in a pack goes through the same checks as a bench opened from a file.
 
 ### Packs and code
 
-A version 1 pack is data. Nothing in it runs, and JEKray2D refuses one with a `code` or `scripts` entry. A pack that brings new kinds of part with code of their own is a version 2 pack, a [mod](/jek/docs/jekray2d/mods/), whose code runs in a sandbox apart from the page.
+A version 1 pack is data. Nothing in it runs, and JEKray2D refuses one with a `code` or `scripts` entry. A pack that brings new kinds of part with code of their own is a version 2 pack, a [module](/jek/docs/jekray2d/modules/), whose code runs in a sandbox apart from the page.

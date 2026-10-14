@@ -263,7 +263,7 @@ export const FC = {
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
   // a mod's component (see Mods): its ports, the first half down the left and the rest down the
   // right, and its matrix as the mod gives it at each wavelength
-  mod: { label: 'Mod component', tag: el => el.mod ? el.mod.tag || el.mod.name.slice(0, 8) : 'MOD', ports: [[-1, 0], [1, 0]], names: ['1', '2'], params: [],
+  mod: { label: 'Module component', tag: el => el.mod ? el.mod.tag || el.mod.name.slice(0, 8) : 'MODULE', ports: [[-1, 0], [1, 0]], names: ['1', '2'], params: [],
     portsOf: el => { const n = el.mod ? el.mod.ports.length : 2, L = n === 1 ? 1 : Math.ceil(n / 2), R = n - L;
       return [...Array.from({ length: L }, (_, i) => ({ x: -FC_W / 2, y: ((L - 1) / 2 - i) * SPLIT_P, dx: -1, dy: 0 })), ...Array.from({ length: R }, (_, j) => ({ x: FC_W / 2, y: ((R - 1) / 2 - j) * SPLIT_P, dx: 1, dy: 0 }))]; },
     namesOf: el => el.mod ? el.mod.ports : ['1', '2'],

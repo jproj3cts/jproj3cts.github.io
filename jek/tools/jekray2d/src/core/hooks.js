@@ -16,6 +16,6 @@ export const hooks = {
   // the field worker, when the page has one
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},
   // mods run in their sandbox on the page
-  modAsk: () => Promise.reject(new Error('no mods here')),
+  modAsk: () => Promise.reject(new Error('no modules here')),
 };
 export function installHooks(h) { return Object.assign(hooks, h); }

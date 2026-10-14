@@ -25,7 +25,7 @@ import { addBench, checkpoint, selectEl } from './tabs.js';
 // a mod's block: a box as tall as its ports need, its tag in it
 const modSym = K => { const hh = boxH(K) / 2 - 0.5;
   return { L: () => 4.2, R: () => 4.2, draw(c) { c.beginPath(); c.rect(-4.2, -hh, 8.4, 2 * hh); c.fillStyle = bodyFill('#2b2a22'); c.fill(); c.stroke();
-    c.save(); c.fillStyle = c.strokeStyle; c.font = '2.2px ' + getCss('--jek-mono'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(K.tag || 'MOD').slice(0, 8), 0, 0); c.restore(); } }; };
+    c.save(); c.fillStyle = c.strokeStyle; c.font = '2.2px ' + getCss('--jek-mono'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(K.tag || 'MODULE').slice(0, 8), 0, 0); c.restore(); } }; };
 /* ---------- the parts as schematic symbols ----------
    Drawn in the part's own frame, in mm, y down (u across, v down the page at angle 0).
    Each symbol says how far it reaches at a height v on its left and right, so the leads

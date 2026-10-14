@@ -36,13 +36,13 @@ export function normPack(raw, sizeHint) {
   if (raw.format !== PACK_FORMAT) throw new Error(raw.format === 'jekray' ? 'it is a bench, not a part pack: open it with Open a .jekray file' : 'it is not a part pack (its "format" is not "' + PACK_FORMAT + '")');
   if (!(num(raw.version, 0) >= 1)) throw new Error('its "version" is missing');
   if (raw.version > PACK_VERSION) throw new Error('it is for a newer JEKray2D (pack version ' + raw.version + '); reload the page to update');
-  if (raw.scripts !== undefined) throw new Error('it has "scripts" in it: a mod\u2019s code goes in "code"');
+  if (raw.scripts !== undefined) throw new Error('it has "scripts" in it: a module\u2019s code goes in "code"');
   // a mod: its code (run only in the sandbox, once installed); only a version 2 pack has any
   if (raw.code !== undefined) {
-    if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a mod is a version 2 pack');
+    if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a module is a version 2 pack');
     if (typeof raw.code !== 'string' || !raw.code.trim()) throw new Error('its "code" is not a script');
     if (raw.code.length > MOD_CODE_MAX) throw new Error('its code is larger than ' + (MOD_CODE_MAX >> 10) + ' KB');
-    if (!exp('mods')) throw new Error('it is a mod (it has code), and mods are an experimental feature: turn them on under Help \u203a Experimental features first');
+    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on under Help \u203a Experimental features first');
   }
   if ((sizeHint || JSON.stringify(raw).length) > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
   const id = packText(raw.id, 64).toLowerCase();
@@ -147,7 +147,7 @@ export function packTile(pk, i, after) {
 }
 // the Packs tab of the picker: each pack, its parts by group
 export function packsBody(after) {
-  if (!PACKS.list.length) return [h('p', { class: 'rt-pnone' }, 'No part packs installed. File › Part packs… installs one from a file or a link.')];
+  if (!PACKS.list.length) return [h('p', { class: 'rt-pnone' }, 'No part packs or modules installed. File › Part packs and modules… installs one from a file or a link.')];
   const out = [];
   for (const pk of PACKS.list) {
     if (!pk.parts.length) continue;
@@ -182,7 +182,7 @@ export function packConfirm(pack, notes, from) {
       pack.homepage ? h('p', { class: 'rt-hint' }, 'Its home page: ', h('a', { href: pack.homepage, target: '_blank', rel: 'noopener noreferrer' }, pack.homepage)) : '',
       notes.length ? h('details', null, h('summary', null, notes.length + ' thing' + (notes.length === 1 ? '' : 's') + ' left out'), h('ul', null, ...notes.slice(0, 50).map(n => h('li', null, n)))) : '',
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
-        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' mod' : ''))));
+        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' module' : ''))));
     dlg.addEventListener('cancel', e => { e.preventDefault(); done(false); });
     document.body.append(dlg); dlg.showModal();
   });
@@ -228,7 +228,7 @@ function packDialogFill() {
   if (!PACKS.list.length) { list.append(h('p', { class: 'rt-hint' }, 'None installed yet.')); return; }
   for (const pk of PACKS.list) {
     const rm = h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => { if (!confirm('Remove ' + pk.name + '? Parts already on your benches stay as they are.')) return; await packRemove(pk.id); toast('Removed ' + pk.name); } }, 'Remove');
-    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': mods are off, so its parts stand in') }, 'Mod') : null,
+    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null,
       h('div', { class: 'rt-hint' }, pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : ''))), rm));
   }
 }
@@ -288,12 +288,12 @@ export function wirePacks() {
       downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
       toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
     };
-    dlg.append(h('h2', null, 'Part packs'),
-      h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data only, never code, and are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
+    dlg.append(h('h2', null, 'Part packs and modules'),
+      h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data; a module is a pack that carries code as well (an experimental feature), run in a sandbox. Both are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
       h('div', { id: 'packList', class: 'rt-packlist' }),
       h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
-        h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install from a file…'),
-        h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install from a link…'),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install a pack/module from a file…'),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack or module (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install a pack/module from a link…'),
         h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: make }, 'Make a pack from the selection…'),
         h('a', { class: 'rt-link', href: '/jek/docs/jekray2d/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);

@@ -1203,7 +1203,7 @@
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
-            <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others: a maker's catalogue, a course's kit">Part packs…</button>
+            <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
@@ -1632,7 +1632,7 @@ const hooks = {
   // the field worker, when the page has one
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},
   // mods run in their sandbox on the page
-  modAsk: () => Promise.reject(new Error('no mods here')),
+  modAsk: () => Promise.reject(new Error('no modules here')),
 };
 function installHooks(h) { return Object.assign(hooks, h); }
 
@@ -10505,7 +10505,7 @@ const FC = {
     S: el => eomSidebands(el).flatMap(([n, c]) => [[0, 1, J2.sc(J2.I(1), c), n * el.fm * 1e6], [1, 0, J2.sc(J2.I(1), c), n * el.fm * 1e6]]) },
   // a mod's component (see Mods): its ports, the first half down the left and the rest down the
   // right, and its matrix as the mod gives it at each wavelength
-  mod: { label: 'Mod component', tag: el => el.mod ? el.mod.tag || el.mod.name.slice(0, 8) : 'MOD', ports: [[-1, 0], [1, 0]], names: ['1', '2'], params: [],
+  mod: { label: 'Module component', tag: el => el.mod ? el.mod.tag || el.mod.name.slice(0, 8) : 'MODULE', ports: [[-1, 0], [1, 0]], names: ['1', '2'], params: [],
     portsOf: el => { const n = el.mod ? el.mod.ports.length : 2, L = n === 1 ? 1 : Math.ceil(n / 2), R = n - L;
       return [...Array.from({ length: L }, (_, i) => ({ x: -FC_W / 2, y: ((L - 1) / 2 - i) * SPLIT_P, dx: -1, dy: 0 })), ...Array.from({ length: R }, (_, j) => ({ x: FC_W / 2, y: ((R - 1) / 2 - j) * SPLIT_P, dx: 1, dy: 0 }))]; },
     namesOf: el => el.mod ? el.mod.ports : ['1', '2'],
@@ -12277,7 +12277,7 @@ function modStatus(el) {
   if (!pk) return MODS.packs.size || !IN_WORKER ? 'its mod, ' + el.mod.id + ', is not installed here' : '';
   if (!modDefOf(el)) return 'its mod has no part called ' + el.mod.def;
   const f = MODS.failed.get(pk.hash + '|' + el.mod.def);
-  return f ? 'its mod failed: ' + f : '';
+  return f ? 'its module failed: ' + f : '';
 }
 
 // every answer checked for its shape before it is kept
@@ -14667,7 +14667,7 @@ function signalSection(el) {
 // a mod's block: a box as tall as its ports need, its tag in it
 const modSym = K => { const hh = boxH(K) / 2 - 0.5;
   return { L: () => 4.2, R: () => 4.2, draw(c) { c.beginPath(); c.rect(-4.2, -hh, 8.4, 2 * hh); c.fillStyle = bodyFill('#2b2a22'); c.fill(); c.stroke();
-    c.save(); c.fillStyle = c.strokeStyle; c.font = '2.2px ' + getCss('--jek-mono'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(K.tag || 'MOD').slice(0, 8), 0, 0); c.restore(); } }; };
+    c.save(); c.fillStyle = c.strokeStyle; c.font = '2.2px ' + getCss('--jek-mono'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(K.tag || 'MODULE').slice(0, 8), 0, 0); c.restore(); } }; };
 /* ---------- the parts as schematic symbols ----------
    Drawn in the part's own frame, in mm, y down (u across, v down the page at angle 0).
    Each symbol says how far it reaches at a height v on its left and right, so the leads
@@ -15622,7 +15622,7 @@ function drawScreen(el, sel) {
 }
 
 function screenPanel(el) {
-  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Mods']] : [])])) return;
+  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Modules']] : [])])) return;
   screenParams(el);
 }
 
@@ -27860,7 +27860,7 @@ async function zmxIntoMine(files, mode) {
 const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
-  { key: 'mods', name: 'Mods (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
   { key: 'rf', name: 'RF and millimetre waves', what: 'a set of parts of its own (Add part, and the rail), in yellow: feed horns set in GHz and dBm, receiving horns, RF lenses of dielectrics (HDPE, PTFE, silicon\u2026) and metal mirrors, wire grids and loads, for quasi-optics from 1 GHz to 3 THz. Beams are Gaussian beams; checked against Goldsmith\u2019s formulas for horns and their coupling.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
@@ -28361,13 +28361,13 @@ function normPack(raw, sizeHint) {
   if (raw.format !== PACK_FORMAT) throw new Error(raw.format === 'jekray' ? 'it is a bench, not a part pack: open it with Open a .jekray file' : 'it is not a part pack (its "format" is not "' + PACK_FORMAT + '")');
   if (!(num(raw.version, 0) >= 1)) throw new Error('its "version" is missing');
   if (raw.version > PACK_VERSION) throw new Error('it is for a newer JEKray2D (pack version ' + raw.version + '); reload the page to update');
-  if (raw.scripts !== undefined) throw new Error('it has "scripts" in it: a mod\u2019s code goes in "code"');
+  if (raw.scripts !== undefined) throw new Error('it has "scripts" in it: a module\u2019s code goes in "code"');
   // a mod: its code (run only in the sandbox, once installed); only a version 2 pack has any
   if (raw.code !== undefined) {
-    if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a mod is a version 2 pack');
+    if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a module is a version 2 pack');
     if (typeof raw.code !== 'string' || !raw.code.trim()) throw new Error('its "code" is not a script');
     if (raw.code.length > MOD_CODE_MAX) throw new Error('its code is larger than ' + (MOD_CODE_MAX >> 10) + ' KB');
-    if (!exp('mods')) throw new Error('it is a mod (it has code), and mods are an experimental feature: turn them on under Help \u203a Experimental features first');
+    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on under Help \u203a Experimental features first');
   }
   if ((sizeHint || JSON.stringify(raw).length) > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
   const id = packText(raw.id, 64).toLowerCase();
@@ -28472,7 +28472,7 @@ function packTile(pk, i, after) {
 }
 // the Packs tab of the picker: each pack, its parts by group
 function packsBody(after) {
-  if (!PACKS.list.length) return [h('p', { class: 'rt-pnone' }, 'No part packs installed. File › Part packs… installs one from a file or a link.')];
+  if (!PACKS.list.length) return [h('p', { class: 'rt-pnone' }, 'No part packs or modules installed. File › Part packs and modules… installs one from a file or a link.')];
   const out = [];
   for (const pk of PACKS.list) {
     if (!pk.parts.length) continue;
@@ -28507,7 +28507,7 @@ function packConfirm(pack, notes, from) {
       pack.homepage ? h('p', { class: 'rt-hint' }, 'Its home page: ', h('a', { href: pack.homepage, target: '_blank', rel: 'noopener noreferrer' }, pack.homepage)) : '',
       notes.length ? h('details', null, h('summary', null, notes.length + ' thing' + (notes.length === 1 ? '' : 's') + ' left out'), h('ul', null, ...notes.slice(0, 50).map(n => h('li', null, n)))) : '',
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
-        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' mod' : ''))));
+        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' module' : ''))));
     dlg.addEventListener('cancel', e => { e.preventDefault(); done(false); });
     document.body.append(dlg); dlg.showModal();
   });
@@ -28553,7 +28553,7 @@ function packDialogFill() {
   if (!PACKS.list.length) { list.append(h('p', { class: 'rt-hint' }, 'None installed yet.')); return; }
   for (const pk of PACKS.list) {
     const rm = h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => { if (!confirm('Remove ' + pk.name + '? Parts already on your benches stay as they are.')) return; await packRemove(pk.id); toast('Removed ' + pk.name); } }, 'Remove');
-    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': mods are off, so its parts stand in') }, 'Mod') : null,
+    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null,
       h('div', { class: 'rt-hint' }, pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : ''))), rm));
   }
 }
@@ -28613,12 +28613,12 @@ function wirePacks() {
       downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
       toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
     };
-    dlg.append(h('h2', null, 'Part packs'),
-      h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data only, never code, and are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
+    dlg.append(h('h2', null, 'Part packs and modules'),
+      h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data; a module is a pack that carries code as well (an experimental feature), run in a sandbox. Both are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
       h('div', { id: 'packList', class: 'rt-packlist' }),
       h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
-        h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install from a file…'),
-        h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install from a link…'),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install a pack/module from a file…'),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack or module (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install a pack/module from a link…'),
         h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: make }, 'Make a pack from the selection…'),
         h('a', { class: 'rt-link', href: '/jek/docs/jekray2d/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);
@@ -29670,7 +29670,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'A sweep of every example and of benches sent in, for polish and physics. <b>Light</b>: rays are as bright as the light they carry, on a log scale against the strongest ray of their own source, so a window\u2019s 4 % reflection is plainly fainter than the beam it came off, a cavity\u2019s hundreds of passes no longer paint the bench solid, a fibre tip fed through a lossy network is as bright as a laser, and a 5 % leak through a mirror still shows, in 2D and 3D; a dense fan is drawn at twice the resolution, so lines and pixels no longer beat; a laser\u2019s aperture takes in light that reaches it instead of passing it through the housing. <b>The 3D field</b>: each beam as bright as the light it carries (a 5 % leak is 5 % as bright, where every beam was drawn at its laser\u2019s power); a beam clipped by a lens\u2019s rim added to the light round the rim where each cut is taken (the old interpolation between far-apart cuts had left such beams all but dark); a laser\u2019s two polarisation halves added, where one was dropped; rays that meet nothing end a little past the parts. <b>Sweeps</b>: one rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there; a bench with a mod renders ahead and runs its field off the page, the mod\u2019s results fetched for each step. <b>The bench</b>: dragging the view with the field shown is smooth however many slices it has; fit view keeps every part clear of the rail and tabs, and the 3D fit comes in as close as the corners allow; names sit under their part whichever way it is turned, step off one another and off port names and sockets, and stay readable at any zoom; an iris shows its opening as a gap; a screen\u2019s profile is a plot with a baseline, as tall as the light is strong. <b>Physics</b>: a surface that turns the wavefront faster than the grid can follow (a high-NA objective) takes the field on a finer grid, and rows finer than the drawn field average their fringes; the field past a narrow slit is sampled across the slit, so its minima land where \u03bbL/a says; a lens narrower than the beam says so in its panel, with the share of light round its rim. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk and the minimap covering a third of the bench.',
+    'A sweep of every example and of benches sent in, for polish and physics. <b>Light</b>: rays are as bright as the light they carry, on a log scale against the strongest ray of their own source, so a window\u2019s 4 % reflection is plainly fainter than the beam it came off, a cavity\u2019s hundreds of passes no longer paint the bench solid, a fibre tip fed through a lossy network is as bright as a laser, and a 5 % leak through a mirror still shows, in 2D and 3D; a dense fan is drawn at twice the resolution, so lines and pixels no longer beat; a laser\u2019s aperture takes in light that reaches it instead of passing it through the housing. <b>The 3D field</b>: each beam as bright as the light it carries (a 5 % leak is 5 % as bright, where every beam was drawn at its laser\u2019s power); a beam clipped by a lens\u2019s rim added to the light round the rim where each cut is taken (the old interpolation between far-apart cuts had left such beams all but dark); a laser\u2019s two polarisation halves added, where one was dropped; rays that meet nothing end a little past the parts. <b>Sweeps</b>: one rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there; a bench with a module renders ahead and runs its field off the page, the module\u2019s results fetched for each step. <b>The bench</b>: dragging the view with the field shown is smooth however many slices it has; fit view keeps every part clear of the rail and tabs, and the 3D fit comes in as close as the corners allow; names sit under their part whichever way it is turned, step off one another and off port names and sockets, and stay readable at any zoom; an iris shows its opening as a gap; a screen\u2019s profile is a plot with a baseline, as tall as the light is strong. <b>Physics</b>: a surface that turns the wavefront faster than the grid can follow (a high-NA objective) takes the field on a finer grid, and rows finer than the drawn field average their fringes; the field past a narrow slit is sampled across the slit, so its minima land where \u03bbL/a says; a lens narrower than the beam says so in its panel, with the share of light round its rim. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',
@@ -29678,7 +29678,7 @@ const NEWS = [
     'Denser panels: each setting is one row, its label beside its box, X and Y (and Tip and Roll) side by side. Sweeping is the \u223f button at the end of a row; a swept number shows its sweep folded to one line with Play, and opens to edit, one at a time. Sections fold under their headings and stay as you left them, readouts gather in a Readout section, and the longer explanations sit under About this part.',
     '<b>Export a lens (.zmx)</b> (File menu): the lenses selected, as a sequential prescription that lens-design programs open, with every face\u2019s radius, conic, aspheric terms, glass and aperture, the bench\u2019s wavelengths, and the image at the paraxial focus. Lenses and windows on one axis go as one system; a mirror can go on its own.',
     'Beams are cut along the surfaces they meet, in 2D and 3D, their envelope and their diffracted field alike: at a 45\u00b0 mirror the beam in ends on the mirror and the beam out starts from it, where before each ended square across its axis, half of it past the mirror and half short of it.',
-    'Experimental: <b>Mods</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the mods it uses, and offers them when opened. An example mod and a guide to writing one are in the documentation.',
+    'Experimental: <b>Modules</b> (Help \u2192 Experimental features\u2026), part packs that carry code, written by anyone: new <b>plates</b> (any amplitude and phase across the face, as a metasurface or a measured phase map), <b>polarisation plates</b> (a Jones matrix), <b>fibre components</b> (a scattering matrix), <b>electronics blocks</b> (a response and its noise) and <b>readouts</b> for screens and detectors. Their code runs in a sandbox apart from the page, with no way to your account, your files or the internet, and is asked only for numbers, each checked before it is used. Installed after a prompt listing what a mod adds; a bench carries the code of the modules it uses, and offers them when opened. An example module and a guide to writing one are in the documentation.',
     'Experimental: <b>RF and millimetre waves</b> (Help \u2192 Experimental features\u2026), a new <b>RF</b> tab of parts for quasi-optics from 1 GHz to 3 THz. A <b>feed horn</b> (corrugated, smooth-wall, diagonal or ideal) launches the Gaussian beam that fits its aperture, set by its frequency in GHz and its power in dBm; a <b>receiving horn</b> takes in the overlap with its own mode, in dBm and as a share of what arrives. <b>RF lenses</b>, white, of the RF dielectrics (HDPE, PTFE, Rexolite, TPX, silicon, quartz, alumina, nylon), absorb by their loss tangent, and metal mirrors, wire grids, film beam splitters and absorber loads complete the bench. A new example, <b>Millimetre-wave link, 150 GHz</b>, and a page in the documentation. Optical sources now stop at 1 mm (and start at 100 nm): longer waves are the RF tab\u2019s.',
     '<b>Fly</b> is part of the tool, no longer experimental: the bird on the 3D view\u2019s bar flies you through the bench, full screen (W A S D to move, the mouse to look, Q and E to roll, Space and Ctrl up and down, Esc to land).',
     'In the 3D view, beams of one laser running together now add as <b>fields</b>: an interferometer\u2019s dark port is dark there, as on its screen. The 3D field is worked out on several of the computer\u2019s cores at once. A screen with light from several lasers weighs each by its power.',
@@ -29686,7 +29686,7 @@ const NEWS = [
     'A screen\u2019s Diffraction tab has <b>Phase</b> (the field\u2019s phase as hue, its amplitude as brightness: tilt fringes, curvature rings, a vortex\u2019s winding) and <b>Polarisation</b> (how circular the light is, point by point, with an ellipse drawing the field\u2019s path every few pixels), each with its key.',
     '<b>The diffracted field in 3D</b>: with <b>Show the diffracted field</b> ticked, the 3D view shows each beam as a glowing volume coloured by its irradiance, a focus pinching and an aperture\u2019s rings spreading as the field has them, with a key in W/cm\u00b2. Point at the light to read the irradiance there. <b>Field intensity</b> can now be logarithmic over 60 dB, to see a focus and the beam that makes it together.',
     '<b>Experimental features</b> (Help \u2192 Experimental features\u2026) each have a tick of their own: the switch at the top turns on the ticked ones, so you can try Fly without photonic circuits, or the other way round.',
-    '<b>Part packs</b> (File \u2192 Part packs\u2026): sets of parts and glasses made by others, a maker\u2019s catalogue or a course\u2019s kit, installed from a file or a link once you have seen what is in them. Their parts are under + Add part \u2192 Packs and their glasses in each lens\u2019s material menu; a part placed from one carries its glass with it, so the bench opens anywhere. Packs hold data only, never code. <b>Make a pack from the selection</b> turns your own parts into one to share.',
+    '<b>Part packs</b> (File \u2192 Part packs and modules\u2026): sets of parts and glasses made by others, a maker\u2019s catalogue or a course\u2019s kit, installed from a file or a link once you have seen what is in them. Their parts are under + Add part \u2192 Packs and their glasses in each lens\u2019s material menu; a part placed from one carries its glass with it, so the bench opens anywhere. Packs hold data only, never code. <b>Make a pack from the selection</b> turns your own parts into one to share.',
     'Experimental: <b>Try me</b>, a white box in the bottom right corner while flying through the bench, with a QR code that opens a copy of it on a phone, \u201cTry me!\u201d above it.',
     '<b>Sweeps, faster</b>: a sweep that renders the field renders on several of the computer\u2019s cores at once, coarse to fine, and starts playing within a moment of pressing Play, filling in as it goes; and a ray sweep keeps each step it has traced, so from its second cycle it only draws.',
     'Less waiting on the page while the field is worked out: a photodiode that samples the field reads it from the background worker; a photodiode behind a cavity opens four times as fast (its beat notes pair each sideband\u2019s light as one beam, not every round trip with every other, and its figure while the cavity\u2019s field is on its way is worked out more coarsely).',
@@ -29822,8 +29822,8 @@ const EXAMPLES = [
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'Spectral broadening from the Kerr effect in fibre.']]],
   ['Electronics', false, [
     ['lockin-absorption', 'Lock-in absorption measurement', 'A sample’s transmission from two lock-ins, the light square-wave modulated at 1 kHz.']]],
-  ['Mods', false, [
-    ['mod-vortex', 'A mod: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a mod.', 'mods']]],
+  ['Modules', false, [
+    ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
     ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf']]],
   ['Photonic circuits', false, [
@@ -30662,7 +30662,7 @@ const MOD_POSTLUDE = `
 `;
 /* the frame, made when first wanted; resolves once it is listening */
 function modFrame() {
-  if (IN_WORKER || typeof document === 'undefined') return Promise.reject(new Error('mods run on the page only'));
+  if (IN_WORKER || typeof document === 'undefined') return Promise.reject(new Error('modules run on the page only'));
   if (MODS.frame) return MODS.frame.ready;
   const f = document.createElement('iframe');
   f.setAttribute('sandbox', 'allow-scripts');
@@ -30670,7 +30670,7 @@ function modFrame() {
   f.tabIndex = -1;
   f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
   const F = { el: f, ready: null };
-  F.ready = new Promise((res, rej) => { F.ok = res; F.fail = rej; setTimeout(() => rej(new Error('the mod sandbox did not start')), 10000); });
+  F.ready = new Promise((res, rej) => { F.ok = res; F.fail = rej; setTimeout(() => rej(new Error('the module sandbox did not start')), 10000); });
   MODS.frame = F;
   f.srcdoc = MOD_FRAME_SRC;
   document.body.append(f);
@@ -30714,7 +30714,7 @@ function modPanel(el) {
   panel.append(h('p', { class: 'rt-hint' }, 'A part from the mod ' + (pk ? pk.name + (pk.author ? ' by ' + pk.author : '') + ', version ' + pk.packVersion : el.mod.id) + '.' + (D && D.summary ? ' ' + D.summary : '')));
   if (st) panel.append(h('p', { class: 'note warn' }, 'Not working: ' + st + '.' + (pk ? '' : ' Its parts stand in, and pass nothing, until it is installed (File › Part packs…, or open a bench that carries it).')));
   else if (MODS.waiting.size) panel.append(h('p', { class: 'note' }, 'Working it out…'));
-  if (pk && el.mod.hash && pk.hash !== el.mod.hash) panel.append(h('p', { class: 'note' }, 'Made with another version of the mod: this browser runs the one installed (' + pk.packVersion + ').'));
+  if (pk && el.mod.hash && pk.hash !== el.mod.hash) panel.append(h('p', { class: 'note' }, 'Made with another version of the module: this browser runs the one installed (' + pk.packVersion + ').'));
   const rows = h('div', { class: 'rt-rows' });
   if (el.type === 'mask' || el.type === 'waveplate') rows.append(param('Aperture (mm)', el, 'length'));
   for (const q of D ? D.params : []) {
@@ -30742,7 +30742,7 @@ async function modPrepare(pack, notes) {
   pack.defs = [];
   for (const D of Array.isArray(raw) ? raw.slice(0, 64) : []) {
     const d = normModDef(D);
-    if (d) pack.defs.push(d); else notes.push('Its part ' + JSON.stringify(D && D.key) + ' is missing what a ' + (D && D.kind) + ' needs (see the mod guide): left out.');
+    if (d) pack.defs.push(d); else notes.push('Its part ' + JSON.stringify(D && D.key) + ' is missing what a ' + (D && D.kind) + ' needs (see the module guide): left out.');
   }
   if (!pack.defs.length) throw new Error('its code defines no parts JEKray2D can use');
   const parts = [], used = new Set();
@@ -30771,7 +30771,7 @@ async function modPrepare(pack, notes) {
 function modConfirmText(pack, from) {
   const kinds = { element: 'a plate', plate: 'a polarisation plate', component: 'a fibre component', block: 'an electronics block', readout: 'a readout for screens and detectors' };
   return h('div', null,
-    h('p', { class: 'note warn' }, 'This pack is a mod: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
+    h('p', { class: 'note warn' }, 'This pack is a module: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
     h('p', null, 'It defines:'),
     h('ul', null, ...pack.defs.map(D => h('li', null, h('b', null, D.name), ', ' + kinds[D.kind] + (D.summary ? ': ' + D.summary : '')))),
     h('p', { class: 'rt-hint' }, 'Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'));
@@ -30790,14 +30790,14 @@ async function modsOffer() {
   for (const m of project.mods || []) m.hash = await modHash(m.code);
   const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
   if (!want.length) return;
-  if (!exp('mods')) { toast('This bench uses mods (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn mods on under Help › Experimental features to run them'); return; }
+  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on under Help › Experimental features to run them'); return; }
   for (const m of want) {
     MODS.offered.add(m.id + '|' + m.hash);
     try {
       const raw = { format: PACK_FORMAT, version: 2, id: m.id, name: m.name, author: m.author, packVersion: m.packVersion, licence: m.licence, description: m.description, code: m.code };
       const r = normPack(raw); await modPrepare(r.pack, r.notes);
       await packConfirm(r.pack, r.notes, 'this bench');
-    } catch (err) { toast('This bench’s mod ' + m.name + ' could not be used: ' + err.message, true); }
+    } catch (err) { toast('This bench’s module ' + m.name + ' could not be used: ' + err.message, true); }
   }
 }
 

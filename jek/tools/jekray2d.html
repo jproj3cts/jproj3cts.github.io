@@ -31012,7 +31012,7 @@ async function showTeam(id) {
     } }, 'Leave the team'));
   }
   // the activity record
-  const log = manages && t.activity ? [h('h3', null, 'Activity'), t.activity.length ? h('div', { class: 'team-log' }, h('table', null, h('tbody', null, ...t.activity.map(a => h('tr', null, h('td', { class: 'team-muted' }, when(a.at)), h('td', null, a.who || 'Someone'), h('td', null, a.action.replace('.', ': ').replace(/_/g, ' ') + (a.target ? ' — ' + a.target : ''))))))) : h('p', null, 'Nothing yet.')] : [];
+  const log = manages && t.activity ? [h('h3', null, 'Activity'), t.activity.length ? h('div', { class: 'team-log' }, h('table', null, h('tbody', null, ...t.activity.map(a => h('tr', null, h('td', { class: 'team-muted' }, when(a.at)), h('td', null, a.who || 'Someone'), h('td', null, a.action.replace('.', ' ').replace(/_/g, ' ') + (a.target ? ': ' + a.target : ''))))))) : h('p', null, 'Nothing yet.')] : [];
   body.replaceChildren(...[
     h('p', null, 'You are ' + (t.role === 'owner' ? 'the owner' : 'an ' + ROLE_NAMES[t.role].toLowerCase()) + ' of this team. ', rename),
     h('h3', null, 'Plan'), ...plan,

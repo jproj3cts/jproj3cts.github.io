@@ -140,6 +140,12 @@
 
     <div class="rt-grid">
       <div class="rt-stage" id="stage">
+        <div class="rt-lock" id="cloudLock" hidden role="status">
+          <span class="rt-lockwho" id="cloudLockWho"></span>
+          <span id="cloudLockText"></span>
+          <button type="button" class="rt-btn" id="cloudLockTake">Take over</button>
+          <button type="button" class="rt-btn" id="cloudLockCopy">Work on a copy</button>
+        </div>
         <canvas id="bench" tabindex="0" aria-label="Optical bench. Click an element to select it."></canvas>
         <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
         <canvas class="rt-minimap" id="minimap" hidden aria-label="Minimap: click or drag to move the view"></canvas>
@@ -349,6 +355,12 @@
     <h2 id="uniTitle">University licence</h2>
     <div id="uniBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">

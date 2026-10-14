@@ -12,7 +12,7 @@ import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
 import {
-  API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, awaitPlan, fillAccount, setAccount,
+  API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, avatarNode, awaitPlan, fillAccount, setAccount,
   showSubscribe
 } from './account.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
@@ -33,10 +33,68 @@ function cloudKeep() {
   try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* not kept: fine */ }
 }
 export function cloudLink(link) {
+  if (cloud && (!link || link.id !== cloud.id)) leaseStop(cloud);
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
   document.getElementById('btnCloudCopy').hidden = !cloud || !cloudOn() || !copyPlaces(cloud.ws).length;
+  leaseStart();
+}
+/* ---------- the editing lease ----------
+   Whoever has a cloud bench open to edit holds its lease, renewed every minute while this page
+   has it; a save against someone else's lease is refused by the API. Opening a bench someone
+   else is editing shows who, and the bench here is theirs to look at: edits stay in this
+   browser until they are done (the bench follows their saves), or you take over, or you work
+   on a copy. A renewal also brings back the cloud's version, so a bench that moved on without
+   this page is noticed within the minute. */
+const LEASE_EVERY = 60000;
+export const lease = { held: false, editing: null, timer: null };
+async function leaseStart() {
+  clearTimeout(lease.timer); lease.timer = null;
+  Object.assign(lease, { held: false, editing: null });
+  lockShow();
+  if (!cloud || !cloudOn() || TEST_MODE) return;
+  await leaseRenew();
+}
+async function leaseRenew(take) {
+  const link = cloud;
+  if (!link || !cloudOn()) return;
+  let r;
+  try { r = await api('/v1/benches/' + link.id + '/lease', Object.assign({ method: 'POST' }, jsonBody(take ? { take: true } : {}))); }
+  catch (err) {
+    if (cloud !== link) return;
+    if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); return; }
+    if (err.status === 401) { setAccount(null); fillAccount(); return; }
+  } finally {
+    if (cloud === link) { clearTimeout(lease.timer); lease.timer = setTimeout(() => leaseRenew(), LEASE_EVERY); }
+  }
+  if (!r || cloud !== link) return;
+  const was = lease.held;
+  lease.held = r.held; lease.editing = r.editing && r.editing.id !== (account && account.user.id) ? r.editing : null;
+  lockShow();
+  // the cloud moved on (someone took over and saved, or another tab did): follow it when
+  // nothing here would be lost, else say so and let the next save ask
+  if (r.version > link.version) {
+    if (!link.dirty) { try { keepSnapshot('Before following the cloud\u2019s newer version', true); await cloudOpen(link.id); toast((r.updated_by ? r.updated_by.name : 'Someone') + ' saved a newer version of this bench: it is shown now.'); } catch (err) { /* the next renewal tries again */ } }
+    else if (was && !r.held) toast((r.updated_by ? r.updated_by.name : 'Someone') + ' took over this bench and saved it. Your changes here are not in the cloud: take it back, or work on a copy.', true);
+  }
+  if (!r.held && lease.editing) cloudSay('Not saved: ' + lease.editing.name + ' is editing');
+  else if (was !== r.held && r.held) cloudSay(link.dirty ? 'Saving to the cloud…' : 'Saved to the cloud');
+}
+function leaseStop(link) {
+  clearTimeout(lease.timer); lease.timer = null;
+  if (!link || !cloudOn() || TEST_MODE || !lease.held) return;
+  lease.held = false;
+  fetch(API_BASE + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+}
+function lockShow() {
+  const bar = document.getElementById('cloudLock');
+  const on = !!(cloud && lease.editing && !lease.held);
+  bar.hidden = !on;
+  if (!on) return;
+  const e = lease.editing;
+  document.getElementById('cloudLockWho').replaceChildren(avatarNode(e));
+  document.getElementById('cloudLockText').textContent = e.name + ' is editing this bench. You are looking at it: changes you make here stay in this browser.';
 }
 function cloudSay(text) {
   cloudNote = text;
@@ -53,6 +111,7 @@ export function cloudChanged() {
 const cloudContent = () => JSON.stringify(serialize());
 export async function cloudPush(opts = {}) {
   if (!cloud || !cloudOn()) return false;
+  if (lease.editing && !lease.held && !opts.over) { cloudSay('Not saved: ' + lease.editing.name + ' is editing'); return false; }
   if (cloudBusy) { cloudAgain = true; return false; }
   clearTimeout(cloudTimer);
   cloudBusy = true; cloudAgain = false;
@@ -80,7 +139,13 @@ export async function cloudPush(opts = {}) {
         if (cloud === link && same(head.content, cloudContent())) { link.version = head.version; link.dirty = false; cloudKeep(); cloudSay('Saved to the cloud'); return true; }
       } catch (e2) { /* fall through to asking */ }
       if (cloud !== link) return false;
-      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
+      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version, err.updated_by, err.updated_at);
+    }
+    else if (err.status === 423) {
+      // someone else holds its lease now
+      lease.held = false; lease.editing = err.editing || lease.editing; lockShow();
+      cloudSay('Not saved: ' + (lease.editing ? lease.editing.name : 'someone') + ' is editing');
+      if (!opts.quiet && !opts.keepalive) toast((lease.editing ? lease.editing.name : 'Someone') + ' is editing this bench: your changes stay in this browser. Take over, or work on a copy.', true);
     }
     else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) toast('Saving to the cloud needs JEKrayPro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
     else if (err.status === 401) { cloudSay('Not saved: signed out'); setAccount(null); fillAccount(); }
@@ -164,9 +229,10 @@ async function cloudOpen(id, version) {
   else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
 }
 /* the conflict: someone saved this bench elsewhere since this copy was opened */
-function cloudConflict(theirs) {
+function cloudConflict(theirs, by, at) {
   const dlg = document.getElementById('cloudConflict'), link = cloud;
-  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved from another tab or device (version ' + theirs + ') after you opened it here. Which do you want to keep?';
+  const who = by && account && by.id !== account.user.id ? 'by ' + by.name : 'from another tab or device';
+  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved ' + who + (at ? ' ' + whenAgo(at) : '') + ' (version ' + theirs + ') after you opened it here. Which do you want to keep?';
   const done = () => dlg.close();
   document.getElementById('ccTheirs').onclick = async () => { done(); try { keepSnapshot('Before opening the cloud’s newer version', true); await cloudOpen(link.id); } catch (err) { toast(err.message, true); } };
   document.getElementById('ccCopy').onclick = async () => {
@@ -534,7 +600,8 @@ export async function fillHome() {
       h('div', { class: 'rt-hinfo' },
         h('b', { title: b.name }, b.name),
         h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
-        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null),
+        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
+        b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
       more);
   });
   P.flash = null;
@@ -642,6 +709,15 @@ export function wireCloud() {
         toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
       } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
+    document.getElementById('cloudLockTake').addEventListener('click', async () => {
+      if (!cloud) return;
+      const name = lease.editing ? lease.editing.name : 'them';
+      if (!confirm('Take over this bench from ' + name + '? They can no longer save it, and what you have here is saved over the cloud\u2019s copy (their last save stays in its history).')) return;
+      await leaseRenew(true);
+      if (lease.held) { toast('You are editing this bench now'); if (cloud.dirty) cloudPush({ checkpoint: true }); }
+    });
+    document.getElementById('cloudLockCopy').addEventListener('click', () => document.getElementById('btnCloudFork').click());
+    window.addEventListener('pagehide', () => { if (cloud) leaseStop(cloud); });
     document.getElementById('homeBack').addEventListener('click', closeHome);
     document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
     const search = document.getElementById('homeSearch');

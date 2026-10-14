@@ -977,6 +977,25 @@
   .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
     font: 700 0.72rem/1 var(--jek-sans); letter-spacing: 0.02em; color: #fff; background: #111; border-color: #111; }
   .rt-btn.rt-acct.in:hover { background: #333; border-color: #333; }
+  .rt-btn.rt-acct.in img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+  /* a person's picture, or their initials */
+  .rt-avatar { flex: none; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #111; color: #fff; font: 700 0.55rem/1 var(--jek-sans); letter-spacing: 0.02em; overflow: hidden; vertical-align: middle; }
+  .rt-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rt-avatar.big { width: 5rem; height: 5rem; font-size: 1.6rem; }
+  .rt-avatar.small { width: 1.1rem; height: 1.1rem; font-size: 0.42rem; }
+  .rt-acctmenu .rt-accthead { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; align-items: center; }
+  .rt-acctmenu .rt-accthead .rt-avatar { grid-row: span 3; width: 2.2rem; height: 2.2rem; font-size: 0.75rem; }
+  #acctBody .rt-acctpic { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
+  #acctBody .rt-acctpic .rt-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  #acctBody label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.2rem; }
+  #acctBody input[type="text"] { width: min(20rem, 100%); box-sizing: border-box; font: inherit; padding: 0.35rem 0.5rem; }
+  #acctBody .rt-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  /* someone else is editing the cloud bench open here */
+  .rt-lock { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem); padding: 0.45rem 0.7rem; background: #fff8e6; border: 1px solid #e3c36f; border-radius: 3px; box-shadow: var(--jek-shadow); font-size: 0.85rem; color: var(--jek-ink); }
+  .rt-lock .rt-lockwho { display: inline-flex; }
+  .rt-lock .rt-btn { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+  .rt-hcard .rt-hinfo small.rt-hwho { display: flex; align-items: center; gap: 0.3rem; color: var(--jek-orange); font-weight: 600; }
+  #teamBody td .rt-name { display: inline-flex; align-items: center; gap: 0.45rem; }
   .rt-acctmenu { min-width: 17rem; }
   .rt-acctmenu .rt-accthead { padding: 0.4rem 0.9rem 0.45rem 2.35rem; font-size: 0.8125rem; line-height: 1.35; }
   .rt-acctmenu .rt-accthead b { display: block; }
@@ -1315,6 +1334,12 @@
 
     <div class="rt-grid">
       <div class="rt-stage" id="stage">
+        <div class="rt-lock" id="cloudLock" hidden role="status">
+          <span class="rt-lockwho" id="cloudLockWho"></span>
+          <span id="cloudLockText"></span>
+          <button type="button" class="rt-btn" id="cloudLockTake">Take over</button>
+          <button type="button" class="rt-btn" id="cloudLockCopy">Work on a copy</button>
+        </div>
         <canvas id="bench" tabindex="0" aria-label="Optical bench. Click an element to select it."></canvas>
         <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
         <canvas class="rt-minimap" id="minimap" hidden aria-label="Minimap: click or drag to move the view"></canvas>
@@ -1524,6 +1549,12 @@
     <h2 id="uniTitle">University licence</h2>
     <div id="uniBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
@@ -30681,7 +30712,11 @@ function setAccount(v) { return (account = v); }
 async function api(path, opts = {}) {
   const res = await fetch(API_BASE + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; e.version = body && body.error && body.error.version; throw e; }
+  if (!res.ok) {
+    const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status;
+    for (const k of ['code', 'version', 'editing', 'updated_by', 'updated_at']) e[k] = body && body.error ? body.error[k] : undefined;
+    throw e;
+  }
   return body;
 }
 const PROVIDER_NAMES = { google: 'Google', microsoft: 'Microsoft', orcid: 'ORCID' };
@@ -30701,6 +30736,12 @@ function signIn(provider, link) {
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
 }
 const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
+/* a person as a round picture, or their initials when they have none: {name, avatar} */
+function avatarNode(p, size) {
+  const n = h('span', { class: 'rt-avatar' + (size ? ' ' + size : ''), title: p && p.name || '' , 'aria-hidden': 'true' });
+  if (p && p.avatar) n.append(h('img', { src: API_BASE + p.avatar, alt: '', decoding: 'async' })); else n.textContent = initials(p && p.name);
+  return n;
+}
 /* ---------- JEKrayPro subscription ----------
    Stripe Checkout takes the payment and Stripe's portal manages it; the plan itself only ever
    changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
@@ -30858,15 +30899,17 @@ function fillAccount() {
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray2D (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
-    btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+    btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+    if (u.avatar) btn.replaceChildren(h('img', { src: API_BASE + u.avatar, alt: '' })); else btn.textContent = initials(u.name);
     const orcid = ids.find(i => i.provider === 'orcid');
-    const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
+    const rows = [h('div', { class: 'rt-accthead' }, avatarNode(u), h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
       ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))),
       // ORCID sign-in is ending: someone with no other way in is asked to link one
       account.orcid_ends && !ids.some(i => i.provider !== 'orcid') ? h('span', { class: 'rt-menunote rt-warn' }, 'Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + '. Link Google or Microsoft below to keep your account.') : null,
       h('div', { class: 'sep' })].filter(Boolean);
     // a university's licence, for those who look after it there
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
+    rows.push(item('user', 'Your account\u2026', showAccount));
     // their teams, and a new one
     for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
     rows.push(item('users', 'Create a team…', createTeam));
@@ -30890,6 +30933,56 @@ function fillAccount() {
   }
   menuIcons(menu);
   cloudMenuShown();
+}
+/* ---------- The account page ----------
+   The picture others see beside the name (resized here to 128 px and sent as WebP, so a photo of
+   any size will do), the name itself, the email the sign-in gave, and the sign-ins. */
+const AVATAR_PX = 128;
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file);
+  const side = Math.min(bmp.width, bmp.height), c = document.createElement('canvas');
+  c.width = c.height = AVATAR_PX;
+  c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, AVATAR_PX, AVATAR_PX);
+  bmp.close();
+  for (const [type, q] of [['image/webp', 0.85], ['image/webp', 0.6], ['image/jpeg', 0.7]]) {
+    const blob = await new Promise(r => c.toBlob(r, type, q));
+    if (blob && blob.size <= 60 * 1024) return blob;
+  }
+  throw new Error('That picture could not be made small enough.');
+}
+function showAccount() {
+  if (!account) return;
+  const dlg = document.getElementById('acctDialog'), body = document.getElementById('acctBody'), u = account.user;
+  const pic = avatarNode(u, 'big');
+  const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
+  const choose = h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, u.avatar ? 'Change picture\u2026' : 'Add a picture\u2026');
+  const remove = u.avatar ? h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    try { await api('/v1/me/avatar', { method: 'DELETE' }); account.user.avatar = null; fillAccount(); showAccount(); toast('Picture removed'); } catch (err) { toast(err.message, true); }
+  } }, 'Remove') : null;
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    choose.disabled = true; choose.textContent = 'Sending\u2026';
+    try {
+      const blob = await shrinkImage(f);
+      const r = await api('/v1/me/avatar', { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob });
+      account.user.avatar = r.avatar; fillAccount(); showAccount(); toast('Picture saved');
+    } catch (err) { toast(err.message, true); choose.disabled = false; choose.textContent = 'Add a picture\u2026'; }
+  });
+  const name = h('input', { type: 'text', id: 'acctName', value: u.name, maxlength: '80', autocomplete: 'name' });
+  const save = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    const v = name.value.trim();
+    if (!v || v === u.name) return;
+    try { account = await api('/v1/me', jsonReq('PATCH', { name: v })); fillAccount(); showAccount(); toast('Name changed'); } catch (err) { toast(err.message, true); }
+  } }, 'Save');
+  name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
+  const ids = (account.identities || []).map(i => PROVIDER_NAMES[i.provider] + (i.provider === 'orcid' ? ' ' + i.subject : ''));
+  body.replaceChildren(
+    h('div', { class: 'rt-acctpic' }, pic, h('div', null, h('p', null, 'Your picture is shown beside your name to the people you share a team with: on their benches, and while you are editing one.'), h('div', { class: 'rt-row' }, choose, remove, file))),
+    h('label', { for: 'acctName' }, 'Your name, as others see it'), h('div', { class: 'rt-row' }, name, save),
+    h('p', null, u.email ? 'Email: ' + u.email + ' (from your sign-in; it is where invitations and receipts go).' : 'Your sign-in gave no email address.'),
+    h('p', null, 'Signed in with ' + (ids.join(' and ') || 'nothing yet') + '. Link another, or delete the account, from the account menu.'));
+  if (!dlg.open) dlg.showModal();
 }
 /* ---------- Teams ----------
    A team is a workspace several people share, paid for by its owner with a seat for each
@@ -30960,7 +31053,7 @@ async function showTeam(id) {
     return h('td', null, sel);
   };
   const members = h('table', null, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Name'), manages ? h('th', { scope: 'col' }, 'Email') : null, h('th', { scope: 'col' }, 'Role'), h('th', { scope: 'col' }, 'Since'), h('th', { scope: 'col' }))),
-    h('tbody', null, ...t.members.map(m => h('tr', null, h('td', null, m.name + (me && m.user_id === me.id ? ' (you)' : '')), manages ? h('td', { class: 'team-muted' }, m.email || '') : null, roleCell(m), h('td', { class: 'team-muted' }, shortDate(m.joined_at)),
+    h('tbody', null, ...t.members.map(m => h('tr', null, h('td', null, h('span', { class: 'rt-name' }, avatarNode({ name: m.name, avatar: m.avatar }), m.name + (me && m.user_id === me.id ? ' (you)' : ''))), manages ? h('td', { class: 'team-muted' }, m.email || '') : null, roleCell(m), h('td', { class: 'team-muted' }, shortDate(m.joined_at)),
       h('td', { class: 'team-act' }, manages && canSet(m) && !(me && m.user_id === me.id) ? h('button', { type: 'button', class: 'rt-link', onclick: act(async () => { if (!confirm('Remove ' + m.name + ' from the team? Their benches here stay with the team.')) throw Object.assign(new Error(''), { quiet: true }); await api('/v1/teams/' + id + '/members/' + m.user_id, { method: 'DELETE' }); }, 'Removed') }, 'Remove') : null)))));
   // invitations
   const invites = [];
@@ -31172,6 +31265,7 @@ function accountShown() {
 function wireAccount() {
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
+  document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());
   takeInvite();
 
   {
@@ -31207,10 +31301,68 @@ function cloudKeep() {
   try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* not kept: fine */ }
 }
 function cloudLink(link) {
+  if (cloud && (!link || link.id !== cloud.id)) leaseStop(cloud);
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
   document.getElementById('btnCloudCopy').hidden = !cloud || !cloudOn() || !copyPlaces(cloud.ws).length;
+  leaseStart();
+}
+/* ---------- the editing lease ----------
+   Whoever has a cloud bench open to edit holds its lease, renewed every minute while this page
+   has it; a save against someone else's lease is refused by the API. Opening a bench someone
+   else is editing shows who, and the bench here is theirs to look at: edits stay in this
+   browser until they are done (the bench follows their saves), or you take over, or you work
+   on a copy. A renewal also brings back the cloud's version, so a bench that moved on without
+   this page is noticed within the minute. */
+const LEASE_EVERY = 60000;
+const lease = { held: false, editing: null, timer: null };
+async function leaseStart() {
+  clearTimeout(lease.timer); lease.timer = null;
+  Object.assign(lease, { held: false, editing: null });
+  lockShow();
+  if (!cloud || !cloudOn() || TEST_MODE) return;
+  await leaseRenew();
+}
+async function leaseRenew(take) {
+  const link = cloud;
+  if (!link || !cloudOn()) return;
+  let r;
+  try { r = await api('/v1/benches/' + link.id + '/lease', Object.assign({ method: 'POST' }, jsonBody(take ? { take: true } : {}))); }
+  catch (err) {
+    if (cloud !== link) return;
+    if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); return; }
+    if (err.status === 401) { setAccount(null); fillAccount(); return; }
+  } finally {
+    if (cloud === link) { clearTimeout(lease.timer); lease.timer = setTimeout(() => leaseRenew(), LEASE_EVERY); }
+  }
+  if (!r || cloud !== link) return;
+  const was = lease.held;
+  lease.held = r.held; lease.editing = r.editing && r.editing.id !== (account && account.user.id) ? r.editing : null;
+  lockShow();
+  // the cloud moved on (someone took over and saved, or another tab did): follow it when
+  // nothing here would be lost, else say so and let the next save ask
+  if (r.version > link.version) {
+    if (!link.dirty) { try { keepSnapshot('Before following the cloud\u2019s newer version', true); await cloudOpen(link.id); toast((r.updated_by ? r.updated_by.name : 'Someone') + ' saved a newer version of this bench: it is shown now.'); } catch (err) { /* the next renewal tries again */ } }
+    else if (was && !r.held) toast((r.updated_by ? r.updated_by.name : 'Someone') + ' took over this bench and saved it. Your changes here are not in the cloud: take it back, or work on a copy.', true);
+  }
+  if (!r.held && lease.editing) cloudSay('Not saved: ' + lease.editing.name + ' is editing');
+  else if (was !== r.held && r.held) cloudSay(link.dirty ? 'Saving to the cloud…' : 'Saved to the cloud');
+}
+function leaseStop(link) {
+  clearTimeout(lease.timer); lease.timer = null;
+  if (!link || !cloudOn() || TEST_MODE || !lease.held) return;
+  lease.held = false;
+  fetch(API_BASE + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+}
+function lockShow() {
+  const bar = document.getElementById('cloudLock');
+  const on = !!(cloud && lease.editing && !lease.held);
+  bar.hidden = !on;
+  if (!on) return;
+  const e = lease.editing;
+  document.getElementById('cloudLockWho').replaceChildren(avatarNode(e));
+  document.getElementById('cloudLockText').textContent = e.name + ' is editing this bench. You are looking at it: changes you make here stay in this browser.';
 }
 function cloudSay(text) {
   cloudNote = text;
@@ -31227,6 +31379,7 @@ function cloudChanged() {
 const cloudContent = () => JSON.stringify(serialize());
 async function cloudPush(opts = {}) {
   if (!cloud || !cloudOn()) return false;
+  if (lease.editing && !lease.held && !opts.over) { cloudSay('Not saved: ' + lease.editing.name + ' is editing'); return false; }
   if (cloudBusy) { cloudAgain = true; return false; }
   clearTimeout(cloudTimer);
   cloudBusy = true; cloudAgain = false;
@@ -31254,7 +31407,13 @@ async function cloudPush(opts = {}) {
         if (cloud === link && same(head.content, cloudContent())) { link.version = head.version; link.dirty = false; cloudKeep(); cloudSay('Saved to the cloud'); return true; }
       } catch (e2) { /* fall through to asking */ }
       if (cloud !== link) return false;
-      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version);
+      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version, err.updated_by, err.updated_at);
+    }
+    else if (err.status === 423) {
+      // someone else holds its lease now
+      lease.held = false; lease.editing = err.editing || lease.editing; lockShow();
+      cloudSay('Not saved: ' + (lease.editing ? lease.editing.name : 'someone') + ' is editing');
+      if (!opts.quiet && !opts.keepalive) toast((lease.editing ? lease.editing.name : 'Someone') + ' is editing this bench: your changes stay in this browser. Take over, or work on a copy.', true);
     }
     else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) toast('Saving to the cloud needs JEKrayPro: Subscribe from the account menu, top right. This bench is still kept in this browser.', true); }
     else if (err.status === 401) { cloudSay('Not saved: signed out'); setAccount(null); fillAccount(); }
@@ -31338,9 +31497,10 @@ async function cloudOpen(id, version) {
   else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
 }
 /* the conflict: someone saved this bench elsewhere since this copy was opened */
-function cloudConflict(theirs) {
+function cloudConflict(theirs, by, at) {
   const dlg = document.getElementById('cloudConflict'), link = cloud;
-  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved from another tab or device (version ' + theirs + ') after you opened it here. Which do you want to keep?';
+  const who = by && account && by.id !== account.user.id ? 'by ' + by.name : 'from another tab or device';
+  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved ' + who + (at ? ' ' + whenAgo(at) : '') + ' (version ' + theirs + ') after you opened it here. Which do you want to keep?';
   const done = () => dlg.close();
   document.getElementById('ccTheirs').onclick = async () => { done(); try { keepSnapshot('Before opening the cloud’s newer version', true); await cloudOpen(link.id); } catch (err) { toast(err.message, true); } };
   document.getElementById('ccCopy').onclick = async () => {
@@ -31708,7 +31868,8 @@ async function fillHome() {
       h('div', { class: 'rt-hinfo' },
         h('b', { title: b.name }, b.name),
         h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
-        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null),
+        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
+        b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
       more);
   });
   P.flash = null;
@@ -31816,6 +31977,15 @@ function wireCloud() {
         toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
       } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
+    document.getElementById('cloudLockTake').addEventListener('click', async () => {
+      if (!cloud) return;
+      const name = lease.editing ? lease.editing.name : 'them';
+      if (!confirm('Take over this bench from ' + name + '? They can no longer save it, and what you have here is saved over the cloud\u2019s copy (their last save stays in its history).')) return;
+      await leaseRenew(true);
+      if (lease.held) { toast('You are editing this bench now'); if (cloud.dirty) cloudPush({ checkpoint: true }); }
+    });
+    document.getElementById('cloudLockCopy').addEventListener('click', () => document.getElementById('btnCloudFork').click());
+    window.addEventListener('pagehide', () => { if (cloud) leaseStop(cloud); });
     document.getElementById('homeBack').addEventListener('click', closeHome);
     document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
     const search = document.getElementById('homeSearch');
@@ -31909,7 +32079,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from.',
+    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it.',
     '<b>The makers\u2019 glass catalogues</b>: Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, the crystals, and the optical plastics (PMMA, polycarbonate, Zeonex E48R) and B 270, so an imported lens traces in the glass its maker chose, named as its file spells it (N-BK7, H-K9L, S-LAH64, M-TAF1, K-VC89). <b>Search the glass catalogues\u2026</b> under Material finds any by name, and the panel gives its maker, nd and Vd. <b>Lens import</b> is stronger: .zar archives open (the .zmx inside, and the glass catalogue the archive carries for any glass the tool lacks), files in a Windows code page and UTF-16 read, floating apertures, cylindrical lenses from toroidal surfaces, the design wavelength kept, a moulded asphere\u2019s cover glass left out and said so, and Thorlabs\u2019 moulded glasses (D-ZK3M, D-ZLAF52LAM, H-LAK54M) at their moulded index. Edmund\u2019s coating codes (EO_VIS0 and the rest) set the AR band, and Corning 7980 is known by every name their files give it. The test suite now imports real Thorlabs and Edmund files and checks their focal lengths and back focal lengths against the makers\u2019 own figures.',
     'RF, round two: <b>feed horns launch their real aperture fields</b>. A corrugated horn\u2019s HE\u2081\u2081, a smooth-wall horn\u2019s TE\u2081\u2081 and a diagonal horn\u2019s TE\u2081\u2080 + TE\u2080\u2081 are carried as Hermite\u2013Gauss modes of the fitted Gaussian, so the beam has the horn\u2019s sidelobes and M\u00b2 and its Gaussicity is Goldsmith\u2019s (0.98, 0.91, 0.84); a <b>far-field pattern</b> plot on every horn (E- and H-plane and cross-polar cuts, directivity, half-power widths, first sidelobes); a receiving horn takes in by its own aperture mode, in <b>one polarisation</b> with its cross-polar field across it, or both. And the horns join the <b>electronics</b>: a receiver\u2019s front end is a <b>video detector</b> (V/W, NEP, video bandwidth) or a <b>mixer</b> whose IF out carries each carrier at |f \u2212 f\u2097\u2092|, less its conversion loss, over k (T\u2090\u2099\u209c + T\u1d63\u2093) R, with the system temperature, noise floor and signal to noise in its readout; a feed horn can be an <b>upconverter</b> with an IF in port, so a tone from a signal generator goes up, across the bench and down into a spectrum analyser. A new example, <b>Heterodyne link, 150 GHz</b>.',
     'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',

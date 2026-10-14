@@ -964,6 +964,25 @@
   .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
     font: 700 0.72rem/1 var(--jek-sans); letter-spacing: 0.02em; color: #fff; background: #111; border-color: #111; }
   .rt-btn.rt-acct.in:hover { background: #333; border-color: #333; }
+  .rt-btn.rt-acct.in img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+  /* a person's picture, or their initials */
+  .rt-avatar { flex: none; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #111; color: #fff; font: 700 0.55rem/1 var(--jek-sans); letter-spacing: 0.02em; overflow: hidden; vertical-align: middle; }
+  .rt-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rt-avatar.big { width: 5rem; height: 5rem; font-size: 1.6rem; }
+  .rt-avatar.small { width: 1.1rem; height: 1.1rem; font-size: 0.42rem; }
+  .rt-acctmenu .rt-accthead { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; align-items: center; }
+  .rt-acctmenu .rt-accthead .rt-avatar { grid-row: span 3; width: 2.2rem; height: 2.2rem; font-size: 0.75rem; }
+  #acctBody .rt-acctpic { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.9rem; }
+  #acctBody .rt-acctpic .rt-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  #acctBody label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.2rem; }
+  #acctBody input[type="text"] { width: min(20rem, 100%); box-sizing: border-box; font: inherit; padding: 0.35rem 0.5rem; }
+  #acctBody .rt-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  /* someone else is editing the cloud bench open here */
+  .rt-lock { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem); padding: 0.45rem 0.7rem; background: #fff8e6; border: 1px solid #e3c36f; border-radius: 3px; box-shadow: var(--jek-shadow); font-size: 0.85rem; color: var(--jek-ink); }
+  .rt-lock .rt-lockwho { display: inline-flex; }
+  .rt-lock .rt-btn { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+  .rt-hcard .rt-hinfo small.rt-hwho { display: flex; align-items: center; gap: 0.3rem; color: var(--jek-orange); font-weight: 600; }
+  #teamBody td .rt-name { display: inline-flex; align-items: center; gap: 0.45rem; }
   .rt-acctmenu { min-width: 17rem; }
   .rt-acctmenu .rt-accthead { padding: 0.4rem 0.9rem 0.45rem 2.35rem; font-size: 0.8125rem; line-height: 1.35; }
   .rt-acctmenu .rt-accthead b { display: block; }

@@ -16,7 +16,11 @@ export function setAccount(v) { return (account = v); }
 export async function api(path, opts = {}) {
   const res = await fetch(API_BASE + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; e.code = body && body.error && body.error.code; e.version = body && body.error && body.error.version; throw e; }
+  if (!res.ok) {
+    const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status;
+    for (const k of ['code', 'version', 'editing', 'updated_by', 'updated_at']) e[k] = body && body.error ? body.error[k] : undefined;
+    throw e;
+  }
   return body;
 }
 const PROVIDER_NAMES = { google: 'Google', microsoft: 'Microsoft', orcid: 'ORCID' };
@@ -36,6 +40,12 @@ function signIn(provider, link) {
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
 }
 const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
+/* a person as a round picture, or their initials when they have none: {name, avatar} */
+export function avatarNode(p, size) {
+  const n = h('span', { class: 'rt-avatar' + (size ? ' ' + size : ''), title: p && p.name || '' , 'aria-hidden': 'true' });
+  if (p && p.avatar) n.append(h('img', { src: API_BASE + p.avatar, alt: '', decoding: 'async' })); else n.textContent = initials(p && p.name);
+  return n;
+}
 /* ---------- JEKrayPro subscription ----------
    Stripe Checkout takes the payment and Stripe's portal manages it; the plan itself only ever
    changes through Stripe's webhook to the API, so after paying the app waits for it to land. */
@@ -193,15 +203,17 @@ export function fillAccount() {
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray2D (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
-    btn.classList.add('in'); btn.textContent = initials(u.name); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+    btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+    if (u.avatar) btn.replaceChildren(h('img', { src: API_BASE + u.avatar, alt: '' })); else btn.textContent = initials(u.name);
     const orcid = ids.find(i => i.provider === 'orcid');
-    const rows = [h('div', { class: 'rt-accthead' }, h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
+    const rows = [h('div', { class: 'rt-accthead' }, avatarNode(u), h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
       ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))),
       // ORCID sign-in is ending: someone with no other way in is asked to link one
       account.orcid_ends && !ids.some(i => i.provider !== 'orcid') ? h('span', { class: 'rt-menunote rt-warn' }, 'Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + '. Link Google or Microsoft below to keep your account.') : null,
       h('div', { class: 'sep' })].filter(Boolean);
     // a university's licence, for those who look after it there
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
+    rows.push(item('user', 'Your account\u2026', showAccount));
     // their teams, and a new one
     for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
     rows.push(item('users', 'Create a team…', createTeam));
@@ -225,6 +237,56 @@ export function fillAccount() {
   }
   menuIcons(menu);
   cloudMenuShown();
+}
+/* ---------- The account page ----------
+   The picture others see beside the name (resized here to 128 px and sent as WebP, so a photo of
+   any size will do), the name itself, the email the sign-in gave, and the sign-ins. */
+const AVATAR_PX = 128;
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file);
+  const side = Math.min(bmp.width, bmp.height), c = document.createElement('canvas');
+  c.width = c.height = AVATAR_PX;
+  c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, AVATAR_PX, AVATAR_PX);
+  bmp.close();
+  for (const [type, q] of [['image/webp', 0.85], ['image/webp', 0.6], ['image/jpeg', 0.7]]) {
+    const blob = await new Promise(r => c.toBlob(r, type, q));
+    if (blob && blob.size <= 60 * 1024) return blob;
+  }
+  throw new Error('That picture could not be made small enough.');
+}
+export function showAccount() {
+  if (!account) return;
+  const dlg = document.getElementById('acctDialog'), body = document.getElementById('acctBody'), u = account.user;
+  const pic = avatarNode(u, 'big');
+  const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
+  const choose = h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, u.avatar ? 'Change picture\u2026' : 'Add a picture\u2026');
+  const remove = u.avatar ? h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    try { await api('/v1/me/avatar', { method: 'DELETE' }); account.user.avatar = null; fillAccount(); showAccount(); toast('Picture removed'); } catch (err) { toast(err.message, true); }
+  } }, 'Remove') : null;
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    choose.disabled = true; choose.textContent = 'Sending\u2026';
+    try {
+      const blob = await shrinkImage(f);
+      const r = await api('/v1/me/avatar', { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob });
+      account.user.avatar = r.avatar; fillAccount(); showAccount(); toast('Picture saved');
+    } catch (err) { toast(err.message, true); choose.disabled = false; choose.textContent = 'Add a picture\u2026'; }
+  });
+  const name = h('input', { type: 'text', id: 'acctName', value: u.name, maxlength: '80', autocomplete: 'name' });
+  const save = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    const v = name.value.trim();
+    if (!v || v === u.name) return;
+    try { account = await api('/v1/me', jsonReq('PATCH', { name: v })); fillAccount(); showAccount(); toast('Name changed'); } catch (err) { toast(err.message, true); }
+  } }, 'Save');
+  name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
+  const ids = (account.identities || []).map(i => PROVIDER_NAMES[i.provider] + (i.provider === 'orcid' ? ' ' + i.subject : ''));
+  body.replaceChildren(
+    h('div', { class: 'rt-acctpic' }, pic, h('div', null, h('p', null, 'Your picture is shown beside your name to the people you share a team with: on their benches, and while you are editing one.'), h('div', { class: 'rt-row' }, choose, remove, file))),
+    h('label', { for: 'acctName' }, 'Your name, as others see it'), h('div', { class: 'rt-row' }, name, save),
+    h('p', null, u.email ? 'Email: ' + u.email + ' (from your sign-in; it is where invitations and receipts go).' : 'Your sign-in gave no email address.'),
+    h('p', null, 'Signed in with ' + (ids.join(' and ') || 'nothing yet') + '. Link another, or delete the account, from the account menu.'));
+  if (!dlg.open) dlg.showModal();
 }
 /* ---------- Teams ----------
    A team is a workspace several people share, paid for by its owner with a seat for each
@@ -295,7 +357,7 @@ export async function showTeam(id) {
     return h('td', null, sel);
   };
   const members = h('table', null, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Name'), manages ? h('th', { scope: 'col' }, 'Email') : null, h('th', { scope: 'col' }, 'Role'), h('th', { scope: 'col' }, 'Since'), h('th', { scope: 'col' }))),
-    h('tbody', null, ...t.members.map(m => h('tr', null, h('td', null, m.name + (me && m.user_id === me.id ? ' (you)' : '')), manages ? h('td', { class: 'team-muted' }, m.email || '') : null, roleCell(m), h('td', { class: 'team-muted' }, shortDate(m.joined_at)),
+    h('tbody', null, ...t.members.map(m => h('tr', null, h('td', null, h('span', { class: 'rt-name' }, avatarNode({ name: m.name, avatar: m.avatar }), m.name + (me && m.user_id === me.id ? ' (you)' : ''))), manages ? h('td', { class: 'team-muted' }, m.email || '') : null, roleCell(m), h('td', { class: 'team-muted' }, shortDate(m.joined_at)),
       h('td', { class: 'team-act' }, manages && canSet(m) && !(me && m.user_id === me.id) ? h('button', { type: 'button', class: 'rt-link', onclick: act(async () => { if (!confirm('Remove ' + m.name + ' from the team? Their benches here stay with the team.')) throw Object.assign(new Error(''), { quiet: true }); await api('/v1/teams/' + id + '/members/' + m.user_id, { method: 'DELETE' }); }, 'Removed') }, 'Remove') : null)))));
   // invitations
   const invites = [];
@@ -507,6 +569,7 @@ export function accountShown() {
 export function wireAccount() {
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
+  document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());
   takeInvite();
 
   {

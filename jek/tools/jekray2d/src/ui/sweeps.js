@@ -2,9 +2,10 @@ import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
 import { allSources, fieldDec, getEl, lightOf } from '../state/elements.js';
-import { dropTraceStore, lastTrace, traceScene } from '../engines/trace.js';
+import { dropTraceStore, lastTrace, setLastTraceKey, traceScene } from '../engines/trace.js';
 import { H, W, requestRender } from './render.js';
 import { getPath, setParam } from '../state/params.js';
+import { MODS } from '../core/modulators.js';
 import { modDelta } from '../engines/mods.js';
 import { mcJob, tick, updateSweepButtons } from './optimise.js';
 import { h, pins, syncPanel, vs } from './panel.js';
@@ -306,6 +307,7 @@ function renderSweepFrames(list, onDone) {
         const srcs = popSources();
         if (srcs.length) {
           traceScene();
+          if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (!fieldFrames.bench.has(key)) {
             timing(i); job.stage = 'the bench';
@@ -434,8 +436,26 @@ export function swAsk(W, proj, args, kind) {
 export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 export const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
+/* A bench with mods: their code runs only on the page, so a step's results (for its swept values)
+   are asked for here, with the bench set to the step and traced, and waited for, before the step
+   goes to a worker, which then has them (see modDelta). The page is put back after each. */
+async function modsReady() {
+  for (let i = 0; i < 30 && MODS.waiting.size; i++) { await Promise.allSettled([...MODS.waiting.values()]); setLastTraceKey(null); traceScene(); }
+}
+function modsPrep(list) {
+  if (!MODS.packs.size) return () => Promise.resolve();
+  let chain = Promise.resolve();
+  return sets => (chain = chain.then(async () => {
+    const saved = list.map(([el, path]) => getPath(el, path));
+    for (const [id, path, v] of sets) { const el = getEl(id); if (el) setParam(el, path, v); }
+    setLastTraceKey(null); traceScene();
+    await modsReady();
+    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+    setLastTraceKey(null); traceScene();
+  }));
+}
 function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box();
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box(), prep = modsPrep(list);
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -449,6 +469,8 @@ function renderOnPool(pool, list, n, period, job, onDone) {
     while (live() && next < order.length) {
       const i = order[next++];
       const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
+      await prep(sets);
+      if (!live()) return;
       const o = await swAsk(W, proj, { sets, ids, vol });
       if (!live()) return;
       if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });

@@ -474,13 +474,19 @@ export function popSlices(items, perIn) {
       const col = new Float32Array(POP_ROWS);
       for (let row = 0; row < POP_ROWS; row++) {
         // rows run from -Y (the right of the beam) to +Y (its left)
-        const u = (row + 0.5) / POP_ROWS * 2 - 1, yy = u * Y, y = sym ? Math.abs(yy) : yy;
+        const u = (row + 0.5) / POP_ROWS * 2 - 1, yy = u * Y, y = sym ? Math.abs(yy) : yy, hw = Y / POP_ROWS;
         let v = 0;
         if (y <= x[0]) v = sym ? I[0] : 0;
         else if (y < x[n - 1]) {
           let lo = 0, hi = n - 1;
           while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] <= y) lo = mid; else hi = mid; }
-          v = I[lo] + (I[hi] - I[lo]) * (y - x[lo]) / (x[hi] - x[lo]);
+          // several samples to the row (fringes finer than it): their mean, as the eye would see them;
+          // else the field between the two nearest
+          let i0 = lo, i1 = hi;
+          while (i0 > 0 && x[i0 - 1] >= y - hw) i0--;
+          while (i1 < n - 1 && x[i1 + 1] <= y + hw) i1++;
+          if (i1 - i0 >= 3) { let a = 0; for (let i = i0; i <= i1; i++) a += I[i]; v = a / (i1 - i0 + 1); }
+          else v = I[lo] + (I[hi] - I[lo]) * (y - x[lo]) / (x[hi] - x[lo]);
         }
         v = Imax > 0 ? v / Imax : 0;
         // the outer fifth fades to nothing, so light that reaches the edge of what is drawn ends softly

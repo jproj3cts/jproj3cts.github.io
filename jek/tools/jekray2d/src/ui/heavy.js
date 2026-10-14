@@ -4,7 +4,8 @@ import { isHigherMode, srcModes } from '../core/beams-hom.js';
 import { V, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
-import { DPR, clipSegPlanes, ctx, glowA, glowOp, requestRender, segPlanes, sx, sy } from './render.js';
+import { MODS } from '../core/modulators.js';
+import { DPR, H, W, clipSegPlanes, ctx, glowA, glowOp, lightLayer, requestRender, segPlanes, sx, sy } from './render.js';
 import { drag } from './pointer.js';
 import { benchFrame, fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from './sweeps.js';
 import { h, syncPanel } from './panel.js';
@@ -96,13 +97,14 @@ export function schedulePop() {
       if (!srcs.length) { popState.result = null; popState.key = key; popState.job = null; heavyHide(); requestRender(); return; }
       const est = fieldCost(lastTrace.beams, srcs);
       if (est.ms > HEAVY_MS) heavyShow(key, est, false); else heavyHide();
-      const job = { key, t0: performance.now(), raw: est.raw }, beams = lastTrace.beams;
+      const job = { key, t0: performance.now(), raw: est.raw }, beams = lastTrace.beams, rev0 = MODS.rev;
       popState.job = job;
       fwRequest('bench', 'bench').then(o => {
         if (popState.job !== job) return;
         popState.job = null;
         if (!o) { requestRender(); return; }             // abandoned: the next frame asks again if still wanted
-        fwMismatch(o.key === key);
+        // (a mod's result that came in meanwhile changed the page's trace, not the worker's: no fault of its own)
+        fwMismatch(o.key === key || MODS.rev !== rev0);
         if (o.key !== key) { requestRender(); return; }
         fieldSpeedLearn(performance.now() - job.t0, job.raw);
         if (heavy.key === key) heavyHide();
@@ -156,10 +158,46 @@ export function drawPop() {
   if (key !== popState.key) { schedulePop(); return new Set(); }
   const R = popState.result;
   if (!R) return new Set();
-  const s = V().scale;
+  const shown = new Set(srcs.map(e => e.id));
+  // The field is drawn once for a view, on a layer of its own (thousands of slices). While the
+  // view moves (a pan, a zoom) the layer is moved and scaled to match, and drawn afresh once
+  // the view has settled, as the rays' layer is: a drag stays smooth however many slices there are.
+  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const L = popLayer, same = L.R === R && L.T === lastTrace && L.frame === frameKey;
   ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = glowOp();
   ctx.imageSmoothingEnabled = true;
+  if (same && L.key !== key2 && !L.settled) {
+    const v0 = L.view, k = V().scale / v0.scale;
+    ctx.setTransform(DPR * k, 0, 0, DPR * k, DPR * (W / 2 * (1 - k) + (v0.cx - V().cx) * V().scale), DPR * (H / 2 * (1 - k) - (v0.cy - V().cy) * V().scale));
+    ctx.drawImage(L.cv, 0, 0, L.cv.width / DPR, L.cv.height / DPR);
+    ctx.restore();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clearTimeout(L.timer);
+    L.timer = setTimeout(() => { L.settled = true; requestRender(); }, 200);
+    return shown;
+  }
+  if (!same || L.key !== key2) {
+    const cv = L.cv || (L.cv = document.createElement('canvas')), cw = Math.round(W * DPR), ch = Math.round(H * DPR);
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+    const c = cv.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cw, ch);
+    drawPopOn(c, R);
+    L.R = R; L.T = lastTrace; L.frame = frameKey; L.key = key2; L.view = { cx: V().cx, cy: V().cy, scale: V().scale }; L.settled = false;
+  }
+  ctx.drawImage(L.cv, 0, 0);
+  ctx.restore();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  return shown;
+}
+const popLayer = { cv: null, R: null, T: null, frame: '', key: '', view: null, settled: true, timer: null };
+/* the field's slices onto a context, at the view as it is now */
+function drawPopOn(c, R) {
+  const s = V().scale;
+  c.save();
+  c.globalCompositeOperation = glowOp();
+  c.imageSmoothingEnabled = true;
   // each segment cut along the surfaces it runs between (see segPlanes), its end slices drawn on past its ends to meet them
   const TB = lastTrace.beams || [], at = new Map(TB.map((b, i) => [[b.x0, b.y0, b.dx, b.dy].join(','), i]));
   for (const sg of R.segs) {
@@ -167,23 +205,21 @@ export function drawPop() {
     if (!D || b.bench !== project.tab) continue;
     const i = at.get([b.x0, b.y0, b.dx, b.dy].join(',')), PL = i !== undefined ? segPlanes(TB, i) : { p0: null, p1: null };
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
-    ctx.save();
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys));
+    c.save();
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c);
     const nx = -b.dy, ny = b.dx;
-    ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
-    ctx.globalAlpha = glowA(0.95 * D.alpha);
-    for (let c = 0; c < ts.length; c++) {
-      const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0] - e0;
-      const tB = c < last ? 0.5 * (ts[c] + ts[c + 1]) : ts[c] + e1;
+    c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
+    c.globalAlpha = glowA(0.95 * D.alpha);
+    for (let k = 0; k < ts.length; k++) {
+      const tA = k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
+      const tB = k < last ? 0.5 * (ts[k] + ts[k + 1]) : ts[k] + e1;
       if (tB <= tA) continue;
-      ctx.drawImage(D.cv, 3 * c + 1, 0, 1, POP_ROWS, tA, -D.Ys[c], tB - tA, 2 * D.Ys[c]);
+      c.drawImage(D.cv, 3 * k + 1, 0, 1, POP_ROWS, tA, -D.Ys[k], tB - tA, 2 * D.Ys[k]);
     }
-    ctx.restore();
+    c.restore();
   }
-  ctx.restore();
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  return new Set(srcs.map(e => e.id));
+  c.restore();
 }
 
 /* A line for the source panel on what the field run found */

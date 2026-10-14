@@ -661,13 +661,15 @@ export const V3D = (() => {
     const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
     let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
     const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
+    // a ray that meets nothing ends a little past the parts, not at the board's far edge
+    const rb = box.isEmpty() ? bb : new T.Box3(new T.Vector3(Math.max(bb.min.x, box.min.x - 40), Math.max(bb.min.y, box.min.y - 40), bb.min.z), new T.Vector3(Math.min(bb.max.x, box.max.x + 40), Math.min(bb.max.y, box.max.y + 40), bb.max.z));
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
       const lvl = Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
-        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, bb);
+        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, rb);
         const z0 = zs ? zs[(i >> 1) - 1] : BEAM_H, z1 = zs ? zs[i >> 1] : BEAM_H;
         if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], z0 + (z1 - z0) * c[0], x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], z0 + (z1 - z0) * c[1]);
       }

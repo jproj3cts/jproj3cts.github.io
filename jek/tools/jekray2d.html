@@ -7018,15 +7018,15 @@ function segPlanes(B, i) {
   return { p0, p1, len };
 }
 // the canvas clipped to between a segment's planes (screen coordinates); W the widest it is drawn, mm
-function clipSegPlanes(P, W) {
+function clipSegPlanes(P, W, c = ctx) {
   const big = 4 * W + 50;
   for (const q of [P.p0, P.p1]) {
     if (!q || !q.flat) continue;                              // a plane lying flat (a periscope's mirror) cuts nothing seen from above
     const tx = -q.ny, ty = q.nx;
-    ctx.beginPath();
-    ctx.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); ctx.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
-    ctx.lineTo(sx(q.x - tx * big + q.nx * big), sy(q.y - ty * big + q.ny * big)); ctx.lineTo(sx(q.x + tx * big + q.nx * big), sy(q.y + ty * big + q.ny * big));
-    ctx.closePath(); ctx.clip();
+    c.beginPath();
+    c.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); c.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
+    c.lineTo(sx(q.x - tx * big + q.nx * big), sy(q.y - ty * big + q.ny * big)); c.lineTo(sx(q.x + tx * big + q.nx * big), sy(q.y + ty * big + q.ny * big));
+    c.closePath(); c.clip();
   }
 }
 function drawBeams(fieldShown) {
@@ -7124,7 +7124,7 @@ function drawRays(stale) {
     ctx.save();
     ctx.globalCompositeOperation = glowOp();
     ctx.setTransform(DPR * k, 0, 0, DPR * k, DPR * (W / 2 * (1 - k) + (v0.cx - V().cx) * V().scale), DPR * (H / 2 * (1 - k) - (v0.cy - V().cy) * V().scale));
-    ctx.drawImage(rayLayer.cv, 0, 0, rayLayer.cv.width / DPR, rayLayer.cv.height / DPR);
+    ctx.drawImage(rayLayer.cv, 0, 0, rayLayer.cv.width / (DPR * rayLayer.ss), rayLayer.cv.height / (DPR * rayLayer.ss));
     ctx.restore();
     clearTimeout(rayLayer.timer);
     rayLayer.timer = setTimeout(() => { rayLayer.settled = true; requestRender(); }, 200);
@@ -7132,7 +7132,11 @@ function drawRays(stale) {
   }
   if (rayLayer.rays !== rays || rayLayer.key !== key) {
     const cv = rayLayer.cv || (rayLayer.cv = document.createElement('canvas'));
-    if (cv.width !== canvas.width || cv.height !== canvas.height) { cv.width = canvas.width; cv.height = canvas.height; }
+    // the rays are drawn at twice the resolution and scaled down (on all but the largest
+    // screens), so where a fan's lines converge to under a pixel apart the beats between
+    // lines and pixels (moiré) average out
+    const ss = rayLayer.ss = canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
+    if (cv.width !== canvas.width * ss || cv.height !== canvas.height * ss) { cv.width = canvas.width * ss; cv.height = canvas.height * ss; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
     rayLayer.rays = rays; rayLayer.key = key; rayLayer.frame = frameKey; rayLayer.view = { cx: V().cx, cy: V().cy, scale: V().scale };
@@ -7141,8 +7145,8 @@ function drawRays(stale) {
   if (rayLayer.done < rays.length) {
     let j = rayLayer.done, n = 0;
     while (j < rays.length && n < RAY_CHUNK) { if (rays[j].bench === project.tab) n += rays[j].pts.length >> 1; j++; }
-    const c = rayLayer.cv.getContext('2d');
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const c = rayLayer.cv.getContext('2d'), k = DPR * (rayLayer.ss || 1);
+    c.setTransform(k, 0, 0, k, 0, 0);
     drawRaysOn(c, j - rayLayer.done === rays.length ? rays : rays.slice(rayLayer.done, j));
     rayLayer.done = j;
     if (j < rays.length) requestRender();
@@ -7150,7 +7154,8 @@ function drawRays(stale) {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = glowOp();
-  ctx.drawImage(rayLayer.cv, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(rayLayer.cv, 0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
 function drawRaysOn(ctx, rays) {
@@ -7161,7 +7166,7 @@ function drawRaysOn(ctx, rays) {
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
-  ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
+  ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
     const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
@@ -9666,6 +9671,7 @@ function renderSweepFrames(list, onDone) {
         const srcs = popSources();
         if (srcs.length) {
           traceScene();
+          if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (!fieldFrames.bench.has(key)) {
             timing(i); job.stage = 'the bench';
@@ -9794,8 +9800,26 @@ function swAsk(W, proj, args, kind) {
 function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
+/* A bench with mods: their code runs only on the page, so a step's results (for its swept values)
+   are asked for here, with the bench set to the step and traced, and waited for, before the step
+   goes to a worker, which then has them (see modDelta). The page is put back after each. */
+async function modsReady() {
+  for (let i = 0; i < 30 && MODS.waiting.size; i++) { await Promise.allSettled([...MODS.waiting.values()]); setLastTraceKey(null); traceScene(); }
+}
+function modsPrep(list) {
+  if (!MODS.packs.size) return () => Promise.resolve();
+  let chain = Promise.resolve();
+  return sets => (chain = chain.then(async () => {
+    const saved = list.map(([el, path]) => getPath(el, path));
+    for (const [id, path, v] of sets) { const el = getEl(id); if (el) setParam(el, path, v); }
+    setLastTraceKey(null); traceScene();
+    await modsReady();
+    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+    setLastTraceKey(null); traceScene();
+  }));
+}
 function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box();
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box(), prep = modsPrep(list);
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -9809,6 +9833,8 @@ function renderOnPool(pool, list, n, period, job, onDone) {
     while (live() && next < order.length) {
       const i = order[next++];
       const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
+      await prep(sets);
+      if (!live()) return;
       const o = await swAsk(W, proj, { sets, ids, vol });
       if (!live()) return;
       if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });
@@ -13341,13 +13367,15 @@ const V3D = (() => {
     const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
     let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
     const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
+    // a ray that meets nothing ends a little past the parts, not at the board's far edge
+    const rb = box.isEmpty() ? bb : new T.Box3(new T.Vector3(Math.max(bb.min.x, box.min.x - 40), Math.max(bb.min.y, box.min.y - 40), bb.min.z), new T.Vector3(Math.min(bb.max.x, box.max.x + 40), Math.min(bb.max.y, box.max.y + 40), bb.max.z));
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
       const lvl = Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
-        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, bb);
+        const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, rb);
         const z0 = zs ? zs[(i >> 1) - 1] : BEAM_H, z1 = zs ? zs[i >> 1] : BEAM_H;
         if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], z0 + (z1 - z0) * c[0], x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], z0 + (z1 - z0) * c[1]);
       }
@@ -19882,6 +19910,7 @@ function popMask(r, a) {
    and every reference phase is put back analytically. */
 let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
 function setBAB_N(v) { return (BAB_N = v); }
+const POP_N_MAX = 1024;                    // the most radial points a steep surface refines a field to
 function popSurface(F, q, ev) {
   // Behind an obscuring disc the light is the free beam less what a round opening of the
   // disc's size would pass (Babinet). Its grid, sized to hold the whole beam, cannot also hold
@@ -19986,7 +20015,19 @@ function popSurface(F, q, ev) {
     g /= aA;
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
     if (Rn < 3 * wOut) { steep = 1; Rn = 3 * wOut; }
+    // a surface that turns the wavefront faster than the grid can follow (a high-NA objective):
+    // the field on twice the points, up to 1024, and the surface taken again on them
+    if (steep && N < POP_N_MAX && !ev.fixed && !ev.holeRn) {
+      const n2 = 2 * N, [hr, hi] = popResample(r, F.re, F.im, popRadii(qdht(n2), F.R));
+      const out = popSurface(Object.assign({}, F, { re: hr, im: hi }), q, ev);
+      out.refined = n2;
+      return out;
+    }
   }
+  // a surface the finest grid still cannot follow (the far side of a focus at NA near 1): its
+  // aberration left off, the pilot beam alone carries the light on, smooth rather than aliased
+  // into false lobes; the steep note says so
+  const dropAb = steep === 1;
   {
     // and the slope the incoming light already carries, where it has any
     const rIn = popRadii(Q, F.R);
@@ -20035,7 +20076,7 @@ function popSurface(F, q, ev) {
       // the traced phase and the incoming wave, less the outgoing reference sphere at
       // where each ray really lands: smooth, so it can sit on the grid point. The
       // paraxial parts are already in b; swap them for the exact spheres here.
-      ab = abAt(x[i], r);
+      ab = dropAb ? 0 : abAt(x[i], r);
       let fr = r[5], fi = 0;                               // a mask element's amplitude
       if (maskFnR) {
         const lo = i ? 0.5 * (x[i - 1] + x[i]) : 0, hi = i < N - 1 ? 0.5 * (x[i] + x[i + 1]) : x[i] + 0.5 * (x[i] - x[i - 1]);
@@ -23707,13 +23748,19 @@ function popSlices(items, perIn) {
       const col = new Float32Array(POP_ROWS);
       for (let row = 0; row < POP_ROWS; row++) {
         // rows run from -Y (the right of the beam) to +Y (its left)
-        const u = (row + 0.5) / POP_ROWS * 2 - 1, yy = u * Y, y = sym ? Math.abs(yy) : yy;
+        const u = (row + 0.5) / POP_ROWS * 2 - 1, yy = u * Y, y = sym ? Math.abs(yy) : yy, hw = Y / POP_ROWS;
         let v = 0;
         if (y <= x[0]) v = sym ? I[0] : 0;
         else if (y < x[n - 1]) {
           let lo = 0, hi = n - 1;
           while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] <= y) lo = mid; else hi = mid; }
-          v = I[lo] + (I[hi] - I[lo]) * (y - x[lo]) / (x[hi] - x[lo]);
+          // several samples to the row (fringes finer than it): their mean, as the eye would see them;
+          // else the field between the two nearest
+          let i0 = lo, i1 = hi;
+          while (i0 > 0 && x[i0 - 1] >= y - hw) i0--;
+          while (i1 < n - 1 && x[i1 + 1] <= y + hw) i1++;
+          if (i1 - i0 >= 3) { let a = 0; for (let i = i0; i <= i1; i++) a += I[i]; v = a / (i1 - i0 + 1); }
+          else v = I[lo] + (I[hi] - I[lo]) * (y - x[lo]) / (x[hi] - x[lo]);
         }
         v = Imax > 0 ? v / Imax : 0;
         // the outer fifth fades to nothing, so light that reaches the edge of what is drawn ends softly
@@ -23839,13 +23886,14 @@ function schedulePop() {
       if (!srcs.length) { popState.result = null; popState.key = key; popState.job = null; heavyHide(); requestRender(); return; }
       const est = fieldCost(lastTrace.beams, srcs);
       if (est.ms > HEAVY_MS) heavyShow(key, est, false); else heavyHide();
-      const job = { key, t0: performance.now(), raw: est.raw }, beams = lastTrace.beams;
+      const job = { key, t0: performance.now(), raw: est.raw }, beams = lastTrace.beams, rev0 = MODS.rev;
       popState.job = job;
       fwRequest('bench', 'bench').then(o => {
         if (popState.job !== job) return;
         popState.job = null;
         if (!o) { requestRender(); return; }             // abandoned: the next frame asks again if still wanted
-        fwMismatch(o.key === key);
+        // (a mod's result that came in meanwhile changed the page's trace, not the worker's: no fault of its own)
+        fwMismatch(o.key === key || MODS.rev !== rev0);
         if (o.key !== key) { requestRender(); return; }
         fieldSpeedLearn(performance.now() - job.t0, job.raw);
         if (heavy.key === key) heavyHide();
@@ -23899,10 +23947,46 @@ function drawPop() {
   if (key !== popState.key) { schedulePop(); return new Set(); }
   const R = popState.result;
   if (!R) return new Set();
-  const s = V().scale;
+  const shown = new Set(srcs.map(e => e.id));
+  // The field is drawn once for a view, on a layer of its own (thousands of slices). While the
+  // view moves (a pan, a zoom) the layer is moved and scaled to match, and drawn afresh once
+  // the view has settled, as the rays' layer is: a drag stays smooth however many slices there are.
+  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const L = popLayer, same = L.R === R && L.T === lastTrace && L.frame === frameKey;
   ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = glowOp();
   ctx.imageSmoothingEnabled = true;
+  if (same && L.key !== key2 && !L.settled) {
+    const v0 = L.view, k = V().scale / v0.scale;
+    ctx.setTransform(DPR * k, 0, 0, DPR * k, DPR * (W / 2 * (1 - k) + (v0.cx - V().cx) * V().scale), DPR * (H / 2 * (1 - k) - (v0.cy - V().cy) * V().scale));
+    ctx.drawImage(L.cv, 0, 0, L.cv.width / DPR, L.cv.height / DPR);
+    ctx.restore();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clearTimeout(L.timer);
+    L.timer = setTimeout(() => { L.settled = true; requestRender(); }, 200);
+    return shown;
+  }
+  if (!same || L.key !== key2) {
+    const cv = L.cv || (L.cv = document.createElement('canvas')), cw = Math.round(W * DPR), ch = Math.round(H * DPR);
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+    const c = cv.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cw, ch);
+    drawPopOn(c, R);
+    L.R = R; L.T = lastTrace; L.frame = frameKey; L.key = key2; L.view = { cx: V().cx, cy: V().cy, scale: V().scale }; L.settled = false;
+  }
+  ctx.drawImage(L.cv, 0, 0);
+  ctx.restore();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  return shown;
+}
+const popLayer = { cv: null, R: null, T: null, frame: '', key: '', view: null, settled: true, timer: null };
+/* the field's slices onto a context, at the view as it is now */
+function drawPopOn(c, R) {
+  const s = V().scale;
+  c.save();
+  c.globalCompositeOperation = glowOp();
+  c.imageSmoothingEnabled = true;
   // each segment cut along the surfaces it runs between (see segPlanes), its end slices drawn on past its ends to meet them
   const TB = lastTrace.beams || [], at = new Map(TB.map((b, i) => [[b.x0, b.y0, b.dx, b.dy].join(','), i]));
   for (const sg of R.segs) {
@@ -23910,23 +23994,21 @@ function drawPop() {
     if (!D || b.bench !== project.tab) continue;
     const i = at.get([b.x0, b.y0, b.dx, b.dy].join(',')), PL = i !== undefined ? segPlanes(TB, i) : { p0: null, p1: null };
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
-    ctx.save();
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys));
+    c.save();
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c);
     const nx = -b.dy, ny = b.dx;
-    ctx.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
-    ctx.globalAlpha = glowA(0.95 * D.alpha);
-    for (let c = 0; c < ts.length; c++) {
-      const tA = c ? 0.5 * (ts[c - 1] + ts[c]) : ts[0] - e0;
-      const tB = c < last ? 0.5 * (ts[c] + ts[c + 1]) : ts[c] + e1;
+    c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
+    c.globalAlpha = glowA(0.95 * D.alpha);
+    for (let k = 0; k < ts.length; k++) {
+      const tA = k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
+      const tB = k < last ? 0.5 * (ts[k] + ts[k + 1]) : ts[k] + e1;
       if (tB <= tA) continue;
-      ctx.drawImage(D.cv, 3 * c + 1, 0, 1, POP_ROWS, tA, -D.Ys[c], tB - tA, 2 * D.Ys[c]);
+      c.drawImage(D.cv, 3 * k + 1, 0, 1, POP_ROWS, tA, -D.Ys[k], tB - tA, 2 * D.Ys[k]);
     }
-    ctx.restore();
+    c.restore();
   }
-  ctx.restore();
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  return new Set(srcs.map(e => e.id));
+  c.restore();
 }
 
 /* A line for the source panel on what the field run found */
@@ -29588,8 +29670,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned (under a thick lens\u2019s whole body), step aside from one another and from the port names and sockets beside them, and stay readable at any zoom; in 3D they step up where they would overlap. A dense fan of rays is thinned to a lighter line, so a cavity\u2019s field stays a beam rather than a block, and an iris shows its opening as a gap, with no faint line across it. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
-    'The 3D field is as bright as the light: a beam that is 5 % of its laser (through a mirror\u2019s back, off a window) is 5 % as bright, where before every beam was drawn at its laser\u2019s power; where a beam clipped by a lens\u2019s rim runs with the light round the rim, the two are added where each cut is taken, rather than between cuts too far apart for a clipped beam\u2019s ripples, which had left the beam all but dark; and a laser\u2019s two polarisation halves add, where one was left out. Rays in 3D (and 2D) are bright against the strongest ray of their own source, so a fibre tip fed through a lossy network is as bright as a laser and a faint beam is never dropped: a 5 % leak through a mirror shows. A sweep rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there as it does in 2D. A lens narrower than the beam says so at the top of its panel, with the share of the light that goes round its rim.',
+    'A sweep of every example and of benches sent in, for polish and physics. <b>Light</b>: rays are as bright as the light they carry, on a log scale against the strongest ray of their own source, so a window\u2019s 4 % reflection is plainly fainter than the beam it came off, a cavity\u2019s hundreds of passes no longer paint the bench solid, a fibre tip fed through a lossy network is as bright as a laser, and a 5 % leak through a mirror still shows, in 2D and 3D; a dense fan is drawn at twice the resolution, so lines and pixels no longer beat; a laser\u2019s aperture takes in light that reaches it instead of passing it through the housing. <b>The 3D field</b>: each beam as bright as the light it carries (a 5 % leak is 5 % as bright, where every beam was drawn at its laser\u2019s power); a beam clipped by a lens\u2019s rim added to the light round the rim where each cut is taken (the old interpolation between far-apart cuts had left such beams all but dark); a laser\u2019s two polarisation halves added, where one was dropped; rays that meet nothing end a little past the parts. <b>Sweeps</b>: one rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there; a bench with a mod renders ahead and runs its field off the page, the mod\u2019s results fetched for each step. <b>The bench</b>: dragging the view with the field shown is smooth however many slices it has; fit view keeps every part clear of the rail and tabs, and the 3D fit comes in as close as the corners allow; names sit under their part whichever way it is turned, step off one another and off port names and sockets, and stay readable at any zoom; an iris shows its opening as a gap; a screen\u2019s profile is a plot with a baseline, as tall as the light is strong. <b>Physics</b>: a surface that turns the wavefront faster than the grid can follow (a high-NA objective) takes the field on a finer grid, and rows finer than the drawn field average their fringes; the field past a narrow slit is sampled across the slit, so its minima land where \u03bbL/a says; a lens narrower than the beam says so in its panel, with the share of light round its rim. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk and the minimap covering a third of the bench.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',

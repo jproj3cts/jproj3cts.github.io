@@ -473,6 +473,7 @@ function popMask(r, a) {
    and every reference phase is put back analytically. */
 export let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
 export function setBAB_N(v) { return (BAB_N = v); }
+const POP_N_MAX = 1024;                    // the most radial points a steep surface refines a field to
 export function popSurface(F, q, ev) {
   // Behind an obscuring disc the light is the free beam less what a round opening of the
   // disc's size would pass (Babinet). Its grid, sized to hold the whole beam, cannot also hold
@@ -577,7 +578,19 @@ export function popSurface(F, q, ev) {
     g /= aA;
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
     if (Rn < 3 * wOut) { steep = 1; Rn = 3 * wOut; }
+    // a surface that turns the wavefront faster than the grid can follow (a high-NA objective):
+    // the field on twice the points, up to 1024, and the surface taken again on them
+    if (steep && N < POP_N_MAX && !ev.fixed && !ev.holeRn) {
+      const n2 = 2 * N, [hr, hi] = popResample(r, F.re, F.im, popRadii(qdht(n2), F.R));
+      const out = popSurface(Object.assign({}, F, { re: hr, im: hi }), q, ev);
+      out.refined = n2;
+      return out;
+    }
   }
+  // a surface the finest grid still cannot follow (the far side of a focus at NA near 1): its
+  // aberration left off, the pilot beam alone carries the light on, smooth rather than aliased
+  // into false lobes; the steep note says so
+  const dropAb = steep === 1;
   {
     // and the slope the incoming light already carries, where it has any
     const rIn = popRadii(Q, F.R);
@@ -626,7 +639,7 @@ export function popSurface(F, q, ev) {
       // the traced phase and the incoming wave, less the outgoing reference sphere at
       // where each ray really lands: smooth, so it can sit on the grid point. The
       // paraxial parts are already in b; swap them for the exact spheres here.
-      ab = abAt(x[i], r);
+      ab = dropAb ? 0 : abAt(x[i], r);
       let fr = r[5], fi = 0;                               // a mask element's amplitude
       if (maskFnR) {
         const lo = i ? 0.5 * (x[i - 1] + x[i]) : 0, hi = i < N - 1 ? 0.5 * (x[i] + x[i + 1]) : x[i] + 0.5 * (x[i] - x[i - 1]);

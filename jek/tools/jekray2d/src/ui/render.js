@@ -319,15 +319,15 @@ export function segPlanes(B, i) {
   return { p0, p1, len };
 }
 // the canvas clipped to between a segment's planes (screen coordinates); W the widest it is drawn, mm
-export function clipSegPlanes(P, W) {
+export function clipSegPlanes(P, W, c = ctx) {
   const big = 4 * W + 50;
   for (const q of [P.p0, P.p1]) {
     if (!q || !q.flat) continue;                              // a plane lying flat (a periscope's mirror) cuts nothing seen from above
     const tx = -q.ny, ty = q.nx;
-    ctx.beginPath();
-    ctx.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); ctx.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
-    ctx.lineTo(sx(q.x - tx * big + q.nx * big), sy(q.y - ty * big + q.ny * big)); ctx.lineTo(sx(q.x + tx * big + q.nx * big), sy(q.y + ty * big + q.ny * big));
-    ctx.closePath(); ctx.clip();
+    c.beginPath();
+    c.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); c.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
+    c.lineTo(sx(q.x - tx * big + q.nx * big), sy(q.y - ty * big + q.ny * big)); c.lineTo(sx(q.x + tx * big + q.nx * big), sy(q.y + ty * big + q.ny * big));
+    c.closePath(); c.clip();
   }
 }
 function drawBeams(fieldShown) {
@@ -425,7 +425,7 @@ function drawRays(stale) {
     ctx.save();
     ctx.globalCompositeOperation = glowOp();
     ctx.setTransform(DPR * k, 0, 0, DPR * k, DPR * (W / 2 * (1 - k) + (v0.cx - V().cx) * V().scale), DPR * (H / 2 * (1 - k) - (v0.cy - V().cy) * V().scale));
-    ctx.drawImage(rayLayer.cv, 0, 0, rayLayer.cv.width / DPR, rayLayer.cv.height / DPR);
+    ctx.drawImage(rayLayer.cv, 0, 0, rayLayer.cv.width / (DPR * rayLayer.ss), rayLayer.cv.height / (DPR * rayLayer.ss));
     ctx.restore();
     clearTimeout(rayLayer.timer);
     rayLayer.timer = setTimeout(() => { rayLayer.settled = true; requestRender(); }, 200);
@@ -433,7 +433,11 @@ function drawRays(stale) {
   }
   if (rayLayer.rays !== rays || rayLayer.key !== key) {
     const cv = rayLayer.cv || (rayLayer.cv = document.createElement('canvas'));
-    if (cv.width !== canvas.width || cv.height !== canvas.height) { cv.width = canvas.width; cv.height = canvas.height; }
+    // the rays are drawn at twice the resolution and scaled down (on all but the largest
+    // screens), so where a fan's lines converge to under a pixel apart the beats between
+    // lines and pixels (moiré) average out
+    const ss = rayLayer.ss = canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
+    if (cv.width !== canvas.width * ss || cv.height !== canvas.height * ss) { cv.width = canvas.width * ss; cv.height = canvas.height * ss; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
     rayLayer.rays = rays; rayLayer.key = key; rayLayer.frame = frameKey; rayLayer.view = { cx: V().cx, cy: V().cy, scale: V().scale };
@@ -442,8 +446,8 @@ function drawRays(stale) {
   if (rayLayer.done < rays.length) {
     let j = rayLayer.done, n = 0;
     while (j < rays.length && n < RAY_CHUNK) { if (rays[j].bench === project.tab) n += rays[j].pts.length >> 1; j++; }
-    const c = rayLayer.cv.getContext('2d');
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const c = rayLayer.cv.getContext('2d'), k = DPR * (rayLayer.ss || 1);
+    c.setTransform(k, 0, 0, k, 0, 0);
     drawRaysOn(c, j - rayLayer.done === rays.length ? rays : rays.slice(rayLayer.done, j));
     rayLayer.done = j;
     if (j < rays.length) requestRender();
@@ -451,7 +455,8 @@ function drawRays(stale) {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = glowOp();
-  ctx.drawImage(rayLayer.cv, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(rayLayer.cv, 0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
 function drawRaysOn(ctx, rays) {
@@ -462,7 +467,7 @@ function drawRaysOn(ctx, rays) {
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
-  ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
+  ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
     const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross

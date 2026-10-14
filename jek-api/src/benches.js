@@ -11,7 +11,7 @@
 // workspace (or its grace period) and a role of editor or above.
 
 import { licenceFor } from './institutions.js';
-import { planActive } from './users.js';
+import { planActive, teamSeatActive } from './users.js';
 import { ApiError, newId, now } from './util.js';
 
 export const MAX_BENCH = 2 * 1024 * 1024;
@@ -28,12 +28,14 @@ const bytes = (s) => new TextEncoder().encode(s).length;
 // ---------- access ----------
 
 // A workspace's plan counts, or, for a personal one, a university's licence
-// covers its owner (the only member a personal workspace has).
+// or a paid seat in a team covers its owner (the only member a personal
+// workspace has).
 async function activeFor(env, user, row) {
   if (planActive(row.status && row)) return true;
   if (row.kind !== 'personal') return false;
   const lic = await licenceFor(env, user);
-  return !!lic && !lic.full;
+  if (lic && !lic.full) return true;
+  return teamSeatActive(env, user);
 }
 
 // The caller's role in a workspace, and whether its plan is active.

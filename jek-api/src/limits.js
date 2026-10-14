@@ -23,6 +23,9 @@ const SLOW = [
   ['POST', /^\/v1\/workspaces\/[^/]+\/billing\//],
   ['DELETE', /^\/v1\/me$/],
   ['POST', /^\/v1\/institutions\/[^/]+\/(invites|remove|restore)$/],
+  ['POST', /^\/v1\/teams(\/[^/]+\/(invites|transfer|leave))?$/],
+  ['DELETE', /^\/v1\/teams\/[^/]+$/],
+  ['POST', /^\/v1\/invitations\/accept$/],
 ];
 
 // The binding and key for this request, or null for none.

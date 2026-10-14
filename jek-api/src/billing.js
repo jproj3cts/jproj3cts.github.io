@@ -3,7 +3,8 @@
 // never sets plan state from anything the app sends.
 //
 // Prices are found by lookup key (pro_monthly, pro_yearly, academic_monthly,
-// academic_yearly), so no Stripe ids live in this code. Every webhook event
+// academic_yearly, team_monthly, team_yearly), so no Stripe ids live in this
+// code. A team's price is for one seat; its quantity is the seats. Every webhook event
 // about a subscription is answered by fetching the subscription afresh, so
 // events arriving out of order cannot leave stale state behind.
 
@@ -12,8 +13,11 @@ import { ApiError, now } from './util.js';
 
 const STRIPE = 'https://api.stripe.com/v1';
 export const STRIPE_VERSION = '2026-08-26.dahlia';
-const PRICE_KEYS = ['pro_monthly', 'pro_yearly', 'academic_monthly', 'academic_yearly'];
-const PLAN_OF = { pro: 'individual', academic: 'academic' };
+const PRICE_KEYS = ['pro_monthly', 'pro_yearly', 'academic_monthly', 'academic_yearly', 'team_monthly', 'team_yearly'];
+const PLAN_OF = { pro: 'individual', academic: 'academic', team: 'team' };
+const TIERS = ['pro', 'academic', 'team'];
+// A team pays for at least this many seats (jek/terms.html).
+export const MIN_SEATS = 3;
 const SIG_TOLERANCE = 300; // seconds
 const EVENT_TTL = 7 * 24 * 3600;
 
@@ -77,6 +81,12 @@ async function sub(env, ws) {
   return env.DB.prepare('SELECT * FROM subscriptions WHERE workspace_id = ?').bind(ws).first();
 }
 
+// How many members of a team take a seat (its owner, admins and editors).
+export async function paidMembers(env, ws) {
+  const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM members WHERE workspace_id = ? AND seat = 1').bind(ws).first();
+  return r.n;
+}
+
 function returnUrl(env, value, outcome) {
   const base = env.APP_URL;
   let u;
@@ -92,15 +102,27 @@ function returnUrl(env, value, outcome) {
   return u.toString();
 }
 
-// POST /v1/workspaces/:w/billing/checkout  {plan: 'pro'|'academic', interval: 'month'|'year', return?}
+// POST /v1/workspaces/:w/billing/checkout  {plan: 'pro'|'academic'|'team', interval: 'month'|'year', seats?, return?}
+// A team's owner buys 'team' for it: a seat each for its paid members (at
+// least MIN_SEATS, or the seats asked for if more).
 export async function checkout(req, env, user, wsId) {
   const a = await workspaceAccess(env, user, wsId);
-  if (!['owner', 'admin'].includes(a.role)) throw new ApiError(403, 'forbidden', 'Only the workspace owner can subscribe.');
-  if (a.kind !== 'personal') throw new ApiError(400, 'bad_request', 'Team subscriptions are not open yet.');
+  if (a.kind === 'team' ? a.role !== 'owner' : !['owner', 'admin'].includes(a.role)) {
+    throw new ApiError(403, 'forbidden', a.kind === 'team' ? 'Only the team’s owner can subscribe for it.' : 'Only the workspace owner can subscribe.');
+  }
+  if (a.kind !== 'personal' && a.kind !== 'team') throw new ApiError(400, 'bad_request', 'A university licence is arranged with JEK Systems.');
   const body = await req.json().catch(() => ({}));
-  const tier = body.plan === 'academic' ? 'academic' : body.plan === 'pro' ? 'pro' : null;
+  const tier = TIERS.includes(body.plan) ? body.plan : null;
   const interval = body.interval === 'year' ? 'year' : body.interval === 'month' ? 'month' : null;
   if (!tier || !interval) throw new ApiError(400, 'bad_request', 'Choose a plan and monthly or yearly.');
+  if ((tier === 'team') !== (a.kind === 'team')) {
+    throw new ApiError(400, 'bad_request', tier === 'team' ? 'The team plan is for a team: create one first.' : 'A team takes the team plan.');
+  }
+  let quantity = 1;
+  if (tier === 'team') {
+    const asked = Math.min(200, Math.max(0, parseInt(body.seats, 10) || 0));
+    quantity = Math.max(MIN_SEATS, await paidMembers(env, a.ws), asked);
+  }
   if (tier === 'academic') {
     const u = await env.DB.prepare('SELECT academic_until FROM users WHERE id = ?').bind(user.id).first();
     if (!(u && u.academic_until > now())) throw new ApiError(403, 'not_academic', 'Check that you qualify for the academic price first.');
@@ -116,7 +138,7 @@ export async function checkout(req, env, user, wsId) {
   const customer = current && current.stripe_customer !== 'manual' ? current.stripe_customer : null;
   const session = await stripe(env, 'POST', '/checkout/sessions', {
     mode: 'subscription',
-    line_items: [{ price: price.id, quantity: 1 }],
+    line_items: [{ price: price.id, quantity }],
     client_reference_id: a.ws,
     metadata: { workspace_id: a.ws, user_id: user.id },
     subscription_data: { metadata: { workspace_id: a.ws, user_id: user.id } },
@@ -158,12 +180,13 @@ export async function switchInterval(req, env, user, wsId) {
   }
   const s = await stripe(env, 'GET', `/subscriptions/${current.stripe_subscription}`);
   const item = s.items && s.items.data && s.items.data[0];
-  const tier = item && item.price && item.price.lookup_key && item.price.lookup_key.startsWith('academic') ? 'academic' : 'pro';
+  const key = (item && item.price && item.price.lookup_key) || '';
+  const tier = TIERS.includes(key.split('_')[0]) ? key.split('_')[0] : 'pro';
   const price = (await prices(env))[`${tier}_${interval === 'year' ? 'yearly' : 'monthly'}`];
   if (!price) throw new ApiError(503, 'billing_off', 'That price is not available yet.');
   if (item.price.id === price.id) return { ok: true, unchanged: true };
   const updated = await stripe(env, 'POST', `/subscriptions/${s.id}`, {
-    items: [{ id: item.id, price: price.id }],
+    items: [{ id: item.id, price: price.id, quantity: item.quantity || 1 }],
     proration_behavior: 'create_prorations',
   });
   await mirror(env, updated);

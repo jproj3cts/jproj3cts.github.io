@@ -12,6 +12,7 @@
 // emptied of everything personal ("Deleted user"), and can never sign in.
 
 import { stripe } from './billing.js';
+import { syncSeats } from './teams.js';
 import { ApiError, now } from './util.js';
 
 export const CONFIRM = 'delete my account';
@@ -46,6 +47,11 @@ export async function deleteAccount(req, env, user) {
     }
   }
   const ids = owned.map((w) => w.id);
+  // the teams whose seat they take, to bring their seats down afterwards
+  const { results: seated } = await env.DB.prepare(
+    `SELECT m.workspace_id FROM members m JOIN workspaces w ON w.id = m.workspace_id
+      WHERE m.user_id = ? AND m.seat = 1 AND w.kind = 'team' AND w.owner_id != ?`,
+  ).bind(user.id, user.id).all();
   // History and thumbnails in R2 first: the rows that name the objects go with the workspaces.
   for (const ws of ids) {
     const { results: vs } = await env.DB.prepare(
@@ -79,5 +85,10 @@ export async function deleteAccount(req, env, user) {
       now(), user.id,
     ),
   ]);
+  // a seat freed in someone else's team comes off at its next renewal; if
+  // Stripe is down just now the next change to that team brings it down
+  for (const t of seated) {
+    try { await syncSeats(env, t.workspace_id); } catch (err) { console.error('seats', t.workspace_id, err.message); }
+  }
   return { ok: true, workspaces: ids.length };
 }

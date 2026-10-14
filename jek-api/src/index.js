@@ -11,6 +11,7 @@ import * as B from './benches.js';
 import { exportAll } from './export.js';
 import * as I from './institutions.js';
 import * as P from './parts.js';
+import * as T from './teams.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
@@ -114,6 +115,23 @@ const router = new Router()
     await B.deleteFolder(env, await requireUser(req, env, ctx), w, f);
     return json({ ok: true });
   })
+  // teams
+  .on('POST', '/v1/teams', async (req, env, ctx) => json(await T.create(req, env, await requireUser(req, env, ctx)), 201))
+  .on('GET', '/v1/teams/:id', async (req, env, ctx, { id }) => json(await T.get(env, await requireUser(req, env, ctx), id)))
+  .on('PATCH', '/v1/teams/:id', async (req, env, ctx, { id }) => json(await T.patch(req, env, await requireUser(req, env, ctx), id)))
+  .on('DELETE', '/v1/teams/:id', async (req, env, ctx, { id }) => json(await T.remove(env, await requireUser(req, env, ctx), id)))
+  .on('POST', '/v1/teams/:id/invites', async (req, env, ctx, { id }) => json(await T.invite(req, env, await requireUser(req, env, ctx), id), 201))
+  .on('DELETE', '/v1/teams/:id/invites/:inv', async (req, env, ctx, { id, inv }) =>
+    json(await T.uninvite(env, await requireUser(req, env, ctx), id, inv)),
+  )
+  .on('PATCH', '/v1/teams/:id/members/:u', async (req, env, ctx, { id, u }) => json(await T.setRole(req, env, await requireUser(req, env, ctx), id, u)))
+  .on('DELETE', '/v1/teams/:id/members/:u', async (req, env, ctx, { id, u }) =>
+    json(await T.removeMember(env, await requireUser(req, env, ctx), id, u)),
+  )
+  .on('POST', '/v1/teams/:id/leave', async (req, env, ctx, { id }) => json(await T.leave(env, await requireUser(req, env, ctx), id)))
+  .on('POST', '/v1/teams/:id/transfer', async (req, env, ctx, { id }) => json(await T.transfer(req, env, await requireUser(req, env, ctx), id)))
+  .on('GET', '/v1/invitations/:token', async (req, env, ctx, { token }) => json(await T.peek(env, token)))
+  .on('POST', '/v1/invitations/accept', async (req, env, ctx) => json(await T.accept(req, env, await requireUser(req, env, ctx))))
   // billing
   .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
   .on('POST', '/v1/me/institution', async (req, env, ctx) => json(await I.checkInstitution(env, await requireUser(req, env, ctx))))

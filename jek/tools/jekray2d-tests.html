@@ -3026,6 +3026,20 @@ const TESTS = [
     run: () => TESTS_EXPECT.zmx.gaps[0],
   },
   {
+    name: 'Moving or scaling a part’s name, renaming it, or moving a drawing does not retrace the bench',
+    why: 'a name dragged on the bench writes the part’s label at every mouse move: the trace, the rays’ layer and the field’s layer are keyed on what the light meets, so none of these cosmetic changes makes a new trace (1 when the trace stays the same object through all of them)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('lbl', [src({ name: 'L' }), bk7Lens({ name: 'K', x: 40 }), { type: 'draw', name: 'Box', x: 10, y: 30, angle: 0, shape: 'rect', w: 10, h: 5 }]));
+      const T0 = J.lastTrace(), k = J.byName('K'), d = J.byName('Box');
+      k.label = { dx: 3, dy: -2, s: 1.5 }; J.select('K'); const a = J.lastTrace() === T0;
+      k.name = 'K2'; J.select('K2'); const b = J.lastTrace() === T0;
+      if (d) { d.x += 5; d.y -= 5; } J.select('K2'); const c = J.lastTrace() === T0;
+      k.x += 1; J.select('K2'); const dd = J.lastTrace() !== T0;        // a real move does retrace
+      return a && b && c && dd ? 1 : 0;
+    },
+  },
+  {
     name: 'Thorlabs’ plano-convex files trace to their catalogue focal lengths',
     why: 'the LA1131-A and LA1951-A files as Thorlabs publishes them (N-BK7, R = 25.75 and 13.08 mm, 5.34 and 11.74 mm thick): the catalogue gives f = 50.0 and 25.4 mm and back focal lengths 46.3 and 17.6 mm at 587.6 nm; the diameter 25.4 mm and the -A coating band read from the part number (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -6908,7 +6908,9 @@ function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 const rfNotes = new Set();
 const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
-  JSON.stringify(project.elements.filter(e => e.type !== 'elec'), (k, v) => k === 'hide3d' ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
+  JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), (k, v) => COSMETIC.has(k) ? undefined : v) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire));
+// what changes nothing in the light: a part's name and where it is written, its import notes, drawings
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source']);
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   const key = traceKeyNow();

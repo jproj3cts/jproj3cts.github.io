@@ -36,6 +36,7 @@ export function cloudLink(link) {
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
+  document.getElementById('btnCloudCopy').hidden = !cloud || !cloudOn() || !copyPlaces(cloud.ws).length;
 }
 function cloudSay(text) {
   cloudNote = text;
@@ -200,7 +201,7 @@ const whenAgo = t => {
 };
 const HOME_ICONS = {
   folder: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z', recent: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5V8L10.5 9.5',
-  fork: MENU_ICONS.fork,
+  fork: MENU_ICONS.fork, copy: MENU_ICONS.paste,
   list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
   bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
   history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
@@ -248,6 +249,27 @@ async function homeOpenBench(id, version) {
     await cloudOpen(id, version);
     closeHome();
   } catch (err) { toast(err.message, true); }
+}
+// the workspaces (but one) the person can save a bench to: a copy goes to one of them
+export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
+const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
+// a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from
+function homeCopy(b, btn) {
+  const places = copyPlaces(b.workspace_id);
+  const sel = h('select', { 'aria-label': 'Copy to workspace' }, h('option', { value: '' }, 'Choose…'), ...places.map(w => h('option', { value: w.id }, placeName(w))));
+  sel.addEventListener('change', () => {
+    const w = places.find(x => x.id === sel.value);
+    if (!w) return;
+    closeHomeMenu();
+    const name = prompt('Name of the copy in ' + placeName(w), b.name);
+    if (name === null) return;
+    homeSay(async () => {
+      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: w.id })));
+      Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
+      return f;
+    }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+  });
+  openHomeMenu(btn, [h('div', { class: 'rt-menunote' }, 'Copy “' + b.name + '” to'), sel]);
 }
 // a fork: of the bench as it is now, or of one of its versions; named first
 function homeFork(b, version, after) {
@@ -500,6 +522,7 @@ export async function fillHome() {
       ['Open', 'open', () => homeOpenBench(b.id)],
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
       can ? ['Fork…', 'fork', () => homeFork(b)] : null,
+      copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
       'sep',
       can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) homeSay(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } })(); }] : null,
       can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
@@ -563,6 +586,7 @@ export function cloudMenuShown() {
   fillRail();
   for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
   document.getElementById('btnCloudFork').hidden = !on || !cloud;
+  document.getElementById('btnCloudCopy').hidden = !on || !cloud || !copyPlaces(cloud.ws).length;
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
   if (!on) closeHome();
 }
@@ -595,6 +619,28 @@ export function wireCloud() {
         cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
         toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
       } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
+    });
+    // a copy of the open bench into another workspace: a fork there, and the work goes on in it
+    document.getElementById('btnCloudCopy').addEventListener('click', async () => {
+      if (!cloud) return;
+      const link = cloud, places = copyPlaces(link.ws);
+      if (!places.length) { toast('There is no other workspace to copy to', true); return; }
+      let pick = places[0];
+      if (places.length > 1) {
+        const n = parseInt(prompt('Copy to which workspace? Type its number:\n' + places.map((w, i) => (i + 1) + '. ' + placeName(w)).join('\n'), '1'), 10);
+        pick = places[n - 1];
+      }
+      if (!pick) return;
+      const name = prompt('Name of the copy in ' + placeName(pick), project.name || link.name);
+      if (name === null) return;
+      if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
+      try {
+        const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: pick.id })));
+        setCloudOpening(true);
+        try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { setCloudOpening(false); }
+        cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
+        toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
+      } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
     document.getElementById('homeBack').addEventListener('click', closeHome);
     document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });

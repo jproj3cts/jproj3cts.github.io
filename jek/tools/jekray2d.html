@@ -1209,6 +1209,7 @@
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
+            <button type="button" role="menuitem" id="btnCloudCopy" data-icon="paste" hidden title="A copy of this bench in another of your workspaces (a team’s, or your own), and carry on there">Copy to another workspace…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
@@ -31209,6 +31210,7 @@ function cloudLink(link) {
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
+  document.getElementById('btnCloudCopy').hidden = !cloud || !cloudOn() || !copyPlaces(cloud.ws).length;
 }
 function cloudSay(text) {
   cloudNote = text;
@@ -31373,7 +31375,7 @@ const whenAgo = t => {
 };
 const HOME_ICONS = {
   folder: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z', recent: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5V8L10.5 9.5',
-  fork: MENU_ICONS.fork,
+  fork: MENU_ICONS.fork, copy: MENU_ICONS.paste,
   list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
   bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
   history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
@@ -31421,6 +31423,27 @@ async function homeOpenBench(id, version) {
     await cloudOpen(id, version);
     closeHome();
   } catch (err) { toast(err.message, true); }
+}
+// the workspaces (but one) the person can save a bench to: a copy goes to one of them
+const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
+const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
+// a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from
+function homeCopy(b, btn) {
+  const places = copyPlaces(b.workspace_id);
+  const sel = h('select', { 'aria-label': 'Copy to workspace' }, h('option', { value: '' }, 'Choose…'), ...places.map(w => h('option', { value: w.id }, placeName(w))));
+  sel.addEventListener('change', () => {
+    const w = places.find(x => x.id === sel.value);
+    if (!w) return;
+    closeHomeMenu();
+    const name = prompt('Name of the copy in ' + placeName(w), b.name);
+    if (name === null) return;
+    homeSay(async () => {
+      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: w.id })));
+      Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
+      return f;
+    }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+  });
+  openHomeMenu(btn, [h('div', { class: 'rt-menunote' }, 'Copy “' + b.name + '” to'), sel]);
 }
 // a fork: of the bench as it is now, or of one of its versions; named first
 function homeFork(b, version, after) {
@@ -31673,6 +31696,7 @@ async function fillHome() {
       ['Open', 'open', () => homeOpenBench(b.id)],
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
       can ? ['Fork…', 'fork', () => homeFork(b)] : null,
+      copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
       'sep',
       can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) homeSay(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } })(); }] : null,
       can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
@@ -31736,6 +31760,7 @@ function cloudMenuShown() {
   fillRail();
   for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
   document.getElementById('btnCloudFork').hidden = !on || !cloud;
+  document.getElementById('btnCloudCopy').hidden = !on || !cloud || !copyPlaces(cloud.ws).length;
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
   if (!on) closeHome();
 }
@@ -31768,6 +31793,28 @@ function wireCloud() {
         cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
         toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
       } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
+    });
+    // a copy of the open bench into another workspace: a fork there, and the work goes on in it
+    document.getElementById('btnCloudCopy').addEventListener('click', async () => {
+      if (!cloud) return;
+      const link = cloud, places = copyPlaces(link.ws);
+      if (!places.length) { toast('There is no other workspace to copy to', true); return; }
+      let pick = places[0];
+      if (places.length > 1) {
+        const n = parseInt(prompt('Copy to which workspace? Type its number:\n' + places.map((w, i) => (i + 1) + '. ' + placeName(w)).join('\n'), '1'), 10);
+        pick = places[n - 1];
+      }
+      if (!pick) return;
+      const name = prompt('Name of the copy in ' + placeName(pick), project.name || link.name);
+      if (name === null) return;
+      if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
+      try {
+        const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: pick.id })));
+        setCloudOpening(true);
+        try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { setCloudOpening(false); }
+        cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
+        toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
+      } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
     document.getElementById('homeBack').addEventListener('click', closeHome);
     document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
@@ -31862,7 +31909,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches.',
+    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from.',
     '<b>The makers\u2019 glass catalogues</b>: Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, the crystals, and the optical plastics (PMMA, polycarbonate, Zeonex E48R) and B 270, so an imported lens traces in the glass its maker chose, named as its file spells it (N-BK7, H-K9L, S-LAH64, M-TAF1, K-VC89). <b>Search the glass catalogues\u2026</b> under Material finds any by name, and the panel gives its maker, nd and Vd. <b>Lens import</b> is stronger: .zar archives open (the .zmx inside, and the glass catalogue the archive carries for any glass the tool lacks), files in a Windows code page and UTF-16 read, floating apertures, cylindrical lenses from toroidal surfaces, the design wavelength kept, a moulded asphere\u2019s cover glass left out and said so, and Thorlabs\u2019 moulded glasses (D-ZK3M, D-ZLAF52LAM, H-LAK54M) at their moulded index. Edmund\u2019s coating codes (EO_VIS0 and the rest) set the AR band, and Corning 7980 is known by every name their files give it. The test suite now imports real Thorlabs and Edmund files and checks their focal lengths and back focal lengths against the makers\u2019 own figures.',
     'RF, round two: <b>feed horns launch their real aperture fields</b>. A corrugated horn\u2019s HE\u2081\u2081, a smooth-wall horn\u2019s TE\u2081\u2081 and a diagonal horn\u2019s TE\u2081\u2080 + TE\u2080\u2081 are carried as Hermite\u2013Gauss modes of the fitted Gaussian, so the beam has the horn\u2019s sidelobes and M\u00b2 and its Gaussicity is Goldsmith\u2019s (0.98, 0.91, 0.84); a <b>far-field pattern</b> plot on every horn (E- and H-plane and cross-polar cuts, directivity, half-power widths, first sidelobes); a receiving horn takes in by its own aperture mode, in <b>one polarisation</b> with its cross-polar field across it, or both. And the horns join the <b>electronics</b>: a receiver\u2019s front end is a <b>video detector</b> (V/W, NEP, video bandwidth) or a <b>mixer</b> whose IF out carries each carrier at |f \u2212 f\u2097\u2092|, less its conversion loss, over k (T\u2090\u2099\u209c + T\u1d63\u2093) R, with the system temperature, noise floor and signal to noise in its readout; a feed horn can be an <b>upconverter</b> with an IF in port, so a tone from a signal generator goes up, across the bench and down into a spectrum analyser. A new example, <b>Heterodyne link, 150 GHz</b>.',
     'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',

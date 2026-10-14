@@ -6007,7 +6007,7 @@ function traceSceneOnce() {
           // it is nothing at all, so its field carries on unchanged.
           const P = linkTo.get(s.el.id);
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
-          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
           [px, py] = toWorld(P.s.f, lx, ly);
           [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
           bn = P.el.bench;
@@ -6365,7 +6365,7 @@ function traceSceneOnce() {
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -6588,7 +6588,7 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
     }
     }
   }
@@ -7160,11 +7160,11 @@ function drawRaysOn(ctx, rays) {
   const groups = new Map();
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
-  const dens = rayDensity(segs);
+  const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
   ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
+    const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     const key = r.colour + '|' + lvl;
     if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, rays: [] });
     groups.get(key).rays.push(r);
@@ -7203,6 +7203,15 @@ function drawRaysOn(ctx, rays) {
 /* A ray's brightness from the power it carries, on a log scale: a 4% Fresnel ghost is plainly
    fainter than the beam it came off, a beam 40 dB down is a trace. w: its power as a fraction */
 function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
+/* the strongest ray of each source on a tab, by source id: a ray's brightness is against its own
+   launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
+   or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at
+   no brightness at all: the faintest level is one step) */
+function rayTops(rays, tab) {
+  const tops = new Map();
+  for (const r of rays) if (r.bench === tab && r.w > (tops.get(r.src) || 0)) tops.set(r.src, r.w);
+  return tops;
+}
 /* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
    so the glow adds up to a beam rather than a block */
 const rayDensity = segs => Math.min(1, Math.max(0.08, Math.sqrt(600 / Math.max(1, segs))));
@@ -9540,6 +9549,10 @@ function keepFrame(map, key, v) {
   const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
   while (map.size > cap) map.delete(map.keys().next().value);
 }
+/* the 3D view's field volume, rendered with each step while that view shows the field: box() the
+   board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
+   volume filed under the key the view will ask for (both installed by the 3D view) */
+const sweepVol = { box: () => null, keep: () => {} };
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 function setFieldRendered(v) { return (fieldRendered = v); }
@@ -9656,9 +9669,9 @@ function renderSweepFrames(list, onDone) {
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (!fieldFrames.bench.has(key)) {
             timing(i); job.stage = 'the bench';
-            const o = await fwRequest('bench', 'sweep');
+            const o = await fwRequest('bench', 'sweep', { vol: sweepVol.box() });
             if (!live()) return;
-            if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); requestRender(); }
+            if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V); requestRender(); }
           }
           // zoomed in to the close-up: its picture for this frame too, for this view
           if (closeupOnShow() && !fieldFrames.closeup.has(closeupKey(key))) {
@@ -9782,7 +9795,7 @@ function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminat
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id);
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box();
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -9796,9 +9809,10 @@ function renderOnPool(pool, list, n, period, job, onDone) {
     while (live() && next < order.length) {
       const i = order[next++];
       const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
-      const o = await swAsk(W, proj, { sets, ids });
+      const o = await swAsk(W, proj, { sets, ids, vol });
       if (!live()) return;
       if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });
+      if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V);
       for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
       done.add(i); job.i = done.size - 1;
       if (!started && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
@@ -12724,6 +12738,8 @@ const V3D = (() => {
   // (a feature of the tool proper: always there for a tab it can show)
   const allowed = () => true;
   const active = () => allowed() && !!(tabState() && tabState().on);
+  // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
+  const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
 
   function load() {
     if (T) return Promise.resolve();
@@ -13324,10 +13340,10 @@ const V3D = (() => {
     const blend = add ? T.AdditiveBlending : T.NormalBlending;
     const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
     let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
-    const dens = rayDensity(segs);
+    const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
-      const lvl = Math.round(rayAlpha(r.w) * dens * 12), key = r.colour + '|' + lvl;
+      const lvl = Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
@@ -14132,7 +14148,7 @@ const V3D = (() => {
 
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
-    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint,
+    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => FREE_3D.has(el.type) && el.type !== 'draw',
@@ -14214,16 +14230,18 @@ const V3D = (() => {
   };
 })();
 
+const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)).join();
+function volKeep(key, d) {
+  d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
+  while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
+  return d;
+}
 function volLater(bb) {
   const srcs = popSources();
   if (!srcs.length) return { data: null, busy: false };
-  const pk = popKeyOf(lastTrace.beams, srcs), key = pk + '|' + project.tab + '|' + bb.map(v => Math.round(v)).join();
+  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
-  const keep = d => {
-    d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
-    while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
-    return d;
-  };
+  const keep = d => volKeep(key, d);
   // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
   const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
   const pool = heavyVol && !sweepJob ? swPool() : null;
@@ -14275,6 +14293,12 @@ function volLater(bb) {
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
 const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
+/* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
+   sweeps): the board it is cut to, and where the steps' volumes go */
+function wireView3d() {
+  sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
+}
 /* ==========================================================================
    Instruments: one oscilloscope and one spectrum analyser view, drawn the same wherever a
    signal is looked at (the electronics' scope and analyser, a photodetector's own Signal
@@ -23243,21 +23267,24 @@ function volDecimate(F) {
   return out;
 }
 function volLegBase(leg) { const p = Object.getPrototypeOf(leg); return p && Object.prototype.hasOwnProperty.call(p, 'cutC') ? p : leg; }
-/* A segment's field at a point of its own frame (px across in the bench plane, py up out of it,
-   pz along it), as [p re, p im, s re, s im]: as trapLegAt, cuts along the beam with the fast
-   phase taken off and put back, but a round field read from its own radial samples (with its
-   reference sphere) rather than summed from its Hankel series point by point */
+/* A segment's field at a point (px across in the bench plane, py up out of it) of one exact cut
+   G of it, its leg's field at that distance, as [p re, p im, s re, s im]: a 2D map interpolated, a
+   round field read between its radial samples, each with its reference sphere and the launch's
+   polarisation. (Cuts a fiftieth of a Rayleigh range apart, interpolated between, would miss the
+   near field of a beam clipped by a rim, which ripples along the beam on a far finer scale.) */
 const volRadii = new WeakMap();
-function volFieldAt(L, px, py, pz) {
-  if (L.two) return trapLegAt(L, px, py, pz);
-  const acc = [0, 0, 0, 0], u = pz / L.H, i0 = Math.floor(u) - 1, r = Math.hypot(px, py), J = L.J, k = L.k;
-  for (let j = 0; j < 4; j++) {
-    const ij = i0 + j, tj = ij * L.H;
-    let l = 1;
-    for (let m = 0; m < 4; m++) if (m !== j) l *= (u - (i0 + m)) / (j - m);
-    const G = trapLegCut(L, ij);
+function volCutAt(L, G, px, py, J) {
+  const k = L.k;
+  let s, p;
+  if (L.two) {
+    const refX = popInside(G.ax.z, G.ax.zR) ? 0 : -k / (2 * G.ax.z), refY = popInside(G.ay.z, G.ay.zR) ? 0 : -k / (2 * G.ay.z);
+    const ph = refX * px * px + refY * py * py, c = Math.cos(ph), sn = Math.sin(ph), rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+    const a = interpL(G, px, py);
+    if (G.re2) { s = rot(a); const q = interpL(G, px, py, G.re2, G.im2); p = rot([(L.par ? -1 : 1) * q[0], (L.par ? -1 : 1) * q[1]]); }
+    else { const v = rot(a); s = [v[0] * J[0] - v[1] * J[1], v[0] * J[1] + v[1] * J[0]]; p = [v[0] * J[2] - v[1] * J[3], v[0] * J[3] + v[1] * J[2]]; }
+  } else {
     let x = volRadii.get(G); if (!x) { x = popRadii(qdht(G.re.length), G.R); volRadii.set(G, x); }
-    const n = x.length;
+    const n = x.length, r = Math.hypot(px, py);
     let vr = 0, vi = 0;
     if (r <= x[0]) { vr = G.re[0]; vi = G.im[0]; }
     else if (r < x[n - 1]) {
@@ -23267,16 +23294,14 @@ function volFieldAt(L, px, py, pz) {
       vr = G.re[lo] + (G.re[hi] - G.re[lo]) * f; vi = G.im[lo] + (G.im[hi] - G.im[lo]) * f;
     }
     const bph = (G.sphere ? -k / (2 * G.z) : 0) * r * r, cb = Math.cos(bph), sb = Math.sin(bph), v0 = vr * cb - vi * sb, v1 = vr * sb + vi * cb;
-    const s = [v0 * J[0] - v1 * J[1], v0 * J[1] + v1 * J[0]], p = [v0 * J[2] - v1 * J[3], v0 * J[3] + v1 * J[2]];
-    const ph = k * tj, c = Math.cos(ph), sn = Math.sin(ph);
-    acc[0] += l * (p[0] * c - p[1] * sn); acc[1] += l * (p[0] * sn + p[1] * c);
-    acc[2] += l * (s[0] * c - s[1] * sn); acc[3] += l * (s[0] * sn + s[1] * c);
+    s = [v0 * J[0] - v1 * J[1], v0 * J[1] + v1 * J[0]]; p = [v0 * J[2] - v1 * J[3], v0 * J[3] + v1 * J[2]];
   }
-  const ph = -k * pz, c = Math.cos(ph), sn = Math.sin(ph);
-  return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c];
+  return [p[0], p[1], s[0], s[1]];
 }
-/* the share of its laser's power a segment's field is per unit of, in W */
-const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.root || 1);
+/* the share of its laser's power a segment's field is per unit of, in W: the field has unit power
+   (a cavity's build-up aside), and the segment's Jones vector carries its launch's share and every
+   reflection, transmission and loss on its way, so a 5 % leak through a mirror is 5 % here too */
+const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.b && sg.b.J ? sg.b.J.reduce((a, v) => a + v * v, 0) : (sg.root || 1));
 /* Beams of one launch that run the same way through the same space interfere, and fringes
    across them are on a scale the 3D view can show: each such segment's mates, the others of its
    launch on the bench plane running within 6 degrees of it, side by side within a few beam
@@ -23355,7 +23380,8 @@ function volData(segs, tab, bb, only) {
     const I = new Float32Array(ts.length * (two ? M * M : M)), rmax = new Float32Array(ts.length);
     let pk = 0;
     // the fields of a segment and its mates at a point on the bench (x, y) at height z0 + v
-    const members = coh ? [sg, ...cohs].map(m => ({ m, L: trapLegPart(m, [m.b.x0, m.b.y0]), a: Math.sqrt(volPw(m)) })) : null;
+    // (each with its launch's polarisation as a direction only: its amplitude is in the field, and its power in Pw)
+    const members = coh ? [sg, ...cohs].map(m => { const L = trapLegPart(m, [m.b.x0, m.b.y0]), Jn = Math.hypot(...L.J) || 1; return { m, L, a: Math.sqrt(volPw(m)), J: L.J.map(v => v / Jn) }; }) : null;
     const nX = -b.dy, nY = b.dx;
     ts.forEach((t, j) => {
       if (ranges && !ranges.some(([j0, j1]) => j >= j0 && j < j1)) return;
@@ -23378,18 +23404,21 @@ function volData(segs, tab, bb, only) {
         }
         R = Math.max(R, 1e-6); rmax[j] = R;
         const X = b.x0 + b.dx * t, Y = b.y0 + b.dy * t;
+        // each member's field cut exactly where this cut crosses its axis; across the cut, the
+        // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
+        const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
         for (let q = 0; q < M; q++) for (let p2 = 0; p2 < M; p2++) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
           const acc = [0, 0, 0, 0];
-          for (const { m, L, a } of members) {
+          for (const { m, L, a, G, pzc, J } of here) {
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
             // twice). A segment's own, all of it
             if (m !== sg && (pz0 < -1e-3 || pz0 > m.b.len + 1e-3 || (pz0 > m.b.len - 1e-3 && t < b.len - 1e-3) || (pz0 < 1e-3 && t > 1e-3))) continue;
-            const pz = clamp(pz0, 0, m.b.len);
-            const f = volFieldAt(L, -rx * m.b.dy + ry * m.b.dx, v, pz);
-            for (let c = 0; c < 4; c++) acc[c] += a * f[c];
+            const f = volCutAt(L, G, -rx * m.b.dy + ry * m.b.dx, v, J), ph = -L.k * (clamp(pz0, 0, m.b.len) - pzc), c = Math.cos(ph), sn = Math.sin(ph);
+            acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
+            acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);
           }
           const val = acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
           I[(j * M + q) * M + p2] = val; if (val > pk) pk = val;
@@ -23432,7 +23461,7 @@ function volData(segs, tab, bb, only) {
     });
     if (!(pk > 0) && !ranges) continue;          // (a share's dark cuts still go back, to be stitched)
     const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
-    out.push({ i: sg.i, two, coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
+    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
   }
   return ranges0(only) ? { segs: out, peak: 0 } : volMerge(out);
 }
@@ -23455,7 +23484,8 @@ function volStitch(list) {
   return out;
 }
 /* Volumes of light running the same way along the same line, cut the same: an unpolarised beam's
-   halves, added as the separate light they are; mates holding the same summed field, kept once */
+   halves (two launches), added as the separate light they are; mates of one launch, each holding
+   the same summed field of them all, kept once */
 /* the irradiance the 3D colours run up to: the brightest but for the brightest 3% of the light's
    length, so a fibre's face or a tight focus (micrometres long, and orders of magnitude brighter)
    shows in the top colour rather than leaving the rest of the beam at the bottom of the scale */
@@ -23482,7 +23512,7 @@ function volMerge(list) {
   for (const v of list) {
     if (!(v.peak > 0)) continue;
     const k = [v.two, v.M, ...v.o, ...v.e, ...v.ts, ...v.rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join(), same = byK.get(k);
-    if (same && v.coh) continue;
+    if (same && v.coh && same.coh && same.launch === v.launch) continue;
     if (same) { let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m); continue; }
     byK.set(k, v); out.push(v); peak = Math.max(peak, v.peak);
   }
@@ -29536,6 +29566,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     'Rays are as bright as the light they carry, on a log scale: a 4 % reflection off a window is plainly fainter than the beam it came off, a back-reflection 40 dB down through an isolator is a trace, and a cavity\u2019s hundreds of passes no longer paint the bench solid. A laser\u2019s aperture takes in light that reaches it (a return beam, the other laser of a counter-propagating pair) instead of passing it through the housing. Fit view keeps every part\u2019s whole body clear of the parts rail and the tabs; the 3D fit comes in as close as the bench\u2019s corners allow. Names sit under their part whichever way it is turned (under a thick lens\u2019s whole body), step aside from one another and from the port names and sockets beside them, and stay readable at any zoom; in 3D they step up where they would overlap. A dense fan of rays is thinned to a lighter line, so a cavity\u2019s field stays a beam rather than a block, and an iris shows its opening as a gap, with no faint line across it. A screen\u2019s profile behind it is a plot with a baseline, as tall as the light is strong. The diffracted field past a narrow slit is sampled across the slit, not the beam, so its minima land where \u03bbL/a says at the default sampling. Fixed: a sheet of light along the beam in 3D after an axicon; the \u201ccomputing\u201d notice sitting on the 2D/3D switch; on a phone, an example\u2019s view kept from a desk, and the minimap covering a third of the bench.',
+    'The 3D field is as bright as the light: a beam that is 5 % of its laser (through a mirror\u2019s back, off a window) is 5 % as bright, where before every beam was drawn at its laser\u2019s power; where a beam clipped by a lens\u2019s rim runs with the light round the rim, the two are added where each cut is taken, rather than between cuts too far apart for a clipped beam\u2019s ripples, which had left the beam all but dark; and a laser\u2019s two polarisation halves add, where one was left out. Rays in 3D (and 2D) are bright against the strongest ray of their own source, so a fibre tip fed through a lossy network is as bright as a laser and a faint beam is never dropped: a 5 % leak through a mirror shows. A sweep rendered ahead while the 3D view shows the field renders each step\u2019s 3D field too, so it plays smoothly there as it does in 2D.',
     'The 3D field shows a whole beam even with a fibre\u2019s face or a tight focus in it: its colours run up to the brightest light but for the brightest 3% of its length, and a spot brighter than that shows in the top colour (the key marks its top \u2265). A ghost of under a ten-thousandth the power no longer turns a beam into an interference map, and a map is sized to the beams that matter, so a strong beam keeps its detail.',
     'Panels close with a \u00d7 beside their pin: a pinned one is unpinned, the main one (the Bench panel too) goes until something is selected, or View \u203a Show the side panel. Fixed: in 3D, where two beams interfere (a Michelson\u2019s output), the field now reaches the part they end on, instead of stopping short of the screen.',
     'An imported part that needed assumptions (a coating from its part number, a fold the importer could not follow, a glass it does not know) says so in red at the top of its panel and carries a ringed red ! on the bench, until dismissed or fixed. A part renamed in My parts comes onto the bench under its new name.',
@@ -30917,6 +30948,12 @@ function traceLater() {
 }
 
 /* The worker's side: load the bench when it changes, trace it, run the job, answer */
+/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
+function volOut(R, key, vol, transfer) {
+  const V = volData(R.segs, vol.tab, vol.bb, null);
+  for (const v of V.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
+  return { key, tab: vol.tab, bb: vol.bb, V };
+}
 function workerMain() {
   let bench = { key: null, R: null };
   self.onmessage = e => {
@@ -30932,7 +30969,7 @@ function workerMain() {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         const R = popRun(lastTrace.beams, srcs, { draw: true });
         bench = { key, R };
-        out = { key, R: fwPackRun(R, transfer) };
+        out = { key, R: fwPackRun(R, transfer), vol: args && args.vol ? volOut(R, key, args.vol, transfer) : null };
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
@@ -30946,7 +30983,8 @@ function workerMain() {
         for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }
         traceScene();
         const srcs = popSources();
-        out = { bench: srcs.length ? { key: popKeyOf(lastTrace.beams, srcs), R: fwPackRun(popRun(lastTrace.beams, srcs, { draw: true }), transfer) } : null,
+        const R = srcs.length ? popRun(lastTrace.beams, srcs, { draw: true }) : null, key = R && popKeyOf(lastTrace.beams, srcs);
+        out = { bench: R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
           screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }) };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
@@ -31035,7 +31073,7 @@ installHooks({
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

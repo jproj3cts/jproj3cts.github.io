@@ -3,11 +3,11 @@ import { splitRoot } from '../core/coherence.js';
 import { deg, project } from '../state/project.js';
 import { allSources, fieldDec, lightOf } from '../state/elements.js';
 import { lastTrace } from './trace.js';
-import { popRadii, popStats, qdht } from './field.js';
+import { interpL, popInside, popRadii, popStats, qdht } from './field.js';
 import { field2I, field2Propagate, field2Slope, fieldComps, popStats2 } from './field2d.js';
 import { POP_ROWS, POP_SLICES, popGroupCut, popKeyOf, popRun } from './beam-tree.js';
 import { closeupAt, closeupImage, closeupPrep } from './closeup.js';
-import { trapLegAt, trapLegCut, trapLegPart } from './diffraction.js';
+import { trapLegPart } from './diffraction.js';
 
 /* ---------- The diffracted field in 3D ----------
    Each segment's field as a volume for the 3D view: cuts across the beam along it, close
@@ -36,21 +36,24 @@ function volDecimate(F) {
   return out;
 }
 function volLegBase(leg) { const p = Object.getPrototypeOf(leg); return p && Object.prototype.hasOwnProperty.call(p, 'cutC') ? p : leg; }
-/* A segment's field at a point of its own frame (px across in the bench plane, py up out of it,
-   pz along it), as [p re, p im, s re, s im]: as trapLegAt, cuts along the beam with the fast
-   phase taken off and put back, but a round field read from its own radial samples (with its
-   reference sphere) rather than summed from its Hankel series point by point */
+/* A segment's field at a point (px across in the bench plane, py up out of it) of one exact cut
+   G of it, its leg's field at that distance, as [p re, p im, s re, s im]: a 2D map interpolated, a
+   round field read between its radial samples, each with its reference sphere and the launch's
+   polarisation. (Cuts a fiftieth of a Rayleigh range apart, interpolated between, would miss the
+   near field of a beam clipped by a rim, which ripples along the beam on a far finer scale.) */
 const volRadii = new WeakMap();
-function volFieldAt(L, px, py, pz) {
-  if (L.two) return trapLegAt(L, px, py, pz);
-  const acc = [0, 0, 0, 0], u = pz / L.H, i0 = Math.floor(u) - 1, r = Math.hypot(px, py), J = L.J, k = L.k;
-  for (let j = 0; j < 4; j++) {
-    const ij = i0 + j, tj = ij * L.H;
-    let l = 1;
-    for (let m = 0; m < 4; m++) if (m !== j) l *= (u - (i0 + m)) / (j - m);
-    const G = trapLegCut(L, ij);
+function volCutAt(L, G, px, py, J) {
+  const k = L.k;
+  let s, p;
+  if (L.two) {
+    const refX = popInside(G.ax.z, G.ax.zR) ? 0 : -k / (2 * G.ax.z), refY = popInside(G.ay.z, G.ay.zR) ? 0 : -k / (2 * G.ay.z);
+    const ph = refX * px * px + refY * py * py, c = Math.cos(ph), sn = Math.sin(ph), rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+    const a = interpL(G, px, py);
+    if (G.re2) { s = rot(a); const q = interpL(G, px, py, G.re2, G.im2); p = rot([(L.par ? -1 : 1) * q[0], (L.par ? -1 : 1) * q[1]]); }
+    else { const v = rot(a); s = [v[0] * J[0] - v[1] * J[1], v[0] * J[1] + v[1] * J[0]]; p = [v[0] * J[2] - v[1] * J[3], v[0] * J[3] + v[1] * J[2]]; }
+  } else {
     let x = volRadii.get(G); if (!x) { x = popRadii(qdht(G.re.length), G.R); volRadii.set(G, x); }
-    const n = x.length;
+    const n = x.length, r = Math.hypot(px, py);
     let vr = 0, vi = 0;
     if (r <= x[0]) { vr = G.re[0]; vi = G.im[0]; }
     else if (r < x[n - 1]) {
@@ -60,16 +63,14 @@ function volFieldAt(L, px, py, pz) {
       vr = G.re[lo] + (G.re[hi] - G.re[lo]) * f; vi = G.im[lo] + (G.im[hi] - G.im[lo]) * f;
     }
     const bph = (G.sphere ? -k / (2 * G.z) : 0) * r * r, cb = Math.cos(bph), sb = Math.sin(bph), v0 = vr * cb - vi * sb, v1 = vr * sb + vi * cb;
-    const s = [v0 * J[0] - v1 * J[1], v0 * J[1] + v1 * J[0]], p = [v0 * J[2] - v1 * J[3], v0 * J[3] + v1 * J[2]];
-    const ph = k * tj, c = Math.cos(ph), sn = Math.sin(ph);
-    acc[0] += l * (p[0] * c - p[1] * sn); acc[1] += l * (p[0] * sn + p[1] * c);
-    acc[2] += l * (s[0] * c - s[1] * sn); acc[3] += l * (s[0] * sn + s[1] * c);
+    s = [v0 * J[0] - v1 * J[1], v0 * J[1] + v1 * J[0]]; p = [v0 * J[2] - v1 * J[3], v0 * J[3] + v1 * J[2]];
   }
-  const ph = -k * pz, c = Math.cos(ph), sn = Math.sin(ph);
-  return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c];
+  return [p[0], p[1], s[0], s[1]];
 }
-/* the share of its laser's power a segment's field is per unit of, in W */
-const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.root || 1);
+/* the share of its laser's power a segment's field is per unit of, in W: the field has unit power
+   (a cavity's build-up aside), and the segment's Jones vector carries its launch's share and every
+   reflection, transmission and loss on its way, so a 5 % leak through a mirror is 5 % here too */
+const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.b && sg.b.J ? sg.b.J.reduce((a, v) => a + v * v, 0) : (sg.root || 1));
 /* Beams of one launch that run the same way through the same space interfere, and fringes
    across them are on a scale the 3D view can show: each such segment's mates, the others of its
    launch on the bench plane running within 6 degrees of it, side by side within a few beam
@@ -148,7 +149,8 @@ export function volData(segs, tab, bb, only) {
     const I = new Float32Array(ts.length * (two ? M * M : M)), rmax = new Float32Array(ts.length);
     let pk = 0;
     // the fields of a segment and its mates at a point on the bench (x, y) at height z0 + v
-    const members = coh ? [sg, ...cohs].map(m => ({ m, L: trapLegPart(m, [m.b.x0, m.b.y0]), a: Math.sqrt(volPw(m)) })) : null;
+    // (each with its launch's polarisation as a direction only: its amplitude is in the field, and its power in Pw)
+    const members = coh ? [sg, ...cohs].map(m => { const L = trapLegPart(m, [m.b.x0, m.b.y0]), Jn = Math.hypot(...L.J) || 1; return { m, L, a: Math.sqrt(volPw(m)), J: L.J.map(v => v / Jn) }; }) : null;
     const nX = -b.dy, nY = b.dx;
     ts.forEach((t, j) => {
       if (ranges && !ranges.some(([j0, j1]) => j >= j0 && j < j1)) return;
@@ -171,18 +173,21 @@ export function volData(segs, tab, bb, only) {
         }
         R = Math.max(R, 1e-6); rmax[j] = R;
         const X = b.x0 + b.dx * t, Y = b.y0 + b.dy * t;
+        // each member's field cut exactly where this cut crosses its axis; across the cut, the
+        // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
+        const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
         for (let q = 0; q < M; q++) for (let p2 = 0; p2 < M; p2++) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
           const acc = [0, 0, 0, 0];
-          for (const { m, L, a } of members) {
+          for (const { m, L, a, G, pzc, J } of here) {
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
             // twice). A segment's own, all of it
             if (m !== sg && (pz0 < -1e-3 || pz0 > m.b.len + 1e-3 || (pz0 > m.b.len - 1e-3 && t < b.len - 1e-3) || (pz0 < 1e-3 && t > 1e-3))) continue;
-            const pz = clamp(pz0, 0, m.b.len);
-            const f = volFieldAt(L, -rx * m.b.dy + ry * m.b.dx, v, pz);
-            for (let c = 0; c < 4; c++) acc[c] += a * f[c];
+            const f = volCutAt(L, G, -rx * m.b.dy + ry * m.b.dx, v, J), ph = -L.k * (clamp(pz0, 0, m.b.len) - pzc), c = Math.cos(ph), sn = Math.sin(ph);
+            acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
+            acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);
           }
           const val = acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
           I[(j * M + q) * M + p2] = val; if (val > pk) pk = val;
@@ -225,7 +230,7 @@ export function volData(segs, tab, bb, only) {
     });
     if (!(pk > 0) && !ranges) continue;          // (a share's dark cuts still go back, to be stitched)
     const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
-    out.push({ i: sg.i, two, coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
+    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
   }
   return ranges0(only) ? { segs: out, peak: 0 } : volMerge(out);
 }
@@ -248,7 +253,8 @@ export function volStitch(list) {
   return out;
 }
 /* Volumes of light running the same way along the same line, cut the same: an unpolarised beam's
-   halves, added as the separate light they are; mates holding the same summed field, kept once */
+   halves (two launches), added as the separate light they are; mates of one launch, each holding
+   the same summed field of them all, kept once */
 /* the irradiance the 3D colours run up to: the brightest but for the brightest 3% of the light's
    length, so a fibre's face or a tight focus (micrometres long, and orders of magnitude brighter)
    shows in the top colour rather than leaving the rest of the beam at the bottom of the scale */
@@ -275,7 +281,7 @@ export function volMerge(list) {
   for (const v of list) {
     if (!(v.peak > 0)) continue;
     const k = [v.two, v.M, ...v.o, ...v.e, ...v.ts, ...v.rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join(), same = byK.get(k);
-    if (same && v.coh) continue;
+    if (same && v.coh && same.coh && same.launch === v.launch) continue;
     if (same) { let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m); continue; }
     byK.set(k, v); out.push(v); peak = Math.max(peak, v.peak);
   }

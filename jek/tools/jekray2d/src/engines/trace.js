@@ -865,7 +865,7 @@ function traceSceneOnce() {
           // it is nothing at all, so its field carries on unchanged.
           const P = linkTo.get(s.el.id);
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
-          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
           [px, py] = toWorld(P.s.f, lx, ly);
           [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
           bn = P.el.bench;
@@ -1223,7 +1223,7 @@ function traceSceneOnce() {
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -1446,7 +1446,7 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, bench: bn });
+      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
     }
     }
   }

@@ -461,11 +461,11 @@ function drawRaysOn(ctx, rays) {
   const groups = new Map();
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
-  const dens = rayDensity(segs);
+  const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
   ctx.lineWidth = dens < 1 ? 0.9 : 1.2;                 // a dense fan: finer lines, less moiré where they near one another
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const alpha = rayAlpha(r.w) * dens, lvl = Math.round(alpha * 12);   // a few steps: lines in one step are one stroke, and do not pile up where they cross
+    const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     const key = r.colour + '|' + lvl;
     if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, rays: [] });
     groups.get(key).rays.push(r);
@@ -504,6 +504,15 @@ function drawRaysOn(ctx, rays) {
 /* A ray's brightness from the power it carries, on a log scale: a 4% Fresnel ghost is plainly
    fainter than the beam it came off, a beam 40 dB down is a trace. w: its power as a fraction */
 export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
+/* the strongest ray of each source on a tab, by source id: a ray's brightness is against its own
+   launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
+   or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at
+   no brightness at all: the faintest level is one step) */
+export function rayTops(rays, tab) {
+  const tops = new Map();
+  for (const r of rays) if (r.bench === tab && r.w > (tops.get(r.src) || 0)) tops.set(r.src, r.w);
+  return tops;
+}
 /* and all of them thinned where there are many (a dense fan, a cavity's hundreds of passes),
    so the glow adds up to a beam rather than a block */
 export const rayDensity = segs => Math.min(1, Math.max(0.08, Math.sqrt(600 / Math.max(1, segs))));

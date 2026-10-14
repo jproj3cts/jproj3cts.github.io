@@ -34,7 +34,7 @@ import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
-import { V3D } from './view3d.js';
+import { V3D, wireView3d } from './view3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
@@ -90,7 +90,7 @@ installHooks({
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

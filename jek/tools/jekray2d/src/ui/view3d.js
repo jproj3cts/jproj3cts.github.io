@@ -11,12 +11,12 @@ import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, rayAlpha, rayDensity,
+  benchBg, benchHoles, benchLight, draw, filterColour, hornLam, hornShape, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selection, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';
-import { SW, swAsk, swDrop, swPool, swRelease, sweepJob } from './sweeps.js';
+import { SW, swAsk, swDrop, swPool, swRelease, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
 import { h, renderPanel, syncPanel } from './panel.js';
 import { magma } from './plots.js';
@@ -58,6 +58,8 @@ export const V3D = (() => {
   // (a feature of the tool proper: always there for a tab it can show)
   const allowed = () => true;
   const active = () => allowed() && !!(tabState() && tabState().on);
+  // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
+  const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
 
   function load() {
     if (T) return Promise.resolve();
@@ -658,10 +660,10 @@ export const V3D = (() => {
     const blend = add ? T.AdditiveBlending : T.NormalBlending;
     const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
     let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
-    const dens = rayDensity(segs);
+    const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
-      const lvl = Math.round(rayAlpha(r.w) * dens * 12), key = r.colour + '|' + lvl;
+      const lvl = Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
@@ -1466,7 +1468,7 @@ export const V3D = (() => {
 
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
-    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint,
+    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => FREE_3D.has(el.type) && el.type !== 'draw',
@@ -1548,16 +1550,18 @@ export const V3D = (() => {
   };
 })();
 
+const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)).join();
+function volKeep(key, d) {
+  d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
+  while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
+  return d;
+}
 function volLater(bb) {
   const srcs = popSources();
   if (!srcs.length) return { data: null, busy: false };
-  const pk = popKeyOf(lastTrace.beams, srcs), key = pk + '|' + project.tab + '|' + bb.map(v => Math.round(v)).join();
+  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
-  const keep = d => {
-    d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
-    while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
-    return d;
-  };
+  const keep = d => volKeep(key, d);
   // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
   const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
   const pool = heavyVol && !sweepJob ? swPool() : null;
@@ -1609,3 +1613,9 @@ function volLater(bb) {
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
 export const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
+/* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
+   sweeps): the board it is cut to, and where the steps' volumes go */
+export function wireView3d() {
+  sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
+}

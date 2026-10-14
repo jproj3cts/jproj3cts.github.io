@@ -189,6 +189,10 @@ function keepFrame(map, key, v) {
   const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
   while (map.size > cap) map.delete(map.keys().next().value);
 }
+/* the 3D view's field volume, rendered with each step while that view shows the field: box() the
+   board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
+   volume filed under the key the view will ask for (both installed by the 3D view) */
+export const sweepVol = { box: () => null, keep: () => {} };
 export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 export function setFieldRendered(v) { return (fieldRendered = v); }
@@ -305,9 +309,9 @@ function renderSweepFrames(list, onDone) {
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (!fieldFrames.bench.has(key)) {
             timing(i); job.stage = 'the bench';
-            const o = await fwRequest('bench', 'sweep');
+            const o = await fwRequest('bench', 'sweep', { vol: sweepVol.box() });
             if (!live()) return;
-            if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); requestRender(); }
+            if (o && o.key === key) { keepFrame(fieldFrames.bench, key, fwUnpackRun(o.R, beams)); if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V); requestRender(); }
           }
           // zoomed in to the close-up: its picture for this frame too, for this view
           if (closeupOnShow() && !fieldFrames.closeup.has(closeupKey(key))) {
@@ -431,7 +435,7 @@ export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.t
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 export const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id);
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box();
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -445,9 +449,10 @@ function renderOnPool(pool, list, n, period, job, onDone) {
     while (live() && next < order.length) {
       const i = order[next++];
       const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
-      const o = await swAsk(W, proj, { sets, ids });
+      const o = await swAsk(W, proj, { sets, ids, vol });
       if (!live()) return;
       if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });
+      if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V);
       for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
       done.add(i); job.i = done.size - 1;
       if (!started && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();

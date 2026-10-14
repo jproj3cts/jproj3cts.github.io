@@ -12,6 +12,12 @@ import { volData } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
 
+/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
+function volOut(R, key, vol, transfer) {
+  const V = volData(R.segs, vol.tab, vol.bb, null);
+  for (const v of V.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
+  return { key, tab: vol.tab, bb: vol.bb, V };
+}
 export function workerMain() {
   let bench = { key: null, R: null };
   self.onmessage = e => {
@@ -27,7 +33,7 @@ export function workerMain() {
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         const R = popRun(lastTrace.beams, srcs, { draw: true });
         bench = { key, R };
-        out = { key, R: fwPackRun(R, transfer) };
+        out = { key, R: fwPackRun(R, transfer), vol: args && args.vol ? volOut(R, key, args.vol, transfer) : null };
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
@@ -41,7 +47,8 @@ export function workerMain() {
         for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }
         traceScene();
         const srcs = popSources();
-        out = { bench: srcs.length ? { key: popKeyOf(lastTrace.beams, srcs), R: fwPackRun(popRun(lastTrace.beams, srcs, { draw: true }), transfer) } : null,
+        const R = srcs.length ? popRun(lastTrace.beams, srcs, { draw: true }) : null, key = R && popKeyOf(lastTrace.beams, srcs);
+        out = { bench: R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
           screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }) };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);

@@ -5,8 +5,7 @@ import { C_NM_GHZ, PRINTER, RF_MAT } from './rf.js';
    A flat disc whose index falls from its centre to its edge: printed in one material, the
    index set by how dense each part of it is printed. Its design is a focal length, a diameter,
    a material, the highest and lowest density it may use and the frequency it is made for; from
-   these come its index profile, its thickness, its loss and its weight, and the bands of
-   density it is made in (kept with the design, for making it).
+   these come its index profile, its thickness, its loss and its weight.
 
    The effective permittivity of plastic and air mixed finer than the wavelength is taken as
    their mean by volume, eps = 1 + density (eps_m - 1), and its loss the plastic's share of it,
@@ -54,15 +53,6 @@ export function grinDesign(g, dia) {
   const alpha = r => 2 * Math.PI * (fillAt(r) / 100) * eps * M.tand / (nAt(r) * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
   const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
-  // the bands it is made in: each a quarter wavelength in the plastic wide (1.5 to 6 mm), its
-  // density that at its middle; the largest step of path between neighbours, in wavelengths
-  const ringW = clamp(lam / (4 * nHi), 1.5, 6), nR = usable ? Math.max(1, Math.ceil(a / ringW)) : 0, rings = [];
-  let step = 0;
-  for (let k = 0; k < nR; k++) {
-    const r0 = k * a / nR, r1 = (k + 1) * a / nR, rm = (r0 + r1) / 2;
-    rings.push({ r0, r1, fill: fillAt(rm), n: nAt(rm) });
-    step = Math.max(step, (opd(r1) - opd(r0)) / lam / 2);   // the path a ring's middle misses at its edges
-  }
   // the plastic it takes, and its weight
   let vol = 0;
   if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += fillAt(r) / 100 * 2 * Math.PI * r * (a / 200) * t; }
@@ -74,7 +64,7 @@ export function grinDesign(g, dia) {
     if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
-  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, ringW: nR ? a / nR : 0, rings, step, vol, grams, checks,
+  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
 /* the disc on the bench: a mask with the delay and amplitude its design gives */

@@ -1,4 +1,3 @@
-import { MAKER } from '../../core/constants.js';
 import { orderRow } from '../../io/order.js';
 import { MOD_COLOURS } from '../../core/modulators.js';
 import { V } from '../../state/project.js';
@@ -26,20 +25,21 @@ function drawMask(el, sel) {
   pathLocal(f, pts); ctx.strokeStyle = col + 'b3'; ctx.lineWidth = 1; ctx.stroke();
 }
 
-/* a graded-index lens: a slab its own thickness, each ring shaded by its fill, densest at the middle */
+/* a graded-index lens: a slab its own thickness, shaded by its density, densest at the middle */
 function drawGrin(el, sel) {
   const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.t) ? Math.min(D.t, 4 * L) : 2) / 2;
   const ink = lightLayer ? '143,143,136' : '242,242,236';
-  for (const R of D.rings) for (const s of [1, -1]) {
-    pathLocal(f, [[-T, s * R.r0], [T, s * R.r0], [T, s * R.r1], [-T, s * R.r1]], true);
-    ctx.fillStyle = 'rgba(' + ink + ',' + (0.08 + 0.5 * R.fill / 100).toFixed(3) + ')'; ctx.fill();
+  const N = D.usable ? 24 : 0;
+  for (let k = 0; k < N; k++) for (const s of [1, -1]) {
+    const r0 = k * L / N, r1 = (k + 1) * L / N;
+    pathLocal(f, [[-T, s * r0], [T, s * r0], [T, s * r1], [-T, s * r1]], true);
+    ctx.fillStyle = 'rgba(' + ink + ',' + (0.08 + 0.5 * D.fillAt((r0 + r1) / 2) / 100).toFixed(3) + ')'; ctx.fill();
   }
   pathLocal(f, [[-T, -L], [T, -L], [T, L], [-T, L]], true);
   ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2.5 : 1.4; ctx.stroke();
 }
 const pct = v => v.toFixed(v < 10 ? 1 : 0) + '%';
-/* its panel: the design, and what the design comes to. The rings it is made in stay in the
-   design (core/grin.js), for making it; the panel speaks of density only */
+/* its panel: the design, and what the design comes to, in density only */
 function grinPanel(el) {
   const g = el.grin, D = grinDesign(g, el.length);
   panel.append(h('h3', null, 'Graded-index lens'));
@@ -63,17 +63,6 @@ function grinPanel(el) {
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
-  if (MAKER && D.usable) panel.append(makerBands(el, D));                          // JEK Systems' own view: the bands to make it in
-}
-
-/* the bands a graded-index lens is made in, each at its density: for making it (?maker only) */
-function makerBands(el, D) {
-  const rows = D.rings.map((R, i) => [i + 1, R.r0.toFixed(2), R.r1.toFixed(2), R.fill.toFixed(1), R.n.toFixed(4)]);
-  const csv = 'band,r_inner_mm,r_outer_mm,density_pct,index\n' + rows.map(r => r.join(',')).join('\n') + '\n';
-  const copy = h('button', { type: 'button', class: 'rt-btn', onclick: async () => { try { await navigator.clipboard.writeText(csv); copy.textContent = 'Copied'; } catch (err) { copy.textContent = 'Copy failed'; } } }, 'Copy as CSV');
-  const table = h('table', { class: 'rt-grin-rings' }, h('thead', null, h('tr', null, ...['Band', 'Inner (mm)', 'Outer (mm)', 'Density', 'Index'].map(t => h('th', null, t)))),
-    h('tbody', null, ...rows.map(r => h('tr', null, ...r.map((v, j) => h('td', null, j === 3 ? v + '%' : String(v)))))));
-  return h('details', { class: 'rt-adv', open: true }, h('summary', null, 'Maker: ' + D.rings.length + ' bands, ' + D.ringW.toFixed(2) + ' mm wide, ' + D.t.toFixed(2) + ' mm thick'), copy, table);
 }
 
 function maskPanel(el) {

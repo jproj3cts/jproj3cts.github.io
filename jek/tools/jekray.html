@@ -1710,8 +1710,6 @@ const TEST_MODE = IN_WORKER || !IN_PAGE || /(^|[#?&])test\b/.test(QUERY);
 const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
-// ?maker: JEK Systems' own view of a made-to-order lens, with the bands it is made in
-const MAKER = IN_PAGE && /(^|[?&])maker\b/.test(typeof location === 'undefined' ? '' : location.search);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -4199,8 +4197,7 @@ function responsivity(el, nm) {
    A flat disc whose index falls from its centre to its edge: printed in one material, the
    index set by how dense each part of it is printed. Its design is a focal length, a diameter,
    a material, the highest and lowest density it may use and the frequency it is made for; from
-   these come its index profile, its thickness, its loss and its weight, and the bands of
-   density it is made in (kept with the design, for making it).
+   these come its index profile, its thickness, its loss and its weight.
 
    The effective permittivity of plastic and air mixed finer than the wavelength is taken as
    their mean by volume, eps = 1 + density (eps_m - 1), and its loss the plastic's share of it,
@@ -4248,15 +4245,6 @@ function grinDesign(g, dia) {
   const alpha = r => 2 * Math.PI * (fillAt(r) / 100) * eps * M.tand / (nAt(r) * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
   const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
-  // the bands it is made in: each a quarter wavelength in the plastic wide (1.5 to 6 mm), its
-  // density that at its middle; the largest step of path between neighbours, in wavelengths
-  const ringW = clamp(lam / (4 * nHi), 1.5, 6), nR = usable ? Math.max(1, Math.ceil(a / ringW)) : 0, rings = [];
-  let step = 0;
-  for (let k = 0; k < nR; k++) {
-    const r0 = k * a / nR, r1 = (k + 1) * a / nR, rm = (r0 + r1) / 2;
-    rings.push({ r0, r1, fill: fillAt(rm), n: nAt(rm) });
-    step = Math.max(step, (opd(r1) - opd(r0)) / lam / 2);   // the path a ring's middle misses at its edges
-  }
   // the plastic it takes, and its weight
   let vol = 0;
   if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += fillAt(r) / 100 * 2 * Math.PI * r * (a / 200) * t; }
@@ -4268,7 +4256,7 @@ function grinDesign(g, dia) {
     if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
-  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, ringW: nR ? a / nR : 0, rings, step, vol, grams, checks,
+  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
 /* the disc on the bench: a mask with the delay and amplitude its design gives */
@@ -17737,20 +17725,21 @@ function drawMask(el, sel) {
   pathLocal(f, pts); ctx.strokeStyle = col + 'b3'; ctx.lineWidth = 1; ctx.stroke();
 }
 
-/* a graded-index lens: a slab its own thickness, each ring shaded by its fill, densest at the middle */
+/* a graded-index lens: a slab its own thickness, shaded by its density, densest at the middle */
 function drawGrin(el, sel) {
   const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.t) ? Math.min(D.t, 4 * L) : 2) / 2;
   const ink = lightLayer ? '143,143,136' : '242,242,236';
-  for (const R of D.rings) for (const s of [1, -1]) {
-    pathLocal(f, [[-T, s * R.r0], [T, s * R.r0], [T, s * R.r1], [-T, s * R.r1]], true);
-    ctx.fillStyle = 'rgba(' + ink + ',' + (0.08 + 0.5 * R.fill / 100).toFixed(3) + ')'; ctx.fill();
+  const N = D.usable ? 24 : 0;
+  for (let k = 0; k < N; k++) for (const s of [1, -1]) {
+    const r0 = k * L / N, r1 = (k + 1) * L / N;
+    pathLocal(f, [[-T, s * r0], [T, s * r0], [T, s * r1], [-T, s * r1]], true);
+    ctx.fillStyle = 'rgba(' + ink + ',' + (0.08 + 0.5 * D.fillAt((r0 + r1) / 2) / 100).toFixed(3) + ')'; ctx.fill();
   }
   pathLocal(f, [[-T, -L], [T, -L], [T, L], [-T, L]], true);
   ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2.5 : 1.4; ctx.stroke();
 }
 const pct = v => v.toFixed(v < 10 ? 1 : 0) + '%';
-/* its panel: the design, and what the design comes to. The rings it is made in stay in the
-   design (core/grin.js), for making it; the panel speaks of density only */
+/* its panel: the design, and what the design comes to, in density only */
 function grinPanel(el) {
   const g = el.grin, D = grinDesign(g, el.length);
   panel.append(h('h3', null, 'Graded-index lens'));
@@ -17774,17 +17763,6 @@ function grinPanel(el) {
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
-  if (MAKER && D.usable) panel.append(makerBands(el, D));                          // JEK Systems' own view: the bands to make it in
-}
-
-/* the bands a graded-index lens is made in, each at its density: for making it (?maker only) */
-function makerBands(el, D) {
-  const rows = D.rings.map((R, i) => [i + 1, R.r0.toFixed(2), R.r1.toFixed(2), R.fill.toFixed(1), R.n.toFixed(4)]);
-  const csv = 'band,r_inner_mm,r_outer_mm,density_pct,index\n' + rows.map(r => r.join(',')).join('\n') + '\n';
-  const copy = h('button', { type: 'button', class: 'rt-btn', onclick: async () => { try { await navigator.clipboard.writeText(csv); copy.textContent = 'Copied'; } catch (err) { copy.textContent = 'Copy failed'; } } }, 'Copy as CSV');
-  const table = h('table', { class: 'rt-grin-rings' }, h('thead', null, h('tr', null, ...['Band', 'Inner (mm)', 'Outer (mm)', 'Density', 'Index'].map(t => h('th', null, t)))),
-    h('tbody', null, ...rows.map(r => h('tr', null, ...r.map((v, j) => h('td', null, j === 3 ? v + '%' : String(v)))))));
-  return h('details', { class: 'rt-adv', open: true }, h('summary', null, 'Maker: ' + D.rings.length + ' bands, ' + D.ringW.toFixed(2) + ' mm wide, ' + D.t.toFixed(2) + ' mm thick'), copy, table);
 }
 
 function maskPanel(el) {

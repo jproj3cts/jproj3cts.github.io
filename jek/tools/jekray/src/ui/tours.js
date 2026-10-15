@@ -11,7 +11,7 @@ import {
   GOAL_LABEL, METRIC_FAMS, drawConvergence, drawHistogram, drawScan, measurable, metricByKey,
   metricKind, metricRaw, metricText, metricsFor, monteCarlo, optimiseGen, sensitivity
 } from './optimise.js';
-import { h, renderPanel, setPanelClosed } from './panel.js';
+import { benchGear, h, renderPanel, setPanelClosed } from './panel.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';
 import { changed, fitView, toast, updateUndoButtons } from './actions.js';
@@ -242,6 +242,8 @@ export function wireTours() {
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
+
+  document.getElementById('btnBenchGear').addEventListener('click', () => { benchGear(); requestRender(); });
 
   document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 

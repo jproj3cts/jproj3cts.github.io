@@ -1,4 +1,4 @@
-import { BEAM_Z } from '../core/constants.js';
+import { BEAM_Z, TEST_MODE } from '../core/constants.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
@@ -359,7 +359,9 @@ function dragPinned(e, title, box, id) {
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
-export let panelClosed = false;           // the main panel closed with its ×
+// the main panel closed with its ×; the tool opens with it closed, the bench across the page
+// (the tests open it, as their checks read it)
+export let panelClosed = !TEST_MODE;
 export function setPanelClosed(v) { return (panelClosed = v); }
 export function renderPanel() {
   pins = pins.filter(pinOk);
@@ -391,6 +393,16 @@ export function renderPanel() {
   }
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
+  const gear = document.getElementById('btnBenchGear');
+  if (gear) { const on = mainShows && !sel && !selFibre(); gear.classList.toggle('on', on); gear.setAttribute('aria-pressed', on ? 'true' : 'false'); gear.title = on ? 'Close the Bench panel' : 'Bench settings: light, snapping, notes and the parts list'; }
+}
+/* the gear at the bench's bottom right: the Bench panel, opened (whatever was selected put
+   down) or, open already, closed */
+export function benchGear() {
+  const showing = !panelClosed && !selected() && !selFibre() && !pins.includes(BENCH_PIN);
+  if (showing) panelClosed = true;
+  else { selectOne(null); setSelFibreId(null); panelClosed = false; }
+  renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
    plots and readouts fill in, some of them a while later, so the place is held until the

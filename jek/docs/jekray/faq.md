@@ -46,7 +46,7 @@ Because the paths differ by more than the laser's coherence length. A source wit
 
 ### My cavity shows no resonance. What is wrong?
 
-A cavity is found from the light's own path, so the light has to make at least two round trips before the tracer stops following it. Raise **Interactions per ray** (on the Bench panel) to about 40, and lower **Power floor** to about 1e-4 so faint round trips are kept. Then check that the mirrors face each other and the cavity is stable: the Bench panel's Cavity tab says so.
+A cavity is found from the light's own path, so the light has to make at least two round trips before the tracer stops following it. Raise **Interactions per ray** (on the Bench panel, under the gear at the bench's bottom right) to about 40, and lower **Power floor** to about 1e-4 so faint round trips are kept. Then check that the mirrors face each other and the cavity is stable: the Bench panel's Cavity tab says so.
 
 ### What is the difference between rays and the beam?
 

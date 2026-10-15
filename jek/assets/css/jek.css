@@ -701,6 +701,18 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 .jek-pubs .jek-card p a { color: var(--jek-cyan-dark); word-break: break-word; }
 @media (max-width: 760px) { .jek-people { grid-template-columns: 1fr; } .jek-person { grid-template-columns: 7rem minmax(0, 1fr); } .jek-person img, .jek-person .silhouette { width: 7rem; } }
 
+/* a team member's own section: portrait and role down the side, their story, work and outreach beside */
+.jek-profile { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 2.2rem; align-items: start; }
+.jek-profile aside { position: sticky; top: 1rem; }
+.jek-profile aside img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--jek-radius); border: 1px solid var(--jek-line); background: var(--jek-well); display: block; }
+.jek-profile aside h2 { margin: 0.8rem 0 0.1rem; font-size: 1.25rem; line-height: 1.2; color: var(--jek-ink); }
+.jek-profile aside .role { margin: 0; font-size: 0.86rem; line-height: 1.4; color: var(--jek-ink-soft); }
+.jek-profile .story { margin: 0 0 1.4rem; font-size: 1rem; line-height: 1.6; color: var(--jek-ink); max-width: 68ch; }
+.jek-profile h3 { margin: 1.4rem 0 0.6rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-profile h3:first-of-type { margin-top: 0; }
+.jek-profile .note { margin: 0 0 0.6rem; font-size: 0.93rem; line-height: 1.5; color: var(--jek-ink-soft); max-width: 68ch; }
+@media (max-width: 760px) { .jek-profile { grid-template-columns: 1fr; } .jek-profile aside { position: static; display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0 1rem; align-items: center; } .jek-profile aside img { width: 7rem; grid-row: span 2; } .jek-profile aside h2 { margin-top: 0; } }
+
 /* resource columns */
 .jek-resources .jek-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }
 .jek-resources h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--jek-ink); }

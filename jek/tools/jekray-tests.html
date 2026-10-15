@@ -8432,6 +8432,23 @@ const TESTS = [
     },
   },
   {
+    name: 'A graded-index RF lens: its design and what it comes to',
+    why: 'the 24 GHz graded-index example: the lens is a GRIN lens, its panel gives its thickness (30.9 mm), its density from 100% at the centre and its fit on the Core ONE, the beam at it with an edge taper near 30 dB, and speaks of density, never infill or slicing; a longer focal length makes it thinner (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const data = JSON.parse(getDemo('rf-24ghz-grin-lens'));
+      J.load(data);
+      const doc = document.getElementById('rig').contentDocument;
+      const read = () => { J.select('GRIN lens'); return [...doc.querySelectorAll('#panel .rt-readout')].map(r => r.textContent).join(' | ') + ' ' + doc.getElementById('panel').textContent; };
+      const t0 = read(), thick = +((t0.match(/Thickness([\d.]+) mm/) || [])[1]), taper = +((t0.match(/Edge taper([\d.]+) dB/) || [])[1]);
+      const ok0 = J.typeLabel('GRIN lens') === 'GRIN lens' && Math.abs(thick - 30.9) < 0.2 && /Density100% at the centre/.test(t0) && /Core ONE printfits/.test(t0)
+        && Math.abs(taper - 30) < 2 && !/infill|slic/i.test(t0);
+      data.elements.find(e => e.name === 'GRIN lens').grin.f = 240; J.load(data);
+      const thick1 = +((read().match(/Thickness([\d.]+) mm/) || [])[1]);
+      return ok0 && thick1 < thick ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

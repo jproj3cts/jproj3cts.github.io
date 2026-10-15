@@ -1,3 +1,4 @@
+import { applyGrin } from '../core/grin.js';
 import { clamp } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { applyRf, normRf } from '../core/rf.js';
@@ -115,6 +116,7 @@ export function setParam(el, path, v) {
   }
   if (el.type === 'lens' && last === 'diameter') el.surfaces.forEach(s => s.semi = null);
   if (keys[0] === 'mmw') { el.mmw = normRf(el.mmw, el.type); applyRf(el); }
+  if (el.grin && (keys[0] === 'grin' || last === 'length')) applyGrin(el);     // a graded-index lens's design changed: its plate follows
   if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
   if (el.type === 'source' && el.gauss && ['m2', 'hm', 'hn', 'lp', 'll'].includes(last)) fanFromGauss(el);
   if ((el.type === 'source' || el.kind === 'laser') && (last === 'tau' || last === 'pshape')) applyPulse(el);

@@ -134,6 +134,28 @@ An RF lens's panel reads, at the first RF frequency on the bench:
 
 The examples **Printed PLA lens, 10 GHz** and **Printed ABS lens, 24 GHz radar** show both bands. At 10 GHz a printable lens is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
+## Graded-index lenses
+
+A **graded-index lens** (GRIN lens, on the RF tab under Lenses and mirrors) is a flat disc printed solid at its centre and less dense towards its edge. Plastic and air mixed finer than the wavelength act as one material whose permittivity is their mean by volume,
+
+$$
+\varepsilon = 1 + \rho\,(\varepsilon_m - 1),
+$$
+
+for a density $$\rho$$ (1 when solid) and the material's own $$\varepsilon_m = n_m^2$$. Its loss is the plastic's share, $$\varepsilon'' = \rho\,\varepsilon_m \tan\delta$$. So the index falls from the centre to the edge, and the flat disc bends the beam as a curved lens would.
+
+You set its **focal length**, **diameter**, **material**, the **density at the centre** and the **lowest density**, the **design frequency** and the **profile**. The ideal-lens profile gives the disc the optical path of a perfect lens, $$\sqrt{r^2 + f^2} - f$$ less at radius $$r$$ than at the centre, with no spherical aberration for a collimated beam; the parabolic one, $$r^2/2f$$. The disc's thickness is what that fall in path needs between its highest and lowest index:
+
+$$
+t = \frac{\text{path at the edge}}{n_\text{centre} - n_\text{edge}}.
+$$
+
+At a given frequency the lowest density is raised, if need be, so that the printed structure stays fine against the wavelength: at 24 GHz, to about 24%; at 10 GHz, 15% stands.
+
+Its panel gives the thickness, the index and density from centre to edge, the loss at the centre and at the edge, its weight, and whether it prints on the Core ONE; below them, the beam at the lens and its edge taper, as for an RF lens. On the bench it is a thin plate with that delay and the transmission its loss and its faces leave; a disc thick against its focal length, over 0.3 of it, is only roughly placed, and the panel says so.
+
+The example **Graded-index printed lens, 24 GHz** shows one 120 mm across on a 24 GHz horn.
+
 ## The parts
 
 | Part | What it is |

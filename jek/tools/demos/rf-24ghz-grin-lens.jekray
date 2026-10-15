@@ -1,0 +1,63 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Graded-index printed lens, 24 GHz",
+ "view": {
+  "cx": 200,
+  "cy": 0,
+  "scale": 2
+ },
+ "maxBounces": 40,
+ "minPower": 1e-06,
+ "elements": [
+  {
+   "type": "source",
+   "id": "tx",
+   "name": "Feed horn, 24 GHz",
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "rays": 5,
+   "mmw": {
+    "kind": "corrugated",
+    "ghz": 24,
+    "dbm": 0,
+    "a": 25,
+    "L": 100
+   }
+  },
+  {
+   "type": "mask",
+   "id": "g",
+   "name": "GRIN lens",
+   "x": 70,
+   "y": 0,
+   "angle": 0,
+   "length": 120,
+   "mmw": {
+    "part": true
+   },
+   "grin": {
+    "f": 120,
+    "ghz": 24,
+    "mat": "PLA",
+    "fillMax": 100,
+    "fillMin": 15,
+    "profile": "ideal"
+   }
+  },
+  {
+   "type": "screen",
+   "id": "scr",
+   "name": "Target at 400 mm",
+   "x": 470,
+   "y": 0,
+   "angle": 180,
+   "length": 200,
+   "mmw": {
+    "part": true
+   }
+  }
+ ],
+ "notes": "A 24 GHz horn behind a flat graded-index lens, 120 mm across, printed in PLA: solid at its centre and less dense towards its edge, so its index falls from 1.64 to 1.18 and it bends the beam as a curved lens would, from a flat disc 31 mm thick. Select the lens for its design: focal length, diameter, material, the density range and the frequency it is made for, and what they come to: its thickness, its index and density from centre to edge, its loss at the centre and the edge, its weight, and whether it prints on the Core ONE. Below them, the beam at the lens and its edge taper (30 dB here: the beam fits). Change the focal length and the lens thickens or thins to suit; try ABS for less loss."
+}

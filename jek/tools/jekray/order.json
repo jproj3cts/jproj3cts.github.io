@@ -12,6 +12,7 @@
  "core/nlc.js",
  "core/modulators.js",
  "core/rf.js",
+ "core/grin.js",
  "core/coherence.js",
  "core/pulses.js",
  "core/horns.js",

@@ -243,6 +243,9 @@ function updateReadoutsIn(container, el) {
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
+  } else if (el.type === 'mask' && el.grin) {
+    parts = grinReadout(el);
+    if (!parts) return;
   } else if (el.type === 'chopper') {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
   } else return;
@@ -336,4 +339,20 @@ function rfLensReadout(el, wls, rows) {
   }
   const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
+}
+
+/* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
+function grinReadout(el) {
+  let best = null;
+  for (const b of lastTrace.beams || []) {
+    const s = b.ev && b.ev.surf;
+    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (!best || b.w > best.w) best = b;
+  }
+  if (!best) return null;
+  const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
+  if (!(w > 0)) return null;
+  const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
+  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']],
+    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
 }

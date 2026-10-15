@@ -29,11 +29,11 @@ export const RF_MAT = {
   // 3D-printing filaments, printed solid: typical values from published measurements at 10 to
   // 40 GHz. Each brand, colour and print setting differs, and they take up water: until a
   // filament is calibrated these stand for a range, and the panels say so
-  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true },
-  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true },
-  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true },
-  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true },
-  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true },
+  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true, density: 1.24 },
+  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true, density: 1.04 },
+  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true, density: 1.27 },
+  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true, density: 1.07 },
+  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true, density: 0.9 },
 };
 /* the printer RF lenses are made on (JEK Systems' own: a Prusa Core ONE, 0.4 mm nozzle): the
    largest part with a margin round it, and the thinnest wall it lays down well (mm) */

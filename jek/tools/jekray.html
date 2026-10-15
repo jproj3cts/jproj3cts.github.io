@@ -4004,11 +4004,11 @@ const RF_MAT = {
   // 3D-printing filaments, printed solid: typical values from published measurements at 10 to
   // 40 GHz. Each brand, colour and print setting differs, and they take up water: until a
   // filament is calibrated these stand for a range, and the panels say so
-  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true },
-  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true },
-  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true },
-  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true },
-  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true },
+  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true, density: 1.24 },
+  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true, density: 1.04 },
+  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true, density: 1.27 },
+  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true, density: 1.07 },
+  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true, density: 0.9 },
 };
 /* the printer RF lenses are made on (JEK Systems' own: a Prusa Core ONE, 0.4 mm nozzle): the
    largest part with a margin round it, and the thinnest wall it lays down well (mm) */
@@ -4180,6 +4180,94 @@ function responsivity(el, nm) {
   return R[i - 1] + (R[i] - R[i - 1]) * (nm - W[i - 1]) / (W[i] - W[i - 1]);
 }
 
+/* ---------- A graded-index RF lens, printed ----------
+   A flat disc whose index falls from its centre to its edge: printed in one material, the
+   index set by how dense each part of it is printed. Its design is a focal length, a diameter,
+   a material, the highest and lowest density it may use and the frequency it is made for; from
+   these come its index profile, its thickness, its loss and its weight, and the bands of
+   density it is made in (kept with the design, for making it).
+
+   The effective permittivity of plastic and air mixed finer than the wavelength is taken as
+   their mean by volume, eps = 1 + density (eps_m - 1), and its loss the plastic's share of it,
+   eps'' = density eps_m tan(delta). The mixing holds while the printed structure is well under
+   a wavelength across: lines 0.45 mm wide at density F lie about 0.45 / F mm apart, so the
+   lowest density is raised, at a given frequency, until that is a quarter of the wavelength
+   in the plastic or less.
+
+   The index profile makes the disc's optical path fall from its centre as an ideal lens's
+   does, sqrt(r^2 + f^2) - f (no spherical aberration for a collimated beam), or as a
+   parabola, r^2 / 2f. The disc's thickness is what that fall needs between its highest and
+   lowest index. On the bench it is a thin plate (a mask) with that delay and the amplitude
+   its loss and its faces' reflection leave: a disc thin against its focal length is modelled
+   well; the panel says when it is not. */
+const GRIN_LINE = 0.45;            // mm, an extrusion line's width (0.4 mm nozzle)
+const GRIN_FLOOR = 10;             // %: the lowest density that still holds together
+const GRIN_PROFILES = { ideal: 'Ideal lens (no spherical aberration)', parabolic: 'Parabolic' };
+const fmt = v => +(+v).toPrecision(7);
+
+function normGrin(g) {
+  g = g && typeof g === 'object' ? g : {};
+  const mat = RF_MAT[g.mat] && RF_MAT[g.mat].print ? g.mat : 'PLA';
+  const fillMax = clamp(isFinite(g.fillMax) ? +g.fillMax : 100, 20, 100);
+  return {
+    f: clamp(isFinite(g.f) ? +g.f : 150, 5, 1e5),
+    ghz: clamp(isFinite(g.ghz) ? +g.ghz : 24, 1, 300),
+    mat,
+    fillMax,
+    fillMin: clamp(isFinite(g.fillMin) ? +g.fillMin : 15, GRIN_FLOOR, fillMax - 1),
+    profile: GRIN_PROFILES[g.profile] ? g.profile : 'ideal',
+  };
+}
+/* the design: dia the disc's diameter (mm) */
+function grinDesign(g, dia) {
+  const M = RF_MAT[g.mat], eps = M.n * M.n, lam = C_NM_GHZ / g.ghz * 1e-6, a = dia / 2;
+  const nOf = fill => Math.sqrt(1 + fill / 100 * (eps - 1)), fillOf = n => 100 * (n * n - 1) / (eps - 1);
+  const fillFreq = 100 * GRIN_LINE / (lam / (4 * M.n));                    // the lowest density the frequency allows
+  const fillLo = Math.max(g.fillMin, fillFreq), fillHi = g.fillMax;
+  const nHi = nOf(fillHi), nLo = nOf(Math.min(fillLo, fillHi));
+  const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
+  const usable = fillLo < fillHi - 2;
+  const t = usable ? opd(a) / (nHi - nLo) : Infinity;
+  const nAt = r => nHi - opd(Math.min(r, a)) / t, fillAt = r => fillOf(nAt(r));
+  // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)), and reflected at the two faces
+  const alpha = r => 2 * Math.PI * (fillAt(r) / 100) * eps * M.tand / (nAt(r) * lam);
+  const refl = n => ((n - 1) / (n + 1)) ** 2;
+  const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
+  // the bands it is made in: each a quarter wavelength in the plastic wide (1.5 to 6 mm), its
+  // density that at its middle; the largest step of path between neighbours, in wavelengths
+  const ringW = clamp(lam / (4 * nHi), 1.5, 6), nR = usable ? Math.max(1, Math.ceil(a / ringW)) : 0, rings = [];
+  let step = 0;
+  for (let k = 0; k < nR; k++) {
+    const r0 = k * a / nR, r1 = (k + 1) * a / nR, rm = (r0 + r1) / 2;
+    rings.push({ r0, r1, fill: fillAt(rm), n: nAt(rm) });
+    step = Math.max(step, (opd(r1) - opd(r0)) / lam / 2);   // the path a ring's middle misses at its edges
+  }
+  // the plastic it takes, and its weight
+  let vol = 0;
+  if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += fillAt(r) / 100 * 2 * Math.PI * r * (a / 200) * t; }
+  const grams = vol / 1000 * (M.density || 1.2);
+  const checks = [];
+  if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
+  else {
+    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
+    if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
+    if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
+  }
+  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, ringW: nR ? a / nR : 0, rings, step, vol, grams, checks,
+    opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
+}
+/* the disc on the bench: a mask with the delay and amplitude its design gives */
+function applyGrin(el) {
+  el.grin = normGrin(el.grin);
+  const D = grinDesign(el.grin, el.length);
+  if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
+  const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.t) + ')';
+  const F = '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')';
+  el.delay = '-' + D.opdExpr + '/lambda';
+  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + F + '*' + fmt(D.eps * D.M.tand) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  el.preset = 'grin';
+  return D;
+}
 /* ---------- Coherence ----------
    A source's coherence length Lc (c over its linewidth) sets how well two branches of its
    light interfere after paths that differ by dL: |gamma| = exp(-pi |dL| / Lc) for a
@@ -5033,12 +5121,15 @@ const MASK = {
   keys: ['mask'],
   make: (x, y) => ({ type: 'mask', name: nextName('Mask'), x, y, angle: 0, amp: '1', delay: '0', preset: 'clear' }),
   norm(e, base) {
-    return Object.assign(base, {
+    const o = Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25.4)),
       amp: typeof e.amp === 'string' && e.amp.trim() ? e.amp : '1',
       delay: typeof e.delay === 'string' && e.delay.trim() ? e.delay : '0',
       preset: typeof e.preset === 'string' ? e.preset : 'custom',
     });
+    // a graded-index RF lens: its delay and amplitude follow from its design (core/grin.js)
+    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); }
+    return o;
   },
   guide: {
     what: 'A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.',
@@ -5556,9 +5647,9 @@ const GAIN = {
    as the palette's, with its sizes and materials */
 const RF = {
   family: 'rf',
-  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:mesh', short: 'Mesh filter', long: 'Metal mesh filter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
+  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:grin', short: 'GRIN lens', long: 'Graded-index lens, printed' }, { key: 'rf:mesh', short: 'Mesh filter', long: 'Metal mesh filter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
   groups: [['Horns', ['rf:horn', 'rf:rx']],
-  ['Lenses and mirrors', ['rf:lens', 'rf:mirror', 'rf:fmirror']],
+  ['Lenses and mirrors', ['rf:lens', 'rf:grin', 'rf:mirror', 'rf:fmirror']],
   ['Polarisation, splitting and filtering', ['rf:grid', 'rf:bs', 'rf:mesh']],
   ['Loads', ['rf:load']]],
   make(x, y, kind) {
@@ -5572,6 +5663,7 @@ const RF = {
       case 'grid': return ({ type: 'polariser', name: nextName('Wire grid'), x, y, angle: 135, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: rf });
       case 'bs': return ({ type: 'mirror', name: nextName('Film beam splitter'), x, y, angle: 135, length: 100, reflect: 50, film: { n: 1.73, t: 0.1 }, mmw: rf });
       case 'mesh': return ({ type: 'filter', name: nextName('Mesh filter'), x, y, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.2, reflect: true, mmw: rf });
+      case 'grin': return ({ type: 'mask', name: nextName('GRIN lens'), x, y, angle: 0, length: 120, mmw: rf, grin: { f: 150, ghz: 24, mat: 'PLA', fillMax: 100, fillMin: 15, profile: 'ideal' } });
       case 'load': return ({ type: 'screen', name: nextName('Absorber load'), x, y, angle: 180, length: 50, mmw: rf });
     }
     return null;
@@ -5624,7 +5716,7 @@ const deg = Math.PI / 180;
 
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism' };
 const DOVE_RATIO = 4.224;              // a Dove prism's length over its height, for N-BK7 (as catalogue ones are)
-const typeLabel = el => el.mod ? modName(el) : el.type === 'lens' && el.mmw ? 'RF lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.mod ? modName(el) : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -10998,6 +11090,7 @@ function setParam(el, path, v) {
   }
   if (el.type === 'lens' && last === 'diameter') el.surfaces.forEach(s => s.semi = null);
   if (keys[0] === 'mmw') { el.mmw = normRf(el.mmw, el.type); applyRf(el); }
+  if (el.grin && (keys[0] === 'grin' || last === 'length')) applyGrin(el);     // a graded-index lens's design changed: its plate follows
   if (el.type === 'source' && el.fibre && (last === 'wavelength' || keys[0] === 'fibre')) applyFibre(el);
   if (el.type === 'source' && el.gauss && ['m2', 'hm', 'hn', 'lp', 'll'].includes(last)) fanFromGauss(el);
   if ((el.type === 'source' || el.kind === 'laser') && (last === 'tau' || last === 'pshape')) applyPulse(el);
@@ -14907,7 +15000,8 @@ const V3D = (() => {
         return g;
       }
       case 'filter': add(mesh(disc(2, L), mat.glass(filterColour(el), 0.5))); return g;
-      case 'mask': add(mesh(disc(1.5, L), mat.glass(el.mod ? parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16) : 0xd8b35a, 0.45))); return g;
+      case 'mask': if (el.grin) { const Dg = grinDesign(el.grin, el.length); add(mesh(disc(isFinite(Dg.t) ? Dg.t : 2, L), mat.glass(0xf2f2ec, 0.55))); return g; }
+        add(mesh(disc(1.5, L), mat.glass(el.mod ? parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16) : 0xd8b35a, 0.45))); return g;
       case 'gain': add(mesh(disc(4, L), mat.glass(0xff6a3d, 0.45))); return g;
       case 'faraday': case 'isolator': {
         add(mesh(disc(Math.max(8, L * 1.4), L), mat.metal(0xff9f6b, 0.35)));
@@ -17615,6 +17709,7 @@ const POLARISER_UI = {
 /* Mask on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/mask.js */
 
 function drawMask(el, sel) {
+  if (el.grin) return drawGrin(el, sel);
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, col = el.mod ? MOD_COLOURS[el.mod.colour || 'grey'] : '#d8b35a';   // a mod's plate in its own colour
   pathLocal(f, [[-1.2 * k, -L], [1.2 * k, -L], [1.2 * k, L], [-1.2 * k, L]], true);
   ctx.fillStyle = col + '29'; ctx.fill();
@@ -17625,7 +17720,46 @@ function drawMask(el, sel) {
   pathLocal(f, pts); ctx.strokeStyle = col + 'b3'; ctx.lineWidth = 1; ctx.stroke();
 }
 
+/* a graded-index lens: a slab its own thickness, each ring shaded by its fill, densest at the middle */
+function drawGrin(el, sel) {
+  const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.t) ? Math.min(D.t, 4 * L) : 2) / 2;
+  const ink = lightLayer ? '143,143,136' : '242,242,236';
+  for (const R of D.rings) for (const s of [1, -1]) {
+    pathLocal(f, [[-T, s * R.r0], [T, s * R.r0], [T, s * R.r1], [-T, s * R.r1]], true);
+    ctx.fillStyle = 'rgba(' + ink + ',' + (0.08 + 0.5 * R.fill / 100).toFixed(3) + ')'; ctx.fill();
+  }
+  pathLocal(f, [[-T, -L], [T, -L], [T, L], [-T, L]], true);
+  ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2.5 : 1.4; ctx.stroke();
+}
+const pct = v => v.toFixed(v < 10 ? 1 : 0) + '%';
+/* its panel: the design, and what the design comes to. The rings it is made in stay in the
+   design (core/grin.js), for making it; the panel speaks of density only */
+function grinPanel(el) {
+  const g = el.grin, D = grinDesign(g, el.length);
+  panel.append(h('h3', null, 'Graded-index lens'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Diameter (mm)', el, 'length'), param('Focal length (mm)', el, 'grin.f'),
+    selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name.replace(', printed solid', '') + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
+    selectField('Profile', Object.entries(GRIN_PROFILES), () => g.profile, v => { g.profile = v; }, { wide: true }),
+    param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin')));
+  const rows = D.usable ? [
+    ['Thickness', D.t.toFixed(1) + ' mm'],
+    ['Index', D.nHi.toFixed(3) + ' at the centre to ' + D.nLo.toFixed(3) + ' at the edge'],
+    ['Density', pct(D.fillHi) + ' at the centre to ' + pct(D.fillLo) + ' at the edge'],
+    ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
+    ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
+    ['Weight', Math.round(D.grams) + ' g'],
+    [PRINTER.name + ' print', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'fits' : 'too large'],
+  ] : [];
+  panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
+    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is printed solid at its centre and less dense towards its edge, which lowers its index there. ' +
+      (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so the printed structure stays fine against the wavelength. ' : '') +
+      D.M.name.replace(', printed solid', '') + ': typical values; printed plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+  panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
+}
+
 function maskPanel(el) {
+  if (el.grin) return grinPanel(el);
   panel.append(h('h3', null, 'Mask'));
   const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length', { wide: true }),
     selectField('Preset', [...MASK_PRESETS.map(p => [p[0], p[1]]), ['custom', 'Custom']], () => el.preset, v => {
@@ -18496,6 +18630,9 @@ function updateReadoutsIn(container, el) {
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
+  } else if (el.type === 'mask' && el.grin) {
+    parts = grinReadout(el);
+    if (!parts) return;
   } else if (el.type === 'chopper') {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
   } else return;
@@ -18589,6 +18726,22 @@ function rfLensReadout(el, wls, rows) {
   }
   const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
+}
+
+/* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
+function grinReadout(el) {
+  let best = null;
+  for (const b of lastTrace.beams || []) {
+    const s = b.ev && b.ev.surf;
+    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (!best || b.w > best.w) best = b;
+  }
+  if (!best) return null;
+  const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
+  if (!(w > 0)) return null;
+  const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
+  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']],
+    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
 }
 /* ---------- One-parameter search over a swept range ---------- */
 
@@ -32514,6 +32667,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc printed solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it prints on the Core ONE, and the beam at it with its edge taper. A new example: a graded-index printed lens on a 24 GHz horn.',
     '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in 3D-printing filaments too (PLA, ABS, PETG, ASA, polypropylene, printed solid, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for a filament, whether it prints on the Core ONE and its thinnest wall. Two new examples: a printed PLA lens at 10 GHz and a printed ABS lens on a 24 GHz radar horn.',
     'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',
     '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
@@ -32678,6 +32832,7 @@ const EXAMPLES = [
     ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
     ['rf-10ghz-printed-lens', 'Printed PLA lens, 10 GHz', 'A horn\u2019s beam collimated by a lens printed in PLA: its loss, its edge taper, and whether it prints.'],
+    ['rf-24ghz-grin-lens', 'Graded-index printed lens, 24 GHz', 'A flat printed disc whose density falls from its centre to its edge focuses a horn\u2019s beam: its design and what it comes to.'],
     ['rf-24ghz-printed-lens', 'Printed ABS lens, 24 GHz radar', 'A radar horn behind a printed ABS lens: the band where printed RF lenses work best.'],
     ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.'],
     ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.'],

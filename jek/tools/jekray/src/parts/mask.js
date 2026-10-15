@@ -1,4 +1,5 @@
 import { nextName, num } from '../state/project.js';
+import { applyGrin } from '../core/grin.js';
 
 /* Mask: A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective. */
 export const MASK = {
@@ -7,12 +8,15 @@ export const MASK = {
   keys: ['mask'],
   make: (x, y) => ({ type: 'mask', name: nextName('Mask'), x, y, angle: 0, amp: '1', delay: '0', preset: 'clear' }),
   norm(e, base) {
-    return Object.assign(base, {
+    const o = Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25.4)),
       amp: typeof e.amp === 'string' && e.amp.trim() ? e.amp : '1',
       delay: typeof e.delay === 'string' && e.delay.trim() ? e.delay : '0',
       preset: typeof e.preset === 'string' ? e.preset : 'custom',
     });
+    // a graded-index RF lens: its delay and amplitude follow from its design (core/grin.js)
+    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); }
+    return o;
   },
   guide: {
     what: 'A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.',

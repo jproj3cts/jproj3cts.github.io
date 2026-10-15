@@ -132,6 +132,7 @@ import './ui/tabs.js';
 import './io/layout.js';
 import './io/guide.js';
 import './io/share.js';
+import './io/order.js';
 import './io/open.js';
 import './io/zmx-import.js';
 import './io/zmx-export.js';

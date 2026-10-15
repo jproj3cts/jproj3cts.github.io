@@ -1,3 +1,5 @@
+import { MAKER } from '../../core/constants.js';
+import { orderRow } from '../../io/order.js';
 import { MOD_COLOURS } from '../../core/modulators.js';
 import { V } from '../../state/project.js';
 import { benchNms } from '../../state/elements.js';
@@ -60,6 +62,18 @@ function grinPanel(el) {
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
+  const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
+  if (MAKER && D.usable) panel.append(makerBands(el, D));                          // JEK Systems' own view: the bands to make it in
+}
+
+/* the bands a graded-index lens is made in, each at its density: for making it (?maker only) */
+function makerBands(el, D) {
+  const rows = D.rings.map((R, i) => [i + 1, R.r0.toFixed(2), R.r1.toFixed(2), R.fill.toFixed(1), R.n.toFixed(4)]);
+  const csv = 'band,r_inner_mm,r_outer_mm,density_pct,index\n' + rows.map(r => r.join(',')).join('\n') + '\n';
+  const copy = h('button', { type: 'button', class: 'rt-btn', onclick: async () => { try { await navigator.clipboard.writeText(csv); copy.textContent = 'Copied'; } catch (err) { copy.textContent = 'Copy failed'; } } }, 'Copy as CSV');
+  const table = h('table', { class: 'rt-grin-rings' }, h('thead', null, h('tr', null, ...['Band', 'Inner (mm)', 'Outer (mm)', 'Density', 'Index'].map(t => h('th', null, t)))),
+    h('tbody', null, ...rows.map(r => h('tr', null, ...r.map((v, j) => h('td', null, j === 3 ? v + '%' : String(v)))))));
+  return h('details', { class: 'rt-adv', open: true }, h('summary', null, 'Maker: ' + D.rings.length + ' bands, ' + D.ringW.toFixed(2) + ' mm wide, ' + D.t.toFixed(2) + ' mm thick'), copy, table);
 }
 
 function maskPanel(el) {

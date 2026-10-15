@@ -139,6 +139,8 @@
       var name = it.url
         ? '<a href="' + esc(it.url) + '">' + esc(it.name) + "</a>"
         : esc(it.name);
+      // a custom part designed in JEKray: its figures under its name
+      if (Array.isArray(it.spec) && it.spec.length) name += '<span class="cart-spec">' + it.spec.map(esc).join("<br>") + '</span>';
       return "" +
         '<tr>' +
           '<td class="part" data-label="Part number">' + esc(it.part) + '</td>' +

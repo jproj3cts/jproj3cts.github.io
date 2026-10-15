@@ -132,6 +132,7 @@
  "io/layout.js",
  "io/guide.js",
  "io/share.js",
+ "io/order.js",
  "io/open.js",
  "io/zmx-import.js",
  "io/zmx-export.js",

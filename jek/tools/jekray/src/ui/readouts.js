@@ -296,6 +296,13 @@ export function lensThickness(el) {
   for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
   return { centre: T, thinnest: tMin, thickest: tMax, edge: T + sagAt(S[S.length - 1], R) - sagAt(S[0], R) };
 }
+/* its volume, mm^3: the thickness at each radius over the disc */
+export function lensVolume(el) {
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200;
+  let v = 0;
+  for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, T + sagAt(S[S.length - 1], r) - sagAt(S[0], r)) * 2 * Math.PI * r * R / N; }
+  return v;
+}
 function rfLensReadout(el, wls, rows) {
   const nm = wls.find(v => v > 1e5);
   if (!nm) return null;

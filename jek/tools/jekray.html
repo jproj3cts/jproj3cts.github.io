@@ -1225,6 +1225,20 @@
 /* the glass search: its list of matches stands tall */
 #glassDialog { width: min(36rem, 92vw); }
 #glassList { height: auto; min-height: 13rem; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+
+  /* asking for a quote for a lens that can be made: the orange button */
+  .rt-orderrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.8rem 0 0.4rem; }
+  .rt-orderrow label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+  .rt-orderrow .rt-order-qty { width: 4.2rem; }
+  .rt-orderrow .note { flex-basis: 100%; margin: 0; }
+  .rt-btn.rt-order { background: var(--jek-orange, #f07e26); border-color: var(--jek-orange, #f07e26); color: #fff; font-weight: 700; }
+  .rt-btn.rt-order:hover { background: #d96a14; border-color: #d96a14; }
+  .rt-btn.rt-order:disabled { opacity: 0.6; }
+
+  /* the maker's view of a graded-index lens's bands */
+  .rt-grin-rings { width: 100%; margin-top: 0.4rem; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .rt-grin-rings th, .rt-grin-rings td { padding: 0.15rem 0.35rem; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  .rt-grin-rings th { font-weight: 600; color: var(--jek-ink-soft); }
 </style>
 </head>
 <body>
@@ -1696,6 +1710,8 @@ const TEST_MODE = IN_WORKER || !IN_PAGE || /(^|[#?&])test\b/.test(QUERY);
 const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
+// ?maker: JEK Systems' own view of a made-to-order lens, with the bands it is made in
+const MAKER = IN_PAGE && /(^|[?&])maker\b/.test(typeof location === 'undefined' ? '' : location.search);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -17435,6 +17451,7 @@ function lensPanel(el) {
     }
   }
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
+  if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),
   ));
@@ -17756,6 +17773,18 @@ function grinPanel(el) {
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
+  const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
+  if (MAKER && D.usable) panel.append(makerBands(el, D));                          // JEK Systems' own view: the bands to make it in
+}
+
+/* the bands a graded-index lens is made in, each at its density: for making it (?maker only) */
+function makerBands(el, D) {
+  const rows = D.rings.map((R, i) => [i + 1, R.r0.toFixed(2), R.r1.toFixed(2), R.fill.toFixed(1), R.n.toFixed(4)]);
+  const csv = 'band,r_inner_mm,r_outer_mm,density_pct,index\n' + rows.map(r => r.join(',')).join('\n') + '\n';
+  const copy = h('button', { type: 'button', class: 'rt-btn', onclick: async () => { try { await navigator.clipboard.writeText(csv); copy.textContent = 'Copied'; } catch (err) { copy.textContent = 'Copy failed'; } } }, 'Copy as CSV');
+  const table = h('table', { class: 'rt-grin-rings' }, h('thead', null, h('tr', null, ...['Band', 'Inner (mm)', 'Outer (mm)', 'Density', 'Index'].map(t => h('th', null, t)))),
+    h('tbody', null, ...rows.map(r => h('tr', null, ...r.map((v, j) => h('td', null, j === 3 ? v + '%' : String(v)))))));
+  return h('details', { class: 'rt-adv', open: true }, h('summary', null, 'Maker: ' + D.rings.length + ' bands, ' + D.ringW.toFixed(2) + ' mm wide, ' + D.t.toFixed(2) + ' mm thick'), copy, table);
 }
 
 function maskPanel(el) {
@@ -18682,6 +18711,13 @@ function lensThickness(el) {
   let tMin = Infinity, tMax = -Infinity;
   for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
   return { centre: T, thinnest: tMin, thickest: tMax, edge: T + sagAt(S[S.length - 1], R) - sagAt(S[0], R) };
+}
+/* its volume, mm^3: the thickness at each radius over the disc */
+function lensVolume(el) {
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200;
+  let v = 0;
+  for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, T + sagAt(S[S.length - 1], r) - sagAt(S[0], r)) * 2 * Math.PI * r * R / N; }
+  return v;
 }
 function rfLensReadout(el, wls, rows) {
   const nm = wls.find(v => v > 1e5);
@@ -29406,6 +29442,85 @@ function wireShare() {
   }
 
 }
+/* ---------- A custom RF lens, asked for by quote ----------
+   An RF lens in one of the made-to-order plastics, or a graded-index lens, that can be made:
+   its figures and a link that reopens its design go into the site's quote cart (the same one
+   the product pages fill), from which the customer emails sales. The link holds the lens and
+   the horns and receivers on its tab, nothing else of the bench; a graded-index lens travels
+   as its design, its plate rebuilt from it on opening. */
+const CART = 'JEK_QUOTE_CART';
+const mm = v => (+v).toFixed(v < 10 ? 2 : 1).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') + ' mm';
+const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : null; })();
+
+/* what the order says of it, or null when it is not a lens that can be ordered */
+function orderSpec(el) {
+  if (!el || !el.mmw) return null;
+  if (el.type === 'mask' && el.grin) {
+    const g = el.grin, D = grinDesign(g, el.length);
+    if (!D.usable || el.length > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
+    return {
+      name: 'Graded-index RF lens, ' + D.M.name + ', ' + mm(el.length) + ' across, f ' + mm(g.f) + ', ' + g.ghz + ' GHz',
+      spec: ['Design frequency: ' + g.ghz + ' GHz', 'Diameter: ' + mm(el.length), 'Focal length: ' + mm(g.f) + ', ' + (g.profile === 'parabolic' ? 'parabolic' : 'ideal-lens') + ' profile',
+        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', 'Weight: about ' + Math.round(D.grams) + ' g'],
+    };
+  }
+  if (el.type === 'lens') {
+    const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
+    if (!M || !M.print || mats.some(m => m.glass !== mats[0].glass)) return null;
+    const geo = lensThickness(el);
+    if (el.diameter > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
+    const ghz = ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
+    const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
+    const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
+    const grams = lensVolume(el) / 1000 * (M.density || 1.2);
+    return {
+      name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
+      spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
+        'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
+        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        'Weight: about ' + Math.round(grams) + ' g'].filter(Boolean),
+    };
+  }
+  return null;
+}
+/* the link that reopens it: the lens and the horns and receivers on its tab */
+async function orderLink(el) {
+  const d = shareData(), tab = el.bench;
+  d.elements = d.elements.filter(e => e.id === el.id || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  for (const e of d.elements) if (e.grin) { delete e.amp; delete e.delay; delete e.preset; }
+  delete d.notes; delete d.ui; d.name = el.name;
+  if (d.benches && d.benches.length > 1) d.benches = d.benches.filter(b => b.id === tab);
+  return shareBase() + '#p=' + await shareHash(d);
+}
+const hash = s => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619) >>> 0; return x.toString(36).toUpperCase().padStart(6, '0').slice(-6); };
+/* into the quote cart: a new line for a new design, more of one already there */
+async function requestQuote(el, qty) {
+  const S = orderSpec(el);
+  if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
+  const url = await orderLink(el), part = 'RFL-' + hash(S.spec.join('|')), n = Math.max(1, Math.round(+qty || 1));
+  let items = [];
+  try { items = JSON.parse(localStorage.getItem(CART) || '[]'); if (!Array.isArray(items)) items = []; } catch (err) { items = []; }
+  const had = items.find(it => it && it.part === part);
+  if (had) { had.qty += n; had.url = url; }
+  else items.push({ part, name: S.name, price: null, currency: '', note: '', url, qty: n, spec: S.spec });
+  try { localStorage.setItem(CART, JSON.stringify(items)); }
+  catch (err) { toast('Your browser is blocking site storage, so the quote cart cannot be saved.', true); return false; }
+  toast('Added to your quote cart: open Cart on the JEK Systems site to send the request.');
+  return part;
+}
+
+/* the panel's row: how many, and the orange button, for a lens that can be made */
+function orderRow(el) {
+  if (!orderSpec(el)) return null;
+  const qty = h('input', { type: 'number', min: '1', step: '1', value: '1', 'aria-label': 'How many', class: 'rt-order-qty' });
+  const btn = h('button', { type: 'button', class: 'rt-btn rt-order', onclick: async () => {
+    btn.disabled = true;
+    try { if (await requestQuote(el, qty.value)) { btn.textContent = 'Added to your quote'; setTimeout(() => { btn.textContent = 'Request a quote for this lens'; }, 2400); } }
+    finally { btn.disabled = false; }
+  } }, 'Request a quote for this lens');
+  return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), btn,
+    h('p', { class: 'note' }, 'Made to order to this design. The request goes into your quote cart with its figures and a link to the design; send it from Cart on the JEK Systems site and we reply with a price.'));
+}
 /* ---------- Opening a project someone (or something) else wrote ----------
    A file from outside the tool, an AI assistant's above all, is read as leniently as it
    can be: names where ids belong, no format tag, fences and comments round pasted text.
@@ -32667,6 +32782,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Order an RF lens to your design</b>: an RF lens in PLA, ABS, PETG, ASA or polypropylene, or a graded-index lens, that its panel calls manufacturable has an orange <b>Request a quote for this lens</b> button. It puts the lens in the JEK Systems quote cart with its figures and a link to its design; send the request from the cart and we reply with a price. See Custom RF Lenses under Products.',
     '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc, solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it can be made, and the beam at it with its edge taper. A new example: a graded-index lens on a 24 GHz horn.',
     '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in more plastics too (PLA, ABS, PETG, ASA and polypropylene, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for these plastics, whether it can be made. Two new examples: a PLA lens at 10 GHz and an ABS lens on a 24 GHz radar horn.',
     'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',

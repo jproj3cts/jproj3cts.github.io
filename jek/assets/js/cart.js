@@ -3,7 +3,11 @@
    Shared by every page. Items live in localStorage under JEK_QUOTE_CART.
 
    Item shape:
-     { part, name, price, currency, note, qty, url }
+     { part, name, price, currency, note, qty, url, spec? }
+
+   A custom part designed in JEKray (an RF lens) carries spec, its figures as
+   lines of text, and url, a link that reopens its design; both go into the
+   quote email.
 
    Prices are stored as numbers with their currency symbol kept alongside,
    so a cart holding more than one currency is subtotalled per currency
@@ -87,6 +91,7 @@
         url: item.url || "",
         qty: qty
       });
+      if (Array.isArray(item.spec)) items[items.length - 1].spec = item.spec.slice(0, 20).map(String);
     }
     write(items);
     refreshCount();
@@ -163,6 +168,10 @@
       var priced = typeof it.price === "number" && !isNaN(it.price);
       lines.push((i + 1) + ". " + it.part + " - " + it.name);
       lines.push("   Quantity: " + it.qty);
+      if (Array.isArray(it.spec)) {
+        it.spec.forEach(function (s) { lines.push("   " + s); });
+        if (it.url) lines.push("   Design: " + it.url);
+      }
       if (priced) {
         lines.push("   Unit price: " + money(it.currency, it.price) + (it.note ? " " + it.note : ""));
         if (it.qty > 1) {

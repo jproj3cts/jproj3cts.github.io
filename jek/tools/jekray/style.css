@@ -1212,3 +1212,17 @@
 /* the glass search: its list of matches stands tall */
 #glassDialog { width: min(36rem, 92vw); }
 #glassList { height: auto; min-height: 13rem; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+
+  /* asking for a quote for a lens that can be made: the orange button */
+  .rt-orderrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.8rem 0 0.4rem; }
+  .rt-orderrow label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+  .rt-orderrow .rt-order-qty { width: 4.2rem; }
+  .rt-orderrow .note { flex-basis: 100%; margin: 0; }
+  .rt-btn.rt-order { background: var(--jek-orange, #f07e26); border-color: var(--jek-orange, #f07e26); color: #fff; font-weight: 700; }
+  .rt-btn.rt-order:hover { background: #d96a14; border-color: #d96a14; }
+  .rt-btn.rt-order:disabled { opacity: 0.6; }
+
+  /* the maker's view of a graded-index lens's bands */
+  .rt-grin-rings { width: 100%; margin-top: 0.4rem; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .rt-grin-rings th, .rt-grin-rings td { padding: 0.15rem 0.35rem; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  .rt-grin-rings th { font-weight: 600; color: var(--jek-ink-soft); }

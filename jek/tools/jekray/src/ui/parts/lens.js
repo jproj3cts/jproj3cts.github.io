@@ -1,3 +1,4 @@
+import { orderRow } from '../../io/order.js';
 import { glassKey } from '../../core/glass.js';
 import { deg } from '../../state/project.js';
 import { lensSurfaces } from '../../core/geometry.js';
@@ -87,6 +88,7 @@ function lensPanel(el) {
     }
   }
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
+  if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),
   ));

@@ -1928,3 +1928,6 @@ button.buy-button {
 }
 
 .cart-panel .cart-env-notice { max-width: none; }
+
+/* a custom part's figures in the quote cart */
+.cart-spec { display: block; margin-top: 0.3rem; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft, #5a5a55); }

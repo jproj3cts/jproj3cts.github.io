@@ -132,6 +132,8 @@ An RF lens's panel reads, at the first RF frequency on the bench:
 - **Beam radius at the lens**, from the traced beam, and the **edge taper**, $$8.686\,(a/w)^2$$ dB for a lens of radius $$a$$, with the share of the power that passes outside it, $$e^{-2a^2/w^2}$$. Under 20 dB the panel warns: the light past the edge is lost, and the edge diffracts in ways the model leaves out. A lens four beam radii across, 35 dB, keeps both small.
 - For these plastics, whether it is **manufacturable**: up to 210 mm across and 260 mm thick can be made, with no point thinner than 0.45 mm.
 
+A lens that is manufacturable can be ordered: its panel's orange **Request a quote for this lens** button puts it in the JEK Systems quote cart with its figures and a link to its design, and the request is sent from the cart. See [Custom RF Lenses](/jek/products/signal-processing/custom-rf-lenses/).
+
 The examples **PLA lens, 10 GHz** and **ABS lens, 24 GHz radar** show both bands. At 10 GHz a lens that can be made is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
 ## Graded-index lenses

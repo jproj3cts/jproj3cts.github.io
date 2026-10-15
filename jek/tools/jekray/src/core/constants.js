@@ -19,6 +19,8 @@ export const TEST_MODE = IN_WORKER || !IN_PAGE || /(^|[#?&])test\b/.test(QUERY);
 export const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 export const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
+// ?maker: JEK Systems' own view of a made-to-order lens, with the bands it is made in
+export const MAKER = IN_PAGE && /(^|[?&])maker\b/.test(typeof location === 'undefined' ? '' : location.search);
 export const FORMAT = 'jekray';
 export const VERSION = 1;
 export const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive

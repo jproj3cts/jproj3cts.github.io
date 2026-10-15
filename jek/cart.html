@@ -65,19 +65,45 @@
         This cart contains more than one currency, so subtotals are shown separately.
       </p>
 
-      <div class="cart-actions">
-        <button type="button" id="quoteNowBtn" class="buy-button">Quote now</button>
-        <button type="button" id="clearBtn" class="return">Clear cart</button>
-      </div>
+      <form id="quoteForm" class="quote-form" novalidate>
+        <h2 id="send">Your details</h2>
+        <div class="quote-fields">
+          <label>Name <span class="req">required</span>
+            <input type="text" name="name" autocomplete="name" maxlength="100" required></label>
+          <label>Email <span class="req">required</span>
+            <input type="email" name="email" autocomplete="email" maxlength="254" required></label>
+          <label>Organisation
+            <input type="text" name="organisation" autocomplete="organization" maxlength="150"></label>
+          <label>Phone
+            <input type="tel" name="phone" autocomplete="tel" maxlength="40"></label>
+          <label class="wide">Anything we should know (delivery, deadlines, a purchase order number)
+            <textarea name="message" rows="4" maxlength="4000"></textarea></label>
+          <label class="quote-trap" aria-hidden="true">Leave this empty
+            <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <p id="quoteError" class="quote-error" role="alert" hidden></p>
+        <div class="cart-actions">
+          <button type="submit" id="quoteNowBtn" class="buy-button">Send quote request</button>
+          <button type="button" id="mailBtn" class="return" hidden>Email it instead</button>
+          <button type="button" id="clearBtn" class="return">Clear cart</button>
+        </div>
+      </form>
 
       <p id="cartCustomNote" class="cart-note" hidden>
         Parts made to your design are covered by our <a href="/jek/made-to-order-terms.html">Made-to-Order Terms</a>: they cannot be cancelled for a change of mind once ordered, and your design is kept confidential.
       </p>
 
       <p class="cart-note">
-        Quote now opens this list in your email client, addressed to
-        <a href="mailto:sales@jeksys.net">sales@jeksys.net</a>. Nothing is sent until you send it yourself.
+        Your request goes straight to <a href="mailto:sales@jeksys.net">sales@jeksys.net</a>, and we email you a receipt with its reference.
+        We use your details only to answer it; see our <a href="/jek/privacy.html">Privacy Policy</a>.
       </p>
+    </div>
+
+    <!-- Sent -->
+    <div id="cartSent" class="cart-sent" hidden role="status">
+      <h2>Thank you, your request is with us</h2>
+      <p>Your reference is <strong id="sentRef"></strong>. <span id="sentCopy"></span> We usually reply within two working days, from <a href="mailto:sales@jeksys.net">sales@jeksys.net</a>.</p>
+      <a href="/jek/products.html" class="return">Back to products</a>
     </div>
 
     <!-- Fallback for carts too long for a mailto link -->
@@ -115,6 +141,11 @@
   var mixedEl   = document.getElementById("cartMixedNote");
   var fallback  = document.getElementById("cartFallback");
   var fbText    = document.getElementById("fallbackText");
+  var form      = document.getElementById("quoteForm");
+  var errEl     = document.getElementById("quoteError");
+  var mailBtn   = document.getElementById("mailBtn");
+  var sendBtn   = document.getElementById("quoteNowBtn");
+  var sentEl    = document.getElementById("cartSent");
   var customEl  = document.getElementById("cartCustomNote");
 
   function priceCell(it) {
@@ -191,16 +222,53 @@
     if (!window.confirm("Remove every item from your quote cart?")) return;
     JEKCart.clear();
     fallback.hidden = true;
+    errEl.hidden = true;
     render();
   });
 
-  document.getElementById("quoteNowBtn").addEventListener("click", function () {
+  function fail(message, offerMail) {
+    errEl.textContent = message + (offerMail ? " You can email the request yourself instead." : "");
+    errEl.hidden = false;
+    mailBtn.hidden = !offerMail;
+  }
+
+  // the email draft: for when the request cannot go through our server
+  function emailDraft() {
     var items = JEKCart.read();
     if (!items.length) return;
     JEKCart.sendQuote(items, function (body) {
       fbText.value = body;
       fallback.hidden = false;
       fallback.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  mailBtn.addEventListener("click", emailDraft);
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var items = JEKCart.read();
+    if (!items.length) return;
+    var f = form.elements, d = {
+      name: f.name.value.trim(), email: f.email.value.trim(), organisation: f.organisation.value.trim(),
+      phone: f.phone.value.trim(), message: f.message.value.trim(), website: f.website.value
+    };
+    errEl.hidden = true;
+    if (!d.name) { fail("Please give your name.", false); f.name.focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) { fail("Please give an email address we can reply to.", false); f.email.focus(); return; }
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending\u2026";
+    JEKCart.submitQuote(items, d).then(function (r) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send quote request";
+      if (!r.ok) { fail(r.message, r.fallback); return; }
+      document.getElementById("sentRef").textContent = r.reference;
+      document.getElementById("sentCopy").textContent = r.copied ? "We have emailed you a receipt." : "";
+      JEKCart.clear();
+      render();
+      emptyEl.hidden = true;
+      sentEl.hidden = false;
+      fallback.hidden = true;
+      sentEl.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
@@ -222,6 +290,10 @@
   });
 
   render();
+  // from a product page's Quote now: straight to the name box, once the page has finished arriving at #send
+  if (window.location.hash === "#send" && JEKCart.read().length) {
+    window.addEventListener("load", function () { form.elements.name.focus(); });
+  }
 })();
 </script>
 

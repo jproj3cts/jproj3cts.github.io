@@ -16,7 +16,7 @@ import { cookie, sha256 } from './util.js';
 
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-// The actions that call ORCID or Stripe, build a zip, or delete an account.
+// The actions that call ORCID or Stripe, build a zip, send email, or delete an account.
 const SLOW = [
   ['POST', /^\/v1\/me\/(academic|institution)(\/(email|code))?$/],
   ['GET', /^\/v1\/me\/export$/],
@@ -26,6 +26,7 @@ const SLOW = [
   ['POST', /^\/v1\/teams(\/[^/]+\/(invites|transfer|leave))?$/],
   ['DELETE', /^\/v1\/teams\/[^/]+$/],
   ['POST', /^\/v1\/invitations\/accept$/],
+  ['POST', /^\/v1\/quotes$/],
 ];
 
 // The binding and key for this request, or null for none.

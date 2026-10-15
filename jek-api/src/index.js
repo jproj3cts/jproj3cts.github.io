@@ -15,6 +15,7 @@ import * as T from './teams.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
+import { requestQuote } from './quotes.js';
 import { me, patchMe } from './users.js';
 import { deleteAvatar, getAvatar, putAvatar } from './avatars.js';
 import { ApiError, errorResponse, json } from './util.js';
@@ -139,6 +140,8 @@ const router = new Router()
   .on('POST', '/v1/teams/:id/transfer', async (req, env, ctx, { id }) => json(await T.transfer(req, env, await requireUser(req, env, ctx), id)))
   .on('GET', '/v1/invitations/:token', async (req, env, ctx, { token }) => json(await T.peek(env, token)))
   .on('POST', '/v1/invitations/accept', async (req, env, ctx) => json(await T.accept(req, env, await requireUser(req, env, ctx))))
+  // a quote request from the site's quote cart: no sign-in (src/quotes.js)
+  .on('POST', '/v1/quotes', async (req, env) => json(await requestQuote(req, env)))
   // billing
   .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
   .on('POST', '/v1/me/institution', async (req, env, ctx) => json(await I.checkInstitution(env, await requireUser(req, env, ctx))))

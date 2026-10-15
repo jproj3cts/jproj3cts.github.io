@@ -1744,6 +1744,7 @@ button.buy-button {
 }
 
 .cart-actions .return { margin-top: 0; }
+.cart-actions [hidden] { display: none; }
 
 .cart-note {
   margin: 1rem 0 0;
@@ -1753,6 +1754,24 @@ button.buy-button {
 }
 
 .cart-note a { color: var(--jek-cyan-dark); }
+
+.quote-form { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--jek-line); }
+.quote-form h2, .cart-sent h2 { margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: var(--jek-ink); }
+.quote-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1rem; }
+.quote-fields label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
+.quote-fields label.wide { grid-column: 1 / -1; }
+.quote-fields .req { font-weight: 400; font-size: 0.75rem; opacity: 0.8; }
+.quote-fields input, .quote-fields textarea {
+  width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem; font: inherit; font-weight: 400; font-size: 0.95rem;
+  color: var(--jek-ink); background: #fff; border: 1px solid var(--jek-line-2, rgba(0,0,0,0.2)); border-radius: var(--jek-radius); resize: vertical;
+}
+.quote-fields input:focus, .quote-fields textarea:focus { outline: none; box-shadow: var(--jek-focus); border-color: var(--jek-cyan); }
+.quote-fields .quote-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.quote-error { margin: 0.9rem 0 0; padding: 0.6rem 0.8rem; font-size: 0.875rem; color: #8a1c2b; background: #fdecee; border-left: 3px solid var(--jek-red); }
+.cart-sent { padding: 0.5rem 0; }
+.cart-sent p { margin: 0 0 1rem; line-height: 1.55; color: var(--jek-ink); }
+.cart-sent a:not(.return) { color: var(--jek-cyan-dark); }
+@media (max-width: 640px) { .quote-fields { grid-template-columns: 1fr; } }
 
 .cart-fallback { margin-top: 1.5rem; }
 

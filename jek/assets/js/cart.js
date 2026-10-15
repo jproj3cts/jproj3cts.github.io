@@ -19,6 +19,8 @@
 
   var KEY = "JEK_QUOTE_CART";
   var SALES_EMAIL = "sales@jeksys.net";
+  // quote requests go to sales through the API (jek-api/src/quotes.js); the email draft is the fallback
+  var API_BASE = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "http://localhost:8787" : "https://api.jeksys.net";
 
   /* ------------------------------------------------------- environment */
 
@@ -229,6 +231,40 @@
     return true;
   }
 
+  /**
+   * Send the quote request to sales through the API. Resolves to
+   * { ok: true, reference, copied } or { ok: false, message, fallback },
+   * fallback true when the email draft is worth offering instead (the API is
+   * down, unreachable or cannot send email), false when the request itself
+   * needs fixing (a missing name, a bad address).
+   */
+  function submitQuote(items, details) {
+    var body = {
+      name: details.name || "", email: details.email || "", organisation: details.organisation || "",
+      phone: details.phone || "", message: details.message || "", website: details.website || "",
+      items: items.map(function (it) {
+        var o = { part: it.part, name: it.name, qty: it.qty, price: typeof it.price === "number" ? it.price : null,
+                  currency: it.currency || "", note: it.note || "", url: it.url || "" };
+        if (Array.isArray(it.spec)) o.spec = it.spec;
+        return o;
+      })
+    };
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctrl ? window.setTimeout(function () { ctrl.abort(); }, 20000) : 0;
+    return window.fetch(API_BASE + "/v1/quotes", {
+      method: "POST", credentials: "omit", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok && data.sent) return { ok: true, reference: data.reference, copied: data.copied !== false };
+        var msg = data.error && data.error.message ? data.error.message : "We could not send your request just now.";
+        return { ok: false, message: msg, fallback: res.status >= 429 || res.status === 403 };
+      });
+    }, function () {
+      return { ok: false, message: "We could not reach our server just now.", fallback: true };
+    }).then(function (r) { window.clearTimeout(timer); return r; });
+  }
+
   /* --------------------------------------------------------- nav badge */
 
   function refreshCount() {
@@ -279,15 +315,18 @@
       });
     }
 
-    // "Quote now" sends this single item, whatever is in the cart
+    // "Quote now" puts this item in the cart and goes to it, where the request is sent
     var nowBtns = document.querySelectorAll("[data-quote-now]");
     for (var j = 0; j < nowBtns.length; j++) {
       nowBtns[j].addEventListener("click", function (ev) {
         ev.preventDefault();
         var item = readProduct(this);
         if (!item.part) return;
-        item.qty = 1;
-        sendQuote([item]);
+        // without site storage the cart cannot carry it to the cart page: the email draft, as before
+        if (!storageWorks() || isFileProtocol()) { item.qty = 1; sendQuote([item]); return; }
+        var have = read().some(function (it) { return it.part === item.part; });
+        if (!have) add(item, 1);
+        window.location.href = "/jek/cart.html#send";
       });
     }
   }
@@ -309,7 +348,7 @@
       ? "Preview mode: these pages are open directly from disk, so the quote cart cannot carry between pages. " +
         "It will work normally once the site is published, or if you preview it through a local web server."
       : "Your browser is blocking site storage, so the quote cart cannot be saved. " +
-        "Check your privacy settings, or use Quote now to email a single item.";
+        "Check your privacy settings, or use Quote now to email us about a single item.";
 
     var el = document.createElement("p");
     el.className = "cart-env-notice";
@@ -341,6 +380,7 @@
     quoteBody: quoteBody,
     quoteSubject: quoteSubject,
     sendQuote: sendQuote,
+    submitQuote: submitQuote,
     refreshCount: refreshCount,
     isFileProtocol: isFileProtocol,
     storageWorks: storageWorks,

@@ -11,7 +11,7 @@ export class ApiError extends Error {
 
 export const now = () => Date.now();
 
-const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+export const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 // Random 128-bit id.
 export const newId = () => hex(crypto.getRandomValues(new Uint8Array(16)));

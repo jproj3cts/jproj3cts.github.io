@@ -7,12 +7,12 @@ import { ApiError } from './util.js';
 
 export const mailOn = (env) => !!env.RESEND_API_KEY;
 
-export async function sendEmail(env, { to, subject, html, text }) {
+export async function sendEmail(env, { to, subject, html, text, from, replyTo }) {
   if (!mailOn(env)) throw new ApiError(503, 'email_off', 'Email checks are not available just now. Please email support@jeksys.net and we will check by hand.');
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: env.MAIL_FROM, reply_to: env.SUPPORT_EMAIL, to: [to], subject, html, text }),
+    body: JSON.stringify({ from: from || env.MAIL_FROM, reply_to: replyTo || env.SUPPORT_EMAIL, to: [to], subject, html, text }),
   });
   if (!res.ok) {
     console.error('Resend', res.status, (await res.text()).slice(0, 300));

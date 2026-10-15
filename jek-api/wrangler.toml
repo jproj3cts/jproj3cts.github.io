@@ -33,6 +33,10 @@ MICROSOFT_CLIENT_ID = "cd167344-4d1b-407d-8d8c-f00e52ddce2c"
 # API, with `npx wrangler secret put RESEND_API_KEY`; without it, no email is sent.
 MAIL_FROM = "JEKray <jekray@jeksys.net>"
 SUPPORT_EMAIL = "support@jeksys.net"
+# Quote requests from the site's quote cart (src/quotes.js): sent to SALES_EMAIL
+# from QUOTE_FROM, with a receipt to the customer. Same key and domain as above.
+SALES_EMAIL = "sales@jeksys.net"
+QUOTE_FROM = "JEK Systems <quotes@jeksys.net>"
 
 # Accounts, sessions, workspaces and bench heads.
 [[d1_databases]]

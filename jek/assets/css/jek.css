@@ -623,6 +623,7 @@ main.main-content.jek-flush { padding: 0; text-align: left; align-items: stretch
 .jek-section > .jek-wrap > h2 { margin: 0 0 1.2rem; font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--jek-ink); text-wrap: balance; }
 .jek-band { background: var(--jek-panel); border-top: 1px solid var(--jek-line); border-bottom: 1px solid var(--jek-line); }
 .jek-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-lede a { color: var(--jek-cyan-dark); }
 .jek-lede { font-size: 1.05rem; line-height: 1.55; color: var(--jek-ink-soft); max-width: 60ch; margin: 0 0 1.4rem; }
 .jek-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 1.3rem; border-radius: var(--jek-radius); border: 1px solid transparent; font: 700 0.95rem var(--jek-sans); line-height: 1.2; text-decoration: none; cursor: pointer; transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.06s ease; }
 .jek-btn.primary { background: var(--jek-orange); color: #fff; }
@@ -685,6 +686,20 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 .jek-plan ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; line-height: 1.45; color: var(--jek-ink-soft); display: grid; gap: 0.25rem; }
 .jek-plan li::marker { color: var(--jek-orange); }
 .jek-plan .jek-btn { margin-top: auto; align-self: flex-start; }
+
+/* lists inside cards, and a person: portrait, name, role, a few lines */
+.jek-card ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.5; color: var(--jek-ink-soft); display: grid; gap: 0.25rem; }
+.jek-card li::marker { color: var(--jek-orange); }
+.jek-person { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.jek-person img { width: 9rem; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--jek-radius); border: 1px solid var(--jek-line); background: var(--jek-well); display: block; }
+.jek-person .role { font-size: 0.86rem; color: var(--jek-ink-soft); margin: 0.1rem 0 0.5rem; }
+.jek-person.open img { display: grid; place-items: center; }
+.jek-person .silhouette { width: 9rem; aspect-ratio: 4 / 5; border-radius: var(--jek-radius); border: 1px dashed var(--jek-line-2); background: var(--jek-well); display: grid; place-items: center; color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; padding: 0.5rem; box-sizing: border-box; }
+.jek-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.jek-pubs { display: grid; gap: 0.6rem; }
+.jek-pubs .jek-card p { color: var(--jek-ink); }
+.jek-pubs .jek-card p a { color: var(--jek-cyan-dark); word-break: break-word; }
+@media (max-width: 760px) { .jek-people { grid-template-columns: 1fr; } .jek-person { grid-template-columns: 7rem minmax(0, 1fr); } .jek-person img, .jek-person .silhouette { width: 7rem; } }
 
 /* resource columns */
 .jek-resources .jek-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }

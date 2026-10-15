@@ -3,32 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JEK Systems</title>
+<title>JEK Systems | The team</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
 
 <!-- Bio-only overrides. Kept here so this page can be updated on its own;
      move into assets/jek.css whenever convenient. -->
-<style>
-  /* Section accents: amber for the bio, red for publications, cyan for outreach.
-     Only the border-left colour is changed, so width, fill and radius still
-     come from article.mb-4 in jek.css. */
-  article.mb-4.bio-amber { border-left-color: var(--jek-amber); }
-  article.mb-4.bio-red   { border-left-color: var(--jek-red); }
-  article.mb-4.bio-blue  { border-left-color: var(--jek-cyan); }
 
-  /* Rectangular portrait rather than a circle */
-  .profile-pic {
-    width: 200px;
-    height: 250px;
-    border-radius: 2px;
-    border-width: 6px;
-  }
-
-  @media (max-width: 520px) {
-    .profile-pic { width: 160px; height: 200px; }
-  }
-</style>
 </head>
 <body>
 
@@ -57,78 +38,71 @@
   </div>
   
   <!-- Scrollable Content Area -->
-  <main class="main-content">
-  <h1 class="page-title">Biography</h1>
+  <main class="main-content jek-flush">
 
-  <!-- Profile picture -->
-  <img src="/jek/assets/img/profile.jpeg" alt="Dr. Joseph Kelly" class="profile-pic">
+    <section class="jek-hero" style="padding-bottom: 1.5rem">
+      <div class="jek-wrap" style="grid-template-columns: 1fr">
+        <div>
+          <div class="jek-eyebrow">The team</div>
+          <h1>Who makes JEK Systems</h1>
+          <p class="jek-tag" style="max-width: 44ch">Applied physicists and engineers who build the instruments they design, from the photodiode to the firmware to the mount.</p>
+        </div>
+      </div>
+    </section>
 
-  <h2>Dr. Joe Kelly</h2>
+    <section class="jek-section jek-band" style="padding-top: 2rem">
+      <div class="jek-wrap">
+        <div class="jek-people">
+          <div class="jek-card">
+            <div class="jek-person">
+              <img src="/jek/assets/img/profile.jpeg" alt="Dr Joe Kelly">
+              <div>
+                <h3>Dr Joe Kelly</h3>
+                <p class="role">Founder. Optics, electronics and systems engineering</p>
+                <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics and embedded electronics. Experienced in full-stack system development, from laser-based sensor design to analogue and digital circuit prototyping and PCB layout, with a track record in R&amp;D leadership, cross-functional collaboration and patented technologies in quantum and optical systems.</p>
+              </div>
+            </div>
+          </div>
+          <!-- A new member: copy the card above, change the portrait, name, role and lines. -->
+          <div class="jek-card">
+            <div class="jek-person">
+              <div class="silhouette" aria-hidden="true">Your portrait here</div>
+              <div>
+                <h3>Join the team</h3>
+                <p class="role">Optical, electronic or mechanical engineering</p>
+                <p>We take on people who like to see a design through to a working instrument. If that is you, write to us with what you have built and what you would like to build next.</p>
+                <a class="jek-more" href="mailto:sales@jeksys.net">sales@jeksys.net</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <article class="mb-4 bio-amber">
-    <p>Applied physicist and systems engineer with hands-on expertise in optoelectronics, photonics, and embedded electronics.
-    Experienced in full-stack system development, from laser-based sensor design to analog/digital circuit prototyping and PCB layout.
-    Strong track record in R&amp;D leadership, cross-functional collaboration, and delivering patented technologies in quantum and optical systems.</p>
-  </article>
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <h2>Publications and patents</h2>
+        <div class="jek-pubs">
+          <div class="jek-card"><p>Zhenan Chen, Sophie Sanghera, Yanhui Hu, Maryam Nikkhou, Alex Gee, David Burt, Qiongyuan Wu, <strong>Joseph Kelly</strong> and James Millen (2026). Optomechanical levitation and control of high aspect ratio silicon nanorods. <em>arXiv preprint arXiv:2608.07415</em>.</p></div>
+          <div class="jek-card"><p><strong>Joseph Kelly</strong>, James Millen, Andrew Chew and Hannah Vandenwijngaerden (2025). Nanoobject trap and method of confining a nanoobject. <em>UK Patent Application GB2500417.7</em>, filed 13 January 2025, UK Intellectual Property Office.</p></div>
+          <div class="jek-card"><p><strong>Joseph Kelly</strong>, Eleanor Fradgley, Lida Zhang and Vincent Boyer (2025). Mode hitching in traveling-wave optical parametric amplification. <em>Physical Review A, 111</em>(3), 033523. <a href="https://link.aps.org/doi/10.1103/PhysRevA.111.033523" target="_blank" rel="noopener">doi.org/10.1103/PhysRevA.111.033523</a></p></div>
+          <div class="jek-card"><p><strong>Joseph Kelly</strong> (2024). Propagation effects within an extended optical amplifier and their impact on the spatial distribution of squeezing: towards quantum imaging. PhD thesis, <em>University of Birmingham</em>.</p></div>
+        </div>
+      </div>
+    </section>
 
-  <h2>Publications</h2>
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <h2>Media and outreach</h2>
+        <p class="jek-lede">Science communication and outreach are vital for inspiring optimism about research and encouraging investment in it. Some of our activities in that space:</p>
+        <div class="jek-pubs">
+          <div class="jek-card"><p><strong>Joseph Kelly</strong> (2024). Interview on <em>Sun, sea... and science</em>, <em>BBC Radio 4</em>, 4 July 2024. <a href="https://www.bbc.co.uk/programmes/m0020pfy" target="_blank" rel="noopener">bbc.co.uk/programmes/m0020pfy</a></p></div>
+          <div class="jek-card"><p><strong>Joseph Kelly</strong>, with the King&rsquo;s College London Department of Physics team (2024). <em>The Unseen Wonders of Light</em>, exhibitor at the <em>Royal Society Summer Science Exhibition</em>, London, 2&ndash;7 July 2024: optical and electrical levitation of nanoparticles and microdiamonds, and the chirality of light and matter, shown to thousands of public and scientific visitors. <a href="https://www.kcl.ac.uk/news/kings-scientists-dazzle-and-amaze-at-royal-society-summer-exhibition-2024" target="_blank" rel="noopener">kcl.ac.uk: King&rsquo;s scientists dazzle and amaze</a></p></div>
+        </div>
+      </div>
+    </section>
 
-  <article class="mb-4 bio-red"> 
-    <p>
-      Zhenan Chen, Sophie Sanghera, Yanhui Hu, Maryam Nikkhou, Alex Gee, David Burt, Qiongyuan Wu, <strong>Joseph Kelly</strong>, and James Millen.
-      (2026). Optomechanical Levitation and Control of High Aspect Ratio Silicon Nanorods. <em>arXiv preprint arXiv:2608.07415</em>.
-    </p> 
-  </article>
-
-  <article class="mb-4 bio-red">
-    <p> <strong>Joseph Kelly</strong>, James Millen, Andrew Chew, Hannah Vandenwijngaerden. (2025).
-      Nanoobject trap and method of confining a nanoobject. <em>UK Patent Application GB2500417.7</em>,
-      filed 13 January 2025. UK Intellectual Property Office.
-    </p>
-  </article>
-    
-  <article class="mb-4 bio-red">
-    <p>
-      <strong>Joseph Kelly</strong>, Eleanor Fradgley, Lida Zhang, and Vincent Boyer. 
-      (2025). Mode hitching in traveling-wave optical parametric amplification. 
-      <em>Physical Review A, 111</em>(3), 033523. 
-      <a href="https://link.aps.org/doi/10.1103/PhysRevA.111.033523" target="_blank">
-        https://doi.org/10.1103/PhysRevA.111.033523
-      </a>
-    </p>
-  </article>
-
-  <article class="mb-4 bio-red">
-    <p>
-      <strong>Joseph Kelly</strong>. (2024). Propagation effects within an Extended Optical Amplifier and their impact on the Spatial Distribution of squeezing: towards Quantum Imaging. 
-      <em>University of Birmingham</em>. PhD Thesis.
-    </p>
-  </article>
-
-  <h2>Media and Outreach</h2>
-
-  <p>
-    I believe that science communication and outreach are vital for inspiring optimism about research and encouraging investment in it. Below, I have listed some of my activities in this space.
-  </p>
-
-  <article class="mb-4 bio-blue">
-    <p>
-      <strong>Joseph Kelly</strong>. (2024). Interview on <em>Sun, sea... and science</em>. <em>BBC Radio 4</em>, July 4, 2024. 
-      <a href="https://www.bbc.co.uk/programmes/m0020pfy" target="_blank" rel="noopener">https://www.bbc.co.uk/programmes/m0020pfy</a>
-    </p>
-  </article>
-
-  <article class="mb-4 bio-blue">
-    <p>
-      <strong>Joseph Kelly</strong>, with the King's College London Department of Physics team. (2024).
-      <em>The Unseen Wonders of Light</em>. Exhibitor at the <em>Royal Society Summer Science Exhibition</em>,
-      London, 2&ndash;7 July 2024. Demonstrating optical and electrical levitation of nanoparticles and
-      microdiamonds, and the chirality of light and matter, to thousands of public and scientific visitors.
-      <a href="https://www.kcl.ac.uk/news/kings-scientists-dazzle-and-amaze-at-royal-society-summer-exhibition-2024" target="_blank" rel="noopener">https://www.kcl.ac.uk/news/kings-scientists-dazzle-and-amaze-at-royal-society-summer-exhibition-2024</a>
-    </p>
-  </article>
-
-</main>
+  </main>
 
   <!-- Footer -->
 <footer>

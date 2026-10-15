@@ -9,42 +9,7 @@
 
 <!-- Custom Solutions overrides. Kept here so this page can be updated on its
      own; move into assets/jek.css whenever convenient. -->
-<style>
-  /* Discipline columns are colour-keyed to the masthead spectrum: amber for
-     optical, red for electronic, cyan for mechanical. Only the rule under each
-     heading changes — fill, border and radius still come from jek.css. */
-  .features-column.disc-optical    h2 { border-bottom-color: var(--jek-amber); }
-  .features-column.disc-electronic h2 { border-bottom-color: var(--jek-red); }
-  .features-column.disc-mechanical h2 { border-bottom-color: var(--jek-cyan); }
 
-  /* The intro and engagement notes reuse the Bio article treatment */
-  article.mb-4.cs-amber { border-left-color: var(--jek-amber); }
-  article.mb-4.cs-red   { border-left-color: var(--jek-red); }
-  article.mb-4.cs-blue  { border-left-color: var(--jek-cyan); }
-
-  article.mb-4 h3 {
-    margin: 0 0 0.35rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--jek-ink-soft);
-  }
-
-  /* Everything on this page shares the prose measure so the section headings,
-     articles and the capability grid all sit on one left edge. The grid gets a
-     smaller column minimum to keep three disciplines side by side at that
-     width; it still folds to two, then one, on narrow screens. */
-  .features-columns {
-    max-width: var(--jek-measure);
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-
-  .cta-block {
-    max-width: var(--jek-measure);
-    margin-bottom: 2.5rem;
-  }
-</style>
 </head>
 <body>
 
@@ -73,77 +38,60 @@
   </div>
 
   <!-- Scrollable Content Area -->
-  <main class="main-content">
-    <h1 class="page-title">Custom Solutions</h1>
+  <main class="main-content jek-flush">
 
-    <article class="mb-4 cs-amber">
-      <p>Not every measurement has an off-the-shelf answer. Alongside the catalogue, JEK Systems takes on consultancy and contract design work in optical, electronic and mechanical engineering; from a second opinion on an existing design through to an instrument specified, built and tested from scratch.</p>
-      <p>The three disciplines are handled in-house and designed together, which matters most when the performance you need comes from how the optics, electronics and mechanics interact rather than from any one of them alone.</p>
-    </article>
-
-    <h2>Capabilities</h2>
-
-    <div class="features-columns">
-
-      <div class="features-column disc-optical">
-        <h2>Optical</h2>
-        <ul>
-          <li>Photodetectors and low-noise front ends</li>
-          <li>Optical sensing and measurement systems</li>
-          <li>Laser and LED sources, drive and stabilisation</li>
-          <li>Free-space and fibre-coupled beam paths</li>
-          <li>Alignment, characterisation and noise budgets</li>
-        </ul>
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <div class="jek-eyebrow">Custom solutions</div>
+          <h1>Designed together, built in-house</h1>
+          <p class="jek-tag">Consultancy and contract design in optical, electronic and mechanical engineering.</p>
+          <p class="jek-lede">Not every measurement has an off-the-shelf answer. Alongside the catalogue, JEK Systems takes on work from a second opinion on an existing design through to an instrument specified, built and tested from scratch. The three disciplines are handled in-house and designed as one, which matters most when the performance you need comes from how the optics, electronics and mechanics interact.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="mailto:sales@jeksys.net">Start a conversation</a>
+            <a class="jek-btn quiet" href="/jek/products.html">Browse the catalogue</a>
+          </div>
+          <div class="jek-facts"><span>sales@jeksys.net</span><span>Scope and feasibility discussed free</span></div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="/jek/assets/img/qpd.jpg" alt="A JEK Systems detector board on the bench" width="1280" height="800">
+          <figcaption>A quadrant photodiode front end: optics, low-noise electronics and the mount, designed as one.</figcaption>
+        </figure>
       </div>
+    </section>
 
-      <div class="features-column disc-electronic">
-        <h2>Electronic</h2>
-        <ul>
-          <li>Low-noise analogue signal chains</li>
-          <li>Precision measurement and control electronics</li>
-          <li>Embedded firmware and instrument interfaces</li>
-          <li>FPGA design for real-time signal processing</li>
-          <li>Schematic capture, PCB layout and bring-up</li>
-        </ul>
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <h2>Capabilities</h2>
+        <div class="jek-cards">
+          <div class="jek-card"><div class="jek-eyebrow">Optical</div><h3>Light, sources and detection</h3><ul>
+            <li>Photodetectors and low-noise front ends</li><li>Optical sensing and measurement systems</li><li>Laser and LED sources, drive and stabilisation</li><li>Free-space and fibre-coupled beam paths</li><li>Alignment, characterisation and noise budgets</li></ul></div>
+          <div class="jek-card"><div class="jek-eyebrow">Electronic</div><h3>Signal chains, control and firmware</h3><ul>
+            <li>Low-noise analogue signal chains</li><li>Precision measurement and control electronics</li><li>Embedded firmware and instrument interfaces</li><li>FPGA design for real-time signal processing</li><li>Schematic capture, PCB layout and bring-up</li></ul></div>
+          <div class="jek-card"><div class="jek-eyebrow">Mechanical</div><h3>Mounts, structures and packaging</h3><ul>
+            <li>Optomechanical mounts and assemblies</li><li>Drift- and vibration-sensitive structures</li><li>Vacuum-compatible parts and fixtures</li><li>Enclosures and instrument packaging</li><li>CAD models and manufacturing drawings</li></ul></div>
+        </div>
       </div>
+    </section>
 
-      <div class="features-column disc-mechanical">
-        <h2>Mechanical</h2>
-        <ul>
-          <li>Optomechanical mounts and assemblies</li>
-          <li>Drift- and vibration-sensitive structures</li>
-          <li>Vacuum-compatible parts and fixtures</li>
-          <li>Enclosures and instrument packaging</li>
-          <li>CAD models and manufacturing drawings</li>
-        </ul>
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <h2>Ways to work together</h2>
+        <div class="jek-cards">
+          <div class="jek-card"><h3>Design review</h3><p>A short engagement on a design you already have. Schematics, optical layouts or a noise budget are looked over and you get back a written assessment: what will limit performance, what is likely to cause trouble in build or test, and what to change first.</p></div>
+          <div class="jek-card"><h3>Subsystem design</h3><p>A defined block, a detector front end, a control loop, a mount, taken from requirements through to tested hardware, with the design files and test data handed over so you can build more of them yourself.</p></div>
+          <div class="jek-card"><h3>Complete instrument</h3><p>Specification to working hardware. Optics, electronics, firmware and mechanics designed as one system, delivered with documentation and a characterisation report against the agreed requirements.</p></div>
+        </div>
       </div>
+    </section>
 
-    </div>
-
-    <h2>Ways to work together</h2>
-
-    <article class="mb-4 cs-amber">
-      <h3>Design review</h3>
-      <p>A short engagement on a design you already have. Schematics, optical layouts or a noise budget are looked over and you get back a written assessment: what will limit performance, what is likely to cause trouble in build or test, and what to change first.</p>
-    </article>
-
-    <article class="mb-4 cs-red">
-      <h3>Subsystem design</h3>
-      <p>A defined block: a detector front end, a control loop, a mount; taken from requirements through to tested hardware, with the design files and test data handed over so you can build more of them yourself.</p>
-    </article>
-
-    <article class="mb-4 cs-blue">
-      <h3>Complete instrument</h3>
-      <p>Specification to working hardware. Optics, electronics, firmware and mechanics designed as one system, delivered with documentation and a characterisation report against the agreed requirements.</p>
-    </article>
-
-    <h2>Start a project</h2>
-
-    <div class="contact-block cta-block">
-      <p>Send a short description of what you need to measure or control, along with any constraints you already know about: space, budget, timescale, environment. An initial conversation about scope and feasibility costs nothing.</p>
-      <p><a href="mailto:sales@jeksys.net">sales@jeksys.net</a></p>
-      <p>Existing catalogue products can also be modified to order. If something on the <a href="/jek/products.html">Products</a> page is close but not quite right, it is worth asking.</p>
-    </div>
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <h2>Start a project</h2>
+        <p class="jek-lede">Send a short description of what you need to measure or control, along with any constraints you already know about: space, budget, timescale, environment. An initial conversation about scope and feasibility costs nothing. Existing catalogue products can also be modified to order: if something on the <a href="/jek/products.html">Products</a> page is close but not quite right, it is worth asking.</p>
+        <p><a class="jek-btn primary" href="mailto:sales@jeksys.net">Email sales@jeksys.net</a></p>
+      </div>
+    </section>
 
   </main>
 

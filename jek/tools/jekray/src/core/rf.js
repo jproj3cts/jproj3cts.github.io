@@ -35,6 +35,23 @@ export const RF_MAT = {
   'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
   'PP': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
 };
+/* Plastic and air mixed finer than the wavelength (a printed part's infill at density F, 0 to 1):
+   its permittivity by the power-law mixing rule eps^a = F eps_m^a + (1 - F), and its loss by how
+   much of the plastic's that rule passes on, eps'' = F (eps / eps_m)^(1-a) eps_m tan delta.
+   a = 1 (the default) is the mean by volume, the most the mix can be for fields along the lines;
+   a = 1/3 is Looyenga's rule; smaller is lower still. A material's own a (mix), and its solid
+   index, come from measuring printed tiles of it (the density coupon): until then, a = 1. */
+export const mixA = M => (M && isFinite(M.mix) && M.mix > 0 ? M.mix : 1);
+export function mixEps(M, F) {
+  const em = M.n * M.n, a = mixA(M), f = Math.min(1, Math.max(0, F));
+  const eps = Math.pow(f * Math.pow(em, a) + (1 - f), 1 / a);
+  return { eps, epsI: f * Math.pow(eps / em, 1 - a) * em * (M.tand || 0) };
+}
+/* the density (0 to 1) that gives permittivity eps */
+export function mixFill(M, eps) {
+  const em = M.n * M.n, a = mixA(M);
+  return (Math.pow(Math.max(1, eps), a) - 1) / (Math.pow(em, a) - 1);
+}
 /* what an RF lens can be made as, in one piece: its largest size, and its thinnest wall (mm) */
 export const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */

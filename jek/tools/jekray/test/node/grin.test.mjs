@@ -60,3 +60,30 @@ test('a Gaussian beam is focused where a thin lens of that focal length focuses 
   const want = f / (1 + (f / zR) ** 2), got = -b.qr;
   assert.ok(Math.abs(got - want) < 0.02 * want, 'waist ' + got.toFixed(1) + ' mm after the lens, a thin lens puts it at ' + want.toFixed(1));
 });
+
+test('a measured mixing rule: the density for an index inverts it, the default is the mean by volume, and the plate carries its loss', async () => {
+  const { mixEps, mixFill } = await import('../../src/core/rf.js');
+  const lin = { n: 1.643, tand: 0.01 }, loo = { n: 1.643, tand: 0.01, mix: 1 / 3 };
+  for (const F of [0, 0.2, 0.5, 0.8, 1]) {
+    assert.ok(Math.abs(mixEps(lin, F).eps - (1 + F * (lin.n ** 2 - 1))) < 1e-12, 'a = 1 is the mean by volume');
+    for (const M of [lin, loo]) assert.ok(Math.abs(mixFill(M, mixEps(M, F).eps) - F) < 1e-12, 'inverse at ' + F);
+  }
+  assert.ok(mixEps(loo, 0.5).eps < mixEps(lin, 0.5).eps, 'Looyenga lower than the mean by volume');
+  assert.ok(Math.abs(mixEps(loo, 1).epsI - lin.n ** 2 * lin.tand) < 1e-12 && mixEps(loo, 0).epsI === 0, 'loss from none to the plastic’s');
+  // a lens of a material with a measured rule: the edge's least density gives a lower index, so a wider range and a
+  // thinner disc for the same focal length; and the
+  // plate's amplitude carrying the design's loss at the centre and the edge
+  const was = RF_MAT.PLA.mix;
+  RF_MAT.PLA.mix = 0.5;
+  try {
+    const g = normGrin({ f: 150, ghz: 24, mat: 'PLA' }), D = grinDesign(g, 120);
+    RF_MAT.PLA.mix = undefined; const D1 = grinDesign(g, 120); RF_MAT.PLA.mix = 0.5;
+    assert.ok(D.t < D1.t && D.nLo < D1.nLo && Math.abs(D.nHi - D1.nHi) < 1e-12, 'thinner: ' + D1.t.toFixed(2) + ' -> ' + D.t.toFixed(2));
+    loadProject({ format: 'jekray', version: 1, elements: [{ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, length: 120, mmw: { part: true }, grin: { f: 150, ghz: 24, mat: 'PLA' } }] });
+    const fn = maskFns(STATE.project.elements[0]).fn, lam = C_NM_GHZ / 24 * 1e-6;
+    for (const r of [0, 59]) {
+      const A = fn(r, 0, lam)[0], L = D.lossDb(r), want = Math.sqrt(10 ** (-L.abs / 10)) * (1 - ((D.nAt(r) - 1) / (D.nAt(r) + 1)) ** 2);
+      assert.ok(Math.abs(A / want - 1) < 1e-5, 'amplitude at r = ' + r + ': ' + A + ' against ' + want);
+    }
+  } finally { RF_MAT.PLA.mix = was; }
+});

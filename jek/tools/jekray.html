@@ -4024,6 +4024,23 @@ const RF_MAT = {
   'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
   'PP': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
 };
+/* Plastic and air mixed finer than the wavelength (a printed part's infill at density F, 0 to 1):
+   its permittivity by the power-law mixing rule eps^a = F eps_m^a + (1 - F), and its loss by how
+   much of the plastic's that rule passes on, eps'' = F (eps / eps_m)^(1-a) eps_m tan delta.
+   a = 1 (the default) is the mean by volume, the most the mix can be for fields along the lines;
+   a = 1/3 is Looyenga's rule; smaller is lower still. A material's own a (mix), and its solid
+   index, come from measuring printed tiles of it (the density coupon): until then, a = 1. */
+const mixA = M => (M && isFinite(M.mix) && M.mix > 0 ? M.mix : 1);
+function mixEps(M, F) {
+  const em = M.n * M.n, a = mixA(M), f = Math.min(1, Math.max(0, F));
+  const eps = Math.pow(f * Math.pow(em, a) + (1 - f), 1 / a);
+  return { eps, epsI: f * Math.pow(eps / em, 1 - a) * em * (M.tand || 0) };
+}
+/* the density (0 to 1) that gives permittivity eps */
+function mixFill(M, eps) {
+  const em = M.n * M.n, a = mixA(M);
+  return (Math.pow(Math.max(1, eps), a) - 1) / (Math.pow(em, a) - 1);
+}
 /* what an RF lens can be made as, in one piece: its largest size, and its thinnest wall (mm) */
 const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */
@@ -4199,9 +4216,9 @@ function responsivity(el, nm) {
    a material, the highest and lowest density it may use and the frequency it is made for; from
    these come its index profile, its thickness, its loss and its weight.
 
-   The effective permittivity of plastic and air mixed finer than the wavelength is taken as
-   their mean by volume, eps = 1 + density (eps_m - 1), and its loss the plastic's share of it,
-   eps'' = density eps_m tan(delta). The mixing holds while the printed structure is well under
+   The effective permittivity of plastic and air mixed finer than the wavelength follows the
+   material's mixing rule (core/rf.js mixEps): their mean by volume, eps = 1 + density (eps_m - 1),
+   until printed tiles of it have been measured, and its loss the plastic's share of it. The mixing holds while the printed structure is well under
    a wavelength across: lines 0.45 mm wide at density F lie about 0.45 / F mm apart, so the
    lowest density is raised, at a given frequency, until that is a quarter of the wavelength
    in the plastic or less.
@@ -4233,7 +4250,7 @@ function normGrin(g) {
 /* the design: dia the disc's diameter (mm) */
 function grinDesign(g, dia) {
   const M = RF_MAT[g.mat], eps = M.n * M.n, lam = C_NM_GHZ / g.ghz * 1e-6, a = dia / 2;
-  const nOf = fill => Math.sqrt(1 + fill / 100 * (eps - 1)), fillOf = n => 100 * (n * n - 1) / (eps - 1);
+  const nOf = fill => Math.sqrt(mixEps(M, fill / 100).eps), fillOf = n => 100 * mixFill(M, n * n);
   const fillFreq = 100 * GRIN_LINE / (lam / (4 * M.n));                    // the lowest density the frequency allows
   const fillLo = Math.max(g.fillMin, fillFreq), fillHi = g.fillMax;
   const nHi = nOf(fillHi), nLo = nOf(Math.min(fillLo, fillHi));
@@ -4242,7 +4259,7 @@ function grinDesign(g, dia) {
   const t = usable ? opd(a) / (nHi - nLo) : Infinity;
   const nAt = r => nHi - opd(Math.min(r, a)) / t, fillAt = r => fillOf(nAt(r));
   // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)), and reflected at the two faces
-  const alpha = r => 2 * Math.PI * (fillAt(r) / 100) * eps * M.tand / (nAt(r) * lam);
+  const alpha = r => 2 * Math.PI * mixEps(M, fillAt(r) / 100).epsI / (nAt(r) * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
   const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
   // the plastic it takes, and its weight
@@ -4265,9 +4282,12 @@ function applyGrin(el) {
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
   const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.t) + ')';
-  const F = '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')';
+  // the density there, and the loss it brings (core/rf.js mixEps), as the bench's formulas
+  const a = mixA(D.M), loss = a === 1
+    ? '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
+    : '((' + N + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + N + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
   el.delay = '-' + D.opdExpr + '/lambda';
-  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + F + '*' + fmt(D.eps * D.M.tand) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + loss + '*' + fmt(D.t) + '/(' + N + '*lambda))';
   el.preset = 'grin';
   return D;
 }

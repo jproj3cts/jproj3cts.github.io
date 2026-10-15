@@ -1,5 +1,5 @@
 import { clamp } from './constants.js';
-import { C_NM_GHZ, PRINTER, RF_MAT } from './rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, mixA, mixEps, mixFill } from './rf.js';
 
 /* ---------- A graded-index RF lens, printed ----------
    A flat disc whose index falls from its centre to its edge: printed in one material, the
@@ -7,9 +7,9 @@ import { C_NM_GHZ, PRINTER, RF_MAT } from './rf.js';
    a material, the highest and lowest density it may use and the frequency it is made for; from
    these come its index profile, its thickness, its loss and its weight.
 
-   The effective permittivity of plastic and air mixed finer than the wavelength is taken as
-   their mean by volume, eps = 1 + density (eps_m - 1), and its loss the plastic's share of it,
-   eps'' = density eps_m tan(delta). The mixing holds while the printed structure is well under
+   The effective permittivity of plastic and air mixed finer than the wavelength follows the
+   material's mixing rule (core/rf.js mixEps): their mean by volume, eps = 1 + density (eps_m - 1),
+   until printed tiles of it have been measured, and its loss the plastic's share of it. The mixing holds while the printed structure is well under
    a wavelength across: lines 0.45 mm wide at density F lie about 0.45 / F mm apart, so the
    lowest density is raised, at a given frequency, until that is a quarter of the wavelength
    in the plastic or less.
@@ -41,7 +41,7 @@ export function normGrin(g) {
 /* the design: dia the disc's diameter (mm) */
 export function grinDesign(g, dia) {
   const M = RF_MAT[g.mat], eps = M.n * M.n, lam = C_NM_GHZ / g.ghz * 1e-6, a = dia / 2;
-  const nOf = fill => Math.sqrt(1 + fill / 100 * (eps - 1)), fillOf = n => 100 * (n * n - 1) / (eps - 1);
+  const nOf = fill => Math.sqrt(mixEps(M, fill / 100).eps), fillOf = n => 100 * mixFill(M, n * n);
   const fillFreq = 100 * GRIN_LINE / (lam / (4 * M.n));                    // the lowest density the frequency allows
   const fillLo = Math.max(g.fillMin, fillFreq), fillHi = g.fillMax;
   const nHi = nOf(fillHi), nLo = nOf(Math.min(fillLo, fillHi));
@@ -50,7 +50,7 @@ export function grinDesign(g, dia) {
   const t = usable ? opd(a) / (nHi - nLo) : Infinity;
   const nAt = r => nHi - opd(Math.min(r, a)) / t, fillAt = r => fillOf(nAt(r));
   // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)), and reflected at the two faces
-  const alpha = r => 2 * Math.PI * (fillAt(r) / 100) * eps * M.tand / (nAt(r) * lam);
+  const alpha = r => 2 * Math.PI * mixEps(M, fillAt(r) / 100).epsI / (nAt(r) * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
   const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
   // the plastic it takes, and its weight
@@ -73,9 +73,12 @@ export function applyGrin(el) {
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
   const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.t) + ')';
-  const F = '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')';
+  // the density there, and the loss it brings (core/rf.js mixEps), as the bench's formulas
+  const a = mixA(D.M), loss = a === 1
+    ? '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
+    : '((' + N + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + N + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
   el.delay = '-' + D.opdExpr + '/lambda';
-  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + F + '*' + fmt(D.eps * D.M.tand) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + loss + '*' + fmt(D.t) + '/(' + N + '*lambda))';
   el.preset = 'grin';
   return D;
 }

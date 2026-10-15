@@ -1,4 +1,4 @@
-import { EMBED, FORMAT, VERSION } from '../core/constants.js';
+import { EMBED, FORMAT, LOCKED, VERSION } from '../core/constants.js';
 import { history, project, selectOne, selectedId } from '../state/project.js';
 import { getEl, normElementBase, serialize } from '../state/elements.js';
 import { traceScene } from '../engines/trace.js';
@@ -168,8 +168,8 @@ async function shareLink() {
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
   box.value = url;
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + '?embed' + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray: ' + (project.name || 'bench')) + '"></iframe>';
-  document.getElementById('shareEmbedCopy').textContent = 'Copy embed code';
+  const embed = () => { document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + (document.getElementById('shareLocked').checked ? '?embed=locked' : '?embed') + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray: ' + (project.name || 'bench')) + '"></iframe>'; document.getElementById('shareEmbedCopy').textContent = 'Copy embed code'; };
+  document.getElementById('shareLocked').onchange = embed; embed();
   note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
@@ -190,6 +190,7 @@ export async function openShareHash(h) {
    play its sweeps. Nothing is kept in this browser. */
 export function embedMode() {
   document.body.classList.add('rt-embed');
+  if (LOCKED) document.body.classList.add('rt-locked');
   const full = location.pathname + location.hash;
   const play = h('button', { type: 'button', hidden: true, onclick: () => { if (playing.size) pauseAll(); else playAll(); } }, '\u25b6 Play');
   document.getElementById('stage').append(h('div', { class: 'rt-embedbar' }, play,

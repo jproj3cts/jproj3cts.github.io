@@ -17,6 +17,8 @@ const QUERY = typeof location === 'undefined' ? '' : location.hash + location.se
 export const TEST_MODE = IN_WORKER || !IN_PAGE || /(^|[#?&])test\b/.test(QUERY);
 // ?embed: the bench alone, for a web page to show in a frame; it keeps nothing in this browser
 export const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
+// ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
+export const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 export const FORMAT = 'jekray';
 export const VERSION = 1;
 export const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive

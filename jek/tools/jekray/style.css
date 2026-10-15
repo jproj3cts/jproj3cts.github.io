@@ -642,6 +642,8 @@
   body.rt-embed .top-container, body.rt-embed footer, body.rt-embed .page-title, body.rt-embed .rt-title, body.rt-embed .rt-toolbar, body.rt-embed .rt-about, body.rt-embed .rt-panel { display: none !important; }
   body.rt-embed .main-content { padding: 0; }
   body.rt-embed .rt-stage { position: fixed; inset: 0; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
+  body.rt-locked canvas { cursor: grab !important; }
+  body.rt-locked canvas.dragging { cursor: grabbing !important; }
   .rt-embedbar { position: absolute; right: 0.6rem; bottom: 0.6rem; z-index: 6; display: flex; gap: 0.4rem; align-items: center; }
   .rt-embedbar a, .rt-embedbar button { padding: 0.3rem 0.6rem; font: inherit; font-size: 0.78rem; font-weight: 600; text-decoration: none; color: #fff; background: rgba(20, 25, 28, 0.78); border: 1px solid rgba(255,255,255,0.25); border-radius: 2px; cursor: pointer; }
   .rt-embedbar a:hover, .rt-embedbar button:hover { background: rgba(0, 146, 178, 0.9); }

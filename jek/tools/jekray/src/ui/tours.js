@@ -1,4 +1,4 @@
-import { BEAM_Z, EMBED, IN_WORKER, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { curBench, ensureBenches, onTab } from '../state/tabs.js';
@@ -541,7 +541,7 @@ export function wireTours() {
 
   stage.addEventListener('drop', e => {
     const f = e.dataTransfer.files[0];
-    if (!f) return;
+    if (!f || LOCKED) return;
     if (/\.zmx$/i.test(f.name)) importZmx(f);
     else if (/\.stl$/i.test(f.name)) importStl(f, [e.clientX, e.clientY]);
     else if (/\.jekpack$/i.test(f.name)) f.text().then(t => packInstallText(t, f.name));   // a part pack: shown, then installed if wanted

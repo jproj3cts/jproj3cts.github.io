@@ -364,6 +364,20 @@ function gaussOverlap1(q1, q2, a, t, lam0) {
   return (sr * sr + si * si) / (n1 * n2);
 }
 /* Every loop, one for each pilot tree it turns up in (an unpolarised source has two) */
+const GHOST_TYPES = new Set(['lens', 'window', 'filter', 'waveplate', 'polariser', 'crystal', 'cell']);
+const GHOST_KEEP = 0.5;          // a round trip keeping less of its light than this, inside one part: a ghost
+function thinLoop(beams, path, hit, p) {
+  const ids = new Set();
+  for (let j = hit; j < hit + p; j++) {
+    const ev = beams[path[j]].ev, el = ev && ev.surf && ev.surf.el;
+    if (!el || !GHOST_TYPES.has(el.type)) return false;
+    ids.add(el.id);
+  }
+  if (ids.size !== 1) return false;
+  const a = beams[path[hit]], b = beams[path[hit + p]];
+  const keep = a && b && a.w > 0 ? b.w / a.w : 1;
+  return keep < GHOST_KEEP;
+}
 export function cavLoops(beams) {
   const kids = new Map(), found = new Map();
   beams.forEach((b, i) => { if (b.parent !== undefined && b.parent !== null && b.parent >= 0) { if (!kids.has(b.parent)) kids.set(b.parent, []); kids.get(b.parent).push(i); } });
@@ -380,6 +394,11 @@ export function cavLoops(beams) {
       }
       if (hit < 0) continue;
       const cyc = keys.slice(hit, hit + p);
+      // the faces of one lens or window, uncoated: the light inside comes back weaker each time
+      // round, a ghost and not a resonator. Solved as a cavity its mode would stand in for the
+      // beam going through (a 3 mm cavity's narrow waist after a germanium lens, say); a coated
+      // solid etalon, keeping most of its light each round, is a cavity still.
+      if (thinLoop(beams, path, hit, p)) break;
       let canon = null; for (let r = 0; r < p; r++) { const c = cyc.slice(r).concat(cyc.slice(0, r)).join('|'); if (canon === null || c < canon) canon = c; }
       // one loop for each way into it: a modulator's sidebands or a grating's orders each enter the
       // same cavity on a branch of their own, and each is solved on its own

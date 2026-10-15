@@ -1,4 +1,4 @@
-import { clamp } from '../core/constants.js';
+import { LOCKED, clamp } from '../core/constants.js';
 import { fmtLen } from '../core/format.js';
 import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
@@ -493,7 +493,7 @@ export function wireActions() {
   });
 
   document.addEventListener('paste', e => {
-    if (typingIn(e.target)) return;
+    if (typingIn(e.target) || LOCKED) return;
     clipKey = null;
     let clip = null;
     try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
@@ -509,6 +509,7 @@ export function wireActions() {
 
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
+    if (LOCKED) return;
     if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
     const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);

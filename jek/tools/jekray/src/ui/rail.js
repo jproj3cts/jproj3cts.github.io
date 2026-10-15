@@ -1,4 +1,4 @@
-import { EMBED } from '../core/constants.js';
+import { EMBED, LOCKED } from '../core/constants.js';
 import { project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import {
@@ -119,7 +119,7 @@ export function wireRail() {
 
   stage.addEventListener('drop', e => {
     const k = e.dataTransfer.getData(PART_DRAG);
-    if (!k) return;
+    if (!k || LOCKED) return;
     e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null);
     if (k.startsWith('mine:')) { const p = (MINE.list || []).find(q => 'mine:' + q.id === k); if (p) placeMine(p, [e.clientX, e.clientY]); }
     else if (k.startsWith('pack:')) { const m = /^pack:(.+):(\d+)$/.exec(k), pk = m && PACKS.list.find(p => p.id === m[1]); if (pk) placePackPart(pk, +m[2], [e.clientX, e.clientY]); }

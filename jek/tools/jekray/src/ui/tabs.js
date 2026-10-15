@@ -1,4 +1,4 @@
-import { clamp } from '../core/constants.js';
+import { LOCKED, clamp } from '../core/constants.js';
 import { extraSel, future, history, project, selectOne, selectedId, setFuture } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { benchName, curBench, ensureBenches, onTab } from '../state/tabs.js';
@@ -98,6 +98,7 @@ export function renderBenchTabs() {
     const btn = h('button', { type: 'button', role: 'tab', class: b.id === project.tab ? 'on' : '', 'aria-selected': b.id === project.tab ? 'true' : 'false',
       title: (b.id === project.tab ? 'Double-click to rename. ' : 'Show ' + b.name + '. ') + 'Drag to reorder.' }, b.name);
     btn.addEventListener('click', e => { if (e.target.classList.contains('x') || btn._dragged) { btn._dragged = false; return; } if (b.id !== project.tab) switchTab(b.id); });
+    if (LOCKED) { box.append(btn); continue; }                        // a locked embed: tabs switch, nothing more
     btn.addEventListener('pointerdown', e => tabDragStart(e, btn, b));
     btn.addEventListener('dblclick', () => {
       const inp = h('input', { type: 'text', value: b.name, 'aria-label': 'Tab name' });
@@ -120,6 +121,7 @@ export function renderBenchTabs() {
     }
     box.append(btn);
   }
+  if (LOCKED) return;
   const add = h('button', { type: 'button', class: 'add', title: 'A new tab: a bench of its own, joined to the others by link planes' }, '+');
   add.addEventListener('click', addBench);
   box.append(add);

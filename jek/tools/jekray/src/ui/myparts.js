@@ -148,12 +148,12 @@ export function mineBody(after) {
   const sel = selection();
   const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
-  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
+  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
     onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
-    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
+    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
     return out;
   }
   for (const pal of ['free', 'fibre', 'elec', 'rf', 'pic']) {

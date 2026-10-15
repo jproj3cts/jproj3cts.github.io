@@ -261,7 +261,8 @@
     <p class="note" id="shareNote"></p>
     <h3 class="rt-subhead">Embed in a web page</h3>
     <textarea id="shareEmbed" rows="3" readonly spellcheck="false" aria-label="Code to embed this bench in a web page"></textarea>
-    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps, and open the bench in JEKray. Nothing they do changes your copy.</p>
+    <p class="note"><label><input type="checkbox" id="shareLocked"> Lock the parts: readers pan, zoom, turn the 3D view and play the sweeps, but cannot move or change anything</label></p>
+    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps (or only look, with the parts locked), and open the bench in JEKray. Nothing they do changes your copy.</p>
     <div class="rt-actions">
       <button class="rt-btn" id="shareEmbedCopy">Copy embed code</button>
       <button class="rt-btn" id="shareClose">Close</button>
@@ -437,8 +438,8 @@
   <dialog class="rt-dialog" id="zmxDialog">
     <h2 id="zmxTitle">Import a lens file (.zmx)</h2>
     <ol>
-      <li>Open the Thorlabs product page for the lens, mirror, beam splitter or prism and find its part number in the table.</li>
-      <li>Click the document icon next to the part number and download the .zmx file. If it arrives as a .zip, extract it first.</li>
+      <li>Open the maker’s product page for the lens, mirror, beam splitter or prism. Most optics makers publish a Zemax file for each part, usually beside the part number or under its downloads.</li>
+      <li>Download the .zmx file (or a .zar archive). If it arrives as a .zip, extract it first.</li>
       <li>Choose the file below, or drop it straight onto the bench.</li>
     </ol>
     <div class="rt-f" style="margin-bottom:0.75rem">

@@ -1,4 +1,4 @@
-import { EMBED, ZOOM_MAX, clamp } from '../core/constants.js';
+import { EMBED, LOCKED, ZOOM_MAX, clamp } from '../core/constants.js';
 import { V, deg, extraSel, project, selectOne, selectedId, uid } from '../state/project.js';
 import { selected } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
@@ -167,7 +167,7 @@ export function wirePointer() {
     if (e.button === 2 && penDraft) { finishPen(); setPenEnded(performance.now()); return; }   // the pen's right-click ends its path
     if (e.button === 2) return;                          // the right button opens the menu instead
     // the middle button, Space held, or a finger on empty bench: pan
-    const panNow = e.button === 1 || spaceDown;
+    const panNow = e.button === 1 || spaceDown || LOCKED;            // a locked embed: every press pans
     if (panNow) { e.preventDefault(); drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true }; canvas.classList.add('dragging'); return; }
     if (measureMode) { measureDown(px, py, e); return; }
     if (!EMBED && e.button === 0 && drawDown(px, py, e)) return;
@@ -323,6 +323,7 @@ export function wirePointer() {
   canvas.addEventListener('pointerup', endPointer);
 
   canvas.addEventListener('dblclick', e => {
+    if (LOCKED) return;
     if (drawTool === 'node') { const r = canvas.getBoundingClientRect(); if (drawDblClick(e.clientX - r.left, e.clientY - r.top)) return; }
     const F = selFibre();
     if (!F) return;
@@ -360,6 +361,7 @@ export function wirePointer() {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); return; }
     if (typing) return;
+    if (LOCKED && e.key !== ' ') return;                                  // a locked embed: Space pans, nothing else
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw'))); return; }

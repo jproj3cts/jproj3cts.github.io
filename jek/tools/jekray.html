@@ -655,6 +655,8 @@
   body.rt-embed .top-container, body.rt-embed footer, body.rt-embed .page-title, body.rt-embed .rt-title, body.rt-embed .rt-toolbar, body.rt-embed .rt-about, body.rt-embed .rt-panel { display: none !important; }
   body.rt-embed .main-content { padding: 0; }
   body.rt-embed .rt-stage { position: fixed; inset: 0; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
+  body.rt-locked canvas { cursor: grab !important; }
+  body.rt-locked canvas.dragging { cursor: grabbing !important; }
   .rt-embedbar { position: absolute; right: 0.6rem; bottom: 0.6rem; z-index: 6; display: flex; gap: 0.4rem; align-items: center; }
   .rt-embedbar a, .rt-embedbar button { padding: 0.3rem 0.6rem; font: inherit; font-size: 0.78rem; font-weight: 600; text-decoration: none; color: #fff; background: rgba(20, 25, 28, 0.78); border: 1px solid rgba(255,255,255,0.25); border-radius: 2px; cursor: pointer; }
   .rt-embedbar a:hover, .rt-embedbar button:hover { background: rgba(0, 146, 178, 0.9); }
@@ -1466,7 +1468,8 @@
     <p class="note" id="shareNote"></p>
     <h3 class="rt-subhead">Embed in a web page</h3>
     <textarea id="shareEmbed" rows="3" readonly spellcheck="false" aria-label="Code to embed this bench in a web page"></textarea>
-    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps, and open the bench in JEKray. Nothing they do changes your copy.</p>
+    <p class="note"><label><input type="checkbox" id="shareLocked"> Lock the parts: readers pan, zoom, turn the 3D view and play the sweeps, but cannot move or change anything</label></p>
+    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps (or only look, with the parts locked), and open the bench in JEKray. Nothing they do changes your copy.</p>
     <div class="rt-actions">
       <button class="rt-btn" id="shareEmbedCopy">Copy embed code</button>
       <button class="rt-btn" id="shareClose">Close</button>
@@ -1642,8 +1645,8 @@
   <dialog class="rt-dialog" id="zmxDialog">
     <h2 id="zmxTitle">Import a lens file (.zmx)</h2>
     <ol>
-      <li>Open the Thorlabs product page for the lens, mirror, beam splitter or prism and find its part number in the table.</li>
-      <li>Click the document icon next to the part number and download the .zmx file. If it arrives as a .zip, extract it first.</li>
+      <li>Open the maker’s product page for the lens, mirror, beam splitter or prism. Most optics makers publish a Zemax file for each part, usually beside the part number or under its downloads.</li>
+      <li>Download the .zmx file (or a .zar archive). If it arrives as a .zip, extract it first.</li>
       <li>Choose the file below, or drop it straight onto the bench.</li>
     </ol>
     <div class="rt-f" style="margin-bottom:0.75rem">
@@ -1684,6 +1687,8 @@ const QUERY = typeof location === 'undefined' ? '' : location.hash + location.se
 const TEST_MODE = IN_WORKER || !IN_PAGE || /(^|[#?&])test\b/.test(QUERY);
 // ?embed: the bench alone, for a web page to show in a frame; it keeps nothing in this browser
 const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
+// ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
+const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -10613,7 +10618,7 @@ function wirePointer() {
     if (e.button === 2 && penDraft) { finishPen(); setPenEnded(performance.now()); return; }   // the pen's right-click ends its path
     if (e.button === 2) return;                          // the right button opens the menu instead
     // the middle button, Space held, or a finger on empty bench: pan
-    const panNow = e.button === 1 || spaceDown;
+    const panNow = e.button === 1 || spaceDown || LOCKED;            // a locked embed: every press pans
     if (panNow) { e.preventDefault(); drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true }; canvas.classList.add('dragging'); return; }
     if (measureMode) { measureDown(px, py, e); return; }
     if (!EMBED && e.button === 0 && drawDown(px, py, e)) return;
@@ -10769,6 +10774,7 @@ function wirePointer() {
   canvas.addEventListener('pointerup', endPointer);
 
   canvas.addEventListener('dblclick', e => {
+    if (LOCKED) return;
     if (drawTool === 'node') { const r = canvas.getBoundingClientRect(); if (drawDblClick(e.clientX - r.left, e.clientY - r.top)) return; }
     const F = selFibre();
     if (!F) return;
@@ -10806,6 +10812,7 @@ function wirePointer() {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); return; }
     if (typing) return;
+    if (LOCKED && e.key !== ' ') return;                                  // a locked embed: Space pans, nothing else
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw'))); return; }
@@ -22419,6 +22426,20 @@ function gaussOverlap1(q1, q2, a, t, lam0) {
   return (sr * sr + si * si) / (n1 * n2);
 }
 /* Every loop, one for each pilot tree it turns up in (an unpolarised source has two) */
+const GHOST_TYPES = new Set(['lens', 'window', 'filter', 'waveplate', 'polariser', 'crystal', 'cell']);
+const GHOST_KEEP = 0.5;          // a round trip keeping less of its light than this, inside one part: a ghost
+function thinLoop(beams, path, hit, p) {
+  const ids = new Set();
+  for (let j = hit; j < hit + p; j++) {
+    const ev = beams[path[j]].ev, el = ev && ev.surf && ev.surf.el;
+    if (!el || !GHOST_TYPES.has(el.type)) return false;
+    ids.add(el.id);
+  }
+  if (ids.size !== 1) return false;
+  const a = beams[path[hit]], b = beams[path[hit + p]];
+  const keep = a && b && a.w > 0 ? b.w / a.w : 1;
+  return keep < GHOST_KEEP;
+}
 function cavLoops(beams) {
   const kids = new Map(), found = new Map();
   beams.forEach((b, i) => { if (b.parent !== undefined && b.parent !== null && b.parent >= 0) { if (!kids.has(b.parent)) kids.set(b.parent, []); kids.get(b.parent).push(i); } });
@@ -22435,6 +22456,11 @@ function cavLoops(beams) {
       }
       if (hit < 0) continue;
       const cyc = keys.slice(hit, hit + p);
+      // the faces of one lens or window, uncoated: the light inside comes back weaker each time
+      // round, a ghost and not a resonator. Solved as a cavity its mode would stand in for the
+      // beam going through (a 3 mm cavity's narrow waist after a germanium lens, say); a coated
+      // solid etalon, keeping most of its light each round, is a cavity still.
+      if (thinLoop(beams, path, hit, p)) break;
       let canon = null; for (let r = 0; r < p; r++) { const c = cyc.slice(r).concat(cyc.slice(0, r)).join('|'); if (canon === null || c < canon) canon = c; }
       // one loop for each way into it: a modulator's sidebands or a grating's orders each enter the
       // same cavity on a branch of their own, and each is solved on its own
@@ -28190,7 +28216,7 @@ function wireActions() {
   });
 
   document.addEventListener('paste', e => {
-    if (typingIn(e.target)) return;
+    if (typingIn(e.target) || LOCKED) return;
     clipKey = null;
     let clip = null;
     try { clip = JSON.parse(e.clipboardData.getData('text/plain')); } catch (err) { clip = null; }
@@ -28206,6 +28232,7 @@ function wireActions() {
 
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
+    if (LOCKED) return;
     if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
     const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);
@@ -28343,6 +28370,7 @@ function renderBenchTabs() {
     const btn = h('button', { type: 'button', role: 'tab', class: b.id === project.tab ? 'on' : '', 'aria-selected': b.id === project.tab ? 'true' : 'false',
       title: (b.id === project.tab ? 'Double-click to rename. ' : 'Show ' + b.name + '. ') + 'Drag to reorder.' }, b.name);
     btn.addEventListener('click', e => { if (e.target.classList.contains('x') || btn._dragged) { btn._dragged = false; return; } if (b.id !== project.tab) switchTab(b.id); });
+    if (LOCKED) { box.append(btn); continue; }                        // a locked embed: tabs switch, nothing more
     btn.addEventListener('pointerdown', e => tabDragStart(e, btn, b));
     btn.addEventListener('dblclick', () => {
       const inp = h('input', { type: 'text', value: b.name, 'aria-label': 'Tab name' });
@@ -28365,6 +28393,7 @@ function renderBenchTabs() {
     }
     box.append(btn);
   }
+  if (LOCKED) return;
   const add = h('button', { type: 'button', class: 'add', title: 'A new tab: a bench of its own, joined to the others by link planes' }, '+');
   add.addEventListener('click', addBench);
   box.append(add);
@@ -29067,8 +29096,8 @@ async function shareLink() {
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
   box.value = url;
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + '?embed' + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray: ' + (project.name || 'bench')) + '"></iframe>';
-  document.getElementById('shareEmbedCopy').textContent = 'Copy embed code';
+  const embed = () => { document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + (document.getElementById('shareLocked').checked ? '?embed=locked' : '?embed') + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray: ' + (project.name || 'bench')) + '"></iframe>'; document.getElementById('shareEmbedCopy').textContent = 'Copy embed code'; };
+  document.getElementById('shareLocked').onchange = embed; embed();
   note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
@@ -29089,6 +29118,7 @@ async function openShareHash(h) {
    play its sweeps. Nothing is kept in this browser. */
 function embedMode() {
   document.body.classList.add('rt-embed');
+  if (LOCKED) document.body.classList.add('rt-locked');
   const full = location.pathname + location.hash;
   const play = h('button', { type: 'button', hidden: true, onclick: () => { if (playing.size) pauseAll(); else playAll(); } }, '\u25b6 Play');
   document.getElementById('stage').append(h('div', { class: 'rt-embedbar' }, play,
@@ -30247,7 +30277,7 @@ function wireRail() {
 
   stage.addEventListener('drop', e => {
     const k = e.dataTransfer.getData(PART_DRAG);
-    if (!k) return;
+    if (!k || LOCKED) return;
     e.preventDefault(); e.stopImmediatePropagation(); stage.classList.remove('drop'); pickerShown(false); flyShown(null);
     if (k.startsWith('mine:')) { const p = (MINE.list || []).find(q => 'mine:' + q.id === k); if (p) placeMine(p, [e.clientX, e.clientY]); }
     else if (k.startsWith('pack:')) { const m = /^pack:(.+):(\d+)$/.exec(k), pk = m && PACKS.list.find(p => p.id === m[1]); if (pk) placePackPart(pk, +m[2], [e.clientX, e.clientY]); }
@@ -30389,12 +30419,12 @@ function mineBody(after) {
   const sel = selection();
   const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
-  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
+  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
     onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
-    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported Thorlabs part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
+    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
     return out;
   }
   for (const pal of ['free', 'fibre', 'elec', 'rf', 'pic']) {
@@ -32382,6 +32412,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
     '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it. <b>Compare and merge</b>: in a bench\u2019s history, Compare\u2026 on any two versions lists what changed, part by part and setting by setting; a fork\u2019s row offers <b>Merge into this bench\u2026</b> (and a fork\u2019s own history, merging into its original or bringing the original\u2019s changes in), the git way, from the version the fork left at: each side\u2019s own changes go in, and where both changed the same thing you choose. The bench is kept as a version first, the merged bench opens for you to look at, and it is saved as a labelled version of its own; the history graph draws each merge as a dashed line from the fork back into the bench. When a save finds the bench saved somewhere else meanwhile, <b>Merge the two\u2026</b> in that dialog merges your changes with theirs the same way.',
     '<b>The makers\u2019 glass catalogues</b>: Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, the crystals, and the optical plastics (PMMA, polycarbonate, Zeonex E48R) and B 270, so an imported lens traces in the glass its maker chose, named as its file spells it (N-BK7, H-K9L, S-LAH64, M-TAF1, K-VC89). <b>Search the glass catalogues\u2026</b> under Material finds any by name, and the panel gives its maker, nd and Vd. <b>Lens import</b> is stronger: .zar archives open (the .zmx inside, and the glass catalogue the archive carries for any glass the tool lacks), files in a Windows code page and UTF-16 read, floating apertures, cylindrical lenses from toroidal surfaces, the design wavelength kept, a moulded asphere\u2019s cover glass left out and said so, and Thorlabs\u2019 moulded glasses (D-ZK3M, D-ZLAF52LAM, H-LAK54M) at their moulded index. Edmund\u2019s coating codes (EO_VIS0 and the rest) set the AR band, and Corning 7980 is known by every name their files give it. The test suite now imports real Thorlabs and Edmund files and checks their focal lengths and back focal lengths against the makers\u2019 own figures.',
@@ -33255,7 +33286,7 @@ function wireTours() {
 
   stage.addEventListener('drop', e => {
     const f = e.dataTransfer.files[0];
-    if (!f) return;
+    if (!f || LOCKED) return;
     if (/\.zmx$/i.test(f.name)) importZmx(f);
     else if (/\.stl$/i.test(f.name)) importStl(f, [e.clientX, e.clientY]);
     else if (/\.jekpack$/i.test(f.name)) f.text().then(t => packInstallText(t, f.name));   // a part pack: shown, then installed if wanted

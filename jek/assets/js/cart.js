@@ -235,8 +235,8 @@
    * Send the quote request to sales through the API. Resolves to
    * { ok: true, reference, copied } or { ok: false, message, fallback },
    * fallback true when the email draft is worth offering instead (the API is
-   * down, unreachable or cannot send email), false when the request itself
-   * needs fixing (a missing name, a bad address).
+   * down, unreachable, missing or cannot send email), false when the request
+   * itself needs fixing (a missing name, a bad address).
    */
   function submitQuote(items, details) {
     var body = {
@@ -258,7 +258,9 @@
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (res.ok && data.sent) return { ok: true, reference: data.reference, copied: data.copied !== false };
         var msg = data.error && data.error.message ? data.error.message : "We could not send your request just now.";
-        return { ok: false, message: msg, fallback: res.status >= 429 || res.status === 403 };
+        // only a request that needs fixing (400) is not worth the email draft; anything else
+        // (not deployed yet, refused, too busy, cannot send) is
+        return { ok: false, message: msg, fallback: res.status !== 400 };
       });
     }, function () {
       return { ok: false, message: "We could not reach our server just now.", fallback: true };

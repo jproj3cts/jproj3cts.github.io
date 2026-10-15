@@ -6572,6 +6572,7 @@ const TESTS = [
         J.experimental(true); await J.view3d.set(true);
         J.select(null);
         const doc = document.getElementById('rig').contentDocument;
+        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnBenchGear').click();   // the Bench panel, from the gear
         const tick = i => doc.querySelectorAll('#panel .rt-check input')[i].click();
         const s0 = J.view3d.stats();
         tick(0); const s1 = J.view3d.stats();
@@ -6711,6 +6712,7 @@ const TESTS = [
       const V = J.view3d, doc = document.getElementById('rig').contentDocument;
       try {
         await V.set(true); J.select(null);
+        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnBenchGear').click();   // the Bench panel, from the gear
         const s0 = V.stats(), n0 = J.traceInfo().count;
         const li = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
         li.querySelector('.rt-eye').click();

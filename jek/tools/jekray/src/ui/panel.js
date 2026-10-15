@@ -371,10 +371,12 @@ export function renderPanel() {
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
-  // a closed panel opens again with the next thing selected
-  if (panelClosed && (sel || selFibre())) panelClosed = false;
-  // with nothing selected the main panel would show the Bench: not if that is pinned, or closed
-  const mainShows = !panelClosed && (sel ? !pins.includes(sel.id) : !(pins.includes(BENCH_PIN) && !selFibre()));
+  // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
+  // the bench takes the page: the Bench panel opens only from the gear (or View › Show the
+  // side panel), and stays until something is selected or the gear closes it
+  const picked = !!(sel || selFibre());
+  if (picked) panelClosed = true;
+  const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
   const cols = (mainShows ? 1 : 0) + pins.length;

@@ -48,6 +48,9 @@ export function setDPR(v) { return (DPR = v); }
 export function resize() {
   const r = stage.getBoundingClientRect();
   DPR = window.devicePixelRatio || 1;
+  // the bench grown or narrowed (a side panel opened or closed, the window resized) keeps its
+  // left edge where it was: what is under the pointer stays there
+  if (W > 0 && r.width > 0 && r.width !== W) { try { const v = V(); if (v && v.scale > 0) v.cx += (r.width - W) / (2 * v.scale); } catch (err) { /* no bench yet */ } }
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   requestRender();

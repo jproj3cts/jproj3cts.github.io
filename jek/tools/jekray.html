@@ -8371,6 +8371,9 @@ function setDPR(v) { return (DPR = v); }
 function resize() {
   const r = stage.getBoundingClientRect();
   DPR = window.devicePixelRatio || 1;
+  // the bench grown or narrowed (a side panel opened or closed, the window resized) keeps its
+  // left edge where it was: what is under the pointer stays there
+  if (W > 0 && r.width > 0 && r.width !== W) { try { const v = V(); if (v && v.scale > 0) v.cx += (r.width - W) / (2 * v.scale); } catch (err) { /* no bench yet */ } }
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   requestRender();
@@ -14686,9 +14689,12 @@ const V3D = (() => {
   function resize() {
     const w = D.stage.clientWidth, hgt = D.stage.clientHeight;
     if (!w || !hgt || (w === R.w && hgt === R.h)) return;
+    const w0 = R.w;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
     R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix();
+    // as in 2D, the view keeps its left edge when the bench grows or narrows (a panel opened)
+    if (w0 > 0 && w !== w0) pan(-(w - w0) / 2, 0);
     R.key = null;                                         // the names are sized to the canvas
   }
   function draw() {
@@ -16004,6 +16010,7 @@ const V3D = (() => {
       // a pointer event on the 3D canvas, at css px from its top left
       pointer(type, px, py, o) {
         if (!D) return;
+        sync();                                   // as a frame between real events would: the view caught up with the page
         const b = D.cv.getBoundingClientRect(), opts = Object.assign({ pointerId: 7, pointerType: 'mouse', button: 0, buttons: 1, bubbles: true, cancelable: true, clientX: b.left + px, clientY: b.top + py }, o || {});
         D.cv.dispatchEvent(new PointerEvent(type, opts));
       },
@@ -19339,10 +19346,12 @@ function renderPanel() {
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
-  // a closed panel opens again with the next thing selected
-  if (panelClosed && (sel || selFibre())) panelClosed = false;
-  // with nothing selected the main panel would show the Bench: not if that is pinned, or closed
-  const mainShows = !panelClosed && (sel ? !pins.includes(sel.id) : !(pins.includes(BENCH_PIN) && !selFibre()));
+  // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
+  // the bench takes the page: the Bench panel opens only from the gear (or View › Show the
+  // side panel), and stays until something is selected or the gear closes it
+  const picked = !!(sel || selFibre());
+  if (picked) panelClosed = true;
+  const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
   const cols = (mainShows ? 1 : 0) + pins.length;
@@ -32431,7 +32440,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again; selecting a part still opens its own panel.',
+    'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',
     '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
     '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it. <b>Compare and merge</b>: in a bench\u2019s history, Compare\u2026 on any two versions lists what changed, part by part and setting by setting; a fork\u2019s row offers <b>Merge into this bench\u2026</b> (and a fork\u2019s own history, merging into its original or bringing the original\u2019s changes in), the git way, from the version the fork left at: each side\u2019s own changes go in, and where both changed the same thing you choose. The bench is kept as a version first, the merged bench opens for you to look at, and it is saved as a labelled version of its own; the history graph draws each merge as a dashed line from the fork back into the bench. When a save finds the bench saved somewhere else meanwhile, <b>Merge the two\u2026</b> in that dialog merges your changes with theirs the same way.',

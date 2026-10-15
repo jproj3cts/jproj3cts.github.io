@@ -217,9 +217,12 @@ export const V3D = (() => {
   function resize() {
     const w = D.stage.clientWidth, hgt = D.stage.clientHeight;
     if (!w || !hgt || (w === R.w && hgt === R.h)) return;
+    const w0 = R.w;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
     R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix();
+    // as in 2D, the view keeps its left edge when the bench grows or narrows (a panel opened)
+    if (w0 > 0 && w !== w0) pan(-(w - w0) / 2, 0);
     R.key = null;                                         // the names are sized to the canvas
   }
   function draw() {
@@ -1535,6 +1538,7 @@ export const V3D = (() => {
       // a pointer event on the 3D canvas, at css px from its top left
       pointer(type, px, py, o) {
         if (!D) return;
+        sync();                                   // as a frame between real events would: the view caught up with the page
         const b = D.cv.getBoundingClientRect(), opts = Object.assign({ pointerId: 7, pointerType: 'mouse', button: 0, buttons: 1, bubbles: true, cancelable: true, clientX: b.left + px, clientY: b.top + py }, o || {});
         D.cv.dispatchEvent(new PointerEvent(type, opts));
       },

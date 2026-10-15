@@ -193,6 +193,23 @@ export async function switchInterval(req, env, user, wsId) {
   return { ok: true };
 }
 
+// POST /v1/workspaces/:w/billing/cancel  {resume?: true} — the subscription
+// ends at the end of its period (or, with resume, carries on after all): for
+// someone whose own JEKrayPro is now covered by a seat in a team.
+export async function cancelAtPeriodEnd(req, env, user, wsId) {
+  const a = await workspaceAccess(env, user, wsId);
+  if (!['owner', 'admin'].includes(a.role)) throw new ApiError(403, 'forbidden', 'Only the workspace owner can manage billing.');
+  const body = await req.json().catch(() => ({}));
+  const current = await sub(env, a.ws);
+  if (!current || !current.stripe_subscription || current.stripe_customer === 'manual' || !['active', 'trialing', 'past_due'].includes(current.status)) {
+    throw new ApiError(404, 'no_billing', 'There is no subscription to change.');
+  }
+  const updated = await stripe(env, 'POST', `/subscriptions/${current.stripe_subscription}`, { cancel_at_period_end: body.resume ? 'false' : 'true' });
+  await mirror(env, updated);
+  const item = (updated.items && updated.items.data && updated.items.data[0]) || {};
+  return { ok: true, cancel_at: updated.cancel_at ? ms(updated.cancel_at) : updated.cancel_at_period_end ? ms(item.current_period_end || updated.current_period_end) : null };
+}
+
 // ---------- the webhook ----------
 
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -220,7 +237,7 @@ export async function verifySignature(secret, header, payload, t = now()) {
   return sigs.some((s) => same(s, mac));
 }
 
-const ms = (s) => (s ? s * 1000 : null);
+function ms(s) { return s ? s * 1000 : null; }
 
 // The subscription as Stripe has it now, written to its workspace.
 export async function mirror(env, s) {

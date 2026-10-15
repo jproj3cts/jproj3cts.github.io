@@ -187,7 +187,11 @@ export async function awaitPlan(tries = 12) {
     const mine = account.workspaces.find(w => w.id === wsId) || account.workspaces.find(w => w.kind === 'personal');
     if (mine && mine.active) {
       fillAccount();
-      if (mine.kind === 'team') { toast('Your team plan is active. Thank you!'); showTeam(mine.id); } else toast('Welcome to JEKrayPro. Thank you!');
+      if (mine.kind === 'team') {
+        const own = account.workspaces.find(w => w.kind === 'personal');
+        toast(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
+        showTeam(mine.id);
+      } else toast('Welcome to JEKrayPro. Thank you!');
       if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
     }
   }
@@ -331,6 +335,16 @@ export async function showTeam(id) {
   const plan = [];
   if (t.active && p) {
     plan.push(h('p', null, h('b', null, 'Team plan'), ', ' + (p.interval === 'year' ? 'yearly' : 'monthly') + (p.status === 'past_due' ? ', payment failed: update the card in Billing' : p.cancel_at ? ', ends ' + shortDate(p.cancel_at) : p.period_end ? ', renews ' + shortDate(p.period_end) : '') + '. ' + seatsLine + '.'));
+    // a personal subscription made redundant by a paid seat here
+    const mine = account && (account.workspaces || []).find(w => w.kind === 'personal');
+    if (t.role !== 'viewer' && mine && mine.plan && mine.plan.billing && mine.active && !mine.plan.cancel_at && p.status !== 'past_due') {
+      plan.push(h('p', null, 'Your seat here gives you JEKrayPro, so your own subscription' + (mine.plan.period_end ? ', which renews ' + shortDate(mine.plan.period_end) + ',' : '') + ' is no longer needed. ',
+        h('button', { type: 'button', class: 'rt-link', onclick: act(async () => {
+          const r = await api('/v1/workspaces/' + mine.id + '/billing/cancel', jsonReq('POST', {}));
+          toast('Your own subscription ends ' + (r.cancel_at ? shortDate(r.cancel_at) : 'at the end of its period') + '; your personal benches stay yours and keep saving through the team’s seat.');
+        }) }, 'Stop it at the end of its period'),
+        '. Nothing is lost: your personal workspace and its benches stay, and the seat covers saving to them.'));
+    }
     if (owner && p.billing) {
       const other = p.interval === 'month' ? 'year' : 'month';
       plan.push(h('div', { class: 'uni-row' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => openPortal(id) }, 'Billing and invoices…'),

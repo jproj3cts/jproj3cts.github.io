@@ -776,6 +776,7 @@
   .rt-hlines .main { fill: none; stroke: var(--jek-ink-soft); stroke-width: 2; }
   .rt-hlines .main.from { stroke-dasharray: 3 4; }
   .rt-hlines .branch { fill: none; stroke-width: 2; }
+  .rt-hlines .branch.merge { stroke-dasharray: 5 3; }
   .rt-hlines .node { fill: var(--jek-ink-soft); stroke: var(--jek-panel); stroke-width: 2; }
   .rt-hlines .node.head { fill: var(--jek-cyan); }
   .rt-hlines .node.origin { fill: var(--jek-panel); stroke: var(--jek-ink-soft); stroke-width: 2; }

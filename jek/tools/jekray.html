@@ -789,6 +789,7 @@
   .rt-hlines .main { fill: none; stroke: var(--jek-ink-soft); stroke-width: 2; }
   .rt-hlines .main.from { stroke-dasharray: 3 4; }
   .rt-hlines .branch { fill: none; stroke-width: 2; }
+  .rt-hlines .branch.merge { stroke-dasharray: 5 3; }
   .rt-hlines .node { fill: var(--jek-ink-soft); stroke: var(--jek-panel); stroke-width: 2; }
   .rt-hlines .node.head { fill: var(--jek-cyan); }
   .rt-hlines .node.origin { fill: var(--jek-panel); stroke: var(--jek-ink-soft); stroke-width: 2; }
@@ -1609,6 +1610,7 @@
     <div class="rt-actions rt-ccacts">
       <button class="rt-btn" id="ccTheirs">Open the newer one</button>
       <button class="rt-btn" id="ccCopy">Keep mine as a copy</button>
+      <button class="rt-btn" id="ccMerge" hidden>Merge the two…</button>
       <button class="rt-btn primary" id="ccMine">Overwrite with mine</button>
     </div>
   </dialog>
@@ -31041,7 +31043,11 @@ async function awaitPlan(tries = 12) {
     const mine = account.workspaces.find(w => w.id === wsId) || account.workspaces.find(w => w.kind === 'personal');
     if (mine && mine.active) {
       fillAccount();
-      if (mine.kind === 'team') { toast('Your team plan is active. Thank you!'); showTeam(mine.id); } else toast('Welcome to JEKrayPro. Thank you!');
+      if (mine.kind === 'team') {
+        const own = account.workspaces.find(w => w.kind === 'personal');
+        toast(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
+        showTeam(mine.id);
+      } else toast('Welcome to JEKrayPro. Thank you!');
       if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
     }
   }
@@ -31185,6 +31191,16 @@ async function showTeam(id) {
   const plan = [];
   if (t.active && p) {
     plan.push(h('p', null, h('b', null, 'Team plan'), ', ' + (p.interval === 'year' ? 'yearly' : 'monthly') + (p.status === 'past_due' ? ', payment failed: update the card in Billing' : p.cancel_at ? ', ends ' + shortDate(p.cancel_at) : p.period_end ? ', renews ' + shortDate(p.period_end) : '') + '. ' + seatsLine + '.'));
+    // a personal subscription made redundant by a paid seat here
+    const mine = account && (account.workspaces || []).find(w => w.kind === 'personal');
+    if (t.role !== 'viewer' && mine && mine.plan && mine.plan.billing && mine.active && !mine.plan.cancel_at && p.status !== 'past_due') {
+      plan.push(h('p', null, 'Your seat here gives you JEKrayPro, so your own subscription' + (mine.plan.period_end ? ', which renews ' + shortDate(mine.plan.period_end) + ',' : '') + ' is no longer needed. ',
+        h('button', { type: 'button', class: 'rt-link', onclick: act(async () => {
+          const r = await api('/v1/workspaces/' + mine.id + '/billing/cancel', jsonReq('POST', {}));
+          toast('Your own subscription ends ' + (r.cancel_at ? shortDate(r.cancel_at) : 'at the end of its period') + '; your personal benches stay yours and keep saving through the team’s seat.');
+        }) }, 'Stop it at the end of its period'),
+        '. Nothing is lost: your personal workspace and its benches stay, and the seat covers saving to them.'));
+    }
     if (owner && p.billing) {
       const other = p.interval === 'month' ? 'year' : 'month';
       plan.push(h('div', { class: 'uni-row' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => openPortal(id) }, 'Billing and invoices…'),
@@ -31672,7 +31688,28 @@ function cloudConflict(theirs, by, at) {
     } catch (err) { toast(err.message, true); }
   };
   document.getElementById('ccMine').onclick = () => { done(); cloudPush({ over: theirs, checkpoint: true }); };
+  // merging the two: only when the version this copy came from is still in the history
+  const mergeBtn = document.getElementById('ccMerge');
+  mergeBtn.hidden = true;
+  if (link.version) versionContent(link.id, link.version).then(base => {
+    if (!dlg.open || cloud !== link) return;
+    mergeBtn.hidden = false;
+    mergeBtn.onclick = () => { done(); conflictMerge(link, base, who); };
+  }).catch(() => {});
   if (!dlg.open) dlg.showModal();
+}
+/* the save conflict resolved as a merge: the cloud's newer version is the target, this copy the
+   source, and the version this copy came from is the common base */
+function conflictMerge(link, base, who) {
+  const ours = JSON.parse(cloudContent());
+  mergeDialog({
+    title: 'Merge my changes into “' + link.name + '”',
+    target: { id: link.id, name: link.name }, source: { name: 'mine' }, baseWord: 'version ' + link.version + ', which this copy came from',
+    parts: async () => { const T = await api('/v1/benches/' + link.id); return { base, T, S: { content: JSON.stringify(ours), version: null } }; },
+    sourceWord: 'My changes here', keptLabel: 'Before merging my changes', mergedLabel: T => 'Merged with version ' + T.version + (who.startsWith('by ') ? ', saved ' + who : ''),
+    openWord: T => '“' + T.name + '” merged with my changes',
+    toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
+  });
 }
 /* ---------- My benches ----------
    A page of its own over the tool, as a CAD system's documents page: places down the left
@@ -31798,30 +31835,43 @@ async function homeCompare(b, va, vb) {
     body.replaceChildren(...diffNodes(diffProject(A, B), 'version ' + lo, 'version ' + hi));
   } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); }
 }
-async function homeMerge(target, source, baseVersion, baseBench) {
+function homeMerge(target, source, baseVersion, baseBench) {
+  mergeDialog({
+    title: 'Merge “' + source.name + '” into “' + target.name + '”', target, source,
+    baseWord: 'version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”',
+    parts: async () => { const [base, T, S] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]); return { base, T, S }; },
+    sourceWord: '“' + source.name + '”', keptLabel: 'Before merging “' + source.name + '”', mergedLabel: (T, S) => 'Merged from “' + source.name + '”, version ' + S.version,
+    openWord: T => '“' + T.name + '” merged with “' + source.name + '”', closeHome: true,
+    toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
+  });
+}
+/* the merge dialog: a three-way merge of the target's head and a source over a common base,
+   each clash chosen by hand, the gains listed, and the result opened on the bench as a new
+   version of the target, the target's head kept first as a version to come back to */
+async function mergeDialog(o) {
   const dlg = document.getElementById('mergeDialog'), body = document.getElementById('mergeBody'), go = document.getElementById('mergeGo');
-  document.getElementById('mergeTitle').textContent = 'Merge “' + source.name + '” into “' + target.name + '”';
+  const target = o.target, source = o.source;
+  document.getElementById('mergeTitle').textContent = o.title;
   body.replaceChildren(h('p', null, 'Working out the merge…'));
   go.disabled = true;
   if (!dlg.open) dlg.showModal();
   let m, T, S;
   try {
-    const [base, t, s] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]);
-    T = t; S = s;
-    m = merge3(base, JSON.parse(T.content), JSON.parse(S.content));
+    const parts = await o.parts(); T = parts.T; S = parts.S;
+    m = merge3(parts.base, JSON.parse(T.content), JSON.parse(S.content));
   } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
   const brings = diffProject(JSON.parse(T.content), resolve(m));
   const n = m.taken.source + m.taken.both;
   const rows = m.conflicts.map((c, i) => {
-    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : '“' + source.name + '”: ') + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
+    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : (source.id ? '“' + source.name + '”: ' : 'Mine: ')) + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
     return h('li', null, h('span', null, KIND_WORD[c.kind] + ' ' + c.label + (c.key && c.kind !== 'settings' ? ', ' + c.key : '')), pick('target'), pick('source'));
   });
   body.replaceChildren(
-    h('p', null, 'From “' + source.name + '” (version ' + S.version + ', since version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”): ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
+    h('p', null, o.sourceWord + (S.version ? ' (version ' + S.version + ')' : '') + ', since ' + o.baseWord + ': ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
       (m.conflicts.length ? 'Both changed the same thing in ' + m.conflicts.length + (m.conflicts.length === 1 ? ' place: choose which to keep.' : ' places: choose which to keep.') : 'Nothing clashes.')),
     ...(m.conflicts.length ? [h('h3', null, 'Choose'), h('ul', { class: 'rt-difflist conflicts' }, ...rows)] : []),
     h('h3', null, 'What “' + target.name + '” will gain'), ...diffNodes(brings, 'now', 'merged').slice(1),
-    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“Before merging”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
+    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“' + o.keptLabel + '”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
   // the gains list follows the choices
   body.addEventListener('change', () => { const d = diffProject(JSON.parse(T.content), resolve(m)); const ul = body.querySelectorAll('ul.rt-difflist:not(.conflicts)')[0]; const fresh = diffNodes(d, 'now', 'merged').slice(1)[0]; if (ul && fresh) ul.replaceWith(fresh); });
   go.disabled = false;
@@ -31831,14 +31881,14 @@ async function homeMerge(target, source, baseVersion, baseBench) {
       if (cloud && cloud.dirty && cloud.id !== target.id) await cloudPush({ quiet: true });
       // the target as it is now, kept: a version to come back to
       const kept = await api('/v1/benches/' + target.id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': '"' + T.version + '"' },
-        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: 'Before merging “' + source.name + '”' }) });
+        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: o.keptLabel }) });
       const merged = resolve(m); merged.name = T.name;
       setCloudOpening(true);
-      try { openProjectData(merged, '“' + T.name + '” merged with “' + source.name + '”'); } finally { setCloudOpening(false); }
-      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: 'Merged from “' + source.name + '”, version ' + S.version });
+      try { openProjectData(merged, o.openWord(T)); } finally { setCloudOpening(false); }
+      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: o.mergedLabel(T, S) });
       cloudChanged();
-      dlg.close(); closeHome();
-      toast('Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.');
+      dlg.close(); if (o.closeHome) closeHome();
+      toast(o.toastWord);
     } catch (err) {
       toast(err.status === 423 ? (err.editing ? err.editing.name : 'Someone') + ' is editing “' + target.name + '”: merge when they are done.' : err.status === 409 ? '“' + target.name + '” changed just now: open the merge again.' : err.message, true);
       go.disabled = false;
@@ -31954,15 +32004,24 @@ async function fillHome() {
     const rowOf = new Map();
     ev.forEach((e, i) => { if (e.kind === 'v') rowOf.set(e.v.version, i); });
     const vRows = ev.map((e, i) => e.kind === 'v' ? i : -1).filter(i => i >= 0);
-    // each fork's lane: the lowest free one between its row and its version's
-    const LANES = 5, laneEnd = [];
+    // a version merged from a fork: its row joins the fork's lane back to the main line
+    const MERGED = /^Merged from “(.+)”, version (\d+)$/;
+    ev.forEach((e, i) => {
+      if (e.kind !== 'v' || !e.v.label) return;
+      const mm = MERGED.exec(e.v.label); if (!mm) return;
+      const f = ev.find((x, j) => x.kind === 'f' && j > i && x.f.name === mm[1]);
+      if (f) (f.merges = f.merges || []).push(i);
+    });
+    // each fork's lane: the lowest one free between its earliest merge row and its version's
+    const LANES = 5, busy = [];   // per lane, the rows it is taken on, as [top, bottom]
     for (const [i, e] of ev.entries()) {
       if (e.kind !== 'f') continue;
       let at = rowOf.get(e.f.version);
       if (at === undefined || at < i) at = vRows.find(r => r > i && ev[r].v.version <= e.f.version) ?? ev.length - 1;
+      const top = e.merges ? Math.min(i, ...e.merges) : i;
       let lane = 1;
-      while (lane < LANES && laneEnd[lane] !== undefined && laneEnd[lane] >= i) lane++;
-      laneEnd[lane] = Math.max(laneEnd[lane] ?? -1, at);
+      while (lane < LANES && (busy[lane] || []).some(([a, b]) => a <= at && b >= top)) lane++;
+      (busy[lane] = busy[lane] || []).push([top, at]);
       e.lane = lane; e.from = at;
     }
     const lanes = Math.max(0, ...ev.map(e => e.lane || 0));
@@ -32017,6 +32076,11 @@ async function fillHome() {
         const x = X0 + e.lane * DX, y0 = ys[e.from], y1 = ys[i], c = COLOURS[(e.lane - 1) % COLOURS.length];
         const bend = Math.min(14, (y0 - y1) / 2);
         el('path', { d: 'M' + X0 + ' ' + y0 + 'C' + X0 + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - 2 * bend) + 'V' + y1, class: 'branch', style: 'stroke:' + c });
+        // and back in, to each version merged from it
+        for (const r of e.merges || []) {
+          const ym = ys[r], mb = Math.min(14, (y1 - ym) / 2);
+          el('path', { d: 'M' + x + ' ' + y1 + 'V' + (ym + 2 * mb) + 'C' + x + ' ' + (ym + mb) + ' ' + X0 + ' ' + (ym + mb) + ' ' + X0 + ' ' + ym, class: 'branch merge', style: 'stroke:' + c });
+        }
       });
       ev.forEach((e, i) => {
         if (e.kind === 'v') el('circle', { cx: X0, cy: ys[i], r: e.v.version === b.version ? 6 : 4.5, class: e.v.version === b.version ? 'node head' : 'node' });
@@ -32319,7 +32383,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
-    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it. <b>Compare and merge</b>: in a bench\u2019s history, Compare\u2026 on any two versions lists what changed, part by part and setting by setting; a fork\u2019s row offers <b>Merge into this bench\u2026</b> (and a fork\u2019s own history, merging into its original or bringing the original\u2019s changes in), the git way, from the version the fork left at: each side\u2019s own changes go in, and where both changed the same thing you choose. The bench is kept as a version first, the merged bench opens for you to look at, and it is saved as a labelled version of its own.',
+    '<b>Teams</b> in JEKrayPro: a lab, group or company shares one workspace. Create a team from the account menu, invite people by email (they sign in with Google or Microsoft and are in) as admins, editors or viewers, and subscribe for its seats, £9.99 a seat a month or £99 a year, at least three; viewers are free. Seats follow the members: one added is charged for the rest of the period, one freed comes off at the next renewal. Owners and admins set roles, remove people and see the team’s activity record; the owner can hand the team on. Everyone with a seat has JEKrayPro on their own benches too. The team’s benches sit beside yours in My benches, and a bench goes between the two: <b>Copy to\u2026</b> on its card, or File \u203a Copy to another workspace\u2026 for the open bench, puts a copy in the other workspace that remembers where it came from. <b>One editor at a time</b>: whoever has a bench open holds it, and anyone else opening it sees who is editing (with their picture), looks on as the bench follows their saves, and can take over or work on a copy; a bench card in My benches says who is editing it. A save that clashes with someone else\u2019s says who saved and when. <b>Your account\u2026</b> in the account menu takes a profile picture and your name as others see it. <b>Compare and merge</b>: in a bench\u2019s history, Compare\u2026 on any two versions lists what changed, part by part and setting by setting; a fork\u2019s row offers <b>Merge into this bench\u2026</b> (and a fork\u2019s own history, merging into its original or bringing the original\u2019s changes in), the git way, from the version the fork left at: each side\u2019s own changes go in, and where both changed the same thing you choose. The bench is kept as a version first, the merged bench opens for you to look at, and it is saved as a labelled version of its own; the history graph draws each merge as a dashed line from the fork back into the bench. When a save finds the bench saved somewhere else meanwhile, <b>Merge the two\u2026</b> in that dialog merges your changes with theirs the same way.',
     '<b>The makers\u2019 glass catalogues</b>: Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, the crystals, and the optical plastics (PMMA, polycarbonate, Zeonex E48R) and B 270, so an imported lens traces in the glass its maker chose, named as its file spells it (N-BK7, H-K9L, S-LAH64, M-TAF1, K-VC89). <b>Search the glass catalogues\u2026</b> under Material finds any by name, and the panel gives its maker, nd and Vd. <b>Lens import</b> is stronger: .zar archives open (the .zmx inside, and the glass catalogue the archive carries for any glass the tool lacks), files in a Windows code page and UTF-16 read, floating apertures, cylindrical lenses from toroidal surfaces, the design wavelength kept, a moulded asphere\u2019s cover glass left out and said so, and Thorlabs\u2019 moulded glasses (D-ZK3M, D-ZLAF52LAM, H-LAK54M) at their moulded index. Edmund\u2019s coating codes (EO_VIS0 and the rest) set the AR band, and Corning 7980 is known by every name their files give it. The test suite now imports real Thorlabs and Edmund files and checks their focal lengths and back focal lengths against the makers\u2019 own figures.',
     'RF, round two: <b>feed horns launch their real aperture fields</b>. A corrugated horn\u2019s HE\u2081\u2081, a smooth-wall horn\u2019s TE\u2081\u2081 and a diagonal horn\u2019s TE\u2081\u2080 + TE\u2080\u2081 are carried as Hermite\u2013Gauss modes of the fitted Gaussian, so the beam has the horn\u2019s sidelobes and M\u00b2 and its Gaussicity is Goldsmith\u2019s (0.98, 0.91, 0.84); a <b>far-field pattern</b> plot on every horn (E- and H-plane and cross-polar cuts, directivity, half-power widths, first sidelobes); a receiving horn takes in by its own aperture mode, in <b>one polarisation</b> with its cross-polar field across it, or both. And the horns join the <b>electronics</b>: a receiver\u2019s front end is a <b>video detector</b> (V/W, NEP, video bandwidth) or a <b>mixer</b> whose IF out carries each carrier at |f \u2212 f\u2097\u2092|, less its conversion loss, over k (T\u2090\u2099\u209c + T\u1d63\u2093) R, with the system temperature, noise floor and signal to noise in its readout; a feed horn can be an <b>upconverter</b> with an IF in port, so a tone from a signal generator goes up, across the bench and down into a spectrum analyser. A new example, <b>Heterodyne link, 150 GHz</b>.',
     'RF, round one: <b>a frequency sweep</b> on every receiving horn, the bench traced again at each of a band of frequencies and the power into the horn\u2019s mode plotted as S21 in dB, every part at its value for that frequency; and under it a <b>link budget</b>, what each part down the beam took in dB and the coupling into the horn\u2019s mode. The parts are now the real things: the <b>wire grid</b> has a pitch and wires, and reflects the field along them by their inductance and leaks the other by their capacitance (Marcuvitz, with Chuss et al.\u2019s inductance for dense grids), with its wires upright or in the plane, met square or at an angle; the <b>film beam splitter</b> is a dielectric sheet whose two faces interfere, so what it reflects goes with its thickness, the angle and the polarisation; the <b>metal mirrors</b> carry their metal and lose 4 Rs/Z0 a reflection to its surface resistance; the <b>dielectrics</b>\u2019 loss grows with frequency as a polymer\u2019s does, polypropylene joins them, and a lens face can carry a <b>matching layer</b>, a quarter wave at the bench\u2019s frequency; and new <b>mesh filters</b>, inductive, capacitive and resonant, pass a band by Ulrich\u2019s lumped model and reflect the rest. Two examples: a band-pass mesh in a Gaussian beam telescope, swept; a wire-grid diplexer.',

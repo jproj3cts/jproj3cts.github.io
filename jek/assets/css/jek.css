@@ -790,6 +790,49 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 }
 
 /* --------------------------------------------------------------------------
+   The other pages (calculators, the cart, the legal pages, universities,
+   search): the same column and left edge as the marketing pages, the title
+   as the eyebrow-and-title line, the content in its reading column.
+   -------------------------------------------------------------------------- */
+
+.main-content:not(.jek-flush) {
+  max-width: calc(1160px + 2 * clamp(1rem, 4vw, 2rem));
+  margin: 0 auto;
+  align-items: flex-start;
+  text-align: left;
+  padding-top: 2rem;
+}
+.main-content:not(.jek-flush) > .page-title {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 1.4rem;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+.main-content:not(.jek-flush) > .page-title::after { display: none; }
+.main-content:not(.jek-flush) > .page-title::before {
+  content: attr(data-eyebrow);
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+.main-content:not(.jek-flush) > .page-title:not([data-eyebrow])::before { display: none; }
+.main-content > ul, .main-content > ol { width: 100%; max-width: var(--jek-measure); margin: 0 0 1rem; padding-left: 1.3rem; line-height: 1.6; text-align: left; box-sizing: border-box; }
+.main-content > ul li, .main-content > ol li { margin-bottom: 0.35rem; }
+.main-content > h2 { font-size: 1.25rem; margin-top: 2rem; }
+.main-content > .page-title + p > em { color: var(--jek-ink-soft); font-size: 0.9rem; }
+.calc-grid { justify-content: start; }
+form#searchForm { margin-left: 0; }
+#results, .result { text-align: left; }
+.main-content > .return { align-self: flex-start; }
+
+/* --------------------------------------------------------------------------
    Prose — body copy on Bio, Contact, product descriptions
    -------------------------------------------------------------------------- */
 

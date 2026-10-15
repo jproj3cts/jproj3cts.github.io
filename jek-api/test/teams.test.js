@@ -34,6 +34,7 @@ function fake() {
       if (init.method === 'POST') {
         const q = body.get('items[0][quantity]'), price = body.get('items[0][price]');
         if (q) s.items.data[0].quantity = Number(q);
+        if (body.has('cancel_at_period_end')) s.cancel_at_period_end = body.get('cancel_at_period_end') === 'true';
         if (price) s.items.data[0].price = priceObj(Object.keys(PRICES).find((k) => PRICES[k][0] === price));
       }
       if (init.method === 'DELETE') s.status = 'canceled';
@@ -358,6 +359,32 @@ describe('seats and billing', () => {
     expect(await seatsRow(t.id)).toBe(3);
     // an owner with others in the team cannot delete their account
     expect((await send('/v1/me', 'DELETE', t.owner.token, { confirm: CONFIRM })).status).toBe(409);
+  });
+
+  it('a personal subscription now covered by a seat can be stopped at the end of its period, and resumed', async () => {
+    const t = await team();
+    await teamPlan(t, 3);
+    const sid = 'sub_' + t.owner.workspaceId;
+    subs[sid] = { id: sid, object: 'subscription', customer: 'cus_p', status: 'active', cancel_at_period_end: false, cancel_at: null, metadata: { workspace_id: t.owner.workspaceId },
+      items: { data: [{ id: 'si_p', quantity: 1, current_period_end: Math.floor((Date.now() + 20 * DAY) / 1000), price: priceObj('pro_monthly') }] } };
+    await withPlan(t.owner.workspaceId);
+    let r = await json(await send(`/v1/workspaces/${t.owner.workspaceId}/billing/cancel`, 'POST', t.owner.token, {}));
+    expect(r.status).toBe(200);
+    expect(r.body.cancel_at).toBeGreaterThan(Date.now());
+    const up = calls.find((x) => x.method === 'POST' && x.path === `/v1/subscriptions/${sid}`);
+    expect(up.body.get('cancel_at_period_end')).toBe('true');
+    let row = await env.DB.prepare('SELECT cancel_at, status FROM subscriptions WHERE workspace_id = ?').bind(t.owner.workspaceId).first();
+    expect(row.cancel_at).toBe(r.body.cancel_at);
+    expect(row.status).toBe('active');
+    expect((await me(t.owner)).workspaces.find((w) => w.kind === 'personal').plan.cancel_at).toBe(r.body.cancel_at);
+    r = await json(await send(`/v1/workspaces/${t.owner.workspaceId}/billing/cancel`, 'POST', t.owner.token, { resume: true }));
+    expect(r.body.cancel_at).toBeNull();
+    row = await env.DB.prepare('SELECT cancel_at FROM subscriptions WHERE workspace_id = ?').bind(t.owner.workspaceId).first();
+    expect(row.cancel_at).toBeNull();
+    const other = await signedIn();
+    expect((await send(`/v1/workspaces/${t.owner.workspaceId}/billing/cancel`, 'POST', other.token, {})).status).toBe(404);
+    await env.DB.prepare("UPDATE subscriptions SET stripe_customer = 'manual' WHERE workspace_id = ?").bind(t.owner.workspaceId).run();
+    expect((await send(`/v1/workspaces/${t.owner.workspaceId}/billing/cancel`, 'POST', t.owner.token, {})).status).toBe(404);
   });
 
   it('personal subscriptions are unchanged', async () => {

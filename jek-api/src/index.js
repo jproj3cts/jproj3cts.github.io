@@ -13,7 +13,7 @@ import * as I from './institutions.js';
 import * as P from './parts.js';
 import * as T from './teams.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
-import { checkout, portal, priceList, switchInterval, webhook } from './billing.js';
+import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { me, patchMe } from './users.js';
 import { deleteAvatar, getAvatar, putAvatar } from './avatars.js';
@@ -160,6 +160,9 @@ const router = new Router()
   )
   .on('POST', '/v1/workspaces/:w/billing/portal', async (req, env, ctx, { w }) =>
     json(await portal(req, env, await requireUser(req, env, ctx), w)),
+  )
+  .on('POST', '/v1/workspaces/:w/billing/cancel', async (req, env, ctx, { w }) =>
+    json(await cancelAtPeriodEnd(req, env, await requireUser(req, env, ctx), w)),
   )
   .on('POST', '/v1/workspaces/:w/billing/interval', async (req, env, ctx, { w }) =>
     json(await switchInterval(req, env, await requireUser(req, env, ctx), w)),

@@ -247,7 +247,28 @@ function cloudConflict(theirs, by, at) {
     } catch (err) { toast(err.message, true); }
   };
   document.getElementById('ccMine').onclick = () => { done(); cloudPush({ over: theirs, checkpoint: true }); };
+  // merging the two: only when the version this copy came from is still in the history
+  const mergeBtn = document.getElementById('ccMerge');
+  mergeBtn.hidden = true;
+  if (link.version) versionContent(link.id, link.version).then(base => {
+    if (!dlg.open || cloud !== link) return;
+    mergeBtn.hidden = false;
+    mergeBtn.onclick = () => { done(); conflictMerge(link, base, who); };
+  }).catch(() => {});
   if (!dlg.open) dlg.showModal();
+}
+/* the save conflict resolved as a merge: the cloud's newer version is the target, this copy the
+   source, and the version this copy came from is the common base */
+function conflictMerge(link, base, who) {
+  const ours = JSON.parse(cloudContent());
+  mergeDialog({
+    title: 'Merge my changes into “' + link.name + '”',
+    target: { id: link.id, name: link.name }, source: { name: 'mine' }, baseWord: 'version ' + link.version + ', which this copy came from',
+    parts: async () => { const T = await api('/v1/benches/' + link.id); return { base, T, S: { content: JSON.stringify(ours), version: null } }; },
+    sourceWord: 'My changes here', keptLabel: 'Before merging my changes', mergedLabel: T => 'Merged with version ' + T.version + (who.startsWith('by ') ? ', saved ' + who : ''),
+    openWord: T => '“' + T.name + '” merged with my changes',
+    toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
+  });
 }
 /* ---------- My benches ----------
    A page of its own over the tool, as a CAD system's documents page: places down the left
@@ -373,30 +394,43 @@ async function homeCompare(b, va, vb) {
     body.replaceChildren(...diffNodes(diffProject(A, B), 'version ' + lo, 'version ' + hi));
   } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); }
 }
-async function homeMerge(target, source, baseVersion, baseBench) {
+function homeMerge(target, source, baseVersion, baseBench) {
+  mergeDialog({
+    title: 'Merge “' + source.name + '” into “' + target.name + '”', target, source,
+    baseWord: 'version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”',
+    parts: async () => { const [base, T, S] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]); return { base, T, S }; },
+    sourceWord: '“' + source.name + '”', keptLabel: 'Before merging “' + source.name + '”', mergedLabel: (T, S) => 'Merged from “' + source.name + '”, version ' + S.version,
+    openWord: T => '“' + T.name + '” merged with “' + source.name + '”', closeHome: true,
+    toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
+  });
+}
+/* the merge dialog: a three-way merge of the target's head and a source over a common base,
+   each clash chosen by hand, the gains listed, and the result opened on the bench as a new
+   version of the target, the target's head kept first as a version to come back to */
+async function mergeDialog(o) {
   const dlg = document.getElementById('mergeDialog'), body = document.getElementById('mergeBody'), go = document.getElementById('mergeGo');
-  document.getElementById('mergeTitle').textContent = 'Merge “' + source.name + '” into “' + target.name + '”';
+  const target = o.target, source = o.source;
+  document.getElementById('mergeTitle').textContent = o.title;
   body.replaceChildren(h('p', null, 'Working out the merge…'));
   go.disabled = true;
   if (!dlg.open) dlg.showModal();
   let m, T, S;
   try {
-    const [base, t, s] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]);
-    T = t; S = s;
-    m = merge3(base, JSON.parse(T.content), JSON.parse(S.content));
+    const parts = await o.parts(); T = parts.T; S = parts.S;
+    m = merge3(parts.base, JSON.parse(T.content), JSON.parse(S.content));
   } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
   const brings = diffProject(JSON.parse(T.content), resolve(m));
   const n = m.taken.source + m.taken.both;
   const rows = m.conflicts.map((c, i) => {
-    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : '“' + source.name + '”: ') + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
+    const pick = side => h('label', null, h('input', { type: 'radio', name: 'mc' + i, value: side, checked: side === 'target', onchange: () => { c.choice = side; } }), ' ' + (side === 'target' ? '“' + target.name + '”: ' : (source.id ? '“' + source.name + '”: ' : 'Mine: ')) + (c.key ? showValue(c[side]) : c[side] ? 'keep it' : 'remove it'));
     return h('li', null, h('span', null, KIND_WORD[c.kind] + ' ' + c.label + (c.key && c.kind !== 'settings' ? ', ' + c.key : '')), pick('target'), pick('source'));
   });
   body.replaceChildren(
-    h('p', null, 'From “' + source.name + '” (version ' + S.version + ', since version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”): ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
+    h('p', null, o.sourceWord + (S.version ? ' (version ' + S.version + ')' : '') + ', since ' + o.baseWord + ': ' + n + (n === 1 ? ' change goes in' : ' changes go in') + (m.taken.target ? ', beside ' + m.taken.target + ' of “' + target.name + '”’s own' : '') + '. ' +
       (m.conflicts.length ? 'Both changed the same thing in ' + m.conflicts.length + (m.conflicts.length === 1 ? ' place: choose which to keep.' : ' places: choose which to keep.') : 'Nothing clashes.')),
     ...(m.conflicts.length ? [h('h3', null, 'Choose'), h('ul', { class: 'rt-difflist conflicts' }, ...rows)] : []),
     h('h3', null, 'What “' + target.name + '” will gain'), ...diffNodes(brings, 'now', 'merged').slice(1),
-    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“Before merging”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
+    h('p', { class: 'rt-subsmall' }, '“' + target.name + '” as it is now is kept as a version first (“' + o.keptLabel + '”). The merged bench opens on the bench for you to look at and is saved to the cloud as a version of its own; undo on the bench, or restore the version before, takes it back.'));
   // the gains list follows the choices
   body.addEventListener('change', () => { const d = diffProject(JSON.parse(T.content), resolve(m)); const ul = body.querySelectorAll('ul.rt-difflist:not(.conflicts)')[0]; const fresh = diffNodes(d, 'now', 'merged').slice(1)[0]; if (ul && fresh) ul.replaceWith(fresh); });
   go.disabled = false;
@@ -406,14 +440,14 @@ async function homeMerge(target, source, baseVersion, baseBench) {
       if (cloud && cloud.dirty && cloud.id !== target.id) await cloudPush({ quiet: true });
       // the target as it is now, kept: a version to come back to
       const kept = await api('/v1/benches/' + target.id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': '"' + T.version + '"' },
-        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: 'Before merging “' + source.name + '”' }) });
+        body: JSON.stringify({ content: T.content, name: T.name, checkpoint: true, label: o.keptLabel }) });
       const merged = resolve(m); merged.name = T.name;
       setCloudOpening(true);
-      try { openProjectData(merged, '“' + T.name + '” merged with “' + source.name + '”'); } finally { setCloudOpening(false); }
-      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: 'Merged from “' + source.name + '”, version ' + S.version });
+      try { openProjectData(merged, o.openWord(T)); } finally { setCloudOpening(false); }
+      cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: o.mergedLabel(T, S) });
       cloudChanged();
-      dlg.close(); closeHome();
-      toast('Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.');
+      dlg.close(); if (o.closeHome) closeHome();
+      toast(o.toastWord);
     } catch (err) {
       toast(err.status === 423 ? (err.editing ? err.editing.name : 'Someone') + ' is editing “' + target.name + '”: merge when they are done.' : err.status === 409 ? '“' + target.name + '” changed just now: open the merge again.' : err.message, true);
       go.disabled = false;
@@ -529,15 +563,24 @@ export async function fillHome() {
     const rowOf = new Map();
     ev.forEach((e, i) => { if (e.kind === 'v') rowOf.set(e.v.version, i); });
     const vRows = ev.map((e, i) => e.kind === 'v' ? i : -1).filter(i => i >= 0);
-    // each fork's lane: the lowest free one between its row and its version's
-    const LANES = 5, laneEnd = [];
+    // a version merged from a fork: its row joins the fork's lane back to the main line
+    const MERGED = /^Merged from “(.+)”, version (\d+)$/;
+    ev.forEach((e, i) => {
+      if (e.kind !== 'v' || !e.v.label) return;
+      const mm = MERGED.exec(e.v.label); if (!mm) return;
+      const f = ev.find((x, j) => x.kind === 'f' && j > i && x.f.name === mm[1]);
+      if (f) (f.merges = f.merges || []).push(i);
+    });
+    // each fork's lane: the lowest one free between its earliest merge row and its version's
+    const LANES = 5, busy = [];   // per lane, the rows it is taken on, as [top, bottom]
     for (const [i, e] of ev.entries()) {
       if (e.kind !== 'f') continue;
       let at = rowOf.get(e.f.version);
       if (at === undefined || at < i) at = vRows.find(r => r > i && ev[r].v.version <= e.f.version) ?? ev.length - 1;
+      const top = e.merges ? Math.min(i, ...e.merges) : i;
       let lane = 1;
-      while (lane < LANES && laneEnd[lane] !== undefined && laneEnd[lane] >= i) lane++;
-      laneEnd[lane] = Math.max(laneEnd[lane] ?? -1, at);
+      while (lane < LANES && (busy[lane] || []).some(([a, b]) => a <= at && b >= top)) lane++;
+      (busy[lane] = busy[lane] || []).push([top, at]);
       e.lane = lane; e.from = at;
     }
     const lanes = Math.max(0, ...ev.map(e => e.lane || 0));
@@ -592,6 +635,11 @@ export async function fillHome() {
         const x = X0 + e.lane * DX, y0 = ys[e.from], y1 = ys[i], c = COLOURS[(e.lane - 1) % COLOURS.length];
         const bend = Math.min(14, (y0 - y1) / 2);
         el('path', { d: 'M' + X0 + ' ' + y0 + 'C' + X0 + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - 2 * bend) + 'V' + y1, class: 'branch', style: 'stroke:' + c });
+        // and back in, to each version merged from it
+        for (const r of e.merges || []) {
+          const ym = ys[r], mb = Math.min(14, (y1 - ym) / 2);
+          el('path', { d: 'M' + x + ' ' + y1 + 'V' + (ym + 2 * mb) + 'C' + x + ' ' + (ym + mb) + ' ' + X0 + ' ' + (ym + mb) + ' ' + X0 + ' ' + ym, class: 'branch merge', style: 'stroke:' + c });
+        }
       });
       ev.forEach((e, i) => {
         if (e.kind === 'v') el('circle', { cx: X0, cy: ys[i], r: e.v.version === b.version ? 6 : 4.5, class: e.v.version === b.version ? 'node head' : 'node' });

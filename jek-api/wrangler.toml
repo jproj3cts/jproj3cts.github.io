@@ -2,7 +2,7 @@ name = "jek-api"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# JEKray2D accounts and cloud benches. Separate from the URPG fulfilment
+# JEKray accounts and cloud benches. Separate from the URPG fulfilment
 # Worker in ../worker: no binding, bucket or secret is shared with it.
 # Secrets go in via `wrangler secret put` — never here.
 
@@ -13,7 +13,7 @@ APP_ORIGINS = "https://jeksys.net"
 # This API's own address; sign-in callbacks are built from it.
 API_URL = "https://api.jeksys.net"
 # Where sign-in returns to when no other page of an allowed origin is given.
-APP_URL = "https://jeksys.net/jek/tools/jekray2d.html"
+APP_URL = "https://jeksys.net/jek/tools/jekray.html"
 
 # Sign-in clients. The IDs are public; the matching secrets are set with
 # `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.
@@ -31,7 +31,7 @@ MICROSOFT_CLIENT_ID = "cd167344-4d1b-407d-8d8c-f00e52ddce2c"
 # Email (src/mail.js): codes that prove a university address, sent through
 # Resend from the jeksys.net domain verified there. The key, its own for this
 # API, with `npx wrangler secret put RESEND_API_KEY`; without it, no email is sent.
-MAIL_FROM = "JEKray2D <jekray2d@jeksys.net>"
+MAIL_FROM = "JEKray <jekray@jeksys.net>"
 SUPPORT_EMAIL = "support@jeksys.net"
 
 # Accounts, sessions, workspaces and bench heads.

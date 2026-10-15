@@ -108,7 +108,7 @@ const provider = (name) => {
   return p;
 };
 
-// The link a university's Microsoft administrator opens to approve JEKray2D
+// The link a university's Microsoft administrator opens to approve JEKray
 // for everyone in their organisation, once (tenant: its id or a domain).
 export const adminConsentUrl = (env, tenant) =>
   env.MICROSOFT_CLIENT_ID
@@ -121,7 +121,7 @@ const callbackUrl = (req, env, name) => `${env.API_URL || new URL(req.url).origi
 
 // Where to send the person afterwards: a page of an allowed origin, or the app.
 export function safeReturn(env, value) {
-  const fallback = env.APP_URL || `${allowedOrigins(env)[0]}/jek/tools/jekray2d.html`;
+  const fallback = env.APP_URL || `${allowedOrigins(env)[0]}/jek/tools/jekray.html`;
   if (!value) return fallback;
   try {
     const u = new URL(value);

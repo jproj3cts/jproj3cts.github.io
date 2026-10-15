@@ -40,6 +40,6 @@ export function checkOrigin(req, env, exempt) {
   if (!WRITE.has(req.method) || exempt) return;
   const origin = req.headers.get('Origin');
   if (!origin || !allowedOrigins(env).includes(origin)) {
-    throw new ApiError(403, 'bad_origin', 'This request must come from the JEKray2D app.');
+    throw new ApiError(403, 'bad_origin', 'This request must come from the JEKray app.');
   }
 }

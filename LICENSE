@@ -5,14 +5,14 @@ Its contents are published so the website can be served. They are not open
 source, and no licence to copy, modify or redistribute them is granted except
 as stated below or in writing by JEK Systems.
 
-JEKray2D
+JEKray
 --------
-JEKray2D (jek/tools/jekray2d.html and its supporting files in jek/tools/,
+JEKray (jek/tools/jekray.html and its supporting files in jek/tools/,
 including the example benches in jek/tools/demos/) is licensed under the
-JEKray2D Licence:
+JEKray Licence:
 
-    jek/tools/jekray2d-licence.html
-    https://jeksys.net/jek/tools/jekray2d-licence.html
+    jek/tools/jekray-licence.html
+    https://jeksys.net/jek/tools/jekray-licence.html
 
 In short: free for personal use and teaching; research and commercial use is
 free for now and will need a paid licence for future versions once they are

@@ -144,7 +144,7 @@ describe('invitations', () => {
     const r = await json(await send(`/v1/teams/${t.id}/invites`, 'POST', t.owner.token, { email: 'new@example.com' }));
     expect(r.status).toBe(201);
     expect(r.body.invited.sent).toBe(false);
-    expect(r.body.invited.link).toMatch(/^https:\/\/jeksys\.net\/jek\/tools\/jekray2d\.html\?jekinvite=[0-9a-f]{64}$/);
+    expect(r.body.invited.link).toMatch(/^https:\/\/jeksys\.net\/jek\/tools\/jekray\.html\?jekinvite=[0-9a-f]{64}$/);
     // anyone signed in may use it, whatever their address
     const who = await signedIn();
     const a = await json(await send('/v1/invitations/accept', 'POST', who.token, { token: r.body.invited.link.split('=')[1] }));

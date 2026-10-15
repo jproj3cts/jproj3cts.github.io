@@ -9,9 +9,9 @@ whatever the gain's length or where it sits, so long as the gain fills the beam 
 plane wave over an area A, P = I A. Threshold is at R2 = 1 / (R1 exp(2 g0 L)); between it and
 R2 = 1 the output has a maximum, the optimum coupling.
 
-Here JEKray2D's gain sheet (single-pass small-signal power gain G0 = exp(g0 L) = 2, Nd:YAG's
+Here JEKray's gain sheet (single-pass small-signal power gain G0 = exp(g0 L) = 2, Nd:YAG's
 Isat = 2.9 kW/cm^2) 10 mm from a flat mirror of 99.5%, a concave output coupler (R = 500 mm)
-250 mm away, at 1064 nm. JEKray2D takes the beam's area at the gain as pi w^2 / 2 for the cavity
+250 mm away, at 1064 nm. JEKray takes the beam's area at the gain as pi w^2 / 2 for the cavity
 mode's radius w there (the area over which a Gaussian of peak intensity I carries P), and the
 same is used here: w from the plano-concave resonator's mode, w0^2 = (lambda / pi) sqrt(L (R - L))
 at the flat mirror. The closed form is checked against the two waves integrated through the

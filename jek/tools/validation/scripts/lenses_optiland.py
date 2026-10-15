@@ -5,12 +5,12 @@ an independent open-source lens design code, for three systems:
      curved side to the light, at 587.6 nm, with Optiland's own N-BK7 data;
   2. the same singlet flat side to the light;
   3. the Cooke triplet from Optiland's samples (SK16, F2, SK16; f 50 mm), at 550 nm, the
-     glasses given to JEKray2D as the indices Optiland uses for them (JEKray2D's catalogue has
+     glasses given to JEKray as the indices Optiland uses for them (JEKray's catalogue has
      no SK16), so the comparison is of the ray tracing alone.
 
 For each: the effective and back focal lengths from a ray 1 um off the axis; where rays at
 several heights cross the axis (longitudinal spherical aberration); and where a fan of rays
-at a field angle meets a plane behind the lens. The fan starts exactly where JEKray2D's
+at a field angle meets a plane behind the lens. The fan starts exactly where JEKray's
 collimated source puts its rays: evenly across its width, on the line through its centre
 square to its direction, so both codes trace the same rays.
 """
@@ -48,7 +48,7 @@ def trace(o, z0, y0, th_deg, wl):
     return np.ravel(sg.z[k]), np.ravel(sg.y[k]), np.ravel(sg.M[k]), np.ravel(sg.N[k])
 
 def fan(src):
-    """JEKray2D's collimated source: rays evenly across its width, square to its direction"""
+    """JEKray's collimated source: rays evenly across its width, square to its direction"""
     th = math.radians(src['angle']); n = src['rays']
     s = [-src['width'] / 2 + src['width'] * k / (n - 1) for k in range(n)]
     return [src['x'] - si * math.sin(th) for si in s], [src['y'] + si * math.cos(th) for si in s]

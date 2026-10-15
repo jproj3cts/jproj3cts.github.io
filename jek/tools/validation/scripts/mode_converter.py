@@ -5,7 +5,7 @@ mode converters and transfer of orbital angular momentum", Opt. Commun. 96, 123-
 Two cylindrical lenses of focal length f, f sqrt(2) apart, with a mode-matched beam (its
 waist midway, its Rayleigh range (1 + 1/sqrt 2) f) add a Gouy phase of pi/2 between the two
 axes of the lenses, which turns a Laguerre-Gauss LG0,1 into a Hermite-Gauss HG1,0 lying at 45
-degrees, with the beam's own size and waist unchanged. Here JEKray2D's example: 632.8 nm,
+degrees, with the beam's own size and waist unchanged. Here JEKray's example: 632.8 nm,
 f = 50 mm, a 0.1311 mm waist, the screen 264.6 mm past it. There the mode is
     I(u, v) = (2P / pi w^2) (4 u^2 / w^2) exp(-2 (u^2 + v^2) / w^2),   u along a diagonal,
 w = w0 sqrt(1 + (z/zR)^2). Its lobes peak at 4P/(e pi w^2), and across the screen x and y

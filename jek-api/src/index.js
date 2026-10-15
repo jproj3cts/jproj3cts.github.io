@@ -1,4 +1,4 @@
-// jek-api: accounts, workspaces and cloud benches for JEKray2D.
+// jek-api: accounts, workspaces and cloud benches for JEKray.
 // The app (https://jeksys.net) is the only browser caller; see README.md.
 
 import { checkOrigin, corsHeaders, preflight } from './http.js';
@@ -66,7 +66,7 @@ const router = new Router()
     return new Response(await exportAll(env, user), {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="jekray2d-export-${new Date().toISOString().slice(0, 10)}.zip"`,
+        'Content-Disposition': `attachment; filename="jekray-export-${new Date().toISOString().slice(0, 10)}.zip"`,
       },
     });
   })

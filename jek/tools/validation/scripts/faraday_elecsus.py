@@ -10,7 +10,7 @@ J. Phys. B 45, 215005 (2012).
 
 Light linearly polarised along x, a field along the light: the cell's own transmission S0,
 and Iy, what a polariser crossed with the input passes (the Faraday filter). Three cases:
-  - natural Rb, D2, 50 mm, 80 C, 100 G (a Faraday filter; JEKray2D's example);
+  - natural Rb, D2, 50 mm, 80 C, 100 G (a Faraday filter; JEKray's example);
   - natural Rb, D2, 2 mm, 120 C, 6000 G (the hyperfine Paschen-Back regime, as Weller et al.);
   - Cs, D2, 50 mm, 60 C, 200 G (a caesium Faraday filter at 852 nm).
 Detuning from ElecSus's line centre v0; written as absolute frequencies.

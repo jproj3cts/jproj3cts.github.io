@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEKray Validation | JEK Systems</title>
+<meta name="description" content="JEKray's results set against published papers and independent codes, run live in your browser.">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+  .vd { width: 100%; max-width: 1040px; text-align: left; }
+  .vd > p, .vd li { font-size: 0.9375rem; line-height: 1.6; }
+  .vd ul.rules { margin: 0 0 1.25rem; padding-left: 1.3rem; }
+  .vd a { color: var(--jek-cyan-dark); }
+  .vd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin: 1.25rem 0 1.5rem; padding: 0.75rem 0.95rem;
+    background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
+  .vd-btn { padding: 0.45rem 0.8rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: #fff; background: var(--jek-cyan); border: 0; border-radius: 2px; cursor: pointer; }
+  .vd-btn:hover { background: var(--jek-cyan-dark); }
+  .vd-btn:disabled { opacity: 0.5; cursor: default; }
+  .vd-sum { font-weight: 700; }
+  .vd-sum.pass { color: #2e7d32; }
+  .vd-sum.fail { color: var(--jek-red); }
+  .vd-meta { margin-left: auto; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .vd h2.area { margin: 2.2rem 0 0.8rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .vd-case { margin: 0 0 1.4rem; padding: 1rem 1.15rem 1.1rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); }
+  .vd-case h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .vd-badge { padding: 0.12rem 0.5rem; border-radius: 2px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; }
+  .vd-badge.kind { color: var(--jek-ink-soft); background: var(--jek-well); }
+  .vd-badge.pass { color: #fff; background: #2e7d32; }
+  .vd-badge.fail { color: #fff; background: var(--jek-red); }
+  .vd-badge.run { color: var(--jek-ink-soft); background: var(--jek-well); }
+  .vd-cite { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .vd-case p { margin: 0 0 0.55rem; font-size: 0.9rem; line-height: 1.55; }
+  .vd-case .note { padding: 0.45rem 0.65rem; font-size: 0.85rem; background: var(--jek-well); border-radius: 2px; }
+  .vd-table { width: 100%; margin: 0.7rem 0 0.4rem; border-collapse: collapse; font-size: 0.84rem; }
+  .vd-table th, .vd-table td { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  .vd-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jek-ink-soft); }
+  .vd-table td.n { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vd-table tr.bad td { background: rgba(214, 69, 65, 0.08); }
+  .vd-table td.ok { color: #2e7d32; font-weight: 700; }
+  .vd-table td.no { color: var(--jek-red); font-weight: 700; }
+  .vd-scroll { overflow-x: auto; }
+  .vd-plots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 0.8rem; margin: 0.8rem 0 0.4rem; }
+  .vd-plot { margin: 0; }
+  .vd-plot svg { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--jek-line); border-radius: 2px; }
+  .vd-plot figcaption { margin-top: 0.25rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
+  .vd-details { margin: 0.7rem 0 0.2rem; }
+  .vd-details > summary { cursor: pointer; font-size: 0.86rem; font-weight: 600; color: var(--jek-ink); }
+  .vd-closest { margin: 0.2rem 0 0; font-size: 0.82rem !important; color: var(--jek-ink-soft); }
+  .vd-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.6rem; font-size: 0.84rem; }
+  .vd-rig { position: absolute; left: -9999px; width: 1200px; height: 800px; border: 0; }
+  @media (max-width: 600px) { .vd-meta { margin-left: 0; width: 100%; } }
+</style>
+</head>
+<body>
+
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <a class="text-overlay" href="/jek/">JEK Systems</a>
+  </div>
+
+  <main class="main-content">
+    <h1 class="page-title">JEKray Validation</h1>
+
+    <div class="vd">
+      <p>Each case below takes a published result or an independent code, rebuilds the same setup on a JEKray bench, and compares the numbers. Nothing here is a stored screenshot: the cases run live in your browser, against the version of JEKray the site is serving now, when you open this page.</p>
+      <ul class="rules">
+        <li><b>Tolerances were set before the first run</b>, from what the reference itself can claim, and are not adjusted to pass.</li>
+        <li><b>Where a reference leaves something out</b>, the assumption is written in the case.</li>
+        <li><b>A failure stays on this page</b> until the model is fixed, or it is recorded as a limit of the model.</li>
+        <li><b>JEKray works in the plane of the bench.</b> Cases are chosen to be planar or rotationally symmetric.</li>
+      </ul>
+      <p>The reference data and the scripts that made them are published beside this page, in <a href="validation/README.md">validation/</a>. Each case links to its bench, which opens in JEKray.</p>
+
+      <div class="vd-bar">
+        <button class="vd-btn" id="run" type="button" disabled>Run again</button>
+        <span class="vd-sum" id="sum">Loading JEKray…</span>
+        <span class="vd-meta" id="meta"></span>
+      </div>
+
+      <div id="cases"></div>
+    </div>
+
+    <iframe class="vd-rig" id="rig" src="/jek/tools/jekray.html#test" title="JEKray, running the cases" aria-hidden="true" tabindex="-1"></iframe>
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems &middot; <a href="/jek/tools/jekray-licence.html">Licence</a></span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script src="/jek/assets/js/cart.js"></script>
+<script>
+'use strict';
+
+/* ---------- Helpers ---------- */
+
+const h = (tag, attrs, ...kids) => {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) { if (v === null || v === undefined || v === false) continue; if (k === 'html') e.innerHTML = v; else e.setAttribute(k, v === true ? '' : v); }
+  for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+};
+const fmt = (v, d = 6) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return 'n/a';
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e6)) ? v.toExponential(3) : String(+v.toPrecision(d));
+};
+const idle = () => new Promise(r => setTimeout(r, 0));
+const bench = (name, elements, extra) => Object.assign({ format: 'jekray', version: 1, name, maxBounces: 40, minPower: 0.001, ghosts: false, elements }, extra || {});
+// a link that opens the bench in JEKray: the bench travels in the link itself
+const b64u = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const benchLink = data => '/jek/tools/jekray.html#p=j' + b64u(JSON.stringify(Object.assign({ view: undefined }, data)));
+const loadRef = name => fetch('validation/ref/' + name).then(r => { if (!r.ok) throw new Error(name + ' could not be fetched'); return r.json(); });
+
+/* A check: the reference, JEKray's value, and whether they agree within the tolerance
+   declared with the case (abs: an absolute difference; rel: a fraction of the reference) */
+function check(label, ref, got, tol, unit) {
+  const diff = got - ref;
+  const lim = tol.rel !== undefined ? Math.abs(ref) * tol.rel : tol.abs;
+  const ok = Number.isFinite(got) && Math.abs(diff) <= lim;
+  return { label, ref, got, diff, lim, ok, unit: unit || '', tolText: tol.rel !== undefined ? '±' + fmt(100 * tol.rel, 3) + '%' : '±' + fmt(tol.abs, 3) + (unit || '') };
+}
+
+/* A line plot as SVG: series of { x, y, name, dash, colour } */
+function plot(o) {
+  const W = 480, H = 280, L = 58, R = 12, T = 12, B = 42;
+  const xs = o.series.flatMap(s => s.x), ysAll = o.series.flatMap(s => s.y).filter(Number.isFinite);
+  const tf = o.logY ? v => Math.log10(Math.max(v, 1e-12)) : v => v;
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ysAll.map(tf)), y1 = Math.max(...ysAll.map(tf));
+  if (o.yMin !== undefined) y0 = tf(o.yMin); if (o.yMax !== undefined) y1 = tf(o.yMax);
+  if (y1 - y0 < 1e-12) { y0 -= 1; y1 += 1; }
+  const pad = (y1 - y0) * 0.05; y0 -= o.logY ? 0 : pad; y1 += pad;
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (tf(v) - y0) / (y1 - y0)) * (H - T - B);
+  const ticks = (a, b, n) => { const st = Math.pow(10, Math.floor(Math.log10((b - a) / n))), m = [1, 2, 5, 10].find(k => (b - a) / (k * st) <= n) * st, out = []; for (let v = Math.ceil(a / m) * m; v <= b + 1e-9 * m; v += m) out.push(+v.toPrecision(12)); return out; };
+  const parts = [];
+  for (const t of ticks(x0, x1, 6)) parts.push(`<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H - B}" stroke="#eee"/><text x="${X(t)}" y="${H - B + 16}" font-size="11" text-anchor="middle" fill="#555">${fmt(t, 4)}</text>`);
+  const yt = o.logY ? (() => { const out = []; for (let e = Math.floor(y0); e <= Math.ceil(y1); e++) for (const m of [1, 2, 5]) { const v = e + Math.log10(m); if (v >= y0 && v <= y1) out.push(v); } return out; })() : ticks(y0, y1, 5);
+  for (const t of yt) { const yy = T + (1 - (t - y0) / (y1 - y0)) * (H - T - B); parts.push(`<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#eee"/><text x="${L - 6}" y="${yy + 4}" font-size="11" text-anchor="end" fill="#555">${o.logY ? fmt(Math.pow(10, t), 2) : fmt(t, 4)}</text>`); }
+  parts.push(`<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#bbb"/>`);
+  parts.push(`<text x="${(L + W - R) / 2}" y="${H - 6}" font-size="12" text-anchor="middle" fill="#333">${o.xlabel}</text>`);
+  parts.push(`<text x="14" y="${(T + H - B) / 2}" font-size="12" text-anchor="middle" fill="#333" transform="rotate(-90 14 ${(T + H - B) / 2})">${o.ylabel}</text>`);
+  o.series.forEach((s, i) => {
+    const pts = s.x.map((x, k) => [X(x), Y(s.y[k])]).filter(p => Number.isFinite(p[1]));
+    if (s.dots) for (const p of pts) parts.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${s.colour}"/>`);
+    else parts.push(`<polyline fill="none" stroke="${s.colour}" stroke-width="${s.width || 1.8}" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''} points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}"/>`);
+    parts.push(`<line x1="${L + 10}" x2="${L + 30}" y1="${T + 14 + 16 * i}" y2="${T + 14 + 16 * i}" stroke="${s.colour}" stroke-width="2.4" ${s.dash ? 'stroke-dasharray="' + s.dash + '"' : ''}/><text x="${L + 36}" y="${T + 18 + 16 * i}" font-size="11" fill="#333">${s.name}</text>`);
+  });
+  const fig = h('figure', { class: 'vd-plot' });
+  fig.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${o.title}">${parts.join('')}</svg><figcaption>${o.title}</figcaption>`;
+  return fig;
+}
+const REF_C = '#1f6fb2', GOT_C = '#e4572e';
+const C_NM = nu => 299792458e9 / nu;              // vacuum wavelength (nm) of a frequency (Hz)
+
+/* Rays through a bench: each ray as its points [x0, y0, x1, y1, ...], in source order. The
+   tracer hands back one piece per stretch between surfaces; a piece that starts where the
+   last one ended carries the same ray on. */
+function paths(J, data) {
+  J.load(data); J.trace();
+  const out = [];
+  for (const q of J.rayPaths()) {
+    const cur = out[out.length - 1];
+    if (cur && Math.abs(cur[cur.length - 2] - q[0]) < 1e-9 && Math.abs(cur[cur.length - 1] - q[1]) < 1e-9) cur.push(...q.slice(2));
+    else out.push(q.slice());
+  }
+  return out;
+}
+// where a path's last segment (leaving the last surface) crosses y = 0, and where it meets x = X
+function lastSeg(p) { const n = p.length; return [p[n - 4], p[n - 3], p[n - 2], p[n - 1]]; }
+const axisCross = p => { const [x0, y0, x1, y1] = lastSeg(p); return x0 + (0 - y0) * (x1 - x0) / (y1 - y0); };
+const yAt = (p, X) => { for (let i = 2; i < p.length; i += 2) { const xa = p[i - 2], xb = p[i]; if ((xa - X) * (xb - X) <= 0 && xa !== xb) return p[i - 1] + (X - xa) * (p[i + 1] - p[i - 1]) / (xb - xa); } return NaN; };
+
+/* ---------- The cases ---------- */
+
+const ALL_CASES = [
+  {
+    id: 'fresnel-fp-self', area: 'Gaussian beams and resonators', title: 'Fresnel’s equations, the Fabry–Perot and a lens on a Gaussian beam',
+    kind: 'Paper: closed forms', ref: 'fresnel-fp-self.json', script: 'fresnel_fp_self.py',
+    cite: 'A. Fresnel (1823), as in M. Born and E. Wolf, Principles of Optics, §1.5; C. Fabry and A. Perot, Annales de Chimie et de Physique 16, 115 (1899); S. A. Self, “Focusing of spherical Gaussian beams”, Applied Optics 22, 658–661 (1983).',
+    what: 'Three closed forms. Fresnel’s equations: the power a bare N-BK7 surface reflects at 587.6 nm, s and p, from 5° to 85° (the block absorbing, so only its front face is seen), and Brewster’s angle, where p reflects nothing (N-BK7’s index from Schott’s Sellmeier coefficients). The Fabry–Perot: a 100 mm cavity of 90% and 95% mirrors (the far one curved to 500 mm, the laser mode-matched to it), its transmission against the round-trip phase from resonance, which Fabry and Perot’s Airy function gives (finesse 40); the cavity is solved by JEKray’s field engine, the phase read from it as in the Pound–Drever–Hall case. Self’s thin-lens transform: a Gaussian beam at 1064 nm, waist 0.5 mm or 0.2 mm at 0 to 2 m before an ideal 100 mm lens, and where its new waist is and how big.',
+    tolerance: 'Reflectances within 1 × 10⁻⁴ and Brewster’s angle within 0.05°; the cavity’s transmission within 0.005 of the Airy function; the new waist’s position within 0.05 mm and its radius within 0.1%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], rad = Math.PI / 180;
+      // Fresnel
+      const Fr = R.fresnel, got = { s: [], p: [] };
+      const fresnelBench = (deg, pol) => {
+        const t = deg * rad, rx = -Math.cos(2 * t), ry = -Math.sin(2 * t);
+        return bench('Fresnel: N-BK7 at ' + deg + '°, ' + pol, [
+          { type: 'source', name: 'Beam', x: -50, y: 0, angle: 0, wavelength: Fr.nm, width: 0.2, rays: 1, gauss: true, w0: 0.1, z0: 50, pol, power: 1 },
+          { type: 'lens', name: 'N-BK7 block', x: 10 * Math.cos(t), y: 10 * Math.sin(t), angle: deg, diameter: 25.4, surfaces: [{ R: null, coat: { mode: 'bare' } }, { R: null, coat: { mode: 'bare' } }], gaps: [20], materials: [{ glass: 'N-BK7', abs: 5 }] },
+          { type: 'detector', name: 'PD', x: 60 * rx, y: 60 * ry, angle: 2 * deg, length: 4, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e6 }], { ghosts: true, minPower: 1e-6 });
+      };
+      for (const r of Fr.rows) {
+        if (r.deg === 0) continue;
+        for (const pol of ['s', 'p']) {
+          const d = fresnelBench(r.deg, pol); J.load(d); const mw = J.detector('PD').mw;
+          got[pol].push(mw);
+          checks.push(check('Fresnel: R' + pol + ' at ' + r.deg + '°', pol === 's' ? r.Rs : r.Rp, mw, { abs: 1e-4 }));
+          if (r.deg === 45 && pol === 's') benches.push(['Fresnel, 45°', d]);
+        }
+      }
+      // Brewster: where Rp is least, by golden section on the angle
+      let lo = 50, hi = 62; const Rp = deg => { J.load(fresnelBench(deg, 'p')); return J.detector('PD').mw; };
+      for (let i = 0; i < 40; i++) { const m1 = lo + 0.382 * (hi - lo), m2 = lo + 0.618 * (hi - lo); if (Rp(m1) < Rp(m2)) hi = m2; else lo = m1; }
+      checks.push(check('Brewster’s angle', Fr.brewster_deg, (lo + hi) / 2, { abs: 0.05 }, '°'));
+      const degs = Fr.rows.filter(r => r.deg).map(r => r.deg);
+      plots.push(plot({ title: 'Reflectance of bare N-BK7 at 587.6 nm', xlabel: 'angle of incidence (°)', ylabel: 'reflectance', yMin: 0, yMax: 1,
+        series: [{ name: 'Fresnel, s', x: degs, y: Fr.rows.filter(r => r.deg).map(r => r.Rs), colour: REF_C }, { name: 'Fresnel, p', x: degs, y: Fr.rows.filter(r => r.deg).map(r => r.Rp), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray, s', x: degs, y: got.s, colour: GOT_C, dots: true }, { name: 'JEKray, p', x: degs, y: got.p, colour: '#b8860b', dots: true }] }));
+      await idle();
+      // Fabry-Perot
+      const FP = R.fabry_perot, wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const fpBench = dx => bench('Fabry–Perot: 90% and 95% mirrors, 100 mm (Airy function)', [
+        { type: 'source', name: 'Laser', x: -80, y: 0, angle: 0, wavelength: 1064, width: 0.5, rays: 1, gauss: true, w0: 0.260266, z0: 80, pol: 's', power: 1, popN: 256 },
+        { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: 100 * FP.R1 },
+        { type: 'mirror', name: 'M2', x: +(100 + dx).toFixed(9), y: 0, angle: 180, length: 25, reflect: 100 * FP.R2, R: 500 },
+        { type: 'detector', name: 'PD', x: 150, y: 0, angle: 180, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9 }], { minPower: 1e-6, cavityLock: {} });
+      const fp = dx => { const d = fpBench(dx); J.load(d); J.setCavityLock('built'); const S = J.pdSignal('PD'), C = J.shownCavity(); return { d, psi: -wrap(C.delta - C.dLock), T: S.dc }; };
+      const a0 = fp(0), kk = 4 * Math.PI / 1064e-6, xs = [], ys = [];
+      for (const r of FP.rows) {
+        const g = fp((r.psi - a0.psi) / kk), ref = (1 - FP.R1) * (1 - FP.R2) / (1 - 2 * Math.sqrt(FP.R1 * FP.R2) * Math.cos(g.psi) + FP.R1 * FP.R2);
+        checks.push(check('Fabry–Perot: transmission ' + g.psi.toFixed(3) + ' rad from resonance', ref, g.T, { abs: 0.005 }));
+        xs.push(g.psi); ys.push(g.T);
+        if (r.psi === 0) benches.push(['Fabry–Perot, on resonance', g.d]);
+        await idle();
+      }
+      const pp = []; for (let i = -300; i <= 300; i++) pp.push(i / 1000);
+      plots.push(plot({ title: 'Fabry–Perot transmission near resonance (90% and 95% mirrors)', xlabel: 'round-trip phase from resonance (rad)', ylabel: 'transmission', yMin: 0, yMax: 1,
+        series: [{ name: 'Airy function', x: pp, y: pp.map(p => (1 - FP.R1) * (1 - FP.R2) / (1 - 2 * Math.sqrt(FP.R1 * FP.R2) * Math.cos(p) + FP.R1 * FP.R2)), colour: REF_C, width: 3 },
+          { name: 'JEKray', x: xs.filter(x => Math.abs(x) <= 0.3), y: ys.filter((_, i) => Math.abs(xs[i]) <= 0.3), colour: GOT_C, dots: true }] }));
+      // Self
+      const SF = R.self, f = SF.f_mm;
+      for (const r of SF.rows) {
+        const d = bench('Self: waist ' + r.w0_mm + ' mm, ' + r.s_mm + ' mm before an ideal 100 mm lens, 1064 nm', [
+          { type: 'source', name: 'Laser', x: -r.s_mm - 50, y: 0, angle: 0, wavelength: SF.nm, width: 1, rays: 1, gauss: true, w0: r.w0_mm, z0: 50, pol: 's', popN: 256 },
+          { type: 'mask', name: 'Ideal thin lens, f 100 mm', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(r^2)/(' + 2 * f + '*lambda)', preset: 'custom' },
+          { type: 'screen', name: 'Screen', x: 300, y: 0, angle: 180, length: 20 }]);
+        J.load(d); const A = J.arrivals('Screen')[0];
+        const tag = 'Self: w₀ ' + r.w0_mm + ' mm at ' + r.s_mm + ' mm';
+        checks.push(check(tag + ': new waist, after the lens', r.s_out_mm, A ? 300 - A.qx[0] : NaN, { abs: 0.05 }, ' mm'));
+        checks.push(check(tag + ': new waist radius', r.w0_out_mm * 1e3, A ? Math.sqrt(SF.nm * 1e-6 * A.qx[1] / Math.PI) * 1e3 : NaN, { rel: 1e-3 }, ' µm'));
+        if (r.s_mm === 500 && r.w0_mm === 0.2) benches.push(['Self, 0.2 mm at 500 mm', d]);
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'coatings', area: 'Rays and lenses', title: 'Thin-film coatings: an AR layer, a V-coat and a high reflector',
+    kind: 'Paper: closed forms', ref: 'coatings.json', script: 'coatings.py',
+    cite: 'H. A. Macleod, Thin-Film Optical Filters (4th ed., 2010), chapters 2–5; F. Abelès, Annales de Physique 5, 596 (1950).',
+    what: 'The light three coated N-BK7 surfaces reflect, from 400 to 1200 nm, at 5° and 45° for s and p: a MgF₂ quarter wave for 550 nm, a two-layer V-coat for 1064 nm, and a 13-layer quarter-wave high reflector for 1064 nm. The reference is the characteristic-matrix method written independently, which gives back Macleod’s closed forms at the design wavelength (a quarter-wave stack’s admittance built up layer by layer). JEKray’s reading is end to end: the power a detector catches from the coated face of an absorbing N-BK7 block, as in the Fresnel case.',
+    tolerance: 'The reflectance within 1 × 10⁻⁴ at every wavelength and angle.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], rad = Math.PI / 180;
+      const mk = (C, nm, deg, pol) => {
+        const t = deg * rad, rx = -Math.cos(2 * t), ry = -Math.sin(2 * t);
+        return bench(C.name + ' on N-BK7, ' + nm + ' nm, ' + deg + '°, ' + pol, [
+          { type: 'source', name: 'Beam', x: -50, y: 0, angle: 0, wavelength: nm, width: 0.2, rays: 1, gauss: true, w0: 0.1, z0: 50, pol, power: 1 },
+          { type: 'lens', name: 'Coated block', x: 10 * Math.cos(t), y: 10 * Math.sin(t), angle: deg, diameter: 25.4,
+            surfaces: [{ R: null, coat: { mode: 'stack', design: C.design_nm, layers: C.layers } }, { R: null, coat: { mode: 'bare' } }], gaps: [20], materials: [{ glass: 'N-BK7', abs: 5 }] },
+          { type: 'detector', name: 'PD', x: 60 * rx, y: 60 * ry, angle: 2 * deg, length: 4, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e6 }], { ghosts: true, minPower: 1e-9 });
+      };
+      const Rof = (C, nm, deg, pol) => { J.load(mk(C, nm, deg, pol)); return J.detector('PD').mw; };
+      for (const C of R.coatings) {
+        const series = [];
+        for (const [key, col, dash] of [['5s', REF_C, ''], ['45s', '#6a3d9a', ''], ['45p', '#b8860b', '4 3']]) {
+          const deg = parseInt(key), pol = key.slice(-1), got = C.wl.map(nm => Rof(C, nm, deg, pol));
+          checks.push(check(C.name + ', ' + deg + '° ' + pol + ': largest difference 400–1200 nm', 0, got.reduce((m, v, i) => Math.max(m, Math.abs(v - C.spectra[key][i])), 0), { abs: 1e-4 }));
+          series.push({ name: 'Matrix method, ' + deg + '° ' + pol, x: C.wl, y: C.spectra[key], colour: col, dash, width: 2.4 }, { name: 'JEKray', x: C.wl, y: got, colour: GOT_C, dots: true });
+          await idle();
+        }
+        const gp = C.wl.map(nm => Rof(C, nm, 5, 'p'));
+        checks.push(check(C.name + ', 5° p: largest difference 400–1200 nm', 0, gp.reduce((m, v, i) => Math.max(m, Math.abs(v - C.spectra['5p'][i])), 0), { abs: 1e-4 }));
+        plots.push(plot({ title: C.name + ' on N-BK7', xlabel: 'wavelength (nm)', ylabel: 'reflectance', logY: C.R_design_normal < 0.5, yMin: C.R_design_normal < 0.5 ? 1e-5 : 0, yMax: 1, series: series.slice(0, 6) }));
+        benches.push([C.name + ', 45°', mk(C, C.design_nm, 45, 's')]);
+      }
+      return { checks, benches, plots, notes: 'Near normal is 5°, since the detector must sit off the incoming beam; the reference is worked out at 5° too. At normal incidence and the design wavelength it gives back Macleod’s closed forms exactly (1.27% for the MgF₂ layer, 1.3 × 10⁻⁵ for the V-coat, 98.27% for the reflector), which its script checks.' };
+    },
+  },
+  {
+    id: 'kogelnik-li', area: 'Gaussian beams and resonators', title: 'The Gaussian mode of a two-mirror resonator',
+    kind: 'Paper: closed forms', ref: 'kogelnik-li.json', script: 'kogelnik_li.py',
+    cite: 'H. Kogelnik and T. Li, “Laser beams and resonators”, Applied Optics 5, 1550–1567 (1966).',
+    what: 'Six resonators across the stability diagram, from plane-concave to near-concentric and one with a convex mirror, at 632.8 nm. For each: the beam radius on each mirror, the waist and where it sits, and the transverse mode spacing as a fraction of the free spectral range, from the paper’s closed forms in the mirrors’ g-parameters. JEKray finds the cavity from the light’s own path and its mode from the round-trip matrices of the real mirrors.',
+    tolerance: 'Beam radii within 0.1%; the waist’s position within 0.05 mm; the mode spacing within 0.0001 of the free spectral range.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const c of R.cases) {
+        const data = bench('Kogelnik & Li: ' + c.name, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: R.lambda_nm, width: 0.5, rays: 1, gauss: true, w0: 0.2, z0: 50, pol: 's' },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 25, reflect: 99, R: c.R1 },
+          { type: 'mirror', name: 'M2', x: c.L, y: 0, angle: 180, length: 25, reflect: 99, R: c.R2 }]);
+        J.load(data); const cav = J.cavities()[0];
+        benches.push([c.name, data]);
+        if (!cav) { checks.push(check(c.name + ': a cavity is found', 1, 0, { abs: 0 })); continue; }
+        const along = n => (cav.along.find(a => a.name === n) || {}).wx;
+        checks.push(check(c.name + ': beam radius on mirror 1', c.w1, along('M1'), { rel: 1e-3 }, ' mm'));
+        checks.push(check(c.name + ': beam radius on mirror 2', c.w2, along('M2'), { rel: 1e-3 }, ' mm'));
+        if (c.z1 >= 0 && c.z1 <= c.L) {
+          const w = cav.waists.find(q => q.plane === 'x');
+          checks.push(check(c.name + ': waist radius', c.w0, w ? w.w0 : NaN, { rel: 1e-3 }, ' mm'));
+          checks.push(check(c.name + ': waist, distance from mirror 1', c.z1, w ? (w.after === 'M1' ? w.at : c.L - w.at) : NaN, { abs: 0.05 }, ' mm'));
+        }
+        checks.push(check(c.name + ': transverse mode spacing / FSR', c.tmsFrac, cav.tms.x / cav.fsr, { abs: 1e-4 }));
+      }
+      return { checks, benches, notes: 'The convex–concave resonator’s waist lies outside it, so only its mirror spots and mode spacing are compared.' };
+    },
+  },
+  {
+    id: 'fox-li', area: 'Diffraction', title: 'Loss of a flat-mirror resonator against its Fresnel number',
+    kind: 'Independent solution of the paper’s equation', ref: 'fox-li.json', script: 'fox_li.py',
+    cite: 'A. G. Fox and T. Li, “Resonant modes in a maser interferometer”, Bell System Technical Journal 40, 453–488 (1961).',
+    what: 'Two identical flat circular mirrors, 1 mm across, at Fresnel numbers N = a²/λL from 0.5 to 5. The fundamental mode’s power loss per transit, from the eigenvalues of JEKray’s round trip (its diffracted field propagated mirror to mirror), against Fox and Li’s integral equation for the same geometry solved independently at high resolution.',
+    tolerance: 'Within 5% of the reference loss, from the sampling of JEKray’s field grid (256 points across). Against the points read off the paper’s own figure, within 10% (a curve is drawn about 8 px thick on the scan, some 4% in loss, beside the 5%).',
+    async run(J, R) {
+      const checks = [], benches = [], lam = 632.8e-6, a = 0.5, ns = [], gots = [];
+      const Fg = await loadRef('fox-li-figure.json');
+      const lossAt = N => { const L = a * a / (lam * N);
+        J.load(bench('Fox & Li, N = ' + N, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 632.8, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 2 * a, reflect: 99.99 },
+          { type: 'mirror', name: 'M2', x: L, y: 0, angle: 180, length: 2 * a, reflect: 100 },
+          { type: 'screen', name: 'Leak', x: -20, y: 0, angle: 0, length: 20 }], { minPower: 1e-6 }));
+        J.diffraction('Leak'); return 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999); };
+      const figN = [], figGot = [];
+      for (const p of Fg.points) {
+        const g = lossAt(p.N); figN.push(p.N); figGot.push(g);
+        checks.push(check('N = ' + p.N + ': loss per transit, against the paper’s Figure 8', p.loss, g, { rel: 0.10 }));
+        await idle();
+      }
+      for (const r of R.rows) {
+        const L = a * a / (lam * r.N);
+        const data = bench('Fox & Li, N = ' + r.N, [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 632.8, width: 0.5, rays: 1, gauss: true, w0: 0.3, z0: 50, pol: 's', popN: 256 },
+          { type: 'mirror', name: 'M1', x: 0, y: 0, angle: 0, length: 2 * a, reflect: 99.99 },
+          { type: 'mirror', name: 'M2', x: L, y: 0, angle: 180, length: 2 * a, reflect: 100 },
+          { type: 'screen', name: 'Leak', x: -20, y: 0, angle: 0, length: 20 }], { minPower: 1e-6 });
+        J.load(data); J.diffraction('Leak');
+        const loss = 1 - J.cavityModes(2)[0].abs / Math.sqrt(0.9999);
+        checks.push(check('N = ' + r.N + ': loss per transit', r.loss, loss, { rel: 0.05 }));
+        benches.push(['N = ' + r.N, data]); ns.push(r.N); gots.push(loss);
+        await idle();
+      }
+      const plots = [plot({ title: 'Power lost per transit by the fundamental mode', xlabel: 'Fresnel number N', ylabel: 'loss per transit', logY: true,
+        series: [{ name: 'Fox–Li equation, solved independently', x: ns, y: R.rows.map(r => r.loss), colour: REF_C }, { name: 'Fox and Li’s Figure 8 (read from the scan)', x: Fg.points.map(p => p.N), y: Fg.points.map(p => p.loss), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray', x: [...ns, ...figN], y: [...gots, ...figGot], colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'Figure 8 is read from the scan of the 1961 journal at archive.org: its axes placed by the grid lines found in the image, the circular-mirror TEM₀₀ curve (third from the top: a strip’s even mode loses least, then a round mirror’s fundamental, the strip’s odd mode, the round TEM₁₀) followed column by column from where the four curves stand well apart. Script and points: fox_li_figure.py, fox-li-figure.json.' };
+    },
+  },
+  {
+    id: 'tight-focus', area: 'Diffraction', title: 'The vector field at a tight focus',
+    kind: 'Paper: exact solution', ref: 'tight-focus.json', script: 'tight_focus.py',
+    cite: 'B. Richards and E. Wolf, “Electromagnetic diffraction in optical systems II. Structure of the image field in an aplanatic system”, Proceedings of the Royal Society A 253, 358–379 (1959); the exact vector angular spectrum of the same field (e.g. Novotny and Hecht, Principles of Nano-Optics, ch. 3).',
+    what: 'A Gaussian beam at 633 nm, 1.0, 2.5 or 4.0 mm across its 1/e² radius, through an ideal flat lens of 3 mm focal length (a phase plate, JEKray’s tight-focus example), polarised in the bench plane. At these numerical apertures (0.32 to 0.8 at the 1/e² radius) the focus is not round: as Richards and Wolf showed, the field gains a component along the axis, which widens the spot along the polarisation. The plate leaves the light polarised across its plane, so the exact field is its vector angular spectrum: each Cartesian component travels as a scalar, and the axial one follows from div E = 0; integrated independently with no Debye or paraxial approximation. JEKray sums the Rayleigh–Sommerfeld integral from the plate to the focal plane with each sample’s field square to its own ray (its vector focus). Compared: the irradiance |E|² through the focus along and across the polarisation, its peak, and its widths.',
+    tolerance: 'Each width at half maximum within 1%, the peak within 2%, and both profiles within 1% of the peak out to 1.5 µm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const interp = (xs, ys, x) => { x = Math.abs(x); if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const t = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - t) + ys[hi] * t; };
+      for (const C of R.cases) {
+        const data = bench('Tight focus: w = ' + C.w0_mm + ' mm, ideal lens f = 3 mm, 633 nm (Richards and Wolf)', [
+          { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 633, width: 2 * C.w0_mm, gauss: true, w0: C.w0_mm, z0: 20, popN: 256, popModel: '2d', pol: 'p', rays: 9, power: R.P_mW },
+          { type: 'mask', name: 'Perfect lens, f 3 mm', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda', preset: 'custom' },
+          { type: 'screen', name: 'Focus', x: R.f_mm, y: 0, angle: 180, length: 10, vectorFocus: 'on' }], { minPower: 1e-6 });
+        J.load(data); const D = J.diffraction('Focus');
+        const tag = 'w = ' + C.w0_mm + ' mm';
+        if (!D || !D.cutX) { checks.push(check(tag + ': a vector focus', 1, NaN, { abs: 0 })); continue; }
+        checks.push(check(tag + ': peak irradiance', C.peak, D.peak, { rel: 0.02 }, ' mW/mm²'));
+        checks.push(check(tag + ': width along the polarisation', C.fwhm_along_mm * 1e3, D.fwhmX * 1e3, { rel: 0.01 }, ' µm'));
+        checks.push(check(tag + ': width across it', C.fwhm_across_mm * 1e3, D.fwhmY * 1e3, { rel: 0.01 }, ' µm'));
+        for (const [what, cut, ref] of [['along', D.cutX, C.I_along], ['across', D.cutY, C.I_across]]) {
+          let worst = 0; cut.x.forEach((x, i) => { if (Math.abs(x) <= 0.0015) worst = Math.max(worst, Math.abs(cut.I[i] - interp(C.r_mm, ref, x)) / C.peak); });
+          checks.push(check(tag + ': profile ' + what + ' the polarisation, largest difference / peak', 0, worst, { abs: 0.01 }));
+        }
+        const sel = D.cutX.x.map((x, i) => i).filter(i => Math.abs(D.cutX.x[i]) <= 0.0015);
+        const rr = C.r_mm.map(r => r * 1e3), mir = a => [...a.slice(1).reverse(), ...a];
+        plots.push(plot({ title: 'Focus of a ' + C.w0_mm + ' mm beam, f = 3 mm: along and across the polarisation', xlabel: 'position (µm)', ylabel: 'irradiance |E|² (mW/mm²)',
+          series: [{ name: 'Exact, along', x: [...rr.slice(1).map(v => -v).reverse(), ...rr], y: mir(C.I_along), colour: REF_C, width: 3 },
+            { name: 'Exact, across', x: [...rr.slice(1).map(v => -v).reverse(), ...rr], y: mir(C.I_across), colour: '#6a3d9a', width: 3, dash: '4 3' },
+            { name: 'JEKray, along', x: sel.map(i => D.cutX.x[i] * 1e3), y: sel.map(i => D.cutX.I[i]), colour: GOT_C, dots: true },
+            { name: 'JEKray, across', x: sel.map(i => D.cutY.x[i] * 1e3), y: sel.map(i => D.cutY.I[i]), colour: '#b8860b', dots: true }] }));
+        benches.push([tag, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'Both codes report the irradiance as |E|², the axial part included (the energy flow through the plane is a little less where the light crosses it steeply). JEKray’s tight-focus example (w = 2.5 mm) had been looked at before this reference was made; the tolerances come from the grid and the sampling, not from that.' };
+    },
+  },
+  {
+    id: 'bessel', area: 'Diffraction', title: 'The Bessel beam behind an axicon',
+    kind: 'Paper: closed forms', ref: 'bessel-axicon.json', script: 'bessel_axicon.py',
+    cite: 'J. Durnin, J. J. Miceli and J. H. Eberly, “Diffraction-free beams”, Physical Review Letters 58, 1499 (1987); J. H. McLeod, “The axicon”, JOSA 44, 592 (1954).',
+    what: 'JEKray’s axicon example: a 1 mm Gaussian beam at 632.8 nm through a 1° cone of fused silica, which bends it toward the axis by 0.457°. The crossing waves make a core J₀²(kr sin β) whose first dark ring is at 2.405/(k sin β), 30.4 µm, through a zone 125 mm long, its axial intensity rising and falling as the ring of light feeding it widens. The reference is the Fresnel integral of an ideal conical wave with the example’s Gaussian amplitude, from the cone’s apex (the bend from Snell’s law and Malitson’s index). JEKray traces the real cone and propagates its diffracted field.',
+    tolerance: 'The first dark ring within 1%, the axial intensity within 3% from 10 to 130 mm, and the profiles within 2% of their peak out to 120 µm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const mk = z => bench('Axicon, 1°, fused silica: ' + z + ' mm past the apex (Durnin)', [
+        { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 632.8, width: 2, gauss: true, w0: 1, z0: 0, popN: 512, pol: 's', rays: 5, power: 1 },
+        { type: 'lens', name: 'Axicon, 1°', x: 0, y: 0, angle: 0, diameter: 12.7, surfaces: [{ R: null }, { R: null, odd: [-Math.tan(Math.PI / 180)] }], gaps: [3], materials: [{ glass: 'UVFS' }] },
+        { type: 'screen', name: 'Screen', x: 1.5 + z, y: 0, angle: 180, length: 4 }], { minPower: 1e-6 });
+      const interp = (xs, ys, x) => { if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const t = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - t) + ys[hi] * t; };
+      for (const P of R.profiles) {
+        const d = mk(P.z_mm); J.load(d); const D = J.diffraction('Screen');
+        const rho = Array.from(D.rho), psf = Array.from(D.psf);
+        let i = 1; while (i < rho.length - 1 && !(psf[i] <= psf[i - 1] && psf[i] < psf[i + 1])) i++;
+        const a = psf[i - 1], b = psf[i], c = psf[i + 1], h = rho[i + 1] - rho[i], zmin = rho[i] + 0.5 * h * (a - c) / ((a - 2 * b + c) || 1);
+        checks.push(check(P.z_mm + ' mm: first dark ring', P.first_zero_mm * 1e3, zmin * 1e3, { rel: 0.01 }, ' µm'));
+        let worst = 0; rho.forEach((r, j) => { if (r <= 0.12) worst = Math.max(worst, Math.abs(psf[j] - interp(P.r_mm, P.I, r)) / P.I0); });
+        checks.push(check(P.z_mm + ' mm: profile to 120 µm, largest difference / peak', 0, worst, { abs: 0.02 }));
+        const sel = rho.map((r, j) => j).filter(j => rho[j] <= 0.12);
+        plots.push(plot({ title: 'Bessel core ' + P.z_mm + ' mm past the axicon', xlabel: 'radius (µm)', ylabel: 'irradiance (mW/mm²)',
+          series: [{ name: 'Fresnel integral', x: P.r_mm.map(r => r * 1e3), y: P.I, colour: REF_C, width: 3 }, { name: 'JEKray', x: sel.map(j => rho[j] * 1e3), y: sel.map(j => psf[j]), colour: GOT_C, dots: true }] }));
+        benches.push([P.z_mm + ' mm', d]);
+        await idle();
+      }
+      const got = [];
+      for (const A of R.axis) { J.load(mk(A.z_mm)); const D = J.diffraction('Screen'); got.push(D.psf[0]);
+        checks.push(check('On the axis, ' + A.z_mm + ' mm past the apex', A.I0, D.psf[0], { rel: 0.03 }, ' mW/mm²')); await idle(); }
+      plots.unshift(plot({ title: 'On the axis through the Bessel zone', xlabel: 'distance past the apex (mm)', ylabel: 'irradiance (mW/mm²)',
+        series: [{ name: 'Fresnel integral', x: R.axis.map(a => a.z_mm), y: R.axis.map(a => a.I0), colour: REF_C }, { name: 'JEKray', x: R.axis.map(a => a.z_mm), y: got, colour: GOT_C, dots: true }] }));
+      return { checks, benches, plots, notes: 'The dark ring’s radius is found here by a parabola through the three samples of JEKray’s profile about its first minimum, which are coarser than the reference’s; that reads a few tenths of a micrometre wide, while the profiles themselves agree to a few parts in ten thousand of the peak.' };
+    },
+  },
+  {
+    id: 'mode-converter', area: 'Diffraction', title: 'A cylindrical-lens mode converter',
+    kind: 'Paper: closed forms', ref: 'mode-converter.json', script: 'mode_converter.py',
+    cite: 'M. W. Beijersbergen, L. Allen, H. E. L. O. van der Veen and J. P. Woerdman, “Astigmatic laser mode converters and transfer of orbital angular momentum”, Optics Communications 96, 123–132 (1993).',
+    what: 'A Laguerre–Gauss LG₀,₁ vortex (632.8 nm, 0.131 mm waist) through Beijersbergen et al.’s π/2 converter: two ideal cylindrical lenses of 50 mm focal length, 70.7 mm apart (f√2), the beam’s waist midway and its Rayleigh range (1 + 1/√2) f. The π/2 of Gouy phase the pair adds between the lenses’ two axes turns the ring into a Hermite–Gauss HG₁,₀ lying at 45°, the beam’s size and waist unchanged. On a screen 264.6 mm past the waist: its two lobes, how bright they are, and the diagonal they lie on (x and y correlate by ±½; the ring, not at all). JEKray launches the vortex as its sum of Hermite–Gauss modes, each with its own Gouy phase, and propagates the 2D field through the lenses (thin cylindrical phase plates here, so the lenses are exactly the paper’s).',
+    tolerance: 'The correlation of x and y across the pattern within 0.02 of ±½, the lobes’ peak within 3%, and the whole pattern within 3% of that peak against the ideal HG₁,₀ on the diagonal it lies on (which of the two depends on the vortex’s handedness and the bench’s frame, and is taken from the correlation’s sign).',
+    async run(J, R) {
+      const checks = [], plots = [], f = R.f_mm, d = R.lens_sep_mm;
+      const data = bench('π/2 mode converter: LG₀,₁ into HG₁,₀ at 45° (Beijersbergen et al. 1993)', [
+        { type: 'source', name: 'LG01 vortex', x: R.source_x_mm, y: 0, angle: 0, wavelength: R.nm, width: 0.7, gauss: true, w0: R.w0_mm, z0: R.source_z0_mm, popN: 256, popModel: '2d', pol: 's', rays: 1, power: R.P_mW, tem: 'lg', lp: 0, ll: 1 },
+        { type: 'mask', name: 'Cylindrical lens 1, f 50 mm', x: 0, y: 0, angle: 0, length: 12.7, amp: '1', delay: '-(x^2)/(' + 2 * f + '*lambda)', preset: 'custom' },
+        { type: 'mask', name: 'Cylindrical lens 2, f 50 mm', x: d, y: 0, angle: 0, length: 12.7, amp: '1', delay: '-(x^2)/(' + 2 * f + '*lambda)', preset: 'custom' },
+        { type: 'screen', name: 'Screen', x: R.screen_x_mm, y: 0, angle: 180, length: 6 }], { minPower: 1e-6 });
+      J.load(data); const D = J.diffraction('Screen');
+      if (!D || !D.map) return { checks: [check('a pattern on the screen', 1, NaN, { abs: 0 })], benches: [['Converter', data]] };
+      const M = D.map, n = M.n, du = (M.u1 - M.u0) / n, dv = (M.v1 - M.v0) / n, at = (i, j) => [M.u0 + (i + 0.5) * du, M.v0 + (j + 0.5) * dv];
+      let s0 = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, pk = 0;
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const I = M.v[j * n + i], [x, y] = at(i, j); s0 += I; sx += I * x; sy += I * y; sxx += I * x * x; syy += I * y * y; sxy += I * x * y; pk = Math.max(pk, I); }
+      const mx = sx / s0, my = sy / s0, vx = sxx / s0 - mx * mx, vy = syy / s0 - my * my, cxy = sxy / s0 - mx * my, corr = cxy / Math.sqrt(vx * vy);
+      checks.push(check('Correlation of x and y, |<xy>| / √(<x²><y²>)', R.correlation, Math.abs(corr), { abs: 0.02 }));
+      checks.push(check('Peak of the lobes', R.lobe_peak, pk, { rel: 0.03 }, ' mW/mm²'));
+      const sg = corr >= 0 ? 1 : -1, w = R.w_mm, I0 = 2 * R.P_mW / (Math.PI * w * w);
+      const ideal = (x, y) => { const u = (x - mx + sg * (y - my)) / Math.SQRT2; return I0 * 4 * u * u / (w * w) * Math.exp(-2 * ((x - mx) ** 2 + (y - my) ** 2) / (w * w)); };
+      let worst = 0; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const [x, y] = at(i, j); worst = Math.max(worst, Math.abs(M.v[j * n + i] - ideal(x, y)) / R.lobe_peak); }
+      checks.push(check('The pattern against HG₁,₀ at 45°, largest difference / peak', 0, worst, { abs: 0.03 }));
+      // a cut along the lobes' diagonal
+      const ts = [], got = [], ref = [];
+      for (let k = -60; k <= 60; k++) { const t = k / 60 * 2 * w, x = mx + t / Math.SQRT2, y = my + sg * t / Math.SQRT2, i = Math.round((x - M.u0) / du - 0.5), j = Math.round((y - M.v0) / dv - 0.5);
+        if (i < 0 || j < 0 || i >= n || j >= n) continue; const [xc, yc] = at(i, j); ts.push(t); got.push(M.v[j * n + i]); ref.push(ideal(xc, yc)); }
+      plots.push(plot({ title: 'Across the two lobes, along their diagonal', xlabel: 'position along the diagonal (mm)', ylabel: 'irradiance (mW/mm²)',
+        series: [{ name: 'HG₁,₀ (ideal converter)', x: ts, y: ref, colour: REF_C, width: 3 }, { name: 'JEKray', x: ts, y: got, colour: GOT_C, dots: true }] }));
+      return { checks, benches: [['π/2 converter', data]], plots, notes: 'The lobes lie on the ' + (corr >= 0 ? 'rising' : 'falling') + ' diagonal of the screen here. The screen’s map is 128 samples across, so the ideal pattern is compared at those samples.' };
+    },
+  },
+  {
+    id: 'diffraction-classics', area: 'Diffraction', title: 'Poisson’s spot, the Airy pattern and Young’s slits',
+    kind: 'Paper: closed forms', ref: 'diffraction-classics.json', script: 'diffraction_classics.py',
+    cite: 'A. Fresnel, “Mémoire sur la diffraction de la lumière” (1818), with Poisson’s objection and Arago’s observation; G. B. Airy, Transactions of the Cambridge Philosophical Society 5, 283 (1835); T. Young, Philosophical Transactions of the Royal Society 94, 1 (1804). The patterns from the Fresnel–Kirchhoff integral, done independently.',
+    what: 'Three patterns, each against the diffraction integral done independently for the same light. Poisson’s spot: a 6 mm Gaussian beam at 633 nm with its waist on a 3 mm opaque disc (JEKray’s example), the bright spot on the axis 250 mm to 5 m behind it, exactly exp(−2a²/w₀²) of the free beam’s intensity at every distance. The Airy pattern: a 4 mm round opening in a 20 mm beam, an ideal lens of 100 mm focal length (a phase mask), the pattern in the focal plane in absolute irradiance. Young’s slits: two slits 0.1 mm wide and 0.5 mm apart in a 1.5 mm beam, the fringes 1 m away.',
+    tolerance: 'Poisson’s spot within 3% of its height. The Airy pattern’s peak within 1%, its first dark ring within 1%, and the pattern within 1% of its peak everywhere to the third ring. Young’s fringes within 2% of the peak everywhere across ±6 mm, and their spacing within 0.5%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const interp = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const f = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - f) + ys[hi] * f; };
+      // a turning point near i, by a parabola through three samples
+      const turn = (xs, ys, i) => { const [a, b, c] = [ys[i - 1], ys[i], ys[i + 1]], h = (xs[i + 1] - xs[i - 1]) / 2, den = a - 2 * b + c; return xs[i] + (den ? 0.5 * h * (a - c) / den : 0); };
+      // Poisson's spot
+      const Pz = R.poisson;
+      for (const r of Pz.rows) {
+        const data = bench('Poisson’s spot: 3 mm disc, screen ' + r.z_mm + ' mm behind', [
+          { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 12, gauss: true, w0: Pz.w0_mm, z0: 100, popN: 512, pol: 's', rays: 21, power: Pz.P_mW },
+          { type: 'stop', name: 'Beam block', x: 0, y: 0, angle: 0, aperture: 2 * Pz.a_mm, outer: 25.4, shape: 'disc' },
+          { type: 'screen', name: 'Screen', x: r.z_mm, y: 0, angle: 180, length: 30 }]);
+        J.load(data); const D = J.diffraction('Screen');
+        checks.push(check('Poisson’s spot, ' + r.z_mm + ' mm behind the disc: its height', r.I_axis, D ? D.psf[0] : NaN, { rel: 0.03 }, ' mW/mm²'));
+        benches.push(['Poisson, ' + r.z_mm + ' mm', data]);
+        await idle();
+      }
+      // the Airy pattern
+      const A = R.airy, f = A.f_mm;
+      const ad = bench('Airy pattern: 4 mm opening, ideal lens f = 100 mm, 633 nm', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 10, gauss: true, w0: A.w0_mm, z0: 100, popN: 512, pol: 's', rays: 9, power: A.P_mW },
+        { type: 'stop', name: 'Iris', x: 0, y: 0, angle: 0, aperture: 2 * A.a_mm, outer: 200, shape: 'round' },
+        { type: 'mask', name: 'Ideal lens, f 100 mm', x: 1, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda', preset: 'custom' },
+        { type: 'screen', name: 'Focus', x: 1 + f, y: 0, angle: 180, length: 2, vectorFocus: 'off' }]);
+      J.load(ad); const D = J.diffraction('Focus');
+      if (D) {
+        const rho = Array.from(D.rho), psf = Array.from(D.psf);
+        checks.push(check('Airy: peak irradiance', A.I0, psf[0], { rel: 0.01 }, ' mW/mm²'));
+        let iz = 1; while (iz < rho.length - 2 && !(psf[iz] <= psf[iz - 1] && psf[iz] < psf[iz + 1])) iz++;
+        checks.push(check('Airy: first dark ring', A.first_zero_mm * 1e3, turn(rho, psf, iz) * 1e3, { rel: 0.01 }, ' µm'));
+        const upto = 0.0515; let worst = 0;
+        rho.forEach((r, i) => { if (r <= upto) worst = Math.max(worst, Math.abs(psf[i] - interp(A.r_mm, A.I, r)) / A.I0); });
+        checks.push(check('Airy: largest difference to the third ring, share of the peak', 0, worst, { abs: 0.01 }));
+        const sel = rho.map((r, i) => i).filter(i => rho[i] <= 0.06);
+        plots.push(plot({ title: 'Airy pattern, 4 mm opening, f = 100 mm (log scale)', xlabel: 'radius (µm)', ylabel: 'irradiance (mW/mm²)', logY: true, yMin: 1e-3,
+          series: [{ name: 'Fresnel–Kirchhoff integral', x: A.r_mm.filter(r => r <= 0.06).map(r => r * 1e3), y: A.I.slice(0, A.r_mm.filter(r => r <= 0.06).length), colour: REF_C, width: 3 },
+            { name: 'JEKray', x: sel.map(i => rho[i] * 1e3), y: sel.map(i => psf[i]), colour: GOT_C, dots: true }] }));
+      } else checks.push(check('Airy: a pattern at the focus', 1, NaN, { abs: 0 }));
+      benches.push(['Airy pattern', ad]);
+      await idle();
+      // Young's slits
+      const Y = R.young;
+      const yd = bench('Young’s slits: 0.1 mm wide, 0.5 mm apart, 1 m away, 633 nm', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: 633, width: 3, gauss: true, w0: Y.w0_mm, z0: 100, popN: 256, pol: 's', rays: 41, power: 1 },
+        { type: 'stop', name: 'Double slit', x: 0, y: 0, angle: 0, aperture: Y.slit_mm, outer: 25.4, shape: 'double', sep: Y.sep_mm, height: 0 },
+        { type: 'screen', name: 'Screen', x: Y.z_mm, y: 0, angle: 180, length: 40 }]);
+      J.load(yd); const DY = J.diffraction('Screen');
+      if (DY && DY.cutX) {
+        const xs = Array.from(DY.cutX.x), Iraw = Array.from(DY.cutX.I), mx = Math.max(...Iraw), I = Iraw.map(v => v / mx);
+        let worst = 0; xs.forEach((x, i) => { if (Math.abs(x) <= 6) worst = Math.max(worst, Math.abs(I[i] - interp(Y.x_mm, Y.I, x))); });
+        checks.push(check('Young: largest difference across ±6 mm, share of the peak', 0, worst, { abs: 0.02 }));
+        // the fringe spacing: the bright fringes either side of the centre, each side's and the reference's alike
+        const peaks = (x, y) => { const out = []; for (let i = 1; i < y.length - 1; i++) if (y[i] > y[i - 1] && y[i] >= y[i + 1] && y[i] > 0.3) out.push(turn(x, y, i)); return out; };
+        const sp = pk => { const c = pk.reduce((a, v) => Math.abs(v) < Math.abs(a) ? v : a, Infinity), l = Math.max(...pk.filter(v => v < c - 0.3)), r = Math.min(...pk.filter(v => v > c + 0.3)); return (r - l) / 2; };
+        checks.push(check('Young: fringe spacing', sp(peaks(Y.x_mm, Y.I)), sp(peaks(xs, I)), { rel: 0.005 }, ' mm'));
+        const sel = xs.map((x, i) => i).filter(i => Math.abs(xs[i]) <= 6);
+        plots.push(plot({ title: 'Young’s slits, 1 m away (peak 1)', xlabel: 'position on the screen (mm)', ylabel: 'irradiance', yMin: 0, yMax: 1,
+          series: [{ name: 'Fresnel integral', x: Y.x_mm, y: Y.I, colour: REF_C, width: 3 }, { name: 'JEKray', x: sel.map(i => xs[i]), y: sel.map(i => I[i]), colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+      } else checks.push(check('Young: a pattern on the screen', 1, NaN, { abs: 0 }));
+      benches.push(['Young’s slits', yd]);
+      plots.unshift(plot({ title: 'Poisson’s spot: its height behind the disc', xlabel: 'distance behind the disc (mm)', ylabel: 'on-axis irradiance (mW/mm²)',
+        series: [{ name: 'Exact: exp(−2a²/w₀²) of the free beam', x: Pz.rows.map(r => r.z_mm), y: Pz.rows.map(r => r.I_axis), colour: REF_C }, { name: 'JEKray', x: Pz.rows.map(r => r.z_mm), y: checks.slice(0, Pz.rows.length).map(c => c.got), colour: GOT_C, dots: true }] }));
+      return { checks, benches, plots, notes: 'The first run of this case failed on Poisson’s spot: 4–17% low from 250 mm to 2 m, and missed at 100 mm. The spot is only 0.38 λz/a across (80 µm at 500 mm), made by light the disc’s edge bends through a/z, and the round field’s grid, sized to hold the whole 6 mm beam, could not hold that light too. JEKray now follows Babinet: behind a disc the field is the free beam less what a round opening of the disc’s size would pass, and that opening’s light goes on as a field of its own, on a grid sized to the disc and to the distance, so the spot comes out at its height at every distance here. The tolerance is the one set before the first run. The 2D field (used when a tilt or an offset breaks the symmetry) does not do this yet: there the spot is flagged as only roughly right when its grid cannot resolve it.' };
+    },
+  },
+  {
+    id: 'lenses', area: 'Rays and lenses', title: 'Real rays through a singlet and a Cooke triplet',
+    kind: 'Independent code', ref: 'lenses-optiland.json', script: 'lenses_optiland.py',
+    cite: 'Optiland 0.6, open-source lens design (github.com/HarrisonKramer/optiland): its real-ray trace, and its Cooke triplet sample.',
+    what: 'A plano-convex singlet (R 51.5 mm, 3.6 mm of N-BK7, the prescription of Thorlabs LA1509) both ways round at 587.6 nm, and the Cooke triplet from Optiland’s samples at 550 nm. For each: the effective and back focal lengths; where rays at several heights cross the axis (the longitudinal spherical aberration); and where a fan of rays at a field angle meets a plane behind the lens. The singlet uses each code’s own N-BK7 data; the triplet’s SK16 and F2 are given to JEKray as the indices Optiland uses, so it tests the ray tracing alone.',
+    tolerance: 'Every length and ray intercept within 2 µm; N-BK7’s index within 2 × 10⁻⁶.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const S of R.systems) {
+        const wl = S.wavelength_nm, cooke = !!S.prescription;
+        const lens = cooke
+          ? { type: 'lens', name: 'Triplet', x: S.thickness / 2, y: 0, angle: 0, diameter: 16, surfaces: S.prescription.R.map(r => ({ R: r })), gaps: S.prescription.gaps,
+              materials: S.prescription.materials.map(m => m === 'AIR' ? { glass: 'custom', n: 1 } : { glass: 'custom', n: S.glasses[m] }) }
+          : { type: 'lens', name: 'Singlet', x: S.thickness / 2, y: 0, angle: 0, diameter: 25.4,
+              surfaces: S.name.includes('flat') ? [{ R: null }, { R: -51.5 }] : [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] };
+        const last = S.thickness;                   // the last vertex: the lens runs from x = 0 to x = its thickness
+        if (!cooke) checks.push(check(S.name + ': N-BK7 index at ' + fmt(wl, 5) + ' nm', S.glasses['N-BK7'], J.index({ glass: 'N-BK7' }, wl), { abs: 2e-6 }));
+        // focal lengths from a ray 1 µm off the axis; crossings from rays at each height
+        const one = (y) => ({ type: 'source', name: 'h' + y, x: -10, y, angle: 0, wavelength: wl, width: 0, rays: 1, pol: 's' });
+        const P0 = paths(J, bench(S.name, [one(1e-3), lens], { minPower: 0.5 }))[0];
+        const [x0, y0, x1, y1] = lastSeg(P0), slope = (y1 - y0) / (x1 - x0);
+        checks.push(check(S.name + ': effective focal length', S.efl, -1e-3 / slope, { abs: 0.002 }, ' mm'));
+        checks.push(check(S.name + ': back focal length', S.bfl, axisCross(P0) - last, { abs: 0.002 }, ' mm'));
+        const data = bench(S.name, [...S.heights.map(one), lens], { minPower: 0.5 });
+        const P = paths(J, data), got = S.heights.map((hh, i) => { const p = P.find(q => Math.abs(q[1] - hh) < 1e-9); return p ? axisCross(p) - last : NaN; });
+        S.heights.forEach((hh, i) => checks.push(check(S.name + ': ray at ' + hh + ' mm crosses the axis at', S.crossings[i], got[i], { abs: 0.002 }, ' mm')));
+        plots.push(plot({ title: S.name + ': longitudinal spherical aberration', xlabel: 'ray height (mm)', ylabel: 'axis crossing after the last vertex (mm)',
+          series: [{ name: 'Optiland', x: S.heights, y: S.crossings, colour: REF_C }, { name: 'JEKray', x: S.heights, y: got, colour: GOT_C, dots: true }] }));
+        benches.push([S.name, data]);
+        for (const F of S.fans) {
+          const fd = bench(S.name + ', fan at ' + F.source.angle + '°', [Object.assign({ type: 'source', name: 'Fan', wavelength: wl, pol: 's' }, F.source), lens], { minPower: 0.5 });
+          const FP = paths(J, fd), ys = FP.map(p => yAt(p, last + F.plane));
+          const k = FP.length === F.y.length;
+          F.y.forEach((yr, i) => checks.push(check(S.name + ': ' + F.source.angle + '° fan, ray ' + (i + 1) + ' at ' + F.plane + ' mm past the last vertex', yr, k ? ys[i] : NaN, { abs: 0.002 }, ' mm')));
+          benches.push([S.name + ', ' + F.source.angle + '° fan', fd]);
+        }
+        await idle();
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'seidel', area: 'Rays and lenses', title: 'Seidel’s aberrations of a singlet and a Cooke triplet, and the Strehl ratio',
+    kind: 'Textbook sums, checked by exact rays', ref: 'seidel.json', script: 'seidel.py',
+    cite: 'W. T. Welford, Aberrations of Optical Systems (Adam Hilger, 1986), chapter 8 (the Seidel sums) and chapter 11 (the Strehl ratio and Maréchal’s relation); the triplet is Optiland’s Cooke triplet sample.',
+    what: 'Welford’s surface-by-surface Seidel sums from a paraxial marginal and chief ray, as the wavefront coefficients at the edge of the pupil and the field: spherical W040 = S_I/8, coma W131 = S_II/2, the tangential focus with field W22T = (3S_III + S_IV)/4 and distortion W311 = S_V/2. Two systems, each with its stop a plane of its own: LA1509’s prescription (plano-convex, curved side first) with the stop 10 mm ahead, a 10 mm pupil and fields to ±4° at 587.6 nm; and Optiland’s Cooke triplet with its stop 1 mm ahead of the flint, a 6 mm pupil and fields to ±8° at 550 nm. JEKray’s Aberrations tab, on a screen at the paraxial focus, sweeps a fan across seven fields and fits the real rays’ wavefront. Seidel’s sums are the third order only; the real rays carry the higher orders too, so the reference script also traces real rays exactly and fits them the same way, which gives the higher-order part at these apertures (at a tenth of the aperture and field this fit returns the sums to 0.5%, a check on both). Then Maréchal’s relation, the Strehl ratio exp(−(2πσ)²) from the rms wavefront error about the best focus, σ = W040/(6√5) for spherical aberration, for the singlet at f/7.7 on axis.',
+    tolerance: 'Each coefficient within the higher-order part the real rays show (|real − Seidel|, from the script) plus 2% of Seidel’s value and 0.002 waves. The Strehl ratio within 2% of Maréchal’s.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const lensOf = (S, x) => S.lens.R.length === 2
+        ? { type: 'lens', name: 'Singlet (LA1509)', x, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: null }], gaps: [3.6], materials: [{ glass: 'custom', n: S.glasses['N-BK7'] }] }
+        : { type: 'lens', name: 'Cooke triplet', x, y: 0, angle: 0, diameter: 16, surfaces: S.lens.R.map(r => ({ R: r })), gaps: S.lens.gaps,
+            materials: S.lens.mat.map(m => m === 'AIR' ? { glass: 'custom', n: 1 } : { glass: 'custom', n: S.glasses[m] }) };
+      const mk = (S, epd) => bench(S.name, [
+        { type: 'source', name: 'Fan', x: -25, y: 0, angle: 0, wavelength: S.wl * 1000, width: epd, rays: 11, pol: 's' },
+        { type: 'stop', name: 'Stop', x: S.stop, y: 0, angle: 0, aperture: 3 * epd, outer: 40 },
+        lensOf(S, S.last_vertex / 2),
+        { type: 'screen', name: 'Image', x: S.last_vertex + S.bfl, y: 0, angle: 180, length: 40 }], { minPower: 0.5 });
+      const lab = { W040: 'spherical W040', W131: 'coma W131', W22T: 'field focus W22T', W311: 'distortion W311' };
+      for (const S of R.systems) {
+        const data = mk(S, S.epd); J.load(data);
+        const A = J.aberrations('Image', { abAng: S.field, abN: 7, abRays: 61 }), got = A && A.seidel;
+        for (const k of ['W040', 'W131', 'W22T', 'W311']) {
+          const ref = S.W[k], tol = Math.abs(S.real_fit[k] - ref) + 0.02 * Math.abs(ref) + 0.002;
+          checks.push(check(S.name.split(',')[0] + ': ' + lab[k], ref, got ? got[k] : NaN, { abs: +tol.toPrecision(3) }, ' waves'));
+        }
+        benches.push([S.name.split(',')[0], data]);
+        await idle();
+      }
+      // Maréchal: the singlet at f/7.7, on axis
+      const M = R.marechal, S0 = R.systems[0], md = mk(S0, M.epd); J.load(md);
+      const A = J.aberrations('Image', { abAng: 0.5, abN: 3, abRays: 201 }), f0 = A && A.fields.find(f => f.H === 0);
+      checks.push(check('Singlet at f/7.7, on axis: Strehl ratio', M.strehl_marechal, f0 ? f0.strehl : NaN, { rel: 0.02 }));
+      benches.push(['Singlet at f/7.7', md]);
+      return { checks, benches, plots, notes: 'The first run of this case found a fault in JEKray, now fixed: coma and distortion came out with the right size and the wrong sign. The Aberrations tab measured the pupil coordinate along the screen’s own length, and the field the way the image moves, and on these benches the two ran opposite ways; the pupil coordinate now runs the way the image moves, as Welford’s and lens design codes’ does, whichever way the screen faces. The tolerances are the ones first set. The real rays’ fit (the reference script’s) gives ' + R.systems.map(S => S.name.split(',')[0] + ': ' + ['W040', 'W131', 'W22T', 'W311'].map(k => fmt(S.real_fit[k], 4)).join(', ')).join('; ') + ' waves, against Seidel’s ' + R.systems.map(S => ['W040', 'W131', 'W22T', 'W311'].map(k => fmt(S.W[k], 4)).join(', ')).join(' and ') + '. The triplet is corrected: its sums are small differences of surface terms of several waves each, so its coma (0.010 waves in the third order) is outweighed by the fifth (the real rays give −0.016). For the Strehl ratio: the exact value, the pupil integral of the real wavefront at its best focus, is ' + fmt(M.strehl_exact_real, 4) + ', Maréchal’s ' + fmt(M.strehl_marechal, 4) + '; JEKray takes σ along the meridian, where the same balance leaves 2.3% more (' + fmt(M.strehl_marechal_meridian, 4) + ').' };
+    },
+  },
+  {
+    id: 'rb-absorption', area: 'Atoms', title: 'Absorption spectra of natural rubidium',
+    kind: 'Independent code', ref: 'rb-elecsus.json', script: 'rb_elecsus.py',
+    cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), whose model was tested against measured absolute absorption in P. Siddons et al., J. Phys. B 41, 155004 (2008).',
+    what: 'The weak-probe transmission of a 75 mm cell of natural rubidium, as in Siddons et al., across 16 GHz of the D2 line at 20 °C and 50 °C and the D1 line at 50 °C: the hyperfine lines of both isotopes, Doppler-broadened at the cell’s temperature, with the density from the vapour pressure. Frequencies are compared on an absolute scale, so neither code’s choice of zero matters. Both codes take the atom density from Alcock et al.’s vapour pressure.',
+    tolerance: 'The transmission within 0.01 everywhere, and within 0.003 RMS across the scan.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const data = bench('Rb ' + c.line + ', ' + c.T + ' °C, 75 mm', [
+          { type: 'source', name: 'Probe', x: -60, y: 0, angle: 0, wavelength: c.line === 'D2' ? 780.241 : 794.979, width: 1, rays: 3, pol: 's' },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: c.line, temp: c.T, cellLen: c.L_mm },
+          { type: 'detector', name: 'PD', x: 70, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const T = c.nu_Hz.map(nu => { const r = J.cellAt('Cell', nu); return r.amp * r.amp; });
+        const d = T.map((v, i) => v - c.T_trans[i]);
+        const worst = d.reduce((a, v) => Math.max(a, Math.abs(v)), 0), rms = Math.sqrt(d.reduce((a, v) => a + v * v, 0) / d.length);
+        checks.push(check(c.line + ', ' + c.T + ' °C: largest difference in transmission', 0, worst, { abs: 0.01 }));
+        checks.push(check(c.line + ', ' + c.T + ' °C: RMS difference in transmission', 0, rms, { abs: 0.003 }));
+        const x = c.nu_Hz.map(nu => (nu - c.v0_Hz) / 1e9);
+        plots.push(plot({ title: 'Natural Rb, ' + c.line + ' line, ' + c.T + ' °C, 75 mm (zero: ElecSus’s weighted line centre)', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'ElecSus', x, y: c.T_trans, colour: REF_C, width: 3 }, { name: 'JEKray', x, y: T, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.line + ', ' + c.T + ' °C', data]);
+        await idle();
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'faraday', area: 'Atoms', title: 'Faraday filters and vapour in a strong field',
+    kind: 'Independent code', ref: 'faraday-elecsus.json', script: 'faraday_elecsus.py',
+    cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), tested against measured Faraday filters in M. A. Zentile et al., J. Phys. B 48, 185001 (2015) and Optics Letters 40, 2000 (2015), and against measured spectra in the hyperfine Paschen–Back regime in L. Weller et al., J. Phys. B 45, 215005 (2012).',
+    what: 'Linearly polarised light through a vapour cell in a magnetic field along the light: the cell’s own transmission, and what a polariser crossed with the input passes (a Faraday filter). Natural rubidium’s D2 line, 50 mm at 80 °C in 100 G (the Faraday filter in JEKray’s examples); 2 mm at 120 °C in 6000 G, where the field breaks the hyperfine coupling (the hyperfine Paschen–Back regime); and caesium’s D2 line, 50 mm at 60 °C in 200 G. Both codes find the atom’s states in the field by diagonalising its hyperfine and Zeeman Hamiltonian and give each circular hand its own absorption and dispersion; JEKray’s crossed-polariser transmission is |t₊ − t₋|²/4 from its two hands.',
+    tolerance: 'Both transmissions within 0.02 everywhere and 0.005 RMS across the scan; each filter’s equivalent-noise bandwidth (its transmission’s integral over its peak) within 3%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const nm = C_NM(c.v0_Hz);
+        const data = bench(c.name + ': ' + c.atom + ' ' + c.line + ', ' + c.L_mm + ' mm, ' + c.T + ' °C, ' + c.B_G + ' G (ElecSus)', [
+          { type: 'source', name: 'Probe', x: -80, y: 0, angle: 0, wavelength: nm, width: 1, rays: 1, pol: 'p' },
+          { type: 'polariser', name: 'Polariser (p)', x: -50, y: 0, angle: 0, length: 12.7, axis: 0 },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: c.atom, line: c.line, temp: c.T, cellLen: c.L_mm, bField: c.B_G },
+          { type: 'polariser', name: 'Crossed polariser (s)', x: 50, y: 0, angle: 0, length: 12.7, axis: 90 },
+          { type: 'detector', name: 'PD', x: 75, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const S0 = [], Iy = [];
+        for (const nu of c.nu_Hz) {
+          const a = J.cellAt('Cell', nu, null, 1), b = J.cellAt('Cell', nu, null, -1);
+          const dr = a.amp * Math.cos(a.ph) - b.amp * Math.cos(b.ph), di = a.amp * Math.sin(a.ph) - b.amp * Math.sin(b.ph);
+          S0.push((a.amp * a.amp + b.amp * b.amp) / 2); Iy.push((dr * dr + di * di) / 4);
+        }
+        for (const [what, got, ref] of [['the cell’s transmission', S0, c.S0], ['through crossed polarisers', Iy, c.Iy]]) {
+          const d = got.map((v, i) => v - ref[i]);
+          checks.push(check(c.name + ', ' + what + ': largest difference', 0, d.reduce((m, v) => Math.max(m, Math.abs(v)), 0), { abs: 0.02 }));
+          checks.push(check(c.name + ', ' + what + ': RMS difference', 0, Math.sqrt(d.reduce((m, v) => m + v * v, 0) / d.length), { abs: 0.005 }));
+        }
+        if (c.B_G < 1000) {
+          const step = (c.nu_Hz[1] - c.nu_Hz[0]) / 1e6, enbw = Iy.reduce((m, v) => m + v, 0) * step / Math.max(...Iy);
+          checks.push(check(c.name + ': equivalent-noise bandwidth', c.enbw_MHz, enbw, { rel: 0.03 }, ' MHz'));
+        }
+        const x = c.nu_Hz.map(nu => (nu - c.v0_Hz) / 1e9);
+        plots.push(plot({ title: c.name + ': ' + c.atom + ' ' + c.line + ', ' + c.L_mm + ' mm, ' + c.T + ' °C, ' + c.B_G + ' G', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'ElecSus, crossed polarisers', x, y: c.Iy, colour: REF_C, width: 3 }, { name: 'JEKray', x, y: Iy, colour: GOT_C, dash: '5 3', width: 1.6 },
+            { name: 'ElecSus, the cell alone', x, y: c.S0, colour: '#9bbbd6', width: 3 }, { name: 'JEKray', x, y: S0, colour: '#b8860b', dash: '5 3', width: 1.4 }] }));
+        benches.push([c.name, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The first run of this case failed badly, and the fault was the reference’s: the script gave ElecSus the cell’s length under a key it does not read (“LCELL” for “lcell”), so ElecSus used its default, 75 mm, whatever the case said. Each circular hand’s susceptibility, which ElecSus reports on its own, agreed with JEKray’s at the stated length, which found it. The rubidium absorption case above had the same mistake without harm, being 75 mm; its reference is unchanged when made again with the right key.' };
+    },
+  },
+  {
+    id: 'davll', area: 'Atoms', title: 'The DAVLL signal against the magnetic field',
+    kind: 'Independent code', ref: 'davll-elecsus.json', script: 'davll_elecsus.py',
+    cite: 'K. L. Corwin, Z.-T. Lu, C. F. Hand, R. J. Epstein and C. E. Wieman, “Frequency-stabilized diode laser with the Zeeman shift in an atomic vapor”, Applied Optics 37, 3295 (1998), the scheme; ElecSus (M. A. Zentile et al., Computer Physics Communications 189, 162 (2015)), the reference signal.',
+    what: 'Corwin et al.’s dichroic atomic vapour laser lock as a bench: linearly polarised light through a 75 mm cell of natural rubidium at 25 °C in a field along it, then a quarter-wave plate at 45°, a polarising cube and a photodiode on each port; the difference of the two photodiodes over the light put in, scanned across the D2 lines at 50, 100 and 200 G. Each circular hand is absorbed by lines the field has moved one way, so the difference swings through zero near each group of lines: the lock points. ElecSus gives the same difference as the Stokes parameter S₃ of the light leaving the cell. Where the signal peaks and dips, and where it crosses zero between each neighbouring peak and dip, are compared, not its depth. (This case was to follow Corwin et al.’s measured signals; the article is not on arXiv and its publisher could not be reached, so ElecSus, itself tested against measured spectra, stands in.) Which port gets which hand depends only on how the cube is turned, so the signal’s overall sign is matched to ElecSus’s once.',
+    tolerance: 'Each zero crossing within 5 MHz of ElecSus’s, each peak and dip within 15 MHz.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      for (const c of R.cases) {
+        const data = bench('DAVLL: natural Rb, 75 mm, 25 °C, ' + c.B_G + ' G', [
+          { type: 'source', name: 'Laser', x: -90, y: 0, angle: 0, wavelength: C_NM(c.v0_Hz), width: 2, gauss: true, w0: 1, pol: 'p', power: 1e-3, rays: 1 },
+          { type: 'cell', name: 'Cell', x: -35, y: 0, angle: 0, length: 25, cellLen: R.lcell_mm, atom: 'Rb', temp: R.T, bField: c.B_G },
+          { type: 'waveplate', name: 'Quarter-wave plate at 45°', x: 20, y: 0, angle: 0, length: 12.7, retard: 0.25, axis: 45 },
+          { type: 'cube', name: 'Polarising cube', x: 50, y: 0, angle: 0, size: 12.7, mode: 'pbs', reflectS: 100, reflectP: 0, coat: { mode: 'ar', R: 0 } },
+          { type: 'detector', name: 'A', x: 85, y: 0, angle: 180, length: 5, material: 'custom', resp: 1 },
+          { type: 'detector', name: 'B', x: 50, y: 35, angle: 270, length: 5, material: 'custom', resp: 1 }]);
+        J.load(data);
+        const ds = [], y = [];
+        for (let d = -4500; d <= 5500; d += 10) {
+          J.setParam('Laser', 'wavelength', C_NM(c.v0_Hz + d * 1e6)); J.trace();
+          ds.push(d); y.push((J.detector('A').mw - J.detector('B').mw) / 1e-3);
+          if (ds.length % 200 === 0) await idle();
+        }
+        // the overall sign: the one that matches ElecSus's signal
+        const ref = ds.map(d => c.S3[Math.round((d - c.det_MHz[0]) / (c.det_MHz[1] - c.det_MHz[0]))]);
+        const sg = ref.reduce((a, v, i) => a + v * y[i], 0) >= 0 ? 1 : -1, g = y.map(v => sg * v), amp = Math.max(...g.map(Math.abs));
+        const ex = []; for (let i = 1; i < g.length - 1; i++) if (((g[i] > g[i - 1] && g[i] >= g[i + 1]) || (g[i] < g[i - 1] && g[i] <= g[i + 1])) && Math.abs(g[i]) > 0.2 * amp) {
+          const a = g[i - 1], b = g[i], cc = g[i + 1]; ex.push([ds[i] + 5 * (a - cc) / (a - 2 * b + cc), b]); }
+        const zc = []; for (let k = 0; k + 1 < ex.length; k++) if (ex[k][1] * ex[k + 1][1] < 0) {
+          for (let i = 0; i + 1 < ds.length; i++) if (ds[i] >= ex[k][0] && ds[i] < ex[k + 1][0] && g[i] * g[i + 1] <= 0 && g[i] !== g[i + 1]) { zc.push(ds[i] - g[i] * 10 / (g[i + 1] - g[i])); break; } }
+        const near = (list, v) => list.reduce((b, q) => Math.abs(q - v) < Math.abs(b - v) ? q : b, Infinity);
+        for (const z of c.zero_crossings_MHz) checks.push(check(c.B_G + ' G: lock point near ' + fmt(z / 1000, 3) + ' GHz', z, near(zc, z), { abs: 5 }, ' MHz'));
+        for (const [e, v] of c.extrema_MHz) checks.push(check(c.B_G + ' G: ' + (v > 0 ? 'peak' : 'dip') + ' near ' + fmt(e / 1000, 3) + ' GHz', e, near(ex.filter(q => q[1] * v > 0).map(q => q[0]), e), { abs: 15 }, ' MHz'));
+        plots.push(plot({ title: 'DAVLL signal, ' + c.B_G + ' G: (A − B) / input', xlabel: 'detuning from the D2 line’s centre (GHz)', ylabel: 'signal',
+          series: [{ name: 'ElecSus (S₃)', x: c.det_MHz.map(d => d / 1000), y: c.S3, colour: REF_C, width: 3 }, { name: 'JEKray', x: ds.map(d => d / 1000), y: g, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.B_G + ' G', data]);
+      }
+      return { checks, benches, plots };
+    },
+  },
+  {
+    id: 'rb-siddons', area: 'Atoms', title: 'Measured absorption of natural rubidium',
+    kind: 'Paper: measured data', ref: 'rb-siddons-2008.json', script: 'siddons_fig8.py',
+    cite: 'P. Siddons, C. S. Adams, C. Ge and I. G. Hughes, “Absolute absorption on rubidium D lines: comparison between theory and experiment”, J. Phys. B 41, 155004 (2008); arXiv:0805.1139, Figure 8.',
+    what: 'The transmission Siddons et al. measured through a 75 mm cell of natural rubidium across the D2 line, at 16.5, 25.0 and 36.6 °C, with a probe weak enough (I/Isat = 0.002) that neither saturation nor optical pumping changes it; read from the paper’s own vector figure (the red measured curves, placed on the axes by the figure’s tick marks) and averaged in 20 MHz bins. JEKray predicts it from the hyperfine lines of both isotopes, their strengths and their Doppler shapes, with nothing fitted. The atom density is the paper’s own: Siddons et al. take it from a vapour-pressure fit (their eq. A.1) that gives 25–30% fewer atoms than Alcock et al.’s, which JEKray uses, and they adjusted the cell temperature in 0.1 °C steps to fit, so their spectra cannot settle which vapour pressure is right. Each bench is therefore set 2.6–3.3 °C below the stated temperature, where Alcock’s gives the paper’s density (the Doppler width then comes out about 0.5% narrower).',
+    tolerance: 'The transmission within 0.01 RMS and 0.03 everywhere, set from how well the atom density of a cell at a stated temperature is known: vapour-pressure compilations differ by tens of per cent, which moves the deep lines at 36.6 °C by a few hundredths.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      // the paper's density (its eq. A.1) at the stated temperature, and the temperature where
+      // Alcock's vapour pressure (JEKray's) gives the same number of atoms
+      const nA1 = Tk => Math.pow(10, -94.04826 - 1961.258 / Tk - 0.03771687 * Tk + 42.57526 * Math.log10(Tk)) / Tk;
+      const nAlc = Tk => Math.pow(10, Math.log10(760) + 4.857 - 4215 / Tk) / Tk;
+      const eqT = Tc => { let lo = Tc + 273.15 - 20, hi = Tc + 273.15; for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (nAlc(m) > nA1(Tc + 273.15)) hi = m; else lo = m; } return (lo + hi) / 2 - 273.15; };
+      for (const c of R.cases) {
+        const Tb = +eqT(c.T).toFixed(3);
+        const data = bench('Rb D2, ' + c.T + ' °C (as ' + Tb.toFixed(2) + ' °C at Alcock’s density), 75 mm (Siddons et al. 2008)', [
+          { type: 'source', name: 'Probe', x: -60, y: 0, angle: 0, wavelength: 780.241, width: 1, rays: 3, pol: 's' },
+          { type: 'cell', name: 'Cell', x: 0, y: 0, angle: 0, atom: 'Rb', line: 'D2', temp: Tb, cellLen: c.L_mm },
+          { type: 'detector', name: 'PD', x: 70, y: 0, angle: 180, length: 10 }]);
+        J.load(data);
+        const T = c.det_GHz.map(d => { const r = J.cellAt('Cell', R.v0_Hz + d * 1e9); return r.amp * r.amp; });
+        const d = T.map((v, i) => v - c.T_trans[i]);
+        const worst = d.reduce((a, v) => Math.max(a, Math.abs(v)), 0), rms = Math.sqrt(d.reduce((a, v) => a + v * v, 0) / d.length);
+        checks.push(check(c.T + ' °C: largest difference from the measured transmission', 0, worst, { abs: 0.03 }));
+        checks.push(check(c.T + ' °C: RMS difference from the measured transmission', 0, rms, { abs: 0.01 }));
+        plots.push(plot({ title: 'Natural Rb D2, ' + c.T + ' °C, 75 mm: measured (Siddons et al.) and JEKray', xlabel: 'detuning (GHz)', ylabel: 'transmission', yMin: 0, yMax: 1,
+          series: [{ name: 'Measured (Siddons et al. 2008)', x: c.det_GHz, y: c.T_trans, colour: REF_C, width: 3 }, { name: 'JEKray', x: c.det_GHz, y: T, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        benches.push([c.T + ' °C', data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'At 36.6 °C the largest difference, on the steep side of the ⁸⁵Rb F = 2 line near +2.05 GHz, comes within a whisker of the limit. Siddons et al.’s own theory (run in ElecSus at the same density) is off by 0.028 at the same point: the measurement there absorbs less than either model, as the paper remarks of its data (it suggests the broad pedestal of the laser’s emission). The atom density of a real cell is the open question behind any absolute prediction: vapour-pressure compilations for solid rubidium differ by 25–35% at room temperature.' };
+    },
+  },
+  {
+    id: 'sat-abs', area: 'Atoms', title: 'Lamb dips and crossovers of rubidium 87: where and how wide',
+    kind: 'Data tables and textbook width', ref: 'sat-abs.json', script: 'sat_abs.py',
+    cite: 'D. A. Steck, “Rubidium 87 D Line Data” (revision 2.3.3, 2024), the 5P₃/₂ hyperfine levels and saturation intensity; W. Demtröder, Laser Spectroscopy (Springer, 4th edition 2008), vol. 2, section 2.2, the Lamb dip’s width.',
+    what: 'A saturated-absorption bench as built on a table: a weak probe (20 nW, 0.3 mm) through a 2 mm cell of ⁸⁷Rb at 25 °C (optically thin, as the textbook width assumes: the pump is barely absorbed along it) to a photodiode, and a pump from the same laser (2 mm) sent back along it by a 50:50 cube, the laser scanned across the D2 lines from F = 2. The photodiode’s reading with the pump on over that with it off (blocked) shows the sub-Doppler features. Where: Lamb dips at F′ = 3, 2 and 1 and crossovers halfway between each pair, from Steck’s hyperfine levels, placed relative to the F′ = 3 dip, and that dip’s own absolute frequency. How wide: a pump of saturation parameter s burns a hole Γ√(1 + s) wide, which the probe (Γ wide) meets at twice the laser’s detuning, so the dip’s full width at half maximum is (Γ + Γ√(1 + s))/2 in the laser’s frequency; for the closed F = 2 → F′ = 3 line with s from Steck’s saturation intensity for π-polarised light (2.503 mW/cm²), at s = 0.2, 1 and 5. JEKray’s depths are only rough (it has no optical pumping between levels), so depths are not compared. (This case was to follow Smith and Hughes’s measured spectra, Am. J. Phys. 72, 631 (2004); the article is not on arXiv and its publisher could not be reached, so it uses the data tables and the textbook result instead.)',
+    tolerance: 'Every feature within 0.3 MHz of Steck’s place; each width within 3%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const nu3 = R.F2_F3_MHz * 1e6;   // Steck's F = 2 -> F' = 3
+      const lam = nu => 299792458e9 / nu;
+      const mk = Pp => bench('Saturated absorption, ⁸⁷Rb D2 (pump ' + fmt(Pp, 3) + ' mW)', [
+        { type: 'source', id: 'probe', name: 'Probe', x: -85, y: 40, angle: 0, wavelength: lam(nu3), width: 0.6, gauss: true, w0: R.probe_w_mm, z0: 0, power: 2e-5, rays: 1, pol: 's' },
+        { type: 'source', id: 'pump', name: 'Pump', x: 52, y: -20, angle: 90, wavelength: lam(nu3), width: 4, gauss: true, w0: R.pump_w_mm, z0: 0, power: Pp, rays: 1, pol: 's', splitFrom: 'probe' },
+        { type: 'cell', name: 'Cell', x: 0, y: 40, angle: 0, length: 25, cellLen: 2, atom: 'Rb87', temp: 25 },
+        { type: 'cube', name: 'Beam splitter, 50:50', x: 52, y: 40, angle: 90, reflect: 50 },
+        { type: 'detector', name: 'Photodiode', x: 92, y: 40, angle: 180, length: 5, material: 'custom', resp: 1 },
+        { type: 'screen', name: 'Pump dump', x: -48, y: 40, angle: 0, length: 6 }, { type: 'screen', name: 'Dump', x: 52, y: 75, angle: 270, length: 6 }, { type: 'screen', name: 'Dump 2', x: 52, y: 10, angle: 90, length: 6 }], { minPower: 1e-6 });
+      // the photodiode with the pump on over off, at laser frequencies nu3 + d (MHz)
+      const sig = async (Pp, ds) => { const on = [], off = [];
+        J.load(mk(Pp));
+        for (let i = 0; i < ds.length; i++) { J.setParam('Probe', 'wavelength', lam(nu3 + ds[i] * 1e6)); J.setParam('Pump', 'power', Pp); J.trace(); on.push(J.detector('Photodiode').mw);
+          J.setParam('Pump', 'power', 0); J.trace(); off.push(J.detector('Photodiode').mw); if (i % 100 === 99) await idle(); }
+        return on.map((v, i) => v / off[i] - 1); };
+      const peakNear = (ds, y, d0, span) => { let k = -1; for (let i = 1; i < ds.length - 1; i++) if (Math.abs(ds[i] - d0) <= span && y[i] >= y[i - 1] && y[i] >= y[i + 1] && (k < 0 || y[i] > y[k])) k = i;
+        if (k < 0) return NaN; const a = y[k - 1], b = y[k], c = y[k + 1], h = ds[1] - ds[0]; return ds[k] + 0.5 * h * (a - c) / (a - 2 * b + c); };
+      // where: a scan at s = 1 across all six
+      const W1 = R.widths.find(w => w.s === 1), dsA = []; for (let d = -445; d <= 20; d += 0.25) dsA.push(d);
+      const yA = await sig(W1.pump_mW, dsA);
+      const f3 = peakNear(dsA, yA, 0, 3);
+      checks.push(check('F′ = 3 dip: its frequency, from Steck’s F = 2 → F′ = 3', 0, f3, { abs: 0.3 }, ' MHz'));
+      for (const F of R.features.slice(1)) checks.push(check(F.name + ', from the F′ = 3 dip', F.MHz, peakNear(dsA, yA, F.MHz, 3) - f3, { abs: 0.3 }, ' MHz'));
+      plots.push(plot({ title: 'Pump on over pump off at the photodiode (s = 1), and Steck’s places', xlabel: 'laser frequency from F′ = 3 (MHz)', ylabel: 'on / off − 1',
+        series: [{ name: 'JEKray', x: dsA, y: yA, colour: GOT_C, width: 1.4 }, { name: 'Steck', x: R.features.map(F => F.MHz), y: R.features.map(() => 0), colour: REF_C, dots: true }] }));
+      benches.push(['Pump at s = 1', mk(W1.pump_mW)]);
+      // how wide: the F' = 3 dip at s = 0.2, 1 and 5
+      const wser = [];
+      for (const Wd of R.widths) {
+        const ds = []; for (let d = -25; d <= 25; d += 0.1) ds.push(d);
+        const y = await sig(Wd.pump_mW, ds), pk = Math.max(...y), half = pk / 2, k = y.indexOf(pk);
+        let a = k; while (a > 0 && y[a] > half) a--; let b = k; while (b < y.length - 1 && y[b] > half) b++;
+        const xa = ds[a] + (half - y[a]) / (y[a + 1] - y[a]) * (ds[a + 1] - ds[a]), xb = ds[b - 1] + (half - y[b - 1]) / (y[b] - y[b - 1]) * (ds[b] - ds[b - 1]);
+        checks.push(check('F′ = 3 dip, full width at half maximum, s = ' + Wd.s, Wd.fwhm_MHz, xb - xa, { rel: 0.03 }, ' MHz'));
+        wser.push({ name: 's = ' + Wd.s, x: ds, y: y.map(v => v / pk), colour: ['#1f6fb2', GOT_C, '#b8860b'][wser.length], width: 1.4 });
+      }
+      plots.push(plot({ title: 'The F′ = 3 dip at three pump powers, each over its peak', xlabel: 'laser frequency from F′ = 3 (MHz)', ylabel: 'on / off − 1, normalised', yMin: 0, yMax: 1, series: wser }));
+      return { checks, benches, plots, notes: 'The first run used a 75 mm cell, whose optical depth on this line is about 2: the pump is absorbed along it, so the saturation the probe meets falls along the cell and the dips came out narrower than the textbook’s uniform s gives (4% at s = 1, 11% at s = 5; the positions all agreed). The textbook width holds only for a thin cell, so the bench now has one, 2 mm long; the tolerance is the one first set. JEKray saturates the F = 2 → F′ = 3 line with s = I × 0.7 / 1.669 mW/cm² (the line’s share of the D2 strength over the saturation intensity of the cycling σ transition), 2.385 mW/cm² in all, 5% below Steck’s 2.503 for π light; at s = 5 that is 1.3% of the width.' };
+    },
+  },
+  {
+    id: 'tweezers', area: 'Optical traps', title: 'A small sphere in a focused beam',
+    kind: 'Paper: forces, exact beam', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
+    cite: 'Y. Harada and T. Asakura, “Radiation forces on a dielectric sphere in the Rayleigh scattering regime”, Optics Communications 124, 529–541 (1996).',
+    what: 'A 30 nm fused-silica sphere in vacuum, in 100 mW of 1064 nm light focused to a 3 µm waist. Harada and Asakura’s gradient force (the sphere’s polarisability from Clausius–Mossotti) pulls it toward the focus, their scattering force pushes it along the beam, so it sits a little past the focus, where the two balance on the axis, and about there it is held with stiffnesses they give across and along the beam. Their forces are applied to the beam worked out exactly (a Gaussian at its waist carried by its exact angular spectrum): at this focus the paraxial Gaussian their closed forms assume is itself off by about 1% along the beam, which is more than the tolerance allows for. JEKray’s sphere trap (a screen at the focus) finds where the force of the field it propagates vanishes and the curvature of the potential there.',
+    tolerance: 'The equilibrium’s distance past the focus within 3%, and the trap frequencies across and along the beam within 2%.',
+    async run(J, R) {
+      const H = R.harada, checks = [];
+      const data = bench('Rayleigh sphere: 30 nm silica, 100 mW at 1064 nm, w₀ = 3 µm (Harada and Asakura 1996)', [
+        { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: H.lambda_nm, width: 0.1, gauss: true, w0: H.w0_um / 1000, z0: 50, popN: 256, pol: 's', rays: 1, power: H.P_mW },
+        { type: 'screen', name: 'Trap', x: 0, y: 0, angle: 180, length: 0.2, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: H.radius_nm, trapRho: H.density, trapMed: 'vacuum' }], { minPower: 1e-6 });
+      J.load(data); const T = J.trap('Trap');
+      checks.push(check('Equilibrium past the focus', H.z_eq_um, T ? T.dz * 1e3 : NaN, { rel: 0.03 }, ' µm'));
+      checks.push(check('Trap frequency across the beam, in the bench plane', H.f_radial_Hz, T ? T.fx : NaN, { rel: 0.02 }, ' Hz'));
+      checks.push(check('Trap frequency across the beam, out of the plane', H.f_radial_Hz, T ? T.fy : NaN, { rel: 0.02 }, ' Hz'));
+      checks.push(check('Trap frequency along the beam', H.f_axial_Hz, T ? T.fz : NaN, { rel: 0.02 }, ' Hz'));
+      const Pp = H.paraxial;
+      return { checks, benches: [['30 nm sphere', data]], notes: 'With the paraxial beam, Harada and Asakura’s forces give ' + fmt(Pp.z_eq_um, 4) + ' µm, ' + fmt(Pp.f_radial_Hz, 4) + ' Hz and ' + fmt(Pp.f_axial_Hz, 4) + ' Hz. The first runs of this case found two faults in JEKray’s traps, both fixed. At a gentle focus the trap summed the beam from its far field as a pupil, taking the paraxial Gaussian there as exact, and lost 2% of its intensity at the focus to obliquity (the screen showed the right one); it now uses the beam’s own propagated field below NA 0.3, as a screen does. And that field was sampled along the beam at least 20 wavelengths apart, most of a Rayleigh range at a tight focus, which made the axial stiffness eight times too large; the spacing is now a fiftieth of the Rayleigh range. The reference was then changed from the paraxial closed forms to the exact beam, when a trap of atoms at the same focus showed JEKray agreeing with the exact beam and the paraxial forms off by 1.3% along it; the tolerances are the ones first set. A 50 nm sphere would not be held along the beam here: its scattering force, which grows as the sixth power of its size, outweighs the gradient’s pull back everywhere on the axis.' };
+    },
+  },
+  {
+    id: 'hu-toam', area: 'Optical traps', title: 'Phase singularities of an offset standing wave',
+    kind: 'Paper: field, exact beams', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
+    cite: 'Y. Hu et al., “Structured transverse orbital angular momentum probed by a levitated optomechanical sensor”, Nature Communications 14, 2638 (2023); arXiv:2209.09759, equations (1)–(3) and Figure 2.',
+    what: 'The trap of Hu et al.: two counter-propagating Gaussian beams of one laser at 1550 nm, 1 µm waists at the same plane, their axes offset by 2δ. Offset, the standing wave’s nodal planes break up into lines of phase singularity, which carry the transverse orbital angular momentum the paper measures with a levitated nanorod: on the midplane the field vanishes only where k(x² + δ²)z/2(z² + z₀²) − atan(z/z₀) + kz = nπ/2 for odd n (their eq. 3, which prints the first term without its ½; their own eqs. 1–2 give it with). Their beams are paraxial Gaussians; at 1 µm waists (they diverge at half a radian) that model is off by several nanometres, so the reference is the same two beams worked out exactly (each a Gaussian at its waist, carried by its exact angular spectrum), their zeros found numerically. JEKray’s close-up field (the two beams added as fields, their polarisation out of the bench plane so the field is the paper’s scalar) is sampled along the axis between the beams, and its zeros found: for δ = 0 (an ordinary standing wave, the control), 0.5 µm (the paper’s Figure 2) and 1.0 µm.',
+    tolerance: 'Each zero within 5 nm of the exact beams’, and dark to within 10⁻³ of the brightest point.',
+    async run(J, R) {
+      const Hu = R.hu, checks = [], benches = [], plots = [];
+      for (const C of Hu.cases) {
+        const dl = C.delta_um / 1000;
+        const data = bench('Offset standing wave, 1550 nm, w₀ = 1 µm, δ = ' + C.delta_um + ' µm (Hu et al. 2023)', [
+          { type: 'source', id: 'A', name: 'Beam A', x: -20, y: -dl, angle: 0, wavelength: Hu.lambda_nm, width: 0.004, gauss: true, w0: Hu.w0_um / 1000, z0: 20, popN: 256, pol: 's', rays: 1, power: 1 },
+          { type: 'source', id: 'B', name: 'Beam B', x: 20, y: dl, angle: 180, wavelength: Hu.lambda_nm, width: 0.004, gauss: true, w0: Hu.w0_um / 1000, z0: 20, popN: 256, pol: 's', rays: 1, power: 1, splitFrom: 'A', splitPhase: 0, splitPath: 0 }], { minPower: 1e-6 });
+        J.load(data); J.trace();
+        const n = 4000, z0 = -0.002, z1 = 0.002, I = J.fieldAlong(z0, 0, z1, 0, n), zs = I.map((_, i) => z0 + (z1 - z0) * i / n), mx = Math.max(...I);
+        const mins = []; for (let i = 1; i < n; i++) if (I[i] < I[i - 1] && I[i] <= I[i + 1] && I[i] < 0.05 * mx) { const a = I[i - 1], b = I[i], c = I[i + 1], h = zs[1] - zs[0]; mins.push([zs[i] + 0.5 * h * (a - c) / ((a - 2 * b + c) || 1), b / mx]); }
+        const tag = 'δ = ' + C.delta_um + ' µm';
+        for (const zr of C.zeros_um) {
+          const m = mins.reduce((best, q) => Math.abs(q[0] * 1e3 - zr) < Math.abs(best[0] * 1e3 - zr) ? q : best, [Infinity, 1]);
+          checks.push(check(tag + ': zero near ' + zr.toFixed(3) + ' µm, where', zr * 1e3, m[0] * 1e6, { abs: 5 }, ' nm'));
+          checks.push(check(tag + ': zero near ' + zr.toFixed(3) + ' µm, how dark (share of the peak)', 0, m[1], { abs: 1e-3 }));
+        }
+        plots.push(plot({ title: 'Along the axis between the beams, ' + tag + ': irradiance and the paper’s zeros', xlabel: 'z (µm)', ylabel: 'irradiance / peak', yMin: 0, yMax: 1,
+          series: [{ name: 'JEKray', x: zs.map(z => z * 1e3), y: I.map(v => v / mx), colour: GOT_C, width: 1.6 }, { name: 'Exact beams: zeros', x: C.zeros_um, y: C.zeros_um.map(() => 0), colour: REF_C, dots: true }] }));
+        benches.push([tag, data]);
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The paraxial model’s zeros (eq. 3 with its ½) lie ' + Hu.cases.map(C => C.paraxial_zeros_um.map((z, i) => Math.abs(z - C.zeros_um[i]) * 1e3).reduce((a, b) => Math.max(a, b), 0).toFixed(1)).join(', ') + ' nm from the exact ones for δ = 0, 0.5 and 1.0 µm. The first runs of this case found a fault in JEKray’s close-up, now fixed: it sampled each beam at only three cuts across the view and fitted a quadratic through them, which for a beam whose Rayleigh range is shorter than the view (2 µm here) misplaced its Gouy phase, and with it the standing wave, by up to 55 nm. It now takes cuts an eighth of the Rayleigh range apart and a cubic between the nearest four. The paper measures the torque this field puts on a silicon nanorod, which JEKray does not model (its traps hold atoms and spheres); the field’s structure, which makes that torque, is what is compared here.' };
+    },
+  },
+  {
+    id: 'polarisability', area: 'Optical traps', title: 'Polarisabilities of the alkali atoms, 700 to 1554 nm',
+    kind: 'Paper: tabulated values', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'M. S. Safronova, B. Arora and C. W. Clark, “Frequency-dependent polarizabilities of alkali-metal atoms from ultraviolet through infrared spectral regions”, Physical Review A 73, 022505 (2006); arXiv:physics/0508087, Table I.',
+    what: 'The ground-state scalar polarisability of sodium, potassium, rubidium and caesium at the twenty wavelengths from 700 to 1554 nm in Safronova et al.’s table, which covers the lasers used for traps (1064, 1550, 980 nm and others) and two wavelengths close to the D lines. Their values sum over the atom’s transitions with measured and all-order matrix elements, and add the ion core. JEKray’s trap readout takes the D1 and D2 lines alone (each with its decay rate, counter-rotating terms included) plus the core’s static polarisability. The table gives wavelengths in air; each is taken to vacuum with the index of standard air (Edlén), which gives back the table’s own frequencies.',
+    tolerance: 'Within 1% of the tabulated value: the transitions beyond the D lines, which JEKray leaves out, give a few tenths of a per cent at these wavelengths.',
+    async run(J, R) {
+      const checks = [], AU = 8.8541878128e-12 / 1.64877727436e-41, map = { Na: 'Na23', K: 'K39', Rb: 'Rb87', Cs: 'Cs133' }, cols = { Na: '#b8860b', K: '#6a3d9a', Rb: '#e4572e', Cs: '#1f6fb2' };
+      const series = [];
+      for (const a of Object.keys(map)) {
+        const xs = [], ys = [];
+        for (const r of R.rows) {
+          const got = J.trapAlpha(map[a], r.lam_vac_nm)[0] * AU;
+          checks.push(check(a + ' at ' + r.lam_air_nm + ' nm (air)', r[a], got, { rel: 0.01 }, ' a.u.'));
+          xs.push(r.lam_air_nm); ys.push(100 * (got / r[a] - 1));
+        }
+        series.push({ name: a, x: xs, y: ys, colour: cols[a], dots: true });
+      }
+      const plots = [plot({ title: 'JEKray against Safronova et al.’s polarisabilities', xlabel: 'wavelength in air (nm)', ylabel: 'difference (%)', yMin: -1, yMax: 1, series })];
+      return { checks, benches: [], plots, notes: 'The two rows near the lines (799.3 and 700 nm) test the D lines’ strengths and their ratio; the rows beyond 900 nm mostly test the core and the counter-rotating terms. Hyperfine structure, which shifts the polarisability near the lines by parts in a thousand, is left out on both sides.' };
+    },
+  },
+  {
+    id: 'tune-out', area: 'Optical traps', title: 'Measured tune-out wavelengths of rubidium and caesium',
+    kind: 'Paper: measured data', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'R. H. Leonard, A. J. Fallon, C. A. Sackett and M. S. Safronova, “High-precision measurement of the ⁸⁷Rb D-line tune-out wavelength”, Physical Review A 92, 052501 (2015), arXiv:1507.07898; A. Ratkata et al., “Measurement of the tune-out wavelength for ¹³³Cs at 880 nm”, Physical Review A 104, 052813 (2021), arXiv:2110.00043.',
+    what: 'Between the D2 and D1 lines the two lines’ light shifts cancel, and an atom feels no force from the light: the tune-out wavelength, measured by atom interferometry (⁸⁷Rb) and Kapitza–Dirac scattering of a condensate (¹³³Cs) to a few tens of femtometres. It sits where it does because of the ratio of the D lines’ strengths and their frequencies from the atoms’ hyperfine level, so it is a sharp test of the line data JEKray’s traps use. The wavelength where JEKray’s polarisability crosses zero is found by bisection.',
+    tolerance: 'Within 0.01 nm (10 pm): JEKray’s line strengths come from the excited states’ lifetimes, whose ratio is known to about 0.1%, which moves the rubidium zero by a few picometres.',
+    async run(J, R) {
+      const checks = [], lines = { Rb87: [780.25, 794.97], Cs133: [852.36, 894.58] };
+      for (const t of R.tuneout) {
+        let [lo, hi] = lines[t.atom]; const f = nm => J.trapAlpha(t.atom, nm, t.F)[0], s0 = Math.sign(f(lo));
+        for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (Math.sign(f(m)) === s0) lo = m; else hi = m; }
+        checks.push(check(t.atom + ', ' + t.state + ': tune-out wavelength', t.nm, (lo + hi) / 2, { abs: 0.01 }, ' nm'));
+      }
+      return { checks, benches: [], notes: 'The first run of this case failed: with the ground state’s hyperfine structure left out, JEKray put caesium’s zero at 880.228 nm, 10.1 pm long of the measurement. Ratkata et al.’s atoms were in F = 3, which lies 5.2 GHz below the ground state’s centroid, so every line they see is 5.2 GHz higher, and the zero with them (13 pm shorter). JEKray’s traps now take the ground hyperfine level (the screen’s Trap tab, Ground state), and each case is run in the paper’s: F = 2 for rubidium, F = 3 for caesium. The tolerance is the one set before that first run.' };
+    },
+  },
+  {
+    id: 'grimm', area: 'Optical traps', title: 'A focused-beam dipole trap for rubidium',
+    kind: 'Paper: closed forms', ref: 'dipole-traps.json', script: 'dipole_traps.py',
+    cite: 'R. Grimm, M. Weidemüller and Yu. B. Ovchinnikov, “Optical dipole traps for neutral atoms”, Advances in Atomic, Molecular and Optical Physics 42, 95–170 (2000); arXiv:physics/9902072, section 4.1.1; with Safronova et al.’s polarisability (above).',
+    what: 'One watt at 1064 nm focused to a 50 µm waist, a screen at the focus set to trap ⁸⁷Rb. Grimm et al.’s red-detuned focused-beam trap: depth α I₀ / 2ε₀c with I₀ = 2P / πw₀², and harmonic frequencies √(4U₀/mw₀²) across and √(2U₀/mz_R²) along, with Safronova et al.’s polarisability at this wavelength. JEKray finds the brightest point of the diffracted field it propagates to the screen and the curvature of the potential there.',
+    tolerance: 'Depth and both trap frequencies within 1%.',
+    async run(J, R) {
+      const G = R.grimm, checks = [];
+      const data = bench('Dipole trap: 1 W at 1064 nm, w₀ = 50 µm, ⁸⁷Rb (Grimm et al. 2000)', [
+        { type: 'source', name: 'Laser', x: -100, y: 0, angle: 0, wavelength: G.lam_vac_nm, width: 0.1, rays: 1, gauss: true, w0: G.w0_um / 1000, z0: 100, pol: 's', power: 1000 * G.P_W, popN: 256 },
+        { type: 'screen', name: 'Trap', x: 0, y: 0, angle: 180, length: 4, absorb: false, trap: G.atom }]);
+      J.load(data);
+      const T = J.trap('Trap');
+      checks.push(check('Trap depth', G.depth_uK, T ? T.depthK * 1e6 : NaN, { rel: 0.01 }, ' µK'));
+      checks.push(check('Radial trap frequency', G.f_radial_Hz, T ? T.fx : NaN, { rel: 0.01 }, ' Hz'));
+      checks.push(check('Axial trap frequency', G.f_axial_Hz, T ? T.fz : NaN, { rel: 0.01 }, ' Hz'));
+      return { checks, benches: [['1 W at 1064 nm, 50 µm', data]] };
+    },
+  },
+  {
+    id: 'gieseler', area: 'Optical traps', title: 'Measured gas damping of a levitated nanosphere',
+    kind: 'Measured: points read from a figure', ref: 'gieseler-2012.json', script: 'gieseler_damping.py',
+    cite: 'J. Gieseler, B. Deutsch, R. Quidant and L. Novotny, “Subkelvin parametric feedback cooling of a laser-trapped nanoparticle”, Physical Review Letters 109, 103603 (2012); arXiv:1202.6435, Figure 4 and equation (3).',
+    what: 'A 69 nm fused-silica sphere held in air at 1064 nm by an objective of NA 0.8. Gieseler et al. measured the damping rate Γ₀ of its motion in x, y and z from 6 × 10⁻⁶ to 200 mbar (their Figure 4, 204 points, read exactly from the vector graphics of the arXiv version). JEKray’s sphere trap, in air at a pressure, damps the sphere by the paper’s own eq. (3), the kinetic-theory interpolation from the viscous to the free-molecular regime through the Knudsen number, with air’s viscosity and mean free path and the sphere’s mass from silica’s density (2200 kg/m³). The trap here is built as the paper’s; the damping is read from its Trap tab at 6.3 mbar, and the same function gives it at every measured pressure. Γ₀/P is compared in three bands: ultrahigh vacuum (below 2 × 10⁻⁴ mbar), free-molecular (10⁻³ to 12 mbar, where Γ₀ ∝ P) and toward the viscous regime (40 to 215 mbar, where the mean free path nears the radius). Beside the measurement, the free-molecular limit is compared with Epstein’s drag on a sphere (Phys. Rev. 23, 710, 1924) for diffusely reflected molecules, Γ₀ = (4π/3)(1 + π/8) R² P √(8m_air/πk_BT) / m, for the same sphere at 295 K.',
+    tolerance: 'In each band, the geometric mean of Γ₀/P over all three directions within 25% of the measured: the sphere’s radius is given as 69 nm and its density is not given (silica nanospheres run from about 1850 to 2200 kg/m³), Γ₀ goes as 1/(ρR), and the pressure gauges are good to 10 to 20%. Epstein’s limit within 3% (eq. 3’s 0.619 is given to three figures, and its viscosity and mean free path are related only approximately).',
+    async run(J, R) {
+      const checks = [], f = 1.5, NA = 0.8;
+      const data = bench('Levitated 69 nm silica sphere in air, NA 0.8 at 1064 nm (Gieseler et al. 2012)', [
+        { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1064, width: 2.5, gauss: true, w0: 1.0, z0: 20, popN: 256, pol: 'p', rays: 1, power: 100 },
+        { type: 'mask', name: 'Objective, f 1.5 mm, NA 0.8', x: 0, y: 0, angle: 0, length: 2 * f * Math.tan(Math.asin(NA)), delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda' },
+        { type: 'screen', name: 'Trap', x: f, y: 0, angle: 180, length: 0.01, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: R.radius_nm, trapMed: 'air', trapP: 6.3 }], { minPower: 1e-6 });
+      J.load(data);
+      const T = J.trap('Trap');
+      const G = P => J.gasDamping(R.radius_nm, T.mass, P, 295).G / (2 * Math.PI);
+      if (Math.abs(T.G / (2 * Math.PI) - G(6.3)) > 1e-9 * G(6.3)) throw new Error('the Trap tab’s damping is not the function’s');
+      const all = ['x', 'y', 'z'].flatMap(a => R.points[a]), gm = v => Math.exp(v.reduce((s, x) => s + Math.log(x), 0) / v.length);
+      for (const b of R.bands) {
+        const pts = all.filter(p => p[0] >= b.lo && p[0] <= b.hi);
+        checks.push(check('Γ₀/2π per mbar, measured, ' + b.name + ' (' + pts.length + ' points, ' + fmt(Math.min(...pts.map(p => p[0])), 2) + ' to ' + fmt(Math.max(...pts.map(p => p[0])), 3) + ' mbar)', gm(pts.map(p => p[1] / p[0])), gm(pts.map(p => G(p[0]) / p[0])), { rel: 0.25 }, ' Hz/mbar'));
+      }
+      checks.push(check('Γ₀/2π per mbar at 10⁻² mbar, Epstein’s free-molecular drag', R.epstein.Hz_per_mbar, G(1e-2) / 1e-2, { rel: 0.03 }, ' Hz/mbar'));
+      const lp = Array.from({ length: 161 }, (_, i) => -5.5 + i * 8.5 / 160), cols = { x: '#1f6fb2', y: '#2e8b57', z: '#e4572e' };
+      const plots = [plot({ title: 'Damping rate Γ₀/2π against pressure: measured (dots) and JEKray (line)', xlabel: 'log₁₀ pressure (mbar)', ylabel: 'Γ₀/2π (Hz)', logY: true,
+        series: [...['x', 'y', 'z'].map(a => ({ name: 'Gieseler et al., ' + a, x: R.points[a].map(p => Math.log10(p[0])), y: R.points[a].map(p => p[1]), colour: cols[a], dots: true })),
+          { name: 'JEKray', x: lp, y: lp.map(l => G(10 ** l)), colour: GOT_C, width: 1.6 }] })];
+      return { checks, benches: [['69 nm sphere at 6.3 mbar', data]], plots, notes: 'The measured damping fails all three bands, and the way it fails says why: Γ₀/P in the data is not constant where eq. (3) makes it so (and Epstein’s drag, independently, agrees with JEKray to ' + fmt(Math.abs(G(1e-2) / 1e-2 / R.epstein.Hz_per_mbar - 1) * 100, 2) + '%). It runs from about 1260 Hz/mbar below 2 × 10⁻⁴ mbar to about 590 from 10⁻³ to 12 mbar, where the particle’s nominal size and silica’s density give 805: there, the data would need ρR about 36% larger than 2200 kg/m³ × 69 nm (a larger sphere, or the pressure read high), and in ultrahigh vacuum 36% smaller (the pressure read low, where a different gauge and residual gas other than air take over). The paper’s own dashed fit is some 20% below eq. (3) with these numbers at 1 mbar. JEKray’s damping is eq. (3) with standard air, which is what the paper says describes its data; this comparison is kept, failing, as the measure of how far a nominal sphere’s damping can be from the one in a trap. At 6.3 mbar the trap gives Γ₀/2π = ' + fmt(G(6.3), 4) + ' Hz (mean free path ' + fmt(T.mfp * 1e9, 3) + ' nm, Kn = ' + fmt(T.Kn, 3) + '), and trap frequencies of ' + [T.fx, T.fy, T.fz].map(v => fmt(v / 1e3, 3)).join(', ') + ' kHz at 100 mW (the paper gives 120, 134 and 37 kHz at a power it does not state; these are not compared). At 10⁻⁵ mbar it gives ' + fmt(1e3 * G(1e-5), 3) + ' mHz; the paper quotes “Γ₀ = 10 mHz, … Q = 10⁷”, rounded. The measured points in the three directions differ from one another by up to 20% at one pressure, and at 7.5 mbar two runs differ by 30%, although Γ₀ should not depend on direction. The paper’s dashed “fit according to Eq. (3)” is not used as a reference: on its log-log axes it is a straight line of slope 0.966, which eq. (3) is not.' };
+    },
+  },
+  {
+    id: 'spm-solitons', area: 'Ultrashort pulses', title: 'Self-phase modulation and solitons',
+    kind: 'Paper: exact solutions', ref: 'spm-solitons.json', script: 'spm_solitons.py',
+    cite: 'R. H. Stolen and C. Lin, “Self-phase-modulation in silica optical fibers”, Physical Review A 17, 1448 (1978); M. J. Potasek, G. P. Agrawal and S. C. Pinault, JOSA B 3, 205 (1986); A. Hasegawa and F. Tappert, Applied Physics Letters 23, 142 (1973); J. Satsuma and N. Yajima, Progress of Theoretical Physics Supplement 55, 284 (1974); L. F. Mollenauer, R. H. Stolen and J. P. Gordon, Physical Review Letters 45, 1095 (1980).',
+    what: 'A 1 ps pulse at 1550 nm through fibre of γ = 1.3 /(W km), by JEKray’s split-step solution of the nonlinear Schrödinger equation, against the equation’s exact solutions. Without dispersion (1 km), Gaussian and sech² pulses at peak nonlinear phases of 0.5π to 4.5π: the pulse keeps its shape and takes a phase in proportion to its intensity, so its spectrum is the transform of a field known exactly, with the M = φ/π + ½ peaks Stolen and Lin saw, and a Gaussian’s rms width grows as √(1 + 4φ²/3√3) (Potasek et al.). In anomalous dispersion (17 ps/(nm km)): the fundamental soliton, whose spectrum should not change over five dispersion lengths (74 m), and the second-order soliton at half its period (11.7 m), whose spectrum splits furthest there, from Satsuma and Yajima’s closed form.',
+    tolerance: 'The rms spectral width within 1% (2% for the second-order soliton); the number of spectral peaks (above 5% of the highest) exactly; the spectrum, its peak 1, within 0.02 of the reference at every point JEKray works it out (0.03 for the second-order soliton).',
+    async run(J, R) {
+      const checks = [], plots = [];
+      const cmp = (row, label, maxTol, rmsTol) => {
+        const r = J.fibreSPM({ disp: row.disp, gamma: R.gamma_W_km }, R.nm, row.len_m, { tau: row.tau_fs, pshape: row.shape || 'sech2', rep: R.rep_MHz }, row.Pavg_W, 0);
+        if (!r) { checks.push(check(label + ': a spectrum', 1, NaN, { abs: 0 })); return null; }
+        const S = r.re.map((v, i) => v * v + r.im[i] * r.im[i]), W = S.map((_, i) => r.d0 + i * r.dd);
+        const refAt = w => { const x = row.w; if (w < x[0] || w > x[x.length - 1]) return 0; let lo = 0, hi = x.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (x[m] > w) hi = m; else lo = m; } const f = (w - x[lo]) / (x[hi] - x[lo]); return row.S[lo] * (1 - f) + row.S[hi] * f; };
+        const worst = S.reduce((a, v, i) => Math.max(a, Math.abs(v - refAt(W[i]))), 0);
+        const peaks = S.filter((v, i) => i > 0 && i < S.length - 1 && v > S[i - 1] && v >= S[i + 1] && v > 0.05).length;
+        checks.push(check(label + ': rms spectral width / the input’s', row.broad_rms, r.broad, { rel: rmsTol }));
+        checks.push(check(label + ': spectral peaks', row.peaks, peaks, { abs: 0 }));
+        checks.push(check(label + ': largest difference in the spectrum', 0, worst, { abs: maxTol }));
+        return { W, S };
+      };
+      const thz = w => w.map(v => v / (2 * Math.PI) * 1000);
+      const bro = { gauss: [], sech2: [] };
+      for (const row of R.spm) {
+        const got = cmp(row, (row.shape === 'gauss' ? 'Gaussian' : 'sech²') + ', φ = ' + row.phi_over_pi + 'π', 0.02, 0.01);
+        bro[row.shape].push(checks[checks.length - 3].got);
+        if (got && row.phi_over_pi === 4.5 && row.shape === 'gauss') plots.push(plot({ title: 'Gaussian pulse, peak nonlinear phase 4.5π, no dispersion', xlabel: 'frequency offset (THz)', ylabel: 'spectrum', yMin: 0, yMax: 1,
+          series: [{ name: 'Exact', x: thz(row.w), y: row.S, colour: REF_C, width: 3 }, { name: 'JEKray', x: thz(got.W), y: got.S, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        await idle();
+      }
+      const ph = R.spm.filter(r => r.shape === 'gauss').map(r => r.phi_over_pi);
+      plots.push(plot({ title: 'Spectral broadening by self-phase modulation', xlabel: 'peak nonlinear phase (π)', ylabel: 'rms width / the input’s',
+        series: [{ name: 'Exact, Gaussian', x: ph, y: R.spm.filter(r => r.shape === 'gauss').map(r => r.broad_rms), colour: REF_C }, { name: 'Exact, sech²', x: ph, y: R.spm.filter(r => r.shape === 'sech2').map(r => r.broad_rms), colour: '#6a3d9a', dash: '4 3' },
+          { name: 'JEKray, Gaussian', x: ph, y: bro.gauss, colour: GOT_C, dots: true }, { name: 'JEKray, sech²', x: ph, y: bro.sech2, colour: '#b8860b', dots: true }] }));
+      for (const row of R.solitons) {
+        const n2 = row.order === 2, got = cmp(row, n2 ? 'Second-order soliton at half its period' : 'Fundamental soliton after five dispersion lengths', n2 ? 0.03 : 0.02, n2 ? 0.02 : 0.01);
+        if (got && n2) plots.push(plot({ title: 'Second-order soliton, half a soliton period (11.7 m)', xlabel: 'frequency offset (THz)', ylabel: 'spectrum', yMin: 0, yMax: 1,
+          series: [{ name: 'Satsuma–Yajima, exact', x: thz(row.w), y: row.S, colour: REF_C, width: 3 }, { name: 'JEKray', x: thz(got.W), y: got.S, colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        await idle();
+      }
+      return { checks, benches: [], plots, notes: 'JEKray’s fibre takes its dispersion as constant in wavelength, which gives it a small third-order dispersion as well (its dispersion length for that is 5 km, against 15 m for the second order); the exact solutions have none. The fibre-solitons example in the gallery shows the same physics on a bench.' };
+    },
+  },
+  {
+    id: 'treacy', area: 'Ultrashort pulses', title: 'Dispersion of a grating-pair compressor',
+    kind: 'Paper: closed forms', ref: 'treacy.json', script: 'treacy.py',
+    cite: 'E. B. Treacy, “Optical pulse compression with diffraction gratings”, IEEE Journal of Quantum Electronics 5, 454–458 (1969).',
+    what: 'A 100 fs pulse through a pair of parallel reflection gratings in the −1 order, one pass, for four compressors: 600 and 1200 lines/mm at 800 nm, 1200 lines/mm at 1030 nm and 940 lines/mm at 1550 nm, at incidence 30° to 60°, 20 to 50 mm apart. Treacy’s phase for the pair, ω b (1 + cos(γ − θ))/c less the grating’s 2πG tan θ/d, differentiated twice gives his closed form for the group-delay dispersion, −λ³G / (2πc²d² cos³θ), and three times the third-order dispersion. JEKray knows no formula for this: it traces reference rays at 33 wavelengths across the pulse’s spectrum and fits their optical paths.',
+    tolerance: 'The GDD within 0.5% and the TOD within 2%: the fit is over the pulse’s bandwidth, where the higher orders of the phase pull a little on both.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const c of R.cases) {
+        const rad = Math.PI / 180, al = (180 - c.gamma_deg + c.theta_deg) * rad, x2 = 60 + c.b_mm * Math.cos(al), y2 = c.b_mm * Math.sin(al);
+        const name = c.lpmm + ' lines/mm at ' + c.nm + ' nm';
+        const data = bench('Treacy grating pair: ' + name + ', incidence ' + c.gamma_deg + '°, G = ' + c.G_mm + ' mm', [
+          { type: 'source', name: 'Pulse', x: 0, y: 0, angle: 0, wavelength: c.nm, width: 2, rays: 3, pol: 's', power: 1000, tau: 100, pshape: 'sech2', rep: 80, gdd0: 0 },
+          { type: 'grating', name: 'Grating 1', x: 60, y: 0, angle: 180 - c.gamma_deg, length: 12, lpmm: c.lpmm, mode: 'reflect', blaze: c.nm, eff: 90 },
+          { type: 'grating', name: 'Grating 2', x: +x2.toFixed(6), y: +y2.toFixed(6), angle: -c.gamma_deg, length: 12, lpmm: c.lpmm, mode: 'reflect', blaze: c.nm, eff: 90 },
+          { type: 'screen', name: 'After', x: +(x2 + 40).toFixed(6), y: +y2.toFixed(6), angle: 180, length: 40 }]);
+        J.load(data);
+        const P = J.pulse('After'), br = P && P.branches.length ? P.branches.reduce((a, b) => b.share > a.share ? b : a) : null;
+        checks.push(check(name + ': GDD', c.GDD_fs2, br ? br.GDD : NaN, { rel: 0.005 }, ' fs²'));
+        checks.push(check(name + ': TOD', c.TOD_fs3, br ? br.TOD : NaN, { rel: 0.02 }, ' fs³'));
+        benches.push([name, data]);
+        await idle();
+      }
+      return { checks, benches };
+    },
+  },
+  {
+    id: 'boyd-kleinman', area: 'Nonlinear optics', title: 'Second-harmonic generation with a focused beam',
+    kind: 'Paper: closed forms', ref: 'boyd-kleinman.json', script: 'boyd_kleinman.py',
+    cite: 'G. D. Boyd and D. A. Kleinman, “Parametric interaction of focused Gaussian light beams”, Journal of Applied Physics 39, 3597–3639 (1968).',
+    what: 'Boyd and Kleinman’s focusing function h(σ, ξ, μ), which sets how much harmonic a focused Gaussian beam makes in a crystal of length L (ξ = L/b, the length over the confocal parameter; μ where the focus sits; σ the phase mismatch), against the same integral done independently by adaptive quadrature: best over σ at eight focusings with the focus centred and offset by half the half-length, and at two fixed mismatches. Their optimum, h = 1.068 at ξ = 2.84 and σ = 0.57, as quoted in the paper. And a bench: 10 mW at 1064 nm focused to ξ = 2.84 at the centre of 50 mm of MgO:PPLN (d_eff 14 pm/V; Gayer et al.’s index), where JEKray takes the beam’s confocal parameter and focus from the traced beam as its faces refract it, and gives η = 16π²d²Lh / (ε₀cλ³n₁n₂) and the harmonic power.',
+    tolerance: 'h within 0.1% and the best σ within 0.01; the optimum within the paper’s last figure (h ± 0.001, ξ ± 0.01, σ ± 0.01); on the bench, ξ within 0.5%, the focus within 0.01 half-lengths of the centre, and the efficiency and harmonic power within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      for (const r of R.rows) {
+        const tag = 'ξ = ' + r.xi + (r.mu ? ', μ = ' + r.mu : '');
+        const B = J.bkBest(r.xi, r.mu);
+        checks.push(check(tag + ': best h', r.h_best, B.h, { rel: 1e-3 }));
+        checks.push(check(tag + ': its σ', r.sigma_best, B.sigma, { abs: 0.01 }));
+        checks.push(check(tag + ': h at σ = 0', r.h_sigma0, J.bkH(0, r.xi, r.mu), { rel: 1e-3 }));
+        checks.push(check(tag + ': h at σ = 1', r.h_sigma1, J.bkH(1, r.xi, r.mu), { rel: 1e-3 }));
+      }
+      // the optimum over the focusing too, by golden section
+      let lo = 2, hi = 4; const f = x => J.bkBest(x, 0).h;
+      for (let i = 0; i < 50; i++) { const m1 = lo + 0.382 * (hi - lo), m2 = lo + 0.618 * (hi - lo); if (f(m1) > f(m2)) hi = m2; else lo = m1; }
+      const xo = (lo + hi) / 2, O = J.bkBest(xo, 0), P = R.optimum.paper;
+      checks.push(check('Optimum: h (Boyd and Kleinman: 1.068)', P.h, O.h, { abs: 0.001 }));
+      checks.push(check('Optimum: ξ (2.84)', P.xi, xo, { abs: 0.01 }));
+      checks.push(check('Optimum: σ (0.57)', P.sigma, O.sigma, { abs: 0.01 }));
+      const Bn = R.bench;
+      const data = bench('SHG: 10 mW at 1064 nm focused to ξ = 2.84 in 50 mm of MgO:PPLN (Boyd and Kleinman)', [
+        { type: 'source', name: 'Nd:YAG', x: -100, y: 0, angle: 0, wavelength: Bn.nm, width: 0.1, rays: 1, gauss: true, w0: Bn.w0_mm, z0: 100 - Bn.L_mm / 2 + Bn.waist_in_air_from_face_mm, pol: 's', power: 1000 * Bn.P1_W },
+        { type: 'nlc', name: 'PPLN', x: 0, y: 0, angle: 0, length: 3, nlLen: Bn.L_mm, material: 'ppln', period: 0, temp: Bn.T, axis: 's', faces: 'ar' },
+        { type: 'screen', name: 'Out', x: 60, y: 0, angle: 180, length: 10 }]);
+      J.load(data); J.trace();
+      const H = J.nlc('PPLN')[0], r = H ? H.r : {};
+      checks.push(check('Bench: ξ from the traced beam', Bn.xi, r.xi, { rel: 5e-3 }));
+      checks.push(check('Bench: focus offset μ', 0, r.mu, { abs: 0.01 }));
+      checks.push(check('Bench: efficiency η', Bn.eta_per_W, r.eta, { rel: 0.01 }, ' /W'));
+      checks.push(check('Bench: harmonic power', Bn.P2_W * 1e6, r.P2 * 1e6, { rel: 0.01 }, ' µW'));
+      benches.push(['10 mW into 50 mm of PPLN', data]);
+      const xs = R.rows.filter(q => !q.mu).map(q => q.xi);
+      const plots = [plot({ title: 'The focusing function, best over σ (focus centred)', xlabel: 'ξ = L / b', ylabel: 'h',
+        series: [{ name: 'Quadrature', x: xs, y: R.rows.filter(q => !q.mu).map(q => q.h_best), colour: REF_C }, { name: 'JEKray', x: xs, y: xs.map(x => J.bkBest(x, 0).h), colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'The harmonic power on the bench is 0.2% under the reference because JEKray’s anti-reflection coated entrance face sends back 0.1% of the fundamental (9.99 mW goes in, and the harmonic goes as its square); the reference takes all 10 mW.' };
+    },
+  },
+  {
+    id: 'rigrod', area: 'Cavities and locking', title: 'A laser’s output against its output coupling',
+    kind: 'Paper: closed form, checked by integration', ref: 'rigrod.json', script: 'rigrod.py',
+    cite: 'W. W. Rigrod, “Saturation effects in high-gain lasers”, Journal of Applied Physics 36, 2487–2490 (1965).',
+    what: 'A laser built of parts: a gain sheet of single-pass small-signal gain ×2 (Nd:YAG’s saturation intensity, 2.9 kW/cm²) 10 mm from a flat 99.5% mirror, and a concave output coupler (R = 500 mm) 250 mm away, at 1064 nm, with a weak seed to find the cavity. Rigrod’s homogeneously saturated gain, both waves saturating it together, gives the output through the coupler exactly for any gain, not only a small one, and with it the threshold and the optimum coupling. JEKray’s cavity panel gives the output through the coupler, and the coupler’s best reflectance. The beam’s area at the gain is πw²/2 for the cavity mode’s radius w there, in both.',
+    tolerance: 'The output within 1% at each coupling from 2% to 65%, none beyond threshold, the optimum coupling within 1% of Rigrod’s, and the photodiode behind the coupler reading the output within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [];
+      const mk = T => bench('Laser, output coupler T = ' + fmt(100 * T, 3) + '% (Rigrod 1965)', [
+        { type: 'source', name: 'Seed', x: -30, y: 0, angle: 0, wavelength: R.nm, width: 0.5, gauss: true, w0: 0.25, z0: 30, rays: 1, pol: 's', power: 0.001 },
+        { type: 'mirror', name: 'Flat mirror, ' + 100 * R.R1 + '%', x: 0, y: 0, angle: 180, length: 12.7, reflect: 100 * R.R1 },
+        { type: 'gain', name: 'Gain', x: R.gain_at_mm, y: 0, angle: 0, length: 6, g0: R.G0, centre: R.nm, fwhm: 0.6, isat: R.isat_kW_cm2 },
+        { type: 'mirror', name: 'Output coupler', x: R.L_mm, y: 0, angle: 180, length: 12.7, reflect: 100 * (1 - T), R: R.Roc_mm },
+        { type: 'detector', name: 'Out', x: R.L_mm + 30, y: 0, angle: 180, length: 8, material: 'custom', resp: 1 }], { maxBounces: 60, minPower: 1e-4 });
+      const outOf = L => L && L.outs && L.outs.find(o => o.name === 'Output coupler');
+      const xs = [], ys = [];
+      let last = null;
+      for (const r of R.rows) {
+        const data = mk(r.T); J.load(data); const L = J.laser(), o = outOf(L);
+        checks.push(check('Output at T = ' + fmt(100 * r.T, 3) + '%', r.P_W * 1e3, o ? o.P * 1e3 : NaN, { rel: 0.01 }, ' mW'));
+        xs.push(100 * r.T); ys.push(o ? o.P : NaN); last = L;
+        if (r.T === 0.2) { benches.push(['T = 20%', data]); J.trace(); checks.push(check('Photodiode behind the coupler at T = 20%', r.P_W * 1e3, J.detector('Out').mw, { rel: 0.01 }, ' mW')); }
+        await idle();
+      }
+      J.load(mk(Math.min(0.99, R.T_threshold + 0.02))); const Lb = J.laser(), ob = outOf(Lb);
+      checks.push(check('Output past threshold (T = ' + fmt(100 * (R.T_threshold + 0.02), 3) + '%)', 0, ob ? ob.P * 1e3 : 0, { abs: 0.01 }, ' mW'));
+      checks.push(check('Optimum output coupling', 100 * R.T_opt, last && last.best ? 100 * (1 - last.best.R) : NaN, { rel: 0.01 }, '%'));
+      const Tc = Array.from({ length: 151 }, (_, i) => 0.5 + i * (100 * R.T_threshold - 0.5) / 150);
+      const rig = T => { const R2 = 1 - T, r1 = Math.sqrt(R.R1), r2 = Math.sqrt(R2); return Math.max(0, R.Psat_W * T * r1 / ((r1 + r2) * (1 - r1 * r2)) * (Math.log(R.G0) + Math.log(r1 * r2))); };
+      const plots = [plot({ title: 'Output power against output coupling', xlabel: 'output coupler transmission (%)', ylabel: 'output (W)', yMin: 0,
+        series: [{ name: 'Rigrod', x: Tc, y: Tc.map(t => rig(t / 100)), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: ys, colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'The first run of this case failed everywhere but at the weakest coupling: 1% low at T = 2%, 10% at 20%, 38% at 65%, and the best coupler put at 5.9% instead of 7.5%. JEKray saturated its gain as if each pass carried the circulating power, a model good only while the gain and the loss are small. It now does what Rigrod’s analysis does: every beam through a gain sheet saturates it together, the product of the two waves is unchanged through it, so both passes see one gain G with ln G = ln G₀ − (G − 1) S / P_sat, S the power entering it on both passes; the loop is walked from the coupler to find S. That is exact for the sheet, and reproduces Rigrod’s closed form to rounding. The tolerance is the one first set. The photodiode reads 0.2% less than the output, its share lost at the coupler’s back surface and on the way.' };
+    },
+  },
+  {
+    id: 'pdh', area: 'Cavities and locking', title: 'The Pound–Drever–Hall error signal',
+    kind: 'Paper: closed forms', ref: 'pdh-black.json', script: 'pdh_black.py',
+    cite: 'E. D. Black, “An introduction to Pound–Drever–Hall laser frequency stabilization”, American Journal of Physics 69, 79–87 (2001); R. W. P. Drever et al., Applied Physics B 31, 97–105 (1983).',
+    what: 'A 1064 nm laser phase-modulated at 20 MHz (β = 0.5, and 1.08 where the second sidebands matter), reflected from a 250 mm cavity (input mirror 99%, end mirror 99.9% curved to 500 mm, the laser mode-matched to it) onto a photodiode. Black’s reflected power, carried to every sideband order: each sideband reflects with the cavity’s own coefficient at its own detuning, and they beat at 20 and 40 MHz. The 20 MHz beat, as a complex amplitude, is the error signal before the mixer. JEKray solves the cavity’s field for the carrier and each sideband and beats the reflected fields on the diode. The detuning is the round-trip phase past resonance, read from JEKray’s own cavity solve as the end mirror is stepped by fractions of a nanometre (the cavity set to “as built”), and shown as the laser frequency’s offset from the cavity’s resonance.',
+    tolerance: 'At 17 detunings across the carrier’s and first sidebands’ resonances: the reflected power within 0.005 mW of 1 mW, and the complex 20 and 40 MHz beats each within 0.01 mW (about 1% of the largest error signal).',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], th = R.theta, fsr = 299792458e3 / (2 * R.L_mm) / 1e6;
+      const E = R.eps, at = (arr, e) => { let lo = 0, hi = E.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (E[m] > e) hi = m; else lo = m; } const f = (e - E[lo]) / (E[hi] - E[lo]); return arr[lo] * (1 - f) + arr[hi] * f; };
+      const wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const mk = (dx, beta) => bench('PDH: 20 MHz, β = ' + beta + ', 250 mm cavity (Black 2001)', [
+        { type: 'source', name: 'Laser', x: -80, y: 0, angle: 0, wavelength: 1064, width: 0.5, rays: 1, gauss: true, w0: 0.290988, z0: 80, pol: 's', power: R.P0_mW, popN: 256 },
+        { type: 'eom', name: 'EOM', x: -60, y: 0, angle: 0, fm: R.fm_Hz / 1e6, beta },
+        { type: 'mirror', name: 'Input mirror', x: 0, y: 0, angle: 0, length: 25, reflect: 100 * R.R1 },
+        { type: 'mirror', name: 'End mirror', x: +(250 + dx).toFixed(9), y: 0, angle: 180, length: 25, reflect: 100 * R.R2, R: 500 },
+        { type: 'detector', name: 'PD', x: -40, y: 0, angle: 0, length: 10, material: 'custom', resp: 1, gain: 1e3, bandwidth: 1e9, demodF: R.fm_Hz / 1e6 }], { minPower: 1e-6, cavityLock: {} });
+      const one = (dx, beta) => { const d = mk(dx, beta); J.load(d); J.setCavityLock('built'); const S = J.pdSignal('PD'), C = J.shownCavity();
+        const t = f => { const q = S.tones.find(x => Math.abs(x.f - f) < 1); return q ? [q.amp * Math.cos(q.ph), q.amp * Math.sin(q.ph)] : [0, 0]; };
+        return { d, eps: -wrap(C.delta - C.dLock), dc: S.dc, t1: t(R.fm_Hz), t2: t(2 * R.fm_Hz) }; };
+      const targets = [-0.3, -th - 0.005, -th, -th + 0.005, -0.1, -0.02, -0.008, -0.004, -0.0015, 0, 0.0015, 0.004, 0.008, 0.02, 0.1, th, 0.3];
+      for (const C of R.cases) {
+        // where the resonance is: the round-trip phase past it grows by 4 pi dx / lambda
+        const a = one(0, C.beta), k = 4 * Math.PI / 1064e-6;
+        const xs = [], y1 = [], y2 = [];
+        for (const e of targets) {
+          const g = one((e - a.eps) / k, C.beta), tag = 'β = ' + C.beta + ', ' + (g.eps * fsr / (2 * Math.PI)).toFixed(3) + ' MHz';
+          const r1 = [at(C.T1re, g.eps), at(C.T1im, g.eps)], r2 = [at(C.T2re, g.eps), at(C.T2im, g.eps)];
+          checks.push(check(tag + ': reflected power', at(C.dc, g.eps), g.dc, { abs: 0.005 }, ' mW'));
+          checks.push(check(tag + ': 20 MHz beat, off by', 0, Math.hypot(g.t1[0] - r1[0], g.t1[1] - r1[1]), { abs: 0.01 }, ' mW'));
+          checks.push(check(tag + ': 40 MHz beat, off by', 0, Math.hypot(g.t2[0] - r2[0], g.t2[1] - r2[1]), { abs: 0.01 }, ' mW'));
+          xs.push(g.eps * fsr / (2 * Math.PI)); y1.push(g.t1[0]); y2.push(g.t1[1]);
+          if (e === 0) benches.push(['β = ' + C.beta + ', on resonance', g.d]);
+          await idle();
+        }
+        const X = E.map(e => e * fsr / (2 * Math.PI));
+        plots.push(plot({ title: 'The 20 MHz beat in reflection, β = ' + C.beta + ': its two quadratures', xlabel: 'laser detuning from resonance (MHz)', ylabel: 'beat (mW)',
+          series: [{ name: 'Black, all orders: in phase', x: X, y: C.T1re, colour: REF_C, width: 2 }, { name: 'quadrature', x: X, y: C.T1im, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray: in phase', x: xs, y: y1, colour: GOT_C, dots: true }, { name: 'quadrature', x: xs, y: y2, colour: '#b8860b', dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The first two runs of this case failed, and found two faults in JEKray, both fixed. A sideband was taken round the cavity as if it were on the other side of the laser (a +20 MHz sideband met the cavity as the laser lowered by 20 MHz would; the reflected power, symmetric in the two, did not show it). And every beat note’s phase had the wrong sign (lengthening a fibre after a modulator advanced the beat instead of delaying it). Both are now regression tests. In phase and quadrature are against the modulation, the power holding |A| cos(Ωt + arg A): the mixer at 90° reads the quadrature, the steep error signal through resonance. Black’s formula, like this reference, leaves out the radio-frequency delay of the path from the modulator to the diode (100 mm here, 2.4° at 20 MHz), and so does JEKray in free space.' };
+    },
+  },
+  {
+    id: 'photonic', area: 'Photonic circuits (experimental)', title: 'Rings, a Mach–Zehnder and a directional coupler on a chip, and two circuits in SAX',
+    kind: 'Closed forms and SAX', ref: 'photonic-circuits.json', script: 'photonic_circuits.py',
+    cite: 'W. Bogaerts et al., “Silicon microring resonators”, Laser & Photonics Reviews 6, 47–73 (2012); A. Yariv, “Universal relations for coupling of optical power between microresonators and dielectric waveguides”, Electronics Letters 36, 321–322 (2000); F. Laporte et al., SAX, github.com/flaport/sax (0.18.2).',
+    what: 'JEKray’s photonic circuits, an experimental feature, solve a chip at each wavelength as one linear system over all its ports. Against closed forms: an all-pass ring (radius 10 µm, silicon strip: n_eff 2.44, n_g 4.2, 2 dB/cm) coupled 10% and just over critical coupling, its through power from 1545 to 1555 nm, and from 1535 to 1565 nm each line’s centre, depth and full width at half depth, the free spectral range, and the ring panel’s own closed-form readout of the range and the width; an add-drop ring (10% and 10%, 15% and 5%), its through and drop powers; a Mach–Zehnder of two 50% couplers with arms of 300 and 100 µm, against wavelength, and with equal arms and a phase shifter from 0° to 360°; and a directional coupler, 30% at 1550 nm changing by 2%/nm with 0.5 dB excess loss, from 1540 to 1560 nm. Against SAX, whose own waveguide model and circuit solver (closing the rings’ loops itself) make an independent calculation: a 1×2 MMI into two arms, one past an all-pass ring, the other through a phase shifter at 60°, meeting in a dispersive coupler, both outputs; and an add-drop ring of radius 20 µm built from two couplers and two half-rings.',
+    tolerance: 'Each power, at every wavelength or phase, within 1 × 10⁻⁹ of its closed form and within 1 × 10⁻⁶ of SAX; each line’s centre within 1 × 10⁻⁴ nm, its depth within 0.02 dB and its width within 0.5% (as the spectrum view measures them), the free spectral range within 1 × 10⁻⁴ nm, and the panel’s approximate range and width at 1550 nm within 1% of those measured on the closed form nearest 1550 nm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], lams = R.lams;
+      const pow = z => z[0] * z[0] + z[1] * z[1];
+      const P = (a, pa, b, pb, ls) => J.pic.response(a, pa, b, pb, ls || lams).map(pow);
+      const worst = (ref, got) => ref.reduce((m, r, i) => Math.max(m, Math.abs(got[i] - r)), 0);
+      const chip = (name, elements, fibres) => bench(name, elements.map(e => Object.assign({ type: 'pic', y: 0, angle: 0 }, e)), { fibres: fibres || [] });
+      const wg = (a, pa, b, pb, len) => ({ a: [a, pa], b: [b, pb], wg: { preset: 'si', len } });
+      const sub = (arr, k) => arr.filter((_, i) => i % k === 0);
+      // all-pass rings
+      for (const C of R.allpass) {
+        const tag = 'All-pass ring, ' + fmt(100 * C.kappa, 3) + '%';
+        const d = chip(tag, [{ kind: 'ring', id: 'R', name: 'Ring', x: 0, radius: C.R_um, kappa1: 100 * C.kappa }]);
+        J.load(d); benches.push([tag, d]);
+        const T = P('Ring', 0, 'Ring', 1);
+        checks.push(check(tag + ': through power, largest difference', 0, worst(C.T, T), { abs: 1e-9 }, ''));
+        const L = J.pic.lines('Ring', 0, 'Ring', 1, C.span[0], C.span[1], 20001);
+        C.lines.forEach((q, i) => {
+          const g = L.list.reduce((a, x) => Math.abs(x.at - q.at) < Math.abs(a.at - q.at) ? x : a, L.list[0] || { at: NaN });
+          const at = ' at ' + fmt(q.at, 7) + ' nm';
+          checks.push(check(tag + ': line' + at + ', centre', q.at, g.at, { abs: 1e-4 }, ' nm'));
+          checks.push(check(tag + ': line' + at + ', depth', q.er_dB, g.er, { abs: 0.02 }, ' dB'));
+          checks.push(check(tag + ': line' + at + ', width', q.fwhm * 1e3, (g.fwhm || NaN) * 1e3, { rel: 0.005 }, ' pm'));
+        });
+        checks.push(check(tag + ': lines found', C.lines.length, L.list.length, { abs: 0 }, ''));
+        checks.push(check(tag + ': free spectral range', C.fsr, L.fsr, { abs: 1e-4 }, ' nm'));
+        const mid = C.lines.reduce((a, q) => Math.abs(q.at - 1550) < Math.abs(a.at - 1550) ? q : a), rd = J.pic.ring('Ring');
+        const near = C.lines.filter(q => q !== mid).reduce((a, q) => Math.abs(q.at - mid.at) < Math.abs(a.at - mid.at) ? q : a);
+        checks.push(check(tag + ': panel’s free spectral range', Math.abs(near.at - mid.at), rd.fsr, { rel: 0.01 }, ' nm'));
+        checks.push(check(tag + ': panel’s line width', mid.fwhm * 1e3, rd.fw * 1e3, { rel: 0.01 }, ' pm'));
+        if (C.kappa === 0.1) plots.push(plot({ title: 'All-pass ring, 10%: through power', xlabel: 'wavelength (nm)', ylabel: 'through', yMin: 0.86, yMax: 1.07,
+          series: [{ name: 'closed form', x: lams, y: C.T, colour: REF_C, width: 2.4 }, { name: 'JEKray', x: sub(lams, 25), y: sub(T, 25), colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      // add-drop rings
+      for (const C of R.adddrop) {
+        const tag = 'Add-drop ring, ' + fmt(100 * C.kappa1, 3) + '% and ' + fmt(100 * C.kappa2, 3) + '%';
+        const d = chip(tag, [{ kind: 'ringad', id: 'R', name: 'Ring', x: 0, radius: C.R_um, kappa1: 100 * C.kappa1, kappa2: 100 * C.kappa2 }]);
+        J.load(d); if (!benches.some(b => b[0].startsWith('Add-drop'))) benches.push([tag, d]);
+        checks.push(check(tag + ': through power, largest difference', 0, worst(C.through, P('Ring', 0, 'Ring', 1)), { abs: 1e-9 }, ''));
+        checks.push(check(tag + ': drop power, largest difference', 0, worst(C.drop, P('Ring', 0, 'Ring', 3)), { abs: 1e-9 }, ''));
+        await idle();
+      }
+      // Mach-Zehnder against wavelength
+      {
+        const M = R.mzi, d = chip('Mach–Zehnder, arms ' + M.L1_um + ' and ' + M.L2_um + ' µm', [{ kind: 'dc', id: 'D1', name: 'DC 1', x: -30 }, { kind: 'dc', id: 'D2', name: 'DC 2', x: 30 }],
+          [wg('D1', 2, 'D2', 0, M.L1_um), wg('D1', 3, 'D2', 1, M.L2_um)]);
+        J.load(d); benches.push(['Mach–Zehnder', d]);
+        const bar = P('DC 1', 0, 'DC 2', 2), cross = P('DC 1', 0, 'DC 2', 3);
+        checks.push(check('Mach–Zehnder: bar power, largest difference', 0, worst(M.bar, bar), { abs: 1e-9 }, ''));
+        checks.push(check('Mach–Zehnder: cross power, largest difference', 0, worst(M.cross, cross), { abs: 1e-9 }, ''));
+        const Q = R.mzi_phase, bp = [], cp = [];
+        for (const ph of Q.phases) {
+          J.load(chip('Mach–Zehnder, phase ' + ph + '°', [{ kind: 'dc', id: 'D1', name: 'DC 1', x: -30 }, { kind: 'ps', id: 'H', name: 'Heater', x: 0, y: 5, phase: ph, len: Q.L_um }, { kind: 'dc', id: 'D2', name: 'DC 2', x: 30 }],
+            [wg('D1', 2, 'H', 0, 0), wg('H', 1, 'D2', 0, 0), wg('D1', 3, 'D2', 1, Q.L_um)]));
+          bp.push(P('DC 1', 0, 'DC 2', 2, [1550])[0]); cp.push(P('DC 1', 0, 'DC 2', 3, [1550])[0]);
+        }
+        checks.push(check('Mach–Zehnder with a phase shifter, 0° to 360°: bar power, largest difference', 0, worst(Q.bar, bp), { abs: 1e-9 }, ''));
+        checks.push(check('and cross power', 0, worst(Q.cross, cp), { abs: 1e-9 }, ''));
+        plots.push(plot({ title: 'Mach–Zehnder at 1550 nm against its phase shifter', xlabel: 'phase added (°)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'closed form: bar', x: Q.phases, y: Q.bar, colour: REF_C, width: 2.4 }, { name: 'cross', x: Q.phases, y: Q.cross, colour: '#6a3d9a', width: 2.4, dash: '4 3' },
+            { name: 'JEKray: bar', x: Q.phases, y: bp, colour: GOT_C, dots: true }, { name: 'cross', x: Q.phases, y: cp, colour: '#b8860b', dots: true }] }));
+      }
+      // directional coupler
+      {
+        const D = R.dc, d = chip('Directional coupler', [{ kind: 'dc', id: 'D', name: 'DC', x: 0, kappa: D.kappa, dkappa: D.dkappa, loss: D.loss_dB }]);
+        J.load(d); benches.push(['Directional coupler', d]);
+        checks.push(check('Directional coupler, 1540 to 1560 nm: through power, largest difference', 0, worst(D.through, P('DC', 0, 'DC', 2, D.lams)), { abs: 1e-9 }, ''));
+        checks.push(check('and cross power', 0, worst(D.cross, P('DC', 0, 'DC', 3, D.lams)), { abs: 1e-9 }, ''));
+      }
+      await idle();
+      // SAX circuit A: MMI, ring, phase shifter, dispersive coupler
+      {
+        const A = R.saxA, d = chip('MMI, ring and phase shifter into a coupler (as in SAX)', [
+          { kind: 'mmi12', id: 'S', name: 'Split', x: -40, loss: 0.2 }, { kind: 'ring', id: 'R', name: 'Ring', x: 0, y: 8, radius: 10, kappa1: 10 },
+          { kind: 'ps', id: 'H', name: 'Heater', x: 0, y: -8, phase: 60, len: 100 }, { kind: 'dc', id: 'J', name: 'Join', x: 40, kappa: 50, dkappa: 1, loss: 0 }],
+          [wg('S', 1, 'R', 0, 400), wg('R', 1, 'J', 0, 0), wg('S', 2, 'H', 0, 100), wg('H', 1, 'J', 1, 0)]);
+        J.load(d); benches.push(['Circuit A (SAX)', d]);
+        const o1 = P('Split', 0, 'Join', 2), o2 = P('Split', 0, 'Join', 3);
+        checks.push(check('SAX circuit A: output 1, largest difference', 0, worst(A.o1, o1), { abs: 1e-6 }, ''));
+        checks.push(check('SAX circuit A: output 2, largest difference', 0, worst(A.o2, o2), { abs: 1e-6 }, ''));
+        plots.push(plot({ title: 'Circuit A: an MMI, a ring and a phase shifter into a coupler', xlabel: 'wavelength (nm)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'SAX: output 1', x: lams, y: A.o1, colour: REF_C, width: 2 }, { name: 'output 2', x: lams, y: A.o2, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray: output 1', x: sub(lams, 25), y: sub(o1, 25), colour: GOT_C, dots: true }, { name: 'output 2', x: sub(lams, 25), y: sub(o2, 25), colour: '#b8860b', dots: true }] }));
+      }
+      {
+        const B = R.saxB, d = chip('Add-drop ring, R 20 µm (as in SAX)', [{ kind: 'ringad', id: 'R', name: 'Ring', x: 0, radius: B.R_um, kappa1: 100 * B.kappa1, kappa2: 100 * B.kappa2 }]);
+        J.load(d); benches.push(['Circuit B (SAX)', d]);
+        const T = P('Ring', 0, 'Ring', 1), Dr = P('Ring', 0, 'Ring', 3);
+        checks.push(check('SAX circuit B, add-drop ring: through, largest difference', 0, worst(B.through, T), { abs: 1e-6 }, ''));
+        checks.push(check('and drop, largest difference', 0, worst(B.drop, Dr), { abs: 1e-6 }, ''));
+        plots.push(plot({ title: 'Circuit B: an add-drop ring, R = 20 µm, 15% and 5%', xlabel: 'wavelength (nm)', ylabel: 'power out', yMin: 0, yMax: 1.55,
+          series: [{ name: 'SAX: through', x: lams, y: B.through, colour: REF_C, width: 2 }, { name: 'drop', x: lams, y: B.drop, colour: '#6a3d9a', width: 2, dash: '4 3' },
+            { name: 'JEKray: through', x: sub(lams, 25), y: sub(T, 25), colour: GOT_C, dots: true }, { name: 'drop', x: sub(lams, 25), y: sub(Dr, 25), colour: '#b8860b', dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The field in JEKray goes as exp(−ikz) and a coupler crosses with +i; SAX’s goes as exp(+ikz) and its couplers cross with −i, the complex conjugate, so every power is the same while each field is the other’s conjugate. In SAX the waveguides are its own model; the couplers, the MMI and the phase shifter are written in the script to JEKray’s compact models (a coupler’s power coupling changes linearly with wavelength, the MMI is flat), so what SAX checks is the circuit: the ports joined, the loops closed and solved. The widths and depths are measured on the spectrum as JEKray’s spectrum view does: a line’s depth against the highest point between it and its neighbours, its width at half that depth. The panel’s range and width come from λ²/(n_g L) and the finesse π√x/(1 − x), x the round trip’s field, which leave out how the range grows with the wavelength: the lines either side of the one near 1550 nm are 9.041 and 9.148 nm from it, and the panel’s 9.104 nm falls between; it is checked against the nearer of the two. The differences of about 5 × 10⁻¹³ in the powers are the reference file’s rounding to 12 digits. Photonic circuits are experimental: switch them on under Experimental features to add parts; the benches above open with or without it.' };
+    },
+  },
+];
+
+/* ---------- Running and reporting ---------- */
+
+const casesBox = document.getElementById('cases'), sum = document.getElementById('sum'), meta = document.getElementById('meta'), runBtn = document.getElementById('run');
+function cardFor(C) {
+  const card = h('section', { class: 'vd-case', id: C.id },
+    h('h3', null, C.title, h('span', { class: 'vd-badge kind' }, C.kind), h('span', { class: 'vd-badge run', 'data-state': '' }, 'waiting')),
+    h('p', { class: 'vd-cite' }, C.cite),
+    h('p', null, h('b', null, 'What is compared. '), C.what),
+    h('p', null, h('b', null, 'Tolerance, set before the first run. '), C.tolerance),
+    C.pending ? h('p', { class: 'note' }, C.pending) : null,
+    h('div', { class: 'vd-body' }));
+  return card;
+}
+function render(C, card, out, err) {
+  const badge = card.querySelector('[data-state]'), body = card.querySelector('.vd-body');
+  body.replaceChildren();
+  if (err) { badge.className = 'vd-badge fail'; badge.textContent = 'did not run'; body.append(h('p', { class: 'note' }, 'The case stopped: ' + err.message)); return false; }
+  const fails = out.checks.filter(c => !c.ok).length;
+  badge.className = 'vd-badge ' + (fails ? 'fail' : 'pass');
+  badge.textContent = fails ? fails + ' of ' + out.checks.length + ' outside tolerance' : 'all ' + out.checks.length + ' within tolerance';
+  const rows = out.checks.map(c => h('tr', { class: c.ok ? null : 'bad' }, h('td', null, c.label), h('td', { class: 'n' }, fmt(c.ref) + c.unit), h('td', { class: 'n' }, fmt(c.got) + c.unit),
+    h('td', { class: 'n' }, (c.diff >= 0 ? '+' : '') + fmt(c.diff, 3) + c.unit), h('td', { class: 'n' }, c.tolText), h('td', { class: c.ok ? 'ok' : 'no' }, c.ok ? '✓' : '✗')));
+  if (out.plots && out.plots.length) body.append(h('div', { class: 'vd-plots' }, out.plots));
+  const table = h('div', { class: 'vd-scroll' }, h('table', { class: 'vd-table' },
+    h('thead', null, h('tr', null, ['Quantity', 'Reference', 'JEKray', 'Difference', 'Tolerance', ''].map(t => h('th', null, t)))), h('tbody', null, rows)));
+  // the closest any check came to its tolerance, as a share of it
+  const worst = out.checks.reduce((a, c) => { const r = c.lim > 0 ? Math.abs(c.diff) / c.lim : (c.diff === 0 ? 0 : Infinity); return r > a.r ? { r, c } : a; }, { r: -1, c: null });
+  const closest = worst.c ? 'Closest to its tolerance: ' + worst.c.label + ', ' + (Number.isFinite(worst.r) ? fmt(100 * worst.r, 2) + '% of it' : 'no value') + '.' : '';
+  if (out.checks.length > 8) body.append(h('details', { class: 'vd-details', open: fails > 0 }, h('summary', null, 'All ' + out.checks.length + ' checks. ' + closest), table));
+  else body.append(table, h('p', { class: 'vd-closest' }, closest));
+  if (out.notes) body.append(h('p', { class: 'note' }, out.notes));
+  body.append(h('div', { class: 'vd-links' },
+    h('span', null, 'Open a bench in JEKray: '), ...(out.benches || []).map(([name, data]) => h('a', { href: benchLink(data), target: '_blank', rel: 'noopener' }, name)),
+    h('a', { href: 'validation/ref/' + C.ref }, 'Reference data'), h('a', { href: 'validation/scripts/' + C.script }, 'Script that made it')));
+  return fails === 0;
+}
+async function runAll() {
+  const J = document.getElementById('rig').contentWindow.JEKray;
+  if (!J) { sum.textContent = 'JEKray did not load.'; sum.className = 'vd-sum fail'; return; }
+  runBtn.disabled = true;
+  casesBox.replaceChildren();
+  // ?case=id,id runs only those cases
+  const only = (new URLSearchParams(location.search).get('case') || '').split(',').filter(Boolean);
+  const CASES = only.length ? ALL_CASES.filter(C => only.includes(C.id)) : ALL_CASES;
+  let area = null;
+  const cards = CASES.map(C => { if (C.area !== area) { area = C.area; casesBox.append(h('h2', { class: 'area' }, area)); } const c = cardFor(C); casesBox.append(c); return c; });
+  const t0 = performance.now();
+  let pass = 0, nChecks = 0, nBad = 0;
+  for (let i = 0; i < CASES.length; i++) {
+    const C = CASES[i], card = cards[i];
+    sum.textContent = 'Running ' + (i + 1) + ' of ' + CASES.length + ': ' + C.title + '…'; sum.className = 'vd-sum';
+    card.querySelector('[data-state]').textContent = 'running…';
+    await idle();
+    let out = null, err = null;
+    try { out = await C.run(J, await loadRef(C.ref)); } catch (e) { err = e; }
+    if (render(C, card, out, err)) pass++;
+    if (out) { nChecks += out.checks.length; nBad += out.checks.filter(c => !c.ok).length; }
+  }
+  const all = pass === CASES.length;
+  sum.textContent = pass + ' of ' + CASES.length + ' cases within tolerance (' + (nChecks - nBad) + ' of ' + nChecks + ' checks)';
+  sum.className = 'vd-sum ' + (all ? 'pass' : 'fail');
+  meta.textContent = 'JEKray ' + (J.version ? J.version() : '') + ' · run ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s';
+  runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runAll);
+document.getElementById('rig').addEventListener('load', () => setTimeout(runAll, 300));
+</script>
+</body>
+</html>

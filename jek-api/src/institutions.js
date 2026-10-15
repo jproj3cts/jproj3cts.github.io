@@ -493,7 +493,7 @@ export async function opsAdmin(req, env, id) {
   const body = await readBody(req);
   const email = String(body.email || '').trim().toLowerCase();
   const u = await env.DB.prepare('SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL ORDER BY created_at LIMIT 1').bind(email).first();
-  if (!u) throw new ApiError(404, 'not_found', `No account has the email ${email}. They sign in to JEKray2D once first.`);
+  if (!u) throw new ApiError(404, 'not_found', `No account has the email ${email}. They sign in to JEKray once first.`);
   if (body.remove) await env.DB.prepare("DELETE FROM members WHERE workspace_id = ? AND user_id = ? AND role = 'admin'").bind(id, u.id).run();
   else {
     await env.DB.prepare("INSERT OR IGNORE INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'admin', 0, ?)")
@@ -547,7 +547,7 @@ export async function adminGet(env, user, id, t = now()) {
     domains: d.domains,
     orgs: orcidOn(env) ? d.orgs : [], // ORCID matching is off (src/orcid.js)
     tenants: d.tenants,
-    // for their IT: approves JEKray2D's Microsoft sign-in for everyone there
+    // for their IT: approves JEKray's Microsoft sign-in for everyone there
     microsoft_approval: d.tenants.length ? adminConsentUrl(env, d.tenants[0]) : null,
     invites,
   };

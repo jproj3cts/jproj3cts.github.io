@@ -1,0 +1,1142 @@
+# JEKray: a guide for AI assistants
+
+This file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version 1.
+
+Read all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.
+
+## What JEKray is
+
+- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.
+- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.
+- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.
+- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.
+- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.
+
+It works in 3D: every free-space part is placed freely in space, by its x and y, its height "z" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).
+
+## How to work
+
+1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.
+2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different "z", as in a periscope.
+3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.
+4. **Record your assumptions.** Put in "notes" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.
+5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
+6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.
+
+## The file
+
+A `.jekray` file is one JSON object:
+
+```json
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Short title of the bench",
+  "notes": "What it is, where it comes from, what was assumed.",
+  "elements": [ ... ],
+  "fibres": [ ... ]
+}
+```
+
+| field | meaning |
+|---|---|
+| format | always "jekray" |
+| version | {{VERSION}} |
+| name | the project's title |
+| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |
+| elements | the elements (see the reference) |
+| fibres | optional: fibres between ports, each {"a": [element id, port], "b": [element id, port], "len": metres, "loss": dB/km, "disp": ps/(nm km) or leave out for standard single-mode fibre, "gamma": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), "ftype": "smf" (keeps polarisation, the default) or "random" (standard fibre as laid, with a "seed") or "pm" (with "key" degrees, "beat" mm and "per" dB) or "mm" (multimode), "conn": its ends, "splice" (no reflection, the default), "pc" or "apc" connectors (45 or 65 dB return loss) or "flat" cleaves (4%), "path": [{"x", "y"}, ...]} |
+| benches | optional, for several tabs: [{"id": "b1", "name": "Laser table"}, ...]; then give each element "bench": its tab's id |
+| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |
+| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |
+| view | optional: {"cx", "cy", "scale"}. Leave it out and the tool fits the view |
+| style | optional: the bench's look, {"bg": a colour "#rrggbb" (dark as it is; light, such as "#ffffff" for a figure, drawn light with dark lines), "holes": false to hide the grid holes}. Leave it out for the dark breadboard |
+| light | optional: how the light is shown, for every source alike: {"rays": false to hide the rays, "envelope": false to hide the Gaussian beams' outlines, "field": true to show the diffracted field, "scale": "lin", "log" (30 dB) or "log60" (60 dB) for the field}. Leave it out for rays and envelopes |
+
+Give every element a unique "id" (short words like "laser" or "m1" are best) and a clear "name". Fibres and split sources refer to elements by id; a name also works.
+
+A free-space part may also take "z": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take "tip": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take "roll": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens’s power, a grating’s grooves (rolled 90°, its orders go up and down), a waveplate’s or polariser’s axis (as for an isolator’s polarisers: a roll r acts as "axis" less r, so rolling one with a rolled source keeps them aligned), a crystal’s optic axis (a beam displacer rolled 90° walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism’s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower "tip": 45 and the upper, at its own "z", "tip": -45, facing the way the beam is to leave. A source may take "pattern": "cross", "grid" or "hex" (hexapolar rings) to spread its rays up and down the beam as well as across it ("line", the default, keeps them in the plane).
+
+## Coordinates and angles
+
+This is where most mistakes happen. "angle" means different things for different elements:
+
+| elements | "angle" is |
+|---|---|
+| source | the direction the light leaves in |
+| mirror, grating | the direction the reflecting face points: its normal, towards the light |
+| screen, detector, fibre tip | the direction the face points: towards the light arriving |
+| lens | the direction of its axis; light travelling that way meets surfaces[0] first |
+| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |
+| isolator | its forward direction: light travelling along it passes |
+| cube | turns the diagonal: at 0 it runs like "/" |
+
+Rules for folding a beam:
+
+- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.
+- **Cube at angle 0** ("/"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** ("\"): +x reflects to −y.
+- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.
+- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.
+
+Signs:
+
+- **Mirror "R"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.
+- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{"R": 51.5}, {"R": −51.5}]; a plano-convex lens with its curved side first is [{"R": 51.5}, {"R": null}].
+- A source's **"z0"** is how far ahead of the source its waist is.
+- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes "pol": "s" or "p" (or "linear" with "polAngle" counted from p); a fibre laser takes "pol": "s", "p", "linear" (with "polAngle" counted from s), "rcp" or "lcp". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.
+
+## Building blocks
+
+- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {"type": "lens", "diameter": 25.4, "surfaces": [{"R": 51.5}, {"R": null}], "gaps": [3.6], "materials": [{"glass": "N-BK7"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.
+- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {"type": "mask", "name": "Objective, f 3 mm, NA 0.8", "length": 2 × f × tan(asin(NA)), "delay": "-(sqrt(r^2+9)-3)/lambda"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.
+- **Gaussian laser:** {"type": "source", "gauss": true, "w0": waist radius mm, "z0": mm to the waist, "wavelength": nm, "power": mW, "pol": "s", "rays": 1, "width": 2 × w0}. To see the diffracted beam, give the file "light": {"field": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.
+- **Collimated launch from a fibre:** a fibre tip ("fibre") joined to a fibre network, facing a lens one focal length away.
+- **Two beams from one laser:** give the second source "splitFrom": the first's id. They then interfere, with "splitPhase" (degrees) and "splitPath" (mm of extra fibre) between them, and fringes wash out over the laser's "coh".
+- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.
+- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set "maxBounces" to about 40 and "minPower" to 1e-4.
+- **Photodiode signals:** a "detector" (free space) or an fcomp "pd" (fibre) reads DC and beat notes. "demodF" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.
+- **Short pulses:** give a source (or a fibre laser) "tau" in fs, with "pshape", "rep" and "power" as the average power. Glass, prisms, gratings, chirped mirrors ("gdd" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by "blaze"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.
+- **A laser from parts:** a gain element ("g0", "isat", "centre" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.
+- **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell ("bField", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.
+- **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
+- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on) or to "sphere" with "trapMat", "trapR" (nm) and "trapMed". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of "Water" so the optics are right too.
+- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a "divergence" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field ("abAng" degrees, or "abH" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a "stop" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.
+- **Frequency doubling:** a Gaussian laser focused into an "nlc" (a periodically poled crystal: "material" "ppln" or "ppktp", "nlLen" mm, "temp" °C, "axis" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave "period" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass "filter". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.
+- **Self-phase modulation and solitons:** a pulsed fibre laser ("tau", "rep", "power") into fibre long and strong enough for a nonlinear phase (standard fibre has "gamma" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.
+- **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
+- **Millimetre waves (RF):** a feed horn is a source with "mmw": {"kind": "corrugated" (or "smooth", "diagonal", "gauss"), "ghz": frequency, 1 to 3000, "dbm": power, "a": aperture radius mm, "L": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with "mmw": {"kind", "a", "L"}, "material": "custom" and "resp" in A/W; it reads the power its mode takes in. An RF lens is a lens with "mmw": {}, drawn white, and takes the RF dielectrics as its glass: "HDPE", "PTFE", "Rexolite", "TPX", "HR silicon", "Fused quartz (RF)", "Alumina", "Nylon". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them "mmw": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).
+- **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
+
+## Checklist
+
+Before you answer, check each of these:
+
+- [ ] Every element's "type" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.
+- [ ] Every "id" is unique; every fibre end and "splitFrom" names an existing element; every fibre uses a port that exists, and no port twice.
+- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.
+- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.
+- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.
+- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in "z".
+- [ ] "notes" records the source, every assumption, anything simplified to fit the plane, and parts to check.
+- [ ] The output is a single valid JSON object: no comments, no trailing commas.
+
+## The import report
+
+When a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.
+
+## Part packs
+
+A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File → Part packs…** and then add from **+ Add part → Packs**. A pack is one JSON object, {"format": "jekpack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
+
+## Element reference
+
+Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.
+
+### "source": Source
+
+A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.
+
+**angle:** the direction the light leaves in (0 = travelling +x).
+
+| field | default | meaning |
+|---|---|---|
+| wavelength | `633` | nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw). |
+| width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
+| divergence | `0` | degrees, full angle of the fan; negative converges. |
+| gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
+| w0 | `0.35` | mm: the 1/e² waist radius. |
+| z0 | `0` | mm: how far ahead of the source the waist is (negative: behind it). |
+| popN | `256` | grid points for the field: 128, 256, 512 or 1024. |
+| popModel | `"auto"` | "auto" (round when it can be) or "2d". |
+| traceRays | `true` | false hides the ray fan. |
+| pol | `"unpolarised"` | "unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle). |
+| polAngle | `45` | degrees from p, for pol "linear". |
+| lines | `[]` | extra wavelengths in nm, up to 12. |
+| rays | `11` | number of rays in the fan, 1 to 501 (use 1 to 11 with gauss). |
+| power | `1` | mW. |
+| coh | `0` | coherence length in mm, with cmode "line"; 0 for a single frequency. |
+| splitFrom | `null` | id of another source this one is split from (same laser, so they interfere); null for a laser of its own. |
+| splitPhase | `0` | degrees of phase against the source it is split from. |
+| splitPath | `0` | mm of extra fibre before this launch, against the other. |
+| lineshape | `"lorentz"` | "lorentz" or "gauss": the laser line’s shape, with coh. |
+| cmode | `"single"` | "single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere). |
+| bw | `40` | bandwidth in nm (FWHM), with cmode "broad": the coherence length is wavelength² / bw. |
+| m2 | `1` | beam quality M² ≥ 1. |
+| tem | `"gauss"` | "gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2. |
+| hm | `1` | HG m: nodes across the beam in the bench plane, 0–10. |
+| hn | `0` | HG n: nodes out of the bench plane, 0–10. |
+| lp | `0` | LG p: radial order (rings), 0–10. |
+| ll | `1` | LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it. |
+| tau | `0` | fs: a mode-locked laser’s pulse duration (intensity FWHM at its transform limit); 0 for a continuous laser. Its bandwidth then sets coh. |
+| pshape | `"sech2"` | "sech2" or "gauss": the pulse’s shape. |
+| rep | `80` | MHz: the repetition rate (power is the average power). |
+| gdd0 | `0` | fs²: the chirp the pulse leaves the laser with (0 at its transform limit). |
+| fibre | (none) | optional {"core": µm, "na": NA}: a launch from a single-mode fibre, which sets w0 and z0 itself. |
+
+### "mirror": Mirror
+
+A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.
+
+**angle:** the direction its reflecting face points (its normal, towards the light it reflects).
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm: the mirror’s width across the bench. |
+| reflect | `100` | % reflected, 0 to 100 (the rest is transmitted). |
+| offset | `0` | mm: an off-axis segment of the parent surface, this far from its vertex. |
+| k | `0` | conic constant (0 sphere, −1 paraboloid). |
+| R | `null` | mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex. |
+| gdd | `0` | fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror. |
+| mapScale | `"lin"` | "lin" or "log": the irradiance map of the light arriving (its Diffraction tab, as a screen’s). |
+| vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams arriving. |
+| mtfFreq | `50` | lp/mm at which its Diffraction tab quotes the MTF. |
+
+### "lens": Lens
+
+A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.
+
+**angle:** the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.
+
+| field | default | meaning |
+|---|---|---|
+| diameter | `25.4` | mm. |
+| surfaces | two flat surfaces | list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream). |
+| gaps | `[3]` | mm: centre thicknesses between successive surfaces (one fewer than surfaces). |
+| materials | `[{"glass":"N-BK7"}]` | one material per gap, e.g. {"glass": "N-BK7"}. |
+| cyl | (none) | optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it. |
+| design | (none) | optional: nm, the wavelength the lens was designed for (an imported lens file’s primary wavelength); for the reader only, it changes nothing in the trace. |
+
+### "screen": Screen
+
+A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.
+
+**angle:** the direction its face points: towards the light it records.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm: the width of its face. |
+| R | `null` | mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat. |
+| binWidth | `0` | mm for the binned intensity; 0 chooses. |
+| binInterp | `true` | true interpolates the rays into the bins. |
+| mapScale | `"lin"` | "lin" or "log" irradiance map. |
+| vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams. |
+| trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "Na23") or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. |
+| trapF | `"avg"` | for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres). |
+| trapMat | `"Fused silica"` | the sphere’s glass ("Fused silica", "Polystyrene" and so on). |
+| trapR | `100` | the sphere’s radius, nm. |
+| trapRho | `2200` | its density, kg/m³. |
+| trapMed | `"bench"` | "bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP). |
+| trapP | `1013.25` | air pressure, mbar: sets the gas damping and quality factors. |
+| trapT | `295` | temperature (K): the depth in kT and the gas. |
+| mtfFreq | `50` | lp/mm at which the MTF is quoted. |
+| abSrc | `""` | the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen). |
+| abAng | `2` | its largest field angle, degrees, for a collimated source. |
+| abH | `1` | its largest object height, mm, for a diverging source (a point object). |
+| abN | `7` | fields across, 3 to 21. |
+| abRays | `61` | rays in each field’s fan, odd, 11 to 401. |
+
+### "stop": Stop
+
+An aperture: iris, slit, double slit, slit comb, knife edge or beam block.
+
+**angle:** its normal: 0 for a beam travelling ±x (the blades then lie along y).
+
+| field | default | meaning |
+|---|---|---|
+| aperture | `5` | mm: the opening (an iris’s diameter, a slit’s width). |
+| outer | `25.4` | mm: the outer size (a beam block’s diameter). |
+| shape | `"round"` | one of the stop shapes below. |
+| sep | `0.5` | mm: a double slit’s centre-to-centre separation. |
+| pitch | `0.2` | mm: a slit comb’s pitch. |
+| count | `5` | a comb’s number of slits, 2 to 400. |
+| offset | `0` | mm: the opening’s centre along the stop. |
+| height | `0` | mm: a slit’s height out of the plane (0 unlimited). |
+| side | `1` | 1 or −1: which side a knife edge covers. |
+
+### "cube": Beam splitter cube
+
+A beam-splitter cube: non-polarising ("npbs", reflect %) or polarising ("pbs", reflectS/reflectP %).
+
+**angle:** turns its internal diagonal. At 0 the diagonal runs like "/": light travelling +x reflects to +y, travelling −x reflects to −y, and it transmits straight on. At 90 the diagonal is "\": +x reflects to −y.
+
+| field | default | meaning |
+|---|---|---|
+| size | `12.7` | mm edge length. |
+| mode | `"npbs"` | "npbs" or "pbs". |
+| reflect | `50` | % reflected, for "npbs". |
+| reflectS | `99` | % of s reflected, for "pbs". |
+| reflectP | `1` | % of p reflected, for "pbs". |
+| material | `{"glass":"N-BK7","abs":0}` | e.g. {"glass": "N-BK7"}. |
+| coat | `{"mode":"bare","R":4}` | coating on its outer faces (see Coatings). |
+
+### "prism": Prism
+
+A glass prism or window.
+
+**angle:** rotates the prism about its centre; check the result on the bench.
+
+| field | default | meaning |
+|---|---|---|
+| shape | `"right"` | one of the prism shapes below. |
+| size | `20` | mm. |
+| thickness | `5` | mm (for a window). |
+| material | `{"glass":"N-BK7","abs":0}` | e.g. {"glass": "N-BK7"}. |
+| coat | `{"mode":"bare","R":4}` | coating on its faces. |
+
+### "waveplate": Waveplate
+
+A waveplate (retardance in waves).
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25.4` | mm aperture. |
+| retard | `0.25` | retardance in waves (0.25 quarter-wave, 0.5 half-wave, or any value). |
+| axis | `45` | degrees: the fast axis from p. |
+
+### "polariser": Polariser
+
+A linear polariser.
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25.4` | mm aperture. |
+| axis | `0` | degrees: the transmission axis from p (0 passes p, 90 passes s). |
+
+### "mask": Mask
+
+A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective.
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25.4` | mm aperture. |
+| amp | `"1"` | amplitude transmission as a formula in x (mm along the mask), y (mm out of the plane), r, theta, lambda (mm) and pi; e.g. "1" or "circ(r/2)". |
+| delay | `"0"` | delay in waves as a formula in the same variables. An ideal lens of focal length f mm: "-(sqrt(r^2+f^2)-f)/lambda" (write f as a number). |
+| preset | `"custom"` | leave "custom". |
+
+### "grating": Grating
+
+A diffraction grating, reflecting or transmitting.
+
+**angle:** the direction its ruled face points (like a mirror for mode "reflect").
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm. |
+| lpmm | `600` | lines per mm. |
+| mode | `"reflect"` | "reflect" or "transmit". |
+| blaze | `500` | nm blaze wavelength. |
+| eff | `80` | % into the first order at the blaze. |
+
+### "fibre": Fibre
+
+A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.
+
+**angle:** the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.
+
+| field | default | meaning |
+|---|---|---|
+| length | `2.5` | mm: the ferrule face width. |
+| core | `4.4` | µm core diameter (mode field set from core and NA). |
+| na | `0.12` | numerical aperture. |
+| emitRays | `5` | rays in the fan it sends out, 0 to 51. |
+| mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
+
+### "detector": Photodetector
+
+A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output.
+
+**angle:** the direction its face points: towards the light.
+
+| field | default | meaning |
+|---|---|---|
+| length | `3.6` | mm: the active area’s diameter. |
+| material | `"si"` | one of the detector materials below. |
+| resp | `0.5` | A/W, used when material is "custom". |
+| gain | `10000` | V/A transimpedance. |
+| bandwidth | `1000000` | Hz. |
+| dark | `1` | nA dark current. |
+| ampNoise | `2` | pA/√Hz input noise. |
+| vmax | `10` | V output limit. |
+| demodF | `0` | MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal. |
+| demodPhase | `0` | degrees: the mixer’s phase. |
+
+### "faraday": Faraday rotator
+
+A Faraday rotator (non-reciprocal).
+
+**angle:** its normal, and the direction of its magnetic field: the sense of rotation depends on the direction of travel against it.
+
+| field | default | meaning |
+|---|---|---|
+| length | `5` | mm aperture. |
+| rotation | `45` | degrees of rotation. |
+
+### "isolator": Optical isolator
+
+An optical isolator (polariser, 45° Faraday rotator, polariser).
+
+**angle:** its forward direction: light travelling along the angle passes, light travelling against it is blocked.
+
+| field | default | meaning |
+|---|---|---|
+| length | `5` | mm aperture. |
+| axis | `0` | degrees: the input polariser from p. |
+| extinction | `40` | dB, 0 to 80. |
+
+### "stl": STL object
+
+An STL object: an opaque shape brought in from a .stl file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open ▾ → Import an object (.stl), or drop the file on the bench.
+
+**angle:** the way the object’s own +x (as in its file) points; its tip and roll turn it as any part’s.
+
+| field | default | meaning |
+|---|---|---|
+| mesh | `null` | its triangles, written by the tool when a .stl file is imported: leave it out. |
+| units | `"mm"` | the file’s units: "mm", "cm", "m", "in", or "other" with "scale". |
+| scale | `1` | mm per unit of the file, with "units": "other". |
+
+### "crystal": Crystal
+
+A birefringent crystal: beam displacer, Wollaston prism or Glan–Taylor polariser.
+
+**angle:** the direction of its entrance face’s normal (0 for light travelling ±x).
+
+| field | default | meaning |
+|---|---|---|
+| shape | `"displacer"` | one of the crystal shapes below. |
+| crystal | `"calcite"` | one of the crystals below. |
+| size | `10` | mm aperture. |
+| length | `10` | mm length along the beam. |
+| axisAngle | `45` | degrees: the optic axis from the normal, for a displacer. |
+| wedge | `30` | degrees: the wedge angle, for Wollaston and Glan–Taylor. |
+
+### "filter": Filter
+
+A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm aperture. |
+| ftype | `"longpass"` | one of the filter types below. |
+| edge | `600` | nm: the edge of a long- or short-pass. |
+| slope | `10` | nm: the 10–90% width of the edge. |
+| centre | `550` | nm: a band-pass centre. |
+| fwhm | `10` | nm: a band-pass width. |
+| od | `1` | optical density of an "nd" filter: it transmits 10^−od. |
+| tmax | `95` | % peak transmission. |
+| reflect | `false` | true: what it rejects is reflected (a dichroic) rather than absorbed. |
+
+### "gain": Gain medium
+
+A thin gain medium with a Lorentzian gain line that saturates: in a cavity above threshold the laser settles at its output power and the output leaves each partly transmitting mirror as a beam.
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `6` | mm: its aperture across the beam (it is a thin sheet). |
+| g0 | `1.2` | small-signal single-pass power gain at the line centre (×); the pump sets it. |
+| isat | `2.9` | kW/cm² saturation intensity (Nd:YAG 2.9, Ti:sapphire 200, Yb:YAG 10); 0: no saturation. Above threshold the cavity settles at the power where the saturated gain balances the loss, and the output leaves each partly transmitting mirror as a beam. |
+| centre | `1064` | nm line centre. |
+| fwhm | `30` | nm line width. |
+
+### "cell": Vapour cell
+
+An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light’s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source’s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).
+
+**angle:** its axis: 0 for a beam travelling ±x (the cell lies along x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm: the window diameter. |
+| cellLen | `75` | mm along the beam (75 is usual). |
+| atom | `"Rb"` | "Rb" (natural), "Rb85", "Rb87", "Cs" or "K". |
+| line | `"D2"` | "D2" or "D1". |
+| temp | `25` | °C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60). |
+| bField | `0` | gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none. |
+
+### "nlc": Nonlinear crystal
+
+A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the frequency of light polarised along its z axis: the second harmonic leaves as a beam of its own, from Boyd and Kleinman’s theory for the focusing, the poling period and the temperature, and the fundamental leaves depleted. Put a lens before it so the beam focuses in its middle.
+
+**angle:** its axis: 0 for a beam travelling ±x (the crystal lies along x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `3` | mm: the aperture across the beam. |
+| nlLen | `20` | mm along the beam (10 to 50 is usual). |
+| material | `"ppln"` | "ppln" (MgO:PPLN, d_eff 14 pm/V) or "ppktp" (d_eff 9.5 pm/V). |
+| period | `0` | poling period, µm; 0 (the default) picks the best period for the beam through it. |
+| temp | `40` | °C: tunes the phase matching (PPLN is usually run hot, 40 to 200). |
+| axis | `"s"` | "s" (z axis out of the bench plane: s light converts) or "p". |
+| faces | `"ar"` | "ar" (end faces anti-reflection coated, 0.1%; the default) or "bare". |
+
+### "link": Link plane
+
+One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.
+
+**angle:** its normal. Light crossing one plane of a pair leaves its partner (on another tab) the same way relative to that plane.
+
+| field | default | meaning |
+|---|---|---|
+| length | `25` | mm width. |
+| pair | `"Link 1"` | the pair’s name: exactly two link planes share it, one on each tab. |
+
+### "aom": Acousto-optic modulator
+
+A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.
+
+**angle:** its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.
+
+| field | default | meaning |
+|---|---|---|
+| length | `4` | mm aperture. |
+| rf | `80` | MHz drive: the order is shifted by this. |
+| v | `4200` | m/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear). |
+| eff | `80` | % into the order. |
+| order | `1` | +1 or −1. |
+
+### "eom": Electro-optic modulator
+
+A free-space electro-optic modulator: phase (sidebands) or amplitude modulation.
+
+**angle:** its normal: 0 for a beam travelling ±x.
+
+| field | default | meaning |
+|---|---|---|
+| length | `4` | mm aperture. |
+| fm | `20` | MHz drive. |
+| beta | `1.08` | modulation depth in radians. |
+| emode | `"phase"` | "phase" (sidebands) or "amplitude". |
+| bias | `90` | degrees, for "amplitude". |
+| loss | `0` | dB insertion loss. |
+
+### "chopper": Optical chopper
+
+An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open).
+
+**angle:** its blade’s normal: 0 (or 180) across a beam travelling along x, as a stop.
+
+| field | default | meaning |
+|---|---|---|
+| length | `10` | mm aperture across the beam. |
+| f | `1000` | Hz, the chopping frequency. |
+| duty | `50` | % of each cycle open. |
+| phase | `0` | degrees: when in the cycle it opens, against t = 0 (0: opens at t = 0). |
+
+### "draw": Drawing
+
+A drawing for figures: a rectangle, an ellipse, a path of Bézier curves or a text, filled and stroked like an SVG shape. The light passes through it as if it were not there. Its shape is in its own frame, centred on x, y.
+
+**angle:** turns the drawing about its x, y.
+
+| field | default | meaning |
+|---|---|---|
+| shape | `"rect"` | "rect", "ellipse", "path" or "text". |
+| fill | `"none"` | "#rrggbb", or "none" (a text’s colour). |
+| fillOpacity | `1` | 0 to 1. |
+| stroke | `"#e8edf0"` | "#rrggbb", or "none". |
+| strokeOpacity | `1` | 0 to 1. |
+| strokeWidth | `0.5` | mm. |
+| dash | `"solid"` | "solid", "dash", "long", "dot" or "dashdot". |
+| cap | `"butt"` | "butt", "round" or "square". |
+| join | `"miter"` | "miter", "round" or "bevel". |
+| opacity | `1` | 0 to 1: the whole drawing. |
+| layer | `"under"` | "under" the beams and parts, or "over" them. |
+| w | `20` | mm, a rectangle’s width. |
+| h | `12` | mm, a rectangle’s height. |
+| r | `0` | mm, a rectangle’s corner radius. |
+| rx | (none) | mm, an ellipse’s radius along x. |
+| ry | (none) | mm, an ellipse’s radius along y. |
+| nodes | (none) | a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged. |
+| closed | (none) | true joins a path’s last node to its first. |
+| text | (none) | a text’s words; \n starts a new line. x, y is where its first line starts, is centred or ends (align), on its baseline. |
+| size | (none) | mm, a text’s font size. |
+| font | (none) | "sans", "serif" or "mono". |
+| bold | (none) | true for bold text. |
+| italic | (none) | true for italic text. |
+| align | (none) | "left", "center" or "right". |
+| m | (none) | optional [a, b, c, d]: a skew (or scale) on the shape before its angle, x′ = a x + c y, y′ = b x + d y; left out, none. |
+
+## Fibre components ("type": "fcomp")
+
+Fibre components sit on the bench like any element (x, y, angle, name, id) and are joined by fibres from port to port. Give "kind" and its parameters; each port takes one fibre. At angle 0 the ports on the left are inputs and those on the right outputs, numbered from 0 in the order listed.
+
+### kind "laser": Fibre laser
+
+**ports:** 0 = out
+
+| field | default | meaning |
+|---|---|---|
+| wavelength | `1550` | Wavelength (nm) |
+| power | `1` | Power (mW) |
+| coh | `0` | Coherence length (mm) |
+| polAngle | `0` | Polarisation angle from s (°), for pol "linear" |
+| tau | `0` | Pulse duration (fs; 0: continuous) |
+| rep | `80` | Repetition rate (MHz) |
+| gdd0 | `0` | Chirp at the laser (fs²) |
+| pol | `"s"` | "s" (out of the plane), "p" (in it), "linear" (at polAngle from s), "rcp" or "lcp" (circular, right- or left-handed), or "unpolarised" |
+| lineshape | `"lorentz"` | "lorentz" or "gauss" |
+| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |
+| bw | `40` | nm, FWHM, with cmode "broad" |
+| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |
+| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |
+
+### kind "coupler": 2×2 coupler
+
+**ports:** 0 = 1, 1 = 2, 2 = 3, 3 = 4
+
+| field | default | meaning |
+|---|---|---|
+| ratio | `50` | Coupled across (%) |
+| loss | `0` | Excess loss (dB) |
+
+### kind "split": Splitter
+
+**ports:** 0 = common, then 1 to ways = the branches. "combine": true turns it round, an N×1 combiner with its common port on the right
+
+| field | default | meaning |
+|---|---|---|
+| ways | `2` | Branches |
+| loss | `0.2` | Excess loss (dB) |
+
+### kind "star": Star coupler
+
+**ports:** 0 = in 1, 1 = in 2, 2 = out 1, 3 = out 2
+
+| field | default | meaning |
+|---|---|---|
+| ins | `2` | Inputs |
+| outs | `4` | Outputs |
+| loss | `0.3` | Excess loss (dB) |
+
+### kind "pbs": Polarisation beam splitter
+
+**ports:** 0 = common, 1 = along, 2 = across
+
+| field | default | meaning |
+|---|---|---|
+| axis | `0` | Axis (° from s) |
+| extinction | `25` | Extinction (dB) |
+| loss | `0.5` | Insertion loss (dB) |
+
+### kind "depol": Depolariser
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| dgd | `5` | Delay between axes (ps) |
+| loss | `0.3` | Insertion loss (dB) |
+
+### kind "fmir": Fibre mirror
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| rmax | `50` | Reflectance (%) |
+| loss | `0` | Excess loss (dB) |
+
+### kind "switch": Optical switch
+
+**ports:** 0 = 1, 1 = 2, 2 = 3, 3 = 4
+
+| field | default | meaning |
+|---|---|---|
+| cross | `0` | State (0 bar, 1 cross) |
+| loss | `0.8` | Insertion loss (dB) |
+| xt | `50` | Crosstalk (dB) |
+
+### kind "delay": Variable delay line
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| delay | `0` | Delay (ps) |
+| loss | `1` | Insertion loss (dB) |
+
+### kind "stretch": Fibre stretcher
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| phase | `0` | Phase (°) |
+| vpi | `2` | Vπ (V) |
+| loss | `0.1` | Insertion loss (dB) |
+| (electrical) | | its drive input: π of phase per Vpi volts on top of "phase" |
+
+### kind "tbf": Tunable filter
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| centre | `1550` | Centre (nm) |
+| fwhm | `1` | Width (nm) |
+| loss | `1` | Insertion loss (dB) |
+
+### kind "osa": Optical spectrum analyser
+
+**ports:** 0 = in
+
+| field | default | meaning |
+|---|---|---|
+| rbw | `0.1` | Resolution (nm) |
+| wmin | `0` | From (nm; 0: auto) |
+| wmax | `0` | To (nm; 0: auto) |
+| ref | `10` | Top (dBm) |
+| dbdiv | `10` | dB per division |
+
+### kind "wdm": WDM
+
+**ports:** 0 = common, 1 = pass, 2 = rest
+
+| field | default | meaning |
+|---|---|---|
+| centre | `1550` | Pass band centre (nm) |
+| fwhm | `20` | Pass band width (nm) |
+| loss | `0.3` | Insertion loss (dB) |
+
+### kind "circ": Circulator
+
+**ports:** 0 = 1, 1 = 2, 2 = 3
+
+| field | default | meaning |
+|---|---|---|
+| loss | `0.8` | Insertion loss (dB) |
+| iso | `40` | Isolation (dB) |
+
+### kind "iso": Isolator
+
+**ports:** 0 = in, 1 = out
+
+| field | default | meaning |
+|---|---|---|
+| loss | `0.5` | Insertion loss (dB) |
+| iso | `40` | Isolation (dB) |
+
+### kind "voa": Attenuator
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| att | `3` | Attenuation (dB) |
+
+### kind "pc": Polarisation controller
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| a1 | `0` | Paddle 1, λ/4 (°) |
+| a2 | `0` | Paddle 2, λ/2 (°) |
+| a3 | `0` | Paddle 3, λ/4 (°) |
+
+### kind "pol": In-line polariser
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| axis | `0` | Axis (° from s) |
+| extinction | `30` | Extinction (dB) |
+| loss | `0.5` | Insertion loss (dB) |
+
+### kind "fm": Faraday mirror
+
+**ports:** 0 = in
+
+| field | default | meaning |
+|---|---|---|
+| rmax | `99` | Reflectance (%) |
+| loss | `0` | Extra loss (dB) |
+
+### kind "fbg": Fibre Bragg grating
+
+**ports:** 0 = 1, 1 = 2
+
+| field | default | meaning |
+|---|---|---|
+| centre | `1550` | Bragg wavelength (nm) |
+| fwhm | `0.5` | Bandwidth (nm) |
+| rmax | `90` | Peak reflectance (%) |
+
+### kind "term": Terminator
+
+**ports:** 0 = in
+
+| field | default | meaning |
+|---|---|---|
+| rl | `60` | Return loss (dB) |
+
+### kind "pd": Fibre photodetector
+
+**ports:** 0 = in
+
+| field | default | meaning |
+|---|---|---|
+| resp | `1` | Responsivity (A/W) |
+| gain | `10000` | Gain (V/A) |
+| vmax | `10` | Output limit (V) |
+| bandwidth | `1000000000` | Bandwidth (Hz) |
+| dark | `1` | Dark (nA) |
+| ampNoise | `2` | Noise (pA/√Hz) |
+| demodF | `0` | Demod. at (MHz) |
+| demodPhase | `0` | Demod. phase (°) |
+| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in −, reading the first’s light less the second’s |
+| cmrr | `30` | dB, a balanced detector’s common-mode rejection of excess noise |
+
+### kind "thru": Feedthrough
+
+**ports:** 0 = port. Also "pair": a name shared by exactly two feedthroughs on different tabs, which then join as if by one fibre.
+
+### kind "aom": Fibre AOM
+
+**ports:** 0 = in, 1 = out
+
+| field | default | meaning |
+|---|---|---|
+| rf | `80` | Drive (MHz) |
+| order | `1` | Order (+1 or −1) |
+| loss | `2.5` | Insertion loss (dB) |
+
+### kind "eom": Fibre EOM
+
+**ports:** 0 = in, 1 = out
+
+| field | default | meaning |
+|---|---|---|
+| fm | `1000` | Drive (MHz) |
+| beta | `1.08` | Depth β (rad) |
+| bias | `90` | Bias (°, amplitude mode) |
+| loss | `3` | Insertion loss (dB) |
+| emode | `"phase"` | "phase" or "amplitude" |
+
+### kind "amp": Fibre amplifier
+
+**ports:** 0 = in, 1 = out
+
+| field | default | meaning |
+|---|---|---|
+| g0 | `20` | Small-signal gain (dB) |
+| psat | `17` | Saturated output (dBm) |
+| nf | `5` | Noise figure (dB) |
+| centre | `1545` | Band centre (nm) |
+| bw | `35` | Band width (nm) |
+| iso | `40` | Isolation backwards (dB) |
+| soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |
+| pdg | `0.5` | dB, an SOA’s polarisation-dependent gain: p gains less than s by it |
+
+## Electronics ("type": "elec")
+
+Electronic parts sit on the bench like fibre components (x, y, angle, name, id) and are joined by wires: entries in "fibres" with "wire": true, from an output to an input, "a" the output’s end and "b" the input’s. An output may feed several inputs; an input takes one wire. A part’s ports are numbered from 0, its inputs first, then its outputs. Each signal is worked out in steady state: DC, tones and noise.
+
+Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output; on a photonic chip (experimental), a "pic" "pd" its output after its input, and a "pic" "ps" its drive after its two ports (π of phase per "vpi" volts, 5 by default).
+
+### kind "dc": DC source
+
+**ports:** 0 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| v | `1` | Voltage (V) |
+
+### kind "sig": Signal generator
+
+**ports:** 0 = out (out), 1 = sync (out)
+
+| field | default | meaning |
+|---|---|---|
+| wave | `"sine"` | Waveform: "sine" (Sine), "square" (Square), "triangle" (Triangle), "pulse" (Pulse) |
+| f | `1000` | Frequency (Hz) |
+| amp | `1` | Amplitude (V) |
+| offset | `0` | Offset (V) |
+| phase | `0` | Phase (°) |
+| duty | `50` | Duty (%) |
+
+### kind "noise": Noise source
+
+**ports:** 0 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| psd | `100` | Density (nV/√Hz) |
+| bw | `1000000` | Bandwidth (Hz) |
+
+### kind "amp": Amplifier
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| gain | `10` | Gain (V/V) |
+| bw | `1000000` | Bandwidth (Hz) |
+| en | `5` | Input noise (nV/√Hz) |
+| vmax | `10` | Output limit (V) |
+
+### kind "tia": Transimpedance amplifier
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| gain | `100000` | Gain (V/A) |
+| bw | `100000` | Bandwidth (Hz) |
+| inoise | `1` | Input noise (pA/√Hz) |
+| vmax | `10` | Output limit (V) |
+
+### kind "lpf": Low-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `10000` | Corner (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "hpf": High-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `100` | Corner (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "bpf": Band-pass filter
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| f0 | `1000` | Centre (Hz) |
+| bw | `100` | Bandwidth (Hz) |
+| order | `1` | Order: 1 (1), 2 (2), 3 (3), 4 (4) |
+
+### kind "att": Attenuator
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| db | `10` | Attenuation (dB) |
+
+### kind "biastee": Bias tee
+
+**ports:** 0 = rf (in), 1 = dc (in), 2 = rf+dc (out)
+
+| field | default | meaning |
+|---|---|---|
+| fc | `10000` | Corner (Hz) |
+
+### kind "comp": Comparator
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| thr | `0` | Threshold (V) |
+| vhi | `5` | Output high (V) |
+| vlo | `0` | Output low (V) |
+
+### kind "mixer": Mixer
+
+**ports:** 0 = a (in), 1 = b (in), 2 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| k | `1` | Gain (1/V) |
+
+### kind "sum": Summing junction
+
+**ports:** 0 = a (in), 1 = b (in), 2 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| ga | `1` | Gain, a |
+| gb | `1` | Gain, b |
+
+### kind "node": Node
+
+**ports:** 0 = the node (one wire in, any number out)
+
+### kind "scope": Oscilloscope
+
+**ports:** 0 = ch1 (in), 1 = ch2 (in)
+
+| field | default | meaning |
+|---|---|---|
+| mode | `"normal"` | Mode: "normal" (Normal), "roll" (Roll) |
+| span | `0.005` | Time span (s; 0: auto) |
+| v1div | `0` | Ch1 per division (0: auto) |
+| v1off | `0` | Ch1 offset |
+| v2div | `0` | Ch2 per division (0: auto) |
+| v2off | `0` | Ch2 offset |
+
+### kind "spec": Spectrum analyser
+
+**ports:** 0 = in (in)
+
+| field | default | meaning |
+|---|---|---|
+| scale | `"log"` | Frequency axis: "log" (Log), "linear" (Linear) |
+| rbw | `10` | Resolution bandwidth (Hz) |
+| fmin | `10` | From (Hz; 0: auto) |
+| fmax | `1000000` | To (Hz; 0: auto) |
+| dbdiv | `0` | dB per division (0: auto) |
+| ref | `0` | Top (dB) |
+
+### kind "lockin": Lock-in amplifier
+
+**ports:** 0 = signal (in), 1 = ref (in), 2 = x (out), 3 = y (out)
+
+| field | default | meaning |
+|---|---|---|
+| harm | `1` | Harmonic |
+| phase | `0` | Phase (°) |
+| tau | `0.1` | Time constant (s) |
+| slope | `2` | Slope: 1 (6 dB/oct), 2 (12 dB/oct), 3 (18 dB/oct), 4 (24 dB/oct) |
+
+### kind "thru": Electrical feedthrough
+
+**ports:** 0 = in (in), 1 = out (out)
+
+### kind "daq": DAQ (ADC)
+
+**ports:** 0 = in (in), 1 = out (out)
+
+| field | default | meaning |
+|---|---|---|
+| rate | `10000` | Sample rate (S/s) |
+| bits | `16` | Bits |
+| range | `10` | Range, ± (V) |
+
+## Catalogues
+
+**Glasses** ("material": {"glass": name}): N-BK7, Fused silica, CaF2, N-LAK22, N-SF6, N-SF10, N-SF11, S-LAH64, N-SK5, D-ZK3M, D-ZLAF52LAM, H-LAK54M, N-FK51A, N-PK51, N-BAK1, N-BAK4, N-BAF10, N-KZFS4, N-LAK10, N-LASF9, N-F2, N-SF2, N-SF5, N-SF8, N-SF57, F2, SF2, SF5, SF10, SF11, Sapphire, MgF2, ZnSe, Silicon, Germanium, Water, Polystyrene, PMMA, Polycarbonate, Zeonex E48R, B270, and any glass of the Schott, Ohara, Hoya, CDGM and Sumita catalogues by its catalogue name (N-SF11, S-LAH64, M-TAF1, H-K9L, K-VC89). Also "AIR"; {"glass": "custom", "n": 1.52} for a fixed index; {"glass": name, "nd": 1.52, "vd": 64} from catalogue nd and Vd. Common aliases (BK7, UVFS, F_SILICA, CAF2, PMMA, ACRYLIC) are understood.
+
+**Crystals** ("crystal"): "calcite" (Calcite), "yvo4" (YVO₄), "abbo" (α-BBO).
+
+**Crystal shapes** ("shape" of a crystal): "displacer" (Beam displacer), "wollaston" (Wollaston prism), "glan" (Glan–Taylor polariser).
+
+**Prism shapes**: "right" (Right-angle prism), "equilateral" (Equilateral prism), "window" (Window), "dove" (Dove prism).
+
+**Stop shapes**: "round" (Iris), "slit" (Slit), "double" (Double slit), "comb" (Slit comb), "knife" (Knife edge), "disc" (Beam block).
+
+**Filter types** ("ftype"): "longpass" (Long-pass), "shortpass" (Short-pass), "bandpass" (Band-pass), "nd" (Neutral density).
+
+**Detector materials**: "si" (Silicon), "ingaas" (InGaAs), "ge" (Germanium), "custom" (Fixed responsivity).
+
+**Coatings** ("coat", on lens surfaces, cubes and prisms): {"mode": "bare"} (Fresnel), {"mode": "ar", "R": 0.5} (% reflected), {"mode": "custom", "R": %}, {"mode": "band", "R": %, "lo": nm, "hi": nm} (coated over a band, bare outside), {"mode": "stack", "design": nm, "layers": [{"n": 1.38, "d": nm}, …]}.
+
+## Examples
+
+Four complete projects from the tool’s own examples, shortened to what differs from the defaults. Each opens as it is.
+
+### Michelson interferometer
+
+A laser, a 50/50 cube, two arms and two screens. Note the cube at angle 0 sends the reflected arm up (+y), the mirrors face back along their arms, and the screens face the light.
+
+```json
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Michelson interferometer",
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "elements": [
+    {"type":"source","id":"laser","name":"Laser","x":-60,"y":0,"angle":0,"width":2,"gauss":true,"w0":1,"z0":60,"popN":128,"pol":"s","rays":3},
+    {"type":"cube","id":"50-50-cube","name":"50/50 cube","x":0,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
+    {"type":"mirror","id":"moving-mirror","name":"Moving mirror","x":50,"y":0,"angle":180},
+    {"type":"mirror","id":"fixed-mirror","name":"Fixed mirror","x":0,"y":50,"angle":-90},
+    {"type":"screen","id":"output-port","name":"Output port","x":0,"y":-45,"angle":90,"length":20},
+    {"type":"screen","id":"input-port","name":"Input port","x":-30,"y":0,"angle":0,"length":20}
+  ]
+}
+```
+
+### Fabry-Perot cavity
+
+A linear cavity. The end mirror’s R = 500 mm is concave towards the cavity (it faces −x at angle 180), so with the flat input coupler 250 mm away the cavity is stable. The tool finds the cavity itself and solves its steady state.
+
+```json
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Fabry-Perot cavity",
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "elements": [
+    {"type":"source","id":"laser","name":"Laser","x":-50,"y":0,"angle":0,"width":0.5,"gauss":true,"w0":0.3,"z0":50,"pol":"s","rays":1},
+    {"type":"mirror","id":"input-coupler","name":"Input coupler","x":0,"y":0,"angle":0,"reflect":99},
+    {"type":"mirror","id":"end-mirror","name":"End mirror","x":250,"y":0,"angle":180,"reflect":99.9,"R":500},
+    {"type":"screen","id":"transmitted","name":"Transmitted","x":300,"y":0,"angle":180,"length":20},
+    {"type":"screen","id":"reflected","name":"Reflected","x":-20,"y":0,"angle":0,"length":20}
+  ]
+}
+```
+
+### Pound-Drever-Hall lock
+
+Pound–Drever–Hall: an EOM’s 20 MHz sidebands, a pick-off cube sending the cavity’s reflection to a detector demodulated at 20 MHz, its mixer at 90°: the quadrature that crosses zero steeply at resonance. Its mixer output is the error signal.
+
+```json
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Pound-Drever-Hall lock",
+  "maxBounces": 40,
+  "minPower": 0.0001,
+  "elements": [
+    {"type":"source","id":"laser","name":"Laser","x":-130,"y":0,"angle":0,"wavelength":1064,"width":0.5,"gauss":true,"w0":0.3,"z0":130,"pol":"s","rays":1},
+    {"type":"eom","id":"eom-20-mhz","name":"EOM, 20 MHz","x":-100,"y":0,"angle":0},
+    {"type":"cube","id":"pick-off","name":"Pick-off","x":-50,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
+    {"type":"mirror","id":"input-coupler","name":"Input coupler","x":0,"y":0,"angle":0,"reflect":99},
+    {"type":"mirror","id":"end-mirror","name":"End mirror","x":250,"y":0,"angle":180,"reflect":99.9,"R":500},
+    {"type":"screen","id":"beam-dump","name":"Beam dump","x":-50,"y":35,"angle":-90,"length":10},
+    {"type":"detector","id":"pdh-photodiode","name":"PDH photodiode","x":-50,"y":-40,"angle":90,"length":10,"material":"custom","resp":1,"gain":1000,"bandwidth":1000000000,"demodF":20,"demodPhase":90},
+    {"type":"screen","id":"transmitted","name":"Transmitted","x":300,"y":0,"angle":180,"length":20}
+  ]
+}
+```
+
+### Two launches from one laser
+
+A fibre network on the bench: a fibre laser, a coupler and two fibre tips, each launching through a collimating lens (each tip 50.6 mm behind a biconvex N-BK7 lens of f ≈ 50 mm at 1550 nm). Fibres join [id, port] to [id, port]; "len" is in metres. The two launches are one laser, so they interfere on the cube.
+
+```json
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Two launches from one laser",
+  "minPower": 0.0001,
+  "elements": [
+    {"type":"fcomp","kind":"laser","id":"laser","name":"Laser","x":-190,"y":125,"angle":0,"coh":3000,"cmode":"line"},
+    {"type":"fcomp","kind":"coupler","id":"splitter","name":"Splitter","x":-140,"y":125,"angle":0},
+    {"type":"fibre","id":"launch-a","name":"Launch A","x":-110.6,"y":0,"angle":0,"core":9,"na":0.14},
+    {"type":"lens","id":"collimator-a","name":"Collimator A","x":-60,"y":0,"angle":0,"surfaces":[{"R":51.5},{"R":-51.5}],"gaps":[3.6],"materials":[{"glass":"N-BK7"}]},
+    {"type":"fibre","id":"launch-b","name":"Launch B","x":0,"y":110.6,"angle":-90,"core":9,"na":0.14},
+    {"type":"lens","id":"collimator-b","name":"Collimator B","x":0,"y":60,"angle":-90,"surfaces":[{"R":51.5},{"R":-51.5}],"gaps":[3.6],"materials":[{"glass":"N-BK7"}]},
+    {"type":"cube","id":"50-50-cube","name":"50/50 cube","x":0,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
+    {"type":"detector","id":"photodiode","name":"Photodiode","x":0,"y":-50,"angle":90,"length":10,"material":"custom","resp":1,"gain":1000},
+    {"type":"screen","id":"other-port","name":"Other port","x":60,"y":0,"angle":180,"length":20}
+  ],
+  "fibres": [
+    {"a":["laser",0],"b":["splitter",0],"len":1},
+    {"a":["splitter",3],"b":["launch-a",0],"len":1,"path":[{"x":-150,"y":40}]},
+    {"a":["splitter",2],"b":["launch-b",0],"len":1.5,"path":[{"x":-40,"y":140}]}
+  ]
+}
+```

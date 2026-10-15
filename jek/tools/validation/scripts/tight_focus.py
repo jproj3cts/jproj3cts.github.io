@@ -4,7 +4,7 @@ B. Richards and E. Wolf, "Electromagnetic diffraction in optical systems II. Str
 the image field in an aplanatic system", Proc. R. Soc. A 253, 358 (1959), showed that at high
 numerical aperture the focus of linearly polarised light is not round: the field gains a
 component along the axis, which widens the spot along the polarisation. Their integrals are
-for an aplanatic lens. The lens here is a thin phase plate (an ideal flat lens: JEKray2D's
+for an aplanatic lens. The lens here is a thin phase plate (an ideal flat lens: JEKray's
 "perfect lens" mask), which leaves the light x-polarised across its plane,
     E_x(rho) = sqrt(2P / pi w^2) exp(-rho^2 / w^2) exp(-i k (sqrt(rho^2 + f^2) - f)),  E_y = 0,
 so the exact answer is its vector angular spectrum (no Debye or paraxial approximation):
@@ -17,7 +17,7 @@ across it |E_x|^2. The pupil integral is done by brute force on a grid finer tha
 at the lens's steepest, the spectrum's by the trapezium rule to q = k (the evanescent part is
 nothing 3 mm away).
 
-633 nm, f = 3 mm, 1 mW, beams of w = 1.0, 2.5 and 4.0 mm at the plate (JEKray2D's
+633 nm, f = 3 mm, 1 mW, beams of w = 1.0, 2.5 and 4.0 mm at the plate (JEKray's
 tight-focus example is 2.5 mm).
 
     python tight_focus.py

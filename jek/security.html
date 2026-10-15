@@ -37,7 +37,7 @@
         <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
         <span class="nav-drop-menu">
           <a href="/jek/calculators/">Calculators</a>
-          <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
         </span>
       </span> |
       <a href="/jek/bio.html">Bio</a> |
@@ -53,11 +53,11 @@
 
     <p><em>Version 1.3, 5 October 2026</em></p>
 
-    <p>How JEKray2D and JEKrayPro are built and protected, for information security teams reviewing them. It answers most of a typical supplier security questionnaire; we are glad to complete yours as well. Questions: <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
+    <p>How JEKray and JEKrayPro are built and protected, for information security teams reviewing them. It answers most of a typical supplier security questionnaire; we are glad to complete yours as well. Questions: <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
 
     <h2>1. How it is built</h2>
     <ul>
-      <li><strong>The simulator runs in the browser.</strong> JEKray2D is a single web page served from jeksys.net. Every calculation runs on the user&rsquo;s own computer. A bench leaves the computer only when the user saves it to the cloud, shares it, or exports it.</li>
+      <li><strong>The simulator runs in the browser.</strong> JEKray is a single web page served from jeksys.net. Every calculation runs on the user&rsquo;s own computer. A bench leaves the computer only when the user saves it to the cloud, shares it, or exports it.</li>
       <li><strong>The cloud service</strong> (api.jeksys.net) is a Cloudflare Worker with a Cloudflare D1 database for accounts and current benches, Cloudflare R2 storage for version history and thumbnails, and Cloudflare Workers KV for short-lived sign-in state. It has no servers of our own to maintain or patch.</li>
       <li><strong>The website</strong> is static and hosted by GitHub Pages. It holds no account data.</li>
       <li><strong>Payments</strong> go through Stripe&rsquo;s hosted Checkout, customer portal and invoices. Card numbers never reach our systems.</li>

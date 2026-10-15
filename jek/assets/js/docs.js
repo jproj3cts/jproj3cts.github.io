@@ -1,4 +1,4 @@
-/* JEKray2D documentation: equations (KaTeX), the "On this page" list, the search, and the
+/* JEKray documentation: equations (KaTeX), the "On this page" list, the search, and the
    contents button on a phone. The pages are plain HTML from Markdown; all of this is extra. */
 (function () {
   'use strict';
@@ -50,7 +50,7 @@
   const input = document.getElementById('dxSearch'), out = document.getElementById('dxResults');
   if (!input || !out) return;
   let index = null, loading = null, sel = -1;
-  const load = () => loading || (loading = fetch('/jek/docs/jekray2d/search.json').then(r => r.json()).then(d => { index = d; }).catch(() => { index = []; }));
+  const load = () => loading || (loading = fetch('/jek/docs/jekray/search.json').then(r => r.json()).then(d => { index = d; }).catch(() => { index = []; }));
   const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const snippet = (text, words) => {
     const low = text.toLowerCase();

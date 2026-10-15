@@ -1,0 +1,15 @@
+{%- comment -%} A parameter table from the tool's own tables (_data/jekray_params.json).
+  Set group (free, fibre, elec, pic) and key on the include. {%- endcomment -%}
+{%- assign P = site.data.jekray_params[include.group][include.key] -%}
+{%- if P -%}
+<div class="dx-table"><table class="dx-params">
+<thead><tr><th>Field</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+{%- for f in P.fields %}
+<tr><td><code>{{ f.k }}</code></td><td>{% if f.def %}<code>{{ f.def | escape }}</code>{% else %}<span class="dx-none">none</span>{% endif %}</td><td>{{ f.meaning | escape }}</td></tr>
+{%- endfor %}
+</tbody></table></div>
+<p class="dx-source">From the tool's own tables, file format version {{ site.data.jekray_params.version }}: the names are those in a <code>.jekray</code> file.</p>
+{%- else -%}
+<p class="dx-none">No table for {{ include.group }} / {{ include.key }}.</p>
+{%- endif -%}

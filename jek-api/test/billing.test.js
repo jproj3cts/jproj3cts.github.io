@@ -82,7 +82,7 @@ describe('prices', () => {
 describe('checkout', () => {
   it('opens Stripe Checkout for the chosen price, tied to the workspace', async () => {
     const s = await signedIn();
-    const r = await send(`/v1/workspaces/${s.workspaceId}/billing/checkout`, 'POST', s.token, { plan: 'pro', interval: 'year', return: 'https://jeksys.net/jek/tools/jekray2d.html?x=1#p=abc' });
+    const r = await send(`/v1/workspaces/${s.workspaceId}/billing/checkout`, 'POST', s.token, { plan: 'pro', interval: 'year', return: 'https://jeksys.net/jek/tools/jekray.html?x=1#p=abc' });
     expect(r.status).toBe(200);
     expect((await r.json()).url).toBe('https://checkout.stripe.com/c/pay/cs_1');
     const b = checkoutBody();
@@ -92,14 +92,14 @@ describe('checkout', () => {
     expect(b.get('subscription_data[metadata][workspace_id]')).toBe(s.workspaceId);
     expect(b.get('customer_email')).toBe(s.user.email);
     expect(b.get('consent_collection[terms_of_service]')).toBe('required');
-    expect(b.get('success_url')).toBe('https://jeksys.net/jek/tools/jekray2d.html?x=1&jekbilling=success');
-    expect(b.get('cancel_url')).toBe('https://jeksys.net/jek/tools/jekray2d.html?x=1&jekbilling=cancelled');
+    expect(b.get('success_url')).toBe('https://jeksys.net/jek/tools/jekray.html?x=1&jekbilling=success');
+    expect(b.get('cancel_url')).toBe('https://jeksys.net/jek/tools/jekray.html?x=1&jekbilling=cancelled');
   });
 
   it('only returns to the app', async () => {
     const s = await signedIn();
     await send(`/v1/workspaces/${s.workspaceId}/billing/checkout`, 'POST', s.token, { plan: 'pro', interval: 'month', return: 'https://evil.example/' });
-    expect(checkoutBody().get('success_url')).toBe('https://jeksys.net/jek/tools/jekray2d.html?jekbilling=success');
+    expect(checkoutBody().get('success_url')).toBe('https://jeksys.net/jek/tools/jekray.html?jekbilling=success');
   });
 
   it('needs a valid plan, the owner, and someone’s own workspace', async () => {

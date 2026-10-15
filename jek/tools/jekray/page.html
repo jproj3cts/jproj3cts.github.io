@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- What this page may load and talk to: itself and the JEKrayPro API. The app's own code
+     is inline and compiles mask formulas, hence 'unsafe-inline' and 'unsafe-eval'; what the
+     policy adds is that nothing here can send data, or load images or code, from anywhere else. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>JEKray</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+
+<main class="main-content rt-app">
+
+  <div class="rt-wrap">
+    <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
+      <div class="rt-row rt-bar">
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
+        <div class="rt-more rt-file">
+          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
+          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+          <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+          <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
+            <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
+            <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
+            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
+            <button type="button" role="menuitem" id="btnCloudCopy" data-icon="paste" hidden title="A copy of this bench in another of your workspaces (a team’s, or your own), and carry on there">Copy to another workspace…</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
+            <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
+            <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-icon="vector">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf">PDF (vector)</button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout (current view)
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf">PDF (vector)</button>
+              </div>
+            </div>
+            <div class="sep"></div>
+            <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <button class="rt-btn rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)">+ Add part</button>
+        <div class="rt-group rt-tight">
+          <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+          <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
+          <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
+            <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
+            <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
+            <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
+            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its \u00d7 closed it">Show the side panel</button>
+            <div class="sep"></div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
+              <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
+            </div>
+            <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
+            <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
+            <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
+            <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
+          </div>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps</button>
+          <div class="rt-menu rt-imenu" id="sweepsMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnPlayAll" data-icon="play" disabled>Play all</button>
+            <button type="button" role="menuitem" id="btnPauseAll" data-icon="pause" disabled><span class="lbl">Pause all</span></button>
+            <button type="button" role="menuitem" id="btnSync" data-icon="sync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnOptimise" data-icon="target" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
+            <button type="button" role="menuitem" id="btnTol" data-icon="dice" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
+            <div class="sep"></div>
+            <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
+          </div>
+        </div>
+        <div class="rt-group rt-right">
+          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
+          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
+          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
+          <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
+          <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
+          <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
+          <div class="rt-more">
+            <button class="rt-btn rt-help" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
+            <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
+              <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
+                <div class="rt-menu rt-imenu" role="menu">
+                  <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
+                  <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
+                  <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
+                </div>
+              </div>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
+              <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
+              <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+              <div class="sep"></div>
+              <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
+              <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
+              <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
+              <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
+              <div class="sep"></div>
+              <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
+            </div>
+            <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
+          </div>
+          <div class="rt-more" id="acct" hidden>
+            <button class="rt-btn rt-acct" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
+            <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rt-grid">
+      <div class="rt-stage" id="stage">
+        <div class="rt-lock" id="cloudLock" hidden role="status">
+          <span class="rt-lockwho" id="cloudLockWho"></span>
+          <span id="cloudLockText"></span>
+          <button type="button" class="rt-btn" id="cloudLockTake">Take over</button>
+          <button type="button" class="rt-btn" id="cloudLockCopy">Work on a copy</button>
+        </div>
+        <canvas id="bench" tabindex="0" aria-label="Optical bench. Click an element to select it."></canvas>
+        <div class="rt-benchtabs" id="benchTabs" role="tablist" aria-label="Benches"></div>
+        <canvas class="rt-minimap" id="minimap" hidden aria-label="Minimap: click or drag to move the view"></canvas>
+        <div class="rt-measurebar" id="measureBar" hidden>
+          <button type="button" data-mtool="ruler" class="on">Ruler</button><button type="button" data-mtool="angle">Angle</button><button type="button" data-mtool="clear" title="Remove every measurement on this tab (Delete removes the last one; Ctrl+Z brings them back)">Clear</button><button type="button" data-mtool="done">Done</button>
+        </div>
+        <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
+        <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
+        <div class="rt-coords" id="coords"></div>
+        <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
+        <div class="rt-toast" id="toast" role="status"></div>
+      </div>
+      <aside class="rt-panel" id="panel" aria-label="Properties"></aside>
+    </div>
+  </div>
+
+  <dialog class="rt-dialog" id="glassDialog">
+    <h2>Search the glass catalogues</h2>
+    <p class="rt-hint">Schott, Ohara, Hoya, CDGM and Sumita, by name as the makers and the lens files spell it, with the crystals and plastics.</p>
+    <div class="rt-rows">
+      <div class="rt-f wide"><label for="glassSearch">Name</label><input id="glassSearch" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. S-LAH64, N-SF11, M-TAF1, PMMA"></div>
+      <div class="rt-f wide"><label for="glassList">Matches</label><select id="glassList" size="9"></select></div>
+    </div>
+    <p id="glassNote" class="rt-hint"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="glassCancel">Cancel</button>
+      <button class="rt-btn rt-primary" id="glassUse">Use this glass</button>
+    </div>
+  </dialog>
+  <dialog class="rt-dialog" id="matDialog">
+    <h2>Import a material</h2>
+    <ol>
+      <li>Find the material on <a href="https://refractiveindex.info" target="_blank" rel="noopener">refractiveindex.info</a> and choose a data set that covers your wavelengths.</li>
+      <li>Under the graph, use <em>Data [CSV - nk]</em> (or <em>[CSV - n]</em>) to download the file, or select the numbers and copy them.</li>
+      <li>Drop the file below or paste the numbers. Wavelengths are in micrometres, which is what that site exports.</li>
+    </ol>
+    <div class="rt-rows">
+      <div class="rt-f wide"><label for="matName">Name</label><input id="matName" type="text" spellcheck="false" placeholder="e.g. CO2, water, ZnS"></div>
+      <div class="rt-f wide"><label for="matPaste">Data</label><textarea id="matPaste" rows="6" spellcheck="false" placeholder="wl,n&#10;0.4,1.00045&#10;0.5,1.00044"></textarea></div>
+    </div>
+    <p id="matNote" class="rt-hint"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="matCancel">Cancel</button>
+      <button class="rt-btn" id="matFile">Choose a file</button>
+      <button class="rt-btn primary" id="matAdd">Add material</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="tolDialog">
+    <h2>Tolerance study</h2>
+    <p>Perturbs the swept parameters at random and traces the bench many times, to see how much the result moves. Each sweep’s From–To range is its tolerance range.</p>
+    <div id="tolVars" class="rt-tol-vars"></div>
+    <div class="rt-rows">
+      <div class="rt-f"><label for="tolTarget">Measured on</label><select id="tolTarget"></select></div>
+      <div class="rt-f wide"><label>Measured with</label><div class="rt-tabs" id="tolFam" style="margin:0"></div></div>
+      <div class="rt-f"><label for="tolMetric">Metric</label><select id="tolMetric"></select></div>
+      <div class="rt-f"><label for="tolDist">Spread</label><select id="tolDist">
+        <option value="gauss">Gaussian, range = 6 sigma</option>
+        <option value="uniform">Uniform across the range</option>
+      </select></div>
+      <div class="rt-f"><label for="tolN">Trials</label><input id="tolN" type="text" inputmode="numeric" value="200"></div>
+    </div>
+    <canvas id="tolHist" height="120" style="width:100%;margin-top:0.75rem;display:none"></canvas>
+    <div id="tolSens"></div>
+    <p id="tolResult" class="rt-hint"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="tolClose">Close</button>
+      <button class="rt-btn" id="tolSensRun">Sensitivity</button>
+      <button class="rt-btn primary" id="tolRun">Monte Carlo</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="optDialog">
+    <h2>Optimise</h2>
+    <p>Varies the swept parameters you tick, each within its From–To range, for the best result on the goals below. Give a value a sweep first; its range is where it is searched. With several goals, each counts against its size at the start, times its weight.</p>
+    <h3 class="rt-opt-h">Vary</h3>
+    <div id="optVars" class="rt-tol-vars"></div>
+    <h3 class="rt-opt-h">Goals</h3>
+    <div id="optTerms"></div>
+    <button class="rt-btn" type="button" id="optAddTerm" style="margin-top:0.4rem">Add a goal</button>
+    <canvas id="optScan" height="120" style="width:100%;margin-top:0.75rem;display:none"></canvas>
+    <p id="optResult" class="rt-hint"></p>
+    <div id="optTable" class="rt-readout" hidden></div>
+    <div class="rt-actions">
+      <button class="rt-btn" id="optClose">Close</button>
+      <button class="rt-btn" id="optStop" hidden>Stop</button>
+      <button class="rt-btn primary" id="optRun">Run</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">Shortcuts</h2>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray-ai-guide.md" download>the JEKray guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Open ▾ → Pasted text</b> or Ctrl+V.</p>
+    <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-gallery" id="galleryDialog" aria-labelledby="galleryTitle">
+    <div class="rt-ghead">
+      <h2 id="galleryTitle">Examples</h2>
+      <input type="search" id="gallerySearch" placeholder="Search the examples" aria-label="Search the examples" spellcheck="false">
+      <button class="rt-btn" id="galleryClose" aria-label="Close">Close</button>
+    </div>
+    <div class="rt-gbody" id="galleryGrid"></div>
+    <p class="rt-gfoot">Each example opens in place of your bench; Undo brings your bench back. Want one built for you? Give an AI assistant <a href="jekray-ai-guide.md" download>the JEKray guide</a> and paste its answer with Ctrl+V.</p>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share this bench</h2>
+    <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
+    <p class="note" id="shareNote"></p>
+    <h3 class="rt-subhead">Embed in a web page</h3>
+    <textarea id="shareEmbed" rows="3" readonly spellcheck="false" aria-label="Code to embed this bench in a web page"></textarea>
+    <p class="note">Paste this into a web page, a course site or a blog: readers can drag, zoom and play the sweeps, and open the bench in JEKray. Nothing they do changes your copy.</p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="shareEmbedCopy">Copy embed code</button>
+      <button class="rt-btn" id="shareClose">Close</button>
+      <button class="rt-btn primary" id="shareCopy">Copy link</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="pasteDialog" aria-labelledby="pasteTitle">
+    <h2 id="pasteTitle">Open a project from its text</h2>
+    <p>Paste the contents of a .jekray file, for example one an AI assistant wrote for you. Code fences, comments and trailing commas are fine. <a href="jekray-ai-guide.md" download>Get the AI guide</a> to give it first.</p>
+    <textarea id="pasteText" rows="12" spellcheck="false" placeholder='{ "format": "jekray", "version": 1, "name": "…", "elements": [ … ] }'></textarea>
+    <p class="rt-error" id="pasteError" hidden></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="pasteCancel">Cancel</button>
+      <button class="rt-btn primary" id="pasteOpen">Open</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="importDialog" aria-labelledby="importTitle">
+    <h2 id="importTitle">Opened, with changes</h2>
+    <p>Some of what the file asked for could not be used as written. This is what was done instead: check it, or copy the report back to whoever (or whatever) wrote the file so they can fix it.</p>
+    <ul class="rt-report" id="importList"></ul>
+    <div class="rt-actions">
+      <a class="rt-btn" href="jekray-ai-guide.md" download>AI guide</a>
+      <button class="rt-btn" id="importCopy">Copy report</button>
+      <button class="rt-btn primary" id="importClose">Close</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
+    <h2 id="newsTitle">What’s new in JEKray</h2>
+    <div class="rt-news" id="newsBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="newsClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="citeDialog" aria-labelledby="citeTitle">
+    <h2 id="citeTitle">Cite JEKray</h2>
+    <p>If JEKray helped with your work, a citation helps others find it. Your benches and results are yours to publish.</p>
+    <h3 class="rt-subhead">Text</h3>
+    <textarea id="citeText" rows="3" readonly spellcheck="false"></textarea>
+    <div class="rt-actions" style="justify-content:flex-start"><button class="rt-btn" data-copy="citeText">Copy text</button></div>
+    <h3 class="rt-subhead">BibTeX</h3>
+    <textarea id="citeBib" rows="8" readonly spellcheck="false"></textarea>
+    <div class="rt-actions"><button class="rt-btn" data-copy="citeBib">Copy BibTeX</button><button class="rt-btn primary" id="citeClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="bugDialog" aria-labelledby="bugTitle">
+    <h2 id="bugTitle">Report a bug</h2>
+    <p>This opens an email to <a href="mailto:support@jeksys.net">support@jeksys.net</a> with your report, the version and your browser filled in. Nothing is sent until you send the email.</p>
+    <h3 class="rt-subhead">What happened?</h3>
+    <textarea id="bugWhat" rows="4" spellcheck="true" placeholder="For example: the photodiode reads 0 V when light reaches it"></textarea>
+    <h3 class="rt-subhead">What did you expect?</h3>
+    <textarea id="bugExpect" rows="2" spellcheck="true"></textarea>
+    <label class="rt-check" style="margin:0.6rem 0 0.2rem"><input type="checkbox" id="bugBench" checked> Include a link that opens this bench as it is now</label>
+    <p class="note" id="bugNote"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="bugCopy">Copy the report</button>
+      <button class="rt-btn" id="bugClose">Cancel</button>
+      <button class="rt-btn primary" id="bugSend">Open the email</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="snapsDialog" aria-labelledby="snapsTitle">
+    <h2 id="snapsTitle">Earlier versions</h2>
+    <p>This browser keeps a copy of your project every few minutes as you work, and just before you open another project or clear the bench. Opening one replaces what is on the bench; Undo brings it back.</p>
+    <div class="rt-snaps" id="snapsList"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
+  </dialog>
+
+  <!-- My benches: a page of its own over the tool, as a CAD system's documents page -->
+  <section class="rt-home" id="home" hidden aria-labelledby="homeTitle">
+    <header class="rt-hhead">
+      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
+      <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
+      <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
+      <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
+    </header>
+    <div class="rt-hbody">
+      <nav class="rt-hrail" id="homeRail" aria-label="Places"></nav>
+      <div class="rt-hmain" id="homeMain">
+        <div class="rt-hbar">
+          <p class="rt-hcrumbs" id="homeCrumbs"></p>
+          <span class="rt-htools" id="homeTools"></span>
+        </div>
+        <p class="rt-cloudnote" id="homeNote" hidden></p>
+        <div id="homeList" class="rt-hlist"></div>
+      </div>
+    </div>
+    <div class="rt-toast" id="homeToast" role="status"></div>
+  </section>
+
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="diffDialog" aria-labelledby="diffTitle">
+    <h2 id="diffTitle">Compare</h2>
+    <div id="diffBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="diffClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="mergeDialog" aria-labelledby="mergeTitle">
+    <h2 id="mergeTitle">Merge</h2>
+    <div id="mergeBody"></div>
+    <div class="rt-actions"><button class="rt-btn" id="mergeCancel">Cancel</button><button class="rt-btn primary" id="mergeGo">Open the merged bench</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
+    <h2 id="teamTitle">Team</h2>
+    <div id="teamBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="teamClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKrayPro</h2>
+    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The simulator itself stays free.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudConflict" aria-labelledby="ccTitle">
+    <h2 id="ccTitle">Saved somewhere else</h2>
+    <p id="cloudConflictText"></p>
+    <div class="rt-actions rt-ccacts">
+      <button class="rt-btn" id="ccTheirs">Open the newer one</button>
+      <button class="rt-btn" id="ccCopy">Keep mine as a copy</button>
+      <button class="rt-btn primary" id="ccMine">Overwrite with mine</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="newDialog">
+    <h2>Start a new project?</h2>
+    <p>The current bench will be cleared. Save it as a .jekray file first if you want to keep it. You can still undo this.</p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="newCancel">Keep working</button>
+      <button class="rt-btn primary" id="newConfirm">Clear the bench</button>
+    </div>
+  </dialog>
+
+  <details class="rt-about">
+    <summary>What this models, and what it does not</summary>
+    <div>
+      <p><strong>In three dimensions.</strong> Every free-space part at a height of its own, tipped and rolled; rays traced exactly through real surfaces in 3D, skew and rising alike; Gaussian beams through turned optics as general astigmatic beams, their higher-order modes with them; the diffracted field through tipped, rolled and off-centre optics; periscopes that turn the polarisation and the image as real ones do; and misaligned cavities, whose light walks round to their own axis and settles there. The 3D view shows it all, and moves and turns any part along all six axes.</p>
+      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam (by its real profile, so a vortex pump leaves its dark core unsaturated), and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart (by their group paths, so glass counts by its group index) and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED; or they can launch a higher-order mode, Hermite–Gauss HG<sub>mn</sub> or Laguerre–Gauss LG<sub>pl</sub> (a vortex of any charge), carried as a coherent sum of Hermite–Gauss modes each with its own Gouy phase, so a cylindrical-lens mode converter works as in the lab. Mask presets cover spatial light modulator patterns: spiral phase plates, fork holograms, blazed gratings and a π step, and a mask whose detail is finer than the field's grid is flagged rather than quietly smoothed. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
+      <p><strong>Not modelled.</strong> Fibre, electronic and chip parts in 3D: the 3D view leaves them out (free-space parts take all six degrees of freedom: x, y, z, facing, tip and roll). Aberrations across the field are the tangential section only. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Beat notes on a free-space photodiode leave out the radio-frequency delay of the free-space path after a modulator (a phase of 2&pi;f L/c, 2.4&deg; per 100 mm at 20 MHz): the cavity’s round trips and fibre carry it. Power figures ignore absorption unless you set it on a material.</p>
+      <p><strong>How far to trust it.</strong> The <a href="jekray-validation.html">validation page</a> sets JEKray against published results and independent codes, live in your browser; the list grows as each part of the model is checked. For anything that gets built, funded or published, reproduce the number in an established package first.</p>
+    </div>
+  </details>
+
+  <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
+  <input type="file" id="fileZmx" accept=".zmx,.ZMX,.zar,.ZAR" multiple hidden>
+  <input type="file" id="fileStl" accept=".stl,.STL" hidden>
+  <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
+
+  <dialog class="rt-dialog" id="zmxDialog">
+    <h2 id="zmxTitle">Import a lens file (.zmx)</h2>
+    <ol>
+      <li>Open the Thorlabs product page for the lens, mirror, beam splitter or prism and find its part number in the table.</li>
+      <li>Click the document icon next to the part number and download the .zmx file. If it arrives as a .zip, extract it first.</li>
+      <li>Choose the file below, or drop it straight onto the bench.</li>
+    </ol>
+    <div class="rt-f" style="margin-bottom:0.75rem">
+      <label for="zmxAs">Import as</label>
+      <select id="zmxAs"></select>
+    </div>
+    <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
+    <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
+    <p class="rt-error" id="zmxError" hidden></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="zmxCancel">Cancel</button>
+      <button class="rt-btn primary" id="zmxChoose">Choose .zmx file</button>
+    </div>
+  </dialog>
+</main>
+
+
+<script>
+{{SCRIPT}}
+</script>
+
+
+</body>
+</html>

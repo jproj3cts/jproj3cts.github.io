@@ -45,7 +45,7 @@
   --jek-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
               Consolas, "Liberation Mono", monospace;
 
-  --jek-radius: 2px;      /* crisp, near-square corners, as in JEKray2D */
+  --jek-radius: 2px;      /* crisp, near-square corners, as in JEKray */
 
   /* Reading measure for prose pages */
   --jek-measure: 46rem;
@@ -1183,7 +1183,7 @@ form#searchForm {
   padding: 0;
   background: rgba(0, 0, 0, 0.22);
   border: none;
-  border-radius: 1px;    /* small squares, as in JEKray2D */
+  border-radius: 1px;    /* small squares, as in JEKray */
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.15s ease;
 }

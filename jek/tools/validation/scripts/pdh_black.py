@@ -3,7 +3,7 @@
 E. D. Black, "An introduction to Pound-Drever-Hall laser frequency stabilization", Am. J.
 Phys. 69, 79-87 (2001); R. W. P. Drever et al., Appl. Phys. B 31, 97-105 (1983).
 
-In JEKray2D's convention the field goes as e^{i(w t - k z)}. A laser phase-modulated at Omega
+In JEKray's convention the field goes as e^{i(w t - k z)}. A laser phase-modulated at Omega
 (depth beta), e^{i beta sin(Omega t)}, is the carrier and sidebands J_n(beta) at n Omega. Each
 reflects off the cavity with its own coefficient F, which for a lossless input mirror r1 and
 end mirror r2 is, against psi, the round-trip phase k L_rt past resonance (psi > 0: the light

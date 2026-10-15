@@ -271,7 +271,7 @@ describe('an invoiced licence', () => {
       const url = new URL(String(input)), body = init.body ? new URLSearchParams(String(init.body)) : null;
       seen.push([init.method || 'GET', url.pathname, body && body.get('name')]);
       const ok = (o) => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json' } });
-      if (url.pathname === '/v1/products/jekray2d_university' && (init.method || 'GET') === 'GET') return ok({ id: 'jekray2d_university', name: 'JEKray2D Pro university licence' });
+      if (url.pathname === '/v1/products/jekray2d_university' && (init.method || 'GET') === 'GET') return ok({ id: 'jekray2d_university', name: 'JEKray Pro university licence' });
       if (url.pathname === '/v1/subscriptions') return ok({ id: 'sub_rename', object: 'subscription', customer: 'cus_r', status: 'active', metadata: { workspace_id: body.get('metadata[workspace_id]'), plan: 'institution', max_users: '10' }, items: { data: [{ id: 'si', quantity: 1, current_period_end: 2e9, price: { lookup_key: null, recurring: { interval: 'year' } } }] } });
       return ok({ id: 'x' });
     });

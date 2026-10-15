@@ -12,7 +12,7 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
             // the production values, whatever a local .dev.vars says
             APP_ORIGINS: 'https://jeksys.net',
-            APP_URL: 'https://jeksys.net/jek/tools/jekray2d.html',
+            APP_URL: 'https://jeksys.net/jek/tools/jekray.html',
             API_URL: 'https://api.jeksys.net',
             GOOGLE_CLIENT_SECRET: 'test-google-secret',
             ORCID_CLIENT_SECRET: 'test-orcid-secret',

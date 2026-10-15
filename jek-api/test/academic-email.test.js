@@ -29,7 +29,7 @@ describe('the academic price by a university email address', () => {
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ sent: true, email: 'k1234567@kcl.ac.uk' });
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ from: 'JEKray2D <jekray2d@jeksys.net>', to: ['k1234567@kcl.ac.uk'], reply_to: 'support@jeksys.net', auth: 'Bearer re_test_key' });
+    expect(sent[0]).toMatchObject({ from: 'JEKray <jekray@jeksys.net>', to: ['k1234567@kcl.ac.uk'], reply_to: 'support@jeksys.net', auth: 'Bearer re_test_key' });
     const code = codeOf(sent[0]);
     expect(sent[0].subject).toContain(code);
     expect(sent[0].html).toContain(code);
@@ -120,7 +120,7 @@ describe('the academic price by a university email address', () => {
     } finally { env.RESEND_API_KEY = key; }
   });
 
-  it('needs a signed-in person, from JEKray2D, and goes with the account', async () => {
+  it('needs a signed-in person, from JEKray, and goes with the account', async () => {
     expect((await call('/v1/me/academic/email', { method: 'POST', body: '{"email":"a@ox.ac.uk"}', headers: { 'Content-Type': 'application/json' } })).status).toBe(401);
     const s = await signedIn();
     const sent = resend();

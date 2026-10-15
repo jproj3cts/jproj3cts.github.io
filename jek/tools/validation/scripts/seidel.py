@@ -14,12 +14,12 @@ Two systems, each with its stop a plane of its own and its entrance pupil filled
   1. Thorlabs LA1509's prescription (R 51.5 mm, 3.6 mm of N-BK7, Optiland's index), curved side
      first, the stop 10 mm in front of it, a 10 mm pupil (f/10), fields to 4 degrees, 587.56 nm;
   2. Optiland's Cooke triplet sample (SK16, F2, SK16; the glasses as Optiland's indices at
-     550 nm), its stop moved 1 mm ahead of the flint's first vertex (JEKray2D's stop is an
+     550 nm), its stop moved 1 mm ahead of the flint's first vertex (JEKray's stop is an
      element of its own and cannot sit on a curved surface), a 6 mm pupil (f/8.3), fields to 8
      degrees, at 550 nm.
 The image plane is the paraxial one, where Seidel's terms are defined.
 
-Seidel's terms are the third order alone; JEKray2D's Aberrations tab fits the real rays'
+Seidel's terms are the third order alone; JEKray's Aberrations tab fits the real rays'
 wavefront, which carries the higher orders too. How much, at these apertures and fields, is
 found here by tracing real meridional rays exactly (Snell's law at each sphere) and fitting
 their wavefront: a fan square to each field's direction, its middle ray through the stop's

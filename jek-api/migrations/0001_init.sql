@@ -1,4 +1,4 @@
--- JEKray2D accounts, workspaces and cloud benches.
+-- JEKray accounts, workspaces and cloud benches.
 -- Ids are random 128-bit hex strings; times are UTC milliseconds.
 
 CREATE TABLE users (

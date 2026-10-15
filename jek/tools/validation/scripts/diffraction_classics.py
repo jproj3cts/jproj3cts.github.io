@@ -5,7 +5,7 @@
    the axis behind the disc at every distance. In the Fresnel approximation the axial field
    behind the disc is the integral of exp(-r^2 (1/w0^2 - i k / 2z)) r dr from a outwards, the
    unobstructed one's from 0, so the axial intensity is exactly exp(-2 a^2 / w0^2) times the
-   free beam's, 2P / (pi w(z)^2): here 6 mm beam, 1.5 mm disc, 633 nm (JEKray2D's example).
+   free beam's, 2P / (pi w(z)^2): here 6 mm beam, 1.5 mm disc, 633 nm (JEKray's example).
 
 2. The Airy pattern (G. B. Airy, Trans. Camb. Phil. Soc. 5, 283 (1835)): a circular opening
    of radius a in a broad Gaussian beam (w0 = 20 mm, a = 2 mm), focused by an ideal lens of

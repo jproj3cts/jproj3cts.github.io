@@ -4,7 +4,7 @@ import { safeReturn } from '../src/auth.js';
 import { sha256 } from '../src/util.js';
 import { API, APP, call, signedIn, orcidOnFor } from './helpers.js';
 
-const APP_URL = 'https://jeksys.net/jek/tools/jekray2d.html';
+const APP_URL = 'https://jeksys.net/jek/tools/jekray.html';
 
 const b64url = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const idToken = (claims) =>
@@ -92,8 +92,8 @@ describe('start', () => {
 
   it('only returns to pages of the app', () => {
     expect(safeReturn(env, null)).toBe(APP_URL);
-    expect(safeReturn(env, 'https://jeksys.net/jek/tools/jekray2d.html?x=1#p=abc')).toBe(
-      'https://jeksys.net/jek/tools/jekray2d.html?x=1',
+    expect(safeReturn(env, 'https://jeksys.net/jek/tools/jekray.html?x=1#p=abc')).toBe(
+      'https://jeksys.net/jek/tools/jekray.html?x=1',
     );
     for (const bad of ['https://evil.example/', '//evil.example', 'javascript:alert(1)', '/relative', 'https://jeksys.net.evil.example/']) {
       expect(safeReturn(env, bad)).toBe(APP_URL);
@@ -103,12 +103,12 @@ describe('start', () => {
 
 describe('Google sign-in', () => {
   it('creates an account on first sign-in and signs the person in', async () => {
-    const { state, to: auth } = await begin('google', { ret: `${APP}/jek/tools/jekray2d.html?embed=0` });
+    const { state, to: auth } = await begin('google', { ret: `${APP}/jek/tools/jekray.html?embed=0` });
     const sent = provider({ id_token: idToken({ sub: 'g-100', name: 'Ada Lovelace', email: 'ada@example.ac.uk', email_verified: true }) });
     const { res, to, outcome, session } = await finish('google', state);
     expect(res.status).toBe(302);
     expect(outcome).toBe('signed_in');
-    expect(to.origin + to.pathname).toBe(`${APP}/jek/tools/jekray2d.html`);
+    expect(to.origin + to.pathname).toBe(`${APP}/jek/tools/jekray.html`);
     expect(to.searchParams.get('embed')).toBe('0');
     // The code was exchanged with the secret, the verifier and the same callback.
     expect(sent[0].url).toBe('https://oauth2.googleapis.com/token');
@@ -165,7 +165,7 @@ describe('Google sign-in', () => {
   });
 
   it('reports a cancelled sign-in without calling the provider', async () => {
-    const { state } = await begin('google', { ret: `${APP}/jek/tools/jekray2d.html` });
+    const { state } = await begin('google', { ret: `${APP}/jek/tools/jekray.html` });
     const sent = provider({});
     const { outcome, session } = await finish('google', state, { code: null, error: 'access_denied' });
     expect(outcome).toBe('cancelled');

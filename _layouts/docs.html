@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{% if page.url == "/jek/docs/jekray2d/" %}JEKray2D documentation{% else %}{{ page.title }} | JEKray2D documentation{% endif %} | JEK Systems</title>
+<title>{% if page.url == "/jek/docs/jekray/" %}JEKray documentation{% else %}{{ page.title }} | JEKray documentation{% endif %} | JEK Systems</title>
 {%- if page.description %}
 <meta name="description" content="{{ page.description | escape }}">
 {%- endif %}
@@ -30,7 +30,7 @@
         <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
         <span class="nav-drop-menu">
           <a href="/jek/calculators/">Calculators</a>
-          <a href="/jek/tools/jekray2d.html">JEKray2D</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
         </span>
       </span> |
       <a href="/jek/bio.html">Bio</a> |
@@ -42,14 +42,14 @@
 
 {%- comment -%} The contents, flattened in reading order, for Previous / Next and the breadcrumbs {%- endcomment -%}
 {%- assign flat = "" | split: "" -%}
-{%- for s in site.data.jekray2d_docs -%}
+{%- for s in site.data.jekray_docs -%}
   {%- assign flat = flat | push: s -%}
   {%- for c in s.pages -%}{%- assign flat = flat | push: c -%}{%- endfor -%}
 {%- endfor -%}
 {%- assign here = -1 -%}
 {%- for it in flat -%}{%- if it.url == page.url -%}{%- assign here = forloop.index0 -%}{%- endif -%}{%- endfor -%}
 {%- assign section = nil -%}
-{%- for s in site.data.jekray2d_docs -%}
+{%- for s in site.data.jekray_docs -%}
   {%- if s.url == page.url -%}{%- assign section = s -%}{%- endif -%}
   {%- for c in s.pages -%}{%- if c.url == page.url -%}{%- assign section = s -%}{%- endif -%}{%- endfor -%}
 {%- endfor -%}
@@ -57,13 +57,13 @@
   <div class="dx-shell{% if section.cat %} dx-cat-{{ section.cat }}{% endif %}">
     <button type="button" class="dx-navbtn" aria-controls="dxNav" aria-expanded="false">Contents</button>
     <nav class="dx-nav" id="dxNav" aria-label="Documentation contents">
-      <a class="dx-brand" href="/jek/docs/jekray2d/"><span>JEKray2D</span> documentation</a>
+      <a class="dx-brand" href="/jek/docs/jekray/"><span>JEKray</span> documentation</a>
       <div class="dx-search">
         <input type="search" id="dxSearch" placeholder="Search the docs" aria-label="Search the documentation" autocomplete="off">
         <div class="dx-results" id="dxResults" hidden></div>
       </div>
       <ul class="dx-tree">
-      {%- for s in site.data.jekray2d_docs %}
+      {%- for s in site.data.jekray_docs %}
         <li class="{% if s.url == page.url %}on{% endif %}{% if section.url == s.url %} open{% endif %}{% if s.cat %} dx-cat-{{ s.cat }}{% endif %}">
           <a href="{{ s.url }}"{% if s.url == page.url %} aria-current="page"{% endif %}>{{ s.title }}</a>
           {%- if s.pages %}
@@ -77,17 +77,17 @@
       {%- endfor %}
       </ul>
       <div class="dx-navfoot">
-        <a href="/jek/tools/jekray2d.html">Open JEKray2D</a>
-        <a href="/jek/tools/jekray2d-validation.html">Validation</a>
-        <a href="/jek/tools/jekray2d-ai-guide.md">File format (AI guide)</a>
+        <a href="/jek/tools/jekray.html">Open JEKray</a>
+        <a href="/jek/tools/jekray-validation.html">Validation</a>
+        <a href="/jek/tools/jekray-ai-guide.md">File format (AI guide)</a>
       </div>
     </nav>
 
     <main class="dx-main" id="dxMain">
       <div class="dx-crumbs">
-        <a href="/jek/docs/jekray2d/">Docs</a>
+        <a href="/jek/docs/jekray/">Docs</a>
         {%- if section and section.url != page.url %} <span>›</span> <a href="{{ section.url }}">{{ section.title }}</a>{% endif %}
-        {%- if page.url != "/jek/docs/jekray2d/" %} <span>›</span> <span aria-current="page">{{ page.title }}</span>{% endif %}
+        {%- if page.url != "/jek/docs/jekray/" %} <span>›</span> <span aria-current="page">{{ page.title }}</span>{% endif %}
       </div>
       <article class="dx-body">
         <h1>{{ page.title }}</h1>
@@ -105,7 +105,7 @@
         <a class="next" href="{{ next.url }}"><small>Next</small>{{ next.title }}</a>
         {%- endif %}
       </nav>
-      <p class="dx-foot">JEKray2D documentation, for file format version {{ site.data.jekray2d_params.version }}. Something wrong or unclear? Tell us at <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
+      <p class="dx-foot">JEKray documentation, for file format version {{ site.data.jekray_params.version }}. Something wrong or unclear? Tell us at <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
     </main>
 
     <aside class="dx-toc" aria-label="On this page">

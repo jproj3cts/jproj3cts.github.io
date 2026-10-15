@@ -158,13 +158,13 @@ async function heldElsewhere(env, user, email, t = now()) {
 }
 
 function codeEmail(code, domain) {
-  const text = `Your JEKray2D code is ${code}\n\nType it into JEKray2D to confirm you use this ${domain} address, for the academic price and any licence your university has. It lasts 15 minutes.\n\nIf you did not ask for it, ignore this email: nothing changes.\n\nJEK Systems · support@jeksys.net`;
+  const text = `Your JEKray code is ${code}\n\nType it into JEKray to confirm you use this ${domain} address, for the academic price and any licence your university has. It lasts 15 minutes.\n\nIf you did not ask for it, ignore this email: nothing changes.\n\nJEK Systems · support@jeksys.net`;
   const html = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#111;">
 <div style="max-width:520px;margin:0 auto;background:#fff;padding:28px;border:1px solid #e3e3e3;border-radius:2px;">
 <div style="height:4px;background:linear-gradient(90deg,#ffb347 0 20%,#f47742 20% 40%,#db3550 40% 60%,#73b9ca 60% 80%,#0092b2 80% 100%);margin-bottom:22px;"></div>
-<p style="margin:0 0 10px;font-size:15px;">Your JEKray2D code is</p>
+<p style="margin:0 0 10px;font-size:15px;">Your JEKray code is</p>
 <p style="margin:0 0 18px;font:700 32px/1.2 'Courier New',monospace;letter-spacing:6px;">${code}</p>
-<p style="margin:0 0 12px;line-height:1.6;">Type it into JEKray2D to confirm you use this ${domain} address, for the academic price and any licence your university has. It lasts 15 minutes.</p>
+<p style="margin:0 0 12px;line-height:1.6;">Type it into JEKray to confirm you use this ${domain} address, for the academic price and any licence your university has. It lasts 15 minutes.</p>
 <p style="margin:0 0 12px;line-height:1.6;color:#555;">If you did not ask for it, ignore this email: nothing changes.</p>
 <p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #e3e3e3;font-size:13px;color:#666;">JEK Systems &middot; <a href="mailto:support@jeksys.net" style="color:#0092b2;">support@jeksys.net</a></p>
 </div></body></html>`;
@@ -194,7 +194,7 @@ export async function sendCode(req, env, user) {
   }
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
   const mail = codeEmail(code, domain);
-  await sendEmail(env, { to: email, subject: `Your JEKray2D code: ${code}`, ...mail });
+  await sendEmail(env, { to: email, subject: `Your JEKray code: ${code}`, ...mail });
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO email_codes (user_id, email, code_hash, expires_at, tries) VALUES (?, ?, ?, ?, 0)

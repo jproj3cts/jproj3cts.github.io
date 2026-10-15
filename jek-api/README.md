@@ -1,7 +1,7 @@
 # jek-api
 
-Accounts, workspaces and cloud benches for JEKray2D, as a Cloudflare Worker
-at `api.jeksys.net`. The design is in the "JEKray2D accounts, cloud benches
+Accounts, workspaces and cloud benches for JEKray, as a Cloudflare Worker
+at `api.jeksys.net`. The design is in the "JEKray accounts, cloud benches
 and subscriptions" doc; this folder follows its build order.
 
 It is separate from the URPG fulfilment Worker in `../worker`: its own
@@ -125,7 +125,7 @@ For local work against the app, create `.dev.vars` (git-ignored) with:
 
 ```
 APP_ORIGINS="http://localhost:8765"
-APP_URL="http://localhost:8765/jek/tools/jekray2d.html"
+APP_URL="http://localhost:8765/jek/tools/jekray.html"
 API_URL="http://localhost:8787"
 GOOGLE_CLIENT_SECRET="…"
 ORCID_CLIENT_SECRET="…"

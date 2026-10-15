@@ -173,13 +173,13 @@ export async function remove(env, user, id) {
 
 function inviteEmail(env, { team, inviter, link, role }) {
   const what = role === 'viewer' ? 'to view its benches' : 'to work on its benches';
-  const text = `${inviter} has invited you to join the team “${team}” in JEKray2D, ${what}.\n\nOpen this link, sign in with Google or Microsoft, and you are in:\n${link}\n\nThe link works for 14 days. If you were not expecting this, ignore it: nothing happens unless you open the link.\n\nJEK Systems`;
+  const text = `${inviter} has invited you to join the team “${team}” in JEKray, ${what}.\n\nOpen this link, sign in with Google or Microsoft, and you are in:\n${link}\n\nThe link works for 14 days. If you were not expecting this, ignore it: nothing happens unless you open the link.\n\nJEK Systems`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const html = `<p>${esc(inviter)} has invited you to join the team <b>${esc(team)}</b> in JEKray2D, ${what}.</p>
+  const html = `<p>${esc(inviter)} has invited you to join the team <b>${esc(team)}</b> in JEKray, ${what}.</p>
 <p><a href="${esc(link)}">Join ${esc(team)}</a>: sign in with Google or Microsoft, and you are in.</p>
 <p>The link works for 14 days. If you were not expecting this, ignore it: nothing happens unless you open the link.</p>
 <p>JEK Systems</p>`;
-  return { subject: `${inviter} invited you to ${team} in JEKray2D`, text, html };
+  return { subject: `${inviter} invited you to ${team} in JEKray`, text, html };
 }
 
 // POST /v1/teams/:id/invites  {email, role}

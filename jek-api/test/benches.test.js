@@ -329,7 +329,7 @@ describe('export', () => {
     await call(`/v1/benches/${gone.id}`, { method: 'DELETE', token: s.token });
     const res = await call('/v1/me/export', { token: s.token });
     expect(res.headers.get('Content-Type')).toBe('application/zip');
-    expect(res.headers.get('Content-Disposition')).toMatch(/attachment; filename="jekray2d-export-\d{4}-\d\d-\d\d\.zip"/);
+    expect(res.headers.get('Content-Disposition')).toMatch(/attachment; filename="jekray-export-\d{4}-\d\d-\d\d\.zip"/);
     const files = unzip(await res.arrayBuffer());
     expect(Object.keys(files).sort()).toEqual([
       'My benches/Lasers/In folder.jekray', 'My benches/Same (2).jekray', 'My benches/Same.jekray', 'account.json',

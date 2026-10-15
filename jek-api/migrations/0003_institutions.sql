@@ -32,7 +32,7 @@ CREATE TABLE licences (
 );
 CREATE INDEX licences_user ON licences(user_id);
 
--- Who used JEKray2D Pro through an institution in each month ('2026-10'),
+-- Who used JEKray Pro through an institution in each month ('2026-10'),
 -- for its usage report and price band.
 CREATE TABLE licence_months (
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

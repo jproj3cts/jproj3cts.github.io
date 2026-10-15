@@ -9,7 +9,7 @@ length), round-trip phase phi = 2 pi n(lam) L / lam, couplers of self-coupling t
     all-pass through  |t - a e^{-i phi}|^2 / |1 - t a e^{-i phi}|^2
     add-drop through  (t2^2 a^2 - 2 a t1 t2 cos phi + t1^2) / (1 - 2 a t1 t2 cos phi + (a t1 t2)^2)
     add-drop drop     (1 - t1^2)(1 - t2^2) a / (1 - 2 a t1 t2 cos phi + (a t1 t2)^2)
-with n(lam) = neff - (ng - neff)(lam - 1550)/1550, the first-order dispersion JEKray2D and
+with n(lam) = neff - (ng - neff)(lam - 1550)/1550, the first-order dispersion JEKray and
 SAX both use. Its resonances (phi = 2 pi m), each line's full width at half its depth
 (between the lowest point and the highest, off resonance) and the extinction are found here
 from the closed form, by root finding. A Mach-Zehnder of two 50% couplers, arms differing by
@@ -18,10 +18,10 @@ kappa + dkappa (lam - 1550) and an excess loss crosses a^2 (kappa + dkappa (lam 
 
 SAX (github.com/flaport/sax, 0.18.2 with JAX 0.9.2, double precision) solves two small
 circuits from its own waveguide model (sax.models.straight, which has the same neff, ng and
-dB/cm loss as JEKray2D's) and its own circuit solver, which closes the rings' loops itself.
+dB/cm loss as JEKray's) and its own circuit solver, which closes the rings' loops itself.
 The couplers, the MMI and the phase shifter are written here to the same compact models
-JEKray2D uses; SAX's field goes as e^{+ikz} and its couplers cross with -i, the complex
-conjugate of JEKray2D's convention, so every power is the same. The circuits:
+JEKray uses; SAX's field goes as e^{+ikz} and its couplers cross with -i, the complex
+conjugate of JEKray's convention, so every power is the same. The circuits:
   A. a 1x2 MMI (0.2 dB) splitting into two arms: one 400 um of waveguide past an all-pass ring
      (R = 10 um, 10%), the other 100 um and a 100 um phase shifter set to 60 degrees; they meet
      in a directional coupler of 50% at 1550 nm, changing by 1%/nm. Both outputs.

@@ -6,9 +6,12 @@ exclude:
   - worker
   - jek-api
   - README.md
-  - jek/tools/jekray2d/         # the tool's source (the slash matters: without it the built page beside it, jekray2d.html, is excluded too)
-  - jek/tools/jekray2d-dev.html
+  - jek/tools/jekray/         # the tool's source (the slash matters: without it the built page beside it, jekray.html, is excluded too)
+  - jek/tools/jekray-dev.html
 # served although it starts with a dot: Microsoft checks it to confirm the
-# JEKray2D sign-in app belongs to jeksys.net
+# JEKray sign-in app belongs to jeksys.net
 include:
   - .well-known
+# the old addresses (JEKray2D, before the rename) send people on to the new ones
+plugins:
+  - jekyll-redirect-from

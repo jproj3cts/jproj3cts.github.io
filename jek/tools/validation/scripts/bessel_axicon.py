@@ -7,7 +7,7 @@ n sin(alpha); the crossing waves make a core J0^2(k r sin beta), first dark at
 r0 = 2.405 / (k sin beta), over a zone as long as w / tan(beta), its axial intensity growing
 along it as the lit ring feeding it widens.
 
-Here JEKray2D's example: a Gaussian beam of 1 mm at 632.8 nm, waist 21.5 mm before the cone's
+Here JEKray's example: a Gaussian beam of 1 mm at 632.8 nm, waist 21.5 mm before the cone's
 apex (18.5 mm of air and 3 mm of UV fused silica, index from Malitson's Sellmeier formula),
 a 1 degree cone. The field at the apex plane is the Gaussian's (its curvature and width
 after 20.6 mm of equivalent air) times exp(-i k rho sin beta); the Fresnel integral

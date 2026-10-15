@@ -6,7 +6,7 @@ import { CRYSTALS, bireMat, filterT, gainAt, walkOff } from '../core/crystals.js
 import { cellPolar } from '../core/zeeman.js';
 import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
-import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, mountedDia, pdResp, responsivity, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, mountedDia, pdResp, printedMatch, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { lensAntennaOf } from '../core/antenna.js';
 import { deg, project } from '../state/project.js';
@@ -340,7 +340,11 @@ function rfLensReadout(el, wls, rows) {
   // a made-to-order plastic: whether it can be made
   if (M && M.print) {
     const fits = mountedDia(el.diameter, el.mount) <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
-    rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
+    // matched faces, printed as a less dense skin: possible while that density is fine enough for the frequency
+    const skins = el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean), skinOk = skins.every(k => k.ok);
+    if (skins.length) rows.push(['Matched faces', skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ')]);
+    if (!skinOk) checks.push('A matching layer at ' + (+skins[0].ghz.toPrecision(4)) + ' GHz needs a density of ' + skins.find(k => !k.ok).fill.toFixed(0) + '%, lower than the ' + skins[0].least.toFixed(0) + '% that keeps the printed structure fine against the wavelength there: bare faces, or a lower frequency, can be made.');
+    rows.push(['Manufacturable', fits && thin && skinOk ? 'yes' : 'no']);
     if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across' + (el.mount ? ', flange included,' : '') + ' and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');

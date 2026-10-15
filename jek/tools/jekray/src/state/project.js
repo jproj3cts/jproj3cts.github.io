@@ -67,7 +67,9 @@ export function normCoat(c) {
     if (c.label) out.label = String(c.label).slice(0, 40);
   }
   if (mode === 'stack') {
-    out.design = clamp(num(c.design, 550), 100, 20000);
+    // up to a metre: an RF lens's matching layer is designed at millimetres (panels.js matchLayer)
+    out.design = clamp(num(c.design, 550), 100, 1e9);
+    if (c.label) out.label = String(c.label).slice(0, 40);
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, 40).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),

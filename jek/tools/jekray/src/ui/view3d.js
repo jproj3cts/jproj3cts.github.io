@@ -425,7 +425,7 @@ export const V3D = (() => {
         return g;
       }
       case 'filter': add(mesh(disc(2, L), mat.glass(filterColour(el), 0.5))); return g;
-      case 'mask': if (el.grin) { const Dg = grinDesign(el.grin, el.length); add(mesh(disc(isFinite(Dg.t) ? Dg.t : 2, L), mat.glass(0xf2f2ec, 0.55))); return g; }
+      case 'mask': if (el.grin) { const Dg = grinDesign(el.grin, el.length); add(mesh(disc(isFinite(Dg.tTot) ? Dg.tTot : 2, L), mat.glass(0xf2f2ec, 0.55))); return g; }
         add(mesh(disc(1.5, L), mat.glass(el.mod ? parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16) : 0xd8b35a, 0.45))); return g;
       case 'gain': add(mesh(disc(4, L), mat.glass(0xff6a3d, 0.45))); return g;
       case 'faraday': case 'isolator': {

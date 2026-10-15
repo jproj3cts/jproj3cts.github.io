@@ -136,6 +136,10 @@ A lens that is manufacturable can be ordered: its panel's orange **Request a quo
 
 The examples **PLA lens, 10 GHz** and **ABS lens, 24 GHz radar** show both bands. At 10 GHz a lens that can be made is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
+### Matching layers
+
+A plain plastic face reflects some of the beam, about 6% for solid PLA, and the two faces of a lens together can ripple its response with frequency. A graded-index lens's **Faces** can be **Matching layers**: on each face a layer a quarter wave thick at the centre, of index $$\sqrt{n}$$ of the core behind it, printed less dense. At the design frequency the faces then reflect nothing where the layer can be made at that index; towards the edge, where $$\sqrt{n}$$ would need a density lower than the frequency allows, the layer stays at that least density and the match is partial (the panel says from what radius). The layers carry a little of the lens's phase themselves, so the core is graded to make up the rest and the focal length is kept. Away from the design frequency the reflection returns, as a single-layer coating's does, which the receiver's frequency sweep shows. A solid lens's faces can take the same as their **Matching layer** coating: made to order, each is printed as a skin of the lens's own plastic at the density that gives $$\sqrt{n}$$, which can be made while that density is no lower than the frequency allows.
+
 ### Mounting
 
 A made-to-order lens can have a **flange** round its rim, under **Mounting** in its panel: its width out from the rim, its thickness along the axis, and a number of bolt holes of a given diameter on the circle through its middle (4 holes of 3.4 mm, for M3 bolts, by default). The flange is printed solid with the lens, counts towards what can be made (the outside diameter, flange and all, must be 210 mm or less) and its plastic towards the weight. It lies outside the lens, so the beam is not traced through it: any light that passes the rim would pass through it.

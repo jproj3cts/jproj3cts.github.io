@@ -87,3 +87,26 @@ test('a measured mixing rule: the density for an index inverts it, the default i
     }
   } finally { RF_MAT.PLA.mix = was; }
 });
+
+test('matching layers: no reflection at the centre at the design frequency, the focus kept, the plate carrying it', () => {
+  const bare = grinDesign(normGrin({ f: 150, ghz: 24, mat: 'PLA' }), 120), g = normGrin({ f: 150, ghz: 24, mat: 'PLA', match: true }), D = grinDesign(g, 120);
+  const lam = C_NM_GHZ / 24 * 1e-6;
+  assert.ok(D.match && Math.abs(D.tm - lam / (4 * Math.sqrt(D.nHi))) < 1e-12 && Math.abs(D.tTot - D.t - 2 * D.tm) < 1e-12, 'a quarter wave each side');
+  assert.ok(D.lossDb(0).refl < 1e-6, 'centre reflection ' + D.lossDb(0).refl + ' dB');
+  assert.ok(D.lossDb(0).refl + D.lossDb(0).abs < bare.lossDb(0).refl + bare.lossDb(0).abs, 'less lost at the centre than bare');
+  // the path through the whole disc, layers and all, short of the centre's by the profile's: the same focal length
+  const path = r => D.t * D.nAt(r) + 2 * D.tm * D.nmAt(r);
+  for (const r of [10, 30, 50, 60]) {
+    const want = Math.sqrt(r * r + 150 * 150) - 150;
+    assert.ok(Math.abs(path(0) - path(r) - want) < 1e-6, 'path at ' + r + ': ' + (path(0) - path(r)) + ' against ' + want);
+  }
+  assert.ok(D.rMatch > 0 && D.rMatch <= 60, 'matched fully out to ' + D.rMatch.toFixed(1) + ' mm');
+  // the plate: its amplitude the design's loss within a little (its core index is the linear grade's), and the match a band
+  loadProject({ format: 'jekray', version: 1, elements: [{ type: 'mask', name: 'G', x: 0, y: 0, angle: 0, length: 120, mmw: { part: true }, grin: { f: 150, ghz: 24, mat: 'PLA', match: true } }] });
+  const fn = maskFns(STATE.project.elements[0]).fn;
+  for (const r of [0, 30]) {
+    const L = D.lossDb(r), want = Math.sqrt(10 ** (-L.abs / 10)) * 10 ** (-L.refl / 20);
+    assert.ok(Math.abs(fn(r, 0, lam)[0] / want - 1) < 0.01, 'amplitude at ' + r + ': ' + fn(r, 0, lam)[0] + ' against ' + want);
+  }
+  assert.ok(fn(0, 0, lam / 1.3)[0] < fn(0, 0, lam)[0] - 0.01, 'away from the design frequency the faces reflect again');
+});

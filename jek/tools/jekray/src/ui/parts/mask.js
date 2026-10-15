@@ -28,7 +28,7 @@ function drawMask(el, sel) {
 
 /* a graded-index lens: a slab its own thickness, shaded by its density, densest at the middle */
 function drawGrin(el, sel) {
-  const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.t) ? Math.min(D.t, 4 * L) : 2) / 2;
+  const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.tTot) ? Math.min(D.tTot, 4 * L) : 2) / 2;
   const ink = lightLayer ? '143,143,136' : '242,242,236';
   const N = D.usable ? 24 : 0;
   for (let k = 0; k < N; k++) for (const s of [1, -1]) {
@@ -49,15 +49,17 @@ function grinPanel(el) {
     param('Diameter (mm)', el, 'length'), param('Focal length (mm)', el, 'grin.f'),
     selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
     selectField('Profile', Object.entries(GRIN_PROFILES), () => g.profile, v => { g.profile = v; }, { wide: true }),
-    param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin')));
+    param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin'),
+    selectField('Faces', [['bare', 'Bare'], ['match', 'Matching layers (\u03bb/4, less dense)']], () => (g.match ? 'match' : 'bare'), v => { g.match = v === 'match' ? true : undefined; }, { wide: true })));
   const rows = D.usable ? [
-    ['Thickness', D.t.toFixed(1) + ' mm'],
+    ['Thickness', D.tTot.toFixed(1) + ' mm' + (D.match ? ' (' + D.t.toFixed(1) + ' graded, and a ' + D.tm.toFixed(2) + ' mm matching layer each side)' : '')],
+    ...(D.match ? [['Matching layers', pct(D.layerFillAt(0)) + ' dense at the centre' + (D.rMatch < D.a - 0.05 ? '; matched fully out to ' + D.rMatch.toFixed(0) + ' mm, partly beyond (the least density that can be made)' : ', matched to the edge')]] : []),
     ['Index', D.nHi.toFixed(3) + ' at the centre to ' + D.nLo.toFixed(3) + ' at the edge'],
     ['Density', pct(D.fillHi) + ' at the centre to ' + pct(D.fillLo) + ' at the edge'],
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
+    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.tTot <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +

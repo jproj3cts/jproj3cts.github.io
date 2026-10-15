@@ -4041,6 +4041,18 @@ function mixFill(M, eps) {
   const em = M.n * M.n, a = mixA(M);
   return (Math.pow(Math.max(1, eps), a) - 1) / (Math.pow(em, a) - 1);
 }
+/* A face's matching layer made in a made-to-order plastic: the face's coating (a quarter wave of
+   index n1, as panels.js matchLayer sets it) printed as a skin of the lens's own plastic at the
+   density that gives n1. It can be made while that density is no lower than the frequency allows
+   (lines 0.45 mm wide a quarter wave in the plastic apart, as for a graded-index lens).
+   Null for a face with no such coating. */
+const isMatchCoat = c => !!(c && c.label === 'Matching layer' && Array.isArray(c.layers) && c.layers.length === 1 && c.design > 0);
+function printedMatch(M, coat) {
+  if (!isMatchCoat(coat) || !M) return null;
+  const L = coat.layers[0], lam = coat.design * 1e-6, fill = 100 * mixFill(M, L.n * L.n);
+  const least = 100 * 0.45 / (lam / (4 * M.n));
+  return { n: L.n, thick: L.d * 1e-6, fill, least, ok: fill >= least && fill <= 100, ghz: C_NM_GHZ / coat.design };
+}
 /* A made-to-order lens's mounting: a flange round its rim, width mm out from it and thick mm
    along the axis, with holes of diameter hole on the circle through the flange's middle. It is
    outside the lens, so the beam is not traced through it (light past the rim would pass it). */
@@ -4259,6 +4271,7 @@ function normGrin(g) {
     fillMax,
     fillMin: clamp(isFinite(g.fillMin) ? +g.fillMin : 15, GRIN_FLOOR, fillMax - 1),
     profile: GRIN_PROFILES[g.profile] ? g.profile : 'ideal',
+    match: g.match ? true : undefined,                       // a quarter-wave matching layer on each face
   };
 }
 /* the design: dia the disc's diameter (mm) */
@@ -4270,24 +4283,49 @@ function grinDesign(g, dia) {
   const nHi = nOf(fillHi), nLo = nOf(Math.min(fillLo, fillHi));
   const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
   const usable = fillLo < fillHi - 2;
-  const t = usable ? opd(a) / (nHi - nLo) : Infinity;
-  const nAt = r => nHi - opd(Math.min(r, a)) / t, fillAt = r => fillOf(nAt(r));
-  // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)), and reflected at the two faces
-  const alpha = r => 2 * Math.PI * mixEps(M, fillAt(r) / 100).epsI / (nAt(r) * lam);
+  // Matching layers: on each face a layer a quarter wave thick at the centre, its index sqrt(n) of
+  // the core behind it (no lower than the least density that can be made: beyond rMatch the match
+  // is partial). They add path of their own, 2 tm (nm - 1), so the core is graded to make up only
+  // the rest of the profile, and the disc as a whole keeps the design's focal length.
+  const match = !!g.match && usable, tm = match ? lam / (4 * Math.sqrt(nHi)) : 0;
+  const nmOf = n => Math.max(Math.sqrt(n), nLo), Lp = n => (match ? 2 * tm * (nmOf(n) - 1) : 0);
+  const t = usable ? (opd(a) - (Lp(nHi) - Lp(nLo))) / (nHi - nLo) : Infinity;
+  const nAt = !match ? r => nHi - opd(Math.min(r, a)) / t : r => {
+    const want = opd(Math.min(r, a));
+    let lo = nLo, hi = nHi;                                     // the core's path short of the centre's, layers and all, is the profile's
+    for (let k = 0; k < 50; k++) { const m = (lo + hi) / 2; if (t * (nHi - m) + Lp(nHi) - Lp(m) > want) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  const fillAt = r => fillOf(nAt(r)), nmAt = r => nmOf(nAt(r)), layerFillAt = r => (match ? fillOf(nmAt(r)) : 0);
+  const tTot = t + 2 * tm;
+  let rMatch = a;
+  if (match && Math.sqrt(nLo) < nLo) { let lo = 0, hi = a; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (Math.sqrt(nAt(m)) >= nLo) lo = m; else hi = m; } rMatch = lo; }
+  // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)) in the core and the layers, and reflected at the two faces
+  const alpha = (n, fill) => 2 * Math.PI * mixEps(M, fill / 100).epsI / (n * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
-  const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
+  // a face with a layer of index nm, tm thick, between air and n: the single-layer film's reflectance at lambda
+  const reflM = (n, nm, lamX) => {
+    const r1 = (1 - nm) / (1 + nm), r2 = (nm - n) / (nm + n), c = Math.cos(4 * Math.PI * nm * tm / lamX);
+    return (r1 * r1 + r2 * r2 + 2 * r1 * r2 * c) / (1 + r1 * r1 * r2 * r2 + 2 * r1 * r2 * c);
+  };
+  const lossDb = r => {
+    const n = nAt(r), core = 4.343 * alpha(n, fillOf(n)) * t;
+    if (!match) return { abs: core, refl: -20 * Math.log10(1 - refl(n)) };
+    const nm = nmOf(n);
+    return { abs: core + 4.343 * alpha(nm, fillOf(nm)) * 2 * tm, refl: -20 * Math.log10(1 - reflM(n, nm, lam)) };
+  };
   // the plastic it takes, and its weight
   let vol = 0;
-  if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += fillAt(r) / 100 * 2 * Math.PI * r * (a / 200) * t; }
+  if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += (fillAt(r) * t + layerFillAt(r) * 2 * tm) / 100 * 2 * Math.PI * r * (a / 200); }
   const grams = vol / 1000 * (M.density || 1.2);
   const checks = [];
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
-    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
-    if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
+    if (dia > PRINTER.maxDia || tTot > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
-  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
+  return { M, eps, lam, a, t, tm, tTot, match, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
 /* the disc on the bench: a mask with the delay and amplitude its design gives */
@@ -4295,13 +4333,22 @@ function applyGrin(el) {
   el.grin = normGrin(el.grin);
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
-  const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.t) + ')';
+  // the core's index at r: exact without matching layers; with them, the linear grade across the
+  // same range (within a hundredth of the core's), for the loss and reflection only (the delay is the design's)
+  const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.match ? D.t + 2 * D.tm * (D.nmAt(0) - D.nmAt(D.a)) / (D.nHi - D.nLo) : D.t) + ')';
   // the density there, and the loss it brings (core/rf.js mixEps), as the bench's formulas
-  const a = mixA(D.M), loss = a === 1
-    ? '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
-    : '((' + N + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + N + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
+  const a = mixA(D.M), lossOf = X => a === 1
+    ? '((' + X + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
+    : '((' + X + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + X + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
   el.delay = '-' + D.opdExpr + '/lambda';
-  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + loss + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  if (!D.match) el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + lossOf(N) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  else {
+    // each face a quarter-wave layer of index Nm (sqrt of the core's, no lower than can be made): its reflectance at lambda
+    const Nm = 'max(sqrt(' + N + '),' + fmt(D.nLo) + ')', r1 = '((1-' + Nm + ')/(1+' + Nm + '))', r2 = '((' + Nm + '-' + N + ')/(' + Nm + '+' + N + '))';
+    const c = 'cos(4*pi*' + Nm + '*' + fmt(D.tm) + '/lambda)';
+    const R = '((' + r1 + '^2+' + r2 + '^2+2*' + r1 + '*' + r2 + '*' + c + ')/(1+' + r1 + '^2*' + r2 + '^2+2*' + r1 + '*' + r2 + '*' + c + '))';
+    el.amp = 'circ(r/' + fmt(D.a) + ')*(1-' + R + ')*exp(-pi*' + lossOf(N) + '*' + fmt(D.t) + '/(' + N + '*lambda))*exp(-pi*' + lossOf(Nm) + '*' + fmt(2 * D.tm) + '/(' + Nm + '*lambda))';
+  }
   el.preset = 'grin';
   return D;
 }
@@ -5891,7 +5938,9 @@ function normCoat(c) {
     if (c.label) out.label = String(c.label).slice(0, 40);
   }
   if (mode === 'stack') {
-    out.design = clamp(num(c.design, 550), 100, 20000);
+    // up to a metre: an RF lens's matching layer is designed at millimetres (panels.js matchLayer)
+    out.design = clamp(num(c.design, 550), 100, 1e9);
+    if (c.label) out.label = String(c.label).slice(0, 40);
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, 40).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
@@ -15159,7 +15208,7 @@ const V3D = (() => {
         return g;
       }
       case 'filter': add(mesh(disc(2, L), mat.glass(filterColour(el), 0.5))); return g;
-      case 'mask': if (el.grin) { const Dg = grinDesign(el.grin, el.length); add(mesh(disc(isFinite(Dg.t) ? Dg.t : 2, L), mat.glass(0xf2f2ec, 0.55))); return g; }
+      case 'mask': if (el.grin) { const Dg = grinDesign(el.grin, el.length); add(mesh(disc(isFinite(Dg.tTot) ? Dg.tTot : 2, L), mat.glass(0xf2f2ec, 0.55))); return g; }
         add(mesh(disc(1.5, L), mat.glass(el.mod ? parseInt(MOD_COLOURS[el.mod.colour || 'grey'].slice(1), 16) : 0xd8b35a, 0.45))); return g;
       case 'gain': add(mesh(disc(4, L), mat.glass(0xff6a3d, 0.45))); return g;
       case 'faraday': case 'isolator': {
@@ -17897,7 +17946,7 @@ function drawMask(el, sel) {
 
 /* a graded-index lens: a slab its own thickness, shaded by its density, densest at the middle */
 function drawGrin(el, sel) {
-  const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.t) ? Math.min(D.t, 4 * L) : 2) / 2;
+  const f = frame(el), D = grinDesign(el.grin, el.length), L = el.length / 2, T = (isFinite(D.tTot) ? Math.min(D.tTot, 4 * L) : 2) / 2;
   const ink = lightLayer ? '143,143,136' : '242,242,236';
   const N = D.usable ? 24 : 0;
   for (let k = 0; k < N; k++) for (const s of [1, -1]) {
@@ -17918,15 +17967,17 @@ function grinPanel(el) {
     param('Diameter (mm)', el, 'length'), param('Focal length (mm)', el, 'grin.f'),
     selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
     selectField('Profile', Object.entries(GRIN_PROFILES), () => g.profile, v => { g.profile = v; }, { wide: true }),
-    param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin')));
+    param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin'),
+    selectField('Faces', [['bare', 'Bare'], ['match', 'Matching layers (\u03bb/4, less dense)']], () => (g.match ? 'match' : 'bare'), v => { g.match = v === 'match' ? true : undefined; }, { wide: true })));
   const rows = D.usable ? [
-    ['Thickness', D.t.toFixed(1) + ' mm'],
+    ['Thickness', D.tTot.toFixed(1) + ' mm' + (D.match ? ' (' + D.t.toFixed(1) + ' graded, and a ' + D.tm.toFixed(2) + ' mm matching layer each side)' : '')],
+    ...(D.match ? [['Matching layers', pct(D.layerFillAt(0)) + ' dense at the centre' + (D.rMatch < D.a - 0.05 ? '; matched fully out to ' + D.rMatch.toFixed(0) + ' mm, partly beyond (the least density that can be made)' : ', matched to the edge')]] : []),
     ['Index', D.nHi.toFixed(3) + ' at the centre to ' + D.nLo.toFixed(3) + ' at the edge'],
     ['Density', pct(D.fillHi) + ' at the centre to ' + pct(D.fillLo) + ' at the edge'],
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
+    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.tTot <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
@@ -18906,7 +18957,11 @@ function rfLensReadout(el, wls, rows) {
   // a made-to-order plastic: whether it can be made
   if (M && M.print) {
     const fits = mountedDia(el.diameter, el.mount) <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
-    rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
+    // matched faces, printed as a less dense skin: possible while that density is fine enough for the frequency
+    const skins = el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean), skinOk = skins.every(k => k.ok);
+    if (skins.length) rows.push(['Matched faces', skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ')]);
+    if (!skinOk) checks.push('A matching layer at ' + (+skins[0].ghz.toPrecision(4)) + ' GHz needs a density of ' + skins.find(k => !k.ok).fill.toFixed(0) + '%, lower than the ' + skins[0].least.toFixed(0) + '% that keeps the printed structure fine against the wavelength there: bare faces, or a lower frequency, can be made.');
+    rows.push(['Manufacturable', fits && thin && skinOk ? 'yes' : 'no']);
     if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across' + (el.mount ? ', flange included,' : '') + ' and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
@@ -20475,7 +20530,7 @@ function coatingRows(el, holder, label) {
     selectField(label || 'Coating',
       [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
         ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : [])],
-      () => holder.coat.mode,
+      () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode),
       v => {
         const keep = holder.coat;
         if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
@@ -29686,11 +29741,12 @@ function orderSpec(el) {
   if (!el || !el.mmw) return null;
   if (el.type === 'mask' && el.grin) {
     const g = el.grin, D = grinDesign(g, el.length);
-    if (!D.usable || mountedDia(el.length, el.mount) > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
+    if (!D.usable || mountedDia(el.length, el.mount) > PRINTER.maxDia || D.tTot > PRINTER.maxHeight) return null;
     return {
       name: 'Graded-index RF lens, ' + D.M.name + ', ' + mm(el.length) + ' across, f ' + mm(g.f) + ', ' + g.ghz + ' GHz',
       spec: ['Design frequency: ' + g.ghz + ' GHz', 'Diameter: ' + mm(el.length), 'Focal length: ' + mm(g.f) + ', ' + (g.profile === 'parabolic' ? 'parabolic' : 'ideal-lens') + ' profile',
-        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', mountLine(el.length, el.mount),
+        'Material: ' + D.M.name, 'Thickness: ' + mm(D.tTot), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge',
+        D.match ? 'Faces: quarter-wave matching layers at ' + g.ghz + ' GHz, ' + mm(D.tm) + ' each' : null, mountLine(el.length, el.mount),
         'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g'].filter(Boolean),
     };
   }
@@ -29699,6 +29755,8 @@ function orderSpec(el) {
     if (!M || !M.print || mats.some(m => m.glass !== mats[0].glass)) return null;
     const geo = lensThickness(el);
     if (mountedDia(el.diameter, el.mount) > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
+    const skins = el.surfaces.map(s => printedMatch(M, s.coat));
+    if (skins.some(k => k && !k.ok)) return null;
     const ghz = ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
     const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
     const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
@@ -29707,7 +29765,9 @@ function orderSpec(el) {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
-        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')), mountLine(el.diameter, el.mount),
+        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
+        mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g'].filter(Boolean),
     };
   }
@@ -33013,6 +33073,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Matching layers</b>: a graded-index lens\u2019s faces can carry a quarter-wave layer, printed less dense, so they reflect nothing at the design frequency (and partly match where the layer cannot be made so sparse); its core is graded to keep the focal length. A made-to-order solid lens\u2019s Matching layer coating is made as a less dense skin, and its panel says whether that can be made.',
     '<b>A flange for a made-to-order lens</b>: under Mounting in the panel of an RF lens in a made-to-order plastic, or a graded-index lens, a flange round its rim with bolt holes, set by its width, thickness, number of holes and their size. It is drawn on the bench, goes in the quote with the lens, and counts towards what can be made.',
     '<b>An RF lens as an antenna</b>: a lens fed by a horn shows its gain in dBi against the horn alone, its half-power beamwidth and first sidelobe, and where its aperture efficiency goes (taper, phase, spillover and the lens\u2019s own loss), with its far-field pattern plotted beside the horn\u2019s. A lens that focuses inside its own far field says so.',
     '<b>Order an RF lens to your design</b>: an RF lens in PLA, ABS, PETG, ASA or polypropylene, or a graded-index lens, that its panel calls manufacturable has an orange <b>Request a quote for this lens</b> button. It puts the lens in the JEK Systems quote cart with its figures and a link to its design; send the request from the cart and we reply with a price. See Custom RF Lenses under Products.',

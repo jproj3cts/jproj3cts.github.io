@@ -534,7 +534,7 @@ export function coatingRows(el, holder, label) {
     selectField(label || 'Coating',
       [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
         ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : [])],
-      () => holder.coat.mode,
+      () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode),
       v => {
         const keep = holder.coat;
         if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }

@@ -8501,6 +8501,23 @@ const TESTS = [
     },
   },
   {
+    name: 'Matching layers on a graded-index lens cut its reflection and raise its gain; a matched solid lens can be made',
+    why: 'the graded-index example with matching layers: no reflection at the centre, more gain than bare, the quote names the layers; the ABS example with both faces matched at 24 GHz: still manufacturable, and its quote says so (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      const bare = JSON.parse(getDemo('rf-24ghz-grin-lens')); J.load(bare); const g0 = J.lensAntenna('GRIN lens').Gdbi;
+      const m = JSON.parse(getDemo('rf-24ghz-grin-lens')); m.elements.find(e => e.grin).grin.match = true; J.load(m); J.select('GRIN lens');
+      const g1 = J.lensAntenna('GRIN lens').Gdbi, txt = doc.querySelector('#panel').textContent;
+      const grinOk = g1 > g0 + 0.1 && /0\.00 dB reflected/.test(txt) && /matching layer each side/.test(txt);
+      const a = JSON.parse(getDemo('rf-24ghz-abs-lens')), L = a.elements.find(e => e.name === 'ABS lens'), nm = 299792458 / 24, n1 = Math.sqrt(1.581);
+      for (const s of L.surfaces) s.coat = { mode: 'stack', design: nm, layers: [{ n: n1, d: nm / (4 * n1) }], label: 'Matching layer' };
+      J.load(a); J.select('ABS lens');
+      const ro = doc.querySelector('#panel [data-readout]').textContent;
+      return grinOk && /Matched faces/.test(ro) && /Manufacturableyes/.test(ro.replace(/\s+/g, '')) && !!doc.querySelector('#panel .rt-order') ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

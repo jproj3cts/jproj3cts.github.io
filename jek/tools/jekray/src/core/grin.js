@@ -36,6 +36,7 @@ export function normGrin(g) {
     fillMax,
     fillMin: clamp(isFinite(g.fillMin) ? +g.fillMin : 15, GRIN_FLOOR, fillMax - 1),
     profile: GRIN_PROFILES[g.profile] ? g.profile : 'ideal',
+    match: g.match ? true : undefined,                       // a quarter-wave matching layer on each face
   };
 }
 /* the design: dia the disc's diameter (mm) */
@@ -47,24 +48,49 @@ export function grinDesign(g, dia) {
   const nHi = nOf(fillHi), nLo = nOf(Math.min(fillLo, fillHi));
   const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
   const usable = fillLo < fillHi - 2;
-  const t = usable ? opd(a) / (nHi - nLo) : Infinity;
-  const nAt = r => nHi - opd(Math.min(r, a)) / t, fillAt = r => fillOf(nAt(r));
-  // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)), and reflected at the two faces
-  const alpha = r => 2 * Math.PI * mixEps(M, fillAt(r) / 100).epsI / (nAt(r) * lam);
+  // Matching layers: on each face a layer a quarter wave thick at the centre, its index sqrt(n) of
+  // the core behind it (no lower than the least density that can be made: beyond rMatch the match
+  // is partial). They add path of their own, 2 tm (nm - 1), so the core is graded to make up only
+  // the rest of the profile, and the disc as a whole keeps the design's focal length.
+  const match = !!g.match && usable, tm = match ? lam / (4 * Math.sqrt(nHi)) : 0;
+  const nmOf = n => Math.max(Math.sqrt(n), nLo), Lp = n => (match ? 2 * tm * (nmOf(n) - 1) : 0);
+  const t = usable ? (opd(a) - (Lp(nHi) - Lp(nLo))) / (nHi - nLo) : Infinity;
+  const nAt = !match ? r => nHi - opd(Math.min(r, a)) / t : r => {
+    const want = opd(Math.min(r, a));
+    let lo = nLo, hi = nHi;                                     // the core's path short of the centre's, layers and all, is the profile's
+    for (let k = 0; k < 50; k++) { const m = (lo + hi) / 2; if (t * (nHi - m) + Lp(nHi) - Lp(m) > want) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  const fillAt = r => fillOf(nAt(r)), nmAt = r => nmOf(nAt(r)), layerFillAt = r => (match ? fillOf(nmAt(r)) : 0);
+  const tTot = t + 2 * tm;
+  let rMatch = a;
+  if (match && Math.sqrt(nLo) < nLo) { let lo = 0, hi = a; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (Math.sqrt(nAt(m)) >= nLo) lo = m; else hi = m; } rMatch = lo; }
+  // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)) in the core and the layers, and reflected at the two faces
+  const alpha = (n, fill) => 2 * Math.PI * mixEps(M, fill / 100).epsI / (n * lam);
   const refl = n => ((n - 1) / (n + 1)) ** 2;
-  const lossDb = r => ({ abs: 4.343 * alpha(r) * t, refl: -20 * Math.log10(1 - refl(nAt(r))) });
+  // a face with a layer of index nm, tm thick, between air and n: the single-layer film's reflectance at lambda
+  const reflM = (n, nm, lamX) => {
+    const r1 = (1 - nm) / (1 + nm), r2 = (nm - n) / (nm + n), c = Math.cos(4 * Math.PI * nm * tm / lamX);
+    return (r1 * r1 + r2 * r2 + 2 * r1 * r2 * c) / (1 + r1 * r1 * r2 * r2 + 2 * r1 * r2 * c);
+  };
+  const lossDb = r => {
+    const n = nAt(r), core = 4.343 * alpha(n, fillOf(n)) * t;
+    if (!match) return { abs: core, refl: -20 * Math.log10(1 - refl(n)) };
+    const nm = nmOf(n);
+    return { abs: core + 4.343 * alpha(nm, fillOf(nm)) * 2 * tm, refl: -20 * Math.log10(1 - reflM(n, nm, lam)) };
+  };
   // the plastic it takes, and its weight
   let vol = 0;
-  if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += fillAt(r) / 100 * 2 * Math.PI * r * (a / 200) * t; }
+  if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += (fillAt(r) * t + layerFillAt(r) * 2 * tm) / 100 * 2 * Math.PI * r * (a / 200); }
   const grams = vol / 1000 * (M.density || 1.2);
   const checks = [];
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
-    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
-    if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
+    if (dia > PRINTER.maxDia || tTot > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
-  return { M, eps, lam, a, t, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
+  return { M, eps, lam, a, t, tm, tTot, match, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
 /* the disc on the bench: a mask with the delay and amplitude its design gives */
@@ -72,13 +98,22 @@ export function applyGrin(el) {
   el.grin = normGrin(el.grin);
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
-  const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.t) + ')';
+  // the core's index at r: exact without matching layers; with them, the linear grade across the
+  // same range (within a hundredth of the core's), for the loss and reflection only (the delay is the design's)
+  const N = '(' + fmt(D.nHi) + '-' + D.opdExpr + '/' + fmt(D.match ? D.t + 2 * D.tm * (D.nmAt(0) - D.nmAt(D.a)) / (D.nHi - D.nLo) : D.t) + ')';
   // the density there, and the loss it brings (core/rf.js mixEps), as the bench's formulas
-  const a = mixA(D.M), loss = a === 1
-    ? '((' + N + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
-    : '((' + N + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + N + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
+  const a = mixA(D.M), lossOf = X => a === 1
+    ? '((' + X + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
+    : '((' + X + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + X + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
   el.delay = '-' + D.opdExpr + '/lambda';
-  el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + loss + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  if (!D.match) el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + lossOf(N) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
+  else {
+    // each face a quarter-wave layer of index Nm (sqrt of the core's, no lower than can be made): its reflectance at lambda
+    const Nm = 'max(sqrt(' + N + '),' + fmt(D.nLo) + ')', r1 = '((1-' + Nm + ')/(1+' + Nm + '))', r2 = '((' + Nm + '-' + N + ')/(' + Nm + '+' + N + '))';
+    const c = 'cos(4*pi*' + Nm + '*' + fmt(D.tm) + '/lambda)';
+    const R = '((' + r1 + '^2+' + r2 + '^2+2*' + r1 + '*' + r2 + '*' + c + ')/(1+' + r1 + '^2*' + r2 + '^2+2*' + r1 + '*' + r2 + '*' + c + '))';
+    el.amp = 'circ(r/' + fmt(D.a) + ')*(1-' + R + ')*exp(-pi*' + lossOf(N) + '*' + fmt(D.t) + '/(' + N + '*lambda))*exp(-pi*' + lossOf(Nm) + '*' + fmt(2 * D.tm) + '/(' + Nm + '*lambda))';
+  }
   el.preset = 'grin';
   return D;
 }

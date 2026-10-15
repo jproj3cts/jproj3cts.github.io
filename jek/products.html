@@ -8,33 +8,7 @@
 <link rel="stylesheet" href="/jek/assets/css/jek.css">
 
 <!-- Products-only overrides. Move into assets/jek.css whenever convenient. -->
-<style>
-  /* Sub-categories join into one continuous colour-keyed stack per column
-     instead of sitting in separate floating boxes. */
-  .subcat-grid { gap: 0; }
 
-  .subcat-box { border-radius: 0; }
-
-  .subcat-box + .subcat-box {
-    margin-top: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.30);
-  }
-
-  /* Only the ends of the stack are rounded. Tracks --jek-radius so it stays
-     in step with the rest of the site. */
-  .subcat-grid .subcat-box:first-child {
-    border-top-left-radius: var(--jek-radius);
-    border-top-right-radius: var(--jek-radius);
-  }
-
-  .subcat-grid .subcat-box:last-child {
-    border-bottom-left-radius: var(--jek-radius);
-    border-bottom-right-radius: var(--jek-radius);
-  }
-
-  /* jek.css still hardcodes 4px on these link chips */
-  .subcat-panel-inner a { border-radius: 2px; }
-</style>
 </head>
 
 <body>
@@ -64,132 +38,76 @@
   </div>
 
   <!-- Content -->
-  <main class="main-content">
-    <h1 class="page-title">Products</h1>
+  <main class="main-content jek-flush">
 
-    <div class="columns-box">
+    <section class="jek-hero" style="padding-bottom: 2rem">
+      <div class="jek-wrap">
+        <div>
+          <div class="jek-eyebrow">Products</div>
+          <h1>Hardware for the optics lab</h1>
+          <p class="jek-tag">Photodetectors, signal electronics and lab accessories, designed and built in-house, with the simulator to plan the bench.</p>
+          <p class="jek-lede">Everything here is quoted to order: add what you need to the quote cart and we come back with price and lead time. If a catalogue part is close but not quite right, it can be modified; if nothing fits, see <a href="/jek/custom-solutions.html">custom solutions</a>.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/cart.html">Your quote cart</a>
+            <a class="jek-btn quiet" href="/jek/tools/jekray2d.html">Launch JEKray2D</a>
+          </div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" alt="A CF40 sample transport rack in a vacuum chamber" width="1280" height="800">
+          <figcaption>The CF40 sample transport rack, vacuum-compatible and hydrophobic, holding sixteen 30 mm samples.</figcaption>
+        </figure>
+      </div>
+    </section>
 
-      <div class="column-box">
-        <img src="/jek/products/design-software/jekray2d/img/michelson.png" class="column-image" alt="A Michelson interferometer in JEKray2D" />
-        <div class="category-tile">Photonics</div>
-        <div class="subcat-grid">
-          <div class="subcat-box category-orange">
-            <button class="subcat-toggle" type="button">
-              <span>Amplified Photodetectors</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/photodetectors/">View →</a>
-              </div>
-            </div>
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <div class="jek-cards">
+          <div class="jek-card cat-orange">
+            <img src="/jek/products/design-software/jekray2d/img/michelson.png" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Photonics</div>
+            <h3>Detectors and design software</h3>
+            <p>Low-noise amplified and biased photodetectors, and JEKray2D for the bench itself.</p>
+            <ul class="jek-catlist">
+              <li><a href="/jek/products/photodetectors/">Amplified photodetectors</a></li>
+              <li><a href="/jek/products/photodetectors/">Biased photodetectors</a></li>
+              <li><a href="/jek/products/design-software/jekray2d/">JEKray2D optical bench simulator</a></li>
+            </ul>
           </div>
-          <div class="subcat-box category-orange">
-            <button class="subcat-toggle" type="button">
-              <span>Biased Photodetectors</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/photodetectors/">View →</a>
-              </div>
-            </div>
+          <div class="jek-card cat-red">
+            <img src="/jek/assets/img/qpd.jpg" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Electronics</div>
+            <h3>Signal processing and control</h3>
+            <p>RF filters and mixers for the signal chain, and active control systems for locking and stabilisation.</p>
+            <ul class="jek-catlist">
+              <li><a href="/jek/products/signal-processing/">RF filters</a></li>
+              <li><a href="/jek/products/signal-processing/">Mixers</a></li>
+              <li><a href="/jek/products/signal-processing/">Active control systems</a></li>
+            </ul>
           </div>
-          <div class="subcat-box category-orange">
-            <button class="subcat-toggle" type="button">
-              <span>Design Software</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/design-software/jekray2d/">JEKray2D</a>
-              </div>
-            </div>
+          <div class="jek-card cat-blue">
+            <img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Lab accessories</div>
+            <h3>Mounts, holders and sensors</h3>
+            <p>Optomechanics and sample handling for the vacuum lab, and the LaSc sensor watch.</p>
+            <ul class="jek-catlist">
+              <li><a href="/jek/products/lab-accessories/">Optical mounts</a></li>
+              <li><a href="/jek/products/lab-accessories/cf40-sample-transport-rack/">CF40 sample transport rack</a></li>
+              <li><a href="/jek/products/lab-accessories/">LaSc sensor watch</a></li>
+            </ul>
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="column-box">
-        <img src="/jek/assets/img/qpd.jpg" class="column-image" />
-        <div class="category-tile">Electronics</div>
-        <div class="subcat-grid">
-          <div class="subcat-box category-red">
-            <button class="subcat-toggle" type="button">
-              <span>RF Filters</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/signal-processing/">View →</a>
-              </div>
-            </div>
-          </div>
-          <div class="subcat-box category-red">
-            <button class="subcat-toggle" type="button">
-              <span>Mixers</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/signal-processing/">View →</a>
-              </div>
-            </div>
-          </div>
-          <div class="subcat-box category-red">
-            <button class="subcat-toggle" type="button">
-              <span>Active Control Systems</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/signal-processing/">View →</a>
-              </div>
-            </div>
-          </div>
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <div class="jek-cards">
+          <div class="jek-card"><h3>Quotes, not checkout</h3><p>Add products to the quote cart and send it: you get price, lead time and any questions back by email. No account and no payment details.</p><a class="jek-more" href="/jek/cart.html">Open the quote cart &rarr;</a></div>
+          <div class="jek-card"><h3>Modified to order</h3><p>A different connector, a longer rack, a tighter bandwidth: most catalogue parts can be varied. Say what you need when you ask for the quote.</p><a class="jek-more" href="/jek/custom-solutions.html">Custom solutions &rarr;</a></div>
+          <div class="jek-card"><h3>Plan the bench first</h3><p>Lay out the detector, the optics and the mounts in JEKray2D before anything is ordered. The simulator is free, in your browser.</p><a class="jek-more" href="/jek/products/design-software/jekray2d/">About JEKray2D &rarr;</a></div>
         </div>
       </div>
-
-      <div class="column-box">
-        <img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" class="column-image" alt="CF40 sample transport rack" />
-        <div class="category-tile">Lab Accessories</div>
-        <div class="subcat-grid">
-          <div class="subcat-box category-blue">
-            <button class="subcat-toggle" type="button">
-              <span>Optical Mounts</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/lab-accessories/">View →</a>
-              </div>
-            </div>
-          </div>
-          <div class="subcat-box category-blue">
-            <button class="subcat-toggle" type="button">
-              <span>Sample Holders</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/lab-accessories/cf40-sample-transport-rack/">CF40 Vacuum-Compatible Hydrophobic Sample Transport Rack - 16 (30 x 30 x 1 mm)</a>
-              </div>
-            </div>
-          </div>
-          <div class="subcat-box category-blue">
-            <button class="subcat-toggle" type="button">
-              <span>LaSc Sensor Watch</span>
-              <span class="chevron">&gt;</span>
-            </button>
-            <div class="subcat-panel">
-              <div class="subcat-panel-inner">
-                <a href="/jek/products/lab-accessories/">View →</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    </section>
 
   </main>
 
@@ -205,13 +123,7 @@
   </div>
 </footer>
 
-<script>
-  document.querySelectorAll('.subcat-toggle').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      btn.closest('.subcat-box').classList.toggle('open');
-    });
-  });
-</script>
+
 
 <script src="/jek/assets/js/cart.js"></script>
 

@@ -7736,7 +7736,11 @@ function traceSceneOnce() {
           bn = P.el.bench;
           if (anyZ) zh += zOf(P.el) - zOf(s.el);              // the same place against the partner, at its height
           pts.length = 0; pts.push(px, py);
-          if (isQ) evt = passEv();
+          // the field crosses with nothing taken from it: a link plane's length is where it
+          // catches the light, not an opening, so the event carries no rim (an event with the
+          // plane's half-length cut the field to it, a 100 mm beam through a 25 mm plane to a
+          // slit that spread it in a wide fan on the far bench)
+          if (isQ) { evt = passEv(); evt.semi = 0; Object.defineProperty(evt, 'surf', { value: null, enumerable: false, configurable: true }); }
           last = P.s;
           continue;
         }
@@ -15565,7 +15569,14 @@ const V3D = (() => {
   }
 
   /* ---------- looking about ---------- */
-  function contentBox() { return R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100)); }
+  // what to fit: the parts, or failing them what is drawn, or the board; never smaller than 200 mm
+  // across, so a tab holding only a link plane (light arriving from another tab) is seen with
+  // room for the light it gives out, not from a few millimetres away
+  function contentBox() {
+    const b = (R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100))).clone();
+    const sz = b.getSize(new T.Vector3()), MIN = 200;
+    return b.expandByVector(new T.Vector3(Math.max(0, MIN - sz.x) / 2, Math.max(0, MIN - sz.y) / 2, Math.max(0, MIN / 4 - sz.z) / 2));
+  }
   function fit(dirName, animate) {
     if (!R) return;
     const b = contentBox(), c = b.getCenter(new T.Vector3());
@@ -24924,6 +24935,8 @@ function popRoundEv(ev) {
   if (ev.surf && ev.surf.tilt) return false;
   if (ev.hz !== undefined && ev.surf && ev.surf.el && Math.abs(ev.hz - zOf(ev.surf.el)) > 1e-9) return false;
   if ((ev.din3 && ev.din3[2]) || (ev.dout3 && ev.dout3[2])) return false;
+  // a link plane is no surface: where on it the beam crosses changes nothing about the beam
+  if (ev.kind === 'link') return true;
   if (ev.mask) {
     const M = ev.mask;
     if (M.shape !== 'round' && M.shape !== 'disc') return false;

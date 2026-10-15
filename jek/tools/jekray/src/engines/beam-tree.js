@@ -63,6 +63,8 @@ export function popRoundEv(ev) {
   if (ev.surf && ev.surf.tilt) return false;
   if (ev.hz !== undefined && ev.surf && ev.surf.el && Math.abs(ev.hz - zOf(ev.surf.el)) > 1e-9) return false;
   if ((ev.din3 && ev.din3[2]) || (ev.dout3 && ev.dout3[2])) return false;
+  // a link plane is no surface: where on it the beam crosses changes nothing about the beam
+  if (ev.kind === 'link') return true;
   if (ev.mask) {
     const M = ev.mask;
     if (M.shape !== 'round' && M.shape !== 'disc') return false;

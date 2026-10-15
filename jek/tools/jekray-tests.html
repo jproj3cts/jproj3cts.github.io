@@ -4366,6 +4366,18 @@ const TESTS = [
     wantFrom: () => TESTS_EXPECT.oneFw,
   },
   {
+    name: 'A beam wider than its link plane, crossing it off-centre, is not cut to it',
+    why: 'a 12 mm beam through a 25 mm link plane 7 mm off its middle: the far screen\u2019s spot (FWHM) as on one bench. The plane\u2019s length passed to the field as an opening cut the beam to 5.5 mm and spread it in a fan',
+    want: null, tol: 1e-6, rel: true, unit: ' mm',
+    run: J => {
+      const wide = (split) => { const b = linkBench(split, 0); const B = b.elements.find(e => e.name === 'Beam'); Object.assign(B, { w0: 6, width: 24 });
+        const S = b.elements.find(e => e.name === 'Sc'); S.length = 60; const A = b.elements.find(e => e.name === 'A'); if (A) A.y = -7; const P = b.elements.find(e => e.name === 'B'); if (P) P.y += -7; return b; };
+      J.load(wide(false)); TESTS_EXPECT.wideFw = J.diffraction('Sc').fwhm;
+      J.load(wide(true)); return J.diffraction('Sc').fwhm;
+    },
+    wantFrom: () => TESTS_EXPECT.wideFw,
+  },
+  {
     name: 'A link plane with no partner stops the light',
     why: 'nothing reaches the screen behind it',
     want: 0, tol: 0, unit: ' rays',

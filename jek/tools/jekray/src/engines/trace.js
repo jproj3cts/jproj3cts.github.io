@@ -877,7 +877,11 @@ function traceSceneOnce() {
           bn = P.el.bench;
           if (anyZ) zh += zOf(P.el) - zOf(s.el);              // the same place against the partner, at its height
           pts.length = 0; pts.push(px, py);
-          if (isQ) evt = passEv();
+          // the field crosses with nothing taken from it: a link plane's length is where it
+          // catches the light, not an opening, so the event carries no rim (an event with the
+          // plane's half-length cut the field to it, a 100 mm beam through a 25 mm plane to a
+          // slit that spread it in a wide fan on the far bench)
+          if (isQ) { evt = passEv(); evt.semi = 0; Object.defineProperty(evt, 'surf', { value: null, enumerable: false, configurable: true }); }
           last = P.s;
           continue;
         }

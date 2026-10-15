@@ -986,7 +986,14 @@ export const V3D = (() => {
   }
 
   /* ---------- looking about ---------- */
-  function contentBox() { return R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100)); }
+  // what to fit: the parts, or failing them what is drawn, or the board; never smaller than 200 mm
+  // across, so a tab holding only a link plane (light arriving from another tab) is seen with
+  // room for the light it gives out, not from a few millimetres away
+  function contentBox() {
+    const b = (R.partsBox && !R.partsBox.isEmpty() ? R.partsBox : R.content && !R.content.isEmpty() ? R.content : R.boardBox || new T.Box3(new T.Vector3(-150, -100, 0), new T.Vector3(150, 100, 100))).clone();
+    const sz = b.getSize(new T.Vector3()), MIN = 200;
+    return b.expandByVector(new T.Vector3(Math.max(0, MIN - sz.x) / 2, Math.max(0, MIN - sz.y) / 2, Math.max(0, MIN / 4 - sz.z) / 2));
+  }
   function fit(dirName, animate) {
     if (!R) return;
     const b = contentBox(), c = b.getCenter(new T.Vector3());

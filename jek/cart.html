@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Quote Cart</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261015b">
 </head>
 <body>
 
@@ -131,7 +131,7 @@
   </div>
 </footer>
 
-<script src="/jek/assets/js/cart.js"></script>
+<script src="/jek/assets/js/cart.js?v=20261015b"></script>
 <script>
 (function () {
   var rowsEl    = document.getElementById("cartRows");
@@ -255,9 +255,13 @@
     errEl.hidden = true;
     if (!d.name) { fail("Please give your name.", false); f.name.focus(); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) { fail("Please give an email address we can reply to.", false); f.email.focus(); return; }
+    // an old copy of cart.js (a browser's cache) has no submitQuote: the email draft, never a stuck button
+    if (typeof JEKCart.submitQuote !== "function") { emailDraft(); return; }
     sendBtn.disabled = true;
     sendBtn.textContent = "Sending\u2026";
-    JEKCart.submitQuote(items, d).then(function (r) {
+    JEKCart.submitQuote(items, d).catch(function () {
+      return { ok: false, message: "We could not send your request just now.", fallback: true };
+    }).then(function (r) {
       sendBtn.disabled = false;
       sendBtn.textContent = "Send quote request";
       if (!r.ok) { fail(r.message, r.fallback); return; }

@@ -70,6 +70,10 @@
         <button type="button" id="clearBtn" class="return">Clear cart</button>
       </div>
 
+      <p id="cartCustomNote" class="cart-note" hidden>
+        Parts made to your design are covered by our <a href="/jek/made-to-order-terms.html">Made-to-Order Terms</a>: they cannot be cancelled for a change of mind once ordered, and your design is kept confidential.
+      </p>
+
       <p class="cart-note">
         Quote now opens this list in your email client, addressed to
         <a href="mailto:sales@jeksys.net">sales@jeksys.net</a>. Nothing is sent until you send it yourself.
@@ -111,6 +115,7 @@
   var mixedEl   = document.getElementById("cartMixedNote");
   var fallback  = document.getElementById("cartFallback");
   var fbText    = document.getElementById("fallbackText");
+  var customEl  = document.getElementById("cartCustomNote");
 
   function priceCell(it) {
     if (typeof it.price !== "number") return "On application";
@@ -164,6 +169,7 @@
              '<strong>' + esc(JEKCart.money(s.currency, s.value)) + '</strong></div>';
     }).join("");
     mixedEl.hidden = !JEKCart.isMixed(items);
+    customEl.hidden = !items.some(function (it) { return Array.isArray(it.spec) && it.spec.length; });
   }
 
   // Delegated handlers survive re-renders

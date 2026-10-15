@@ -84,5 +84,6 @@ export function orderRow(el) {
     finally { btn.disabled = false; }
   } }, 'Request a quote for this lens');
   return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), btn,
-    h('p', { class: 'note' }, 'Made to order to this design. The request goes into your quote cart with its figures and a link to the design; send it from Cart on the JEK Systems site and we reply with a price.'));
+    h('p', { class: 'note' }, 'Made to order to this design. The request goes into your quote cart with its figures and a link to the design; send it from Cart on the JEK Systems site and we reply with a price. ',
+      h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'));
 }

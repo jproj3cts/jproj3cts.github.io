@@ -4001,18 +4001,17 @@ const RF_MAT = {
   'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
   'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
   'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
-  // 3D-printing filaments, printed solid: typical values from published measurements at 10 to
-  // 40 GHz. Each brand, colour and print setting differs, and they take up water: until a
-  // filament is calibrated these stand for a range, and the panels say so
-  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true, density: 1.24 },
-  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true, density: 1.04 },
-  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true, density: 1.27 },
-  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true, density: 1.07 },
-  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true, density: 0.9 },
+  // the plastics RF lenses are made to order in, solid: typical values from published measurements at 10 to
+  // 40 GHz. Each brand and colour differs, and they take up water: until measured, these
+  // stand for a range, and the panels say so
+  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA', print: true, density: 1.24 },
+  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS', print: true, density: 1.04 },
+  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG', print: true, density: 1.27 },
+  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
+  'PP': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
 };
-/* the printer RF lenses are made on (JEK Systems' own: a Prusa Core ONE, 0.4 mm nozzle): the
-   largest part with a margin round it, and the thinnest wall it lays down well (mm) */
-const PRINTER = { name: 'Core ONE', bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
+/* what an RF lens can be made as, in one piece: its largest size, and its thinnest wall (mm) */
+const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */
 const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
 /* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */
@@ -4207,7 +4206,7 @@ const fmt = v => +(+v).toPrecision(7);
 
 function normGrin(g) {
   g = g && typeof g === 'object' ? g : {};
-  const mat = RF_MAT[g.mat] && RF_MAT[g.mat].print ? g.mat : 'PLA';
+  const m0 = g.mat === 'PP (printed)' ? 'PP' : g.mat, mat = RF_MAT[m0] && RF_MAT[m0].print ? m0 : 'PLA';
   const fillMax = clamp(isFinite(g.fillMax) ? +g.fillMax : 100, 20, 100);
   return {
     f: clamp(isFinite(g.f) ? +g.f : 150, 5, 1e5),
@@ -4249,7 +4248,7 @@ function grinDesign(g, dia) {
   const checks = [];
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
-    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
+    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
@@ -5729,6 +5728,7 @@ function nextName(prefix) {
 function normMat(m) {
   if (!m || typeof m !== 'object') return { glass: 'N-BK7', abs: 0 };
   const out = { glass: String(m.glass || 'N-BK7'), abs: Math.max(0, num(m.abs, 0)) };
+  if (out.glass === 'PP (printed)') out.glass = 'PP';                 // its first name, briefly
   if (m.table && Array.isArray(m.table.wl) && m.table.wl.length > 1) {
     out.table = {
       wl: m.table.wl.map(Number),
@@ -17739,7 +17739,7 @@ function grinPanel(el) {
   panel.append(h('h3', null, 'Graded-index lens'));
   panel.append(h('div', { class: 'rt-rows' },
     param('Diameter (mm)', el, 'length'), param('Focal length (mm)', el, 'grin.f'),
-    selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name.replace(', printed solid', '') + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
+    selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
     selectField('Profile', Object.entries(GRIN_PROFILES), () => g.profile, v => { g.profile = v; }, { wide: true }),
     param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin')));
   const rows = D.usable ? [
@@ -17749,12 +17749,12 @@ function grinPanel(el) {
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    [PRINTER.name + ' print', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'fits' : 'too large'],
+    ['Manufacturable', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
-    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is printed solid at its centre and less dense towards its edge, which lowers its index there. ' +
-      (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so the printed structure stays fine against the wavelength. ' : '') +
-      D.M.name.replace(', printed solid', '') + ': typical values; printed plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
+      (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
+      D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
 }
 
@@ -18669,7 +18669,7 @@ function updateReadoutsIn(container, el) {
    At the first RF frequency on the bench: the loss through its centre (absorbed, from the
    material's loss tangent; reflected, at plain faces, from its index), the beam it carries
    (its radius at the lens, from the traced Gaussian beam, the edge taper and the power that
-   misses the lens), its size in wavelengths, and for a printing filament whether it fits the
+   misses the lens), its size in wavelengths, and for a made-to-order plastic whether it fits the
    printer and its thinnest wall. Past the limits of the Gaussian-beam picture it says so. */
 const sagAt = (s, r) => {
   if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
@@ -18716,13 +18716,13 @@ function rfLensReadout(el, wls, rows) {
     }
   }
   if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
-  // printing: the filament, the printer
+  // a made-to-order plastic: whether it can be made
   if (M && M.print) {
     const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
-    rows.push([PRINTER.name + ' print', (fits ? 'fits, ' : 'too large, ') + fmtLen(el.diameter) + ' across, ' + fmtLen(geo.thickest) + ' thick'], ['Thinnest point', fmtLen(geo.thinnest) + (thin ? '' : ', too thin to print')]);
-    if (!fits) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
-    if (!thin) checks.push('Its thinnest point is under ' + PRINTER.minWall + ' mm, the thinnest wall the printer lays down well: thicken the lens, or make it a little smaller across.');
-    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. Printed plastics vary with brand, colour, moisture and print settings; calibrated values replace these as filaments are measured.');
+    rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
+    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
+    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
   const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
@@ -32667,8 +32667,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc printed solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it prints on the Core ONE, and the beam at it with its edge taper. A new example: a graded-index printed lens on a 24 GHz horn.',
-    '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in 3D-printing filaments too (PLA, ABS, PETG, ASA, polypropylene, printed solid, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for a filament, whether it prints on the Core ONE and its thinnest wall. Two new examples: a printed PLA lens at 10 GHz and a printed ABS lens on a 24 GHz radar horn.',
+    '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc, solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it can be made, and the beam at it with its edge taper. A new example: a graded-index lens on a 24 GHz horn.',
+    '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in more plastics too (PLA, ABS, PETG, ASA and polypropylene, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for these plastics, whether it can be made. Two new examples: a PLA lens at 10 GHz and an ABS lens on a 24 GHz radar horn.',
     'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',
     '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
@@ -32831,9 +32831,9 @@ const EXAMPLES = [
   ['Modules', false, [
     ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
-    ['rf-10ghz-printed-lens', 'Printed PLA lens, 10 GHz', 'A horn\u2019s beam collimated by a lens printed in PLA: its loss, its edge taper, and whether it prints.'],
-    ['rf-24ghz-grin-lens', 'Graded-index printed lens, 24 GHz', 'A flat printed disc whose density falls from its centre to its edge focuses a horn\u2019s beam: its design and what it comes to.'],
-    ['rf-24ghz-printed-lens', 'Printed ABS lens, 24 GHz radar', 'A radar horn behind a printed ABS lens: the band where printed RF lenses work best.'],
+    ['rf-10ghz-pla-lens', 'PLA lens, 10 GHz', 'A horn\u2019s beam collimated by a PLA lens: its loss, its edge taper, and whether it can be made.'],
+    ['rf-24ghz-grin-lens', 'Graded-index lens, 24 GHz', 'A flat disc whose density falls from its centre to its edge focuses a horn\u2019s beam: its design and what it comes to.'],
+    ['rf-24ghz-abs-lens', 'ABS lens, 24 GHz radar', 'A radar horn behind an ABS lens: the band where plastic RF lenses of this size work best.'],
     ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.'],
     ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.'],
     ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.'],

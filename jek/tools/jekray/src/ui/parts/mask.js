@@ -43,7 +43,7 @@ function grinPanel(el) {
   panel.append(h('h3', null, 'Graded-index lens'));
   panel.append(h('div', { class: 'rt-rows' },
     param('Diameter (mm)', el, 'length'), param('Focal length (mm)', el, 'grin.f'),
-    selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name.replace(', printed solid', '') + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
+    selectField('Material', Object.entries(RF_MAT).filter(([, v]) => v.print).map(([k, v]) => [k, v.name + ' (typical)']), () => g.mat, v => { g.mat = v; }, { wide: true }),
     selectField('Profile', Object.entries(GRIN_PROFILES), () => g.profile, v => { g.profile = v; }, { wide: true }),
     param('Design frequency (GHz)', el, 'grin.ghz'), param('Density at the centre (%)', el, 'grin.fillMax'), param('Lowest density (%)', el, 'grin.fillMin')));
   const rows = D.usable ? [
@@ -53,12 +53,12 @@ function grinPanel(el) {
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    [PRINTER.name + ' print', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'fits' : 'too large'],
+    ['Manufacturable', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
-    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is printed solid at its centre and less dense towards its edge, which lowers its index there. ' +
-      (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so the printed structure stays fine against the wavelength. ' : '') +
-      D.M.name.replace(', printed solid', '') + ': typical values; printed plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
+      (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
+      D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
 }
 

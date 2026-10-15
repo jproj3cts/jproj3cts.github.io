@@ -28,7 +28,7 @@ const fmt = v => +(+v).toPrecision(7);
 
 export function normGrin(g) {
   g = g && typeof g === 'object' ? g : {};
-  const mat = RF_MAT[g.mat] && RF_MAT[g.mat].print ? g.mat : 'PLA';
+  const m0 = g.mat === 'PP (printed)' ? 'PP' : g.mat, mat = RF_MAT[m0] && RF_MAT[m0].print ? m0 : 'PLA';
   const fillMax = clamp(isFinite(g.fillMax) ? +g.fillMax : 100, 20, 100);
   return {
     f: clamp(isFinite(g.f) ? +g.f : 150, 5, 1e5),
@@ -70,7 +70,7 @@ export function grinDesign(g, dia) {
   const checks = [];
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
-    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
+    if (dia > PRINTER.maxDia || t > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (t / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (t / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }

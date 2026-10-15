@@ -1,7 +1,7 @@
 {
  "format": "jekray",
  "version": 1,
- "name": "Graded-index printed lens, 24 GHz",
+ "name": "Graded-index lens, 24 GHz",
  "view": {
   "cx": 200,
   "cy": 0,
@@ -59,5 +59,5 @@
    }
   }
  ],
- "notes": "A 24 GHz horn behind a flat graded-index lens, 120 mm across, printed in PLA: solid at its centre and less dense towards its edge, so its index falls from 1.64 to 1.18 and it bends the beam as a curved lens would, from a flat disc 31 mm thick. Select the lens for its design: focal length, diameter, material, the density range and the frequency it is made for, and what they come to: its thickness, its index and density from centre to edge, its loss at the centre and the edge, its weight, and whether it prints on the Core ONE. Below them, the beam at the lens and its edge taper (30 dB here: the beam fits). Change the focal length and the lens thickens or thins to suit; try ABS for less loss."
+ "notes": "A 24 GHz horn behind a flat graded-index lens, 120 mm across, in PLA: solid at its centre and less dense towards its edge, so its index falls from 1.64 to 1.18 and it bends the beam as a curved lens would, from a flat disc 31 mm thick. Select the lens for its design: focal length, diameter, material, the density range and the frequency it is made for, and what they come to: its thickness, its index and density from centre to edge, its loss at the centre and the edge, its weight, and whether it can be made. Below them, the beam at the lens and its edge taper (30 dB here: the beam fits). Change the focal length and the lens thickens or thins to suit; try ABS for less loss."
 }

@@ -282,7 +282,7 @@ function updateReadoutsIn(container, el) {
    At the first RF frequency on the bench: the loss through its centre (absorbed, from the
    material's loss tangent; reflected, at plain faces, from its index), the beam it carries
    (its radius at the lens, from the traced Gaussian beam, the edge taper and the power that
-   misses the lens), its size in wavelengths, and for a printing filament whether it fits the
+   misses the lens), its size in wavelengths, and for a made-to-order plastic whether it fits the
    printer and its thinnest wall. Past the limits of the Gaussian-beam picture it says so. */
 const sagAt = (s, r) => {
   if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
@@ -329,13 +329,13 @@ function rfLensReadout(el, wls, rows) {
     }
   }
   if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
-  // printing: the filament, the printer
+  // a made-to-order plastic: whether it can be made
   if (M && M.print) {
     const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
-    rows.push([PRINTER.name + ' print', (fits ? 'fits, ' : 'too large, ') + fmtLen(el.diameter) + ' across, ' + fmtLen(geo.thickest) + ' thick'], ['Thinnest point', fmtLen(geo.thinnest) + (thin ? '' : ', too thin to print')]);
-    if (!fits) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
-    if (!thin) checks.push('Its thinnest point is under ' + PRINTER.minWall + ' mm, the thinnest wall the printer lays down well: thicken the lens, or make it a little smaller across.');
-    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. Printed plastics vary with brand, colour, moisture and print settings; calibrated values replace these as filaments are measured.');
+    rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
+    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
+    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
   const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];

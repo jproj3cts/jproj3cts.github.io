@@ -1,7 +1,7 @@
 {
  "format": "jekray",
  "version": 1,
- "name": "Printed PLA lens on a 10 GHz horn",
+ "name": "PLA lens on a 10 GHz horn",
  "view": {
   "cx": 250,
   "cy": 0,
@@ -63,5 +63,5 @@
    "mmw": {}
   }
  ],
- "notes": "A corrugated feed horn at 10 GHz (30 mm wavelength) sends its beam through a plano-convex lens printed solid in PLA, 200 mm across, which collimates it; the screen 600 mm on shows the beam that leaves. Select the lens for what a printed RF lens needs: its loss through the centre (about 0.8 dB absorbed in PLA at 10 GHz, and 0.5 dB reflected at its two plain faces), the beam at the lens and its edge taper (22 dB: little light misses the lens), and whether it prints on the Core ONE. At 10 GHz the printer's 210 mm limit makes a lens under seven wavelengths across, so the horn must sit close and the lens be fast. Try ABS or PP under Material: less loss. PLA's values are typical, not measured: printed plastics vary."
+ "notes": "A corrugated feed horn at 10 GHz (30 mm wavelength) sends its beam through a plano-convex lens in PLA, 200 mm across, which collimates it; the screen 600 mm on shows the beam that leaves. Select the lens for what a made-to-order RF lens needs: its loss through the centre (about 0.8 dB absorbed in PLA at 10 GHz, and 0.5 dB reflected at its two plain faces), the beam at the lens and its edge taper (22 dB: little light misses the lens), and whether it can be made. At 10 GHz a lens up to the 210 mm that can be made is under seven wavelengths across, so the horn must sit close and the lens be fast. Try ABS or PP under Material: less loss. PLA's values are typical, not measured: plastics vary."
 }

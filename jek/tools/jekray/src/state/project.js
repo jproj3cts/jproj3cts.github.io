@@ -42,6 +42,7 @@ export function nextName(prefix) {
 export function normMat(m) {
   if (!m || typeof m !== 'object') return { glass: 'N-BK7', abs: 0 };
   const out = { glass: String(m.glass || 'N-BK7'), abs: Math.max(0, num(m.abs, 0)) };
+  if (out.glass === 'PP (printed)') out.glass = 'PP';                 // its first name, briefly
   if (m.table && Array.isArray(m.table.wl) && m.table.wl.length > 1) {
     out.table = {
       wl: m.table.wl.map(Number),

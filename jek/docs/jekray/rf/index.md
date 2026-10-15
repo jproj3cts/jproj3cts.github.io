@@ -103,15 +103,15 @@ Lenses and windows at these frequencies are made of plastics and low-loss crysta
 | Alumina | 3.13 | 2 × 10⁻⁴ |
 | Nylon | 1.73 | 1.1 × 10⁻² |
 
-For printed lenses there are the common 3D-printing filaments, printed solid. Their values are typical, from published measurements at 10 to 40 GHz, and taken as flat over that band. A printed plastic's index and loss vary with its brand, colour, moisture and print settings, so treat these as a guide until the filament is measured:
+For lenses made to order there are common plastics. Their values are typical, from published measurements at 10 to 40 GHz, and taken as flat over that band. A plastic's index and loss vary with its brand, colour and moisture, so treat these as a guide:
 
-| Filament | Index | Loss tangent |
+| Plastic | Index | Loss tangent |
 |---|---|---|
 | PLA | 1.643 | 1.0 × 10⁻² |
 | ABS | 1.581 | 6 × 10⁻³ |
 | PETG | 1.612 | 1.3 × 10⁻² |
 | ASA | 1.628 | 9 × 10⁻³ |
-| Polypropylene, printed | 1.483 | 8 × 10⁻⁴ |
+| Polypropylene (PP) | 1.483 | 8 × 10⁻⁴ |
 
 The power absorbed per unit length is
 
@@ -123,20 +123,20 @@ so a beam through a thickness $$t$$ keeps $$e^{-\alpha t}$$ of its power. The lo
 
 They are the materials of an **RF lens**, a part of its own on the RF tab, drawn white as these plastics are. Its material menu lists only them, with their index at the bench's frequency: for example, "PTFE (Teflon), n = 1.44 at 150 GHz". An optical lens's menu keeps to glasses.
 
-## Printed RF lenses
+## Made-to-order RF lenses
 
 An RF lens's panel reads, at the first RF frequency on the bench:
 
 - **Loss through the centre**: what its material absorbs along the axis, $$4.34\,\alpha t$$ dB, and what its plain faces reflect, $$\left(\frac{n-1}{n+1}\right)^2$$ at each.
 - **Across**: its diameter in wavelengths. Under five, the Gaussian-beam picture is rough, and the panel says so.
 - **Beam radius at the lens**, from the traced beam, and the **edge taper**, $$8.686\,(a/w)^2$$ dB for a lens of radius $$a$$, with the share of the power that passes outside it, $$e^{-2a^2/w^2}$$. Under 20 dB the panel warns: the light past the edge is lost, and the edge diffracts in ways the model leaves out. A lens four beam radii across, 35 dB, keeps both small.
-- For a printing filament, whether it fits the **Core ONE** printer, up to 210 mm across and 260 mm thick, and its **thinnest point**, which needs to be at least 0.45 mm.
+- For these plastics, whether it is **manufacturable**: up to 210 mm across and 260 mm thick can be made, with no point thinner than 0.45 mm.
 
-The examples **Printed PLA lens, 10 GHz** and **Printed ABS lens, 24 GHz radar** show both bands. At 10 GHz a printable lens is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
+The examples **PLA lens, 10 GHz** and **ABS lens, 24 GHz radar** show both bands. At 10 GHz a lens that can be made is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
 ## Graded-index lenses
 
-A **graded-index lens** (GRIN lens, on the RF tab under Lenses and mirrors) is a flat disc printed solid at its centre and less dense towards its edge. Plastic and air mixed finer than the wavelength act as one material whose permittivity is their mean by volume,
+A **graded-index lens** (GRIN lens, on the RF tab under Lenses and mirrors) is a flat disc, solid at its centre and less dense towards its edge. Plastic and air mixed finer than the wavelength act as one material whose permittivity is their mean by volume,
 
 $$
 \varepsilon = 1 + \rho\,(\varepsilon_m - 1),
@@ -150,11 +150,11 @@ $$
 t = \frac{\text{path at the edge}}{n_\text{centre} - n_\text{edge}}.
 $$
 
-At a given frequency the lowest density is raised, if need be, so that the printed structure stays fine against the wavelength: at 24 GHz, to about 24%; at 10 GHz, 15% stands.
+At a given frequency the lowest density is raised, if need be, so that its structure stays fine against the wavelength: at 24 GHz, to about 24%; at 10 GHz, 15% stands.
 
-Its panel gives the thickness, the index and density from centre to edge, the loss at the centre and at the edge, its weight, and whether it prints on the Core ONE; below them, the beam at the lens and its edge taper, as for an RF lens. On the bench it is a thin plate with that delay and the transmission its loss and its faces leave; a disc thick against its focal length, over 0.3 of it, is only roughly placed, and the panel says so.
+Its panel gives the thickness, the index and density from centre to edge, the loss at the centre and at the edge, its weight, and whether it is manufacturable; below them, the beam at the lens and its edge taper, as for an RF lens. On the bench it is a thin plate with that delay and the transmission its loss and its faces leave; a disc thick against its focal length, over 0.3 of it, is only roughly placed, and the panel says so.
 
-The example **Graded-index printed lens, 24 GHz** shows one 120 mm across on a 24 GHz horn.
+The example **Graded-index lens, 24 GHz** shows one 120 mm across on a 24 GHz horn.
 
 ## The parts
 

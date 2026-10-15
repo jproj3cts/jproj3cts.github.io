@@ -257,7 +257,7 @@
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (res.ok && data.sent) return { ok: true, reference: data.reference, copied: data.copied !== false };
-        var msg = data.error && data.error.message ? data.error.message : "We could not send your request just now.";
+        var msg = res.status !== 404 && data.error && data.error.message ? data.error.message : "We could not send your request just now.";
         // only a request that needs fixing (400) is not worth the email draft; anything else
         // (not deployed yet, refused, too busy, cannot send) is
         return { ok: false, message: msg, fallback: res.status !== 400 };

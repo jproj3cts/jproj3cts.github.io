@@ -4001,7 +4001,18 @@ const RF_MAT = {
   'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
   'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
   'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
+  // 3D-printing filaments, printed solid: typical values from published measurements at 10 to
+  // 40 GHz. Each brand, colour and print setting differs, and they take up water: until a
+  // filament is calibrated these stand for a range, and the panels say so
+  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true },
+  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true },
+  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true },
+  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true },
+  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true },
 };
+/* the printer RF lenses are made on (JEK Systems' own: a Prusa Core ONE, 0.4 mm nozzle): the
+   largest part with a margin round it, and the thinnest wall it lays down well (mm) */
+const PRINTER = { name: 'Core ONE', bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */
 const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
 /* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */
@@ -18482,7 +18493,8 @@ function updateReadoutsIn(container, el) {
     }
     const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
-    parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
+    if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
+    if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
   } else if (el.type === 'chopper') {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
@@ -18514,6 +18526,69 @@ function updateReadoutsIn(container, el) {
   if (live) box.style.minHeight = Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0) + 'px';
   box.replaceChildren(h('dl', null, ...parts[0].flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, parts[1]));
+}
+
+/* ---------- An RF lens: what it costs the beam, how well the beam fits it, and whether it prints ----------
+   At the first RF frequency on the bench: the loss through its centre (absorbed, from the
+   material's loss tangent; reflected, at plain faces, from its index), the beam it carries
+   (its radius at the lens, from the traced Gaussian beam, the edge taper and the power that
+   misses the lens), its size in wavelengths, and for a printing filament whether it fits the
+   printer and its thinnest wall. Past the limits of the Gaussian-beam picture it says so. */
+const sagAt = (s, r) => {
+  if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
+  const c = 1 / s.R, k = s.k || 0, q = 1 - (1 + k) * c * c * r * r;
+  const base = q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R);
+  return base + (s.a2 || 0) * r * r + (s.A || []).reduce((a, cc, j) => a + cc * r ** (4 + 2 * j), 0);
+};
+function lensThickness(el) {
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2;
+  let tMin = Infinity, tMax = -Infinity;
+  for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
+  return { centre: T, thinnest: tMin, thickest: tMax, edge: T + sagAt(S[S.length - 1], R) - sagAt(S[0], R) };
+}
+function rfLensReadout(el, wls, rows) {
+  const nm = wls.find(v => v > 1e5);
+  if (!nm) return null;
+  const lam = nm * 1e-6, ghz = C_NM_GHZ / nm;
+  const mats = el.materials.filter(m => m.glass !== 'AIR'), m0 = mats[0], M = m0 && RF_MAT[m0.glass];
+  const geo = lensThickness(el), notes = [], checks = [];
+  // the loss through the centre: absorbed in each layer, reflected at each plain face
+  let absDb = 0, refl = 1;
+  el.materials.forEach((m, i) => { if (m.glass !== 'AIR') absDb += 4.343 * absorbAt(m, nm) * (el.gaps[i] || 0); });
+  const nOf = i => i < 0 || i >= el.materials.length ? 1 : refIndex(el.materials[i], nm);
+  el.surfaces.forEach((s, i) => {
+    const n1 = nOf(i - 1), n2 = nOf(i), coat = s.coat || { mode: 'bare' };
+    const R = coat.mode === 'bare' || !coat.mode ? ((n1 - n2) / (n1 + n2)) ** 2 : (coat.R || 0) / 100;
+    refl *= 1 - R;
+  });
+  const reflDb = -10 * Math.log10(Math.max(1e-12, refl));
+  rows.push(['Loss through the centre', absDb.toFixed(2) + ' dB absorbed, ' + reflDb.toFixed(2) + ' dB reflected'], ['Across', (el.diameter / lam).toFixed(1) + ' wavelengths']);
+  // the beam at the lens: the strongest traced beam that leaves its first face
+  let best = null;
+  for (const b of lastTrace.beams || []) {
+    const s = b.ev && b.ev.surf;
+    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (!best || b.w > best.w) best = b;
+  }
+  if (best) {
+    const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.diameter / 2;
+    if (w > 0) {
+      const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
+      rows.push(['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']);
+      if (taper < 20) checks.push('The beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across (an edge taper of 35 dB) keeps both small.');
+    }
+  }
+  if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
+  // printing: the filament, the printer
+  if (M && M.print) {
+    const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
+    rows.push([PRINTER.name + ' print', (fits ? 'fits, ' : 'too large, ') + fmtLen(el.diameter) + ' across, ' + fmtLen(geo.thickest) + ' thick'], ['Thinnest point', fmtLen(geo.thinnest) + (thin ? '' : ', too thin to print')]);
+    if (!fits) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
+    if (!thin) checks.push('Its thinnest point is under ' + PRINTER.minWall + ' mm, the thinnest wall the printer lays down well: thicken the lens, or make it a little smaller across.');
+    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. Printed plastics vary with brand, colour, moisture and print settings; calibrated values replace these as filaments are measured.');
+  }
+  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
+  return [rows, text];
 }
 /* ---------- One-parameter search over a swept range ---------- */
 
@@ -21049,7 +21124,7 @@ function assumedBox(el) {
 function materialOptions(mat, rf) {
   // the RF dielectrics: by their index at the bench's frequency, when it is an RF bench
   const nm = benchNms()[0], at = nm > 1e5 ? ' at ' + fmtGHz(nm) : ' (RF)';
-  const rfOpts = Object.entries(RF_MAT).map(([k, v]) => [k, v.name + ', n = ' + v.n + at]);
+  const rfOpts = Object.entries(RF_MAT).map(([k, v]) => [k, v.name + ', n = ' + v.n + at + (v.print ? ' (typical)' : '')]);
   if (rf) {
     const opts = rfOpts.slice();
     if (!RF_MAT[mat.glass] && mat.glass !== 'custom') opts.unshift([mat.glass, matLabel(mat) + ' (not an RF dielectric)']);
@@ -29982,7 +30057,6 @@ const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'rf', name: 'RF and millimetre waves', what: 'a set of parts of its own (Add part, and the rail), in yellow: feed horns set in GHz and dBm, receiving horns, RF lenses of dielectrics (HDPE, PTFE, silicon\u2026) and metal mirrors, wire grids and loads, for quasi-optics from 1 GHz to 3 THz. Beams are Gaussian beams; checked against Goldsmith\u2019s formulas for horns and their coupling.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -30034,7 +30108,7 @@ const PART_GROUPS = {
   elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
     ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
 };
-const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) && (p !== 'rf' || exp('rf')));
+const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
 const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
 // a palette's parts in their groups; any not listed in a group under Other
 function partGroups(pal) {
@@ -30267,7 +30341,7 @@ function setPalette(pal) {
 }
 /* the palettes offered change with the experimental switch */
 function layoutPalette() {
-  if ((palette === 'pic' && !exp('pic')) || (palette === 'rf' && !exp('rf'))) assignPalette('free');                                    // PIC hook
+  if (palette === 'pic' && !exp('pic')) assignPalette('free');                                    // PIC hook
   fillRail();
   if (!picker.hidden) fillPicker('');
 }
@@ -32440,6 +32514,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in 3D-printing filaments too (PLA, ABS, PETG, ASA, polypropylene, printed solid, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for a filament, whether it prints on the Core ONE and its thinnest wall. Two new examples: a printed PLA lens at 10 GHz and a printed ABS lens on a 24 GHz radar horn.',
     'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',
     '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
@@ -32602,10 +32677,12 @@ const EXAMPLES = [
   ['Modules', false, [
     ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
-    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf'],
-    ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.', 'rf'],
-    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.', 'rf'],
-    ['mm-wave-heterodyne', 'Heterodyne link, 150 GHz', 'A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.', 'rf']]],
+    ['rf-10ghz-printed-lens', 'Printed PLA lens, 10 GHz', 'A horn\u2019s beam collimated by a lens printed in PLA: its loss, its edge taper, and whether it prints.'],
+    ['rf-24ghz-printed-lens', 'Printed ABS lens, 24 GHz radar', 'A radar horn behind a printed ABS lens: the band where printed RF lenses work best.'],
+    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.'],
+    ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.'],
+    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.'],
+    ['mm-wave-heterodyne', 'Heterodyne link, 150 GHz', 'A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.']]],
   ['Photonic circuits', false, [
     ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [

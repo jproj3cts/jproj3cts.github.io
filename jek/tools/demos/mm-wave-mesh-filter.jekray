@@ -2,7 +2,7 @@
  "format": "jekray",
  "version": 1,
  "name": "Mesh filter, swept",
- "notes": "Experimental: RF and millimetre waves (Help, Experimental features). A 150 GHz horn, an HDPE lens 150 mm away collimating its beam, a resonant band-pass mesh (centre 150 GHz, Q = 5) in the collimated beam, a second lens refocusing it into a receiving horn: a Gaussian beam telescope with a filter in its middle. Select the receiver: its Frequency sweep traces the bench at 81 frequencies across \u00b120% and plots S21, the power into its mode over the power launched, which shows the mesh's pass band on top of the lenses' own frequency dependence; its Link budget lists what each part took. Turn the mesh to capacitive or inductive, or change its Q, and the curve follows. The lenses' plain faces reflect 4.3% each: set a face's coating to Matching layer to see the matching's band.",
+ "notes": "A 150 GHz horn, an HDPE lens 150 mm away collimating its beam, a resonant band-pass mesh (centre 150 GHz, Q = 5) in the collimated beam, a second lens refocusing it into a receiving horn: a Gaussian beam telescope with a filter in its middle. Select the receiver: its Frequency sweep traces the bench at 81 frequencies across ±20% and plots S21, the power into its mode over the power launched, which shows the mesh's pass band on top of the lenses' own frequency dependence; its Link budget lists what each part took. Turn the mesh to capacitive or inductive, or change its Q, and the curve follows. The lenses' plain faces reflect 4.3% each: set a face's coating to Matching layer to see the matching's band.",
  "view": {
   "cx": 300,
   "cy": 0,

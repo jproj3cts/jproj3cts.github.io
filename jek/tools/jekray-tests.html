@@ -7415,23 +7415,23 @@ const TESTS = [
     },
   },
   {
-    name: 'RF is experimental, and an RF lens is a part of its own',
-    why: 'the RF tab of parts shows only with the switch on and RF ticked; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
+    name: 'RF is on for everyone, and an RF lens is a part of its own',
+    why: 'the RF tab of parts shows with the experimental switch off and on; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       try {
-        const off = !J.experimental(false).active.includes('rf') && !J.palettesOn().includes('rf');
-        const on = J.experimental(true).active.includes('rf') && J.palettesOn().includes('rf');
-        const unticked = !J.experimental(true, { rf: false }).active.includes('rf') && !J.palettesOn().includes('rf');
-        J.experimental(true, { rf: true });
+        const off = (J.experimental(false), J.palettesOn().includes('rf'));
+        const on = (J.experimental(true), J.palettesOn().includes('rf'));
+        const unticked = !J.experimental(true).active.includes('rf');          // no longer an experimental feature at all
+        J.experimental(false);
         J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'PTFE' }], mmw: {} },
           { type: 'lens', name: 'L2', x: 300, y: 50, diameter: 25, surfaces: [{ R: 50 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }], { ghz: 150 }));
         const label = J.typeLabel('L1') === 'RF lens' && J.typeLabel('L2') !== 'RF lens';
         const rfm = J.materialOptions(J.byName('L1')), opt = J.materialOptions(J.byName('L2'));
-        const rfOk = rfm.length === 10 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && !rfm.some(o => o[0] === 'N-BK7');
+        const rfOk = rfm.length === 15 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && rfm.some(o => o[1] === 'PLA, printed solid, n = 1.643 at 150 GHz (typical)') && !rfm.some(o => o[0] === 'N-BK7');
         const optOk = !opt.some(o => o[0] === 'HDPE' || o[0] === 'PTFE') && opt.some(o => o[0] === 'N-BK7');
         return off && on && unticked && label && rfOk && optOk ? 1 : 0;
-      } finally { J.experimental(false, { rf: true }); }
+      } finally { J.experimental(false); }
     },
   },
   {
@@ -8414,6 +8414,21 @@ const TESTS = [
         const opened = v => { J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 25.4, tip: v }] }); return J.byName('M').tip; };
         return Math.abs(tip - 30) < 1e-9 && back === undefined && Math.abs(fine - 3) < 0.01 && opened(0.6) === 0.6 && opened(0) === undefined ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'A printed RF lens reads its loss, its beam and its fit on the printer',
+    why: 'the 24 GHz printed ABS lens example: its panel gives an edge taper near 34 dB, about 0.7 dB absorbed, and fits on the Core ONE with no warning; made 40 mm across, the edge taper falls under 20 dB and the warning comes (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('rf-24ghz-printed-lens')));
+      const doc = document.getElementById('rig').contentDocument;
+      const read = () => { J.select('ABS lens'); const r = doc.querySelector('#panel .rt-readout'); return r ? r.textContent : ''; };
+      const t0 = read(), taper = +((t0.match(/Edge taper([\d.]+) dB/) || [])[1]), abs = +((t0.match(/centre([\d.]+) dB absorbed/) || [])[1]);
+      const ok0 = Math.abs(taper - 34) < 2 && Math.abs(abs - 0.68) < 0.05 && /Core ONE printfits/.test(t0) && !/Check:/.test(t0);
+      const small = JSON.parse(getDemo('rf-24ghz-printed-lens')); small.elements.find(e => e.name === 'ABS lens').diameter = 40; J.load(small);
+      const t1 = read(), taper1 = +((t1.match(/Edge taper([\d.]+) dB/) || [])[1]);
+      return ok0 && taper1 < 20 && /Check: The beam is wide for this lens/.test(t1) ? 1 : 0;
     },
   },
   {

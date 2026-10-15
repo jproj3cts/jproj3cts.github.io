@@ -8,7 +8,7 @@ description: Quasi-optics from 1 GHz to 3 THz in JEKray. Feed horns launch and r
 
 <p class="dx-lead">At millimetre and sub-millimetre wavelengths a beam is only a few wavelengths across. It is guided by lenses and mirrors as light is, but it spreads by diffraction within the bench, and it is sent and taken in by horns. The RF tab has the parts of such a bench. Its beams are Gaussian beams, traced as any other is.</p>
 
-RF is an experimental feature. Switch it on under **Help › Experimental features**. A bench with RF parts opens and runs with it off; only the RF tab of parts is hidden.
+The RF parts are on the **RF** tab of parts, in yellow, beside Free, Fibre and Elec.
 
 ## Frequency and wavelength
 
@@ -103,6 +103,16 @@ Lenses and windows at these frequencies are made of plastics and low-loss crysta
 | Alumina | 3.13 | 2 × 10⁻⁴ |
 | Nylon | 1.73 | 1.1 × 10⁻² |
 
+For printed lenses there are the common 3D-printing filaments, printed solid. Their values are typical, from published measurements at 10 to 40 GHz, and taken as flat over that band. A printed plastic's index and loss vary with its brand, colour, moisture and print settings, so treat these as a guide until the filament is measured:
+
+| Filament | Index | Loss tangent |
+|---|---|---|
+| PLA | 1.643 | 1.0 × 10⁻² |
+| ABS | 1.581 | 6 × 10⁻³ |
+| PETG | 1.612 | 1.3 × 10⁻² |
+| ASA | 1.628 | 9 × 10⁻³ |
+| Polypropylene, printed | 1.483 | 8 × 10⁻⁴ |
+
 The power absorbed per unit length is
 
 $$
@@ -112,6 +122,17 @@ $$
 so a beam through a thickness $$t$$ keeps $$e^{-\alpha t}$$ of its power. The loss tangent is at a reference frequency (150 GHz, 100 GHz for nylon) and grows as $$f^\beta$$ with it: $$\beta = 1$$ for the polymers, whose absorption goes as $$f^2$$, 0 for high-resistivity silicon, $$\tfrac12$$ for fused quartz, so a polymer lens is four times as lossy at twice the frequency. Polypropylene ($$n = 1.502$$) is among the dielectrics. A plain face reflects as any dielectric face does, $$((n-1)/(n+1))^2$$ at normal incidence, which is 4.3% for HDPE. Real lenses are often grooved or coated to cut this: set a face's coating to **Matching layer**, a quarter wave of index $$\sqrt n$$ at the bench's frequency, which the thin-film model then follows across the band (the matching is a band, not a point: the receiver's frequency sweep shows it), or to reflect nothing.
 
 They are the materials of an **RF lens**, a part of its own on the RF tab, drawn white as these plastics are. Its material menu lists only them, with their index at the bench's frequency: for example, "PTFE (Teflon), n = 1.44 at 150 GHz". An optical lens's menu keeps to glasses.
+
+## Printed RF lenses
+
+An RF lens's panel reads, at the first RF frequency on the bench:
+
+- **Loss through the centre**: what its material absorbs along the axis, $$4.34\,\alpha t$$ dB, and what its plain faces reflect, $$\left(\frac{n-1}{n+1}\right)^2$$ at each.
+- **Across**: its diameter in wavelengths. Under five, the Gaussian-beam picture is rough, and the panel says so.
+- **Beam radius at the lens**, from the traced beam, and the **edge taper**, $$8.686\,(a/w)^2$$ dB for a lens of radius $$a$$, with the share of the power that passes outside it, $$e^{-2a^2/w^2}$$. Under 20 dB the panel warns: the light past the edge is lost, and the edge diffracts in ways the model leaves out. A lens four beam radii across, 35 dB, keeps both small.
+- For a printing filament, whether it fits the **Core ONE** printer, up to 210 mm across and 260 mm thick, and its **thinnest point**, which needs to be at least 0.45 mm.
+
+The examples **Printed PLA lens, 10 GHz** and **Printed ABS lens, 24 GHz radar** show both bands. At 10 GHz a printable lens is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
 ## The parts
 

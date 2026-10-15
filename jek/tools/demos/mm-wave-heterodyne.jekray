@@ -9,7 +9,7 @@
  },
  "maxBounces": 40,
  "minPower": 1e-06,
- "notes": "Experimental: RF and millimetre waves, and the electronics (Help, Experimental features). A 1 GHz, 1 V tone from the signal generator goes into a feed horn set as an upconverter: the horn sends it up on a 150 GHz carrier (6 dB conversion loss) as two sidebands, 149 and 151 GHz, through two HDPE lenses, and into a receiving horn whose mixer has a 147 GHz local oscillator, so they come down to 2 and 4 GHz. The spectrum analyser on the IF shows them over the receiver's noise (1000 K, looking into the room). Select either horn for its far-field pattern, the receiver for its link budget and signal to noise, or set its front end to a video detector to read the carrier's power instead.",
+ "notes": "A 1 GHz, 1 V tone from the signal generator goes into a feed horn set as an upconverter: the horn sends it up on a 150 GHz carrier (6 dB conversion loss) as two sidebands, 149 and 151 GHz, through two HDPE lenses, and into a receiving horn whose mixer has a 147 GHz local oscillator, so they come down to 2 and 4 GHz. The spectrum analyser on the IF shows them over the receiver's noise (1000 K, looking into the room). Select either horn for its far-field pattern, the receiver for its link budget and signal to noise, or set its front end to a video detector to read the carrier's power instead.",
  "elements": [
   {
    "type": "elec",

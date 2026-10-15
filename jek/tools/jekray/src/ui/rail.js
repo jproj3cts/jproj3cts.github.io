@@ -81,7 +81,7 @@ export function setPalette(pal) {
 }
 /* the palettes offered change with the experimental switch */
 export function layoutPalette() {
-  if ((palette === 'pic' && !exp('pic')) || (palette === 'rf' && !exp('rf'))) assignPalette('free');                                    // PIC hook
+  if (palette === 'pic' && !exp('pic')) assignPalette('free');                                    // PIC hook
   fillRail();
   if (!picker.hidden) fillPicker('');
 }

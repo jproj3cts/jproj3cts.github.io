@@ -1,0 +1,67 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Printed ABS lens on a 24 GHz radar horn",
+ "view": {
+  "cx": 200,
+  "cy": 0,
+  "scale": 2
+ },
+ "maxBounces": 40,
+ "minPower": 1e-06,
+ "elements": [
+  {
+   "type": "source",
+   "id": "tx",
+   "name": "Feed horn, 24 GHz",
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "rays": 3,
+   "mmw": {
+    "kind": "corrugated",
+    "ghz": 24,
+    "dbm": 0,
+    "a": 20,
+    "L": 80
+   }
+  },
+  {
+   "type": "lens",
+   "id": "l1",
+   "name": "ABS lens",
+   "x": 80,
+   "y": 0,
+   "angle": 0,
+   "diameter": 120,
+   "surfaces": [
+    {
+     "R": 125.5
+    },
+    {
+     "R": -125.5
+    }
+   ],
+   "gaps": [
+    33
+   ],
+   "materials": [
+    {
+     "glass": "ABS"
+    }
+   ],
+   "mmw": {}
+  },
+  {
+   "type": "screen",
+   "id": "scr",
+   "name": "Target at 400 mm",
+   "x": 480,
+   "y": 0,
+   "angle": 180,
+   "length": 200,
+   "mmw": {}
+  }
+ ],
+ "notes": "A 24 GHz radar horn (12.5 mm wavelength) behind a biconvex lens printed solid in ABS, 120 mm across, which collimates the beam towards a target 400 mm away. Select the lens: about 0.7 dB absorbed in ABS and 0.45 dB reflected, an edge taper of 34 dB (the beam fits the lens well), and its fit on the Core ONE. At 24 GHz a printable lens is ten or more wavelengths across, the band where printed RF lenses work best. Change the material to PLA to see its higher loss, or make the lens smaller to see the edge taper fall and the warning that comes with it."
+}

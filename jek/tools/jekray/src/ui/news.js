@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in 3D-printing filaments too (PLA, ABS, PETG, ASA, polypropylene, printed solid, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for a filament, whether it prints on the Core ONE and its thinnest wall. Two new examples: a printed PLA lens at 10 GHz and a printed ABS lens on a 24 GHz radar horn.',
     'The tool opens with the bench across the whole page. The <b>gear</b> at the bench\u2019s bottom right opens the Bench panel (light, snapping, notes and the parts list) and closes it again. Selecting a part opens its own panel, and a click on empty bench closes it, the bench taking the page again; what is on the bench stays where it was on the screen as the panel comes and goes, in 2D and 3D.',
     '<b>Locked embeds</b>: Share \u203a Embed has a tickbox to lock the parts, for a product page or a lesson that shows how something works. Readers pan, zoom, turn the 3D view, switch tabs and play the sweeps, but cannot move, change or delete anything. Fixed: the field after a lens of high index (germanium, silicon) uncoated no longer collapses to a thread; the light bouncing between its own two faces is a ghost now, not a cavity, and a solid etalon coated to reflect is a cavity still.',
     '<b>JEKray2D is now JEKray.</b> The address is jeksys.net/jek/tools/jekray.html; the old one, and every old share link, still arrives here. Files, part packs and modules are as they were.',
@@ -176,10 +177,12 @@ export const EXAMPLES = [
   ['Modules', false, [
     ['mod-vortex', 'A module: vortex through a metalens', 'A part pack with code: a spiral phase plate and a metalens written as a module.', 'mods']]],
   ['RF and millimetre waves', false, [
-    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.', 'rf'],
-    ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.', 'rf'],
-    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.', 'rf'],
-    ['mm-wave-heterodyne', 'Heterodyne link, 150 GHz', 'A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.', 'rf']]],
+    ['rf-10ghz-printed-lens', 'Printed PLA lens, 10 GHz', 'A horn\u2019s beam collimated by a lens printed in PLA: its loss, its edge taper, and whether it prints.'],
+    ['rf-24ghz-printed-lens', 'Printed ABS lens, 24 GHz radar', 'A radar horn behind a printed ABS lens: the band where printed RF lenses work best.'],
+    ['mm-wave-link', 'Millimetre-wave link, 150 GHz', 'Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.'],
+    ['mm-wave-mesh-filter', 'Mesh filter, swept', 'A band-pass mesh in a Gaussian beam telescope: the receiver\u2019s S21 against frequency, and its link budget.'],
+    ['mm-wave-grid-diplexer', 'Wire-grid diplexer, 150 GHz', 'A wire grid at 45\u00b0 sends the field along its wires one way and passes the other: what it reflects and leaks, from its pitch and wires.'],
+    ['mm-wave-heterodyne', 'Heterodyne link, 150 GHz', 'A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.']]],
   ['Photonic circuits', false, [
     ['ring-filter', 'Ring filter on a chip', 'A ring between two waveguides drops one line of a laser tuned across it.', 'pic']]],
   ['From a paper', false, [

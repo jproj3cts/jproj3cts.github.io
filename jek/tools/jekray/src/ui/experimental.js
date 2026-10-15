@@ -32,7 +32,6 @@ export const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'rf', name: 'RF and millimetre waves', what: 'a set of parts of its own (Add part, and the rail), in yellow: feed horns set in GHz and dBm, receiving horns, RF lenses of dielectrics (HDPE, PTFE, silicon\u2026) and metal mirrors, wire grids and loads, for quasi-optics from 1 GHz to 3 THz. Beams are Gaussian beams; checked against Goldsmith\u2019s formulas for horns and their coupling.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -84,7 +83,7 @@ export const PART_GROUPS = {
   elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
     ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
 };
-export const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) && (p !== 'rf' || exp('rf')));
+export const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
 export const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
 // a palette's parts in their groups; any not listed in a group under Other
 export function partGroups(pal) {

@@ -2,7 +2,7 @@
  "format": "jekray",
  "version": 1,
  "name": "Wire-grid diplexer, 150 GHz",
- "notes": "Experimental: RF and millimetre waves (Help, Experimental features). A 150 GHz horn through a lens, onto a wire grid at 45\u00b0: 25 \u00b5m pitch, 10 \u00b5m tungsten wires, upright. The field along the wires (s, out of the bench plane) is reflected to one receiving horn, the field across them (p) passes to the other, each after a second lens. Select the grid for what it reflects and leaks at this frequency (the leak through, in dB, from the wires' inductance; the small reflection of the other polarisation from their capacitance), or either receiver for the power it takes in and its link budget. Set the horn's polarisation to s or p and one arm goes dark but for the leak; sweep the grid's pitch and the leak grows as g\u00b2; turn the wires in-plane and the arms swap.",
+ "notes": "A 150 GHz horn through a lens, onto a wire grid at 45°: 25 µm pitch, 10 µm tungsten wires, upright. The field along the wires (s, out of the bench plane) is reflected to one receiving horn, the field across them (p) passes to the other, each after a second lens. Select the grid for what it reflects and leaks at this frequency (the leak through, in dB, from the wires' inductance; the small reflection of the other polarisation from their capacitance), or either receiver for the power it takes in and its link budget. Set the horn's polarisation to s or p and one arm goes dark but for the leak; sweep the grid's pitch and the leak grows as g²; turn the wires in-plane and the arms swap.",
  "view": {
   "cx": 300,
   "cy": 100,

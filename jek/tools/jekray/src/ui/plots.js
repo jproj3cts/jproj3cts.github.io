@@ -627,7 +627,7 @@ export function assumedBox(el) {
 export function materialOptions(mat, rf) {
   // the RF dielectrics: by their index at the bench's frequency, when it is an RF bench
   const nm = benchNms()[0], at = nm > 1e5 ? ' at ' + fmtGHz(nm) : ' (RF)';
-  const rfOpts = Object.entries(RF_MAT).map(([k, v]) => [k, v.name + ', n = ' + v.n + at]);
+  const rfOpts = Object.entries(RF_MAT).map(([k, v]) => [k, v.name + ', n = ' + v.n + at + (v.print ? ' (typical)' : '')]);
   if (rf) {
     const opts = rfOpts.slice();
     if (!RF_MAT[mat.glass] && mat.glass !== 'custom') opts.unshift([mat.glass, matLabel(mat) + ' (not an RF dielectric)']);

@@ -1,11 +1,12 @@
 import { clamp } from '../core/constants.js';
 import { fmtDbm, fmtFreq, fmtGHz, fmtHz, fmtLen, fmtMw, fmtWl } from '../core/format.js';
-import { glassKey, matLabel, refIndex } from '../core/glass.js';
+import { absorbAt, glassKey, matLabel, refIndex } from '../core/glass.js';
+import { beamAt } from '../core/beams-hom.js';
 import { CRYSTALS, bireMat, filterT, gainAt, walkOff } from '../core/crystals.js';
 import { cellPolar } from '../core/zeeman.js';
 import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
-import { C_NM_GHZ, fibrePdNm, hornLam, pdResp, responsivity, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, pdResp, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { deg, project } from '../state/project.js';
 import { benchNms, getEl, selected } from '../state/elements.js';
@@ -239,7 +240,8 @@ function updateReadoutsIn(container, el) {
     }
     const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
-    parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
+    if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
+    if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
       (el.source ? ' Imported from ' + el.source + '.' : '')];
   } else if (el.type === 'chopper') {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
@@ -271,4 +273,67 @@ function updateReadoutsIn(container, el) {
   if (live) box.style.minHeight = Math.max(box.offsetHeight, parseFloat(box.style.minHeight) || 0) + 'px';
   box.replaceChildren(h('dl', null, ...parts[0].flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, parts[1]));
+}
+
+/* ---------- An RF lens: what it costs the beam, how well the beam fits it, and whether it prints ----------
+   At the first RF frequency on the bench: the loss through its centre (absorbed, from the
+   material's loss tangent; reflected, at plain faces, from its index), the beam it carries
+   (its radius at the lens, from the traced Gaussian beam, the edge taper and the power that
+   misses the lens), its size in wavelengths, and for a printing filament whether it fits the
+   printer and its thinnest wall. Past the limits of the Gaussian-beam picture it says so. */
+const sagAt = (s, r) => {
+  if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
+  const c = 1 / s.R, k = s.k || 0, q = 1 - (1 + k) * c * c * r * r;
+  const base = q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R);
+  return base + (s.a2 || 0) * r * r + (s.A || []).reduce((a, cc, j) => a + cc * r ** (4 + 2 * j), 0);
+};
+export function lensThickness(el) {
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2;
+  let tMin = Infinity, tMax = -Infinity;
+  for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
+  return { centre: T, thinnest: tMin, thickest: tMax, edge: T + sagAt(S[S.length - 1], R) - sagAt(S[0], R) };
+}
+function rfLensReadout(el, wls, rows) {
+  const nm = wls.find(v => v > 1e5);
+  if (!nm) return null;
+  const lam = nm * 1e-6, ghz = C_NM_GHZ / nm;
+  const mats = el.materials.filter(m => m.glass !== 'AIR'), m0 = mats[0], M = m0 && RF_MAT[m0.glass];
+  const geo = lensThickness(el), notes = [], checks = [];
+  // the loss through the centre: absorbed in each layer, reflected at each plain face
+  let absDb = 0, refl = 1;
+  el.materials.forEach((m, i) => { if (m.glass !== 'AIR') absDb += 4.343 * absorbAt(m, nm) * (el.gaps[i] || 0); });
+  const nOf = i => i < 0 || i >= el.materials.length ? 1 : refIndex(el.materials[i], nm);
+  el.surfaces.forEach((s, i) => {
+    const n1 = nOf(i - 1), n2 = nOf(i), coat = s.coat || { mode: 'bare' };
+    const R = coat.mode === 'bare' || !coat.mode ? ((n1 - n2) / (n1 + n2)) ** 2 : (coat.R || 0) / 100;
+    refl *= 1 - R;
+  });
+  const reflDb = -10 * Math.log10(Math.max(1e-12, refl));
+  rows.push(['Loss through the centre', absDb.toFixed(2) + ' dB absorbed, ' + reflDb.toFixed(2) + ' dB reflected'], ['Across', (el.diameter / lam).toFixed(1) + ' wavelengths']);
+  // the beam at the lens: the strongest traced beam that leaves its first face
+  let best = null;
+  for (const b of lastTrace.beams || []) {
+    const s = b.ev && b.ev.surf;
+    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (!best || b.w > best.w) best = b;
+  }
+  if (best) {
+    const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.diameter / 2;
+    if (w > 0) {
+      const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
+      rows.push(['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']);
+      if (taper < 20) checks.push('The beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across (an edge taper of 35 dB) keeps both small.');
+    }
+  }
+  if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
+  // printing: the filament, the printer
+  if (M && M.print) {
+    const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
+    rows.push([PRINTER.name + ' print', (fits ? 'fits, ' : 'too large, ') + fmtLen(el.diameter) + ' across, ' + fmtLen(geo.thickest) + ' thick'], ['Thinnest point', fmtLen(geo.thinnest) + (thin ? '' : ', too thin to print')]);
+    if (!fits) checks.push('Too large for the ' + PRINTER.name + ': up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick prints in one piece.');
+    if (!thin) checks.push('Its thinnest point is under ' + PRINTER.minWall + ' mm, the thinnest wall the printer lays down well: thicken the lens, or make it a little smaller across.');
+    notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. Printed plastics vary with brand, colour, moisture and print settings; calibrated values replace these as filaments are measured.');
+  }
+  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
+  return [rows, text];
 }

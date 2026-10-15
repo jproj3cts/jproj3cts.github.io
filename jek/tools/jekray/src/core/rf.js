@@ -26,7 +26,18 @@ export const RF_MAT = {
   'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
   'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
   'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
+  // 3D-printing filaments, printed solid: typical values from published measurements at 10 to
+  // 40 GHz. Each brand, colour and print setting differs, and they take up water: until a
+  // filament is calibrated these stand for a range, and the panels say so
+  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA, printed solid', print: true },
+  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS, printed solid', print: true },
+  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG, printed solid', print: true },
+  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA, printed solid', print: true },
+  'PP (printed)': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene, printed solid', print: true },
 };
+/* the printer RF lenses are made on (JEK Systems' own: a Prusa Core ONE, 0.4 mm nozzle): the
+   largest part with a margin round it, and the thinnest wall it lays down well (mm) */
+export const PRINTER = { name: 'Core ONE', bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */
 export const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
 /* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */

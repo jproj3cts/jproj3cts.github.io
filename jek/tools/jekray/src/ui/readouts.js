@@ -8,6 +8,7 @@ import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
 import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, pdResp, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
+import { lensAntennaOf } from '../core/antenna.js';
 import { deg, project } from '../state/project.js';
 import { benchNms, getEl, selected } from '../state/elements.js';
 import { meshSize } from '../core/stl.js';
@@ -344,8 +345,28 @@ function rfLensReadout(el, wls, rows) {
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
-  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
+  const [aRows, aNote] = antennaRows(el);
+  rows.push(...aRows);
+  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis.' + aNote + ' ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
+}
+
+/* An RF lens with the horn that feeds it, as an antenna: its gain against the horn's alone, its
+   beam far away, and where its aperture efficiency goes (core/antenna.js). And a line for the text
+   when it focuses inside its own far field, where these are not yet the figures that apply. */
+function antennaRows(el) {
+  const A = lensAntennaOf(el);
+  if (!A) return [[], ''];
+  const pct = v => (100 * v).toPrecision(3) + '%', sgn = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(1);
+  const rows = [['Gain, horn and lens', A.Gdbi.toFixed(1) + ' dBi' + (A.hornDbi !== null ? ' (' + sgn(A.Gdbi - A.hornDbi) + ' dB on the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi)' : '')],
+    ['Beamwidth (3 dB)', A.hpbw === null ? 'wider than shown' : A.hpbw.toFixed(2) + '\u00b0'],
+    ['First sidelobe', A.sll === null ? 'none in view' : A.sll.toFixed(1) + ' dB'],
+    ['Aperture efficiency', pct(A.eta.ap) + ' (taper ' + pct(A.eta.taper) + ', phase ' + pct(A.eta.phase) + ')'],
+    ['Spillover and lens loss', pct(A.eta.spill) + ' of the beam meets the lens, which passes ' + pct(A.eta.loss) + ' of it']];
+  const note = A.focus !== null && A.focus < A.farField
+    ? ' As an antenna: it brings the beam to a waist ' + fmtLen(A.focus) + ' past it, inside its far field (from about ' + fmtLen(A.farField) + '), so nearer than that it works as a focusing lens and these are its figures far away.'
+    : ' As an antenna, far away: the aperture field the traced beam leaves, cut at the rim; the horn\u2019s light past the rim is left out of the pattern.';
+  return [rows, note];
 }
 
 /* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
@@ -360,6 +381,7 @@ function grinReadout(el) {
   const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
   if (!(w > 0)) return null;
   const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
-  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']],
-    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
+  const [aRows, aNote] = antennaRows(el);
+  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%'], ...aRows],
+    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + aNote + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
 }

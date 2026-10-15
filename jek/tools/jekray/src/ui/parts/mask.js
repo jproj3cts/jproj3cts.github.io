@@ -8,6 +8,7 @@ import { GRIN_PROFILES, grinDesign } from '../../core/grin.js';
 import { PRINTER, RF_MAT } from '../../core/rf.js';
 import { hitThin } from './hits.js';
 import { fid, h, panel, param, selectField, setFid } from '../panel.js';
+import { rfLensPatternSection } from '../panels.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
 
@@ -62,6 +63,7 @@ function grinPanel(el) {
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
+  rfLensPatternSection(el);
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
 }
 

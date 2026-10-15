@@ -158,6 +158,16 @@ Its panel gives the thickness, the index and density from centre to edge, the lo
 
 The example **Graded-index lens, 24 GHz** shows one 120 mm across on a 24 GHz horn.
 
+## A lens as an antenna
+
+An RF lens fed by a horn is a lens antenna. Its panel's **As an antenna** section gives it as one: the field just past the lens is the traced Gaussian beam there (its radius $$w$$ and wavefront radius $$R$$), cut off at the lens's rim $$a$$ and weakened by what the lens takes from it at each radius $$T(r)$$ (a solid lens's faces and the plastic its thickness there holds; a graded-index lens's design). From that aperture field $$E(r)$$:
+
+$$D = \frac{4\pi}{\lambda^2}\frac{\left|\int E\,dA\right|^2}{\int |E|^2 dA}, \qquad G = \frac{4\pi}{\lambda^2}\frac{\left|\int E\,dA\right|^2}{P_\text{feed}}$$
+
+so the gain $$G$$ is the directivity $$D$$ less what passes outside the lens (spillover) and what the lens absorbs and reflects. Against a uniformly lit aperture's $$4\pi^2 a^2/\lambda^2$$, the directivity gives the **aperture efficiency**, the taper efficiency (how evenly the beam lights the lens) times the phase efficiency (how flat the wavefront leaves it). A Gaussian beam lights a lens best, taper times spillover about 81.5%, at an edge taper near 11 dB; a narrower beam wastes the lens's rim, a wider one spills past it.
+
+The pattern is the aperture field's Hankel transform, with the obliquity factor $$(1+\cos\theta)/2$$, plotted beside the horn's own: from it the half-power beamwidth and the first sidelobe. The readout gives the gain against the horn's alone. A lens that brings the beam to a waist nearer than its far field (about $$2D^2/\lambda$$, metres for a lens of ten wavelengths) works there as a focusing lens: these are still its figures far away, and the readout says so. The horn's light that passes outside the lens is left out of the pattern, which holds while that is a few percent.
+
 ## The parts
 
 | Part | What it is |

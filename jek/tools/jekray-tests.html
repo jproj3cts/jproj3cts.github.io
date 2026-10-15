@@ -8486,6 +8486,21 @@ const TESTS = [
     },
   },
   {
+    name: 'An RF lens reads as an antenna: gain over the horn, beamwidth, efficiency',
+    why: 'the ABS lens example: the horn and lens give more gain than the horn alone; gain is directivity less spillover and lens loss; the aperture efficiency is taper times phase and under 1; its panel has the As an antenna plot and the gain row (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(JSON.parse(getDemo('rf-24ghz-abs-lens'))); J.select('ABS lens');
+      const A = J.lensAntenna('ABS lens');
+      if (!A) return 0;
+      const gainOk = A.Gdbi > A.hornDbi + 5 && Math.abs(A.Gdbi - (A.Ddbi + 10 * Math.log10(A.eta.spill * A.eta.loss))) < 1e-6;
+      const effOk = A.eta.ap > 0.3 && A.eta.ap < 1 && Math.abs(A.eta.ap - A.eta.taper * A.eta.phase) < 1e-6 && A.hpbw > 5 && A.hpbw < 15;
+      const ui = [...doc.querySelectorAll('#panel h3')].some(x => /As an antenna/.test(x.textContent)) && /Gain, horn and lens/.test(doc.querySelector('#panel [data-readout]').textContent);
+      return gainOk && effOk && ui ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

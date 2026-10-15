@@ -7,6 +7,7 @@ import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, eva
 import { MODS } from '../core/modulators.js';
 import { fibreGamma, fibreSPM } from '../core/pulses.js';
 import { hornComps, hornPattern } from '../core/horns.js';
+import { lensAntennaOf } from '../core/antenna.js';
 import { hornLam } from '../core/rf.js';
 import { beamAt, lgComps } from '../core/beams-hom.js';
 import { TYPE_LABEL } from '../parts/registry.js';
@@ -177,6 +178,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
+    lensAntenna(name) { traceScene(); const A = lensAntennaOf(this.byName(name)); return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, sll: A.sll, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField }; },
     hornPattern(name) { const el = this.byName(name), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, hornLam(el)); return { dir: P.dir, hpbw: P.hpbw, lobes: P.lobes, xpol: P.xpol }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },

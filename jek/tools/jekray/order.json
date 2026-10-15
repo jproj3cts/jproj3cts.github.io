@@ -16,6 +16,7 @@
  "core/coherence.js",
  "core/pulses.js",
  "core/horns.js",
+ "core/antenna.js",
  "core/beams-hom.js",
  "core/colour.js",
  "state/drawings.js",

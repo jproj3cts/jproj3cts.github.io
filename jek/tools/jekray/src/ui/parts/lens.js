@@ -6,7 +6,7 @@ import { elementSurfaces } from '../../core/stl.js';
 import { frame } from '../../core/mask.js';
 import { ctx, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
 import { fid, h, numInput, panel, param, selectField, setFid } from '../panel.js';
-import { coatingRows } from '../panels.js';
+import { coatingRows, rfLensPatternSection } from '../panels.js';
 import { clipNote } from '../heavy.js';
 import {
   askForGlass, askForMaterial, flipLens, glassNote, materialOptions, pickMaterial, removeSweeps, unknownGlass,
@@ -88,6 +88,7 @@ function lensPanel(el) {
     }
   }
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
+  if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),

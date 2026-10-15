@@ -4731,6 +4731,104 @@ function hornPattern(kind, a, L, lam) {
   pmemo.set(key, R);
   return R;
 }
+/* ---------- A lens antenna: a feed horn's beam through an RF lens, seen from far away ----------
+   The field just past the lens is the traced Gaussian beam there (1/e^2 radius w, wavefront
+   radius R, infinite when collimated), cut off at the lens's rim a and weakened by what the lens
+   takes from it at each radius (T(r), the power it passes). From that aperture field E(r):
+
+     directivity  D = (4 pi / lambda^2) |int E dA|^2 / int |E|^2 dA          (the aperture's own)
+     gain         G = (4 pi / lambda^2) |int E dA|^2 / P_feed                (all the horn sends)
+
+   so G = D x spillover x loss, and D against a uniform aperture's 4 pi A / lambda^2 is the
+   aperture efficiency: the taper (how unevenly the aperture is lit) times the phase efficiency (a
+   wavefront left curved, a lens focusing or not quite collimating). The pattern is the aperture
+   field's Hankel transform with the obliquity factor (1 + cos theta) / 2, which is round: one cut
+   serves every plane. The feed's own pattern beyond the lens (its spillover past the rim) is left
+   out of the pattern, which holds while that is a few percent. */
+function lensAntenna({ w, R, a, lam, T }) {
+  const N = 400, dr = a / N, k = 2 * Math.PI / lam, invR = isFinite(R) && R ? 1 / R : 0;
+  const rs = [], er = [], ei = [], amp = [];
+  let Pa = 0, Pa0 = 0, Sr = 0, Si = 0, S0 = 0;
+  for (let i = 0; i < N; i++) {
+    const r = (i + 0.5) * dr, g = Math.exp(-r * r / (w * w)), t = T ? Math.sqrt(Math.max(0, T(r))) : 1;
+    const A = g * t, ph = -k * r * r * invR / 2, dA = 2 * Math.PI * r * dr;
+    rs.push(r); amp.push(A); er.push(A * Math.cos(ph)); ei.push(A * Math.sin(ph));
+    Pa += A * A * dA; Pa0 += g * g * dA; Sr += A * Math.cos(ph) * dA; Si += A * Math.sin(ph) * dA; S0 += A * dA;
+  }
+  const Pfeed = Math.PI * w * w / 2;                       // all the Gaussian beam's power, to infinity
+  const Dmax = 4 * Math.PI * Math.PI * a * a / (lam * lam);
+  const D = 4 * Math.PI / (lam * lam) * (Sr * Sr + Si * Si) / Pa;
+  const G = 4 * Math.PI / (lam * lam) * (Sr * Sr + Si * Si) / Pfeed;
+  const eta = {
+    spill: Pa0 / Pfeed,                                    // the share of the beam that meets the lens
+    loss: Pa / Pa0,                                        // what the lens passes of that
+    taper: S0 * S0 / (Math.PI * a * a * Pa),               // how evenly the aperture is lit
+    phase: (Sr * Sr + Si * Si) / (S0 * S0),                // how flat the wavefront leaves
+  };
+  eta.ap = D / Dmax;
+  // the pattern, out to a few beamwidths
+  const tMax = Math.min(60, Math.max(3, 8 * (lam / (2 * a)) * 180 / Math.PI)), M = 241;
+  const th = [], P = [];
+  for (let j = 0; j < M; j++) {
+    const t = tMax * j / (M - 1), s = Math.sin(t * Math.PI / 180), ob = (1 + Math.cos(t * Math.PI / 180)) / 2;
+    let re = 0, im = 0;
+    for (let i = 0; i < N; i++) { const J = besselJ01(k * rs[i] * s)[0] * 2 * Math.PI * rs[i] * dr; re += er[i] * J; im += ei[i] * J; }
+    th.push(t); P.push((re * re + im * im) * ob * ob);
+  }
+  const peak = P[0], db = P.map(v => 10 * Math.log10(Math.max(v, 1e-30) / peak));
+  // the half-power width, between samples; the first sidelobe, the first peak past the first null
+  let hpbw = null, sll = null;
+  for (let j = 1; j < M; j++) if (db[j] <= -3.0103) { const f = (db[j - 1] + 3.0103) / (db[j - 1] - db[j]); hpbw = 2 * (th[j - 1] + f * (th[j] - th[j - 1])); break; }
+  for (let j = 1; j < M - 1; j++) if (db[j] < -3.0103 && db[j] > db[j - 1] && db[j] >= db[j + 1]) { sll = db[j]; break; }
+  return { D, G, Ddbi: 10 * Math.log10(D), Gdbi: 10 * Math.log10(G), Dmax, eta, hpbw, sll, th, db };
+}
+
+/* a surface's sag at radius r: a conic with even aspheric terms (as the lens readout takes it) */
+const faceSag = (s, r) => {
+  const poly = (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
+  if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return poly;
+  const c = 1 / s.R, k = s.k || 0, q = 1 - (1 + k) * c * c * r * r;
+  return (q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R)) + poly;
+};
+/* The lens antenna an RF lens on the bench makes with the horn that feeds it: from the strongest
+   traced beam leaving the lens (into air), the lens's own loss at each radius (a solid lens's
+   faces and the glass its thickness there holds; a graded-index lens's design), and the horn's
+   own directivity to compare. Null when no RF beam leaves the lens. */
+const antMemo = new WeakMap();
+function lensAntennaOf(el) {
+  const T0 = lastTrace;
+  let byEl = antMemo.get(T0);
+  if (!byEl) { byEl = new Map(); antMemo.set(T0, byEl); }
+  const key = el.id + '|' + JSON.stringify([el.diameter, el.length, el.surfaces, el.gaps, el.materials, el.grin]);
+  if (byEl.has(key)) return byEl.get(key);
+  let best = null;
+  for (const b of T0.beams || []) {
+    const s = b.ev && b.ev.surf;
+    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0) || b.n > 1.0001) continue;
+    if (!best || b.w > best.w) best = b;
+  }
+  let out = null;
+  const B = best && beamAt(best.qr, best.qi, best.n, best.nm);
+  if (B && B.w > 0) {
+    const lam = best.nm * 1e-6, a = (el.grin ? el.length : el.diameter) / 2;
+    let T = null;
+    if (el.grin) {
+      const D = grinDesign(normGrin(el.grin), el.length);
+      if (D.usable) T = r => { const L = D.lossDb(r); return 10 ** (-(L.abs + L.refl) / 10); };
+    } else if (el.surfaces && el.surfaces.length === 2 && el.materials && el.materials.length === 1) {
+      const m = el.materials[0], n = refIndex(m, best.nm), alpha = absorbAt(m, best.nm), t0 = (el.gaps || [0])[0] || 0;
+      const faceT = el.surfaces.map(s => { const c = s.coat || { mode: 'bare' }; return 1 - (c.mode === 'bare' || !c.mode ? ((n - 1) / (n + 1)) ** 2 : (c.R || 0) / 100); });
+      T = r => faceT[0] * faceT[1] * Math.exp(-alpha * Math.max(0, t0 + faceSag(el.surfaces[1], r) - faceSag(el.surfaces[0], r)));
+    }
+    const A = lensAntenna({ w: B.w, R: B.R, a, lam, T });
+    const src = getEl(best.src), horn = src && src.mmw && src.mmw.kind ? hornPattern(src.mmw.kind, src.mmw.a, src.mmw.L, hornLam(src)) : null;
+    const ff = 2 * (2 * a) ** 2 / lam;                       // the far field begins about here
+    const focus = B.waistDist > 0 && isFinite(B.waistDist) ? B.waistDist : null;
+    out = Object.assign(A, { w: B.w, R: B.R, a, lam, hornDbi: horn ? horn.dir : null, horn, farField: ff, focus });
+  }
+  byEl.set(key, out);
+  return out;
+}
 /* ---------- Higher-order beams ----------
    A Gaussian source can launch a Hermite-Gauss mode HG_mn (m nodes across the bench plane, n
    out of it) or a Laguerre-Gauss mode LG_pl (p rings, and for l != 0 a vortex of charge l, its
@@ -17470,6 +17568,7 @@ function lensPanel(el) {
     }
   }
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
+  if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),
@@ -17793,6 +17892,7 @@ function grinPanel(el) {
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
+  rfLensPatternSection(el);
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
 }
 
@@ -18769,8 +18869,28 @@ function rfLensReadout(el, wls, rows) {
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
-  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis. ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
+  const [aRows, aNote] = antennaRows(el);
+  rows.push(...aRows);
+  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis.' + aNote + ' ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
+}
+
+/* An RF lens with the horn that feeds it, as an antenna: its gain against the horn's alone, its
+   beam far away, and where its aperture efficiency goes (core/antenna.js). And a line for the text
+   when it focuses inside its own far field, where these are not yet the figures that apply. */
+function antennaRows(el) {
+  const A = lensAntennaOf(el);
+  if (!A) return [[], ''];
+  const pct = v => (100 * v).toPrecision(3) + '%', sgn = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(1);
+  const rows = [['Gain, horn and lens', A.Gdbi.toFixed(1) + ' dBi' + (A.hornDbi !== null ? ' (' + sgn(A.Gdbi - A.hornDbi) + ' dB on the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi)' : '')],
+    ['Beamwidth (3 dB)', A.hpbw === null ? 'wider than shown' : A.hpbw.toFixed(2) + '\u00b0'],
+    ['First sidelobe', A.sll === null ? 'none in view' : A.sll.toFixed(1) + ' dB'],
+    ['Aperture efficiency', pct(A.eta.ap) + ' (taper ' + pct(A.eta.taper) + ', phase ' + pct(A.eta.phase) + ')'],
+    ['Spillover and lens loss', pct(A.eta.spill) + ' of the beam meets the lens, which passes ' + pct(A.eta.loss) + ' of it']];
+  const note = A.focus !== null && A.focus < A.farField
+    ? ' As an antenna: it brings the beam to a waist ' + fmtLen(A.focus) + ' past it, inside its far field (from about ' + fmtLen(A.farField) + '), so nearer than that it works as a focusing lens and these are its figures far away.'
+    : ' As an antenna, far away: the aperture field the traced beam leaves, cut at the rim; the horn\u2019s light past the rim is left out of the pattern.';
+  return [rows, note];
 }
 
 /* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
@@ -18785,8 +18905,9 @@ function grinReadout(el) {
   const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
   if (!(w > 0)) return null;
   const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
-  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%']],
-    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
+  const [aRows, aNote] = antennaRows(el);
+  return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%'], ...aRows],
+    'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + aNote + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
 }
 /* ---------- One-parameter search over a swept range ---------- */
 
@@ -20494,6 +20615,40 @@ function rfPatternSection(el) {
       h('tr', null, h('td', null, 'Gaussicity'), h('td', null, (100 * M.gauss).toPrecision(3) + '% of the power in the fitted Gaussian')),
       h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
       h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
+  });
+}
+/* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
+   (H-plane) dashed beside it, both against their own peak (core/antenna.js) */
+function rfLensPatternSection(el) {
+  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
+  panel.append(head, cv, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
+  bindSync(cv, () => {
+    const A = lensAntennaOf(el), sec = cv.closest('section') || cv.parentNode;
+    if (sec) sec.style.display = A ? '' : 'none';
+    if (!A) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const hi = A.th[A.th.length - 1], lo = -hi;
+    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, \u00b0' };
+    const P = plotArea(c, w, hgt, [-50, 0], sy), X = x => P.l + (x - lo) / (hi - lo) * P.w, Y = v => P.t + P.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * P.h;
+    c.save(); c.beginPath(); c.rect(P.l, P.t, P.w, P.h); c.clip();
+    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
+    A.th.forEach((t, i) => { const y = Y(A.db[i]); i ? c.lineTo(X(t), y) : c.moveTo(X(t), y); });
+    A.th.forEach((t, i) => { const y = Y(A.db[i]); c[i ? 'lineTo' : 'moveTo'](X(-t), y); });
+    c.stroke();
+    if (A.horn) {
+      c.strokeStyle = '#8a929c'; c.setLineDash([3, 3]); c.beginPath();
+      let first = true;
+      A.horn.th.forEach((t, i) => { if (t < lo || t > hi) return; const y = Y(A.horn.H[i]); first ? c.moveTo(X(t), y) : c.lineTo(X(t), y); first = false; });
+      c.stroke(); c.setLineDash([]);
+    }
+    c.restore();
+    drawAxes(c, P, [lo, hi], [-50, 0], sx, sy);
+    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
+    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
+      .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
+    plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'lens_dB'], () => A.th.map((t, i) => [t, A.db[i]]));
   });
 }
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;
@@ -32794,6 +32949,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>An RF lens as an antenna</b>: a lens fed by a horn shows its gain in dBi against the horn alone, its half-power beamwidth and first sidelobe, and where its aperture efficiency goes (taper, phase, spillover and the lens\u2019s own loss), with its far-field pattern plotted beside the horn\u2019s. A lens that focuses inside its own far field says so.',
     '<b>Order an RF lens to your design</b>: an RF lens in PLA, ABS, PETG, ASA or polypropylene, or a graded-index lens, that its panel calls manufacturable has an orange <b>Request a quote for this lens</b> button. It puts the lens in the JEK Systems quote cart with its figures and a link to its design; send the request from the cart and we reply with a price. See Custom RF Lenses under Products.',
     '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc, solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it can be made, and the beam at it with its edge taper. A new example: a graded-index lens on a 24 GHz horn.',
     '<b>RF is out of experimental</b>: the RF tab of parts is there for everyone. RF lenses come in more plastics too (PLA, ABS, PETG, ASA and polypropylene, with typical values), and an RF lens\u2019s panel reads its loss through the centre (absorbed and reflected), its size in wavelengths, the beam at it with its edge taper and the power that misses it, with a warning when the beam is too wide for it or the lens too few wavelengths across, and, for these plastics, whether it can be made. Two new examples: a PLA lens at 10 GHz and an ABS lens on a 24 GHz radar horn.',
@@ -34403,6 +34559,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
+    lensAntenna(name) { traceScene(); const A = lensAntennaOf(this.byName(name)); return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, sll: A.sll, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField }; },
     hornPattern(name) { const el = this.byName(name), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, hornLam(el)); return { dir: P.dir, hpbw: P.hpbw, lobes: P.lobes, xpol: P.xpol }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },

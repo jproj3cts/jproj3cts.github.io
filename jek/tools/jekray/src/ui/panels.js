@@ -8,6 +8,7 @@ import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert 
 import { C_MM } from '../core/modulators.js';
 import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
+import { lensAntennaOf } from '../core/antenna.js';
 import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
@@ -715,6 +716,40 @@ function rfPatternSection(el) {
       h('tr', null, h('td', null, 'Gaussicity'), h('td', null, (100 * M.gauss).toPrecision(3) + '% of the power in the fitted Gaussian')),
       h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
       h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
+  });
+}
+/* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
+   (H-plane) dashed beside it, both against their own peak (core/antenna.js) */
+export function rfLensPatternSection(el) {
+  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
+  panel.append(head, cv, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
+  bindSync(cv, () => {
+    const A = lensAntennaOf(el), sec = cv.closest('section') || cv.parentNode;
+    if (sec) sec.style.display = A ? '' : 'none';
+    if (!A) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const hi = A.th[A.th.length - 1], lo = -hi;
+    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, \u00b0' };
+    const P = plotArea(c, w, hgt, [-50, 0], sy), X = x => P.l + (x - lo) / (hi - lo) * P.w, Y = v => P.t + P.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * P.h;
+    c.save(); c.beginPath(); c.rect(P.l, P.t, P.w, P.h); c.clip();
+    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
+    A.th.forEach((t, i) => { const y = Y(A.db[i]); i ? c.lineTo(X(t), y) : c.moveTo(X(t), y); });
+    A.th.forEach((t, i) => { const y = Y(A.db[i]); c[i ? 'lineTo' : 'moveTo'](X(-t), y); });
+    c.stroke();
+    if (A.horn) {
+      c.strokeStyle = '#8a929c'; c.setLineDash([3, 3]); c.beginPath();
+      let first = true;
+      A.horn.th.forEach((t, i) => { if (t < lo || t > hi) return; const y = Y(A.horn.H[i]); first ? c.moveTo(X(t), y) : c.lineTo(X(t), y); first = false; });
+      c.stroke(); c.setLineDash([]);
+    }
+    c.restore();
+    drawAxes(c, P, [lo, hi], [-50, 0], sx, sy);
+    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
+    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
+      .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
+    plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'lens_dB'], () => A.th.map((t, i) => [t, A.db[i]]));
   });
 }
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;

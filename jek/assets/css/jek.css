@@ -729,8 +729,8 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 /* the home page's search: a quiet row under the masthead, set to the right */
 .jek-searchbar .jek-wrap { display: flex; justify-content: flex-end; padding-top: 0.45rem; }
 .jek-searchbar form#searchForm { width: auto; max-width: none; margin: 0; gap: 0; }
-.jek-searchbar #searchInput { width: 10rem; padding: 0.25rem 0.5rem; font-size: 0.78rem; border: 1px solid var(--jek-line-2); border-right: 0; border-radius: var(--jek-radius) 0 0 var(--jek-radius); background: var(--jek-panel); }
-.jek-searchbar #searchButton { padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em; color: var(--jek-ink-soft); background: transparent; border: 1px solid var(--jek-line-2); border-radius: 0 var(--jek-radius) var(--jek-radius) 0; }
+.jek-searchbar #searchInput { width: 13rem; padding: 0.35rem 0.6rem; font-size: 0.86rem; border: 1px solid var(--jek-line-2); border-right: 0; border-radius: var(--jek-radius) 0 0 var(--jek-radius); background: var(--jek-panel); }
+.jek-searchbar #searchButton { padding: 0.35rem 0.7rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; color: var(--jek-ink-soft); background: transparent; border: 1px solid var(--jek-line-2); border-radius: 0 var(--jek-radius) var(--jek-radius) 0; }
 .jek-searchbar #searchButton:hover { background: var(--jek-panel); color: var(--jek-ink); }
 @media (max-width: 520px) { .jek-searchbar #searchInput { width: auto; flex: 1 1 auto; } }
 

@@ -34,7 +34,16 @@
 
   <main class="main-content jek-flush">
 
-    <section class="jek-hero">
+    <div class="jek-searchbar">
+      <div class="jek-wrap">
+        <form id="searchForm" onsubmit="handleSubmit(event)" role="search">
+          <input id="searchInput" type="search" placeholder="Search the site" aria-label="Search the site" />
+          <button type="submit" id="searchButton" aria-label="Search">Search</button>
+        </form>
+      </div>
+    </div>
+
+    <section class="jek-hero" style="padding-top: 1.5rem">
       <div class="jek-wrap">
         <div>
           <div class="jek-eyebrow">Photonics instruments and design software</div>
@@ -73,16 +82,6 @@
           <div class="jek-card"><h3>Calculators</h3><p>Gaussian beams, cavities, fibre coupling, pulses, power density and more: quick optics calculations with their equations shown.</p><a class="jek-more" href="/jek/calculators/">Open the calculators &rarr;</a></div>
           <div class="jek-card"><h3>For universities</h3><p>One JEKrayPro licence covers everyone at a university, with no seats to manage and nothing for IT to run.</p><a class="jek-more" href="/jek/universities.html">JEKrayPro for universities &rarr;</a></div>
         </div>
-      </div>
-    </section>
-
-    <section class="jek-section jek-band" style="padding-block: 1.8rem">
-      <div class="jek-wrap">
-        <h2 style="font-size: 1.15rem; margin-bottom: 0.6rem">Search the site</h2>
-        <form id="searchForm" onsubmit="handleSubmit(event)">
-          <input id="searchInput" type="search" placeholder="Search..." aria-label="Search the site" />
-          <button type="submit" id="searchButton">Search</button>
-        </form>
       </div>
     </section>
 

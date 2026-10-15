@@ -3,12 +3,12 @@ import { MOD_COLOURS } from '../../core/modulators.js';
 import { V } from '../../state/project.js';
 import { benchNms } from '../../state/elements.js';
 import { MASK_PRESETS, compileMaskExpr, frame, maskFns } from '../../core/mask.js';
-import { ctx, lightLayer, pathLocal, selInk } from '../render.js';
+import { ctx, drawMount, lightLayer, pathLocal, selInk } from '../render.js';
 import { GRIN_PROFILES, grinDesign } from '../../core/grin.js';
-import { PRINTER, RF_MAT } from '../../core/rf.js';
+import { PRINTER, RF_MAT, mountedDia } from '../../core/rf.js';
 import { hitThin } from './hits.js';
 import { fid, h, panel, param, selectField, setFid } from '../panel.js';
-import { rfLensPatternSection } from '../panels.js';
+import { mountSection, rfLensPatternSection } from '../panels.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
 
@@ -38,6 +38,7 @@ function drawGrin(el, sel) {
   }
   pathLocal(f, [[-T, -L], [T, -L], [T, L], [-T, L]], true);
   ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2.5 : 1.4; ctx.stroke();
+  drawMount(f, 0, L, el.mount, sel);
 }
 const pct = v => v.toFixed(v < 10 ? 1 : 0) + '%';
 /* its panel: the design, and what the design comes to, in density only */
@@ -56,12 +57,13 @@ function grinPanel(el) {
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    ['Manufacturable', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
+    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+  mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   rfLensPatternSection(el);
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote

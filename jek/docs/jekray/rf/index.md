@@ -136,6 +136,10 @@ A lens that is manufacturable can be ordered: its panel's orange **Request a quo
 
 The examples **PLA lens, 10 GHz** and **ABS lens, 24 GHz radar** show both bands. At 10 GHz a lens that can be made is under seven wavelengths across, so the horn sits close and the lens is fast; at 24 GHz it is ten or more, where printed lenses work best.
 
+### Mounting
+
+A made-to-order lens can have a **flange** round its rim, under **Mounting** in its panel: its width out from the rim, its thickness along the axis, and a number of bolt holes of a given diameter on the circle through its middle (4 holes of 3.4 mm, for M3 bolts, by default). The flange is printed solid with the lens, counts towards what can be made (the outside diameter, flange and all, must be 210 mm or less) and its plastic towards the weight. It lies outside the lens, so the beam is not traced through it: any light that passes the rim would pass through it.
+
 ## Graded-index lenses
 
 A **graded-index lens** (GRIN lens, on the RF tab under Lenses and mirrors) is a flat disc, solid at its centre and less dense towards its edge. Plastic and air mixed finer than the wavelength act as one material whose permittivity is their mean by volume,

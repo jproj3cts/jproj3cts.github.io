@@ -1,4 +1,5 @@
 import { applyGrin } from '../core/grin.js';
+import { normMount } from '../core/rf.js';
 import { clamp } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { applyRf, normRf } from '../core/rf.js';
@@ -109,6 +110,7 @@ export function setParam(el, path, v) {
   if (keys[0] === 'gaps') v = Math.max(0, v);
   if (!keys.length && (last === 'z' || last === 'tip' || last === 'roll')) { ({ z: setZ, tip: setTip, roll: setRoll })[last](el, v); return; }
   o[last] = v;
+  if (keys[0] === 'mount') { el.mount = normMount(el.mount); return; }          // a flange's sizes, kept to what can be made
   if (el.type === 'source' && last === 'wavelength' && el.colourAuto) el.colour = wavelengthColour(v);
   if (el.type === 'source' && el.gauss) {
     if (last === 'width' || last === 'divergence') gaussFromFan(el);

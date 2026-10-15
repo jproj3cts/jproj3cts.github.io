@@ -4041,6 +4041,20 @@ function mixFill(M, eps) {
   const em = M.n * M.n, a = mixA(M);
   return (Math.pow(Math.max(1, eps), a) - 1) / (Math.pow(em, a) - 1);
 }
+/* A made-to-order lens's mounting: a flange round its rim, width mm out from it and thick mm
+   along the axis, with holes of diameter hole on the circle through the flange's middle. It is
+   outside the lens, so the beam is not traced through it (light past the rim would pass it). */
+function normMount(m) {
+  if (!m || typeof m !== 'object' || m.kind !== 'flange') return undefined;
+  const n = (v, d) => (isFinite(v) && v !== null && v !== '' ? +v : d);
+  const width = clamp(n(m.width, 10), 3, 40), hole = clamp(n(m.hole, 3.4), 1, Math.max(1, width - 1.6));
+  return { kind: 'flange', width, thick: clamp(n(m.thick, 4), 1, 20), holes: Math.round(clamp(n(m.holes, 4), 0, 12)), hole };
+}
+/* a flange's plastic, mm^3: its ring less its holes */
+const mountVolume = (dia, m) => m && m.kind === 'flange'
+  ? Math.PI * (((dia / 2 + m.width) ** 2 - (dia / 2) ** 2) - m.holes * (m.hole / 2) ** 2) * m.thick : 0;
+/* the outside diameter of a lens with its mounting */
+const mountedDia = (dia, m) => dia + (m && m.kind === 'flange' ? 2 * m.width : 0);
 /* what an RF lens can be made as, in one piece: its largest size, and its thinnest wall (mm) */
 const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */
@@ -5249,7 +5263,7 @@ const MASK = {
       preset: typeof e.preset === 'string' ? e.preset : 'custom',
     });
     // a graded-index RF lens: its delay and amplitude follow from its design (core/grin.js)
-    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); }
+    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); o.mount = normMount(e.mount); }
     return o;
   },
   guide: {
@@ -5371,6 +5385,7 @@ const LENS = {
       cyl: e.cyl === 'plane' || e.cyl === 'out' ? e.cyl : undefined,    // cylindrical: power in the bench plane, or out of it
       source: typeof e.source === 'string' ? e.source : undefined,
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
+      mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
     });
   },
   guide: {
@@ -5379,7 +5394,8 @@ const LENS = {
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
-    design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.' },
+    design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
+    mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.' },
   },
 };
 /* Grating: A diffraction grating, reflecting or transmitting. */
@@ -8753,6 +8769,22 @@ function clipPoly(P) {                    // Sutherland-Hodgman against the same
   }
   return out;
 }
+/* a made-to-order lens's flange, side on: a ring from the rim at a out by its width, thick along
+   the axis about x0, with its bolt circle marked */
+function drawMount(f, x0, a, m, sel) {
+  if (!m || m.kind !== 'flange') return;
+  const t = m.thick / 2, ink = lightLayer ? '143,143,136' : '242,242,236';
+  for (const s of [1, -1]) {
+    pathLocal(f, [[x0 - t, s * a], [x0 + t, s * a], [x0 + t, s * (a + m.width)], [x0 - t, s * (a + m.width)]], true);
+    ctx.fillStyle = 'rgba(' + ink + ',0.32)'; ctx.fill();
+    ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2 : 1.2; ctx.stroke();
+    if (m.holes) {
+      const yc = s * (a + m.width / 2), hr = m.hole / 2;
+      pathLocal(f, [[x0 - t, yc - hr], [x0 + t, yc - hr], [x0 + t, yc + hr], [x0 - t, yc + hr]], true);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+    }
+  }
+}
 function pathLocal(f, pts, close) {
   ctx.beginPath();
   const S = pts.map(p => { const [x, y] = toWorld(f, p[0], p[1]); return [sx(x), sy(y)]; });
@@ -11209,6 +11241,7 @@ function setParam(el, path, v) {
   if (keys[0] === 'gaps') v = Math.max(0, v);
   if (!keys.length && (last === 'z' || last === 'tip' || last === 'roll')) { ({ z: setZ, tip: setTip, roll: setRoll })[last](el, v); return; }
   o[last] = v;
+  if (keys[0] === 'mount') { el.mount = normMount(el.mount); return; }          // a flange's sizes, kept to what can be made
   if (el.type === 'source' && last === 'wavelength' && el.colourAuto) el.colour = wavelengthColour(v);
   if (el.type === 'source' && el.gauss) {
     if (last === 'width' || last === 'divergence') gaussFromFan(el);
@@ -17512,6 +17545,11 @@ function drawLens(el, sel) {
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
   }
+  if (el.mount) {
+    // the flange about the middle of the rim: where the first and last faces meet the edge
+    const rimX = s => { const P = surfPoints(s, 8, false, null); return P.reduce((b, p) => (Math.abs(p[1]) > Math.abs(b[1]) ? p : b))[0]; };
+    drawMount(f, (rimX(ss[0]) + rimX(ss[ss.length - 1])) / 2, el.diameter / 2, el.mount, sel);
+  }
 }
 
 function lensPanel(el) {
@@ -17567,6 +17605,8 @@ function lensPanel(el) {
       panel.append(mrows);
     }
   }
+  // a made-to-order RF lens: how it is mounted
+  if (el.mmw && el.materials.length === 1 && RF_MAT[el.materials[0].glass] && RF_MAT[el.materials[0].glass].print) mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
   if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
@@ -17867,6 +17907,7 @@ function drawGrin(el, sel) {
   }
   pathLocal(f, [[-T, -L], [T, -L], [T, L], [-T, L]], true);
   ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2.5 : 1.4; ctx.stroke();
+  drawMount(f, 0, L, el.mount, sel);
 }
 const pct = v => v.toFixed(v < 10 ? 1 : 0) + '%';
 /* its panel: the design, and what the design comes to, in density only */
@@ -17885,12 +17926,13 @@ function grinPanel(el) {
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],
     ['Weight', Math.round(D.grams) + ' g'],
-    ['Manufacturable', el.length <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
+    ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.t <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
     h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+  mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   rfLensPatternSection(el);
   const o = orderRow(el); if (o) panel.append(o);                                   // made to order: ask for a quote
@@ -18863,9 +18905,9 @@ function rfLensReadout(el, wls, rows) {
   if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   // a made-to-order plastic: whether it can be made
   if (M && M.print) {
-    const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
+    const fits = mountedDia(el.diameter, el.mount) <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
     rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
-    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across' + (el.mount ? ', flange included,' : '') + ' and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
@@ -20616,6 +20658,25 @@ function rfPatternSection(el) {
       h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
       h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
   });
+}
+/* A made-to-order lens's mounting: none, or a flange with bolt holes round its rim */
+function mountSection(el) {
+  const dia = () => (el.grin ? el.length : el.diameter);
+  panel.append(h('h3', null, 'Mounting'));
+  const rows = h('div', { class: 'rt-rows' }, selectField('Mount', [['none', 'None'], ['flange', 'Flange with bolt holes']], () => (el.mount ? 'flange' : 'none'),
+    v => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; }, { wide: true }));
+  if (el.mount) rows.append(param('Flange width (mm)', el, 'mount.width'), param('Flange thickness (mm)', el, 'mount.thick'),
+    param('Bolt holes', el, 'mount.holes'), param('Hole diameter (mm)', el, 'mount.hole'));
+  panel.append(rows);
+  if (el.mount) {
+    const note = h('p', { class: 'note' });
+    panel.append(note);
+    bindSync(note, () => {
+      const m = el.mount; if (!m) return;
+      note.textContent = 'Outside diameter ' + (+mountedDia(dia(), m).toFixed(1)) + ' mm' + (m.holes ? '; ' + m.holes + ' holes of ' + m.hole + ' mm on a ' + (+(dia() + m.width).toFixed(1)) + ' mm circle' : '') +
+        '. The flange is outside the lens, so the beam is not traced through it: any light past the rim would pass through plastic there.';
+    });
+  }
 }
 /* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
    (H-plane) dashed beside it, both against their own peak (core/antenna.js) */
@@ -29618,32 +29679,35 @@ const CART = 'JEK_QUOTE_CART';
 const mm = v => (+v).toFixed(v < 10 ? 2 : 1).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') + ' mm';
 const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : null; })();
 
+/* its mounting, as the order gives it */
+const mountLine = (dia, m) => m ? 'Mounting: flange ' + mm(m.width) + ' wide, ' + mm(m.thick) + ' thick' + (m.holes ? ', ' + m.holes + ' holes of ' + mm(m.hole) + ' on a ' + mm(dia + m.width) + ' circle' : ', no holes') : null;
 /* what the order says of it, or null when it is not a lens that can be ordered */
 function orderSpec(el) {
   if (!el || !el.mmw) return null;
   if (el.type === 'mask' && el.grin) {
     const g = el.grin, D = grinDesign(g, el.length);
-    if (!D.usable || el.length > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
+    if (!D.usable || mountedDia(el.length, el.mount) > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
     return {
       name: 'Graded-index RF lens, ' + D.M.name + ', ' + mm(el.length) + ' across, f ' + mm(g.f) + ', ' + g.ghz + ' GHz',
       spec: ['Design frequency: ' + g.ghz + ' GHz', 'Diameter: ' + mm(el.length), 'Focal length: ' + mm(g.f) + ', ' + (g.profile === 'parabolic' ? 'parabolic' : 'ideal-lens') + ' profile',
-        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', 'Weight: about ' + Math.round(D.grams) + ' g'],
+        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', mountLine(el.length, el.mount),
+        'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g'].filter(Boolean),
     };
   }
   if (el.type === 'lens') {
     const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
     if (!M || !M.print || mats.some(m => m.glass !== mats[0].glass)) return null;
     const geo = lensThickness(el);
-    if (el.diameter > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
+    if (mountedDia(el.diameter, el.mount) > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
     const ghz = ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
     const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
     const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
-    const grams = lensVolume(el) / 1000 * (M.density || 1.2);
+    const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
-        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')), mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g'].filter(Boolean),
     };
   }
@@ -32949,6 +33013,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A flange for a made-to-order lens</b>: under Mounting in the panel of an RF lens in a made-to-order plastic, or a graded-index lens, a flange round its rim with bolt holes, set by its width, thickness, number of holes and their size. It is drawn on the bench, goes in the quote with the lens, and counts towards what can be made.',
     '<b>An RF lens as an antenna</b>: a lens fed by a horn shows its gain in dBi against the horn alone, its half-power beamwidth and first sidelobe, and where its aperture efficiency goes (taper, phase, spillover and the lens\u2019s own loss), with its far-field pattern plotted beside the horn\u2019s. A lens that focuses inside its own far field says so.',
     '<b>Order an RF lens to your design</b>: an RF lens in PLA, ABS, PETG, ASA or polypropylene, or a graded-index lens, that its panel calls manufacturable has an orange <b>Request a quote for this lens</b> button. It puts the lens in the JEK Systems quote cart with its figures and a link to its design; send the request from the cart and we reply with a price. See Custom RF Lenses under Products.',
     '<b>Graded-index RF lens</b> (RF tab, Lenses and mirrors): a flat disc, solid at its centre and less dense towards its edge, so its index falls outwards and it focuses as a curved lens does. Set its focal length, diameter, material, density range, profile (an ideal lens or a parabola) and design frequency; its panel gives the thickness that needs, its index and density from centre to edge, its loss at the centre and the edge, its weight, whether it can be made, and the beam at it with its edge taper. A new example: a graded-index lens on a 24 GHz horn.',

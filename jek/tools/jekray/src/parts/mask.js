@@ -1,5 +1,6 @@
 import { nextName, num } from '../state/project.js';
 import { applyGrin } from '../core/grin.js';
+import { normMount } from '../core/rf.js';
 
 /* Mask: A thin mask with an amplitude and a delay (in waves) written as formulas: also the way to model an ideal lens or objective. */
 export const MASK = {
@@ -15,7 +16,7 @@ export const MASK = {
       preset: typeof e.preset === 'string' ? e.preset : 'custom',
     });
     // a graded-index RF lens: its delay and amplitude follow from its design (core/grin.js)
-    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); }
+    if (e.grin && typeof e.grin === 'object') { o.grin = e.grin; applyGrin(o); o.mount = normMount(e.mount); }
     return o;
   },
   guide: {

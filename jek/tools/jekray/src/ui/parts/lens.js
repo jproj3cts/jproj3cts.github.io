@@ -4,9 +4,10 @@ import { deg } from '../../state/project.js';
 import { lensSurfaces } from '../../core/geometry.js';
 import { elementSurfaces } from '../../core/stl.js';
 import { frame } from '../../core/mask.js';
-import { ctx, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
+import { ctx, drawMount, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
 import { fid, h, numInput, panel, param, selectField, setFid } from '../panel.js';
-import { coatingRows, rfLensPatternSection } from '../panels.js';
+import { coatingRows, mountSection, rfLensPatternSection } from '../panels.js';
+import { RF_MAT } from '../../core/rf.js';
 import { clipNote } from '../heavy.js';
 import {
   askForGlass, askForMaterial, flipLens, glassNote, materialOptions, pickMaterial, removeSweeps, unknownGlass,
@@ -31,6 +32,11 @@ function drawLens(el, sel) {
     ctx.strokeStyle = sel ? selInk() : el.mmw ? (lightLayer ? '#8f8f88' : '#f2f2ec') : glass;
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
+  }
+  if (el.mount) {
+    // the flange about the middle of the rim: where the first and last faces meet the edge
+    const rimX = s => { const P = surfPoints(s, 8, false, null); return P.reduce((b, p) => (Math.abs(p[1]) > Math.abs(b[1]) ? p : b))[0]; };
+    drawMount(f, (rimX(ss[0]) + rimX(ss[ss.length - 1])) / 2, el.diameter / 2, el.mount, sel);
   }
 }
 
@@ -87,6 +93,8 @@ function lensPanel(el) {
       panel.append(mrows);
     }
   }
+  // a made-to-order RF lens: how it is mounted
+  if (el.mmw && el.materials.length === 1 && RF_MAT[el.materials[0].glass] && RF_MAT[el.materials[0].glass].print) mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
   if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote

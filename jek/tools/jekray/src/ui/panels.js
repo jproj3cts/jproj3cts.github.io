@@ -6,7 +6,7 @@ import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, trapFLabel } from '../core/traps
 import { MU_B } from '../core/zeeman.js';
 import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert } from '../core/nlc.js';
 import { C_MM } from '../core/modulators.js';
-import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf } from '../core/rf.js';
+import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf, normMount, mountedDia } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { lensAntennaOf } from '../core/antenna.js';
 import { FIBRE_NG } from '../core/coherence.js';
@@ -717,6 +717,25 @@ function rfPatternSection(el) {
       h('tr', null, h('td', null, 'Carried on the bench'), h('td', null, M.comps.length === 1 ? 'the Gaussian' : M.comps.length + ' Hermite\u2013Gauss modes, ' + (100 * M.carried).toPrecision(3) + '% of the power' + (M.cross > 1e-4 ? ' (' + (100 * M.cross).toPrecision(2) + '% is cross-polar)' : ''))))),
       h('p', { class: 'note' }, 'The Fourier transform of the field across the aperture (horn type, size and slant length) at ' + fmtWl(lam * 1e6) + ', relative to its peak.'));
   });
+}
+/* A made-to-order lens's mounting: none, or a flange with bolt holes round its rim */
+export function mountSection(el) {
+  const dia = () => (el.grin ? el.length : el.diameter);
+  panel.append(h('h3', null, 'Mounting'));
+  const rows = h('div', { class: 'rt-rows' }, selectField('Mount', [['none', 'None'], ['flange', 'Flange with bolt holes']], () => (el.mount ? 'flange' : 'none'),
+    v => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; }, { wide: true }));
+  if (el.mount) rows.append(param('Flange width (mm)', el, 'mount.width'), param('Flange thickness (mm)', el, 'mount.thick'),
+    param('Bolt holes', el, 'mount.holes'), param('Hole diameter (mm)', el, 'mount.hole'));
+  panel.append(rows);
+  if (el.mount) {
+    const note = h('p', { class: 'note' });
+    panel.append(note);
+    bindSync(note, () => {
+      const m = el.mount; if (!m) return;
+      note.textContent = 'Outside diameter ' + (+mountedDia(dia(), m).toFixed(1)) + ' mm' + (m.holes ? '; ' + m.holes + ' holes of ' + m.hole + ' mm on a ' + (+(dia() + m.width).toFixed(1)) + ' mm circle' : '') +
+        '. The flange is outside the lens, so the beam is not traced through it: any light past the rim would pass through plastic there.';
+    });
+  }
 }
 /* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
    (H-plane) dashed beside it, both against their own peak (core/antenna.js) */

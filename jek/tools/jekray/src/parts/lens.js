@@ -1,5 +1,6 @@
 import { deg, nextName, normMat, num } from '../state/project.js';
 import { normSurface } from '../state/elements.js';
+import { normMount } from '../core/rf.js';
 
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass. */
 export const LENS = {
@@ -32,6 +33,7 @@ export const LENS = {
       cyl: e.cyl === 'plane' || e.cyl === 'out' ? e.cyl : undefined,    // cylindrical: power in the bench plane, or out of it
       source: typeof e.source === 'string' ? e.source : undefined,
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
+      mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
     });
   },
   guide: {
@@ -40,6 +42,7 @@ export const LENS = {
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
-    design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.' },
+    design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
+    mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.' },
   },
 };

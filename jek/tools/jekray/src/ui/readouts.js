@@ -6,7 +6,7 @@ import { CRYSTALS, bireMat, filterT, gainAt, walkOff } from '../core/crystals.js
 import { cellPolar } from '../core/zeeman.js';
 import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
-import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, pdResp, responsivity, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, mountedDia, pdResp, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { lensAntennaOf } from '../core/antenna.js';
 import { deg, project } from '../state/project.js';
@@ -339,9 +339,9 @@ function rfLensReadout(el, wls, rows) {
   if (el.diameter / lam < 5) checks.push('This lens is only ' + (el.diameter / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   // a made-to-order plastic: whether it can be made
   if (M && M.print) {
-    const fits = el.diameter <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
+    const fits = mountedDia(el.diameter, el.mount) <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
     rows.push(['Manufacturable', fits && thin ? 'yes' : 'no']);
-    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
+    if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across' + (el.mount ? ', flange included,' : '') + ' and ' + PRINTER.maxHeight + ' mm thick can be made.');
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }

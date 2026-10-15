@@ -52,6 +52,20 @@ export function mixFill(M, eps) {
   const em = M.n * M.n, a = mixA(M);
   return (Math.pow(Math.max(1, eps), a) - 1) / (Math.pow(em, a) - 1);
 }
+/* A made-to-order lens's mounting: a flange round its rim, width mm out from it and thick mm
+   along the axis, with holes of diameter hole on the circle through the flange's middle. It is
+   outside the lens, so the beam is not traced through it (light past the rim would pass it). */
+export function normMount(m) {
+  if (!m || typeof m !== 'object' || m.kind !== 'flange') return undefined;
+  const n = (v, d) => (isFinite(v) && v !== null && v !== '' ? +v : d);
+  const width = clamp(n(m.width, 10), 3, 40), hole = clamp(n(m.hole, 3.4), 1, Math.max(1, width - 1.6));
+  return { kind: 'flange', width, thick: clamp(n(m.thick, 4), 1, 20), holes: Math.round(clamp(n(m.holes, 4), 0, 12)), hole };
+}
+/* a flange's plastic, mm^3: its ring less its holes */
+export const mountVolume = (dia, m) => m && m.kind === 'flange'
+  ? Math.PI * (((dia / 2 + m.width) ** 2 - (dia / 2) ** 2) - m.holes * (m.hole / 2) ** 2) * m.thick : 0;
+/* the outside diameter of a lens with its mounting */
+export const mountedDia = (dia, m) => dia + (m && m.kind === 'flange' ? 2 * m.width : 0);
 /* what an RF lens can be made as, in one piece: its largest size, and its thinnest wall (mm) */
 export const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, minWall: 0.45 };
 /* a dielectric's loss tangent at a frequency (GHz) */

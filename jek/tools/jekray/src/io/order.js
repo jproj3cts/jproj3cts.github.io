@@ -1,4 +1,4 @@
-import { C_NM_GHZ, PRINTER, RF_MAT } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, mountVolume, mountedDia } from '../core/rf.js';
 import { grinDesign } from '../core/grin.js';
 import { benchNms } from '../state/elements.js';
 import { paraxial } from '../engines/trace.js';
@@ -17,32 +17,35 @@ const CART = 'JEK_QUOTE_CART';
 const mm = v => (+v).toFixed(v < 10 ? 2 : 1).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') + ' mm';
 const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : null; })();
 
+/* its mounting, as the order gives it */
+const mountLine = (dia, m) => m ? 'Mounting: flange ' + mm(m.width) + ' wide, ' + mm(m.thick) + ' thick' + (m.holes ? ', ' + m.holes + ' holes of ' + mm(m.hole) + ' on a ' + mm(dia + m.width) + ' circle' : ', no holes') : null;
 /* what the order says of it, or null when it is not a lens that can be ordered */
 export function orderSpec(el) {
   if (!el || !el.mmw) return null;
   if (el.type === 'mask' && el.grin) {
     const g = el.grin, D = grinDesign(g, el.length);
-    if (!D.usable || el.length > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
+    if (!D.usable || mountedDia(el.length, el.mount) > PRINTER.maxDia || D.t > PRINTER.maxHeight) return null;
     return {
       name: 'Graded-index RF lens, ' + D.M.name + ', ' + mm(el.length) + ' across, f ' + mm(g.f) + ', ' + g.ghz + ' GHz',
       spec: ['Design frequency: ' + g.ghz + ' GHz', 'Diameter: ' + mm(el.length), 'Focal length: ' + mm(g.f) + ', ' + (g.profile === 'parabolic' ? 'parabolic' : 'ideal-lens') + ' profile',
-        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', 'Weight: about ' + Math.round(D.grams) + ' g'],
+        'Material: ' + D.M.name, 'Thickness: ' + mm(D.t), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge', mountLine(el.length, el.mount),
+        'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g'].filter(Boolean),
     };
   }
   if (el.type === 'lens') {
     const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
     if (!M || !M.print || mats.some(m => m.glass !== mats[0].glass)) return null;
     const geo = lensThickness(el);
-    if (el.diameter > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
+    if (mountedDia(el.diameter, el.mount) > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
     const ghz = ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
     const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
     const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
-    const grams = lensVolume(el) / 1000 * (M.density || 1.2);
+    const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
-        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')), mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g'].filter(Boolean),
     };
   }

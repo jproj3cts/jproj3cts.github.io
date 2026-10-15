@@ -201,6 +201,22 @@ function clipPoly(P) {                    // Sutherland-Hodgman against the same
   }
   return out;
 }
+/* a made-to-order lens's flange, side on: a ring from the rim at a out by its width, thick along
+   the axis about x0, with its bolt circle marked */
+export function drawMount(f, x0, a, m, sel) {
+  if (!m || m.kind !== 'flange') return;
+  const t = m.thick / 2, ink = lightLayer ? '143,143,136' : '242,242,236';
+  for (const s of [1, -1]) {
+    pathLocal(f, [[x0 - t, s * a], [x0 + t, s * a], [x0 + t, s * (a + m.width)], [x0 - t, s * (a + m.width)]], true);
+    ctx.fillStyle = 'rgba(' + ink + ',0.32)'; ctx.fill();
+    ctx.strokeStyle = sel ? selInk() : 'rgb(' + ink + ')'; ctx.lineWidth = sel ? 2 : 1.2; ctx.stroke();
+    if (m.holes) {
+      const yc = s * (a + m.width / 2), hr = m.hole / 2;
+      pathLocal(f, [[x0 - t, yc - hr], [x0 + t, yc - hr], [x0 + t, yc + hr], [x0 - t, yc + hr]], true);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+    }
+  }
+}
 export function pathLocal(f, pts, close) {
   ctx.beginPath();
   const S = pts.map(p => { const [x, y] = toWorld(f, p[0], p[1]); return [sx(x), sy(y)]; });

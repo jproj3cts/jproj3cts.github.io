@@ -741,10 +741,31 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 .jek-catlist a::after { content: "\2192"; color: var(--jek-accent-ink); }
 .jek-catlist a:hover { background: color-mix(in srgb, var(--jek-accent) 12%, var(--jek-well)); text-decoration: none; }
 .jek-catlist a:focus-visible { outline: none; box-shadow: var(--jek-focus); }
-.jek-card.cat-orange { --jek-accent: #f47742; --jek-accent-ink: #e35f27; }
-.jek-card.cat-red { --jek-accent: #db3550; --jek-accent-ink: #b8283f; }
-.jek-card.cat-blue { --jek-accent: #0092b2; --jek-accent-ink: #007893; }
-.jek-card .jek-eyebrow.accent { color: var(--jek-accent-ink); }
+.cat-orange { --jek-accent: #f47742; --jek-accent-ink: #e35f27; }
+.cat-red { --jek-accent: #db3550; --jek-accent-ink: #b8283f; }
+.cat-blue { --jek-accent: #0092b2; --jek-accent-ink: #007893; }
+.jek-eyebrow.accent { color: var(--jek-accent-ink); }
+
+/* a product page in the column: the pictures left and large, the title, price and quote
+   buttons right, the documents in a band beneath */
+.jek-wrap .product-wrap { max-width: none; margin: 0; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 2.5rem; }
+.jek-wrap .product-info h1 { margin: 0.2rem 0 0.6rem; font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.1rem); line-height: 1.15; text-wrap: balance; }
+.jek-wrap .product-price { font-family: var(--jek-sans); font-size: 1.4rem; font-weight: 700; margin: 0 0 0.3rem; }
+.jek-wrap .part-number { font-size: 0.86rem; color: var(--jek-ink-soft); }
+.jek-wrap .product-actions { margin: 1rem 0 0.4rem; }
+.jek-wrap .product-description { margin-top: 1.6rem; }
+.jek-wrap .product-description h2 { margin: 1.2rem 0 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-wrap .product-description h2:first-child { margin-top: 0; }
+.jek-wrap .product-description p, .jek-wrap .product-description li { font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink); }
+.jek-wrap .product-description ul { padding-left: 1.2rem; }
+.jek-wrap .product-description li::marker { color: var(--jek-accent, var(--jek-orange)); }
+.jek-wrap .gallery-frame { aspect-ratio: 4 / 3; }
+.jek-wrap .gallery-frame.photo { padding: 0; }
+.jek-wrap .gallery-frame.photo img { width: 100%; height: 100%; max-height: none; object-fit: cover; }
+.jek-wrap .tech-section { max-width: none; margin: 0; padding: 0; background: transparent; border: 0; }
+.jek-wrap .tech-section h2 { margin: 0 0 0.9rem; padding: 0; font-size: 1.6rem; letter-spacing: -0.01em; border: 0; }
+.jek-wrap .tech-section .dropdown { background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
+@media (max-width: 860px) { .jek-wrap .product-wrap { grid-template-columns: minmax(0, 1fr); } }
 
 /* the sub-category boxes inside a category card: flush with the card's text, a little gap between */
 .jek-card .subcat-grid { padding: 0.4rem 0 0; gap: 0.35rem; margin-top: auto; }   /* the cards are one height, so the boxes line up */

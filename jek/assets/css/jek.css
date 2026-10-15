@@ -746,6 +746,9 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 .jek-card.cat-blue { --jek-accent: #0092b2; --jek-accent-ink: #007893; }
 .jek-card .jek-eyebrow.accent { color: var(--jek-accent-ink); }
 
+/* the sub-category boxes inside a category card: flush with the card's text, a little gap between */
+.jek-card .subcat-grid { padding: 0.4rem 0 0; gap: 0.35rem; }
+
 /* resource columns */
 .jek-resources .jek-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }
 .jek-resources h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--jek-ink); }

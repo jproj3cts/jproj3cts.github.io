@@ -8333,6 +8333,8 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
    kept only inside the aperture, round or square (see zInside). t is along the ray, as ever */
 // the passes through modulators a ray's path records ("e<n>.<bounce>" each), and how many split it into sidebands
 const EOM_PASS = /e-?\d+\./g, EOM_PASSES = 2;
+// and the passes through gratings and modulators ("g<m>." and "e<n>.") a ray's path records, and how many may split it
+const SPLIT_PASS = /[eg]-?\d+\./g, GRATING_PASSES = 3;
 function tipFrame(s, x, h) { const c = Math.cos(s.tip), n = Math.sin(s.tip); return [x * c + h * n, -x * n + h * c]; }
 // and rolled about its own axis by s.roll (radians, right-handed about it): across and up in the rolled frame
 function rollFrame(s, y, z) { if (!s.roll) return [y, z]; const c = Math.cos(s.roll), n = Math.sin(s.roll); return [y * c + z * n, -y * n + z * c]; }
@@ -8619,6 +8621,8 @@ function traceSceneOnce() {
         const splits = isQ && src.gauss && !pls;
         let near = null, nearT = Infinity;
         for (const s of surfs) {
+          // in a graded glass the ray can meet nothing but its own lens's faces (and steps there many times)
+          if (gr && s.el !== gr.s.el) continue;
           if (s.kind === 'iris' && !isQ) continue;
           if (isQ && s.kind === 'absorb' && s.el.type === 'stop') continue;   // the iris stands in for them
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
@@ -8648,6 +8652,7 @@ function traceSceneOnce() {
         }
         for (const g of segs) {
           if (g.el && (g.el === skipEl || g.el === forceEl)) continue;       // its rim is no rim to these
+          if (gr && g.el !== gr.s.el.id) continue;
           const [lx, ly] = toLocal(g.f, px, py);
           const [ldx, ldy] = toLocalDir(g.f, dx, dy);
           const tt = intersectSeg(g.sg, lx, ly, ldx, ldy, EPS);
@@ -9099,7 +9104,10 @@ function traceSceneOnce() {
           }
           const dIn = T3 ? T3.dt : ldy;
           const ords = el.type === 'aom' ? aomOrders(el, nm, dIn, nCur) : gratingOrders(el, nm, dIn, nCur);
-          const use = probe ? ords.slice().sort((a, b) => b.eff - a.eff).slice(0, 1) : ords;
+          // a ray caught bouncing through gratings and modulators branches on every pass: past GRATING_PASSES
+          // passes that split it along one line, it goes on in its strongest order alone
+          const passes = (path.match(SPLIT_PASS) || []).length;
+          const use = probe || passes >= GRATING_PASSES ? ords.slice().sort((a, b) => b.eff - a.eff).slice(0, 1) : ords;
           const sx0 = ldx < 0 ? -1 : 1, cIn = T3 ? Math.abs(T3.dn) : Math.abs(ldx);
           for (const o of use) {
             // an order too weak to matter is dropped, the beam's reference ray included, as a

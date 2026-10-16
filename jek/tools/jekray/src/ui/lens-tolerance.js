@@ -18,11 +18,12 @@ import { plotCsv, plotSaveRow } from './plots.js';
 const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each)'],
   ['thk', 'Thickness and air gaps', 'mm', 'Every lens’s thickness and every gap between parts'],
   ['dec', 'Lens decentre', 'mm', 'Each lens moved across the axis, in x and in y'],
-  ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
+  ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its mechanical reference (below), about x and about y'],
   ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
   ['abbe', 'Abbe number', '%', 'Each glass’s dispersion'],
   ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius'],
-  ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis']];
+  ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis (at a cemented interface, the cement wedged)'],
+  ['sdec', 'Surface decentre', 'mm', 'Each lens surface moved across the axis on its own, in x and in y: in a cemented lens, its parts glued off one another\u2019s axis']];
 const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 let TOL = null;
 export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
@@ -103,6 +104,9 @@ export function tolCard(ctx) {
   seed.addEventListener('change', () => { const x = parseInt(seed.value, 10); if (x >= 1) set(t => { t.seed = x; }); else seed.value = String(T.seed); });
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is a compensator)'),
     h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
+  const piv = h('select', { 'aria-label': 'A lens tilts about' }, h('option', { value: 'first' }, 'its first vertex'), h('option', { value: 'centre' }, 'its centre'), h('option', { value: 'last' }, 'its last vertex'));
+  piv.value = T.pivot; piv.addEventListener('change', () => set(t => { t.pivot = piv.value; }));
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'A lens tilts about ', piv, h('span', { class: 'rt-lsub' }, ' (its mechanical reference: where its cell holds it)'))));
   card.append(compsCard(P, T, set));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
@@ -131,7 +135,7 @@ export function tolCard(ctx) {
     const st = h('table', { class: 'rt-ltable rt-ltolsens' });
     st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
     const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
-    const kindUnit = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%', irr: 'fringes', wedge: 'arcmin' };
+    const kindUnit = KIND_UNIT;
     for (const r of show) {
       const w = Math.max(r.minus, r.plus) / worst;
       sb.append(h('tr', null, h('td', null, r.label), h('td', { class: 'mono' }, tolFmt(r.lim, 4) + ' ' + kindUnit[r.kind]),
@@ -173,7 +177,7 @@ export function tolCard(ctx) {
   return card;
 }
 
-const KIND_UNIT = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%', irr: 'fringes', wedge: 'arcmin' };
+const KIND_UNIT = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%', irr: 'fringes', wedge: 'arcmin', sdec: 'mm' };
 /* a limit to set: two significant figures, rounded down (so it keeps within what was found) */
 const roundDown = v => { if (!(v > 0)) return v; const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.floor(v / p + 1e-9) * p; };
 /* inverse sensitivity's results: each kind's tightest item against its setting, with the means to take them, and every item */

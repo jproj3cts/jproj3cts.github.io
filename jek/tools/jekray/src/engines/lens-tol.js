@@ -13,7 +13,11 @@ import { cloneP, meritTerms } from './lens-opt.js';
      a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
        and about y) by ± arcminutes: its surfaces traced in their own moved frames;
      a lens surface's wedge: the surface alone tilted about its own vertex, about x and about y, by ±
-       arcminutes (off unless turned on), so its lens's faces are no longer square to one axis;
+       arcminutes (off unless turned on), so its lens's faces are no longer square to one axis (at a cemented
+       interface, the cement wedged);
+     a lens surface's decentre: the surface alone moved across the axis, in x and in y, by ± mm (off unless
+       turned on): in a cemented lens, its parts glued off one another's axis;
+   A lens tilts about its mechanical reference (T.pivot): its first vertex, its centre along the axis, or its last vertex.
      a glass's index by ± Δn, and its Abbe number by ± per cent (its dispersion about the d line
        divided by 1 + δ).
    The criterion is the merit function's image term (the RMS spot, or the RMS wavefront error, over
@@ -31,6 +35,7 @@ export function tolOps(P, T) {
   if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
   if (T.irr && T.irr.on && T.irr.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'irr', i, lim: T.irr.v, label: 'Irregularity of surface ' + (i + 1) }); });
   if (T.wedge && T.wedge.on && T.wedge.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') for (const axis of ['x', 'y']) ops.push({ kind: 'wedge', i, axis, lim: T.wedge.v, label: 'Wedge about ' + axis + ' of surface ' + (i + 1) }); });
+  if (T.sdec && T.sdec.on && T.sdec.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') for (const axis of ['x', 'y']) ops.push({ kind: 'sdec', i, axis, lim: T.sdec.v, label: 'Decentre in ' + axis + ' of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
@@ -47,7 +52,7 @@ export function tolOps(P, T) {
 }
 
 /* the prescription as built: each tolerance at its value (vals[k] for ops[k], 0 for none) */
-export function perturb(P0, ops, vals) {
+export function perturb(P0, ops, vals, pivot) {
   const P = cloneP(P0), sps = surfaceParts(P0), moves = new Map();
   ops.forEach((o, k) => {
     const v = vals[k];
@@ -69,6 +74,11 @@ export function perturb(P0, ops, vals) {
       const s = P.surfaces[o.i], t = (s.tilt || [0, 0]).slice();
       t[o.axis === 'x' ? 0 : 1] += v * ARCMIN;
       P.surfaces[o.i] = Object.assign({}, s, { tilt: t });
+    } else if (o.kind === 'sdec') {
+      // the surface alone moved across the axis (before any move of its whole lens, which carries it round)
+      const s = P.surfaces[o.i], d = (s.dec || [0, 0, 0]).slice();
+      d[o.axis === 'x' ? 0 : 1] += v;
+      P.surfaces[o.i] = Object.assign({}, s, { dec: d });
     } else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
     else {
       const m = moves.get(o.i) || { dx: 0, dy: 0, ax: 0, ay: 0 };
@@ -77,10 +87,12 @@ export function perturb(P0, ops, vals) {
     }
   });
   if (moves.size) {
-    // each moved lens: tilted about its first vertex (its later surfaces carried round with it), then shifted across
+    // each moved lens: tilted about its mechanical reference (its first vertex, its centre, or its last vertex: its
+    // surfaces carried round with it), then shifted across
     const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1] + g);
     for (const [pi, m] of moves) {
-      const idx = sps.map((s, i) => s.pi === pi ? i : -1).filter(i => i >= 0), z0 = z[idx[0]];
+      const idx = sps.map((s, i) => s.pi === pi ? i : -1).filter(i => i >= 0), za = z[idx[0]], zb = z[idx[idx.length - 1]];
+      const z0 = pivot === 'last' ? zb : pivot === 'centre' ? (za + zb) / 2 : za;
       const cx = Math.cos(m.ax), sx = Math.sin(m.ax), cy = Math.cos(m.ay), sy = Math.sin(m.ay);
       for (const i of idx) {
         const s = P.surfaces[i], dd = z[i] - z0, t = s.tilt || [0, 0], dc = s.dec || [0, 0, 0];
@@ -113,11 +125,11 @@ export function compsFor(P, comps) {
     : P.parts[c.i] && P.parts[c.i].kind !== 'stop');
 }
 /* the prescription with the compensators moved by c (gaps in mm, decentres in mm, tilts in arcminutes) and the image by dz */
-function withComps(P, comps, c, dz) {
+function withComps(P, comps, c, dz, pivot) {
   let Q = cloneP(P);
   const ops = [], vals = [];
   comps.forEach((m, j) => { if (m.kind === 'gap') Q.gaps[m.i] = Math.max(0, Q.gaps[m.i] + c[j]); else { ops.push({ kind: m.kind, i: m.i, axis: m.axis }); vals.push(c[j]); } });
-  if (ops.length) Q = perturb(Q, ops, vals);
+  if (ops.length) Q = perturb(Q, ops, vals, pivot);
   Q.image = P.image + dz;
   return Q;
 }
@@ -149,7 +161,7 @@ function compensatedMany(prob, P, comp, C) {
   if (comp) { lo.push(-Infinity); hi.push(Infinity); step.push(1e-4); }
   for (const m of C) { lo.push(-m.range); hi.push(m.range); step.push(COMP_STEP[m.kind]); }
   const split = x => ({ dz: comp ? x[0] : 0, c: comp ? x.slice(1) : x });
-  const res = x => { const { dz, c } = split(x); return residuals(prob, withComps(P, C, c, dz)); };
+  const pv = prob.design.tol && prob.design.tol.pivot, res = x => { const { dz, c } = split(x); return residuals(prob, withComps(P, C, c, dz, pv)); };
   const ss = r => r.reduce((a, v) => a + (isFinite(v) ? v * v : 1e6), 0);
   let x = new Array(n).fill(0), r = res(x), f = ss(r), lambda = 1e-3;
   for (let it = 0; it < 12; it++) {
@@ -191,7 +203,7 @@ export function tolSensitivity(prob, T, from, to) {
   const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), rows = [];
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const r = [];
-    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps)); }
+    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals, T.pivot), T.comp, T.comps)); }
     rows.push({ k, label: ops[k].label, kind: ops[k].kind, lim: ops[k].lim, minus: r[0].crit - nom.crit, plus: r[1].crit - nom.crit, dzMinus: r[0].dz, dzPlus: r[1].dz });
   }
   return Object.assign({ nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows }, nom.cv ? { nominalCv: nom.cv } : {});
@@ -217,7 +229,7 @@ export const INV_MAX = 1000;
 export const invTarget = (T, nominal) => (T.inv && T.inv.by === 'abs' ? T.inv.v : nominal * ((T.inv ? T.inv.v : 10) / 100));
 export function tolInverse(prob, T, from, to) {
   const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), target = invTarget(T, nom.crit), rows = [];
-  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
+  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals, T.pivot), T.comp, T.comps).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const o = ops[k];
     // a thickness or gap can't go below nothing: past its own size its − side has closed and no longer changes (its + side still does)
@@ -245,7 +257,7 @@ export function tolMonteCarlo(prob, T, from, to) {
       if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
       return (2 * R() - 1) * o.lim;
     });
-    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps);
+    const c = compensated(prob, perturb(prob.P, ops, vals, T.pivot), T.comp, T.comps);
     out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}));
   }
   return out;

@@ -332,13 +332,14 @@ The **Tolerance the design** tab asks how good the design will be as it is made.
 | Radius | fringes | each lens surface's sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each): the sphere with that sag, more or less curved |
 | Thickness and air gaps | mm | every lens's thickness and every gap between parts |
 | Lens decentre | mm | each lens moved across the axis, in x and in y |
-| Lens tilt | arcmin | each lens tilted about its first vertex, about x and about y |
+| Lens tilt | arcmin | each lens tilted about its mechanical reference, about x and about y: its first vertex (unless set), its centre along the axis, or its last vertex, where its cell holds it |
 | Glass index | Δn | each glass's index at every wavelength |
 | Abbe number | % | each glass's dispersion about the d line, divided by $$1 + \delta$$ |
 | Surface irregularity | fringes | each lens surface's form error beyond its radius, off unless turned on: $$a(r^4 - h^2 r^2)$$, no sag at the clear radius $$h$$ or on the axis, its peak to valley $$a h^4/4$$ the fringes' $$N\lambda/2$$ |
-| Surface wedge | arcmin | each lens surface tilted on its own about its vertex, about x and about y, off unless turned on: its lens's two faces no longer square to one axis, as a lens comes out wedged. Unlike a lens tilt, the rest of the lens stays where it was |
+| Surface wedge | arcmin | each lens surface tilted on its own about its vertex, about x and about y, off unless turned on: its lens's two faces no longer square to one axis, as a lens comes out wedged; at a cemented interface, the cement wedged. Unlike a lens tilt, the rest of the lens stays where it was |
+| Surface decentre | mm | each lens surface moved across the axis on its own, in x and in y, off unless turned on: in a cemented lens, its parts glued off one another's axis |
 
-A decentred, tilted or wedged lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
+A cemented lens is one part: lens decentre and tilt move it whole, and its interface takes surface wedge and decentre like any other face. A decentred, tilted or wedged lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
 
 The **criterion** is the merit function's image term: the RMS spot (or RMS wavefront error) over every field and wavelength, as set in Merit. The **compensator**, unless turned off, refocuses the image plane for each build: the spot's square is exactly a parabola in the focus, so three trials find the best focus, and once more about it settles it.
 
@@ -359,6 +360,7 @@ Both run in the background worker, a batch at a time, and can be stopped. The to
 - a round system's decentres and tilts alike in x and y and at either limit;
 - Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors;
 - a plano-convex lens with its flat back wedged by α: the image of a point on the axis moves by $$(n-1)\,\alpha\,\mathrm{BFL}$$, a thin prism's deviation, across the plane of the tilt and not along it, to 1%;
+- a ball lens tilted about its centre unchanged (to 10⁻⁹ mm on the image), and moved either way about its first or last vertex; a wedge at a cemented interface (N-BK7 to F2, a flat back) moving the image by $$(n_1-n_2)\,\alpha\,(t_2/n_2 + \mathrm{BFL})$$, to 1%; a flat surface decentred changing nothing, and a plano-convex lens's curved face decentred the same as the whole lens decentred, exactly;
 - compensators: a lens decentred, with its own decentre as the compensator, set back exactly (to the nominal with that compensator); held to a smaller range, set back only so far and stopped at it; a lens's thickness error taken up better by the air gap after it than by the focus alone; the triplet's air gap after surface 5 as a compensator takes up its own tolerance (to under a tenth) and makes Monte Carlo's builds no worse;
 - inverse sensitivity: at each limit found, the worsening Sensitivity finds is the one allowed, to a part in a hundred; twice the worsening allows between √2 and 2 times the limit, as effects between linear and quadratic do; an amount allowed the same as that share; the triplet with each kind set to its tightest has no tolerance worsening it by more than allowed;
 - a triplet's wedges out of the plane of its fields worsen its image alike either way; in that plane (its fields on one side) one way is better and the other worse, as a linear term makes them.

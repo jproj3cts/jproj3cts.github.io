@@ -150,14 +150,16 @@ export function normMc(m) {
    the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
    index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
    statistics, trials and seed */
-export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1, wedge: 1 };
-const TOL_OFF = { irr: true, wedge: true };              // kinds off until turned on
+export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1, wedge: 1, sdec: 0.01 };
+const TOL_OFF = { irr: true, wedge: true, sdec: true };              // kinds off until turned on
 export function normTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
   for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on === undefined ? !TOL_OFF[k] : x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
   out.comp = o.comp !== false;
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
+  // what a lens tilts about: its mechanical reference (its first vertex, its centre along the axis, or its last vertex)
+  out.pivot = o.pivot === 'centre' || o.pivot === 'last' ? o.pivot : 'first';
   out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
   out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
   // the worsening inverse sensitivity allows: a share of the nominal criterion (%), or an amount of it (mm, or waves)

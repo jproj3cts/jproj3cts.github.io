@@ -8487,14 +8487,14 @@ const TESTS = [
   },
   {
     name: 'An RF lens reads as an antenna: gain over the horn, beamwidth, efficiency',
-    why: 'the ABS lens example: the horn and lens give more gain than the horn alone; gain is directivity less spillover and lens loss; the aperture efficiency is taper times phase and under 1; its panel has the As an antenna plot and the gain row (1 when all hold)',
+    why: 'the ABS lens example, from the bench\u2019s diffracted field past the lens: the horn and lens give more gain than the horn alone; gain is directivity less what passes outside the lens and what it takes; the aperture efficiency is taper times phase and under 1; its panel has the As an antenna plot and the gain row (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const doc = document.getElementById('rig').contentDocument;
       J.load(JSON.parse(getDemo('rf-24ghz-abs-lens'))); J.select('ABS lens');
       const A = J.lensAntenna('ABS lens');
       if (!A) return 0;
-      const gainOk = A.Gdbi > A.hornDbi + 5 && Math.abs(A.Gdbi - (A.Ddbi + 10 * Math.log10(A.eta.spill * A.eta.loss))) < 1e-6;
+      const gainOk = A.Gdbi > A.hornDbi + 5 && Math.abs(A.Gdbi - (A.Ddbi + 10 * Math.log10(A.eta.through))) < 1e-6 && Math.abs(A.eta.spill * A.eta.loss - A.eta.through) < 1e-9;
       const effOk = A.eta.ap > 0.3 && A.eta.ap < 1 && Math.abs(A.eta.ap - A.eta.taper * A.eta.phase) < 1e-6 && A.hpbw > 5 && A.hpbw < 15;
       const ui = [...doc.querySelectorAll('#panel h3')].some(x => /As an antenna/.test(x.textContent)) && /Gain, horn and lens/.test(doc.querySelector('#panel [data-readout]').textContent);
       return gainOk && effOk && ui ? 1 : 0;
@@ -8518,33 +8518,47 @@ const TESTS = [
     },
   },
   {
-    name: 'A graded-index lens says the highest frequency it holds to, and warns above it',
+    name: 'A graded-index lens says the highest frequency it holds to by the design rule, and warns above it',
     why: 'the 24 GHz graded-index example: its least density was raised for 24 GHz, so it holds to 24 GHz, as its panel says; fed at 30 GHz its readout says the figures no longer hold (1 when both hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const doc = document.getElementById('rig').contentDocument;
       J.load(JSON.parse(getDemo('rf-24ghz-grin-lens'))); J.select('GRIN lens');
-      const at24 = /Highest frequency\s*24 GHz/.test(doc.querySelector('#panel').textContent) && !/no longer hold/.test(doc.querySelector('#panel [data-readout]').textContent);
+      const at24 = /Highest frequency \(design rule\)\s*24 GHz/.test(doc.querySelector('#panel').textContent) && !/no longer hold/.test(doc.querySelector('#panel [data-readout]').textContent);
       J.setParam('Feed horn, 24 GHz', 'mmw.ghz', 30); J.select('GRIN lens');
       return at24 && /no longer hold/.test(doc.querySelector('#panel [data-readout]').textContent) ? 1 : 0;
     },
   },
   {
-    name: 'A horn off the axis steers an RF lens\u2019s beam the other way; the lens says how closely it must be made',
-    why: 'the ABS lens example, its horn moved 15 mm across and aimed at the lens: the beam leaves the other side, a little less far than the feed (beam deviation under 1), for a small scan loss and a higher sidelobe; the scan curve loses more the further it steers; the readout and the Steering plot show it; a permittivity 5% off moves the focus each way and costs a fraction of a dB, and the gain holds within 1 dB over a few percent (1 when all hold)',
+    name: 'A horn off the axis steers an RF lens’s beam; tracing the bench again gives the scan loss and how closely the lens must be made',
+    why: 'the ABS lens example, its horn moved 15 mm across and aimed at the lens: from the bench’s field, the beam goes the same way as the horn’s light, a little less far, for a fraction of a dB against the horn on the axis as far away (the bench traced again); the scan, the horn moved round in steps, loses more the further it steers; the readout and the Steering section show it; the plastic’s permittivity 5% higher and lower, the bench traced again each way, moves the focus each way and costs under 1 dB (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const doc = document.getElementById('rig').contentDocument;
       J.load(JSON.parse(getDemo('rf-24ghz-abs-lens')));
-      const L = J.byName('ABS lens'), H = J.byName('Feed horn, 24 GHz');
-      J.setParam(H.name, 'y', L.y - 15); J.setParam(H.name, 'angle', Math.atan2(15, L.x - H.x) * 180 / Math.PI); J.select('ABS lens');
-      const S = J.lensSteer('ABS lens'), T = J.lensTolerance('ABS lens');
-      if (!S || !T) return 0;
-      const steer = S.feed < -5 && S.beam > 5 && S.beam / -S.feed > 0.85 && S.beam / -S.feed < 1 && S.loss < 0 && S.loss > -1 && S.lobe > S.refLobe;
-      const curve = S.curve.length > 10 && S.curve[S.curve.length - 1].loss < S.curve[5].loss && S.curve[0].loss === 0;
-      const ui = /Beam steered/.test(doc.querySelector('#panel [data-readout]').textContent) && [...doc.querySelectorAll('#panel h3')].some(x => x.textContent.trim() === 'Steering');
-      const tol = T.focusUp < 0 && T.focusDown > 0 && Math.abs(T.gainDb) < 1 && T.budget > 0.02 && T.budget < 0.5;
-      return steer && curve && ui && tol ? 1 : 0;
+      const L = J.byName('ABS lens'), H = J.byName('Feed horn, 24 GHz'), was = [H.x, H.y, H.angle];
+      J.setParam(H.name, 'y', L.y - 15); J.setParam(H.name, 'angle', Math.atan2(15, L.x - H.x) * 180 / Math.PI);
+      const S = J.lensSteer('ABS lens', true); J.select('ABS lens');
+      const T = J.lensTolerance('ABS lens');
+      if (!S || !T || !S.scan) return 0;
+      const back = H.x === was[0] && H.y === L.y - 15;                 // the horn put back where it was moved to
+      const steer = S.feed > 5 && S.beam > 5 && S.beam / S.feed > 0.85 && S.beam / S.feed < 1.05 && S.G < S.ref && S.ref - S.G < 1;
+      const C = S.scan, scan = C.length === 7 && C[0].loss === 0 && C[6].loss < C[3].loss && C[3].loss < 0 && C[6].beam > C[3].beam;
+      const ro = doc.querySelector('#panel [data-readout]').textContent;
+      const ui = /Beam steered/.test(ro) && /Scan loss/.test(ro) && /Permittivity 5% higher/.test(ro) && [...doc.querySelectorAll('#panel h3')].some(x => x.textContent.trim() === 'Steering');
+      const tol = T.focusUp < 0 && T.focusDown > 0 && Math.abs(T.up) < 1 && Math.abs(T.down) < 1 && T.budget[0] < 0 && T.budget[1] > 0;
+      return back && steer && scan && ui && tol ? 1 : 0;
+    },
+  },
+  {
+    name: 'The bench’s lens antenna agrees with the closed form for a Gaussian feed',
+    why: 'the graded-index example fed by a Gaussian horn: its gain and beamwidth from the bench’s diffracted field past the lens, against the closed form for the traced Gaussian beam cut at the rim and weakened by the design’s loss (the difference in gain, dB)',
+    want: 0, tol: 0.3, unit: 'dB',
+    run: J => {
+      const d = JSON.parse(getDemo('rf-24ghz-grin-lens')); d.elements.find(e => e.type === 'source').mmw.kind = 'gauss'; J.load(d);
+      const F = J.lensAntenna('GRIN lens'), C = J.lensAntennaClosed('GRIN lens');
+      if (!F || !C || Math.abs(F.hpbw / C.hpbw - 1) > 0.05) return 99;
+      return F.Gdbi - C.Gdbi;
     },
   },
   {

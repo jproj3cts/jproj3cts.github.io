@@ -8,7 +8,7 @@ import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
 import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, mountedDia, pdResp, printedMatch, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
-import { lensAntennaOf, lensSteerOf, lensToleranceOf } from '../core/antenna.js';
+import { antennaLater } from '../engines/antenna-field.js';
 import { grinDesign, normGrin } from '../core/grin.js';
 import { deg, project } from '../state/project.js';
 import { benchNms, getEl, selected } from '../state/elements.js';
@@ -343,9 +343,9 @@ function rfLensReadout(el, wls, rows) {
     const fits = mountedDia(el.diameter, el.mount) <= PRINTER.maxDia && geo.thickest <= PRINTER.maxHeight, thin = geo.thinnest >= PRINTER.minWall;
     // matched faces, printed as a less dense skin: possible while that density is fine enough for the frequency
     const skins = el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean), skinOk = skins.every(k => k.ok);
-    if (skins.length) rows.push(['Matched faces', skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ') + (skinOk ? ', fine up to ' + (+Math.min(...skins.map(k => k.ghzMax)).toPrecision(3)) + ' GHz' : '')]);
+    if (skins.length) rows.push(['Matched faces', skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ') + (skinOk ? ', up to ' + (+Math.min(...skins.map(k => k.ghzMax)).toPrecision(3)) + ' GHz by the design rule' : '')]);
     const skinMax = skins.length ? Math.min(...skins.map(k => k.ghzMax)) : Infinity;
-    if (skinOk && ghz > skinMax * 1.0005) checks.push('At ' + fmtGHz(nm) + ' its matched faces\u2019 printed lines are coarse against the wavelength (they hold to ' + (+skinMax.toPrecision(3)) + ' GHz): they scatter, and match less than shown.');
+    if (skinOk && ghz > skinMax * 1.0005) checks.push('At ' + fmtGHz(nm) + ' its matched faces are past their highest frequency by the design rule (' + (+skinMax.toPrecision(3)) + ' GHz): the bench takes them as even layers, which past that they are not, and they match less than shown.');
     if (!skinOk) checks.push('A matching layer at ' + (+skins[0].ghz.toPrecision(4)) + ' GHz needs a density of ' + skins.find(k => !k.ok).fill.toFixed(0) + '%, lower than the ' + skins[0].least.toFixed(0) + '% that keeps the printed structure fine against the wavelength there: bare faces, or a lower frequency, can be made.');
     rows.push(['Manufacturable', fits && thin && skinOk ? 'yes' : 'no']);
     if (!fits) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across' + (el.mount ? ', flange included,' : '') + ' and ' + PRINTER.maxHeight + ' mm thick can be made.');
@@ -358,35 +358,47 @@ function rfLensReadout(el, wls, rows) {
   return [rows, text];
 }
 
-/* An RF lens with the horn that feeds it, as an antenna: its gain against the horn's alone, its
-   beam far away, and where its aperture efficiency goes (core/antenna.js). And a line for the text
-   when it focuses inside its own far field, where these are not yet the figures that apply. */
+/* An RF lens with the horn that feeds it, as an antenna: from the bench's own diffracted field just
+   past the lens (engines/antenna-field.js), worked out in the background and kept until the bench
+   changes. Its gain against the horn's alone, its beam far away, where its aperture efficiency goes;
+   off the axis, how far it steers and what that costs; and what the plastic's permittivity a few
+   percent off does, the bench traced again with it. */
 function antennaRows(el) {
-  const A = lensAntennaOf(el);
-  if (!A) return [[], ''];
-  const pct = v => (100 * v).toPrecision(3) + '%', sgn = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(1);
-  // a feed off the axis: the beam steered, and what that costs
-  const S = lensSteerOf(el), off = S && Math.abs(S.feed) >= 0.2, G = A.Gdbi + (off ? S.loss : 0);
-  const rows = [['Gain, horn and lens', G.toFixed(1) + ' dBi' + (A.hornDbi !== null ? ' (' + sgn(G - A.hornDbi) + ' dB on the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi)' : '')],
-    ['Beamwidth (3 dB)', A.hpbw === null ? 'wider than shown' : A.hpbw.toFixed(2) + '\u00b0'],
-    ['First sidelobe', A.sll === null ? 'none in view' : A.sll.toFixed(1) + ' dB'],
+  const { A, busy } = antennaLater(el, 'ant');
+  if (!A) return [busy ? [['As an antenna', 'working out its far field…']] : [], ''];
+  const pct = v => (100 * v).toPrecision(3) + '%', sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1), s2 = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  const wait = '…';
+  const bw = A.round || A.hpbwY === null || A.hpbw === null || Math.abs(A.hpbw - A.hpbwY) < 0.05
+    ? (A.hpbw === null ? 'wider than shown' : A.hpbw.toFixed(2) + '°')
+    : A.hpbw.toFixed(2) + '° in the bench plane, ' + A.hpbwY.toFixed(2) + '° across it';
+  const rows = [['Gain, horn and lens', A.Gdbi.toFixed(1) + ' dBi' + (A.hornDbi !== null ? ' (' + sgn(A.Gdbi - A.hornDbi) + ' dB on the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi)' : '')],
+    ['Beamwidth (3 dB)', bw],
+    ['Highest sidelobe', A.lobe === null ? 'none in view' : A.lobe.toFixed(1) + ' dB'],
     ['Aperture efficiency', pct(A.eta.ap) + ' (taper ' + pct(A.eta.taper) + ', phase ' + pct(A.eta.phase) + ')'],
-    ['Spillover and lens loss', pct(A.eta.spill) + ' of the beam meets the lens, which passes ' + pct(A.eta.loss) + ' of it']];
-  if (off) rows.push(['Beam steered', Math.abs(S.beam).toFixed(1) + '\u00b0 off the axis, the feed ' + Math.abs(S.feed).toFixed(1) + '\u00b0 (beam deviation ' + (Math.abs(S.beam) / Math.abs(S.feed)).toFixed(2) + ')'],
-    ['Scan loss', S.loss.toFixed(2) + ' dB, against the feed on the axis'], ['Highest sidelobe', S.lobe === null ? 'none in view' : S.lobe.toFixed(1) + ' dB (' + (S.refLobe === null ? 'none' : S.refLobe.toFixed(1) + ' dB') + ' on the axis)']);
-  // how closely it must be made: the plastic's permittivity a few percent off
-  const T = lensToleranceOf(el);
-  if (T) {
-    const mm = v => (v === null || !isFinite(v) ? '' : ', the focus moving ' + Math.abs(v).toFixed(1) + ' mm' + (v > 0 ? ' out' : ' in'));
-    const s2 = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(2);
-    rows.push(['Permittivity 5% off', s2(T.up) + ' dB if higher' + mm(T.focusUp) + '; ' + s2(T.down) + ' dB if lower' + mm(T.focusDown)],
-      ['Within 1 dB while', T.budget >= 0.5 ? 'the permittivity is within \u00b150%' : 'the permittivity is within \u00b1' + (100 * T.budget).toFixed(1) + '%']);
+    A.eta.spill !== null ? ['Spillover and lens loss', pct(A.eta.spill) + ' of the horn’s power meets the lens, which passes ' + pct(A.eta.loss) + ' of it']
+      : ['Through the lens', pct(A.eta.through) + ' of the horn’s power']];
+  // a horn off the axis: the beam steered, and the gain against the horn on the axis as far away
+  const off = Math.abs(A.feed) >= 0.2;
+  if (off) {
+    const R = antennaLater(el, 'ref').A;
+    rows.push(['Beam steered', Math.abs(A.beam).toFixed(1) + '° off the axis, the horn ' + Math.abs(A.feed).toFixed(1) + '° (beam deviation ' + (Math.abs(A.beam) / Math.abs(A.feed)).toFixed(2) + ')'],
+      ['Scan loss', R ? s2(A.Gdbi - R.G) + ' dB, against the horn on the axis as far away' : wait]);
   }
-  const tolNote = T ? ' Tolerance: the plastic\u2019s permittivity as printed, and the printer\u2019s flow, which moves it the same way, change the path through the lens; gain with the horn left where it is.' : '';
-  const steerNote = off ? ' Steering: the aperture field across the whole lens from the horn\u2019s wavefront, the lens as a thin plate' + (el.grin ? '' : ' told its focal length') + '; the beam\u2019s direction and lobes in the bench plane.' : '';
+  // the plastic's permittivity 5% off, the bench traced again each way
+  const T = antennaLater(el, 'tol').A;
+  if (T) {
+    const mm = v => (v === null || !isFinite(v) ? '' : ', focus ' + (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' mm');
+    const lim = v => (v === null || Math.abs(v) > 0.3 ? 'beyond 30%' : (100 * Math.abs(v)).toFixed(1) + '%');
+    rows.push(['Permittivity 5% higher', s2(T.up) + ' dB' + mm(T.focusUp)], ['Permittivity 5% lower', s2(T.down) + ' dB' + mm(T.focusDown)],
+      ['Gain within 1 dB while', 'the permittivity is up to ' + lim(T.budget[1]) + ' higher and ' + lim(T.budget[0]) + ' lower']);
+    for (const r of T.rx) if (r.up !== null && r.down !== null) rows.push([r.name + ', permittivity ±5%', s2(r.up) + ' / ' + s2(r.down) + ' dB received']);
+  }
   const note = (A.focus !== null && A.focus < A.farField
     ? ' As an antenna: it brings the beam to a waist ' + fmtLen(A.focus) + ' past it, inside its far field (from about ' + fmtLen(A.farField) + '), so nearer than that it works as a focusing lens and these are its figures far away.'
-    : ' As an antenna, far away: the aperture field the traced beam leaves, cut at the rim; the horn\u2019s light past the rim is left out of the pattern.') + steerNote + tolNote;
+    : ' As an antenna, far away.') +
+    ' From the bench’s diffracted field just past the lens (the horn’s own field, each face’s traced phase, the rim) taken to the far field.' +
+    (T ? ' Tolerance: the bench traced again with the plastic’s permittivity 5% higher and lower (the printer’s flow moves it the same way), the horn left where it is.' : '') +
+    (busy ? ' Working out the latest…' : '');
   return [rows, note];
 }
 
@@ -405,7 +417,7 @@ function grinReadout(el) {
   const [aRows, aNote] = antennaRows(el);
   // above the frequency its least dense part holds to, it is no longer a material to the wave
   const D = grinDesign(normGrin(el.grin), el.length), ghz = C_NM_GHZ / best.nm;
-  const over = D.usable && ghz > D.ghzMax * 1.0005 ? ' Check: at ' + fmtGHz(best.nm) + ', above the ' + (+D.ghzMax.toPrecision(3)) + ' GHz its least dense part holds to, its printed lines are coarse enough against the wavelength to scatter, and these figures no longer hold. A lens designed at this frequency raises its least density to suit.' : '';
+  const over = D.usable && ghz > D.ghzMax * 1.0005 ? ' Check: at ' + fmtGHz(best.nm) + ' it is past its highest frequency by the design rule (' + (+D.ghzMax.toPrecision(3)) + ' GHz: its least dense lines no more than a quarter wave apart in the plastic). The bench takes the printed plastic as an even material, which past that it is not: it scatters, and these figures no longer hold. A lens designed at this frequency raises its least density to suit.' : '';
   return [[['Beam radius at the lens', fmtLen(w)], ['Edge taper', taper.toFixed(1) + ' dB'], ['Power past the edge', (100 * spill < 0.01 ? '< 0.01' : (100 * spill).toPrecision(2)) + '%'], ...aRows],
     'The traced beam at the lens, at ' + fmtGHz(best.nm) + '.' + aNote + over + (taper < 20 ? ' Check: the beam is wide for this lens: ' + (100 * spill).toPrecision(2) + '% of its power passes outside it, and its edge diffracts in ways the Gaussian-beam model leaves out. A lens at least four beam radii across keeps both small.' : '')];
 }

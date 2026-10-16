@@ -1,14 +1,11 @@
 import { besselJ01 } from '../engines/field.js';
-import { lastTrace } from '../engines/trace.js';
-import { beamAt } from './beams-hom.js';
-import { absorbAt, refIndex } from './glass.js';
-import { hornLam, mixEps } from './rf.js';
-import { hornPattern } from './horns.js';
-import { grinDesign, normGrin } from './grin.js';
-import { getEl } from '../state/elements.js';
-import { frame, toLocal, toLocalDir } from './mask.js';
 
-/* ---------- A lens antenna: a feed horn's beam through an RF lens, seen from far away ----------
+/* ---------- Closed forms for a lens antenna, to check the bench's against ----------
+   The panels' figures come from the bench's own diffracted field (engines/antenna-field.js). These
+   take a Gaussian beam and a lens given as a path and a loss at each radius, and give the same
+   figures from first principles; the tests hold the two together.
+
+   A lens antenna: a feed horn's beam through an RF lens, seen from far away.
    The field just past the lens is the traced Gaussian beam there (1/e^2 radius w, wavefront
    radius R, infinite when collimated), cut off at the lens's rim a and weakened by what the lens
    takes from it at each radius (T(r), the power it passes). From that aperture field E(r):
@@ -61,112 +58,6 @@ export function lensAntenna({ w, R, a, lam, T, P, gainOnly }) {
   return { D, G, Ddbi: 10 * Math.log10(D), Gdbi: 10 * Math.log10(G), Dmax, eta, hpbw, sll, th, db };
 }
 
-/* a surface's sag at radius r: a conic with even aspheric terms (as the lens readout takes it) */
-const faceSag = (s, r) => {
-  const poly = (s && s.a2 ? s.a2 * r * r : 0) + (s && s.A ? s.A.reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0) : 0);
-  if (!s || s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return poly;
-  const c = 1 / s.R, k = s.k || 0, q = 1 - (1 + k) * c * c * r * r;
-  return (q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R)) + poly;
-};
-/* An RF lens as the antenna models take it: its radius a, the power it passes at each radius T(r),
-   and the path through it at each radius (mm, to an additive constant), path(r, d), with the
-   plastic's permittivity d (a fraction) off what it was designed with: a graded-index lens's core
-   and matching layers at the densities its design prints, or a solid lens's thickness at its index.
-   For a solid lens, too, what a thin plate standing for it must be told of its thickness: the
-   distance from its front face to its front focus (ffd) against its thin form's focal length
-   (fThin). Null for a lens these do not cover. */
-function lensModel(el, nm) {
-  if (el.grin) {
-    const g = normGrin(el.grin), D = grinDesign(g, el.length);
-    if (!D.usable) return null;
-    const K = 400, fc = [], fl = [];
-    for (let i = 0; i <= K; i++) { const r = D.a * i / K; fc.push(D.fillAt(r) / 100); fl.push(D.match ? D.layerFillAt(r) / 100 : 0); }
-    const at = (arr, r) => { const x = Math.min(K, Math.max(0, r / D.a * K)), i = Math.min(K - 1, Math.floor(x)); return arr[i] + (arr[i + 1] - arr[i]) * (x - i); };
-    const path = (r, d) => {
-      const M = d ? Object.assign({}, D.M, { n: D.M.n * Math.sqrt(1 + d) }) : D.M, n = F => Math.sqrt(mixEps(M, F).eps);
-      return D.t * n(at(fc, r)) + (D.match ? 2 * D.tm * n(at(fl, r)) : 0);
-    };
-    return { a: D.a, path, f: g.f, fThin: g.f, ffd: g.f, T: r => { const L = D.lossDb(r); return 10 ** (-(L.abs + L.refl) / 10); }, flat: true };
-  }
-  if (!(el.surfaces && el.surfaces.length === 2 && el.materials && el.materials.length === 1)) return null;
-  const m = el.materials[0], n = refIndex(m, nm), alpha = absorbAt(m, nm), t0 = (el.gaps || [0])[0] || 0, S = el.surfaces;
-  const thick = r => Math.max(0, t0 + faceSag(S[1], r) - faceSag(S[0], r));
-  const faceT = S.map(s => { const c = s.coat || { mode: 'bare' }; return 1 - (c.mode === 'bare' || !c.mode ? ((n - 1) / (n + 1)) ** 2 : (c.R || 0) / 100); });
-  const cOf = s => (s.R !== null && s.R !== undefined && isFinite(s.R) && s.R ? 1 / s.R : 0) + 2 * (s.a2 || 0);
-  const c1 = cOf(S[0]), c2 = cOf(S[1]), Pw = (n - 1) * (c1 - c2) + (n - 1) ** 2 * t0 * c1 * c2 / n;
-  return {
-    a: el.diameter / 2, n, thick, T: r => faceT[0] * faceT[1] * Math.exp(-alpha * thick(r)),
-    path: (r, d) => (n * Math.sqrt(1 + (d || 0)) - 1) * thick(r),
-    f: Pw ? 1 / Pw : Infinity, fThin: (c1 - c2) ? 1 / ((n - 1) * (c1 - c2)) : Infinity,
-    // the front focal distance, from whichever face the beam meets first
-    ffdFor: back => { const a1 = back ? -c2 : c1, a2 = back ? -c1 : c2, P = (n - 1) * (a1 - a2) + (n - 1) ** 2 * t0 * a1 * a2 / n; return P ? (1 + (n - 1) * t0 * a2 / n) / P : Infinity; },
-  };
-}
-/* The lens antenna an RF lens on the bench makes with the horn that feeds it: from the strongest
-   traced beam leaving the lens (into air), the lens's own loss at each radius (a solid lens's
-   faces and the glass its thickness there holds; a graded-index lens's design), and the horn's
-   own directivity to compare. Null when no RF beam leaves the lens. */
-const antMemo = new WeakMap();
-const memoOf = (el, what) => {
-  const T0 = lastTrace;
-  let byEl = antMemo.get(T0);
-  if (!byEl) { byEl = new Map(); antMemo.set(T0, byEl); }
-  const key = what + '|' + el.id + '|' + JSON.stringify([el.diameter, el.length, el.surfaces, el.gaps, el.materials, el.grin]);
-  return { has: () => byEl.has(key), get: () => byEl.get(key), set: v => { byEl.set(key, v); return v; } };
-};
-function exitBeam(el) {
-  let best = null;
-  for (const b of lastTrace.beams || []) {
-    const s = b.ev && b.ev.surf;
-    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0) || b.n > 1.0001) continue;
-    if (!best || b.w > best.w) best = b;
-  }
-  return best;
-}
-export function lensAntennaOf(el) {
-  const memo = memoOf(el, 'ant');
-  if (memo.has()) return memo.get();
-  let out = null;
-  const best = exitBeam(el), B = best && beamAt(best.qr, best.qi, best.n, best.nm);
-  if (B && B.w > 0) {
-    const lam = best.nm * 1e-6, L = lensModel(el, best.nm), a = L ? L.a : (el.grin ? el.length : el.diameter) / 2;
-    const A = lensAntenna({ w: B.w, R: B.R, a, lam, T: L ? L.T : null });
-    const src = getEl(best.src), horn = src && src.mmw && src.mmw.kind ? hornPattern(src.mmw.kind, src.mmw.a, src.mmw.L, hornLam(src)) : null;
-    const ff = 2 * (2 * a) ** 2 / lam;                       // the far field begins about here
-    const focus = B.waistDist > 0 && isFinite(B.waistDist) ? B.waistDist : null;
-    out = Object.assign(A, { w: B.w, R: B.R, a, lam, hornDbi: horn ? horn.dir : null, horn, farField: ff, focus });
-  }
-  return memo.set(out);
-}
-
-/* ---------- How closely it must be made ----------
-   The plastic's permittivity as printed is known to a few percent until tiles of it are measured
-   (and the printer's flow moves it the same way: more plastic in each line is a denser part). A
-   permittivity d off adds a path through the lens growing from its centre, which is a little extra
-   lens: the focus moves, and with the horn left where it was the aperture's phase is no longer
-   flat. Its gain at d = +-5%, and how far d may go before the gain falls 1 dB. */
-export const TOL_EPS = 0.05;
-export function lensToleranceOf(el) {
-  const memo = memoOf(el, 'tol');
-  if (memo.has()) return memo.get();
-  const best = exitBeam(el), B = best && beamAt(best.qr, best.qi, best.n, best.nm), L = best && lensModel(el, best.nm);
-  if (!(B && B.w > 0 && L)) return memo.set(null);
-  const lam = best.nm * 1e-6, base = { w: B.w, R: B.R, a: L.a, lam, T: L.T, gainOnly: true };
-  const G0 = lensAntenna(base).G;
-  const extra = d => { const p0 = L.path(0, d) - L.path(0, 0); return r => L.path(r, d) - L.path(r, 0) - p0; };
-  const dB = d => 10 * Math.log10(lensAntenna(Object.assign({ P: extra(d) }, base)).G / G0);
-  // the focus it moves to: the extra path near the axis as a thin lens of its own
-  const focusAt = d => { const r1 = 0.4 * L.a, x = extra(d)(r1), inv = -2 * x / (r1 * r1); return isFinite(L.f) ? 1 / (1 / L.f + inv) - L.f : null; };
-  const budget = sgn => {
-    if (dB(sgn * 0.5) > -1) return 0.5;
-    let lo = 0, hi = 0.5;
-    for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (dB(sgn * m) > -1) lo = m; else hi = m; }
-    return lo;
-  };
-  const up = dB(TOL_EPS), down = dB(-TOL_EPS);
-  return memo.set({ eps: TOL_EPS, gainDb: Math.min(up, down), up, down, focusUp: focusAt(TOL_EPS), focusDown: focusAt(-TOL_EPS), budget: Math.min(budget(1), budget(-1)), f: L.f });
-}
-
 /* ---------- A feed off the axis: steering the beam ----------
    A horn moved off the lens's axis tilts the wave arriving at the lens, and the beam leaves the
    other way. How far, and what it costs, comes from the aperture field across the whole disc
@@ -216,34 +107,4 @@ export function steerField({ w, R, yh, sb, a, lam, T, path }) {
   let side = 0;
   for (let m = 0; m <= M; m++) if ((m < lo || m > hi) && g[m] > side) side = g[m];
   return { beam: t0, G: G0, lobe: side > 0 ? 10 * Math.log10(side / G0) : null, th, g };
-}
-export function lensSteerOf(el) {
-  const memo = memoOf(el, 'steer');
-  if (memo.has()) return memo.get();
-  // the beam arriving at the lens, in its own frame (x along its axis)
-  let inb = null;
-  for (const b of lastTrace.beams || []) {
-    if (b.endEl !== el.id || !(b.nm > 1e5) || !(b.qi > 0) || b.n > 1.0001) continue;
-    if (!inb || b.w > inb.w) inb = b;
-  }
-  const L = inb && lensModel(el, inb.nm), B = inb && beamAt(inb.qr + inb.len, inb.qi, inb.n, inb.nm);
-  if (!(L && B && B.w > 0)) return memo.set(null);
-  const f = frame(el), [, ly] = toLocal(f, inb.x0 + inb.dx * inb.len, inb.y0 + inb.dy * inb.len);
-  let [ldx, ldy] = toLocalDir(f, inb.dx, inb.dy);
-  const back = ldx < 0, l = Math.hypot(ldx, ldy), sb = ldy / l, lam = inb.nm * 1e-6;
-  // the thin plate's wavefront from the horn: a solid lens's horn as far from the plate's focus as it is from the lens's front focus
-  const shift = L.flat ? 0 : L.fThin - L.ffdFor(back);
-  const Rm = isFinite(B.R) ? B.R + shift : Infinity;
-  const base = { w: B.w, a: L.a, lam, T: L.T, path: r => L.path(r, 0) };
-  const ref = steerField(Object.assign({ R: Rm, yh: 0, sb: 0 }, base));
-  const act = steerField(Object.assign({ R: Rm, yh: ly, sb }, base));
-  // the feed's direction seen from the lens: its wavefront's centre (the horn), or the way a plane wave comes
-  const cb = Math.sqrt(1 - sb * sb), feed = isFinite(Rm) ? Math.atan2(ly - Rm * sb, Rm * cb) * 180 / Math.PI : -Math.asin(sb) * 180 / Math.PI;
-  // the scan: the horn moved across, kept as far from the lens and aimed at its centre
-  const span = Math.min(45, Math.max(20, 1.5 * Math.abs(feed))), curve = [];
-  if (isFinite(Rm)) for (let i = 0; i <= 15; i++) {
-    const fa = span * i / 15, S = steerField(Object.assign({ R: Rm, yh: 0, sb: -Math.sin(fa * Math.PI / 180) }, base));
-    curve.push({ feed: fa, beam: -S.beam, loss: 10 * Math.log10(S.G / ref.G), lobe: S.lobe });
-  }
-  return memo.set({ feed, beam: act.beam, loss: 10 * Math.log10(act.G / ref.G), lobe: act.lobe, refLobe: ref.lobe, curve, back, th: act.th, g: act.g, Gref: ref.G });
 }

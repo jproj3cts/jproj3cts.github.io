@@ -125,6 +125,7 @@ import './engines/volume.js';
 import './ui/heavy.js';
 import './ui/closeup.js';
 import './engines/diffraction.js';
+import './engines/antenna-field.js';
 import './engines/pd-cavity.js';
 import './engines/pulse.js';
 import './engines/screen-stats.js';

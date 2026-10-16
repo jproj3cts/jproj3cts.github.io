@@ -56,7 +56,7 @@ function grinPanel(el) {
     ...(D.match ? [['Matching layers', pct(D.layerFillAt(0)) + ' dense at the centre' + (D.rMatch < D.a - 0.05 ? '; matched fully out to ' + D.rMatch.toFixed(0) + ' mm, partly beyond (the least density that can be made)' : ', matched to the edge')]] : []),
     ['Index', D.nHi.toFixed(3) + ' at the centre to ' + D.nLo.toFixed(3) + ' at the edge'],
     ['Density', pct(D.fillHi) + ' at the centre to ' + pct(D.fillLo) + ' at the edge'],
-    ['Highest frequency', (+D.ghzMax.toPrecision(3)) + ' GHz (its least dense part still fine against the wavelength)'],
+    ['Highest frequency (design rule)', (+D.ghzMax.toPrecision(3)) + ' GHz: its least dense lines a quarter wave apart in the plastic'],
     ...(D.match ? [['Matched band', D.band ? (+D.band[0].toPrecision(3)) + ' to ' + (+D.band[1].toPrecision(3)) + ' GHz (reflection under 1% at the centre)' : 'none under 1% reflection']] : []),
     ['Loss at the centre', D.lossDb(0).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(0).refl.toFixed(2) + ' dB reflected'],
     ['Loss at the edge', D.lossDb(D.a).abs.toFixed(2) + ' dB absorbed, ' + D.lossDb(D.a).refl.toFixed(2) + ' dB reflected'],

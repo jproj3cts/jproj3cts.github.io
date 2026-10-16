@@ -8,7 +8,7 @@ import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert 
 import { C_MM } from '../core/modulators.js';
 import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf, normMount, mountedDia } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
-import { lensAntennaOf, lensSteerOf } from '../core/antenna.js';
+import { antennaHeld, antennaLater } from '../engines/antenna-field.js';
 import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
@@ -22,7 +22,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, vs } from './panel.js';
+import { bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, syncPanel, vs } from './panel.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,
@@ -743,70 +743,80 @@ export function rfLensPatternSection(el) {
   const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
   panel.append(head, cv, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
   bindSync(cv, () => {
-    const A = lensAntennaOf(el), sec = cv.closest('section') || cv.parentNode;
+    const { A } = antennaLater(el, 'ant'), sec = cv.closest('section');
     if (sec) sec.style.display = A ? '' : 'none';
     if (!A) return;
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
     cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
-    const hi = A.th[A.th.length - 1], lo = -hi;
-    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, \u00b0' };
-    const P = plotArea(c, w, hgt, [-50, 0], sy), X = x => P.l + (x - lo) / (hi - lo) * P.w, Y = v => P.t + P.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * P.h;
+    // the cuts are about the beam the engine follows: shown against the lens's axis
+    const X = A.cutX, Y = A.cutY, off = A.beam - (X.peak || 0), hi = X.th[X.th.length - 1] + off, lo = X.th[0] + off;
+    const sy = { kind: 'plain', title: 'dB' }, sx = { kind: 'plain', title: 'angle from the axis, °' };
+    const P = plotArea(c, w, hgt, [-50, 0], sy), Xp = x => P.l + (x - lo) / (hi - lo) * P.w, Yp = v => P.t + P.h - (Math.max(-50, Math.min(0, v)) + 50) / 50 * P.h;
+    const line = (cut, col, dash) => {
+      c.strokeStyle = col; c.lineWidth = 1.5; c.setLineDash(dash || []); c.beginPath();
+      cut.th.forEach((t, i) => { const y = Yp(cut.db[i]); c[i ? 'lineTo' : 'moveTo'](Xp(t + off), y); }); c.stroke(); c.setLineDash([]);
+    };
     c.save(); c.beginPath(); c.rect(P.l, P.t, P.w, P.h); c.clip();
-    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
-    A.th.forEach((t, i) => { const y = Y(A.db[i]); i ? c.lineTo(X(t), y) : c.moveTo(X(t), y); });
-    A.th.forEach((t, i) => { const y = Y(A.db[i]); c[i ? 'lineTo' : 'moveTo'](X(-t), y); });
-    c.stroke();
-    if (A.horn) {
-      c.strokeStyle = '#8a929c'; c.setLineDash([3, 3]); c.beginPath();
-      let first = true;
-      A.horn.th.forEach((t, i) => { if (t < lo || t > hi) return; const y = Y(A.horn.H[i]); first ? c.moveTo(X(t), y) : c.lineTo(X(t), y); first = false; });
+    if (!A.round) line(Y, '#e0a030', [5, 3]);
+    line(X, '#e0a030');
+    if (A.horn) {                                              // the horn alone, about the way it points
+      c.strokeStyle = '#8a929c'; c.setLineDash([2, 3]); c.beginPath();
+      for (const sg of [1, -1]) {
+        let first = true;
+        A.horn.th.forEach((t, i) => { const x = A.feed + sg * t; if (x < lo || x > hi) { first = true; return; } c[first ? 'moveTo' : 'lineTo'](Xp(x), Yp(A.horn.H[i])); first = false; });
+      }
       c.stroke(); c.setLineDash([]);
     }
     c.restore();
     drawAxes(c, P, [lo, hi], [-50, 0], sx, sy);
     c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
-    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
+    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.round ? [] : [['(dashed: across the bench)', '#e0a030']]), ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
       .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
-    plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'lens_dB'], () => A.th.map((t, i) => [t, A.db[i]]));
+    plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'bench_plane_dB', 'across_dB'], () => X.th.map((t, i) => [t + off, X.db[i], Y.db[i]]));
   });
   rfLensSteerSection(el);
 }
-/* steering: the horn moved across, as far from the lens and aimed at its centre; the beam's
-   direction against the gain it loses and the highest sidelobe, and where the horn is now */
+/* steering: the horn moved round the lens, as far away and aimed at its centre, the bench traced
+   again at each place (on asking: it takes a few seconds); the scan loss against the beam's direction */
 function rfLensSteerSection(el) {
-  const head = h('h3', null, 'Steering'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' }), note = h('p', { class: 'note' }), lobes = h('p', { class: 'note' });
-  panel.append(head, cv, plotSaveRow(cv), note, lobes);
+  const head = h('h3', null, 'Steering'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
+  const btn = h('button', { type: 'button', class: 'rt-btn' }, 'Work out the scan'), note = h('p', { class: 'note' }), lobes = h('p', { class: 'note' });
+  btn.addEventListener('click', () => { antennaLater(el, 'scan'); syncPanel(); });
+  panel.append(head, h('div', { class: 'rt-row' }, btn), cv, plotSaveRow(cv), note, lobes);
   bindSync(cv, () => {
-    const S = lensAntennaOf(el) && lensSteerOf(el), sec = cv.closest('section') || cv.parentNode;
-    if (sec) sec.style.display = S && S.curve.length ? '' : 'none';
-    if (!S || !S.curve.length) return;
+    const has = antennaLater(el, 'ant').A, sec = cv.closest('section');
+    if (sec) sec.style.display = has ? '' : 'none';
+    const H = antennaHeld(el, 'scan'), C = H && H.A;
+    cv.style.display = C && C.length ? '' : 'none';
+    if (!C || !C.length) return;
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
     cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
-    const C = S.curve, hi = Math.ceil(Math.max(...C.map(p => p.beam), 1) / 5) * 5, bot = Math.min(-3, Math.floor(Math.min(...C.map(p => p.loss))));
-    const sy = { kind: 'plain', title: 'scan loss, dB' }, sx = { kind: 'plain', title: 'beam off the axis, \u00b0' };
+    const hi = Math.ceil(Math.max(...C.map(p => Math.abs(p.beam)), 1) / 5) * 5, bot = Math.min(-3, Math.floor(Math.min(...C.map(p => p.loss))));
+    const sy = { kind: 'plain', title: 'scan loss, dB' }, sx = { kind: 'plain', title: 'beam off the axis, °' };
     const P = plotArea(c, w, hgt, [bot, 0], sy), X = x => P.l + x / hi * P.w, Y = v => P.t + P.h - (Math.max(bot, Math.min(0, v)) - bot) / -bot * P.h;
     c.save(); c.beginPath(); c.rect(P.l, P.t, P.w, P.h); c.clip();
     c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
-    C.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](X(p.beam), Y(p.loss))); c.stroke();
-    if (Math.abs(S.feed) >= 0.2) {                                   // the horn where it is now
-      c.fillStyle = '#e0a030'; c.beginPath(); c.arc(X(Math.abs(S.beam)), Y(S.loss), 3.5, 0, 2 * Math.PI); c.fill();
-    }
+    C.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](X(Math.abs(p.beam)), Y(p.loss))); c.stroke();
+    c.fillStyle = '#e0a030'; C.forEach(p => { c.beginPath(); c.arc(X(Math.abs(p.beam)), Y(p.loss), 2.5, 0, 2 * Math.PI); c.fill(); });
     c.restore();
     drawAxes(c, P, [0, hi], [bot, 0], sx, sy);
-    plotCsv(cv, el.name + ' steering', ['feed_deg', 'beam_deg', 'scan_loss_dB', 'sidelobe_dB'], () => C.map(p => [p.feed, p.beam, p.loss, p.lobe]));
+    plotCsv(cv, el.name + ' steering', ['horn_deg', 'beam_deg', 'scan_loss_dB', 'highest_sidelobe_dB'], () => C.map(p => [p.feed, p.beam, p.loss, p.lobe]));
   });
   bindSync(lobes, () => {});                                       // kept current, so they stay under their plot
   bindSync(note, () => {
-    const S = lensAntennaOf(el) && lensSteerOf(el);
-    if (!S || !S.curve.length) { note.textContent = lobes.textContent = ''; return; }
-    const C = S.curve, at = deg => { for (let i = 1; i < C.length; i++) if (C[i].loss < deg) { const f = (deg - C[i - 1].loss) / (C[i].loss - C[i - 1].loss); return C[i - 1].beam + f * (C[i].beam - C[i - 1].beam); } return null; };
+    const H = antennaHeld(el, 'scan'), C = H && H.A;
+    btn.textContent = C && !H.current ? 'Work it out again' : 'Work out the scan';
+    if (!C || !C.length) {
+      note.textContent = H && !C ? 'The scan could not be worked out for this bench.' : 'The horn moved round the lens, as far away and aimed at its centre, and the bench traced again at each place: a few seconds.';
+      lobes.textContent = ''; return;
+    }
+    const at = deg => { for (let i = 1; i < C.length; i++) if (C[i].loss < deg) { const f = (deg - C[i - 1].loss) / (C[i].loss - C[i - 1].loss); return Math.abs(C[i - 1].beam + f * (C[i].beam - C[i - 1].beam)); } return null; };
     const b1 = at(-1), b3 = at(-3), end = C[C.length - 1], lob = v => (v === null ? 'none' : v.toFixed(0) + ' dB');
-    note.textContent = 'The horn moved across, as far from the lens and aimed at its centre; the beam leaves the other way. ' +
-      (b1 !== null ? 'Within 1 dB to ' + b1.toFixed(0) + '\u00b0' + (b3 !== null ? ', 3 dB to ' + b3.toFixed(0) + '\u00b0' : '') + '.' : 'Within 1 dB over all of it.') +
-      (Math.abs(S.feed) >= 0.2 ? ' The dot is the horn now.' : '');
-    lobes.textContent = 'Highest sidelobe ' + lob(C[0].lobe) + ' on the axis, ' + lob(end.lobe) + ' at ' + end.beam.toFixed(0) + '\u00b0 (each step in the CSV). A longer focal length scans further for the same loss.';
+    note.textContent = (H.current ? '' : 'For the bench as it was: it has changed since. ') + 'The horn moved round the lens to ' + end.feed.toFixed(0) + '°, as far away and aimed at its centre; the beam goes to the other side of the axis. ' +
+      (b1 !== null ? 'Within 1 dB to ' + b1.toFixed(0) + '°' + (b3 !== null ? ', 3 dB to ' + b3.toFixed(0) + '°' : '') + '.' : 'Within 1 dB over all of it.');
+    lobes.textContent = 'Highest sidelobe ' + lob(C[0].lobe) + ' on the axis, ' + lob(end.lobe) + ' at ' + Math.abs(end.beam).toFixed(0) + '° (each place in the CSV). A longer focal length scans further for the same loss.';
   });
 }
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;

@@ -11,6 +11,7 @@ import { closeupImage } from '../engines/closeup.js';
 import { volData } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
+import { antennaJob } from '../engines/antenna-field.js';
 
 /* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
 function volOut(R, key, vol, transfer) {
@@ -50,6 +51,10 @@ export function workerMain() {
         const R = srcs.length ? popRun(lastTrace.beams, srcs, { draw: true }) : null, key = R && popKeyOf(lastTrace.beams, srcs);
         out = { bench: R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
           screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }) };
+      } else if (kind === 'antenna') {
+        // an RF lens as an antenna: its far field, its tolerance or its scan, the bench traced again as they need
+        const el = getEl(args.id);
+        out = { out: el ? JSON.parse(JSON.stringify(antennaJob(el, args.what), (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v))) : null };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
       } else if (kind === 'trace') {

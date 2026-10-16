@@ -7,9 +7,10 @@ import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, eva
 import { MODS } from '../core/modulators.js';
 import { fibreGamma, fibreSPM } from '../core/pulses.js';
 import { hornComps, hornPattern } from '../core/horns.js';
-import { lensAntennaOf, lensSteerOf, lensToleranceOf } from '../core/antenna.js';
 import { hornLam } from '../core/rf.js';
 import { beamAt, lgComps } from '../core/beams-hom.js';
+import { lensAntenna } from '../core/antenna.js';
+import { grinDesign, normGrin } from '../core/grin.js';
 import { TYPE_LABEL } from '../parts/registry.js';
 import { project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
@@ -38,6 +39,7 @@ import { PIC } from '../engines/pic.js';
 import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
 import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
+import { antennaNow } from '../engines/antenna-field.js';
 import { V3D, wireView3d } from './view3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
@@ -178,9 +180,27 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
-    lensAntenna(name) { traceScene(); const A = lensAntennaOf(this.byName(name)); return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, sll: A.sll, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField }; },
-    lensSteer(name) { traceScene(); const S = lensSteerOf(this.byName(name)); return S && { feed: S.feed, beam: S.beam, loss: S.loss, lobe: S.lobe, refLobe: S.refLobe, curve: S.curve }; },
-    lensTolerance(name) { traceScene(); const T = lensToleranceOf(this.byName(name)); return T && Object.assign({}, T); },
+    // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
+    lensAntenna(name) {
+      traceScene(); const A = antennaNow(this.byName(name), 'ant');
+      return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
+    },
+    // the closed form, to check the bench's against: the traced Gaussian beam leaving a graded-index
+    // lens, cut at its rim and weakened by its design's loss
+    lensAntennaClosed(name) {
+      traceScene(); const el = this.byName(name);
+      let best = null;
+      for (const b of lastTrace.beams || []) { const s = b.ev && b.ev.surf; if (s && s.el && s.el.id === el.id && b.nm > 1e5 && b.qi > 0 && b.n <= 1.0001 && (!best || b.w > best.w)) best = b; }
+      if (!best || !el.grin) return null;
+      const B = beamAt(best.qr, best.qi, best.n, best.nm), D = grinDesign(normGrin(el.grin), el.length);
+      const A = lensAntenna({ w: B.w, R: B.R, a: el.length / 2, lam: best.nm * 1e-6, T: r => { const L = D.lossDb(r); return 10 ** (-(L.abs + L.refl) / 10); } });
+      return { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, eta: A.eta };
+    },
+    lensSteer(name, scan) {
+      traceScene(); const el = this.byName(name), A = antennaNow(el, 'ant'), R = antennaNow(el, 'ref');
+      return A && { feed: A.feed, beam: A.beam, G: A.Gdbi, ref: R && R.G, lobe: A.lobe, scan: scan ? antennaNow(el, 'scan') : null };
+    },
+    lensTolerance(name) { traceScene(); return JSON.parse(JSON.stringify(antennaNow(this.byName(name), 'tol'))); },
     hornPattern(name) { const el = this.byName(name), P = hornPattern(el.mmw.kind, el.mmw.a, el.mmw.L, hornLam(el)); return { dir: P.dir, hpbw: P.hpbw, lobes: P.lobes, xpol: P.xpol }; },
     pdSignal(name) { const S = pdSignal(this.byName(name)); return JSON.parse(JSON.stringify(S)); },
     fibrePd(name) { return pdNetMw(this.byName(name)); },

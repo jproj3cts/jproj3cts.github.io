@@ -103,8 +103,10 @@ export function grinDesign(g, dia) {
   return { M, eps, lam, a, t, tm, tTot, match, ghzMax, band, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
-/* the disc on the bench: a mask with the delay and amplitude its design gives */
-export function applyGrin(el) {
+/* the disc on the bench: a mask with the delay and amplitude its design gives. nAs: the plastic's
+   index as it was printed, when that differs from the design's (a tolerance check): the disc keeps
+   its design (its densities and thickness), and its delay is what that plastic gives them */
+export function applyGrin(el, nAs) {
   el.grin = normGrin(el.grin);
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
@@ -116,6 +118,15 @@ export function applyGrin(el) {
     ? '((' + X + '^2-1)/' + fmt(D.eps - 1) + ')*' + fmt(D.eps * D.M.tand)
     : '((' + X + '^' + fmt(2 * a) + '-1)/' + fmt(Math.pow(D.eps, a) - 1) + ')*(' + X + '^2/' + fmt(D.eps) + ')^' + fmt(1 - a) + '*' + fmt(D.eps * D.M.tand);
   el.delay = '-' + D.opdExpr + '/lambda';
+  if (nAs) {
+    // each part's permittivity by the mixing rule at the same density: eps'^a - 1 = (eps^a - 1) s
+    const em = D.eps, sA = (Math.pow(nAs * nAs, a) - 1) / (Math.pow(em, a) - 1);
+    const as = X => '(1+(' + X + '^' + fmt(2 * a) + '-1)*' + fmt(sA) + ')^' + fmt(1 / (2 * a)), asN = x => Math.pow(1 + (Math.pow(x, 2 * a) - 1) * sA, 1 / (2 * a));
+    const Nm = 'max(sqrt(' + N + '),' + fmt(D.nLo) + ')';
+    const path = fmt(D.t) + '*' + as(N) + (D.match ? '+' + fmt(2 * D.tm) + '*' + as(Nm) : '');
+    const p0 = D.t * asN(D.nHi) + (D.match ? 2 * D.tm * asN(Math.max(Math.sqrt(D.nHi), D.nLo)) : 0);
+    el.delay = '(' + path + '-' + fmt(p0) + ')/lambda';
+  }
   if (!D.match) el.amp = 'circ(r/' + fmt(D.a) + ')*(1-((' + N + '-1)/(' + N + '+1))^2)*exp(-pi*' + lossOf(N) + '*' + fmt(D.t) + '/(' + N + '*lambda))';
   else {
     // each face a quarter-wave layer of index Nm (sqrt of the core's, no lower than can be made): its reflectance at lambda

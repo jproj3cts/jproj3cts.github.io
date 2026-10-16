@@ -1247,7 +1247,7 @@
   .rt-lmain { flex: 999 1 36rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
   .rt-lrow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; flex-wrap: wrap; }
   .rt-lrow select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; max-width: 15rem; }
-  .rt-lnum { width: 6.2rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
+  .rt-lnum { width: 5.6rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
   .rt-lnum.fixed { background: var(--jek-well); color: var(--jek-ink-soft); font-style: italic; }
   .rt-lcond .rt-lnum { width: 5rem; }
   .rt-lswatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
@@ -1269,7 +1269,7 @@
   .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
   .rt-ltwrap { overflow-x: auto; }
   .rt-ltable { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.85rem; }
-  .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); white-space: nowrap; }
+  .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); }
   .rt-ltable td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--jek-line); vertical-align: middle; }
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
@@ -1280,6 +1280,11 @@
   .rt-laspc { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; align-items: center; }
   .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
   .rt-lnum.wide { width: 7.6rem; }
+  .rt-lpose { display: flex; flex-direction: column; gap: 0.2rem; }
+  .rt-lpose > div { display: flex; align-items: center; }
+  .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 1.4rem; }
+  .rt-lpose td { border: 0; padding: 0; }
+  .rt-lpose .rt-lnum { width: 4.2rem; }
   .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
   .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
@@ -1297,7 +1302,7 @@
   .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
   .rt-lv:disabled { opacity: 0.35; cursor: default; }
   .rt-ls.on { background: #e8f1f8; border-color: #a9cde0; color: #0b5f7a; }
-  .rt-lglass { width: 11rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
+  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
   .rt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.7rem; }
   .rt-lkey { font-size: 0.8rem; color: var(--jek-ink-soft); margin-left: 0.3rem; }
   .rt-lkey b { font-family: var(--jek-mono); }

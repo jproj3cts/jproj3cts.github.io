@@ -413,7 +413,7 @@ function dataCard(asm, P) {
   const card = h('div', { class: 'rt-lcard rt-ldata', role: 'tabpanel' });
   const tbl = h('table', { class: 'rt-ltable' });
   // tilts and decentres, where a part has them (a fold mirror always)
-  const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec);
+  const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec) || !!WS.poseOn;
   tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].concat(moved ? ['Tilt, decentre'] : []).map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
   const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
@@ -428,7 +428,7 @@ function dataCard(asm, P) {
     const sid = s.from ? s.from.id + '.' + s.from.i : '', nA = sp.kind === 'lens' ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
     if (sp.kind === 'lens' && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
-      onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ asphere'));
+      onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
     tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
@@ -448,7 +448,16 @@ function dataCard(asm, P) {
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd);
     tr.append(valueCell(P, D, 'k', i));
-    if (moved) tr.append(h('td', { class: 'mono ro tl', title: 'Set on the bench: turn or move the part there. A tilt is about the part’s first vertex, in the plane of the fields; a decentre is across the axis.' }, sp.j === 0 ? tiltText(s) : ''));
+    // a part's tilt (°) and decentre (mm), about its first vertex: typed, varied, solved or picked up here, or set by turning it on the bench
+    if (moved) {
+      const td = h('td', { class: 'tl' });
+      if (editable(P, 'T', i)) {
+        const cells = h('div', { class: 'rt-lpose' }, h('div', null, valueCell(P, D, 'T', i), h('span', { class: 'u' }, '°')));
+        if (editable(P, 'D', i)) cells.append(h('div', null, valueCell(P, D, 'D', i), h('span', { class: 'u' }, 'mm')));
+        td.append(cells);
+      }
+      tr.append(td);
+    }
     tb.append(tr);
     if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
   }
@@ -468,23 +477,18 @@ function dataCard(asm, P) {
     h('button', { class: 'rt-btn', type: 'button', disabled: sel < 0 ? '' : null, title: 'Take out the surface selected; a lens of two surfaces goes whole', onclick: () => {
       checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
     } }, 'Remove'),
+    h('button', { class: 'rt-btn', type: 'button', 'aria-pressed': String(moved), disabled: P.surfaces.some(x => x.mirror || x.tilt || x.dec) ? '' : null,
+      title: 'Each part’s tilt (degrees, in the plane of the fields) and decentre (mm, across the axis), about its first vertex: to type, or to vary', onclick: () => { WS.poseOn = !WS.poseOn; renderWs(); } }, 'Tilts and decentres'),
     h('span', { class: 'rt-lkey' }, h('b', null, 'V'), ' a variable for the optimiser (' + D.vars.length + ' now) · ', h('b', null, 'S'), ' a solve · ', h('b', null, 'P'), ' a pickup'));
   card.append(bar);
   return card;
-}
-/* a part's tilt (degrees) and decentre (mm), as the lens data shows them */
-function tiltText(s) {
-  const t = s.tilt ? s.tilt[0] / deg : 0, d = s.dec ? s.dec[1] : 0, out = [];
-  if (Math.abs(t) > 1e-9) out.push(wsFmt(t, 5) + '°' + (s.mirror ? ' fold' : ''));
-  if (Math.abs(d) > 1e-9) out.push(wsFmt(d, 5) + ' mm');
-  return out.join(', ') || '—';
 }
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : 'Conic') + ' of surface ' + (i + 1);
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : 'Conic') + ' of surface ' + (i + 1);
   const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e');
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
@@ -492,7 +496,7 @@ function valueCell(P, D, q, i) {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -503,7 +507,7 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 function asphRow(P, D, i, sid, nA, moved) {
   const cells = h('div', { class: 'rt-laspc' });

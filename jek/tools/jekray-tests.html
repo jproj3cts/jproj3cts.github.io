@@ -8906,8 +8906,9 @@ const TESTS = [
       if (!J.openLensDesign(name)) return 0;
       try {
         const row = n => [...rigDoc().querySelectorAll('#lensWs td.n')].find(x => x.textContent === n).parentNode.textContent;
-        const mirOk = /Mirror/.test(row('3')) && /45° fold/.test(row('3'));
-        const tiltOk = /2°, -?0\.\d+ mm/.test(row('4'));
+        const val = l => parseFloat((rigDoc().querySelector('#lensWs [aria-label="' + l + '"]') || {}).value);
+        const mirOk = /Mirror/.test(row('3')) && Math.abs(Math.abs(val('Tilt of surface 3')) - 45) < 1e-6;
+        const tiltOk = Math.abs(Math.abs(val('Tilt of surface 4')) - 2) < 1e-6 && Math.abs(val('Decentre of surface 4')) > 0.1 && Math.abs(val('Decentre of surface 4')) < 0.5;
         wsSet('Radius of surface 3', -400);
         const rOk = J.byName('Fold').R === 400;
         wsPick('3'); wsClick('Remove');
@@ -8981,7 +8982,7 @@ const TESTS = [
       J.openLensDesign(name);
       try {
         const s0 = J.lensAnalysis(name, 'spot', 0);
-        wsClick('+ asphere', 'Aspheric terms for surface 2');
+        wsClick('+ A', 'Aspheric terms for surface 2');
         wsSet('A4 of surface 2', '1e-6');
         const typedOk = J.byName('PCX').surfaces[0].A[0] === 1e-6;
         wsClick('Add A6'); wsClick('Add A8');
@@ -9033,6 +9034,31 @@ const TESTS = [
         [1, -1].forEach((sg, j) => { worst[j] = Math.max(worst[j], Math.abs(Y - sg * h.y), Math.abs(opl - h.opl)); });
       });
       return Math.min(...worst);
+    },
+  },
+  {
+    name: 'A lens’s tilt and decentre are typed and varied in the lens data, and the optimiser puts a knocked lens back',
+    why: 'two singlets on one axis: Tilts and decentres shows the column; the second lens’s tilt typed as 2° and decentre as 0.3 mm turn and move it on the bench; both marked V with the image distance and optimised on the axis: its spot as small as the centred lens’s at its best focus, its tilt and decentre back within a fraction (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const L = (id, x, R1, R2, t) => ({ type: 'lens', id, name: id, x, y: 0, angle: 0, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass: 'N-BK7' }], group: 'g' });
+      J.load({ format: 'jekray', version: 1, elements: [L('L1', 0, 40, -40, 4), L('L2', 20, 30, -80, 4)],
+        assemblies: [{ id: 'g', name: 'Pair', ref: 'L1', cond: { aperture: { kind: 'epd', v: 8 }, fields: [{ deg: 0 }], waves: [{ nm: 587.56 }] }, design: { image: 25 } }] });
+      J.openLensDesign('Pair');
+      try {
+        wsClick('Tilts and decentres');
+        wsClick('V', 'Vary image distance of surface 4');
+        J.lensOptimise('dls'); J.lensOptimise('dls');
+        const centred = J.lensAnalysis('Pair', 'spot', 0).rms;
+        wsSet('Tilt of surface 3', 2); wsSet('Decentre of surface 3', 0.3);
+        const e = J.byName('L2'), movedOk = Math.abs(Math.abs(((e.angle + 180) % 360) - 180) - 2) < 1e-9 && Math.abs(Math.abs(e.y) - (0.3 + 2 * Math.sin(2 * Math.PI / 180))) < 1e-6;
+        wsClick('V', 'Vary tilt of surface 3'); wsClick('V', 'Vary decentre of surface 3');
+        for (let k = 0; k < 4; k++) J.lensOptimise('dls');
+        const f = J.lensAnalysis('Pair', 'spot', 0).rms, e2 = J.byName('L2'), a2 = Math.abs(((e2.angle + 180) % 360) - 180);
+        const backOk = f < centred * (1 + 1e-3) && a2 < 0.3 && Math.abs(e2.y) < 0.15;
+        if (!(movedOk && backOk)) console.log('pose', movedOk, backOk, e.angle, e.y, f, centred, e2.angle, e2.y);
+        return movedOk && backOk ? 1 : 0;
+      } finally { J.closeLensDesign(); }
     },
   },
   {

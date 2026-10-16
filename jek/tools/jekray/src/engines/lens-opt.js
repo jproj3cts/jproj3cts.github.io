@@ -1,5 +1,5 @@
 import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine.js';
-import { asphGet, asphSet, designEpd, designOf, objOpts, editable, getV, posOf, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
+import { asphGet, asphSet, designEpd, designOf, objOpts, editable, getV, posOf, setV, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
 import { paraxHeight } from './lens-analysis.js';
 
@@ -67,13 +67,14 @@ function setX(P, v, x) {
   if (v.at.q === 'R') P.surfaces[i].R = Math.abs(x) < 1e-12 ? null : 1 / x;
   else if (v.at.q === 'k') P.surfaces[i].k = x;
   else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
+  else if (v.at.q === 'T' || v.at.q === 'D') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6 };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, D: 1e-5 };
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'nd' ? 0.02 : 3; };
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' ? 1 : q === 'D' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured */
 function designAt(prob, V, x) {
@@ -281,6 +282,8 @@ export function globalSearch(prob, V, best, trials, seed) {
       else if (q === 't') x[j] = Math.max(0, x[j] * Math.exp(0.3 * z));
       else if (q === 'k') x[j] += 0.3 * z;
       else if (q[0] === 'a') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
+      else if (q === 'T') x[j] += 0.5 * z;
+      else if (q === 'D') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });

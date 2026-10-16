@@ -60,8 +60,9 @@ export function normAssemblies(list, els) {
    (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
-/* a key: R (radius), k (conic), t (gap after), g (glass after), or a4 … a16 (an even aspheric coefficient, A4 r⁴ …) */
-export const DESIGN_KEY = /^([Rtkg]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+/* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
+   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) */
+export const DESIGN_KEY = /^([RtkgTD]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {

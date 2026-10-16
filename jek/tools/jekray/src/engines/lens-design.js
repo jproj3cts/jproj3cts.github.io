@@ -16,7 +16,8 @@ import { lensSystem, seidel } from './lens-engine.js';
    A key names one value of one surface by where it came from, so it survives surfaces inserted
    or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
    "g:..." (the glass after it), "a4:..." to "a16:..." (its even aspheric coefficients, A4 to A16),
-   and "t:image". Solves and pickups are worked out after every change, and the result is written
+   "T:..." and "D:..." on a part's first surface (the part's tilt in degrees and decentre in mm, about
+   its first vertex), and "t:image". Solves and pickups are worked out after every change, and the result is written
    back to the parts: the bench is always the design.
    ========================================================================== */
 export const designOf = asm => (asm.design = asm.design && asm.design.solves ? asm.design : normDesign(asm.design));
@@ -44,6 +45,8 @@ export function editable(P, q, i) {
   if (!sp) return false;
   if (q === 'R' || q === 'k') return sp.kind === 'lens' || sp.kind === 'mirror';
   if (q[0] === 'a') return sp.kind === 'lens';
+  if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
+  if (q === 'D') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
@@ -51,8 +54,23 @@ export function getV(P, at) {
   if (at.q === 'R') return P.surfaces[at.i].R;
   if (at.q === 'k') return P.surfaces[at.i].k;
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
+  if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
+  if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   return at.image ? P.image : P.gaps[at.i];
 }
+/* a part posed about its first vertex (surface i): tilted t degrees in the plane of the fields and moved
+   ov mm across, each of its surfaces carried round with it as the prescription reads them off the bench */
+export function partPose(P, i, t, ov) {
+  const sps = surfaceParts(P), pi = sps[i].pi, tr = t * deg, ct = Math.cos(tr), st = Math.sin(tr), mirror = sps[i].kind === 'mirror';
+  let cum = 0;
+  for (let k = i; k < P.surfaces.length && sps[k].pi === pi; k++) {
+    if (k > i) cum += P.gaps[k - 1];
+    const s = P.surfaces[k] = Object.assign({}, P.surfaces[k]);
+    if (Math.abs(tr) > 1e-12 || Math.abs(ov + cum * st) > 1e-9 || mirror && Math.abs(tr) > 1e-12) { s.tilt = [tr, 0]; s.dec = [0, ov + cum * st, cum * (ct - 1)]; }
+    else { delete s.tilt; delete s.dec; }
+  }
+}
+const TILT_LIM = 29.9;      // a lens's tilt, within what an assembly allows (30°)
 /* a surface's even aspheric coefficient of order n (A4 is s.A[0]), and set: the list as long as it needs, no zeros trailing */
 export const asphGet = (s, n) => (s.A || [])[(n - 4) / 2] || 0;
 export function asphSet(s, n, v) {
@@ -67,6 +85,11 @@ export function setV(P, at, v) {
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
+  else if (at.q === 'T' || at.q === 'D') {
+    const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, mir = !!s.mirror;
+    const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
+    partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0);
+  }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
 }

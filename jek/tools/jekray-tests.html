@@ -8970,6 +8970,39 @@ const TESTS = [
     },
   },
   {
+    name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
+    why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        const chip = t => [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === t);
+        const body = () => rigDoc().querySelector('#lensWs .rt-lanabody');
+        const formed = async () => { for (let k = 0; k < 600; k++) { const b = body(); if (b && b.querySelectorAll('canvas.rt-limsim').length === 2 && !b.querySelector('[role=status]')) return true; await new Promise(r => setTimeout(r, 50)); } return false; };
+        const px = (cv, x, y) => cv.getContext('2d').getImageData(Math.round(x * (cv.width - 1)), Math.round(y * (cv.height - 1)), 1, 1).data;
+        wsClick('Analyses', null, 'tab');
+        chip('Image simulation').click();
+        const ok1 = await formed(), cols = /R 656.27 nm, G 587.56 nm, B 486.13 nm/.test(body().textContent);
+        chip('A patch at 20\u00b0').click();
+        const ok2 = await formed(), movedIn = /moved in to lie within the largest field/.test(body().textContent);
+        // the user's own picture, all one red, over the whole field: that red in the middle, dimmer in the corners
+        chip('The whole field').click();
+        await formed();
+        const cv = rigDoc().createElement('canvas'); cv.width = 40; cv.height = 30; const g = cv.getContext('2d'); g.fillStyle = 'rgb(200,40,40)'; g.fillRect(0, 0, 40, 30);
+        const blob = await new Promise(r => cv.toBlob(r, 'image/png')), file = new (rigWin().File)([blob], 'red.png', { type: 'image/png' });
+        const dt = new (rigWin().DataTransfer)(); dt.items.add(file);
+        const input = body().querySelector('input[type=file]'); input.files = dt.files; input.dispatchEvent(new (rigWin().Event)('change'));
+        let ok3 = false; for (let k = 0; k < 100 && !ok3; k++) { await new Promise(r => setTimeout(r, 50)); ok3 = chip('Your picture') && chip('Your picture').getAttribute('aria-pressed') === 'true'; }
+        const ok4 = await formed(), out = body().querySelectorAll('canvas.rt-limsim')[1], mid = px(out, 0.5, 0.5), corner = px(out, 0.03, 0.04);
+        return ok1 && cols && ok2 && movedIn && ok3 && ok4 && Math.abs(mid[0] - 200) <= 2 && Math.abs(mid[1] - 40) <= 2 && corner[0] < mid[0] - 5 ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Substitute glasses: a model glass becomes the catalogue glass that best takes out a doublet’s colour, and Undo takes it back',
     why: 'an air-spaced doublet (N-BK7, then a model glass at nd 1.62, Vd 36.4) aimed at f 100 mm and no axial colour, its second glass and two radii marked V: Optimise \u203a Substitute glasses, from Schott, ten candidates a glass, puts in a real flint (Vd under 45), the merit at least ten times lower; the table of what changed is shown; Undo brings back the model glass (1 when all hold)',
     want: 1, tol: 0, unit: '',

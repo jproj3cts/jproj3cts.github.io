@@ -141,6 +141,7 @@
  "engines/lens-opt.js",
  "engines/lens-analysis.js",
  "engines/lens-ghost.js",
+ "engines/lens-imsim.js",
  "engines/lens-tol.js",
  "engines/lens-drawing.js",
  "engines/pd-cavity.js",

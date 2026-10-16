@@ -282,7 +282,7 @@ export function wavefrontMap(A, deg, wi, N) {
 }
 
 /* ---------- The FFT ---------- */
-function fft1(re, im, inv) {
+export function fft1(re, im, inv) {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
   for (let len = 2; len <= n; len <<= 1) {
@@ -297,10 +297,10 @@ function fft1(re, im, inv) {
     }
   }
 }
-function fft2(re, im, M) {
+export function fft2(re, im, M, inv) {
   const r = new Float64Array(M), i = new Float64Array(M);
-  for (let y = 0; y < M; y++) { for (let x = 0; x < M; x++) { r[x] = re[y * M + x]; i[x] = im[y * M + x]; } fft1(r, i); for (let x = 0; x < M; x++) { re[y * M + x] = r[x]; im[y * M + x] = i[x]; } }
-  for (let x = 0; x < M; x++) { for (let y = 0; y < M; y++) { r[y] = re[y * M + x]; i[y] = im[y * M + x]; } fft1(r, i); for (let y = 0; y < M; y++) { re[y * M + x] = r[y]; im[y * M + x] = i[y]; } }
+  for (let y = 0; y < M; y++) { for (let x = 0; x < M; x++) { r[x] = re[y * M + x]; i[x] = im[y * M + x]; } fft1(r, i, inv); for (let x = 0; x < M; x++) { re[y * M + x] = r[x]; im[y * M + x] = i[x]; } }
+  for (let x = 0; x < M; x++) { for (let y = 0; y < M; y++) { r[y] = re[y * M + x]; i[y] = im[y * M + x]; } fft1(r, i, inv); for (let y = 0; y < M; y++) { re[y * M + x] = r[y]; im[y * M + x] = i[y]; } }
 }
 /* |FFT|² of a pupil function (N across, padded to M), centred */
 function psfOf(W, N, M, perfect) {

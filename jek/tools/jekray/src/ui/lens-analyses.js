@@ -1,6 +1,7 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
-import { ZERNIKE_NAMES, anaSystems, fieldCurves, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ZERNIKE_NAMES, anaSystems, fieldCurves, paraxHeight, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
+import { imsimPlan, imsimTraceable } from '../engines/lens-imsim.js';
 import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
@@ -14,7 +15,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['imsim', 'Image simulation']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -68,6 +69,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
+  else if (view === 'imsim') imsimView(body, A, P, st, key, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
@@ -365,6 +367,128 @@ function footView(body, A, P, F, st, redraw) {
     });
     x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
+}
+/* ---------- Image simulation ----------
+   The picture: a test chart drawn here, or one of the user's own (kept in this tab only, never saved or sent) */
+const IM_W = 256, IM_H = 192;
+let imOwn = null, imOwnId = 0;
+const toLin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const toSrgb = v => { v = Math.max(0, Math.min(1, v)); return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)); };
+function pictureOf(cv) {
+  const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, n = cv.width * cv.height, ch = [0, 1, 2].map(() => new Float32Array(n));
+  for (let q = 0; q < n; q++) for (let c = 0; c < 3; c++) ch[c][q] = toLin(d[q * 4 + c]);
+  return { w: cv.width, h: cv.height, ch };
+}
+function chartCanvas() {
+  const cv = document.createElement('canvas'); cv.width = IM_W; cv.height = IM_H;
+  const g = cv.getContext('2d'), W = IM_W, H = IM_H;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  // a grid, to show the distortion
+  g.strokeStyle = '#9aa0a6'; g.lineWidth = 1;
+  for (let x = 0.5; x < W; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  for (let y = 0.5; y < H; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  // a star in the middle
+  g.fillStyle = '#000';
+  const cx = W / 2, cy = H / 2, R = H * 0.28, sp = 36;
+  for (let k = 0; k < sp; k += 2) { const a0 = 2 * Math.PI * k / sp, a1 = 2 * Math.PI * (k + 1) / sp; g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a0, a1); g.closePath(); g.fill(); }
+  // bars, three of each, at the corners and the middles of the sides, finer towards the corners
+  const bars = (x, y, w, vertical) => { for (let b = 0; b < 3; b++) { if (vertical) g.fillRect(x + 2 * b * w, y, w, 6 * w); else g.fillRect(x, y + 2 * b * w, 6 * w, w); } };
+  [[8, 8, 2], [W - 8 - 10, 8, 2], [8, H - 8 - 12, 2], [W - 8 - 10, H - 8 - 12, 2]].forEach(([x, y, w]) => { bars(x, y, w, true); bars(x + 12, y, w - 1, true); });
+  [[W / 2 - 9, 6, 3], [W / 2 - 9, H - 6 - 18, 3], [6, H / 2 - 9, 3], [W - 6 - 18, H / 2 - 9, 3]].forEach(([x, y, w], i) => bars(x, y, w, i < 2));
+  // colour squares: lateral colour shows at their edges
+  [['#e34948', 0.2, 0.2], ['#1baf7a', 0.8, 0.2], ['#2a78d6', 0.2, 0.8], ['#eda100', 0.8, 0.8]].forEach(([c, u, v]) => { g.fillStyle = c; g.fillRect(u * W - 9, v * H - 9, 18, 18); });
+  return cv;
+}
+function picturePlan(own) {
+  if (own && imOwn) return imOwn;
+  return pictureOf(chartCanvas());
+}
+function drawPicture(parent, pic, label) {
+  const cv = h('canvas', { role: 'img', 'aria-label': label, class: 'rt-limsim' }), w = pic.w || pic.W, ht = pic.h || pic.H;
+  cv.width = w; cv.height = ht;
+  const img = new ImageData(w, ht);
+  for (let q = 0; q < w * ht; q++) { img.data[q * 4] = toSrgb(pic.ch[0][q]); img.data[q * 4 + 1] = toSrgb(pic.ch[1][q]); img.data[q * 4 + 2] = toSrgb(pic.ch[2][q]); img.data[q * 4 + 3] = 255; }
+  cv.getContext('2d').putImageData(img, 0, 0);
+  parent.append(cv);
+  return cv;
+}
+let imJob = null;
+function imPending(body, key, start, redraw) {
+  const el = h('p', { class: 'rt-lsub', role: 'status' }, 'Forming the image…');
+  body.append(el);
+  if (imJob && imJob.key === key) { imJob.el = el; return; }
+  if (imJob) imJob.cancelled = true;
+  const job = imJob = { key, el, cancelled: false };
+  setTimeout(() => {
+    if (job.cancelled) return;
+    const plan = start();
+    const step = () => {
+      if (job.cancelled) return;
+      const t = performance.now();
+      let done = false;
+      while (!done && performance.now() - t < 40) done = plan.next();
+      if (done) {
+        anaCache.set(key, plan.result());
+        if (anaCache.size > 40) anaCache.delete(anaCache.keys().next().value);
+        imJob = null;
+        if (job.el.isConnected) redraw();
+        return;
+      }
+      job.el.textContent = 'Forming the image… ' + Math.floor(100 * plan.done / plan.steps) + '%';
+      setTimeout(step, 0);
+    };
+    step();
+  }, 0);
+}
+function imsimView(body, A, P, st, key, redraw) {
+  const c = A.c, chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
+  if (!imsimTraceable(P)) { body.append(h('p', { class: 'rt-lsub' }, 'Image simulation takes a design round about its axis; this one has tilts, decentres, cylinders or freeforms.')); return; }
+  const own = st.imPic === 'own' && !!imOwn;
+  // where the picture goes: the whole field, or a patch about one of the design's fields
+  if (!(st.imAt === 'whole' || (st.imAt >= 0 && st.imAt < c.fields.length))) st.imAt = 'whole';
+  const whole = st.imAt === 'whole', S0 = A.Sp, rmsAt = f => { const sp = spotDiagram(A, f, 11); return isFinite(sp.rms) ? sp.rms : 0; };
+  const lamF = S0.lam * A.fw, defPitch = f => Math.max(lamF / 2, rmsAt(f) / 3);
+  if (!whole && !(st.imPitch > 0)) st.imPitch = +(1000 * defPitch(c.fields[st.imAt].deg)).toPrecision(2);
+  const file = h('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    try {
+      const bm = await createImageBitmap(f), cv = document.createElement('canvas'); cv.width = IM_W; cv.height = IM_H;
+      const g = cv.getContext('2d'), s = Math.max(IM_W / bm.width, IM_H / bm.height);
+      g.drawImage(bm, (IM_W - bm.width * s) / 2, (IM_H - bm.height * s) / 2, bm.width * s, bm.height * s);
+      imOwn = pictureOf(cv); imOwnId++; st.imPic = 'own'; redraw();
+    } catch (e) { st.imPic = 'chart'; redraw(); }
+  } });
+  body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Picture' }, h('span', { class: 'rt-lsub' }, 'Picture'),
+    chip(!own, 'Test chart', () => { st.imPic = 'chart'; redraw(); }),
+    chip(own, imOwn ? 'Your picture' : 'Your picture…', () => { if (imOwn && !own) { st.imPic = 'own'; redraw(); } else file.click(); }, { title: 'Kept in this tab only: never saved with the bench or sent anywhere' }),
+    ...(imOwn ? [h('button', { type: 'button', class: 'rt-link', onclick: () => file.click() }, 'Choose another')] : []), file));
+  body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Covers' }, h('span', { class: 'rt-lsub' }, 'Covers'),
+    chip(whole, 'The whole field', () => { st.imAt = 'whole'; redraw(); }),
+    ...c.fields.map((f, i) => chip(st.imAt === i, 'A patch at ' + anFmt(f.deg, 4) + FU, () => { st.imAt = i; st.imPitch = +(1000 * defPitch(f.deg)).toPrecision(2); redraw(); })),
+    ...(whole ? [] : [h('label', { class: 'rt-lsub rt-limpitch' }, 'Pixel ', h('input', { type: 'number', min: String(+(1000 * lamF / 4).toPrecision(2)), step: 'any', value: String(st.imPitch), 'aria-label': 'Pixel size on the image, micrometres',
+      onchange: e => { const v = +e.target.value; if (v > 0) { st.imPitch = Math.max(v, +(1000 * lamF / 4).toPrecision(2)); redraw(); } } }), ' µm')])));
+  // a patch about the field point's image, moved in as far as it must be to lie within the largest field
+  const pic = picturePlan(own), fAt = whole ? 0 : c.fields[st.imAt].deg, fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  const yAt = Math.abs(paraxHeight(S0, fAt)), rM = Math.abs(paraxHeight(S0, fmax)), hw = (IM_W - 1) / 2 * st.imPitch / 1000, hh = (IM_H - 1) / 2 * st.imPitch / 1000;
+  const yIn = whole ? 0 : Math.min(yAt, Math.max(0, Math.sqrt(Math.max(0, rM * rM - hw * hw)) - hh));      // its far corners on the largest field
+  const at = [0, (Math.sign(paraxHeight(S0, fmax)) || 1) * yIn], moved = !whole && yIn < yAt - 1e-9;
+  const o = whole ? { grid: 4 } : { mode: 'patch', at, pitch: st.imPitch / 1000, grid: 3 };
+  const k = key + '|imsim|' + (own ? 'own' + imOwnId : 'chart') + '|' + st.imAt + '|' + (whole ? '' : st.imPitch);
+  if (!anaCache.has(k)) { imPending(body, k, () => imsimPlan(A, pic, o), redraw); return; }
+  const R = anaCache.get(k), row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+  row.append(left, right); body.append(row);
+  left.append(h('h3', null, 'The picture'));
+  drawPicture(left, pic, 'The picture, as the object');
+  right.append(h('h3', null, 'As the design forms it'));
+  const cv = drawPicture(right, R, 'The picture as the design forms it');
+  plotCsv(cv, 'image simulation', ['x (mm)', 'y (mm)', 'R', 'G', 'B'], () => { const out = []; for (let j = 0; j < R.H; j++) for (let i = 0; i < R.W; i++) { const q = j * R.W + i; out.push([R.atOut[0] + (i - (R.W - 1) / 2) * R.pitch, R.atOut[1] + ((R.H - 1) / 2 - j) * R.pitch, R.ch[0][q], R.ch[1][q], R.ch[2][q]]); } return out; });
+  right.append(plotSaveRow(cv));
+  const geo = R.nodes.some(n => n.geometric), cols = ['R', 'G', 'B'].map((t, i) => t + ' ' + anFmt(R.nm[i], 5) + ' nm').join(', ');
+  body.append(h('p', { class: 'rt-lsub' }, (whole ? 'The picture fills the field: its corners at ' + anFmt(Math.max(...c.fields.map(f => Math.abs(f.deg))), 4) + FU + ', '
+    : 'A patch about the image of ' + anFmt(fAt, 4) + FU + (moved ? ', moved in to lie within the largest field, ' : ', ')) + R.W + ' × ' + R.H + ' pixels of ' + um(R.pitch) + ' on the image. ' +
+    (R.mono ? 'One wavelength, ' + anFmt(R.nm[0], 5) + ' nm, for every colour. ' : 'Each colour at the design’s wavelength nearest it: ' + cols + '. ') +
+    'Moved by the distortion of each wavelength (lateral colour shows), dimmed by the relative illumination, and blurred by the PSF at ' + R.grid * R.grid + ' points, each turned to its place about the axis and blended between them' +
+    (geo ? '; where a spot is too large for the PSF’s window, by the spot itself' : '') + '. In linear light, shown as sRGB; the CSV gives it in linear light, 1 the picture\u2019s white.'));
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];

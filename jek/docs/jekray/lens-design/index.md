@@ -412,6 +412,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **Footprints:** where the beam crosses each surface against its clear radius, below.
 - **Seidel:** the third-order sums, below.
 - **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
+- **Image simulation:** a picture as the design forms it, below.
 
 **Checked against.**
 - a perfect lens (the ellipsoid that images into glass without aberration): no spot; its MTF the round pupil's $$\tfrac{2}{\pi}\left(\arccos v - v\sqrt{1-v^2}\right)$$ to within 0.003; a Strehl ratio of 1; 83.8% of the energy within the first dark ring;
@@ -487,6 +488,24 @@ The fullest surface is drawn first, each field's rays at the primary wavelength 
 - the same at 15°: the footprint centred where the real chief ray crosses, to 0.02 mm;
 - the singlet narrowed so it clips at 20°: the rays it stops all outside its clear radius, the rest inside, and none of those it stops reaching the next surface;
 - a surface decentred by (0.3, 0.2) mm: the axial beam's footprint centred at (−0.3, −0.2) in its frame; a flat fold mirror at 45°: a round beam 10 mm across lands 10 mm wide and $$10\sqrt2$$ mm long along its tilt.
+
+#### Image simulation
+
+A picture as the design would form it: a test chart (a star, bars, a grid and coloured squares) or a picture of your own, which stays in the browser tab: it is never saved with the bench or sent anywhere. It is the object, placed so that its paraxial image either fills the field (its corners at the largest field) or makes a patch of 256 × 192 pixels, at a pitch you choose, about one of the design's fields. A patch is moved in as far as it must be for its corners to lie within the largest field.
+
+Each colour is formed at the design's wavelength nearest it (red 640, green 550, blue 460 nm), in linear light:
+
+1. **Distortion:** each point is moved to where the real chief ray of that wavelength lands, against its paraxial image, so the distortion and the lateral colour show. The picture is sampled backwards from each image pixel, so it leaves no gaps.
+2. **Relative illumination:** each point is dimmed by the relative illumination at its field, the vignetting in it.
+3. **Blur:** by the PSF (by FFT, 64 rays across the pupil) at a grid of points over the image (4 × 4 over the field, 3 × 3 over a patch). Each PSF is turned to its point's azimuth (the design is round, so the PSF along +y turned about the axis serves for every direction) and laid on the image's pixels. Each is convolved with the whole image by FFT, and the results are blended between the grid's points. Where a spot is too large for the PSF's window, the spot itself is used instead.
+
+It works on a design round about its axis. It is formed a step at a time, so the page stays live; the result saves as PNG, or as CSV in linear light.
+
+**Checked against.**
+- an even white picture: across the field, the relative illumination, within 0.01;
+- a point, over the whole field: in each colour where that colour's chief ray lands, moved by the distortion, with its spot's centroid, within a tenth of a pixel; in a patch at 4 µm a pixel, blue and red apart by the lateral colour, 12.3 pixels, within a quarter of a pixel;
+- the perfect lens: a point on the axis spreads as the Airy pattern, its middle pixel's share and the light kept in the picture as the pattern's integrated over the same pixels;
+- a point off the axis, out of focus, placed at +y and then at +x: its blur turned by 90°, its spreads along x and y swapped, within 3%.
 
 #### Ghosts
 

@@ -1319,6 +1319,8 @@
   .rt-lghost tr.on td { background: color-mix(in srgb, #ff5fd2 14%, transparent); }
   .rt-lghost td.warn { color: #c2410c; font-weight: 600; }
   .rt-lfootwrap { max-width: 380px; margin-top: 0.8rem; }
+  .rt-limsim { display: block; width: 100%; height: auto; image-rendering: auto; border: 1px solid var(--jek-line-2); }
+  .rt-limpitch input { width: 5rem; margin: 0 0.2rem; }
   .rt-lfootwrap canvas { display: block; max-width: 100%; }
   .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
   .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }

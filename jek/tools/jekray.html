@@ -5407,7 +5407,7 @@ function asmPrescription(asm, els) {
       // its normal through it (away from the light): the axis of its own frame
       const thr = v2(e.angle + 180);
       tilt = hand * angFrom(d, thr);
-      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: [], odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
       flip = dot2(a, d) < 0;
@@ -5513,6 +5513,8 @@ function asmApply(asm, P, els) {
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'mirror') {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
+      const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
+      if (mA.length) e.A = mA; else delete e.A;
       const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
     } else {
@@ -5844,6 +5846,8 @@ const MIRROR = {
       reflect: clamp(num(e.reflect, 100), 0, 100),
       offset: num(e.offset, 0),
       k: num(e.k, 0),
+      // even aspheric terms on the conic, A4 r⁴ … (as a lens surface's)
+      ...(Array.isArray(e.A) && e.A.length ? { A: e.A.slice(0, 7).map(v => isFinite(+v) ? +v : 0) } : {}),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
       // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
@@ -5856,11 +5860,11 @@ const MIRROR = {
     });
   },
   guide: {
-    what: 'A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.',
+    what: 'A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.',
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
     fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
-    k: 'conic constant (0 sphere, −1 paraboloid).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
+    k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
     metal: 'an RF metal mirror: "Al", "Cu", "Au", "brass", "steel" or "ideal", for its loss by surface resistance.',
     film: 'a film beam splitter (RF): { "n": index, "t": mm thickness } of a dielectric sheet, reflecting by its two faces\u2019 interference; then reflect is ignored.',
@@ -7409,8 +7413,7 @@ function elementSurfaces(el) {
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
     const c = el.R ? 1 / el.R : 0;
-    if (el.k) return [makeSurf(el, 0, c, el.k, 0, [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
-    return [makeSurf(el, 0, c, 0, 0, [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
+    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
   }
   if (el.type === 'screen') {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve
@@ -18284,6 +18287,14 @@ function mirrorPanel(el) {
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
     ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
     param('Conic k', el, 'k', { blank: 0 }),
+    // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
+    ...(el.A || []).map((_, j) => param('A' + (4 + 2 * j), el, `A.${j}`, { blank: 0 })),
+    h('div', { class: 'rt-inline wide' },
+      (el.A || []).length < 7 ? h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); el.A = (el.A || []).concat([0]); changed(true); } },
+        (el.A || []).length ? 'Add A' + (4 + 2 * el.A.length) + ' term' : 'Add aspheric terms') : null,
+      (el.A || []).length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+        checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
+      } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));
@@ -23218,10 +23229,12 @@ function dataCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable' });
   // tilts and decentres, where a part has them (a fold mirror always)
   const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec) || !!WS.poseOn;
-  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)), ...(moved ? POSE_HEADS.map(([t, tip]) => h('th', { scope: 'col', class: 'pose', title: tip }, t)) : []))));
+  // the columns some part here can take (a mirror alone: its tilt)
+  const PQ = moved ? POSE_QS.filter(q => P.surfaces.some((_, i) => editable(P, q, i))) : [];
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)), ...PQ.map(q => { const [t, tip] = POSE_HEADS[POSE_QS.indexOf(q)]; return h('th', { scope: 'col', class: 'pose', title: tip }, t); }))));
   const tb = h('tbody');
   const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
-    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : []));
+    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...PQ.map(() => h('td')));
   obj.addEventListener('click', () => { WS.sel = WS.sel === -2 ? -1 : -2; renderWs(); });
   tb.append(obj);
   for (let i = 0; i < N; i++) {
@@ -23229,7 +23242,7 @@ function dataCard(asm, P) {
     const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
     tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
     // a lens surface's aspheric terms: shown under it once it has any, or once asked for
-    const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
+    const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
     if (asph && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
       onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
@@ -23254,12 +23267,12 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'k', i));
     // a part's tilt (°) and decentre (mm), about its first vertex: typed, varied, solved or picked up here, or set by turning it on the bench
     // in the plane of the fields (across the bench) and out of it (up and down), a column each, on the part's first surface
-    if (moved) for (const q of POSE_QS) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
+    for (const q of PQ) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
     tb.append(tr);
-    if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
+    if (nA) tb.append(asphRow(P, D, i, sid, nA, PQ.length));
   }
   const F = designFigures(asm, P);
-  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : [])));
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...PQ.map(() => h('td'))));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
@@ -23309,7 +23322,7 @@ function valueCell(P, D, q, i) {
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
 const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
-function asphRow(P, D, i, sid, nA, moved) {
+function asphRow(P, D, i, sid, nA, nPose) {
   const cells = h('div', { class: 'rt-laspc' });
   for (let j = 0; j < Math.min(nA, ASPH_ORDERS.length); j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, 'A' + ASPH_ORDERS[j]), valueCell(P, D, 'a' + ASPH_ORDERS[j], i)));
   const grow = n => { (WS.asp || (WS.asp = {}))[sid] = n; };
@@ -23319,7 +23332,7 @@ function asphRow(P, D, i, sid, nA, moved) {
     grow(nA - 1);
     edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
   } }, nA > 1 ? 'Remove A' + ASPH_ORDERS[nA - 1] : 'No aspheric terms'));
-  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 5 + POSE_QS.length : 5) }, cells));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(5 + nPose) }, cells));
 }
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');
@@ -31000,14 +31013,14 @@ function surfaceParts(P) {
   P.parts.forEach((p, pi) => { for (let j = 0; j < p.n; j++) out.push({ pi, kind: p.kind, id: p.id, j, n: p.n }); });
   return out;
 }
-/* what can be changed: a lens's or a mirror's radii and conics; a lens's aspheric terms; any gap; a lens's glass (the gaps inside it) */
+/* what can be changed: a lens's or a mirror's radii; an asphere's or a mirror's conic and aspheric terms; any gap; a lens's glass (the gaps inside it) */
 function editable(P, q, i) {
   const sp = surfaceParts(P)[i];
   if (!sp) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
-  if (q[0] === 'a') return sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q[0] === 'a') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
@@ -31738,7 +31751,7 @@ function meritOne(c, M, mops, P, detail) {
   // each lens surface's aspheric terms: their sag from the conic (the departure) and its slope, over the clear radius
   if (B.aspMax > 0 || B.slopeMax > 0) {
     for (let i = 0; i < N; i++) {
-      if (sps[i].kind !== 'lens') continue;
+      if (sps[i].kind !== 'lens' && sps[i].kind !== 'mirror') continue;
       const A = P.surfaces[i].A || [], h = P.surfaces[i].semi > 0 && isFinite(P.surfaces[i].semi) ? P.surfaces[i].semi : 10;
       let dep = 0, slope = 0;
       if (A.some(a => a)) for (let q = 1; q <= 24; q++) {
@@ -35302,8 +35315,11 @@ function zmxToElement(Z, fileName, mode) {
       warnings.add('the part number ends in -' + partCoat.tag + ', a ' + partCoat.spec.label +
         ' coating, so the mirror was set to a nominal ' + reflect + '% over ' + partCoat.spec.lo + '\u2013' + partCoat.spec.hi + ' nm');
     }
+    // an even asphere's terms, the other sign as its curvature (as the radius is read)
+    const mA = m.type === 'EVENASPH' ? Array.from({ length: 7 }, (_, q) => -(m.parm[q + 2] || 0) * Math.pow(unit, 1 - 2 * (q + 2))) : [];
+    if (m.type === 'EVENASPH' && m.parm[1]) warnings.add('the mirror’s r² aspheric term is not read');
     return Object.assign(pos, { type: 'mirror', angle: 180 - tilt, R: c === 0 ? null : -1 / c,
-      k: m.conic, offset: shift,
+      k: m.conic, offset: shift, ...(mA.some(v => v) ? { A: mA } : {}),
       length: semiOf(m) ? 2 * semiOf(m) : 25.4, reflect });
   }
   if (mode === 'cube' || mode === 'prism' || mode === 'window') {
@@ -35514,7 +35530,10 @@ function zmxExport(els, nms) {
   if (S.mirror) {
     const m = S.mirror;
     if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
-    const lines = ['STOP', 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k), 'GLAS MIRROR 0 0 0 0 0 0 0 0 0 0',
+    // its aspheric terms as an even asphere's, the other sign as its curvature (the file's convention)
+    const mA = m.A || [], asp = mA.some(v => v);
+    const lines = ['STOP', asp ? 'TYPE EVENASPH' : 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k),
+      ...(asp ? ['PARM 1 0', ...Array.from({ length: 7 }, (_, q) => 'PARM ' + (q + 2) + ' ' + zmxNum(-(mA[q] || 0)))] : []), 'GLAS MIRROR 0 0 0 0 0 0 0 0 0 0',
       'DISZ ' + zmxNum(m.R === null ? 0 : -m.R / 2), diam(m.length / 2)];
     surf(lines);
     surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(m.length / 2)]);
@@ -38158,6 +38177,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Aspheric mirrors</b>: a mirror takes aspheric terms A4 to A16 on its conic, added in its panel or with <b>+ A</b> in the lens data, and varied by the optimiser like an asphere\u2019s. A concave sphere at f/2.5 optimised this way images a star as a paraboloid does. Lens files of a single mirror write and read them.',
     '<b>Tilts and decentres out of the plane</b> in lens design: a lens or window tipped up or down and raised or lowered from the assembly\u2019s axis, typed or varied in the lens data (<b>\u00b0 up</b>, <b>mm up</b>) and put on the bench as the part\u2019s Tip and height. Parts of an assembly may now sit at different heights and be tipped; the assembly\u2019s Height z moves them all together. The bench\u2019s rays and the lens engine\u2019s agree through them to 10\u207b\u00b9\u00b3 mm.',
     '<b>Designs locked on the bench</b>: back from lens design, its parts\u2019 fields are locked against a stray edit, a padlock beside the name to open them. <b>Open lens design\u2026</b> in a designed part\u2019s panel and right-click menu goes straight back to its design. A plain <b>Lens</b> now has spherical surfaces only; the conic and aspheric terms are the <b>Asphere</b>\u2019s.',
     '<b>Configurations</b> in lens design: one design in several states, such as a zoom at each focal length or a lens refocused for a nearer object. Each configuration has its own values for the spacings and radii you choose, and its own object distance. The merit function weighs them all, and one optimisation finds each configuration\u2019s own values and the shared ones together. Show any one on the bench.',

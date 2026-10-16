@@ -418,10 +418,12 @@ function dataCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable' });
   // tilts and decentres, where a part has them (a fold mirror always)
   const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec) || !!WS.poseOn;
-  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)), ...(moved ? POSE_HEADS.map(([t, tip]) => h('th', { scope: 'col', class: 'pose', title: tip }, t)) : []))));
+  // the columns some part here can take (a mirror alone: its tilt)
+  const PQ = moved ? POSE_QS.filter(q => P.surfaces.some((_, i) => editable(P, q, i))) : [];
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)), ...PQ.map(q => { const [t, tip] = POSE_HEADS[POSE_QS.indexOf(q)]; return h('th', { scope: 'col', class: 'pose', title: tip }, t); }))));
   const tb = h('tbody');
   const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
-    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : []));
+    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...PQ.map(() => h('td')));
   obj.addEventListener('click', () => { WS.sel = WS.sel === -2 ? -1 : -2; renderWs(); });
   tb.append(obj);
   for (let i = 0; i < N; i++) {
@@ -429,7 +431,7 @@ function dataCard(asm, P) {
     const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
     tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
     // a lens surface's aspheric terms: shown under it once it has any, or once asked for
-    const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
+    const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
     if (asph && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
       onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
@@ -454,12 +456,12 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'k', i));
     // a part's tilt (°) and decentre (mm), about its first vertex: typed, varied, solved or picked up here, or set by turning it on the bench
     // in the plane of the fields (across the bench) and out of it (up and down), a column each, on the part's first surface
-    if (moved) for (const q of POSE_QS) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
+    for (const q of PQ) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
     tb.append(tr);
-    if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
+    if (nA) tb.append(asphRow(P, D, i, sid, nA, PQ.length));
   }
   const F = designFigures(asm, P);
-  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : [])));
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...PQ.map(() => h('td'))));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
@@ -509,7 +511,7 @@ function valueCell(P, D, q, i) {
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
 const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
-function asphRow(P, D, i, sid, nA, moved) {
+function asphRow(P, D, i, sid, nA, nPose) {
   const cells = h('div', { class: 'rt-laspc' });
   for (let j = 0; j < Math.min(nA, ASPH_ORDERS.length); j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, 'A' + ASPH_ORDERS[j]), valueCell(P, D, 'a' + ASPH_ORDERS[j], i)));
   const grow = n => { (WS.asp || (WS.asp = {}))[sid] = n; };
@@ -519,7 +521,7 @@ function asphRow(P, D, i, sid, nA, moved) {
     grow(nA - 1);
     edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
   } }, nA > 1 ? 'Remove A' + ASPH_ORDERS[nA - 1] : 'No aspheric terms'));
-  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 5 + POSE_QS.length : 5) }, cells));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(5 + nPose) }, cells));
 }
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');

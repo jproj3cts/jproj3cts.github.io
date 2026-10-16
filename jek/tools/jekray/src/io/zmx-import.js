@@ -277,8 +277,11 @@ export function zmxToElement(Z, fileName, mode) {
       warnings.add('the part number ends in -' + partCoat.tag + ', a ' + partCoat.spec.label +
         ' coating, so the mirror was set to a nominal ' + reflect + '% over ' + partCoat.spec.lo + '\u2013' + partCoat.spec.hi + ' nm');
     }
+    // an even asphere's terms, the other sign as its curvature (as the radius is read)
+    const mA = m.type === 'EVENASPH' ? Array.from({ length: 7 }, (_, q) => -(m.parm[q + 2] || 0) * Math.pow(unit, 1 - 2 * (q + 2))) : [];
+    if (m.type === 'EVENASPH' && m.parm[1]) warnings.add('the mirror’s r² aspheric term is not read');
     return Object.assign(pos, { type: 'mirror', angle: 180 - tilt, R: c === 0 ? null : -1 / c,
-      k: m.conic, offset: shift,
+      k: m.conic, offset: shift, ...(mA.some(v => v) ? { A: mA } : {}),
       length: semiOf(m) ? 2 * semiOf(m) : 25.4, reflect });
   }
   if (mode === 'cube' || mode === 'prism' || mode === 'window') {

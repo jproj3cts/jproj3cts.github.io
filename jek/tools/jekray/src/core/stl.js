@@ -266,8 +266,7 @@ export function elementSurfaces(el) {
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
     const c = el.R ? 1 / el.R : 0;
-    if (el.k) return [makeSurf(el, 0, c, el.k, 0, [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
-    return [makeSurf(el, 0, c, 0, 0, [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
+    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
   }
   if (el.type === 'screen') {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve

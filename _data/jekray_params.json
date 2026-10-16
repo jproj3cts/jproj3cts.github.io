@@ -170,7 +170,7 @@
   },
   "mirror": {
    "label": "Mirror",
-   "what": "A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.",
+   "what": "A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.",
    "angle": "the direction its reflecting face points (its normal, towards the light it reflects).",
    "fields": [
     {

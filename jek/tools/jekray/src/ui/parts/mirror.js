@@ -5,6 +5,9 @@ import { frame, toWorld } from '../../core/mask.js';
 import { ctx, getCss, lightLayer, metal, pathLocal, selInk, surfPoints, sx, sy } from '../render.js';
 import { hitSurface } from './hits.js';
 import { h, panel, param, selectField } from '../panel.js';
+import { changed } from '../actions.js';
+import { checkpoint } from '../tabs.js';
+import { removeSweeps } from '../plots.js';
 import { C_NM_GHZ, RF_METALS, filmCoef, metalR } from '../../core/rf.js';
 import { benchNms } from '../../state/elements.js';
 import { readoutTabs } from '../panels.js';
@@ -56,6 +59,14 @@ function mirrorPanel(el) {
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
     ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
     param('Conic k', el, 'k', { blank: 0 }),
+    // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
+    ...(el.A || []).map((_, j) => param('A' + (4 + 2 * j), el, `A.${j}`, { blank: 0 })),
+    h('div', { class: 'rt-inline wide' },
+      (el.A || []).length < 7 ? h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); el.A = (el.A || []).concat([0]); changed(true); } },
+        (el.A || []).length ? 'Add A' + (4 + 2 * el.A.length) + ' term' : 'Add aspheric terms') : null,
+      (el.A || []).length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+        checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
+      } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));

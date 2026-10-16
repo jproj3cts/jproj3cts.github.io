@@ -327,7 +327,7 @@ export function asmPrescription(asm, els) {
       // its normal through it (away from the light): the axis of its own frame
       const thr = v2(e.angle + 180);
       tilt = hand * angFrom(d, thr);
-      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: [], odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
       flip = dot2(a, d) < 0;
@@ -433,6 +433,8 @@ export function asmApply(asm, P, els) {
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'mirror') {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
+      const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
+      if (mA.length) e.A = mA; else delete e.A;
       const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
     } else {

@@ -142,7 +142,10 @@ export function zmxExport(els, nms) {
   if (S.mirror) {
     const m = S.mirror;
     if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
-    const lines = ['STOP', 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k), 'GLAS MIRROR 0 0 0 0 0 0 0 0 0 0',
+    // its aspheric terms as an even asphere's, the other sign as its curvature (the file's convention)
+    const mA = m.A || [], asp = mA.some(v => v);
+    const lines = ['STOP', asp ? 'TYPE EVENASPH' : 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k),
+      ...(asp ? ['PARM 1 0', ...Array.from({ length: 7 }, (_, q) => 'PARM ' + (q + 2) + ' ' + zmxNum(-(mA[q] || 0)))] : []), 'GLAS MIRROR 0 0 0 0 0 0 0 0 0 0',
       'DISZ ' + zmxNum(m.R === null ? 0 : -m.R / 2), diam(m.length / 2)];
     surf(lines);
     surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(m.length / 2)]);

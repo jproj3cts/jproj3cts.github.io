@@ -225,7 +225,7 @@ function meritOne(c, M, mops, P, detail) {
   // each lens surface's aspheric terms: their sag from the conic (the departure) and its slope, over the clear radius
   if (B.aspMax > 0 || B.slopeMax > 0) {
     for (let i = 0; i < N; i++) {
-      if (sps[i].kind !== 'lens') continue;
+      if (sps[i].kind !== 'lens' && sps[i].kind !== 'mirror') continue;
       const A = P.surfaces[i].A || [], h = P.surfaces[i].semi > 0 && isFinite(P.surfaces[i].semi) ? P.surfaces[i].semi : 10;
       let dep = 0, slope = 0;
       if (A.some(a => a)) for (let q = 1; q <= 24; q++) {

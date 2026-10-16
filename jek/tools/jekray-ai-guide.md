@@ -176,7 +176,7 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 
 ### "mirror": Mirror
 
-A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100.
+A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.
 
 **angle:** the direction its reflecting face points (its normal, towards the light it reflects).
 

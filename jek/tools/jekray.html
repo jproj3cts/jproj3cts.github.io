@@ -8264,6 +8264,8 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
    the ray, in the part's frame, is taken into the tipped frame, where the part is as it was,
    and on into a face's own frame (a cube's or prism's face, lf); it is met there in 3D and
    kept only inside the aperture, round or square (see zInside). t is along the ray, as ever */
+// the passes through modulators a ray's path records ("e<n>.<bounce>" each), and how many split it into sidebands
+const EOM_PASS = /e-?\d+\./g, EOM_PASSES = 2;
 function tipFrame(s, x, h) { const c = Math.cos(s.tip), n = Math.sin(s.tip); return [x * c + h * n, -x * n + h * c]; }
 // and rolled about its own axis by s.roll (radians, right-handed about it): across and up in the rolled frame
 function rollFrame(s, y, z) { if (!s.roll) return [y, z]; const c = Math.cos(s.roll), n = Math.sin(s.roll); return [y * c + z * n, -y * n + z * c]; }
@@ -8694,7 +8696,10 @@ function traceSceneOnce() {
         if (s.kind === 'eom') {
           // each sideband carries on as a branch of its own, n f_m from where it came in
           // (light crossing it at an angle, in the plane or tipped, is modulated over a longer path: beta / cos)
-          const secE = 1 / Math.max(0.05, Math.abs(cosd)), sb = probe || pls ? [[0, [1, 0]]] : eomSidebands(secE > 1 + 1e-12 ? Object.assign(Object.create(s.el), { beta: s.el.beta * secE }) : s.el);
+          // A ray caught bouncing through modulators would branch again on every pass, its sidebands'
+          // sidebands growing past counting: past EOM_PASSES passes along one line, it goes on unsplit
+          const passes = (path.match(EOM_PASS) || []).length;
+          const secE = 1 / Math.max(0.05, Math.abs(cosd)), sb = probe || pls || passes >= EOM_PASSES ? [[0, [1, 0]]] : eomSidebands(secE > 1 + 1e-12 ? Object.assign(Object.create(s.el), { beta: s.el.beta * secE }) : s.el);
           for (const [n, c] of sb) {
             const nsr = sr * c[0] - si * c[1], nsi = sr * c[1] + si * c[0], npr = pr * c[0] - pi * c[1], npi = pr * c[1] + pi * c[0];
             const f2 = fo + n * s.el.fm * 1e6;

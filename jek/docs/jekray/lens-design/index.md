@@ -20,7 +20,7 @@ A lens off the axis by less than its half-width is *decentred*, one turned from 
 
 If they are not, the panel says which part is in the way and why. The light is taken to run away from a source on the axis; with none on it, the way most of the lenses face.
 
-An assembly is picked and moved as one, drawn with a dashed outline (one round each straight run of a folded one) and its name. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
+An assembly is picked and moved as one, drawn with a dashed outline (one round each straight run of a folded one) and its name. Its panel places it on the bench by its own **X** and **Y** (its first vertex, where its axis meets its first surface), **Angle** (the way its axis runs from there) and **Height z** (of all its parts): set, they move or turn every part together about that vertex, so the design itself is unchanged. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
 
 **File › New lens design…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
 

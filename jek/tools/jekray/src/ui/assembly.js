@@ -1,10 +1,10 @@
 import { fmtLen } from '../core/format.js';
 import { asmCheck, asmMembers, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
-import { V, project, typeLabel, uid } from '../state/project.js';
+import { V, deg, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
-import { h, panel, textField } from './panel.js';
+import { h, numInput, panel, textField } from './panel.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
@@ -61,6 +61,35 @@ export function newLensDesign() {
   return asm;
 }
 
+/* an assembly's place on the bench, as fields: x and y of its first vertex (the axis point there), the
+   angle its axis runs at from there, and the height of its parts. A change moves or turns every part
+   together, about that vertex, so the assembly itself is unchanged */
+export function asmPlace(asm) {
+  const P = asmPrescription(asm), M = asmMembers(asm);
+  return { x: P.origin[0], y: P.origin[1], angle: Math.atan2(P.dir[1], P.dir[0]) / deg, z: M[0].z === undefined ? 75 : M[0].z };      // (a part with no height of its own is at the bench's 75 mm)
+}
+export function asmMoveTo(asm, to) {
+  const M = asmMembers(asm), at = asmPlace(asm);
+  if (isFinite(to.angle) && Math.abs(to.angle - at.angle) > 1e-12) {
+    const r = (to.angle - at.angle) * deg, c = Math.cos(r), sn = Math.sin(r);
+    for (const e of M) { const dx = e.x - at.x, dy = e.y - at.y; e.x = at.x + dx * c - dy * sn; e.y = at.y + dx * sn + dy * c; e.angle = ((e.angle + to.angle - at.angle) % 360 + 540) % 360 - 180; }
+  }
+  const dx = isFinite(to.x) ? to.x - at.x : 0, dy = isFinite(to.y) ? to.y - at.y : 0;
+  if (dx || dy) for (const e of M) { e.x += dx; e.y += dy; }
+  if (isFinite(to.z)) for (const e of M) e.z = to.z;
+}
+function asmPlaceFields(asm, M, P) {
+  const f = (label, key, title) => {
+    const id = 'asm-' + key;
+    const inp = numInput(id, () => +asmPlace(asm)[key].toFixed(4), v => asmMoveTo(asm, { [key]: v }), { commit: true });
+    return h('div', { class: 'rt-f', title }, h('label', { for: id }, label), inp);
+  };
+  const out = [f('X (mm)', 'x', 'Its first vertex: where the axis meets its first surface'), f('Y (mm)', 'y', 'Its first vertex: where the axis meets its first surface'),
+    f('Angle (°)', 'angle', 'The way its axis runs from its first vertex; turning it turns every part about that vertex')];
+  out.push(f('Height z (mm)', 'z', 'The height of all its parts above the bench'));
+  return out;
+}
+
 /* its panel: what it is made of, its first-order figures at its primary wavelength, its conditions */
 export function assemblyPanel(asm) {
   const M = asmMembers(asm), C = asmCheck(M, { ref: asm.ref, rev: asm.rev });
@@ -68,8 +97,10 @@ export function assemblyPanel(asm) {
   panel.append(title);
   panel.append(h('div', { class: 'rt-rows' }, textField('Name', () => asm.name, v => { asm.name = String(v || 'Assembly').slice(0, 80); title.firstChild.textContent = asm.name; }, { wide: true })));
   if (!C.ok) panel.append(h('p', { class: 'note', style: 'color:var(--jek-red, #b3261e)' }, 'Its parts are no longer on one axis: ' + C.why + ' Line them up again, or split it into its parts.'));
-  panel.append(h('h3', null, 'Parts'));
   const P = C.ok ? asmPrescription(asm, M) : null, order = P ? P.parts.map(p => M.find(e => e.id === p.id)) : M;
+  // where it is on the bench: its first vertex, the way its axis runs from there, and its height; moved and turned whole
+  if (P) panel.append(h('div', { class: 'rt-rows' }, ...asmPlaceFields(asm, M, P)));
+  panel.append(h('h3', null, 'Parts'));
   const ul = h('ul', { class: 'rt-list' });
   for (const e of order) ul.append(h('li', null, h('button', { type: 'button', onclick: () => setSelection([e]) }, e.name, h('span', { class: 't' }, typeLabel(e)))));
   panel.append(ul);

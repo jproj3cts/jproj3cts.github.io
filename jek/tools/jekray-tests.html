@@ -9089,6 +9089,36 @@ const TESTS = [
     },
   },
   {
+    name: 'An assembly is placed on the bench by its own position, angle and height, moved and turned whole',
+    why: 'the folded assembly (a lens, a fold mirror and a tilted lens): its panel’s X, Y, Angle and Height fields give its first vertex, its axis’s angle and its parts’ height; X set 10 mm on moves every part 10 mm; Angle turned 30° turns every part about the first vertex; Height set moves every part up; through it all its prescription (radii, gaps, tilts) is unchanged and it stays one assembly (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
+      J.load({ format: 'jekray', version: 1, elements: [
+        L('Front', 0, 0, 0, 40, -200, 4, 'N-BK7'), { type: 'mirror', name: 'Fold', x: 22, y: 0, angle: 135, length: 30 },
+        L('Back', 22.3, 25, 92, 60, -60, 3, 'F2')] });
+      J.makeAssembly(['Front', 'Fold', 'Back']);
+      const name = J.assemblies()[0].name, P0 = J.asmPrescription(name), snap = P => JSON.stringify([P.surfaces.map(s => [s.R, s.tilt && +s.tilt[0].toFixed(9), s.dec && s.dec.map(v => +v.toFixed(9))]), P.gaps.map(g => +g.toFixed(9))]);
+      J.selectAssembly(name);
+      const field = id => rigDoc().querySelector('#panel #asm-' + id);
+      const set = (id, v) => { const i = field(id); i.value = String(v); i.dispatchEvent(new (rigWin().Event)('change')); };
+      const shown = { x: +field('x').value, y: +field('y').value, a: +field('angle').value };
+      const readOk = Math.abs(shown.x - P0.origin[0]) < 1e-3 && Math.abs(shown.y - P0.origin[1]) < 1e-3 && Math.abs(shown.a) < 1e-6;
+      const before = ['Front', 'Fold', 'Back'].map(n => ({ x: J.byName(n).x, y: J.byName(n).y, a: J.byName(n).angle }));
+      set('x', shown.x + 10);
+      const movedOk = ['Front', 'Fold', 'Back'].every((n, i) => Math.abs(J.byName(n).x - before[i].x - 10) < 1e-9 && Math.abs(J.byName(n).y - before[i].y) < 1e-9);
+      J.selectAssembly(name); set('angle', 30);
+      const P1 = J.asmPrescription(name), turnedOk = Math.abs(Math.atan2(P1.dir[1], P1.dir[0]) * 180 / Math.PI - 30) < 1e-9 && Math.abs(P1.origin[0] - (shown.x + 10)) < 1e-9 && Math.abs(P1.origin[1] - shown.y) < 1e-9
+        && ['Front', 'Fold', 'Back'].every((n, i) => Math.abs((((J.byName(n).angle - before[i].a - 30) % 360) + 540) % 360 - 180) < 1e-9);
+      J.selectAssembly(name);
+      let heightOk = true;
+      if (field('z')) { set('z', 40); heightOk = ['Front', 'Fold', 'Back'].every(n => J.byName(n).z === 40); }
+      const sameOk = snap(J.asmPrescription(name)) === snap(P0) && J.assemblies().length === 1 && !/no longer on one axis/.test(rigDoc().querySelector('#panel').textContent);
+      if (!(readOk && movedOk && turnedOk && heightOk && sameOk)) console.log('place', readOk, movedOk, turnedOk, heightOk, sameOk, JSON.stringify(shown), JSON.stringify(P0.origin));
+      return readOk && movedOk && turnedOk && heightOk && sameOk ? 1 : 0;
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

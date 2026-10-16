@@ -84,21 +84,29 @@ export function surfSag(s, h) {
 
 /* ---------- Conditions and first order ---------- */
 export const primaryNm = c => c.waves[c.primary].nm;
-/* the entrance pupil's diameter the conditions give: as set, or the focal length over the F-number */
-export function designEpd(c, efl) {
+/* the object's distance before the first surface the conditions give (0 for infinity), and the
+   options a system is made with for it */
+export const objectOf = c => c.object && c.object.kind === 'finite' ? c.object.d : 0;
+export const objOpts = (c, o) => Object.assign({}, o, objectOf(c) ? { object: objectOf(c) } : {});
+/* the entrance pupil's diameter the conditions give: as set; or for a working F-number in image space,
+   from the marginal ray's last angle per unit pupil (the focal length over the F-number, from infinity);
+   or for an object-space NA, from the object's distance to the pupil. S0: the system at the primary wavelength */
+export function designEpd(c, S0) {
   if (c.aperture.kind === 'epd') return c.aperture.v;
-  return isFinite(efl) && efl ? Math.abs(efl) / c.aperture.v : 10;
+  const u = S0 && S0.par ? Math.abs(S0.par.uEp) : 0;
+  if (c.aperture.kind === 'na') { const d = objectOf(c); return d ? 2 * (d + S0.par.epz) * Math.tan(Math.asin(Math.min(0.999, c.aperture.v))) : 10; }
+  return u > 0 && isFinite(u) ? 1 / (c.aperture.v * u) : 10;
 }
 export function designPrescription(asm) {
   const P = asmPrescription(asm), D = designOf(asm);
   P.image = D.image;
   // the image distance is the design's alone: kept at focus whatever changed the parts on the bench
-  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond)).par.bfl; if (isFinite(b)) P.image = D.image = b; }
+  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
   return P;
 }
 export function designSystem(asm, P, nm) {
-  const c = asm.cond, S0 = lensSystem(P, primaryNm(c));
-  return lensSystem(P, nm || primaryNm(c), { epd: designEpd(c, S0.par.efl), image: P.image });
+  const c = asm.cond, S0 = lensSystem(P, primaryNm(c), objOpts(c));
+  return lensSystem(P, nm || primaryNm(c), objOpts(c, { epd: designEpd(c, S0), image: P.image }));
 }
 
 /* ---------- Solves and pickups ----------
@@ -142,7 +150,7 @@ export function solveDesign(asm, P) {
     pickupAll(D, P);
   }
   if (D.solves['t:image']) {
-    const b = lensSystem(P, nm).par.bfl;
+    const b = lensSystem(P, nm, objOpts(c)).par.back;
     if (isFinite(b)) P.image = b; else notes.push('The system is afocal: it has no paraxial focus.');
   }
   // the stop opens to suit the entrance pupil the conditions set
@@ -296,12 +304,15 @@ export function removeSurface(asm, P, i) {
    First order at the primary wavelength and the Seidel sums over the largest field */
 export function designFigures(asm, P) {
   const c = asm.cond, nms = c.waves.map(w => w.nm), S = designSystem(asm, P);
-  const lo = Math.min(...nms), hi = Math.max(...nms), o = { epd: 2 * S.epr, image: P.image };
+  const lo = Math.min(...nms), hi = Math.max(...nms), o = objOpts(c, { epd: 2 * S.epr, image: P.image });
   const Ss = hi > lo ? lensSystem(P, lo, o) : null, Sl = hi > lo ? lensSystem(P, hi, o) : null;
   const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
-  const efl = S.par.efl;
-  return { S, epd: 2 * S.epr, efl, bfl: S.par.bfl, fno: efl / (2 * S.epr), track: P.gaps.reduce((a, b) => a + b, 0) + P.image,
-    epz: S.par.epz, xpz: S.par.xpz - S.z[S.N - 1], imgH: efl * Math.tan(fmax * deg), fmax, seidel: seidel(S, fmax, Ss, Sl), lo, hi };
+  const efl = S.par.efl, d = objectOf(c);
+  // the working F-number from the marginal ray's last angle (from infinity, the focal length over the pupil)
+  const fno = Math.abs(S.par.uEp) > 0 ? 1 / (2 * S.epr * Math.abs(S.par.uEp)) : Infinity;
+  return { S, epd: 2 * S.epr, efl, bfl: S.par.bfl, fno, track: P.gaps.reduce((a, b) => a + b, 0) + P.image,
+    epz: S.par.epz, xpz: S.par.xpz - S.z[S.N - 1], imgH: d ? S.par.mag * fmax : efl * Math.tan(fmax * deg), fmax, seidel: seidel(S, fmax, Ss, Sl), lo, hi,
+    object: d, mag: d ? S.par.mag : 0, imgDist: S.par.back, na: d ? Math.sin(Math.atan(S.epr / (d + S.par.epz))) : 0 };
 }
 
 /* ---------- The light the bench sends it ----------
@@ -331,34 +342,69 @@ export function condFromRays(asm, P, rays, linesOf) {
     }
   }
   if (!by.size) return null;
-  const fields = new Set([0]), waves = new Set();
-  let epd = 0;
+  const fields = new Set([0]), waves = new Set(), pts = [];
+  let epd = 0, na = 0;
   for (const [src, L] of by) {
     const a = L.reduce((s, r) => s + r.a, 0) / L.length;
     fields.add(Math.round(Math.abs(a / deg) * 100) / 100);
     const across = L.map(r => r.y * Math.cos(a));
     epd = Math.max(epd, Math.max(...across) - Math.min(...across));
     for (const nm of linesOf(src)) waves.add(nm);
+    // light from a point: its rays' common point, by least squares (each ray the line through (zp, y) at angle a)
+    const spread = Math.max(...L.map(r => r.a)) - Math.min(...L.map(r => r.a));
+    if (L.length >= 2 && spread > 2e-4) {
+      let m11 = 0, m12 = 0, m22 = 0, b1 = 0, b2 = 0;
+      for (const r of L) {
+        const nz = -Math.sin(r.a), ny = Math.cos(r.a), c = nz * zp + ny * r.y;   // the line: nz z + ny y = c
+        m11 += nz * nz; m12 += nz * ny; m22 += ny * ny; b1 += nz * c; b2 += ny * c;
+      }
+      const det = m11 * m22 - m12 * m12;
+      if (Math.abs(det) > 1e-12) {
+        const z = (b1 * m22 - b2 * m12) / det, y = (m11 * b2 - m12 * b1) / det;
+        if (z < 0) { pts.push({ d: -z, h: y }); na = Math.max(na, Math.sin(spread / 2)); }
+      }
+    }
   }
   const W = [...waves].filter(nm => nm >= 100 && nm <= 1e7).sort((a, b) => a - b).slice(0, 12);
-  return { fields: [...fields].sort((a, b) => a - b).slice(0, 12), waves: W, epd, sources: by.size };
+  const out = { fields: [...fields].sort((a, b) => a - b).slice(0, 12), waves: W, epd, sources: by.size, object: 0 };
+  // every source a point at much the same distance: an object there, its fields the points' heights
+  if (pts.length === by.size) {
+    const d = pts.reduce((s2, q) => s2 + q.d, 0) / pts.length;
+    if (pts.every(q => Math.abs(q.d - d) < 0.02 * d + 0.5)) {
+      out.object = +d.toPrecision(6); out.na = +na.toPrecision(4);
+      out.heights = [...new Set([0, ...pts.map(q => Math.round(Math.abs(q.h) * 1000) / 1000)])].sort((p2, q2) => p2 - q2).slice(0, 12);
+    }
+  }
+  return out;
 }
 /* conditions to design for from that light: the bench's fields and wavelengths, its beam as the entrance pupil */
 export function condFromBench(asm, B) {
   const c = asm.cond;
+  if (B.object) return normCond({ object: { kind: 'finite', d: B.object }, aperture: B.na > 0 ? { kind: 'na', v: B.na } : c.aperture,
+    fields: B.heights.map(deg => ({ deg, w: 1 })), waves: (B.waves.length ? B.waves : c.waves.map(w => w.nm)).map(nm => ({ nm, w: 1 })),
+    primary: B.waves.length ? Math.floor((B.waves.length - 1) / 2) : c.primary });
   return normCond({ aperture: B.epd > 1e-6 ? { kind: 'epd', v: +B.epd.toPrecision(6) } : c.aperture,
     fields: B.fields.map(deg => ({ deg, w: 1 })), waves: (B.waves.length ? B.waves : c.waves.map(w => w.nm)).map(nm => ({ nm, w: 1 })),
     primary: B.waves.length ? Math.floor((B.waves.length - 1) / 2) : c.primary });
 }
 /* how the bench uses it outside what it is designed for: a list of short sentences, empty when within */
-export function condMismatch(asm, B, efl) {
-  const c = asm.cond, out = [];
-  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg))), bmax = Math.max(...B.fields);
-  if (bmax > fmax + 0.05) out.push('light arrives at ' + (+bmax.toFixed(2)) + '°, beyond its fields (to ' + (+fmax.toFixed(2)) + '°)');
+export function condMismatch(asm, B) {
+  const c = asm.cond, out = [], d = objectOf(c);
+  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  if (!d && B.object) out.push('its light comes from a point ' + (+B.object.toPrecision(4)) + ' mm before it, but it is designed for an object at infinity');
+  else if (d && !B.object) out.push('its light is parallel, but it is designed for an object ' + (+d.toPrecision(4)) + ' mm before it');
+  else if (d) {
+    if (Math.abs(B.object - d) > 0.02 * d + 0.5) out.push('its object is ' + (+B.object.toPrecision(4)) + ' mm before it, not the ' + (+d.toPrecision(4)) + ' mm it is designed for');
+    const hmax = Math.max(...B.heights);
+    if (hmax > fmax * 1.01 + 1e-3) out.push('light from ' + (+hmax.toPrecision(4)) + ' mm off the axis, beyond its fields (to ' + (+fmax.toPrecision(4)) + ' mm)');
+  } else {
+    const bmax = Math.max(...B.fields);
+    if (bmax > fmax + 0.05) out.push('light arrives at ' + (+bmax.toFixed(2)) + '°, beyond its fields (to ' + (+fmax.toFixed(2)) + '°)');
+  }
   const nms = c.waves.map(w => w.nm), lo = Math.min(...nms), hi = Math.max(...nms);
   const off = B.waves.filter(nm => nm < lo - 0.5 || nm > hi + 0.5);
   if (off.length) out.push(off.map(nm => +nm.toPrecision(5)).join(', ') + ' nm, outside its wavelengths (' + (lo === hi ? +lo.toPrecision(5) : +lo.toPrecision(5) + ' to ' + (+hi.toPrecision(5))) + ' nm)');
-  const epd = designEpd(c, efl);
-  if (B.epd > epd * 1.02 + 1e-3) out.push('a beam ' + (+B.epd.toPrecision(3)) + ' mm across, wider than its entrance pupil (' + (+epd.toPrecision(3)) + ' mm)');
+  const epd = designEpd(c, lensSystem(asmPrescription(asm), primaryNm(c), objOpts(c)));
+  if (!d && !B.object && B.epd > epd * 1.02 + 1e-3) out.push('a beam ' + (+B.epd.toPrecision(3)) + ' mm across, wider than its entrance pupil (' + (+epd.toPrecision(3)) + ' mm)');
   return out;
 }

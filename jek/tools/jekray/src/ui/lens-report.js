@@ -100,7 +100,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
   const img = [[L.image.p[0] + L.image.e[0] * hi, L.image.p[1] + L.image.e[1] * hi], [L.image.p[0] - L.image.e[0] * hi, L.image.p[1] - L.image.e[1] * hi]];
   let ya = Infinity, yb = -Infinity, za = Infinity, zb = -Infinity;
   const take = ([yy, zz]) => { if (!isFinite(yy) || !isFinite(zz)) return; ya = Math.min(ya, yy); yb = Math.max(yb, yy); za = Math.min(za, zz); zb = Math.max(zb, zz); };
-  L.lenses.forEach(pr => pr.forEach(take)); L.mirrors.forEach(m => { m.face.forEach(take); m.back.forEach(take); }); L.stops.forEach(s => s.forEach(seg => seg.forEach(take))); img.forEach(take); L.axis.forEach(take);
+  L.lenses.forEach(pr => pr.forEach(take)); L.mirrors.forEach(m => { m.face.forEach(take); m.back.forEach(take); }); L.stops.forEach(s => s.forEach(seg => seg.forEach(take))); img.forEach(take); L.axis.forEach(take); if (L.object) L.object.forEach(take);
   for (const r of rays) r.pts.forEach(take);
   const k = Math.min(w / (zb - za), h / (yb - ya)) * 0.96, X = zz => x + w / 2 + (zz - (za + zb) / 2) * k, Y = yy => y + h / 2 - (yy - (ya + yb) / 2) * k;
   const path = pts => { g.beginPath(); pts.forEach(([yy, zz], q) => q ? g.lineTo(X(zz), Y(yy)) : g.moveTo(X(zz), Y(yy))); };
@@ -111,6 +111,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
   for (const m of L.mirrors) { path(m.face.concat(m.back.slice().reverse())); g.closePath(); g.fillStyle = 'rgba(90,100,110,0.35)'; g.fill(); path(m.face); g.strokeStyle = RP_INK; g.lineWidth = 1.2; g.stroke(); }
   g.strokeStyle = RP_INK; g.lineWidth = 1.8; for (const s of L.stops) for (const seg of s) { path(seg); g.stroke(); }
   g.lineWidth = 1.2; path(img); g.stroke();
+  if (L.object) { g.strokeStyle = '#b8860b'; g.lineWidth = 1.6; path(L.object); g.stroke(); }
   g.strokeStyle = RP_RULE; g.lineWidth = 0.5; g.strokeRect(x, y, w, h);
 }
 
@@ -118,7 +119,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
 export function reportRecs(asm) {
   const P = designPrescription(asm), F = designFigures(asm, P), c = asm.cond, D = designOf(asm), A = anaSystems(asm, P);
   const meta = { name: asm.name, date: new Date().toISOString().slice(0, 10), pages: [] };
-  const sps = surfaceParts(P), moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec);
+  const sps = surfaceParts(P), moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec), fin = !!F.object, FU = fin ? ' mm' : '°';
   const nameOf = i => { const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?'; return sp.kind === 'stop' ? nm + ' (stop)' : sp.n === 1 ? nm : sp.n === 2 ? nm + (sp.j ? ', back' : ', front') : nm + ', ' + (sp.j + 1); };
 
   // ---- 1: summary ----
@@ -127,21 +128,23 @@ export function reportRecs(asm) {
   rpText(g, asm.name, RP_M, pg.y + 8, { size: 22, bold: true }); pg.y += 26;
   rpText(g, 'Lens design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
   rpHead(pg, 'Design conditions');
-  const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Image-space F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
-  rpPara(pg, 'Light from infinity. Aperture: ' + ap + '. Fields: ' + c.fields.map(f => rf(f.deg, 4) + '°' + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +
+  const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Working F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
+  rpPara(pg, (fin ? 'An object ' + rf(F.object, 6) + ' mm before the first surface. ' : 'Light from infinity. ') + 'Aperture: ' + ap + '. Fields' + (fin ? ' (object heights)' : '') + ': ' + c.fields.map(f => rf(f.deg, 4) + FU + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +
     c.waves.map((w, i) => rf(w.nm, 6) + ' nm' + (i === c.primary ? ' (primary)' : '') + (w.w !== 1 ? ' weight ' + rf(w.w, 3) : '')).join(', ') + '.');
   rpHead(pg, 'First order, at ' + rf(primaryNm(c), 6) + ' nm');
   rpTable(pg, [{ label: 'Effective focal length', w: 125 }, { label: 'Back focal length', w: 105 }, { label: 'Working F-number', w: 100 }, { label: 'Image-space NA', w: 85 }, { label: 'Image height', w: 84 }],
     [[rf(F.efl) + ' mm', rf(F.bfl) + ' mm', isFinite(F.fno) ? 'f/' + rf(Math.abs(A.fw), 4) : '—', rf(A.na, 4), rf(Math.abs(F.imgH), 5) + ' mm']]);
+  if (fin) rpTable(pg, [{ label: 'Object distance', w: 125 }, { label: 'Image distance', w: 125 }, { label: 'Magnification', w: 100 }, { label: 'NA at the object', w: 149 }],
+    [[rf(F.object) + ' mm', rf(F.imgDist) + ' mm from the last surface', rf(F.mag, 5), rf(F.na, 4)]]);
   rpTable(pg, [{ label: 'Entrance pupil', w: 230 }, { label: 'Exit pupil', w: 185 }, { label: 'Total track', w: 84 }],
     [[rf(F.epd, 5) + ' mm, ' + rf(F.epz, 5) + ' mm from surface 1', rf(F.xpz, 5) + ' mm from the last surface', rf(F.track, 6) + ' mm']]);
-  rpHead(pg, 'Layout' + (P.folded ? ', folded as on the bench' : '') + ', in the plane of the fields');
+  rpHead(pg, 'Layout' + (P.folded ? ', folded as on the bench' : '') + (fin && F.object <= 3 * Math.max(F.track, 10) ? ', from the object' : '') + ', in the plane of the fields');
   rpLayout(g, asm, P, F, RP_M, pg.y, RP_W - 2 * RP_M, 230); pg.y += 240;
-  rpKey(g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + '°', colourOf(i)])); pg.y += 18;
+  rpKey(g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + FU, colourOf(i)])); pg.y += 18;
   rpHead(pg, 'Spot sizes, over the wavelengths');
   const spots = c.fields.map(f => spotDiagram(A, f.deg, 15));
   rpTable(pg, [{ label: 'Field', w: 80 }, { label: 'RMS radius (µm)', w: 110, mono: true }, { label: 'Largest radius (µm)', w: 120, mono: true }, { label: 'Airy radius (µm)', w: 110, mono: true }, { label: 'Rays lost', w: 79, mono: true }],
-    spots.map(s => [rf(s.deg, 4) + '°', rf(1000 * s.rms, 4), rf(1000 * s.geo, 4), rf(1000 * s.airy, 4), String(s.waves.reduce((a, w) => a + w.lost, 0)) + ' of ' + s.rays * s.waves.length]));
+    spots.map(s => [rf(s.deg, 4) + FU, rf(1000 * s.rms, 4), rf(1000 * s.geo, 4), rf(1000 * s.airy, 4), String(s.waves.reduce((a, w) => a + w.lost, 0)) + ' of ' + s.rays * s.waves.length]));
 
   // ---- 2: prescription and Seidel sums ----
   pg = rpPage(meta, 'Prescription');
@@ -166,7 +169,7 @@ export function reportRecs(asm) {
   }
   const nSolve = Object.keys(D.solves).length, nPick = Object.keys(D.pickups).length;
   if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the lens data.'); }
-  rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + '° (transverse, mm)');
+  rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + FU + ' (transverse, mm)');
   const sd = F.seidel, K = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   const sc = [{ label: '#', w: 30 }].concat(K.map(k => ({ label: k, w: 67, mono: true, align: 'right' })));
   const se = v => !isFinite(v) ? '—' : Math.abs(v) < 5e-7 ? '0' : v.toExponential(3);
@@ -186,7 +189,7 @@ export function reportRecs(asm) {
     s.waves.forEach((w, wi) => { pg.g.fillStyle = colourOf(wi); for (const [px, py] of w.pts) pg.g.fillRect(cx + px * k2 - 0.7, cy - py * k2 - 0.7, 1.4, 1.4); });
     // the Airy disc
     pg.g.strokeStyle = RP_SOFT; pg.g.lineWidth = 0.5; pg.g.beginPath(); pg.g.arc(cx, cy, s.airy * k2, 0, 2 * Math.PI); pg.g.stroke();
-    rpText(pg.g, rf(s.deg, 4) + '°: RMS ' + rf(1000 * s.rms, 3) + ' µm', x, y + sw + 11, { size: 7.5 });
+    rpText(pg.g, rf(s.deg, 4) + FU + ': RMS ' + rf(1000 * s.rms, 3) + ' µm', x, y + sw + 11, { size: 7.5 });
   });
   pg.y += Math.ceil(nf / per) * (sw + 30) - 8;
   rpText(pg.g, 'Each box ' + rf(2000 * lim, 3) + ' µm across; the circle is the Airy disc at ' + rf(A.nm0, 6) + ' nm.', RP_M, pg.y, { size: 7.5, ink: RP_SOFT }); pg.y += 8;
@@ -195,8 +198,8 @@ export function reportRecs(asm) {
   const FC = fieldCurves(A, 15), pw = (RP_W - 2 * RP_M - 40) / 2, ph = 150;
   const curves = []; FC.waves.forEach((w, wi) => { curves.push({ xs: w.tan, ys: FC.degs, colour: colourOf(wi) }, { xs: w.sag, ys: FC.degs, colour: colourOf(wi), dash: true }); });
   const xr = rpRange(FC.waves.flatMap(w => w.tan.concat(w.sag)).filter(v => v !== null), 0.1);
-  rpPlot(pg.g, RP_M + 30, pg.y + 10, pw - 30, ph, { xr, yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: curves, title: 'Field curvature', xName: 'focus from the image plane (mm)', yName: 'field (°)' });
-  rpPlot(pg.g, RP_M + pw + 70, pg.y + 10, pw - 30, ph, { xr: rpRange(FC.dist.filter(v => v !== null).concat([0]), 0.1), yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: [{ xs: FC.dist, ys: FC.degs, colour: colourOf(0) }], title: 'Distortion', xName: 'distortion (%)', yName: 'field (°)' });
+  rpPlot(pg.g, RP_M + 30, pg.y + 10, pw - 30, ph, { xr, yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: curves, title: 'Field curvature', xName: 'focus from the image plane (mm)', yName: fin ? 'object height (mm)' : 'field (°)' });
+  rpPlot(pg.g, RP_M + pw + 70, pg.y + 10, pw - 30, ph, { xr: rpRange(FC.dist.filter(v => v !== null).concat([0]), 0.1), yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: [{ xs: FC.dist, ys: FC.degs, colour: colourOf(0) }], title: 'Distortion', xName: 'distortion (%)', yName: fin ? 'object height (mm)' : 'field (°)' });
   pg.y += ph + 40;
   rpKey(pg.g, RP_M, pg.y, [['tangential', RP_SOFT], ['sagittal', RP_SOFT, true]]); pg.y += 22;
   const M = c.fields.map(f => mtfAnalysis(A, f.deg)), mser = [];
@@ -204,7 +207,7 @@ export function reportRecs(asm) {
   mser.push({ xs: M[0].freqs, ys: M[0].limT, colour: '#666' });
   rpPlot(pg.g, RP_M + 30, pg.y + 10, RP_W - 2 * RP_M - 30, 170, { xr: [0, M[0].freqs[M[0].freqs.length - 1]], yr: [0, 1], series: mser, title: 'MTF, over the wavelengths', xName: 'spatial frequency (cycles/mm)', yName: 'modulation' });
   pg.y += 210;
-  rpKey(pg.g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + '°', colourOf(i)]).concat([['diffraction limit', '#666']]));
+  rpKey(pg.g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + FU, colourOf(i)]).concat([['diffraction limit', '#666']]));
 
   // ---- 4: tolerances ----
   pg = rpPage(meta, 'Tolerances');

@@ -1,6 +1,7 @@
 import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine.js';
-import { asphGet, asphSet, designEpd, designOf, editable, getV, posOf, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
+import { asphGet, asphSet, designEpd, designOf, objOpts, editable, getV, posOf, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
+import { paraxHeight } from './lens-analysis.js';
 
 /* ==========================================================================
    Optimising a lens design: its merit function, damped least squares and a global search
@@ -85,7 +86,7 @@ function designAt(prob, V, x) {
 /* ---------- The merit function ---------- */
 export function meritTerms(prob, P, detail) {
   const c = prob.cond, M = prob.design.merit, nm0 = primaryNm(c);
-  const S0 = lensSystem(P, nm0), epd = designEpd(c, S0.par.efl), opts = { epd, image: P.image };
+  const S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), opts = objOpts(c, { epd, image: P.image });
   const Sw = c.waves.map(w => w.nm === nm0 ? lensSystem(P, nm0, opts) : lensSystem(P, w.nm, opts)), Sp = Sw[c.primary];
   const pts = pupilRings(M.rings, M.arms), Wf = c.fields.reduce((a, f) => a + f.w, 0) || 1, Ww = c.waves.reduce((a, w) => a + w.w, 0) || 1;
   const r = [], fields = [];
@@ -131,10 +132,10 @@ export function meritTerms(prob, P, detail) {
   for (const o of M.ops) {
     let v;
     if (o.op === 'EFL') v = S0.par.efl;
-    else if (o.op === 'FNO') v = S0.par.efl / epd;
+    else if (o.op === 'FNO') v = Math.abs(S0.par.uEp) > 0 ? 1 / (epd * Math.abs(S0.par.uEp)) : 1e3;
     else if (o.op === 'TTL') v = P.gaps.reduce((a, b) => a + b, 0) + P.image;
     else if (o.op === 'DIST') {
-      const fm = Math.max(...c.fields.map(f => Math.abs(f.deg))), th = fm * Math.PI / 180, C = rayAt(Sp, th, 0, 0, R, true), yp = Sp.par.efl * Math.tan(th);
+      const fm = Math.max(...c.fields.map(f => Math.abs(f.deg))), th = fm * Math.PI / 180, C = rayAt(Sp, th, 0, 0, R, true), yp = paraxHeight(Sp, fm);
       v = C && C[7] === 0 && yp ? 100 * (C[1] - yp) / yp : 0;
     } else {
       if (!sd) { const nms = c.waves.map(w => w.nm), lo = nms.indexOf(Math.min(...nms)), hi = nms.indexOf(Math.max(...nms)); sd = seidel(Sp, Math.max(...c.fields.map(f => Math.abs(f.deg))), lo !== hi ? Sw[lo] : null, lo !== hi ? Sw[hi] : null).sum; }

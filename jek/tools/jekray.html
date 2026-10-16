@@ -5074,18 +5074,31 @@ const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'stop' ? 'stop' : e
 /* design conditions: the aperture (an entrance pupil diameter, mm, or an F-number), the fields
    (angles of the incoming light, degrees, each with a weight) and the wavelengths (nm, each with a
    weight, one of them primary) */
+/* the conditions a design is for: its object (at infinity, or at a distance d before the first
+   surface), its aperture (the entrance pupil's diameter, the working F-number in image space, or for a
+   finite object the NA in object space), its fields (angles in degrees from infinity; object heights in
+   mm for a finite object, kept in "deg" all the same) and its wavelengths */
 function normCond(c) {
   c = c && typeof c === 'object' ? c : {};
+  const ob = c.object && typeof c.object === 'object' && c.object.kind === 'finite' ? { kind: 'finite', d: clamp(num(c.object.d, 100), 1e-3, 1e7) } : null;
   const ap = c.aperture && typeof c.aperture === 'object' ? c.aperture : {};
-  const kind = ap.kind === 'fno' ? 'fno' : 'epd';
+  const kind = ap.kind === 'fno' ? 'fno' : ap.kind === 'na' && ob ? 'na' : 'epd';
   const fields = (Array.isArray(c.fields) && c.fields.length ? c.fields : [{ deg: 0, w: 1 }]).slice(0, ASM_FIELDS_MAX)
-    .map(f => ({ deg: clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
+    .map(f => ({ deg: ob ? clamp(num(f && f.deg, 0), -1e5, 1e5) : clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
   const waves = (Array.isArray(c.waves) && c.waves.length ? c.waves : [{ nm: 587.56, w: 1 }]).slice(0, ASM_WAVES_MAX)
     .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 1e7), w: clamp(num(v && v.w, 1), 0, 1e3) }));
   return {
-    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : clamp(num(ap.v, 10), 1e-3, 1e5) },
+    ...(ob ? { object: ob } : {}),
+    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : kind === 'na' ? clamp(num(ap.v, 0.1), 1e-4, 0.99) : clamp(num(ap.v, 10), 1e-3, 1e5) },
     fields, waves, primary: Math.round(clamp(num(c.primary, 0), 0, waves.length - 1)),
   };
+}
+const cfmt = v => String(+(+v).toPrecision(5));
+/* the conditions in a line: "an object 200 mm before it, NA 0.1, fields to 5 mm, 587.56 nm" */
+function condSummary(c) {
+  const fin = c.object && c.object.kind === 'finite', fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  const ap = c.aperture.kind === 'fno' ? 'f/' + cfmt(c.aperture.v) : c.aperture.kind === 'na' ? 'NA ' + cfmt(c.aperture.v) + ' at the object' : cfmt(c.aperture.v) + ' mm entrance pupil';
+  return (fin ? 'an object ' + cfmt(c.object.d) + ' mm before it, ' : 'light from infinity, ') + ap + ', fields to ' + cfmt(fmax) + (fin ? ' mm' : '°') + ', ' + c.waves.map(v => cfmt(v.nm)).join(', ') + ' nm';
 }
 function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
@@ -8285,8 +8298,13 @@ function traceSceneOnce() {
         const l = Math.hypot(dx, dy), up = l < 1e-9;
         return { dx: up ? 1 : dx / l, dy: up ? 0 : dy / l, len: L * l, uz: up ? 0 : uz / l, len3: L, d3: [dx, dy, uz] };
       };
+      // the surface met before the last one: a ray at two parts' faces in contact (a doublet of two
+      // lenses touching) goes on through the second face at no distance at all, but never back to either
+      let lastSeen = last, lastPrev = null;
       for (; bounce < maxB; bounce++) {
         if (--budget < 0) { truncated = true; break; }
+        if (last !== lastSeen) { lastPrev = lastSeen; lastSeen = last; }
+        const tMin = s => s === last || s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
@@ -8298,7 +8316,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
-            const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], s === last ? 1e-4 : EPS);
+            const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
             if (tm !== null && tm < best) { best = tm; hit = s; hitSeg = false; }
             continue;
           }
@@ -8307,14 +8325,14 @@ function traceSceneOnce() {
           const forced = forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
           const h3 = anyZ && !forced && zCurved(s) ? zh - zOf(s.el) : 0;
-          let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, s === last ? 1e-4 : EPS)
-            : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, s === last ? 1e-4 : EPS)
-            : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+          let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+            : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
+            : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
           if (anyZ && tt !== null && !forced && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
           if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = false; }
           if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
-            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
             // a beam passing above or below a part does not reach round its edge either
             if (anyZ && te !== null) { const hz = zh + uz * te - zOf(s.el); if (hz !== 0 && !zInside(s, 0, hz)) te = null; }
             if (te !== null && te < nearT) { nearT = te; near = s; }
@@ -21743,17 +21761,17 @@ function assemblyPanel(asm) {
   panel.append(ul);
   if (P) {
     const c = asm.cond, nm = c.waves[c.primary].nm, p = asmParaxial(P, nm, paraxial);
-    const len = P.gaps.reduce((a, b) => a + b, 0), ap = c.aperture.kind === 'fno' ? 'f/' + (+c.aperture.v.toPrecision(4)) : fmtLen(c.aperture.v) + ' entrance pupil';
+    const len = P.gaps.reduce((a, b) => a + b, 0);
     const rows = [['EFL at ' + (+nm.toPrecision(5)) + ' nm', isFinite(p.efl) ? fmtLen(p.efl) : 'afocal'], ['BFL', isFinite(p.bfl) ? fmtLen(p.bfl) : '—'],
       ['Surfaces', P.surfaces.length + (P.stopIndex >= 0 ? ', the stop the ' + ordinal(P.stopIndex + 1) : ', no stop of its own')], ['First to last surface', fmtLen(len)],
-      ['Designed for', ap + ', fields to ' + Math.max(...c.fields.map(f => Math.abs(f.deg))) + '°, ' + c.waves.map(v => +v.nm.toPrecision(5)).join(', ') + ' nm']];
+      ['Designed for', condSummary(c)]];
     panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))));
   }
   // the bench's light against what it is designed for
   if (P) {
     const L = asmBenchLight(asm, P);
     if (L) {
-      const M = condMismatch(asm, L, asmParaxial(P, asm.cond.waves[asm.cond.primary].nm, paraxial).efl);
+      const M = condMismatch(asm, L);
       panel.append(M.length
         ? h('div', { class: 'rt-asmnote bad', role: 'status' }, h('b', null, 'Used outside its design conditions: '), M.join('; ') + '. Open it with Design… to take the bench’s conditions and redesign it for them.')
         : h('div', { class: 'rt-asmnote good', role: 'status' }, h('b', null, 'Within its design conditions. '), 'The bench’s light is what it is designed for.'));
@@ -21798,9 +21816,12 @@ function cached(key, fn) {
 const designKey = (asm, P) => JSON.stringify([P.surfaces.map(s => [s.R, s.k, s.a2, s.A, s.odd, s.semi]), P.gaps, P.materials, P.image, asm.cond]);
 
 /* st: the view's state ({ view, field, wave }), kept by the workspace; redraw: draws the workspace again */
+/* a field's unit: degrees from infinity, millimetres of object height from a finite object */
+let FU = '°', FU_WORD = 'degrees', FU_CSV = 'deg';
 function analysesPanel(asm, P, F, st, redraw) {
   st.view = st.view || 'spot';
-  const c = asm.cond;
+  const c = asm.cond, fin = !!(c.object && c.object.kind === 'finite');
+  FU = fin ? ' mm' : '°'; FU_WORD = fin ? 'object height, mm' : 'degrees'; FU_CSV = fin ? 'mm' : 'deg';
   if (!(st.field >= 0 && st.field < c.fields.length)) st.field = c.fields.length - 1;
   if (!(st.wave >= 0 && st.wave < c.waves.length)) st.wave = c.primary;
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
@@ -21808,7 +21829,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
   const perField = ['spot', 'fans', 'opd', 'wave', 'psf', 'mtf'].includes(st.view) && st.view !== 'spot';
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
-    ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + '°', () => { st.field = i; redraw(); }))));
+    ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
     ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) }))));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
@@ -21902,8 +21923,8 @@ function spotView(body, A, spots) {
   const row = h('div', { class: 'rt-lspots' });
   body.append(row);
   spots.forEach((s, fi) => {
-    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'Spot diagram at ' + anFmt(s.deg, 4) + '°: RMS radius ' + um(s.rms) });
-    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, anFmt(s.deg, 4) + '°'), ' RMS ' + um(s.rms) + ' · largest ' + um(s.geo)));
+    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'Spot diagram at ' + anFmt(s.deg, 4) + FU + ': RMS radius ' + um(s.rms) });
+    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, anFmt(s.deg, 4) + FU), ' RMS ' + um(s.rms) + ' · largest ' + um(s.geo)));
     row.append(cell);
     requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1, S = Math.max(140, Math.min(260, cell.clientWidth || 200));
@@ -21915,7 +21936,7 @@ function spotView(body, A, spots) {
       g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
       s.waves.forEach((w, wi) => { g.fillStyle = waveColour(wi); for (const [x, y] of w.pts) { g.beginPath(); g.arc(X(x), Y(y), 1.6, 0, 2 * Math.PI); g.fill(); } });
     });
-    if (!fi) plotCsv(cv, 'spot diagram', ['field (deg)', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
+    if (!fi) plotCsv(cv, 'spot diagram', ['field (' + FU_CSV + ')', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
     if (!fi) cell.append(plotSaveRow(cv));
   });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', '#555']])));
@@ -21940,13 +21961,13 @@ function fieldView(body, A, C) {
   const [a, b] = pair(body), c = A.c, ys = C.degs;
   const series = [];
   C.waves.forEach((w, i) => { series.push({ label: anFmt(w.nm, 5) + ' T', colour: waveColour(i), xs: w.tan, ys }); series.push({ label: anFmt(w.nm, 5) + ' S', colour: waveColour(i), dash: true, xs: w.sag, ys }); });
-  linePlot(a, { label: 'Field curvature', x: { kind: 'len', title: 'Focus from the image plane' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true, series, hoverY: true, yName: 'field', H: 260,
-    csv: { name: 'field curvature', cols: ['field (deg)'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
-  linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true,
+  linePlot(a, { label: 'Field curvature', x: { kind: 'len', title: 'Focus from the image plane' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true, series, hoverY: true, yName: 'field', H: 260,
+    csv: { name: 'field curvature', cols: ['field (' + FU_CSV + ')'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
+  linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true,
     series: [{ label: 'Distortion %', colour: waveColour(c.primary), xs: C.dist, ys }], hoverY: true, yName: 'field', H: 260 });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
   const k = ys.length - 1;
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + '°: tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + FU + ': tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
 }
 function longView(body, A, L) {
   const [a, b] = pair(body), c = A.c;
@@ -22019,7 +22040,7 @@ function mtfView(body, A, M) {
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   body.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + '°, the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
     'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
   const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
   tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
@@ -22479,7 +22500,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
   const img = [[L.image.p[0] + L.image.e[0] * hi, L.image.p[1] + L.image.e[1] * hi], [L.image.p[0] - L.image.e[0] * hi, L.image.p[1] - L.image.e[1] * hi]];
   let ya = Infinity, yb = -Infinity, za = Infinity, zb = -Infinity;
   const take = ([yy, zz]) => { if (!isFinite(yy) || !isFinite(zz)) return; ya = Math.min(ya, yy); yb = Math.max(yb, yy); za = Math.min(za, zz); zb = Math.max(zb, zz); };
-  L.lenses.forEach(pr => pr.forEach(take)); L.mirrors.forEach(m => { m.face.forEach(take); m.back.forEach(take); }); L.stops.forEach(s => s.forEach(seg => seg.forEach(take))); img.forEach(take); L.axis.forEach(take);
+  L.lenses.forEach(pr => pr.forEach(take)); L.mirrors.forEach(m => { m.face.forEach(take); m.back.forEach(take); }); L.stops.forEach(s => s.forEach(seg => seg.forEach(take))); img.forEach(take); L.axis.forEach(take); if (L.object) L.object.forEach(take);
   for (const r of rays) r.pts.forEach(take);
   const k = Math.min(w / (zb - za), h / (yb - ya)) * 0.96, X = zz => x + w / 2 + (zz - (za + zb) / 2) * k, Y = yy => y + h / 2 - (yy - (ya + yb) / 2) * k;
   const path = pts => { g.beginPath(); pts.forEach(([yy, zz], q) => q ? g.lineTo(X(zz), Y(yy)) : g.moveTo(X(zz), Y(yy))); };
@@ -22490,6 +22511,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
   for (const m of L.mirrors) { path(m.face.concat(m.back.slice().reverse())); g.closePath(); g.fillStyle = 'rgba(90,100,110,0.35)'; g.fill(); path(m.face); g.strokeStyle = RP_INK; g.lineWidth = 1.2; g.stroke(); }
   g.strokeStyle = RP_INK; g.lineWidth = 1.8; for (const s of L.stops) for (const seg of s) { path(seg); g.stroke(); }
   g.lineWidth = 1.2; path(img); g.stroke();
+  if (L.object) { g.strokeStyle = '#b8860b'; g.lineWidth = 1.6; path(L.object); g.stroke(); }
   g.strokeStyle = RP_RULE; g.lineWidth = 0.5; g.strokeRect(x, y, w, h);
 }
 
@@ -22497,7 +22519,7 @@ function rpLayout(g, asm, P, F, x, y, w, h) {
 function reportRecs(asm) {
   const P = designPrescription(asm), F = designFigures(asm, P), c = asm.cond, D = designOf(asm), A = anaSystems(asm, P);
   const meta = { name: asm.name, date: new Date().toISOString().slice(0, 10), pages: [] };
-  const sps = surfaceParts(P), moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec);
+  const sps = surfaceParts(P), moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec), fin = !!F.object, FU = fin ? ' mm' : '°';
   const nameOf = i => { const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?'; return sp.kind === 'stop' ? nm + ' (stop)' : sp.n === 1 ? nm : sp.n === 2 ? nm + (sp.j ? ', back' : ', front') : nm + ', ' + (sp.j + 1); };
 
   // ---- 1: summary ----
@@ -22506,21 +22528,23 @@ function reportRecs(asm) {
   rpText(g, asm.name, RP_M, pg.y + 8, { size: 22, bold: true }); pg.y += 26;
   rpText(g, 'Lens design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
   rpHead(pg, 'Design conditions');
-  const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Image-space F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
-  rpPara(pg, 'Light from infinity. Aperture: ' + ap + '. Fields: ' + c.fields.map(f => rf(f.deg, 4) + '°' + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +
+  const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Working F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
+  rpPara(pg, (fin ? 'An object ' + rf(F.object, 6) + ' mm before the first surface. ' : 'Light from infinity. ') + 'Aperture: ' + ap + '. Fields' + (fin ? ' (object heights)' : '') + ': ' + c.fields.map(f => rf(f.deg, 4) + FU + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +
     c.waves.map((w, i) => rf(w.nm, 6) + ' nm' + (i === c.primary ? ' (primary)' : '') + (w.w !== 1 ? ' weight ' + rf(w.w, 3) : '')).join(', ') + '.');
   rpHead(pg, 'First order, at ' + rf(primaryNm(c), 6) + ' nm');
   rpTable(pg, [{ label: 'Effective focal length', w: 125 }, { label: 'Back focal length', w: 105 }, { label: 'Working F-number', w: 100 }, { label: 'Image-space NA', w: 85 }, { label: 'Image height', w: 84 }],
     [[rf(F.efl) + ' mm', rf(F.bfl) + ' mm', isFinite(F.fno) ? 'f/' + rf(Math.abs(A.fw), 4) : '—', rf(A.na, 4), rf(Math.abs(F.imgH), 5) + ' mm']]);
+  if (fin) rpTable(pg, [{ label: 'Object distance', w: 125 }, { label: 'Image distance', w: 125 }, { label: 'Magnification', w: 100 }, { label: 'NA at the object', w: 149 }],
+    [[rf(F.object) + ' mm', rf(F.imgDist) + ' mm from the last surface', rf(F.mag, 5), rf(F.na, 4)]]);
   rpTable(pg, [{ label: 'Entrance pupil', w: 230 }, { label: 'Exit pupil', w: 185 }, { label: 'Total track', w: 84 }],
     [[rf(F.epd, 5) + ' mm, ' + rf(F.epz, 5) + ' mm from surface 1', rf(F.xpz, 5) + ' mm from the last surface', rf(F.track, 6) + ' mm']]);
-  rpHead(pg, 'Layout' + (P.folded ? ', folded as on the bench' : '') + ', in the plane of the fields');
+  rpHead(pg, 'Layout' + (P.folded ? ', folded as on the bench' : '') + (fin && F.object <= 3 * Math.max(F.track, 10) ? ', from the object' : '') + ', in the plane of the fields');
   rpLayout(g, asm, P, F, RP_M, pg.y, RP_W - 2 * RP_M, 230); pg.y += 240;
-  rpKey(g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + '°', colourOf(i)])); pg.y += 18;
+  rpKey(g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + FU, colourOf(i)])); pg.y += 18;
   rpHead(pg, 'Spot sizes, over the wavelengths');
   const spots = c.fields.map(f => spotDiagram(A, f.deg, 15));
   rpTable(pg, [{ label: 'Field', w: 80 }, { label: 'RMS radius (µm)', w: 110, mono: true }, { label: 'Largest radius (µm)', w: 120, mono: true }, { label: 'Airy radius (µm)', w: 110, mono: true }, { label: 'Rays lost', w: 79, mono: true }],
-    spots.map(s => [rf(s.deg, 4) + '°', rf(1000 * s.rms, 4), rf(1000 * s.geo, 4), rf(1000 * s.airy, 4), String(s.waves.reduce((a, w) => a + w.lost, 0)) + ' of ' + s.rays * s.waves.length]));
+    spots.map(s => [rf(s.deg, 4) + FU, rf(1000 * s.rms, 4), rf(1000 * s.geo, 4), rf(1000 * s.airy, 4), String(s.waves.reduce((a, w) => a + w.lost, 0)) + ' of ' + s.rays * s.waves.length]));
 
   // ---- 2: prescription and Seidel sums ----
   pg = rpPage(meta, 'Prescription');
@@ -22545,7 +22569,7 @@ function reportRecs(asm) {
   }
   const nSolve = Object.keys(D.solves).length, nPick = Object.keys(D.pickups).length;
   if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the lens data.'); }
-  rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + '° (transverse, mm)');
+  rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + FU + ' (transverse, mm)');
   const sd = F.seidel, K = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   const sc = [{ label: '#', w: 30 }].concat(K.map(k => ({ label: k, w: 67, mono: true, align: 'right' })));
   const se = v => !isFinite(v) ? '—' : Math.abs(v) < 5e-7 ? '0' : v.toExponential(3);
@@ -22565,7 +22589,7 @@ function reportRecs(asm) {
     s.waves.forEach((w, wi) => { pg.g.fillStyle = colourOf(wi); for (const [px, py] of w.pts) pg.g.fillRect(cx + px * k2 - 0.7, cy - py * k2 - 0.7, 1.4, 1.4); });
     // the Airy disc
     pg.g.strokeStyle = RP_SOFT; pg.g.lineWidth = 0.5; pg.g.beginPath(); pg.g.arc(cx, cy, s.airy * k2, 0, 2 * Math.PI); pg.g.stroke();
-    rpText(pg.g, rf(s.deg, 4) + '°: RMS ' + rf(1000 * s.rms, 3) + ' µm', x, y + sw + 11, { size: 7.5 });
+    rpText(pg.g, rf(s.deg, 4) + FU + ': RMS ' + rf(1000 * s.rms, 3) + ' µm', x, y + sw + 11, { size: 7.5 });
   });
   pg.y += Math.ceil(nf / per) * (sw + 30) - 8;
   rpText(pg.g, 'Each box ' + rf(2000 * lim, 3) + ' µm across; the circle is the Airy disc at ' + rf(A.nm0, 6) + ' nm.', RP_M, pg.y, { size: 7.5, ink: RP_SOFT }); pg.y += 8;
@@ -22574,8 +22598,8 @@ function reportRecs(asm) {
   const FC = fieldCurves(A, 15), pw = (RP_W - 2 * RP_M - 40) / 2, ph = 150;
   const curves = []; FC.waves.forEach((w, wi) => { curves.push({ xs: w.tan, ys: FC.degs, colour: colourOf(wi) }, { xs: w.sag, ys: FC.degs, colour: colourOf(wi), dash: true }); });
   const xr = rpRange(FC.waves.flatMap(w => w.tan.concat(w.sag)).filter(v => v !== null), 0.1);
-  rpPlot(pg.g, RP_M + 30, pg.y + 10, pw - 30, ph, { xr, yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: curves, title: 'Field curvature', xName: 'focus from the image plane (mm)', yName: 'field (°)' });
-  rpPlot(pg.g, RP_M + pw + 70, pg.y + 10, pw - 30, ph, { xr: rpRange(FC.dist.filter(v => v !== null).concat([0]), 0.1), yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: [{ xs: FC.dist, ys: FC.degs, colour: colourOf(0) }], title: 'Distortion', xName: 'distortion (%)', yName: 'field (°)' });
+  rpPlot(pg.g, RP_M + 30, pg.y + 10, pw - 30, ph, { xr, yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: curves, title: 'Field curvature', xName: 'focus from the image plane (mm)', yName: fin ? 'object height (mm)' : 'field (°)' });
+  rpPlot(pg.g, RP_M + pw + 70, pg.y + 10, pw - 30, ph, { xr: rpRange(FC.dist.filter(v => v !== null).concat([0]), 0.1), yr: [0, Math.max(FC.degs[FC.degs.length - 1], 1e-3)], series: [{ xs: FC.dist, ys: FC.degs, colour: colourOf(0) }], title: 'Distortion', xName: 'distortion (%)', yName: fin ? 'object height (mm)' : 'field (°)' });
   pg.y += ph + 40;
   rpKey(pg.g, RP_M, pg.y, [['tangential', RP_SOFT], ['sagittal', RP_SOFT, true]]); pg.y += 22;
   const M = c.fields.map(f => mtfAnalysis(A, f.deg)), mser = [];
@@ -22583,7 +22607,7 @@ function reportRecs(asm) {
   mser.push({ xs: M[0].freqs, ys: M[0].limT, colour: '#666' });
   rpPlot(pg.g, RP_M + 30, pg.y + 10, RP_W - 2 * RP_M - 30, 170, { xr: [0, M[0].freqs[M[0].freqs.length - 1]], yr: [0, 1], series: mser, title: 'MTF, over the wavelengths', xName: 'spatial frequency (cycles/mm)', yName: 'modulation' });
   pg.y += 210;
-  rpKey(pg.g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + '°', colourOf(i)]).concat([['diffraction limit', '#666']]));
+  rpKey(pg.g, RP_M, pg.y, c.fields.map((f, i) => [rf(f.deg, 4) + FU, colourOf(i)]).concat([['diffraction limit', '#666']]));
 
   // ---- 4: tolerances ----
   pg = rpPage(meta, 'Tolerances');
@@ -22786,20 +22810,38 @@ function condEdit(fn) {
 }
 function conditionsCard(asm, F) {
   const c = asm.cond, card = h('section', { class: 'rt-lcard rt-lcond', 'aria-label': 'Design conditions' }, h('h2', null, 'Design conditions'));
-  card.append(h('p', { class: 'rt-lsub' }, 'What it is designed and analysed for: light from infinity at these angles, through this aperture.'));
+  const fin = !!(c.object && c.object.kind === 'finite');
+  card.append(h('p', { class: 'rt-lsub' }, fin ? 'What it is designed and analysed for: an object at this distance, points on it at these heights, through this aperture.' : 'What it is designed and analysed for: light from infinity at these angles, through this aperture.'));
+  // the object: at infinity, or at a distance; the fields go with it (angles to heights, and back)
+  const ok = h('select', { 'aria-label': 'Object' }, h('option', { value: 'inf' }, 'At infinity'), h('option', { value: 'finite' }, 'At a distance (mm)'));
+  ok.value = fin ? 'finite' : 'inf';
+  ok.addEventListener('change', fromField(ok, () => condEdit(cc => {
+    if (ok.value === 'finite') {
+      const d = isFinite(F.efl) && F.efl ? +(2 * Math.abs(F.efl)).toPrecision(4) : 100;
+      cc.object = { kind: 'finite', d };
+      cc.fields = cc.fields.map(f => ({ deg: +(d * Math.tan(f.deg * deg)).toPrecision(5), w: f.w }));
+    } else {
+      const d = cc.object.d;
+      delete cc.object;
+      cc.fields = cc.fields.map(f => ({ deg: +(Math.atan(f.deg / d) / deg).toPrecision(5), w: f.w }));
+      if (cc.aperture.kind === 'na') cc.aperture = { kind: 'epd', v: +F.epd.toPrecision(6) };
+    }
+  })));
+  card.append(h('h3', null, 'Object'), h('div', { class: 'rt-lrow' }, ok, fin ? wsNumInput(c.object.d, v => condEdit(cc => { if (v > 0) cc.object.d = v; }), { label: 'Object distance' }) : ''));
+  if (fin) card.append(h('p', { class: 'rt-lsub' }, 'Before the first surface. Magnification ' + wsFmt(F.mag, 4) + ', the image ' + wsFmt(F.imgDist, 6) + ' mm after the last surface (paraxial).'));
   // the aperture
-  const kind = h('select', { 'aria-label': 'Aperture given as' }, h('option', { value: 'epd' }, 'Entrance pupil diameter (mm)'), h('option', { value: 'fno' }, 'F-number'));
+  const kind = h('select', { 'aria-label': 'Aperture given as' }, h('option', { value: 'epd' }, 'Entrance pupil diameter (mm)'), h('option', { value: 'fno' }, 'Working F-number'), ...(fin ? [h('option', { value: 'na' }, 'NA at the object')] : []));
   kind.value = c.aperture.kind;
-  kind.addEventListener('change', fromField(kind, () => condEdit(cc => { const v = kind.value === 'fno' ? Math.abs(F.efl) / F.epd : F.epd; cc.aperture = { kind: kind.value, v: isFinite(v) && v > 0 ? +v.toPrecision(6) : (kind.value === 'fno' ? 4 : 10) }; })));
+  kind.addEventListener('change', fromField(kind, () => condEdit(cc => { const v = kind.value === 'fno' ? F.fno : kind.value === 'na' ? F.na : F.epd; cc.aperture = { kind: kind.value, v: isFinite(v) && v > 0 ? +v.toPrecision(6) : (kind.value === 'fno' ? 4 : kind.value === 'na' ? 0.1 : 10) }; })));
   card.append(h('h3', null, 'Aperture'), h('div', { class: 'rt-lrow' }, kind, wsNumInput(c.aperture.v, v => condEdit(cc => { cc.aperture.v = v; }), { label: 'Aperture' })));
   // the fields
-  card.append(h('h3', null, 'Fields (angle °, weight)'));
+  card.append(h('h3', null, fin ? 'Fields (object height mm, weight)' : 'Fields (angle °, weight)'));
   c.fields.forEach((f, i) => card.append(h('div', { class: 'rt-lrow' },
     h('span', { class: 'rt-lswatch', style: 'background:' + FIELD_COLOURS[i % FIELD_COLOURS.length], 'aria-hidden': 'true' }),
-    wsNumInput(f.deg, v => condEdit(cc => { cc.fields[i].deg = v; }), { label: 'Field ' + (i + 1) + ' angle' }),
+    wsNumInput(f.deg, v => condEdit(cc => { cc.fields[i].deg = v; }), { label: 'Field ' + (i + 1) + (fin ? ' height' : ' angle') }),
     wsNumInput(f.w, v => condEdit(cc => { cc.fields[i].w = v; }), { label: 'Field ' + (i + 1) + ' weight' }),
     c.fields.length > 1 ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove field ' + (i + 1), onclick: () => condEdit(cc => { cc.fields.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lx' }))));
-  if (c.fields.length < ASM_FIELDS_MAX) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => condEdit(cc => { const m = Math.max(...cc.fields.map(f => f.deg)); cc.fields.push({ deg: +(m + 5).toFixed(2), w: 1 }); }) }, 'Add a field'));
+  if (c.fields.length < ASM_FIELDS_MAX) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => condEdit(cc => { const m = Math.max(...cc.fields.map(f => f.deg)), st = fin ? Math.max(0.5, +(0.05 * cc.object.d).toPrecision(1)) : 5; cc.fields.push({ deg: +(m + st).toFixed(3), w: 1 }); }) }, 'Add a field'));
   // the wavelengths
   card.append(h('h3', null, 'Wavelengths (nm, weight)'));
   c.waves.forEach((w, i) => {
@@ -22833,7 +22875,8 @@ function takeFromBench() {
 /* ---------- The layout: the meridional rays of each field, traced by the lens engine ---------- */
 function layoutCard(asm, P, F) {
   const card = h('div', { class: 'rt-lcard rt-llayout' });
-  const stats = h('span', { class: 'mono' }, 'EFL ' + wsFmt(F.efl, 5) + ' mm · f/' + wsFmt(F.fno, 3) + ' · fields to ' + wsFmt(F.fmax, 3) + '°');
+  const stats = h('span', { class: 'mono' }, F.object ? 'm ' + wsFmt(F.mag, 4) + ' · NA ' + wsFmt(F.na, 3) + ' at the object · f/' + wsFmt(F.fno, 3) + ' working · fields to ' + wsFmt(F.fmax, 4) + ' mm'
+    : 'EFL ' + wsFmt(F.efl, 5) + ' mm · f/' + wsFmt(F.fno, 3) + ' · fields to ' + wsFmt(F.fmax, 3) + '°');
   card.append(h('div', { class: 'rt-lltop' }, h('span', null, 'Layout, in the plane of the fields'), stats));
   const cv = h('canvas', { role: 'img', 'aria-label': 'The design’s layout: its lenses, stop and image plane, with rays from each field' });
   card.append(cv);
@@ -22878,8 +22921,14 @@ function layoutData(asm, P, F) {
     }
     i += sp.n;
   }
-  // the axis, from before the first surface through each vertex it turns at, to the image
-  const lead = Math.max(5, 0.25 * S.imageZ);
+  // the axis, from before the first surface through each vertex it turns at, to the image; from a
+  // finite object, from the object itself when it is near enough to draw
+  let lead = Math.max(5, 0.25 * S.imageZ);
+  if (S.obj && S.obj <= 3 * Math.max(Math.abs(S.imageZ), 10)) {
+    lead = S.obj;
+    const hm = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+    out.object = hm > 0 ? [[0, -S.obj], [hm, -S.obj]] : null;
+  }
   if (S.ax) {
     out.axis.push([-lead * S.ax[0].d[1], -lead * S.ax[0].d[2]]);
     S.ax.forEach((a, k) => { if (k === 0 || P.surfaces[k].mirror) out.axis.push([a.p[1], a.p[2]]); });
@@ -22926,6 +22975,7 @@ function drawLayout(cv, asm, P, F) {
   for (const m of L.mirrors) { m.face.forEach(take); m.back.forEach(take); }
   for (const s of L.stops) for (const seg of s) seg.forEach(take);
   img.forEach(take); L.axis.forEach(take);
+  if (L.object) L.object.forEach(take);
   if (!L.folded) { const m = Math.max(Math.abs(y0), Math.abs(y1)); y0 = -m; y1 = m; }
   const pad = Math.max(2, 0.03 * (zb - za));
   za -= pad * (L.folded ? 1 : 0); zb += pad; y0 -= pad * 0.3; y1 += pad * 0.3;
@@ -22955,13 +23005,17 @@ function drawLayout(cv, asm, P, F) {
   g.globalAlpha = 1;
   // the image plane
   g.strokeStyle = '#f2f2ec'; g.lineWidth = 2; path(img); g.stroke();
+  // the object, from the axis to its highest field point
+  if (L.object) { g.strokeStyle = '#f2c14e'; g.lineWidth = 2; path(L.object); g.stroke(); }
 }
 
 function figuresStrip(F) {
   const row = (a, b, t) => h('div', { title: t || '' }, h('span', null, a), h('b', { class: 'mono' }, b));
   return h('div', { class: 'rt-lfig' },
     row('EFL', isFinite(F.efl) ? wsFmt(F.efl, 6) + ' mm' : 'afocal', 'Effective focal length at the primary wavelength'),
-    row('BFL', isFinite(F.bfl) ? wsFmt(F.bfl, 6) + ' mm' : '—', 'From the last surface to the paraxial focus'),
+    row('BFL', isFinite(F.bfl) ? wsFmt(F.bfl, 6) + ' mm' : '—', 'From the last surface to the paraxial focus (of an object at infinity)'),
+    ...(F.object ? [row('Image distance', isFinite(F.imgDist) ? wsFmt(F.imgDist, 6) + ' mm' : '—', 'From the last surface to the paraxial image of the object'),
+      row('Magnification', wsFmt(F.mag, 5), 'Paraxial: the image\u2019s height over the object\u2019s')] : []),
     row('Working F-number', isFinite(F.fno) ? 'f/' + wsFmt(Math.abs(F.fno), 4) : '—'),
     row('Entrance pupil', wsFmt(F.epd, 5) + ' mm, ' + wsFmt(F.epz, 5) + ' mm from the first surface'),
     row('Image height', wsFmt(F.imgH, 5) + ' mm', 'Paraxial, at the largest field'),
@@ -23289,9 +23343,17 @@ function placeOnBench(asm) {
   const ref = asmMembers(asm)[0];
   const made = [];
   c.fields.forEach((f, i) => {
-    // aimed through the entrance pupil's centre, as wide as the pupil
-    const a = a0 + f.deg * deg, x = ep[0] - back * Math.cos(a), y = ep[1] - back * Math.sin(a);
-    const src = normElement({ type: 'source', name: 'Field ' + wsFmt(f.deg, 4) + '°', x, y, angle: a / deg, wavelength: pr, lines: nms.filter(n => n !== pr), width: F.epd, rays: 9, divergence: 0, bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+    let src;
+    if (F.object) {
+      // a point on the object, its fan filling the entrance pupil
+      const dep = F.object + F.epz, h = f.deg, a1 = Math.atan((F.epd / 2 - h) / dep), a2 = Math.atan((-F.epd / 2 - h) / dep), pp = [-d[1], d[0]];
+      const x = P.origin[0] - d[0] * F.object + pp[0] * h, y = P.origin[1] - d[1] * F.object + pp[1] * h;
+      src = normElement({ type: 'source', name: 'Object point ' + wsFmt(h, 4) + ' mm', x, y, angle: (a0 + (a1 + a2) / 2) / deg, wavelength: pr, lines: nms.filter(n => n !== pr), width: 0, rays: 9, divergence: (a1 - a2) / deg, bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+    } else {
+      // aimed through the entrance pupil's centre, as wide as the pupil
+      const a = a0 + f.deg * deg, x = ep[0] - back * Math.cos(a), y = ep[1] - back * Math.sin(a);
+      src = normElement({ type: 'source', name: 'Field ' + wsFmt(f.deg, 4) + '°', x, y, angle: a / deg, wavelength: pr, lines: nms.filter(n => n !== pr), width: F.epd, rays: 9, divergence: 0, bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+    }
     made.push(src);
   });
   // the image along the axis, folded where the assembly folds it
@@ -23299,7 +23361,7 @@ function placeOnBench(asm) {
   const scr = normElement({ type: 'screen', name: 'Image of ' + asm.name, x: ip[0], y: ip[1], angle: Math.atan2(im.d[1], im.d[0]) / deg + 180, length: Math.max(4, Math.ceil(2.4 * Math.abs(F.imgH) + 2)), bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
   made.push(scr);
   for (const e of made) project.elements.push(e);
-  toast('Placed ' + asm.name + ' with ' + c.fields.length + ' source' + (c.fields.length === 1 ? '' : 's') + ' and a screen at its image');
+  toast('Placed ' + asm.name + ' with ' + c.fields.length + ' source' + (c.fields.length === 1 ? '' : 's') + (F.object ? ' on its object' : '') + ' and a screen at its image');
   return made;
 }
 /* ---------- Zooming a panel plot ----------
@@ -30200,7 +30262,8 @@ function indexOf(m, nm) {
 /* the system at wavelength nm: P a prescription ({surfaces, gaps, materials, stopIndex}), opts:
    epd (the entrance pupil's diameter, mm; else the stop's own opening sets it), image (the image
    plane's distance after the last surface; else the paraxial focus), imageMaterial (the medium after
-   the last surface, air unless given) */
+   the last surface, air unless given), object (the object's distance before the first surface, mm;
+   none, or 0, for an object at infinity) */
 function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
@@ -30215,14 +30278,15 @@ function lensSystem(P, nm, opts) {
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
+  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+    obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
   S.stopR = S.epr * S.par.stopMag;
-  S.imageZ = z[N - 1] + (isFinite(opts.image) ? opts.image : isFinite(S.par.bfl) ? S.par.bfl : 0);
+  S.imageZ = z[N - 1] + (isFinite(opts.image) ? opts.image : isFinite(S.par.back) ? S.par.back : 0);
   if (S.ax) { const a = S.ax[N - 1], g = S.imageZ - z[N - 1]; S.img = { p: [a.p[0] + a.d[0] * g, a.p[1] + a.d[1] * g, a.p[2] + a.d[2] * g], e1: a.e1, e2: a.e2, d: a.d }; }
   return S;
 }
@@ -30296,7 +30360,18 @@ function paraxialOf(S) {
   const xpz = Math.abs(uc) < 1e-14 ? Infinity : S.z[L] - yc / uc;      // the exit pupil's place
   // the exit pupil's radius: the marginal ray's height there, for an entrance pupil of radius 1
   const xpr = Math.abs(yL + (xpz - S.z[L]) * uL);
-  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc };
+  const out = { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc, back: bfl, uEp: uL };
+  if (S.obj) {
+    // an object at distance d: the ray from its axial point at angle 1 (the image, the magnification), and the
+    // chief ray from a point of height 1 through the entrance pupil's centre
+    const d = S.obj, [yF, uF] = paraStep(S, d, 1, 0, L), dep = d + epz;
+    out.back = Math.abs(uF) < 1e-14 ? Infinity : -yF / uF;
+    out.mag = Math.abs(uF) < 1e-14 ? Infinity : S.n[0] / (S.n[S.N] * uF);
+    out.uEp = uF / dep;                                                   // the marginal ray's last angle, for an entrance pupil of radius 1
+    const [ycF, ucF] = paraStep(S, 1 - d / dep, -1 / dep, 0, L);
+    out.yChiefF = ycF; out.uChiefF = ucF;
+  }
+  return out;
 }
 
 /* ---------- One surface ---------- */
@@ -30395,8 +30470,16 @@ function toPlane(S, R, zp) {
 /* ---------- Aiming ----------
    A field's ray starts on the plane square to the incoming light through the entrance pupil's centre,
    at (a, b) in it (a across the bench plane, out of it; b in it), and is moved back along the light so
-   it starts before the first surface. Its path is counted from that plane. */
+   it starts before the first surface. Its path is counted from that plane. For an object at a finite
+   distance the field is the object point's height (passed as the angles are, times π/180) and the ray
+   starts there, aimed at (a, b) on the entrance pupil's plane; its path is counted from the point. */
 function launch(S, th, a, b, R) {
+  if (S.obj) {
+    // a finite object: from its point at height h (the field, th / (π/180) mm) toward (a, b) on the entrance pupil's plane
+    const h = th * 180 / Math.PI, dz = S.par.epz + S.obj, dy = b - h, L = Math.hypot(a, dy, dz);
+    R[0] = 0; R[1] = h; R[2] = -S.obj; R[3] = a / L; R[4] = dy / L; R[5] = dz / L; R[6] = 0; R[7] = 0;
+    return R;
+  }
   const sn = Math.sin(th), cs = Math.cos(th), back = 1e3 + Math.abs(S.par.epz) + Math.abs(S.z[S.N - 1]);
   // the plane's axes: e1 = x; e2 = (0, cos th, -sin th), square to the light (0, sin th, cos th)
   const px = a, py = b * cs, pz = S.par.epz - b * sn;
@@ -30545,8 +30628,10 @@ function spotOf(S, fieldDeg, pts) {
    SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
    wavelength, Sshort and Slong at the shortest and longest (or null). */
 function seidel(S, fieldDeg, Sshort, Slong) {
-  const N = S.N, ub0 = Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
-  let y = S.epr, u = 0, yb = -ub0 * S.par.epz, ub = ub0;
+  // the marginal ray (at the edge of the entrance pupil) and the chief ray (through its centre), at the
+  // first surface: from infinity, parallel and at the field's angle; from an object at d, from its points
+  const N = S.N, d = S.obj, dep = d + S.par.epz, ub0 = d ? Math.abs(fieldDeg || 0) / dep : Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
+  let y = d ? S.epr * d / dep : S.epr, u = d ? S.epr / dep : 0, yb = -ub0 * S.par.epz, ub = ub0;
   const H = S.n[0] * (ub * y - u * yb), rows = [], sum = { SI: 0, SII: 0, SIII: 0, SIV: 0, SV: 0, CL: 0, CT: 0 };
   // a mirror is a refraction into -n, the light then running back along the axis: after each one the
   // indices, gaps and curvatures (as seen along the fixed axis) change sign
@@ -30657,21 +30742,29 @@ function surfSag(s, h) {
 
 /* ---------- Conditions and first order ---------- */
 const primaryNm = c => c.waves[c.primary].nm;
-/* the entrance pupil's diameter the conditions give: as set, or the focal length over the F-number */
-function designEpd(c, efl) {
+/* the object's distance before the first surface the conditions give (0 for infinity), and the
+   options a system is made with for it */
+const objectOf = c => c.object && c.object.kind === 'finite' ? c.object.d : 0;
+const objOpts = (c, o) => Object.assign({}, o, objectOf(c) ? { object: objectOf(c) } : {});
+/* the entrance pupil's diameter the conditions give: as set; or for a working F-number in image space,
+   from the marginal ray's last angle per unit pupil (the focal length over the F-number, from infinity);
+   or for an object-space NA, from the object's distance to the pupil. S0: the system at the primary wavelength */
+function designEpd(c, S0) {
   if (c.aperture.kind === 'epd') return c.aperture.v;
-  return isFinite(efl) && efl ? Math.abs(efl) / c.aperture.v : 10;
+  const u = S0 && S0.par ? Math.abs(S0.par.uEp) : 0;
+  if (c.aperture.kind === 'na') { const d = objectOf(c); return d ? 2 * (d + S0.par.epz) * Math.tan(Math.asin(Math.min(0.999, c.aperture.v))) : 10; }
+  return u > 0 && isFinite(u) ? 1 / (c.aperture.v * u) : 10;
 }
 function designPrescription(asm) {
   const P = asmPrescription(asm), D = designOf(asm);
   P.image = D.image;
   // the image distance is the design's alone: kept at focus whatever changed the parts on the bench
-  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond)).par.bfl; if (isFinite(b)) P.image = D.image = b; }
+  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
   return P;
 }
 function designSystem(asm, P, nm) {
-  const c = asm.cond, S0 = lensSystem(P, primaryNm(c));
-  return lensSystem(P, nm || primaryNm(c), { epd: designEpd(c, S0.par.efl), image: P.image });
+  const c = asm.cond, S0 = lensSystem(P, primaryNm(c), objOpts(c));
+  return lensSystem(P, nm || primaryNm(c), objOpts(c, { epd: designEpd(c, S0), image: P.image }));
 }
 
 /* ---------- Solves and pickups ----------
@@ -30715,7 +30808,7 @@ function solveDesign(asm, P) {
     pickupAll(D, P);
   }
   if (D.solves['t:image']) {
-    const b = lensSystem(P, nm).par.bfl;
+    const b = lensSystem(P, nm, objOpts(c)).par.back;
     if (isFinite(b)) P.image = b; else notes.push('The system is afocal: it has no paraxial focus.');
   }
   // the stop opens to suit the entrance pupil the conditions set
@@ -30869,12 +30962,15 @@ function removeSurface(asm, P, i) {
    First order at the primary wavelength and the Seidel sums over the largest field */
 function designFigures(asm, P) {
   const c = asm.cond, nms = c.waves.map(w => w.nm), S = designSystem(asm, P);
-  const lo = Math.min(...nms), hi = Math.max(...nms), o = { epd: 2 * S.epr, image: P.image };
+  const lo = Math.min(...nms), hi = Math.max(...nms), o = objOpts(c, { epd: 2 * S.epr, image: P.image });
   const Ss = hi > lo ? lensSystem(P, lo, o) : null, Sl = hi > lo ? lensSystem(P, hi, o) : null;
   const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
-  const efl = S.par.efl;
-  return { S, epd: 2 * S.epr, efl, bfl: S.par.bfl, fno: efl / (2 * S.epr), track: P.gaps.reduce((a, b) => a + b, 0) + P.image,
-    epz: S.par.epz, xpz: S.par.xpz - S.z[S.N - 1], imgH: efl * Math.tan(fmax * deg), fmax, seidel: seidel(S, fmax, Ss, Sl), lo, hi };
+  const efl = S.par.efl, d = objectOf(c);
+  // the working F-number from the marginal ray's last angle (from infinity, the focal length over the pupil)
+  const fno = Math.abs(S.par.uEp) > 0 ? 1 / (2 * S.epr * Math.abs(S.par.uEp)) : Infinity;
+  return { S, epd: 2 * S.epr, efl, bfl: S.par.bfl, fno, track: P.gaps.reduce((a, b) => a + b, 0) + P.image,
+    epz: S.par.epz, xpz: S.par.xpz - S.z[S.N - 1], imgH: d ? S.par.mag * fmax : efl * Math.tan(fmax * deg), fmax, seidel: seidel(S, fmax, Ss, Sl), lo, hi,
+    object: d, mag: d ? S.par.mag : 0, imgDist: S.par.back, na: d ? Math.sin(Math.atan(S.epr / (d + S.par.epz))) : 0 };
 }
 
 /* ---------- The light the bench sends it ----------
@@ -30904,35 +31000,70 @@ function condFromRays(asm, P, rays, linesOf) {
     }
   }
   if (!by.size) return null;
-  const fields = new Set([0]), waves = new Set();
-  let epd = 0;
+  const fields = new Set([0]), waves = new Set(), pts = [];
+  let epd = 0, na = 0;
   for (const [src, L] of by) {
     const a = L.reduce((s, r) => s + r.a, 0) / L.length;
     fields.add(Math.round(Math.abs(a / deg) * 100) / 100);
     const across = L.map(r => r.y * Math.cos(a));
     epd = Math.max(epd, Math.max(...across) - Math.min(...across));
     for (const nm of linesOf(src)) waves.add(nm);
+    // light from a point: its rays' common point, by least squares (each ray the line through (zp, y) at angle a)
+    const spread = Math.max(...L.map(r => r.a)) - Math.min(...L.map(r => r.a));
+    if (L.length >= 2 && spread > 2e-4) {
+      let m11 = 0, m12 = 0, m22 = 0, b1 = 0, b2 = 0;
+      for (const r of L) {
+        const nz = -Math.sin(r.a), ny = Math.cos(r.a), c = nz * zp + ny * r.y;   // the line: nz z + ny y = c
+        m11 += nz * nz; m12 += nz * ny; m22 += ny * ny; b1 += nz * c; b2 += ny * c;
+      }
+      const det = m11 * m22 - m12 * m12;
+      if (Math.abs(det) > 1e-12) {
+        const z = (b1 * m22 - b2 * m12) / det, y = (m11 * b2 - m12 * b1) / det;
+        if (z < 0) { pts.push({ d: -z, h: y }); na = Math.max(na, Math.sin(spread / 2)); }
+      }
+    }
   }
   const W = [...waves].filter(nm => nm >= 100 && nm <= 1e7).sort((a, b) => a - b).slice(0, 12);
-  return { fields: [...fields].sort((a, b) => a - b).slice(0, 12), waves: W, epd, sources: by.size };
+  const out = { fields: [...fields].sort((a, b) => a - b).slice(0, 12), waves: W, epd, sources: by.size, object: 0 };
+  // every source a point at much the same distance: an object there, its fields the points' heights
+  if (pts.length === by.size) {
+    const d = pts.reduce((s2, q) => s2 + q.d, 0) / pts.length;
+    if (pts.every(q => Math.abs(q.d - d) < 0.02 * d + 0.5)) {
+      out.object = +d.toPrecision(6); out.na = +na.toPrecision(4);
+      out.heights = [...new Set([0, ...pts.map(q => Math.round(Math.abs(q.h) * 1000) / 1000)])].sort((p2, q2) => p2 - q2).slice(0, 12);
+    }
+  }
+  return out;
 }
 /* conditions to design for from that light: the bench's fields and wavelengths, its beam as the entrance pupil */
 function condFromBench(asm, B) {
   const c = asm.cond;
+  if (B.object) return normCond({ object: { kind: 'finite', d: B.object }, aperture: B.na > 0 ? { kind: 'na', v: B.na } : c.aperture,
+    fields: B.heights.map(deg => ({ deg, w: 1 })), waves: (B.waves.length ? B.waves : c.waves.map(w => w.nm)).map(nm => ({ nm, w: 1 })),
+    primary: B.waves.length ? Math.floor((B.waves.length - 1) / 2) : c.primary });
   return normCond({ aperture: B.epd > 1e-6 ? { kind: 'epd', v: +B.epd.toPrecision(6) } : c.aperture,
     fields: B.fields.map(deg => ({ deg, w: 1 })), waves: (B.waves.length ? B.waves : c.waves.map(w => w.nm)).map(nm => ({ nm, w: 1 })),
     primary: B.waves.length ? Math.floor((B.waves.length - 1) / 2) : c.primary });
 }
 /* how the bench uses it outside what it is designed for: a list of short sentences, empty when within */
-function condMismatch(asm, B, efl) {
-  const c = asm.cond, out = [];
-  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg))), bmax = Math.max(...B.fields);
-  if (bmax > fmax + 0.05) out.push('light arrives at ' + (+bmax.toFixed(2)) + '°, beyond its fields (to ' + (+fmax.toFixed(2)) + '°)');
+function condMismatch(asm, B) {
+  const c = asm.cond, out = [], d = objectOf(c);
+  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  if (!d && B.object) out.push('its light comes from a point ' + (+B.object.toPrecision(4)) + ' mm before it, but it is designed for an object at infinity');
+  else if (d && !B.object) out.push('its light is parallel, but it is designed for an object ' + (+d.toPrecision(4)) + ' mm before it');
+  else if (d) {
+    if (Math.abs(B.object - d) > 0.02 * d + 0.5) out.push('its object is ' + (+B.object.toPrecision(4)) + ' mm before it, not the ' + (+d.toPrecision(4)) + ' mm it is designed for');
+    const hmax = Math.max(...B.heights);
+    if (hmax > fmax * 1.01 + 1e-3) out.push('light from ' + (+hmax.toPrecision(4)) + ' mm off the axis, beyond its fields (to ' + (+fmax.toPrecision(4)) + ' mm)');
+  } else {
+    const bmax = Math.max(...B.fields);
+    if (bmax > fmax + 0.05) out.push('light arrives at ' + (+bmax.toFixed(2)) + '°, beyond its fields (to ' + (+fmax.toFixed(2)) + '°)');
+  }
   const nms = c.waves.map(w => w.nm), lo = Math.min(...nms), hi = Math.max(...nms);
   const off = B.waves.filter(nm => nm < lo - 0.5 || nm > hi + 0.5);
   if (off.length) out.push(off.map(nm => +nm.toPrecision(5)).join(', ') + ' nm, outside its wavelengths (' + (lo === hi ? +lo.toPrecision(5) : +lo.toPrecision(5) + ' to ' + (+hi.toPrecision(5))) + ' nm)');
-  const epd = designEpd(c, efl);
-  if (B.epd > epd * 1.02 + 1e-3) out.push('a beam ' + (+B.epd.toPrecision(3)) + ' mm across, wider than its entrance pupil (' + (+epd.toPrecision(3)) + ' mm)');
+  const epd = designEpd(c, lensSystem(asmPrescription(asm), primaryNm(c), objOpts(c)));
+  if (!d && !B.object && B.epd > epd * 1.02 + 1e-3) out.push('a beam ' + (+B.epd.toPrecision(3)) + ' mm across, wider than its entrance pupil (' + (+epd.toPrecision(3)) + ' mm)');
   return out;
 }
 /* ==========================================================================
@@ -31018,7 +31149,7 @@ function designAt(prob, V, x) {
 /* ---------- The merit function ---------- */
 function meritTerms(prob, P, detail) {
   const c = prob.cond, M = prob.design.merit, nm0 = primaryNm(c);
-  const S0 = lensSystem(P, nm0), epd = designEpd(c, S0.par.efl), opts = { epd, image: P.image };
+  const S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), opts = objOpts(c, { epd, image: P.image });
   const Sw = c.waves.map(w => w.nm === nm0 ? lensSystem(P, nm0, opts) : lensSystem(P, w.nm, opts)), Sp = Sw[c.primary];
   const pts = pupilRings(M.rings, M.arms), Wf = c.fields.reduce((a, f) => a + f.w, 0) || 1, Ww = c.waves.reduce((a, w) => a + w.w, 0) || 1;
   const r = [], fields = [];
@@ -31064,10 +31195,10 @@ function meritTerms(prob, P, detail) {
   for (const o of M.ops) {
     let v;
     if (o.op === 'EFL') v = S0.par.efl;
-    else if (o.op === 'FNO') v = S0.par.efl / epd;
+    else if (o.op === 'FNO') v = Math.abs(S0.par.uEp) > 0 ? 1 / (epd * Math.abs(S0.par.uEp)) : 1e3;
     else if (o.op === 'TTL') v = P.gaps.reduce((a, b) => a + b, 0) + P.image;
     else if (o.op === 'DIST') {
-      const fm = Math.max(...c.fields.map(f => Math.abs(f.deg))), th = fm * Math.PI / 180, C = rayAt(Sp, th, 0, 0, R, true), yp = Sp.par.efl * Math.tan(th);
+      const fm = Math.max(...c.fields.map(f => Math.abs(f.deg))), th = fm * Math.PI / 180, C = rayAt(Sp, th, 0, 0, R, true), yp = paraxHeight(Sp, fm);
       v = C && C[7] === 0 && yp ? 100 * (C[1] - yp) / yp : 0;
     } else {
       if (!sd) { const nms = c.waves.map(w => w.nm), lo = nms.indexOf(Math.min(...nms)), hi = nms.indexOf(Math.max(...nms)); sd = seidel(Sp, Math.max(...c.fields.map(f => Math.abs(f.deg))), lo !== hi ? Sw[lo] : null, lo !== hi ? Sw[hi] : null).sum; }
@@ -31284,16 +31415,17 @@ function nearestGlass(nd, vd, withDistance) {
 const D2R = Math.PI / 180;
 /* the design's systems, one per wavelength, at its entrance pupil and image plane */
 function anaSystems(asm, P) {
-  const c = asm.cond, nm0 = primaryNm(c), S0 = lensSystem(P, nm0), epd = designEpd(c, S0.par.efl), o = { epd, image: P.image };
+  const c = asm.cond, nm0 = primaryNm(c), S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), o = objOpts(c, { epd, image: P.image });
   const S = c.waves.map(w => lensSystem(P, w.nm, o));
   const Sp = S[c.primary];
   // image-space NA and working F-number from the primary marginal ray
-  const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uMarg), fw = na > 0 ? 1 / (2 * na) : Infinity;
-  return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1 };
+  const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp), fw = na > 0 ? 1 / (2 * na) : Infinity;
+  return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1, finite: !!Sp.obj };
 }
 const chiefAt = (S, deg) => { const C = rayAt(S, deg * D2R, 0, 0); return C && C[7] === 0 ? [C[0], C[1]] : null; };
-/* the paraxial chief ray's height on the image plane at field deg */
-const paraxHeight = (S, deg) => Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
+/* the paraxial chief ray's height on the image plane at field deg (an object height in mm, for a finite object) */
+const paraxHeight = (S, deg) => S.obj ? deg * (S.par.yChiefF + (S.imageZ - S.z[S.N - 1]) * S.par.uChiefF)
+  : Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
 
 /* ---------- Spot diagram ---------- */
 function spotDiagram(A, deg, n) {
@@ -31370,13 +31502,13 @@ function fieldCurves(A, n) {
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */
 function longitudinal(A, n) {
   n = n || 21;
-  const zp = A.Sp.z[A.Sp.N - 1] + A.Sp.par.bfl, R = new Float64Array(8);
+  const zp = A.Sp.z[A.Sp.N - 1] + A.Sp.par.back, R = new Float64Array(8);
   const rho = Array.from({ length: n }, (_, i) => (i + 1) / n);
   const waves = A.S.map(S => ({ nm: S.nm, dz: rho.map(p => { const r = rayAt(S, 0, 0, p, R); return r && r[7] === 0 && Math.abs(r[4]) > 1e-15 ? r[2] - r[1] * r[5] / r[4] - zp : null; }) }));
   // the paraxial focus over the wavelengths, from 10% below the shortest to 10% above the longest
   const nms = A.c.waves.map(w => w.nm), lo = Math.min(...nms) * 0.9, hi = Math.max(...nms) * 1.1, P = A.P;
   const lam = Array.from({ length: 41 }, (_, i) => lo + (hi - lo) * i / 40);
-  const shift = lam.map(nm => { const S = lensSystem(P, nm); return S.z[S.N - 1] + S.par.bfl - zp; });
+  const shift = lam.map(nm => { const S = lensSystem(P, nm, objOpts(A.c)); return S.z[S.N - 1] + S.par.back - zp; });
   return { rho, waves, lam, shift };
 }
 
@@ -34491,9 +34623,12 @@ function parseZmx(text, fileName, agf) {
   const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
   // the conditions it was designed for, for an assembly made from it: aperture, fields (angles only), wavelengths
   const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0).sort((a, b) => a - b);
+  // the object: at infinity, or (the object surface's thickness finite) at that distance, its fields then heights
+  const od = surfs[0] && isFinite(surfs[0].disz) && surfs[0].disz > 0 && surfs[0].disz * unit < 1e6 ? surfs[0].disz * unit : 0;   // (a kilometre or more is infinity)
   const cond = {
+    ...(od ? { object: { kind: 'finite', d: od } } : {}),
     aperture: enpd > 0 ? { kind: 'epd', v: enpd * unit } : fnum > 0 ? { kind: 'fno', v: fnum } : null,
-    fields: ftyp === 0 && sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null,
+    fields: (ftyp === 0 && !od) || (ftyp === 1 && od) ? (sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: ftyp === 1 ? d * unit : d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null) : null,
     waves: ks.length ? ks.map(k => ({ nm: Math.round(wavm[k] * 1e6) / 1000, w: wwgt[k] !== undefined ? wwgt[k] : 1 })) : null,
     primary: Math.max(0, ks.indexOf(pwav)),
   };
@@ -34793,7 +34928,11 @@ function zmxAssemblySystem(asm) {
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
-  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings };
+  // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
+  const d = objectOf(asm.cond);
+  let fin = null;
+  if (d) { const F = designFigures(asm, designPrescription(asm)); fin = { d, epd: F.epd, image: F.S.imageZ - F.S.z[F.S.N - 1] }; }
+  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings, fin };
 }
 function zmxExport(els, nms) {
   const asm = asmOfSelection(els);
@@ -34802,18 +34941,18 @@ function zmxExport(els, nms) {
   const C = S.cond || null, waves = C ? C.waves : nms.map(nm => ({ nm, w: 1 })), fields = C ? C.fields : [{ deg: 0, w: 1 }];
   const L = [];
   const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
-  const aperture = C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
+  const aperture = S.fin ? 'ENPD ' + zmxNum(S.fin.epd) : C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
   L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
     'NOTE 0 Exported from JEKray. Coatings, tilts and decentres are not included.',
     'UNIT MM X W X CM MR CPMM', aperture, 'GCAT SCHOTT OHARA MISC',
-    'FTYP 0 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
+    'FTYP ' + (S.fin ? 1 : 0) + ' 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
   waves.forEach((v, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(v.nm / 1000) + ' ' + zmxNum(v.w)));
   L.push('PWAV ' + (C ? C.primary + 1 : 1));
   nms = C ? [C.waves[C.primary].nm] : nms;
   let n = 0;
   const surf = (lines) => { L.push('SURF ' + n++); for (const l of lines) L.push('  ' + l); };
   const diam = semi => 'DIAM ' + zmxNum(semi) + ' 1 0 0 1 ""';
-  surf(['TYPE STANDARD', 'CURV 0', 'DISZ INFINITY']);
+  surf(['TYPE STANDARD', 'CURV 0', 'DISZ ' + (S.fin ? zmxNum(S.fin.d) : 'INFINITY')]);
   if (S.mirror) {
     const m = S.mirror;
     if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
@@ -34849,7 +34988,7 @@ function zmxExport(els, nms) {
     const last = i === S.surfaces.length - 1;
     const m = last ? null : S.materials[i];
     if (m && m.glass !== 'AIR') lines.push(zmxGlass(m));
-    lines.push('DISZ ' + zmxNum(last ? (isFinite(p.bfl) ? p.bfl : 0) : S.gaps[i]), diam(s.semi));
+    lines.push('DISZ ' + zmxNum(last ? (S.fin ? S.fin.image : isFinite(p.bfl) ? p.bfl : 0) : S.gaps[i]), diam(s.semi));
     surf(lines);
   });
   surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(S.surfaces[S.surfaces.length - 1].semi)]);
@@ -34922,7 +35061,7 @@ function zmxAssembly(Z, el) {
   const lenses = els.filter(e => e.type === 'lens');
   if (!lenses.length) return null;
   const c = Z.cond || {};
-  const cond = normCond({ aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
+  const cond = normCond({ ...(c.object ? { object: c.object } : {}), aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
     fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
   return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
 }

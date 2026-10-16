@@ -27,9 +27,12 @@ function cached(key, fn) {
 const designKey = (asm, P) => JSON.stringify([P.surfaces.map(s => [s.R, s.k, s.a2, s.A, s.odd, s.semi]), P.gaps, P.materials, P.image, asm.cond]);
 
 /* st: the view's state ({ view, field, wave }), kept by the workspace; redraw: draws the workspace again */
+/* a field's unit: degrees from infinity, millimetres of object height from a finite object */
+let FU = '°', FU_WORD = 'degrees', FU_CSV = 'deg';
 export function analysesPanel(asm, P, F, st, redraw) {
   st.view = st.view || 'spot';
-  const c = asm.cond;
+  const c = asm.cond, fin = !!(c.object && c.object.kind === 'finite');
+  FU = fin ? ' mm' : '°'; FU_WORD = fin ? 'object height, mm' : 'degrees'; FU_CSV = fin ? 'mm' : 'deg';
   if (!(st.field >= 0 && st.field < c.fields.length)) st.field = c.fields.length - 1;
   if (!(st.wave >= 0 && st.wave < c.waves.length)) st.wave = c.primary;
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
@@ -37,7 +40,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
   const perField = ['spot', 'fans', 'opd', 'wave', 'psf', 'mtf'].includes(st.view) && st.view !== 'spot';
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
-    ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + '°', () => { st.field = i; redraw(); }))));
+    ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
     ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) }))));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
@@ -131,8 +134,8 @@ function spotView(body, A, spots) {
   const row = h('div', { class: 'rt-lspots' });
   body.append(row);
   spots.forEach((s, fi) => {
-    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'Spot diagram at ' + anFmt(s.deg, 4) + '°: RMS radius ' + um(s.rms) });
-    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, anFmt(s.deg, 4) + '°'), ' RMS ' + um(s.rms) + ' · largest ' + um(s.geo)));
+    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'Spot diagram at ' + anFmt(s.deg, 4) + FU + ': RMS radius ' + um(s.rms) });
+    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, anFmt(s.deg, 4) + FU), ' RMS ' + um(s.rms) + ' · largest ' + um(s.geo)));
     row.append(cell);
     requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1, S = Math.max(140, Math.min(260, cell.clientWidth || 200));
@@ -144,7 +147,7 @@ function spotView(body, A, spots) {
       g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
       s.waves.forEach((w, wi) => { g.fillStyle = waveColour(wi); for (const [x, y] of w.pts) { g.beginPath(); g.arc(X(x), Y(y), 1.6, 0, 2 * Math.PI); g.fill(); } });
     });
-    if (!fi) plotCsv(cv, 'spot diagram', ['field (deg)', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
+    if (!fi) plotCsv(cv, 'spot diagram', ['field (' + FU_CSV + ')', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
     if (!fi) cell.append(plotSaveRow(cv));
   });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', '#555']])));
@@ -169,13 +172,13 @@ function fieldView(body, A, C) {
   const [a, b] = pair(body), c = A.c, ys = C.degs;
   const series = [];
   C.waves.forEach((w, i) => { series.push({ label: anFmt(w.nm, 5) + ' T', colour: waveColour(i), xs: w.tan, ys }); series.push({ label: anFmt(w.nm, 5) + ' S', colour: waveColour(i), dash: true, xs: w.sag, ys }); });
-  linePlot(a, { label: 'Field curvature', x: { kind: 'len', title: 'Focus from the image plane' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true, series, hoverY: true, yName: 'field', H: 260,
-    csv: { name: 'field curvature', cols: ['field (deg)'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
-  linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true,
+  linePlot(a, { label: 'Field curvature', x: { kind: 'len', title: 'Focus from the image plane' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true, series, hoverY: true, yName: 'field', H: 260,
+    csv: { name: 'field curvature', cols: ['field (' + FU_CSV + ')'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
+  linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true,
     series: [{ label: 'Distortion %', colour: waveColour(c.primary), xs: C.dist, ys }], hoverY: true, yName: 'field', H: 260 });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
   const k = ys.length - 1;
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + '°: tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + FU + ': tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
 }
 function longView(body, A, L) {
   const [a, b] = pair(body), c = A.c;
@@ -248,7 +251,7 @@ function mtfView(body, A, M) {
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   body.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + '°, the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
     'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
   const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
   tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));

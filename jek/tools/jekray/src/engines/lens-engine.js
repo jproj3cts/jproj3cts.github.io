@@ -32,7 +32,8 @@ function indexOf(m, nm) {
 /* the system at wavelength nm: P a prescription ({surfaces, gaps, materials, stopIndex}), opts:
    epd (the entrance pupil's diameter, mm; else the stop's own opening sets it), image (the image
    plane's distance after the last surface; else the paraxial focus), imageMaterial (the medium after
-   the last surface, air unless given) */
+   the last surface, air unless given), object (the object's distance before the first surface, mm;
+   none, or 0, for an object at infinity) */
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
@@ -47,14 +48,15 @@ export function lensSystem(P, nm, opts) {
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
+  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+    obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
   S.stopR = S.epr * S.par.stopMag;
-  S.imageZ = z[N - 1] + (isFinite(opts.image) ? opts.image : isFinite(S.par.bfl) ? S.par.bfl : 0);
+  S.imageZ = z[N - 1] + (isFinite(opts.image) ? opts.image : isFinite(S.par.back) ? S.par.back : 0);
   if (S.ax) { const a = S.ax[N - 1], g = S.imageZ - z[N - 1]; S.img = { p: [a.p[0] + a.d[0] * g, a.p[1] + a.d[1] * g, a.p[2] + a.d[2] * g], e1: a.e1, e2: a.e2, d: a.d }; }
   return S;
 }
@@ -128,7 +130,18 @@ export function paraxialOf(S) {
   const xpz = Math.abs(uc) < 1e-14 ? Infinity : S.z[L] - yc / uc;      // the exit pupil's place
   // the exit pupil's radius: the marginal ray's height there, for an entrance pupil of radius 1
   const xpr = Math.abs(yL + (xpz - S.z[L]) * uL);
-  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc };
+  const out = { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc, back: bfl, uEp: uL };
+  if (S.obj) {
+    // an object at distance d: the ray from its axial point at angle 1 (the image, the magnification), and the
+    // chief ray from a point of height 1 through the entrance pupil's centre
+    const d = S.obj, [yF, uF] = paraStep(S, d, 1, 0, L), dep = d + epz;
+    out.back = Math.abs(uF) < 1e-14 ? Infinity : -yF / uF;
+    out.mag = Math.abs(uF) < 1e-14 ? Infinity : S.n[0] / (S.n[S.N] * uF);
+    out.uEp = uF / dep;                                                   // the marginal ray's last angle, for an entrance pupil of radius 1
+    const [ycF, ucF] = paraStep(S, 1 - d / dep, -1 / dep, 0, L);
+    out.yChiefF = ycF; out.uChiefF = ucF;
+  }
+  return out;
 }
 
 /* ---------- One surface ---------- */
@@ -227,8 +240,16 @@ function toPlane(S, R, zp) {
 /* ---------- Aiming ----------
    A field's ray starts on the plane square to the incoming light through the entrance pupil's centre,
    at (a, b) in it (a across the bench plane, out of it; b in it), and is moved back along the light so
-   it starts before the first surface. Its path is counted from that plane. */
+   it starts before the first surface. Its path is counted from that plane. For an object at a finite
+   distance the field is the object point's height (passed as the angles are, times π/180) and the ray
+   starts there, aimed at (a, b) on the entrance pupil's plane; its path is counted from the point. */
 function launch(S, th, a, b, R) {
+  if (S.obj) {
+    // a finite object: from its point at height h (the field, th / (π/180) mm) toward (a, b) on the entrance pupil's plane
+    const h = th * 180 / Math.PI, dz = S.par.epz + S.obj, dy = b - h, L = Math.hypot(a, dy, dz);
+    R[0] = 0; R[1] = h; R[2] = -S.obj; R[3] = a / L; R[4] = dy / L; R[5] = dz / L; R[6] = 0; R[7] = 0;
+    return R;
+  }
   const sn = Math.sin(th), cs = Math.cos(th), back = 1e3 + Math.abs(S.par.epz) + Math.abs(S.z[S.N - 1]);
   // the plane's axes: e1 = x; e2 = (0, cos th, -sin th), square to the light (0, sin th, cos th)
   const px = a, py = b * cs, pz = S.par.epz - b * sn;
@@ -377,8 +398,10 @@ export function spotOf(S, fieldDeg, pts) {
    SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
    wavelength, Sshort and Slong at the shortest and longest (or null). */
 export function seidel(S, fieldDeg, Sshort, Slong) {
-  const N = S.N, ub0 = Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
-  let y = S.epr, u = 0, yb = -ub0 * S.par.epz, ub = ub0;
+  // the marginal ray (at the edge of the entrance pupil) and the chief ray (through its centre), at the
+  // first surface: from infinity, parallel and at the field's angle; from an object at d, from its points
+  const N = S.N, d = S.obj, dep = d + S.par.epz, ub0 = d ? Math.abs(fieldDeg || 0) / dep : Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
+  let y = d ? S.epr * d / dep : S.epr, u = d ? S.epr / dep : 0, yb = -ub0 * S.par.epz, ub = ub0;
   const H = S.n[0] * (ub * y - u * yb), rows = [], sum = { SI: 0, SII: 0, SIII: 0, SIV: 0, SV: 0, CL: 0, CT: 0 };
   // a mirror is a refraction into -n, the light then running back along the axis: after each one the
   // indices, gaps and curvatures (as seen along the fixed axis) change sign

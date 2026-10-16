@@ -19,18 +19,31 @@ export const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'stop' ? 'st
 /* design conditions: the aperture (an entrance pupil diameter, mm, or an F-number), the fields
    (angles of the incoming light, degrees, each with a weight) and the wavelengths (nm, each with a
    weight, one of them primary) */
+/* the conditions a design is for: its object (at infinity, or at a distance d before the first
+   surface), its aperture (the entrance pupil's diameter, the working F-number in image space, or for a
+   finite object the NA in object space), its fields (angles in degrees from infinity; object heights in
+   mm for a finite object, kept in "deg" all the same) and its wavelengths */
 export function normCond(c) {
   c = c && typeof c === 'object' ? c : {};
+  const ob = c.object && typeof c.object === 'object' && c.object.kind === 'finite' ? { kind: 'finite', d: clamp(num(c.object.d, 100), 1e-3, 1e7) } : null;
   const ap = c.aperture && typeof c.aperture === 'object' ? c.aperture : {};
-  const kind = ap.kind === 'fno' ? 'fno' : 'epd';
+  const kind = ap.kind === 'fno' ? 'fno' : ap.kind === 'na' && ob ? 'na' : 'epd';
   const fields = (Array.isArray(c.fields) && c.fields.length ? c.fields : [{ deg: 0, w: 1 }]).slice(0, ASM_FIELDS_MAX)
-    .map(f => ({ deg: clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
+    .map(f => ({ deg: ob ? clamp(num(f && f.deg, 0), -1e5, 1e5) : clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
   const waves = (Array.isArray(c.waves) && c.waves.length ? c.waves : [{ nm: 587.56, w: 1 }]).slice(0, ASM_WAVES_MAX)
     .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 1e7), w: clamp(num(v && v.w, 1), 0, 1e3) }));
   return {
-    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : clamp(num(ap.v, 10), 1e-3, 1e5) },
+    ...(ob ? { object: ob } : {}),
+    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : kind === 'na' ? clamp(num(ap.v, 0.1), 1e-4, 0.99) : clamp(num(ap.v, 10), 1e-3, 1e5) },
     fields, waves, primary: Math.round(clamp(num(c.primary, 0), 0, waves.length - 1)),
   };
+}
+const cfmt = v => String(+(+v).toPrecision(5));
+/* the conditions in a line: "an object 200 mm before it, NA 0.1, fields to 5 mm, 587.56 nm" */
+export function condSummary(c) {
+  const fin = c.object && c.object.kind === 'finite', fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  const ap = c.aperture.kind === 'fno' ? 'f/' + cfmt(c.aperture.v) : c.aperture.kind === 'na' ? 'NA ' + cfmt(c.aperture.v) + ' at the object' : cfmt(c.aperture.v) + ' mm entrance pupil';
+  return (fin ? 'an object ' + cfmt(c.object.d) + ' mm before it, ' : 'light from infinity, ') + ap + ', fields to ' + cfmt(fmax) + (fin ? ' mm' : '°') + ', ' + c.waves.map(v => cfmt(v.nm)).join(', ') + ' nm';
 }
 export function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();

@@ -1,5 +1,5 @@
 import { fmtLen } from '../core/format.js';
-import { asmCheck, asmMembers, asmParaxial, asmPrescription, normCond } from '../core/assembly.js';
+import { asmCheck, asmMembers, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
 import { V, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
@@ -75,17 +75,17 @@ export function assemblyPanel(asm) {
   panel.append(ul);
   if (P) {
     const c = asm.cond, nm = c.waves[c.primary].nm, p = asmParaxial(P, nm, paraxial);
-    const len = P.gaps.reduce((a, b) => a + b, 0), ap = c.aperture.kind === 'fno' ? 'f/' + (+c.aperture.v.toPrecision(4)) : fmtLen(c.aperture.v) + ' entrance pupil';
+    const len = P.gaps.reduce((a, b) => a + b, 0);
     const rows = [['EFL at ' + (+nm.toPrecision(5)) + ' nm', isFinite(p.efl) ? fmtLen(p.efl) : 'afocal'], ['BFL', isFinite(p.bfl) ? fmtLen(p.bfl) : '—'],
       ['Surfaces', P.surfaces.length + (P.stopIndex >= 0 ? ', the stop the ' + ordinal(P.stopIndex + 1) : ', no stop of its own')], ['First to last surface', fmtLen(len)],
-      ['Designed for', ap + ', fields to ' + Math.max(...c.fields.map(f => Math.abs(f.deg))) + '°, ' + c.waves.map(v => +v.nm.toPrecision(5)).join(', ') + ' nm']];
+      ['Designed for', condSummary(c)]];
     panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))));
   }
   // the bench's light against what it is designed for
   if (P) {
     const L = asmBenchLight(asm, P);
     if (L) {
-      const M = condMismatch(asm, L, asmParaxial(P, asm.cond.waves[asm.cond.primary].nm, paraxial).efl);
+      const M = condMismatch(asm, L);
       panel.append(M.length
         ? h('div', { class: 'rt-asmnote bad', role: 'status' }, h('b', null, 'Used outside its design conditions: '), M.join('; ') + '. Open it with Design… to take the bench’s conditions and redesign it for them.')
         : h('div', { class: 'rt-asmnote good', role: 'status' }, h('b', null, 'Within its design conditions. '), 'The bench’s light is what it is designed for.'));

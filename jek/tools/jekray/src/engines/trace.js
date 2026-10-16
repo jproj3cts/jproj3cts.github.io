@@ -686,8 +686,13 @@ function traceSceneOnce() {
         const l = Math.hypot(dx, dy), up = l < 1e-9;
         return { dx: up ? 1 : dx / l, dy: up ? 0 : dy / l, len: L * l, uz: up ? 0 : uz / l, len3: L, d3: [dx, dy, uz] };
       };
+      // the surface met before the last one: a ray at two parts' faces in contact (a doublet of two
+      // lenses touching) goes on through the second face at no distance at all, but never back to either
+      let lastSeen = last, lastPrev = null;
       for (; bounce < maxB; bounce++) {
         if (--budget < 0) { truncated = true; break; }
+        if (last !== lastSeen) { lastPrev = lastSeen; lastSeen = last; }
+        const tMin = s => s === last || s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
@@ -699,7 +704,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
-            const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], s === last ? 1e-4 : EPS);
+            const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
             if (tm !== null && tm < best) { best = tm; hit = s; hitSeg = false; }
             continue;
           }
@@ -708,14 +713,14 @@ function traceSceneOnce() {
           const forced = forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
           const h3 = anyZ && !forced && zCurved(s) ? zh - zOf(s.el) : 0;
-          let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, s === last ? 1e-4 : EPS)
-            : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, s === last ? 1e-4 : EPS)
-            : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+          let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+            : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
+            : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
           if (anyZ && tt !== null && !forced && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
           if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = false; }
           if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
-            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, s === last ? 1e-4 : EPS);
+            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
             // a beam passing above or below a part does not reach round its edge either
             if (anyZ && te !== null) { const hz = zh + uz * te - zOf(s.el); if (hz !== 0 && !zInside(s, 0, hz)) te = null; }
             if (te !== null && te < nearT) { nearT = te; near = s; }

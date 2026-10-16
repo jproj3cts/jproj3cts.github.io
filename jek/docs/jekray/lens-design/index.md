@@ -74,9 +74,9 @@ $$\mathbf{d}' = \mu\,\mathbf{d} + \left(\sqrt{1-\mu^2(1-\cos^2 i)} - \mu\cos i\r
 
 in three dimensions, so skew rays are traced as exactly as meridional ones. A ray landing outside a surface's clear radius is vignetted there; one that cannot refract is lost.
 
-**First order.** Paraxial (y-nu) traces give the focal length and back focus, and the chief ray, aimed at the stop's centre, places the entrance and exit pupils. The aperture is the stop's own opening, or an entrance pupil diameter set for the design, the stop then floating to suit.
+**First order.** Paraxial (y-nu) traces give the focal length and back focus, and the chief ray, aimed at the stop's centre, places the entrance and exit pupils; for an object at a finite distance, the image distance and magnification too (Design conditions, below). The aperture is the stop's own opening, or an entrance pupil diameter set for the design, the stop then floating to suit.
 
-**Ray aiming.** Each ray is found that crosses the stop at the pupil point asked for, by Newton's method on where it starts, so the stop is filled exactly whatever the pupil aberrations of the lenses before it. Rays start on a plane square to the incoming light through the entrance pupil's centre, so every ray of a field starts on one wavefront.
+**Ray aiming.** Each ray is found that crosses the stop at the pupil point asked for, by Newton's method on where it starts, so the stop is filled exactly whatever the pupil aberrations of the lenses before it. From infinity, rays start on a plane square to the incoming light through the entrance pupil's centre, so every ray of a field starts on one wavefront; from a finite object, at the object point, aimed at a point on the entrance pupil's plane.
 
 **Wavefront error.** Each ray's optical path is measured to the reference sphere centred on the chief ray's image point and passing through where the chief ray crosses the exit pupil's plane; its difference from the chief ray's, in waves, is the ray's wavefront error. Pupils are sampled by rings at Gauss–Legendre radii with arms, or by a square grid.
 
@@ -109,7 +109,19 @@ A design started with File › New lens design has no light on the bench yet. It
 
 ### Design conditions
 
-The left column holds the conditions the design is for: the aperture (an entrance pupil diameter or an F-number), the fields (angle and weight, up to 12) and the wavelengths (nm and weight, one primary, up to 12; **Visible (F, d, C)** sets the usual three). The stop opens to suit the entrance pupil these set, and its opening on the bench follows.
+The left column holds the conditions the design is for: the object, the aperture (an entrance pupil diameter or a working F-number), the fields (up to 12, each with a weight) and the wavelengths (nm and weight, one primary, up to 12; **Visible (F, d, C)** sets the usual three). The stop opens to suit the entrance pupil these set, and its opening on the bench follows.
+
+**The object** is at infinity (a star, a distant scene: the fields are angles, in degrees) or **at a distance** before the first surface (a relay, a microscope objective, a camera close up: the fields are the heights of points on the object, in mm). Switching from one to the other turns the fields from angles into heights at that distance, and back. For a finite object the aperture may also be given as the **NA at the object**, $$\sin	heta$$ of the half-angle the entrance pupil subtends from the object's axial point; the **working F-number** is always $$1/(2\,\mathrm{NA}')$$ in image space, from the paraxial marginal ray (from infinity, the focal length over the pupil). The conditions show the paraxial magnification and image distance.
+
+From a finite object every ray starts at its object point and is aimed, as from infinity, to cross the stop where asked; its optical path is counted from that point, so the wavefront error of a perfect image is nil. The paraxial traces add the ray from the axial object point (the image distance, and the magnification $$m = n\,u / (n' u')$$) and the chief ray from an object point of unit height (the paraxial image height, which distortion is measured against); the Seidel sums start their marginal and chief rays from the object's points, and the focus solve puts the image plane at the paraxial image of the object.
+
+**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil. When every source's rays come from a point (where they cross, by least squares), at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design for one kind of object lit by the other on the bench says so in its panel.
+
+**Checked against.**
+- a thick lens with an object 150 mm before it: its image distance and magnification from its principal planes and Newton's equation, to 10⁻⁹ mm;
+- an ellipsoidal mirror imaging one focus on the other: no spot and no wavefront error, magnification $$-d_2/d_1$$; a sphere imaging its centre back on itself, likewise;
+- real rays at a small pupil landing at the paraxial height; the Seidel $$S_I$$ against the real rays' wavefront, to a part in 10⁶;
+- a doublet lit by a point source 3 mm off the axis on the bench: the conditions taken from it (the object 120 mm away, fields 0 and 3 mm, its NA); and each of the bench's rays, from the point in its own direction, meeting the sensor where the lens engine's does with the same optical path, to 10⁻¹² mm.
 
 **Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil.
 
@@ -289,7 +301,7 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## Lens files
 
-**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions. A folded assembly, or one with a part tilted or decentred, is not written (it would need coordinate breaks): the export says so. Coatings are not written.
+**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions (an object at a finite distance as the object surface's thickness, its fields as object heights, its aperture as the entrance pupil it gives); a file with a finite object reads back the same way. A folded assembly, or one with a part tilted or decentred, is not written (it would need coordinate breaks): the export says so. Coatings are not written.
 
 ## In a .jekray file
 

@@ -8997,6 +8997,45 @@ const TESTS = [
     },
   },
   {
+    name: 'A design for an object at a finite distance takes it from a point source on the bench, and traces the bench’s own rays',
+    why: 'a doublet of two lenses in contact (the bench going on through the second’s face at no distance) with a point source 120 mm before it and 3 mm off the axis: Take conditions from the bench gives an object 120 mm away, fields 0 and 3 mm and an object-space NA, and the panel then says it is within them; the engine’s rays from the object point, in the bench’s own directions, meet the sensor where the bench’s do, with the same path (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Point', x: -120, y: 3, angle: -1.4, wavelength: 587.56, rays: 9, width: 0, divergence: 5 },
+        { type: 'lens', name: 'Crown', x: 3, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 61.5 }, { R: -44.2 }], gaps: [6], materials: [{ glass: 'N-BAF10' }] },
+        { type: 'lens', name: 'Flint', x: 7.25, y: 0, angle: 0, diameter: 25, surfaces: [{ R: -44.2 }, { R: -129 }], gaps: [2.5], materials: [{ glass: 'N-SF10' }] },
+        { type: 'screen', name: 'Sensor', x: 150, y: 0, angle: 180, length: 60 }] });
+      if (!J.makeAssembly(['Crown', 'Flint'])) return 98;
+      J.trace();
+      const name = J.assemblies()[0].name, P = J.asmPrescription(name), o = P.origin;
+      J.openLensDesign(name);
+      let condOk = false;
+      try {
+        wsClick('Take conditions from the bench');
+        const c = J.lensFigures(name).cond;
+        condOk = c.object && Math.abs(c.object.d - (o[0] + 120)) < 0.05 && c.fields.length === 2 && Math.abs(c.fields[1].deg - 3) < 0.01 && c.aperture.kind === 'na' && Math.abs(c.aperture.v - Math.sin(2.5 * Math.PI / 180)) < 1e-3;
+        if (!condOk) console.log('finite cond', JSON.stringify(c), o);
+      } finally { J.closeLensDesign(); }
+      J.trace(); J.selectAssembly(name);
+      const within = /Within its design conditions/.test((rigDoc().querySelector('#panel .rt-asmnote') || {}).textContent || '');
+      if (!condOk || !within) return 97;
+      // the bench's rays against the engine's, ray by ray, from the point in the bench's own directions
+      const H = J.hitsOn('Sensor').filter((h, i, all) => all.findIndex(g => g.k === h.k) === i), s = J.byName('Point'), n = 9;
+      if (H.length !== n) return 99;
+      const dirs = H.map(h => { const a = (s.angle + (h.k / (n - 1) - 0.5) * s.divergence) * Math.PI / 180; return [0, s.y - o[1], s.x - o[0], 0, Math.sin(a), Math.cos(a)]; });
+      const T = J.lensTraceRaw(name, 587.56, dirs);
+      let worst = [0, 0];
+      H.forEach((h, q) => {
+        const R = T.out[q];
+        if (R[7] !== 0) { worst = [99, 99]; return; }
+        const t = ((150 - o[0]) - R[2]) / R[5], Y = o[1] + R[1] + R[4] * t, opl = R[6] + t;
+        [1, -1].forEach((sg, j) => { worst[j] = Math.max(worst[j], Math.abs(Y - sg * h.y), Math.abs(opl - h.opl)); });
+      });
+      return Math.min(...worst);
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

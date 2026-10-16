@@ -154,9 +154,12 @@ export function parseZmx(text, fileName, agf) {
   const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
   // the conditions it was designed for, for an assembly made from it: aperture, fields (angles only), wavelengths
   const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0).sort((a, b) => a - b);
+  // the object: at infinity, or (the object surface's thickness finite) at that distance, its fields then heights
+  const od = surfs[0] && isFinite(surfs[0].disz) && surfs[0].disz > 0 && surfs[0].disz * unit < 1e6 ? surfs[0].disz * unit : 0;   // (a kilometre or more is infinity)
   const cond = {
+    ...(od ? { object: { kind: 'finite', d: od } } : {}),
     aperture: enpd > 0 ? { kind: 'epd', v: enpd * unit } : fnum > 0 ? { kind: 'fno', v: fnum } : null,
-    fields: ftyp === 0 && sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null,
+    fields: (ftyp === 0 && !od) || (ftyp === 1 && od) ? (sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: ftyp === 1 ? d * unit : d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null) : null,
     waves: ks.length ? ks.map(k => ({ nm: Math.round(wavm[k] * 1e6) / 1000, w: wwgt[k] !== undefined ? wwgt[k] : 1 })) : null,
     primary: Math.max(0, ks.indexOf(pwav)),
   };

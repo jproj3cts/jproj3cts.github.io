@@ -7,6 +7,7 @@ import { selection, setSelection } from '../ui/render.js';
 import { changed, clipOf, downloadFile, safeFileName, toast } from '../ui/actions.js';
 import { checkpoint } from '../ui/tabs.js';
 import { asmOfSelection, asmPrescription, normCond } from '../core/assembly.js';
+import { designFigures, designPrescription, objectOf } from '../engines/lens-design.js';
 import { parseZmx, readZmxFile, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
@@ -111,7 +112,11 @@ function zmxAssemblySystem(asm) {
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
-  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings };
+  // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
+  const d = objectOf(asm.cond);
+  let fin = null;
+  if (d) { const F = designFigures(asm, designPrescription(asm)); fin = { d, epd: F.epd, image: F.S.imageZ - F.S.z[F.S.N - 1] }; }
+  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings, fin };
 }
 export function zmxExport(els, nms) {
   const asm = asmOfSelection(els);
@@ -120,18 +125,18 @@ export function zmxExport(els, nms) {
   const C = S.cond || null, waves = C ? C.waves : nms.map(nm => ({ nm, w: 1 })), fields = C ? C.fields : [{ deg: 0, w: 1 }];
   const L = [];
   const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
-  const aperture = C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
+  const aperture = S.fin ? 'ENPD ' + zmxNum(S.fin.epd) : C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
   L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
     'NOTE 0 Exported from JEKray. Coatings, tilts and decentres are not included.',
     'UNIT MM X W X CM MR CPMM', aperture, 'GCAT SCHOTT OHARA MISC',
-    'FTYP 0 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
+    'FTYP ' + (S.fin ? 1 : 0) + ' 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
   waves.forEach((v, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(v.nm / 1000) + ' ' + zmxNum(v.w)));
   L.push('PWAV ' + (C ? C.primary + 1 : 1));
   nms = C ? [C.waves[C.primary].nm] : nms;
   let n = 0;
   const surf = (lines) => { L.push('SURF ' + n++); for (const l of lines) L.push('  ' + l); };
   const diam = semi => 'DIAM ' + zmxNum(semi) + ' 1 0 0 1 ""';
-  surf(['TYPE STANDARD', 'CURV 0', 'DISZ INFINITY']);
+  surf(['TYPE STANDARD', 'CURV 0', 'DISZ ' + (S.fin ? zmxNum(S.fin.d) : 'INFINITY')]);
   if (S.mirror) {
     const m = S.mirror;
     if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
@@ -167,7 +172,7 @@ export function zmxExport(els, nms) {
     const last = i === S.surfaces.length - 1;
     const m = last ? null : S.materials[i];
     if (m && m.glass !== 'AIR') lines.push(zmxGlass(m));
-    lines.push('DISZ ' + zmxNum(last ? (isFinite(p.bfl) ? p.bfl : 0) : S.gaps[i]), diam(s.semi));
+    lines.push('DISZ ' + zmxNum(last ? (S.fin ? S.fin.image : isFinite(p.bfl) ? p.bfl : 0) : S.gaps[i]), diam(s.semi));
     surf(lines);
   });
   surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(S.surfaces[S.surfaces.length - 1].semi)]);
@@ -240,7 +245,7 @@ export function zmxAssembly(Z, el) {
   const lenses = els.filter(e => e.type === 'lens');
   if (!lenses.length) return null;
   const c = Z.cond || {};
-  const cond = normCond({ aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
+  const cond = normCond({ ...(c.object ? { object: c.object } : {}), aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
     fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
   return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
 }

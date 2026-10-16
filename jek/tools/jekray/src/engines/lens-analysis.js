@@ -1,5 +1,5 @@
 import { lensSystem, pupilGrid, rayAt, traceField } from './lens-engine.js';
-import { designEpd, primaryNm } from './lens-design.js';
+import { designEpd, objOpts, primaryNm } from './lens-design.js';
 
 /* ==========================================================================
    Analyses of a lens design
@@ -25,16 +25,17 @@ import { designEpd, primaryNm } from './lens-design.js';
 const D2R = Math.PI / 180;
 /* the design's systems, one per wavelength, at its entrance pupil and image plane */
 export function anaSystems(asm, P) {
-  const c = asm.cond, nm0 = primaryNm(c), S0 = lensSystem(P, nm0), epd = designEpd(c, S0.par.efl), o = { epd, image: P.image };
+  const c = asm.cond, nm0 = primaryNm(c), S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), o = objOpts(c, { epd, image: P.image });
   const S = c.waves.map(w => lensSystem(P, w.nm, o));
   const Sp = S[c.primary];
   // image-space NA and working F-number from the primary marginal ray
-  const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uMarg), fw = na > 0 ? 1 / (2 * na) : Infinity;
-  return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1 };
+  const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp), fw = na > 0 ? 1 / (2 * na) : Infinity;
+  return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1, finite: !!Sp.obj };
 }
 const chiefAt = (S, deg) => { const C = rayAt(S, deg * D2R, 0, 0); return C && C[7] === 0 ? [C[0], C[1]] : null; };
-/* the paraxial chief ray's height on the image plane at field deg */
-export const paraxHeight = (S, deg) => Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
+/* the paraxial chief ray's height on the image plane at field deg (an object height in mm, for a finite object) */
+export const paraxHeight = (S, deg) => S.obj ? deg * (S.par.yChiefF + (S.imageZ - S.z[S.N - 1]) * S.par.uChiefF)
+  : Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
 
 /* ---------- Spot diagram ---------- */
 export function spotDiagram(A, deg, n) {
@@ -111,13 +112,13 @@ export function fieldCurves(A, n) {
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */
 export function longitudinal(A, n) {
   n = n || 21;
-  const zp = A.Sp.z[A.Sp.N - 1] + A.Sp.par.bfl, R = new Float64Array(8);
+  const zp = A.Sp.z[A.Sp.N - 1] + A.Sp.par.back, R = new Float64Array(8);
   const rho = Array.from({ length: n }, (_, i) => (i + 1) / n);
   const waves = A.S.map(S => ({ nm: S.nm, dz: rho.map(p => { const r = rayAt(S, 0, 0, p, R); return r && r[7] === 0 && Math.abs(r[4]) > 1e-15 ? r[2] - r[1] * r[5] / r[4] - zp : null; }) }));
   // the paraxial focus over the wavelengths, from 10% below the shortest to 10% above the longest
   const nms = A.c.waves.map(w => w.nm), lo = Math.min(...nms) * 0.9, hi = Math.max(...nms) * 1.1, P = A.P;
   const lam = Array.from({ length: 41 }, (_, i) => lo + (hi - lo) * i / 40);
-  const shift = lam.map(nm => { const S = lensSystem(P, nm); return S.z[S.N - 1] + S.par.bfl - zp; });
+  const shift = lam.map(nm => { const S = lensSystem(P, nm, objOpts(A.c)); return S.z[S.N - 1] + S.par.back - zp; });
   return { rho, waves, lam, shift };
 }
 

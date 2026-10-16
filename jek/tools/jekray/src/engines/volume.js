@@ -106,7 +106,7 @@ export function volPartners(segs, tab) {
 }
 /* where a segment's volume is cut across it: its direction, height, and the distances along it,
    or null for none (no length, or off the board) */
-function volCuts(sg, bb, two) {
+function volCuts(sg, bb, two, coh) {
   const b = sg.b, L3 = b.len3 || b.len;
   if (!(L3 > 0)) return null;
   const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]), e = d.map(v => v / dl);
@@ -123,9 +123,10 @@ function volCuts(sg, bb, two) {
   const A = two ? (F0.ax && F0.ay && F0.ax.zR <= F0.ay.zR ? F0.ax : F0.ay) : F0;
   const zR = A && A.zR > 0 ? A.zR : (tb - ta), tw = A && isFinite(A.z) ? -A.z : (ta + tb) / 2;
   // where to cut: dense through the waist (three to each unit of asinh), and every 10 mm along
-  // (20 mm for a 2D map, each of which is a whole propagation)
+  // (20 mm for a 2D map, each of which is a whole propagation; 5 mm for beams that interfere, whose
+  // fringes change along the way as their wavefronts' curvatures part, in blocks between cuts far apart)
   const ua = Math.asinh((ta - tw) / zR), ub = Math.asinh((tb - tw) / zR), set = new Set();
-  const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (two ? 20 : 10)), 1, 12);
+  const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (coh ? 5 : two ? 20 : 10)), 1, 12);
   for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
   for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
   return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y)) };
@@ -141,7 +142,7 @@ export function volData(segs, tab, bb, only) {
     const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {}, cohs = mates.get(sg) || [], coh = cohs.length > 0;
     // a segment whose light interferes with its mates' is a map of their fields added, whatever its engine
     const two = sg.eng === '2d' || coh, Fd = sg.eng === '2d' && !coh ? volDecimate(leg.field || F0) : null;
-    const C = volCuts(sg, bb, two);
+    const C = volCuts(sg, bb, two, coh);
     if (!C) continue;
     const { e, z0, ts } = C, ranges = only instanceof Map ? only.get(sg.i) : null;
     // the launch's share of its laser (half each for an unpolarised one's two halves)
@@ -176,10 +177,24 @@ export function volData(segs, tab, bb, only) {
         // each member's field cut exactly where this cut crosses its axis; across the cut, the
         // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
         const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
+        // Fringes the grid can show: between beams running the same way, no finer than a few of its cells
+        // across. Beams crossing at an angle, or running against each other, make fringes of a fraction
+        // of a micron (across the beam, or along it, between the cuts): no grid resolves them, sampled
+        // they alias into blocks, and the eye sees their mean. Each such group's fields add; the groups'
+        // irradiances add.
+        const cell = 2 * R / (M - 1), grp = [], lead = [];
+        for (const h of here) {
+          const d = [h.m.b.dx, h.m.b.dy], lam = 2 * Math.PI / (h.L.k || 1e4);
+          let g = lead.findIndex(D => { const c = D[0] * d[0] + D[1] * d[1], sn = Math.abs(D[0] * d[1] - D[1] * d[0]); return c > 0 && lam > 4 * cell * sn; });
+          if (g < 0) { g = lead.length; lead.push(d); }
+          grp.push(g);
+        }
+        const accs = lead.map(() => [0, 0, 0, 0]);
         for (let q = 0; q < M; q++) for (let p2 = 0; p2 < M; p2++) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
-          const acc = [0, 0, 0, 0];
-          for (const { m, L, a, G, pzc, J } of here) {
+          for (const A of accs) A.fill(0);
+          for (let hi = 0; hi < here.length; hi++) {
+            const { m, L, a, G, pzc, J } = here[hi], acc = accs[grp[hi]];
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
@@ -189,7 +204,7 @@ export function volData(segs, tab, bb, only) {
             acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
             acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);
           }
-          const val = acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
+          let val = 0; for (const acc of accs) val += acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
           I[(j * M + q) * M + p2] = val; if (val > pk) pk = val;
         }
         return;
@@ -295,7 +310,7 @@ export function volShare(segs, tab, n, bb) {
   const chunks = [];
   for (const sg of segs) {
     if (!sg.b || (tab && sg.b.bench !== tab)) continue;
-    const two = sg.eng === '2d' || mates.has(sg), C = volCuts(sg, bb, two);
+    const two = sg.eng === '2d' || mates.has(sg), C = volCuts(sg, bb, two, mates.has(sg));
     if (!C) continue;
     const nc = C.ts.length, per = two ? 20 : 1, k = two ? Math.min(n, nc) : 1, step = Math.ceil(nc / k);
     for (let j0 = 0; j0 < nc; j0 += step) chunks.push({ i: sg.i, r: [j0, Math.min(nc, j0 + step)], c: per * (Math.min(nc, j0 + step) - j0) });

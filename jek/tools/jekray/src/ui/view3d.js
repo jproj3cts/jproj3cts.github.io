@@ -766,22 +766,39 @@ export const V3D = (() => {
       float a = uTs[lo], b = uTs[hi];
       f = b > a ? clamp((t - a) / (b - a), 0.0, 1.0) : 0.0; rm = max(uRm[lo], uRm[hi]); gap = max(b - a, 1e-6);
     }
+    // the outer fifth of a cut's reach fades to nothing, so light that reaches the edge of what is
+    // held (a faint tail, on a log scale) ends softly, not in a rim where a wider piece meets it
+    float edgeFade(float q) { return q > 0.8 ? 0.5 + 0.5 * cos(3.14159265 * (q - 0.8) / 0.2) : 1.0; }
     // one cut's irradiance at a point across the beam, nothing beyond its reach
     float row(int j, vec2 xy) {
       float M = float(uM), nc = float(uNc), rm = uRm[j];
-      if (uTwo == 0) { float q = length(xy) / rm; return q > 1.0 ? 0.0 : texture2D(uTex, vec2((sqrt(q) * (M - 1.0) + 0.5) / M, (float(j) + 0.5) / nc)).r; }
+      if (uTwo == 0) { float q = length(xy) / rm; return q > 1.0 ? 0.0 : edgeFade(q) * texture2D(uTex, vec2((sqrt(q) * (M - 1.0) + 0.5) / M, (float(j) + 0.5) / nc)).r; }
       vec2 u = xy / rm;
-      if (max(abs(u.x), abs(u.y)) > 1.0) return 0.0;
+      float qs = max(abs(u.x), abs(u.y));
+      if (qs > 1.0) return 0.0;
       vec2 g = (u * 0.5 + 0.5) * (M - 1.0) + 0.5;
-      return texture2D(uTex, vec2(g.x / M, (float(j) * M + g.y) / (M * nc))).r;
+      return edgeFade(qs) * texture2D(uTex, vec2(g.x / M, (float(j) * M + g.y) / (M * nc))).r;
     }
     void main() {
       vec3 ro = uCam, rd = normalize(vP - uCam);
       vec3 sg = vec3(rd.x < 0.0 ? -1.0 : 1.0, rd.y < 0.0 ? -1.0 : 1.0, rd.z < 0.0 ? -1.0 : 1.0), iv = sg / max(abs(rd), vec3(1e-9));
       vec3 t0 = (vec3(-uR, -uR, uZa) - ro) * iv, t1 = (vec3(uR, uR, uZb) - ro) * iv, tn = min(t0, t1), tf = max(t0, t1);
       float sN = max(max(max(tn.x, tn.y), tn.z), 0.0), sF = min(min(tf.x, tf.y), tf.z);
+      // and between the surfaces the segment runs from and to: the march starts and ends on them, so the light
+      // right at a cut is sampled (stepping in from the box's face, it skipped a sliver there, which drew each
+      // join between two pieces as a broken ring)
+      for (int k = 0; k < 2; k++) {
+        vec4 P = k == 0 ? uP0 : uP1; float dn = dot(P.xyz, rd);
+        if (abs(dn) < 1e-9) continue;
+        float tc = -(dot(P.xyz, ro) + P.w) / dn;
+        if (dn > 0.0) sN = max(sN, tc); else sF = min(sF, tc);
+      }
       if (sF <= sN) discard;
       float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
+      // each pixel's steps start a different fraction of a step in (after a first sample on the cut), so the
+      // samples of neighbouring lines of sight do not line up into a moiré of the beam's fine structure
+      float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      bool first = true;
       for (int i = 0; i < 320; i++) {
         if (sp > sF) break;
         vec3 p = ro + rd * sp;
@@ -791,10 +808,10 @@ export const V3D = (() => {
         else {
           // the two cuts each at this distance from the axis (not the same share of their reach),
           // only between the surfaces the segment runs from and to
-          if (dot(uP0.xyz, p) + uP0.w >= 0.0 && dot(uP1.xyz, p) + uP1.w >= 0.0) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
+          if (dot(uP0.xyz, p) + uP0.w >= -1e-4 && dot(uP1.xyz, p) + uP1.w >= -1e-4) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
           ds = min(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);   // a cut with almost no reach does not stall the march
         }
-        sp += max(ds, minStep);
+        sp += max(first ? ds * jit : ds, minStep); first = false;
       }
       float v = best;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0);

@@ -159,6 +159,7 @@
  "io/open.js",
  "io/zmx-import.js",
  "io/zmx-export.js",
+ "io/cad-export.js",
  "ui/experimental.js",
  "ui/picker.js",
  "ui/rail.js",

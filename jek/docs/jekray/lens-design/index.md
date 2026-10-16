@@ -610,6 +610,24 @@ After an odd number of mirrors the light runs along each frame's −z, as the fo
 
 **Checked against.** A lens, a 45° fold mirror and a second lens tilted 3° and decentred 0.4 mm, in the plane and out of it: the file read back by a sequential tracer of its own, which builds each frame from the file's coordinate breaks and thicknesses and traces through the file's surfaces. Ten rays over two fields land on the image within 10⁻⁷ mm of where the lens engine lands them, and the thicknesses after the mirror are negative.
 
+**Export for CAD (.step)** in an assembly's panel writes its parts as solids for mechanical design, placed as the design has them, in its own frame: the first vertex at the origin, the light along +z, folds, tilts and decentres as designed. It follows the ISO 10303-21 file format and the AP214 protocol, in millimetres. **Export as a mesh (.stl)** writes the same solids in triangles.
+
+- **Lenses and windows:** each glass between two faces is a solid of its own, so a cemented doublet gives two. Each face runs out to the part's diameter; where a steep face cannot reach that far, it stops at the largest radius it can and a flat shoulder runs on to the edge. The edge is a cylinder.
+- **Mirrors:** a disk with a flat back.
+- **Stops:** a washer 1 mm thick, between the aperture and the stop's outer size.
+- **How each face is written:** a sphere is written as a sphere and a flat as a plane. A conic or asphere is its profile turned about the axis: a cubic B-spline through the sag at 33 points, its tangents the sag's slope.
+- **Left out:** a cylindrical lens or freeform face isn't round, so it is left out, and the export says so.
+
+**Checked against.**
+- a stop, a cemented doublet, a conic asphere ($$k = -1.2$$ with $$A_4$$ and $$A_6$$), a 45° fold mirror and a lens after the fold tilted 2° and decentred:
+  - read back by OpenCascade, every solid is valid;
+  - each volume is within 10⁻⁸ of the volume of its profile turned about its axis (worked out separately);
+  - each centre of mass is where the design places it, within 10⁻⁸ mm;
+  - points on the true asphere lie within 3 × 10⁻¹⁰ mm of the exported solid;
+- the B-spline profile within 10⁻⁶ mm of the sag between its points;
+- every reference in the file is to an entity in it;
+- the STL closed (every edge met by two triangles, once each way) and of its profile's volume to the facets' error.
+
 ## In a .jekray file
 
 Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`, each `{"op", "target", "weight"}` with a field index `"f"`, a pupil point `"p"` and a frequency `"v"` where the term needs them, and a configuration index `"c"` when it is measured in one configuration only) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (its aspheric terms), `"f20:…"` to `"f06:…"` (its freeform terms), `"p2:…"` to `"p8:…"` (a diffractive face's phase terms, on ρ² to ρ⁸), `"n2:…"` to `"n6:…"` (a graded glass's terms on r² to r⁶, the glass after that surface), `"T:…"` and `"D:…"` (a part's tilt and decentre, on its first surface) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`. A design with configurations has `"mc"`: `{"keys", "configs", "active"}`. `keys` lists the values that differ, and each configuration is `{"name", "w", "v", "obj"}`: its weight, its own value for each key, and, for an object at a distance, that distance. The parts on the bench hold the active configuration's values.

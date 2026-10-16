@@ -159,6 +159,7 @@ import './io/order.js';
 import './io/open.js';
 import './io/zmx-import.js';
 import './io/zmx-export.js';
+import './io/cad-export.js';
 import './ui/experimental.js';
 import './ui/picker.js';
 import './ui/rail.js';

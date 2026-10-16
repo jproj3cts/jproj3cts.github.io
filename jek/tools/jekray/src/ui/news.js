@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Export for CAD</b>: an assembly\u2019s panel exports its lenses, windows, mirrors and stops as solids for mechanical design, placed as the design has them (folds and tilts too): <b>Export for CAD (.step)</b> writes exact spheres and planes and each asphere as its profile turned, and <b>Export as a mesh (.stl)</b> the same in triangles.',
     '<b>Thermal analysis</b> in lens design: <b>Analyses \u203a Thermal</b> takes the design from one temperature to another, at any pressure, in an aluminium, steel, brass, titanium or Invar housing: each glass\u2019s index by its maker\u2019s thermal data (over 1,100 glasses) and the air\u2019s, the lenses growing with their glasses and the spacers and detector with the housing. It gives the focal length, the focus against the detector, each field\u2019s spot and the focus drift per kelvin.',
     '<b>Through-focus MTF</b> in lens design: <b>Analyses \u203a Through-focus MTF</b> plots the MTF at a frequency you choose, tangential and sagittal for each field, as the image plane moves along the axis, with the best focus and the depth of focus.',
     '<b>Lens files with coordinate breaks</b>: an assembly that folds at a mirror, or has a lens tilted or decentred, now exports as a .zmx file, its folds, tilts and decentres written as coordinate breaks.',

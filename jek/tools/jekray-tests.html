@@ -8608,6 +8608,24 @@ const TESTS = [
     },
   },
   {
+    name: 'An assembly goes out for CAD: a STEP solid for each lens and the stop, and a closed STL of the same',
+    why: 'the triplet assembly exported as STEP: three lens solids and the stop\u2019s washer, each lens face a sphere, every reference to an entity one that exists; as STL, every edge met by two triangles once each way; the assembly panel offers both (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const name = J.assemblies()[0].name, st = J.exportCad(name, 'step'), sl = J.exportCad(name, 'stl');
+      const ids = new Set([...st.text.matchAll(/^#(\d+)=/gm)].map(m => m[1])), refsOk = [...st.text.matchAll(/#(\d+)/g)].every(m => ids.has(m[1]));
+      const breps = (st.text.match(/MANIFOLD_SOLID_BREP\(/g) || []).length, spheres = (st.text.match(/SPHERICAL_SURFACE\(/g) || []).length;
+      const tris = [], re = /outer loop\n\s+vertex ([^\n]+)\n\s+vertex ([^\n]+)\n\s+vertex ([^\n]+)/g;
+      let m; while ((m = re.exec(sl.text))) tris.push([m[1], m[2], m[3]].map(v => v.trim().split(/\s+/).map(x => (+x).toFixed(6)).join(',')));
+      const E = new Map(); tris.forEach(t => { for (let k = 0; k < 3; k++) { const e = t[k] + '>' + t[(k + 1) % 3]; E.set(e, (E.get(e) || 0) + 1); } });
+      const closed = [...E].every(([e, n]) => { const [a, b] = e.split('>'); return n === 1 && E.get(b + '>' + a) === 1; });
+      J.selectAssembly(name);
+      const btns = [...rigDoc().querySelectorAll('#panel button')].map(b => b.textContent);
+      return breps === 4 && spheres === 6 && refsOk && sl.solids === 4 && tris.length > 1000 && closed && btns.includes('Export for CAD (.step)') && btns.includes('Export as a mesh (.stl)') ? 1 : 0;
+    },
+  },
+  {
     name: 'An assembly is kept through saving, undo and copying, and a new design starts as one',
     why: 'the triplet assembly saved and opened again is still one; undone, it is gone, redone, back; copied and pasted, the copy is an assembly of its own; File › New lens design puts a stop and a singlet on the bench as an assembly, open in the lens design workspace (1 when all hold)',
     want: 1, tol: 0, unit: '',

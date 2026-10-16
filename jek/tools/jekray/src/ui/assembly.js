@@ -8,6 +8,7 @@ import { h, numInput, panel, textField } from './panel.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
+import { exportCad } from '../io/cad-export.js';
 import { exportZmx } from '../io/zmx-export.js';
 import { condMismatch } from '../engines/lens-design.js';
 import { asmBenchLight, openLensDesign } from './lens-workspace.js';
@@ -131,6 +132,8 @@ export function assemblyPanel(asm) {
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
     h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the lens design workspace: its conditions, layout and lens data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
     B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
+    B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'));
 }

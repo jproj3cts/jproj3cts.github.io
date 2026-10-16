@@ -74,6 +74,7 @@ import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, 
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
+import { cadSTEP, cadSTL } from '../io/cad-export.js';
 import { asmMembers, asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine.js';
 import { ghostPrescription } from '../engines/lens-ghost.js';
@@ -391,6 +392,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
+    exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },

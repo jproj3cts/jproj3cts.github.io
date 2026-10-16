@@ -8976,7 +8976,7 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [
         { type: 'source', name: 'Beam', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 9, width: 25, divergence: 0 },
         { type: 'stop', name: 'Iris', x: -1, y: 0, angle: 0, aperture: 25 },
-        { type: 'lens', name: 'PCX', x: 3, y: 0, angle: 0, diameter: 26, surfaces: [{ R: 25.8 }, { R: null }], gaps: [6], materials: [{ glass: 'N-BK7' }] }] });
+        { type: 'lens', name: 'PCX', asphere: true, x: 3, y: 0, angle: 0, diameter: 26, surfaces: [{ R: 25.8 }, { R: null }], gaps: [6], materials: [{ glass: 'N-BK7' }] }] });
       J.makeAssembly(['Iris', 'PCX']);
       const name = J.assemblies()[0].name;
       J.openLensDesign(name);

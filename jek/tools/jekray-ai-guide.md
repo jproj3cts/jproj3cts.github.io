@@ -207,6 +207,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) i
 | cyl | (none) | optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it. |
 | design | (none) | optional: nm, the wavelength the lens was designed for (an imported lens file’s primary wavelength); for the reader only, it changes nothing in the trace. |
 | mount | (none) | optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange’s middle. Outside the lens: not traced. |
+| asphere | (none) | true for an asphere: only an asphere’s surfaces take a conic ("k") and aspheric terms ("A"); a plain lens’s are spheres. |
 
 ### "screen": Screen
 

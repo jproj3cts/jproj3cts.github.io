@@ -17,7 +17,7 @@ import {
   showSubscribe
 } from './account.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
-import { openZmx } from '../ui/tours.js';
+import { newProject, openZmx } from '../ui/tours.js';
 
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -164,16 +164,68 @@ export const personalWs = () => account && (account.workspaces.find(w => w.kind 
 async function cloudSave() {
   if (!cloudOn()) return;
   if (cloud) { if (await cloudPush({ checkpoint: true })) toast('Saved to the cloud, and kept in its history'); return; }
-  const ws = cloudPlace.ws || personalWs().id;
-  try {
-    const b = await api('/v1/workspaces/' + ws + '/benches', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: project.name, folder_id: cloudPlace.ws === ws ? cloudPlace.folder : null, content: cloudContent() }) });
-    cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
-    cloudThumb(cloud, true);
-    toast('Saved to the cloud: “' + b.name + '” is in My benches');
-  } catch (err) {
-    toast(err.status === 402 ? 'Saving to the cloud needs JEKrayPro.' : 'Could not save to the cloud: ' + err.message, true);
-  }
+  // not in the cloud yet: asked where it goes (My benches or a team) and its name
+  newCloudBench(cloudPlace.ws || personalWs().id, cloudPlace.folder, true);
+}
+/* A bench put in the cloud, in My benches or in a team the person can edit in (and in the folder shown,
+   when made from My benches' page there), then linked and saving there: what is on the bench (Save to
+   cloud), or a new, empty one (New bench on My benches' page; the bench being worked on is kept in
+   Earlier versions first, and nothing is cleared unless the new one is made). */
+const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
+export function newCloudBench(ws, folder, saveThis) {
+  if (!cloudOn()) return;
+  const places = newPlaces();
+  if (!places.length) return;
+  let dlg = document.getElementById('cloudNewDialog');
+  if (dlg) dlg.remove();
+  const name = h('input', { type: 'text', id: 'cloudNewName', value: saveThis ? project.name || 'Untitled bench' : 'Untitled bench', spellcheck: 'false', maxlength: '120' });
+  const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
+  where.value = places.some(w => w.id === ws) ? ws : places[0].id;
+  const note = h('p', { class: 'rt-subsmall' });
+  const sayWhere = () => {
+    const w = places.find(x => x.id === where.value), inFolder = where.value === ws && folder;
+    note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + (inFolder ? ', in the folder you are looking at.' : '.') +
+      (!saveThis && project.elements.length ? ' What is on the bench now is kept in Earlier versions (File menu).' : '');
+  };
+  where.addEventListener('change', sayWhere); sayWhere();
+  const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, saveThis ? 'Save' : 'Make it');
+  dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
+    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : 'New cloud bench'),
+    h('div', { class: 'rt-rows' },
+      h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name),
+      h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
+    note,
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
+  document.body.append(dlg);
+  go.addEventListener('click', async () => {
+    const wsId = where.value, nm = name.value.trim() || 'Untitled bench', fid = wsId === ws ? folder || null : null;
+    go.disabled = true;
+    try {
+      if (saveThis) { project.name = nm; document.getElementById('projName').value = nm; scheduleSave(); }
+      const content = saveThis ? cloudContent() : JSON.stringify({ format: 'jekray', version: 1, name: nm, elements: [], fibres: [] });
+      const b = await api('/v1/workspaces/' + wsId + '/benches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nm, folder_id: fid, content }) });
+      dlg.close();
+      const w = places.find(x => x.id === wsId);
+      if (saveThis) {
+        cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+        cloudThumb(cloud, true);
+        toast('Saved to the cloud: “' + b.name + '” is in ' + (w.kind === 'personal' ? 'My benches' : w.name) + ', and saves there as you work');
+        return;
+      }
+      if (project.elements.length) keepSnapshot('Before a new cloud bench', true);
+      if (cloud) cloudLink(null);
+      setCloudOpening(true);
+      try { newProject(); project.name = b.name; document.getElementById('projName').value = b.name; } finally { setCloudOpening(false); }
+      cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+      if (homeOpen()) closeHome();
+      toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
+    } catch (err) {
+      go.disabled = false;
+      toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);
+    }
+  });
+  dlg.showModal();
+  name.select();
 }
 /* My benches' picture of a bench: the view as it was last seen, without the handles, cut to
    8:5 and drawn small. Sent after a save at most every two minutes, and always after Save to
@@ -849,7 +901,9 @@ export function wireCloud() {
     document.getElementById('cloudLockCopy').addEventListener('click', () => document.getElementById('btnCloudFork').click());
     window.addEventListener('pagehide', () => { if (cloud) leaseStop(cloud); });
     document.getElementById('homeBack').addEventListener('click', closeHome);
-    document.getElementById('homeNew').addEventListener('click', () => { closeHome(); document.getElementById('btnNew').click(); });
+    // New bench on My benches' page: a cloud bench, in the workspace and folder shown
+    document.getElementById('homeNew').addEventListener('click', () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null));
+
     const search = document.getElementById('homeSearch');
     let searchT = null;
     search.addEventListener('input', () => {

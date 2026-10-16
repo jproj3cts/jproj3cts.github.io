@@ -213,7 +213,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
-function newProject() {
+export function newProject() {
   pauseAll();
   checkpoint();
   project.elements = []; project.fibres = [];

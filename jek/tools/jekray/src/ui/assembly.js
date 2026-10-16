@@ -65,11 +65,15 @@ export function newLensDesign() {
    angle its axis runs at from there, and the height of its parts. A change moves or turns every part
    together, about that vertex, so the assembly itself is unchanged */
 export function asmPlace(asm) {
-  const P = asmPrescription(asm), M = asmMembers(asm);
+  const M = asmMembers(asm);
+  // (a panel's field read again after its assembly has gone: nothing to place)
+  if (!M.length || !asmCheck(M, { ref: asm.ref, rev: asm.rev, min: 1 }).ok) return null;
+  const P = asmPrescription(asm);
   return { x: P.origin[0], y: P.origin[1], angle: Math.atan2(P.dir[1], P.dir[0]) / deg, z: M[0].z === undefined ? 75 : M[0].z };      // (a part with no height of its own is at the bench's 75 mm)
 }
 export function asmMoveTo(asm, to) {
   const M = asmMembers(asm), at = asmPlace(asm);
+  if (!at) return;
   if (isFinite(to.angle) && Math.abs(to.angle - at.angle) > 1e-12) {
     const r = (to.angle - at.angle) * deg, c = Math.cos(r), sn = Math.sin(r);
     for (const e of M) { const dx = e.x - at.x, dy = e.y - at.y; e.x = at.x + dx * c - dy * sn; e.y = at.y + dx * sn + dy * c; e.angle = ((e.angle + to.angle - at.angle) % 360 + 540) % 360 - 180; }
@@ -81,7 +85,7 @@ export function asmMoveTo(asm, to) {
 function asmPlaceFields(asm, M, P) {
   const f = (label, key, title) => {
     const id = 'asm-' + key;
-    const inp = numInput(id, () => +asmPlace(asm)[key].toFixed(4), v => asmMoveTo(asm, { [key]: v }), { commit: true });
+    const inp = numInput(id, () => { const at = asmPlace(asm); return at ? +at[key].toFixed(4) : 0; }, v => asmMoveTo(asm, { [key]: v }), { commit: true });
     return h('div', { class: 'rt-f', title }, h('label', { for: id }, label), inp);
   };
   const out = [f('X (mm)', 'x', 'Its first vertex: where the axis meets its first surface'), f('Y (mm)', 'y', 'Its first vertex: where the axis meets its first surface'),

@@ -1,5 +1,5 @@
 import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine.js';
-import { designEpd, designOf, editable, getV, posOf, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
+import { asphGet, asphSet, designEpd, designOf, editable, getV, posOf, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
 
 /* ==========================================================================
@@ -52,8 +52,12 @@ export function optVars(prob) {
   }
   return out;
 }
+/* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
+   the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
+const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
 function getX(P, v) {
   if (v.at.q === 'R') { const R = P.surfaces[v.at.i].R; return R ? 1 / R : 0; }
+  if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); return asphGet(P.surfaces[v.at.i], n) * Math.pow(asphH(P, v.at.i), n); }
   if (v.at.q === 'g') return P.materials[v.at.i][v.part];
   return getV(P, v.at);
 }
@@ -61,13 +65,14 @@ function setX(P, v, x) {
   const i = v.at.i;
   if (v.at.q === 'R') P.surfaces[i].R = Math.abs(x) < 1e-12 ? null : 1 / x;
   else if (v.at.q === 'k') P.surfaces[i].k = x;
+  else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4 };
-const stepOf = v => STEP[v.part || v.at.q];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q === 'nd' ? 0.02 : 3; };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6 };
+const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured */
 function designAt(prob, V, x) {
@@ -156,6 +161,23 @@ export function meritTerms(prob, P, detail) {
       // air between two lenses (a stop may sit against a lens)
       broke(B.airMin - t, 'the air after surface ' + (i + 1) + ' is narrower than ' + B.airMin + ' mm');
       broke(B.airMin - (isFinite(edge) ? edge : -1), 'the air after surface ' + (i + 1) + ' is narrower than ' + B.airMin + ' mm at the edge');
+    }
+  }
+  // each lens surface's aspheric terms: their sag from the conic (the departure) and its slope, over the clear radius
+  if (B.aspMax > 0 || B.slopeMax > 0) {
+    for (let i = 0; i < N; i++) {
+      if (sps[i].kind !== 'lens') continue;
+      const A = P.surfaces[i].A || [], h = P.surfaces[i].semi > 0 && isFinite(P.surfaces[i].semi) ? P.surfaces[i].semi : 10;
+      let dep = 0, slope = 0;
+      if (A.some(a => a)) for (let q = 1; q <= 24; q++) {
+        const r = h * q / 24;
+        let d = 0, ds = 0, p = r * r * r;
+        A.forEach((a, j) => { d += a * p * r; ds += (4 + 2 * j) * a * p; p *= r * r; });
+        dep = Math.max(dep, Math.abs(d)); slope = Math.max(slope, Math.atan(Math.abs(ds)) * 180 / Math.PI);
+      }
+      // counted against the limit itself, so a limit of a few micrometres holds as well as one of a millimetre
+      if (B.aspMax > 0) broke((dep - B.aspMax) / Math.min(B.aspMax, 1), 'surface ' + (i + 1) + '’s aspheric departure is more than ' + B.aspMax + ' mm');
+      if (B.slopeMax > 0) broke((slope - B.slopeMax) / 10, 'surface ' + (i + 1) + '’s aspheric departure is steeper than ' + B.slopeMax + '°');
     }
   }
   // a model glass kept on the glass map: within reach of a real glass
@@ -257,6 +279,7 @@ export function globalSearch(prob, V, best, trials, seed) {
       if (q === 'R') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.01);
       else if (q === 't') x[j] = Math.max(0, x[j] * Math.exp(0.3 * z));
       else if (q === 'k') x[j] += 0.3 * z;
+      else if (q[0] === 'a') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });

@@ -15,6 +15,7 @@ import { lensSystem, seidel } from './lens-engine.js';
      pickups: a value that follows another, times a scale plus an offset.
    A key names one value of one surface by where it came from, so it survives surfaces inserted
    or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
+   "g:..." (the glass after it), "a4:..." to "a16:..." (its even aspheric coefficients, A4 to A16),
    and "t:image". Solves and pickups are worked out after every change, and the result is written
    back to the parts: the bench is always the design.
    ========================================================================== */
@@ -37,23 +38,35 @@ export function surfaceParts(P) {
   P.parts.forEach((p, pi) => { for (let j = 0; j < p.n; j++) out.push({ pi, kind: p.kind, id: p.id, j, n: p.n }); });
   return out;
 }
-/* what can be changed: a lens's or a mirror's radii and conics; any gap; a lens's glass (the gaps inside it) */
+/* what can be changed: a lens's or a mirror's radii and conics; a lens's aspheric terms; any gap; a lens's glass (the gaps inside it) */
 export function editable(P, q, i) {
   const sp = surfaceParts(P)[i];
   if (!sp) return false;
   if (q === 'R' || q === 'k') return sp.kind === 'lens' || sp.kind === 'mirror';
+  if (q[0] === 'a') return sp.kind === 'lens';
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
 export function getV(P, at) {
   if (at.q === 'R') return P.surfaces[at.i].R;
   if (at.q === 'k') return P.surfaces[at.i].k;
+  if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   return at.image ? P.image : P.gaps[at.i];
+}
+/* a surface's even aspheric coefficient of order n (A4 is s.A[0]), and set: the list as long as it needs, no zeros trailing */
+export const asphGet = (s, n) => (s.A || [])[(n - 4) / 2] || 0;
+export function asphSet(s, n, v) {
+  const A = (s.A || []).slice(), j = (n - 4) / 2;
+  while (A.length <= j) A.push(0);
+  A[j] = isFinite(v) ? v : 0;
+  while (A.length && !A[A.length - 1]) A.pop();
+  s.A = A;
 }
 export function setV(P, at, v) {
   if (!editable(P, at.q, at.i)) return;
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
+  else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
 }

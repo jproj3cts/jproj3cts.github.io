@@ -7,6 +7,8 @@ import { cloneP, meritTerms } from './lens-opt.js';
    might make it, with nothing re-solved but the compensator:
      a surface's radius, by N fringes at 632.8 nm over its clear aperture: its sag at its clear
        radius changes by N λ / 2 (more curved for N > 0);
+     a surface's irregularity, by N fringes peak to valley: a fourth-order form error with no sag at
+       its clear radius, a (r⁴ − h² r²) with a h⁴ / 4 = N λ / 2 (off unless turned on);
      a thickness or air gap, by ± mm;
      a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
        and about y) by ± arcminutes: its surfaces traced in their own moved frames;
@@ -25,6 +27,7 @@ const LAMBDA_TEST = 632.8e-6, ARCMIN = Math.PI / 180 / 60;
 export function tolOps(P, T) {
   const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
   if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
+  if (T.irr && T.irr.on && T.irr.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'irr', i, lim: T.irr.v, label: 'Irregularity of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
@@ -51,6 +54,11 @@ export function perturb(P0, ops, vals) {
       const s = P.surfaces[o.i], h = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, c0 = s.R ? 1 / s.R : 0;
       const s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0, s1 = s0 + Math.sign(c0 || 1) * v * LAMBDA_TEST / 2, c = 2 * s1 / (s1 * s1 + h * h);
       s.R = Math.abs(c) < 1e-14 ? null : 1 / c;
+    } else if (o.kind === 'irr') {
+      // a fourth-order form error with no sag at the clear radius: a (r⁴ − h² r²), its peak to valley a h⁴ / 4 = N λ / 2
+      const s = P.surfaces[o.i], h = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, a = 2 * v * LAMBDA_TEST / (h * h * h * h);
+      const A = (s.A || []).slice(); if (!A.length) A.push(0);
+      A[0] += a; s.A = A; s.a2 = (s.a2 || 0) - a * h * h;
     } else if (o.kind === 'thk') P.gaps[o.i] = Math.max(0, P.gaps[o.i] + v);
     else if (o.kind === 'ind') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dn: (P.materials[o.i].dn || 0) + v });
     else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });

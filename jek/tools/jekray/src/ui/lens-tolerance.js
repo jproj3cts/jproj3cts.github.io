@@ -19,7 +19,8 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['dec', 'Lens decentre', 'mm', 'Each lens moved across the axis, in x and in y'],
   ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
   ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
-  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion']];
+  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion'],
+  ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius']];
 const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 let TOL = null;
 export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };

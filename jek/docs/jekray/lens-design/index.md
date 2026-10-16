@@ -150,7 +150,7 @@ The **Merit** tab sets what the optimiser makes small: the merit function, a sum
 
 - **The image.** For every field, wavelength and pupil point, each weighted by its field's and wavelength's weights and the point's quadrature weight, either the ray's miss on the image plane from the field's centroid over all the wavelengths (*RMS spot about the centroid*), its miss from the primary wavelength's chief ray (*about the chief ray*), or its wavefront error less the mean (*RMS wavefront error*, in waves). The pupil is sampled by 1 to 4 rings at Gauss–Legendre radii, each with 4 to 12 arms, so few rays stand in for the whole pupil. Together these terms weigh 1, so their part of the merit is the RMS spot radius in mm (or the RMS wavefront error in waves).
 - **Terms added to it:** the focal length, the working F-number, the total track, the distortion at the largest field (from the real chief ray, %), or any Seidel sum, each with a target and a weight: the term is $$\sqrt{w}\,(v - t)$$.
-- **Boundaries** every design keeps to: glass at least (and, if set, at most) so thick at its centre and so thick at its edge, and air between lenses at least so wide at the centre and the edge. Each counts only while it is broken, as ten times its overshoot in mm, so it overrides the rest. A stop may sit against a lens.
+- **Boundaries** every design keeps to: glass at least (and, if set, at most) so thick at its centre and so thick at its edge, and air between lenses at least so wide at the centre and the edge. Each counts only while it is broken, as ten times its overshoot in mm, so it overrides the rest. A stop may sit against a lens. Two more hold a lens's aspheric terms to what can be made: their **departure** (the sag they add to the surface, anywhere over its clear radius; 0.5 mm unless set, 0 for none), counted against the limit itself so a few micrometres hold as well as a millimetre; and the departure's **slope** in degrees (no limit unless set).
 
 The merit is $$\sqrt{\sum r_i^2 / W}$$, $$W$$ one for the image plus the added terms' weights. The table gives each term's value now and its share of the merit. Rays are traced through every surface whatever its clear radius, as the lenses are sized to the light afterwards.
 
@@ -168,6 +168,23 @@ Both run in the page's background worker, a few cycles or trials at a time, and 
 - a Cooke triplet with its radii spoilt by up to 30%: optimised back to at least as good as the published design, its focal length kept;
 - a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint.
 
+### Aspheric surfaces
+
+A lens surface may carry even aspheric terms on top of its conic, its sag
+
+$$z(r) = \frac{c r^2}{1 + \sqrt{1 - (1 + k) c^2 r^2}} + A_4 r^4 + A_6 r^6 + \dots + A_{16} r^{16}.$$
+
+**+ asphere** beside a lens surface's name opens a row of its terms under it: A4 first, **Add A6** and so on to A16, **Remove** taking the last off. Each is typed (in mm to the power of one less than its order), marked **V** for the optimiser, or picked up from the same term of another surface; a surface's terms set on the bench (a lens's panel, Add aspheric terms) show here too, and the other way round.
+
+The optimiser varies each term as the sag it adds at the surface's clear radius, $$A_n h^n$$ in mm, so terms whose raw values differ by many orders of magnitude take steps of a like size. Keep the departure and slope boundaries in the merit function (above) to keep what it finds makeable; use as few terms as do the job, starting from A4.
+
+The Seidel sums carry a surface's fourth-order term (its $$A_4$$ and its conic) as a third-order aberration; the higher terms are in the real rays, and so in every analysis. Its drawing gives the terms in its notes and the departure at its clear aperture; a lens file writes them as an even asphere.
+
+**Checked against.**
+- a plano-convex N-BK7 lens of 50 mm at f/2, its curved side to the light: A4 to A10 on that side, optimised, take its RMS spot from 497 µm to 0.01 µm, against an Airy radius of 1.4 µm;
+- the same with the departure kept within 20 µm: kept;
+- a coefficient set, read back and moved with a copy of the assembly by its key.
+
 ### Model glass
 
 Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.
@@ -184,6 +201,7 @@ The **Tolerance the design** tab asks how good the design will be as it is made.
 | Lens tilt | arcmin | each lens tilted about its first vertex, about x and about y |
 | Glass index | Δn | each glass's index at every wavelength |
 | Abbe number | % | each glass's dispersion about the d line, divided by $$1 + \delta$$ |
+| Surface irregularity | fringes | each lens surface's form error beyond its radius, off unless turned on: $$a(r^4 - h^2 r^2)$$, no sag at the clear radius $$h$$ or on the axis, its peak to valley $$a h^4/4$$ the fringes' $$N\lambda/2$$ |
 
 A decentred or tilted lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
 
@@ -212,7 +230,8 @@ The **Drawings** tab gives each lens (and window) of the design a drawing on an 
 | tolerance | the radius's own, from the surface form: the spheres whose sags at the clear radius differ by the fringes' $$N\lambda/2$$, the larger change (about $$N\lambda R^2/h^2$$) |
 | Clear aperture | the surface's clear diameter |
 | Conic, Aspheric | where the surface has them; the aspheric terms in the notes |
-| 3/ Surface form | $$3/N(-)$$: $$N$$ fringes of power at 632.8 nm over the clear aperture, from Radius in the tolerance settings |
+| Aspheric departure | the aspheric terms' sag at the clear aperture, where the surface has them |
+| 3/ Surface form | $$3/A(B)$$: $$A$$ fringes of power at 632.8 nm over the clear aperture (Radius in the tolerance settings), $$B$$ fringes of irregularity (Surface irregularity), each "-" where not set |
 | 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over the surface's radius |
 | Material, Index nd, Abbe number Vd | the glass, with the index and Abbe number tolerances |
 | Centre and edge thickness | the glass's, the edge thickness from the two surfaces' sags at the full diameter |
@@ -274,4 +293,4 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it) or `"t:image"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (its aspheric terms) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.

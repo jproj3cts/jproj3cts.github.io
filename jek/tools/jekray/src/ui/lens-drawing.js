@@ -113,7 +113,8 @@ export function drawSheet(g, D, meta) {
   row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
-  if (D.surfaces.some(s => s.form !== undefined)) row('3/ Surface form', D.surfaces.map(s => s.form === undefined ? '—' : '3/' + dfmt(s.form, 2) + '(-)'));
+  if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
   ty += 10;
   text(g, D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
@@ -131,7 +132,7 @@ export function drawSheet(g, D, meta) {
   text(g, 'Notes', tx, ty, { size: 9.5, bold: true }); ty += 13;
   const notes = ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
-    D.toleranced ? 'Surface form (3/): fringes of power at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
+    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
   D.surfaces.forEach(s => {
     if (!(s.A.length || s.a2 || s.odd)) return;
     const terms = [];

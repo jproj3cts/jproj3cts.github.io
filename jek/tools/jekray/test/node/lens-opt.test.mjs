@@ -100,5 +100,5 @@ test('boundaries hold: a lens let thin keeps its least thickness; merit settings
   const t = ST.project.elements.find(e => e.id === 'L').gaps[0];
   assert.ok(t > 2.5 - 0.01 && t < 2.6, 'thickness ' + t);
   const m = A.normMerit({ crit: 'x', rings: 9, arms: 5, ops: [{ op: 'EFL', target: 50, weight: 2 }, { op: 'nope' }], bounds: { glassMin: -1 } });
-  assert.deepEqual(m, { crit: 'spot', rings: 4, arms: 6, bounds: { glassMin: 0, glassMax: 0, edgeMin: 0.5, airMin: 0.1 }, ops: [{ op: 'EFL', target: 50, weight: 2 }] });
+  assert.deepEqual(m, { crit: 'spot', rings: 4, arms: 6, bounds: { glassMin: 0, glassMax: 0, edgeMin: 0.5, airMin: 0.1, aspMax: 0.5, slopeMax: 0 }, ops: [{ op: 'EFL', target: 50, weight: 2 }] });
 });

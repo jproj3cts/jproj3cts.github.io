@@ -1287,6 +1287,13 @@
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
   .rt-ltable td.tl { white-space: nowrap; }
+  .rt-lasp { margin-left: 0.5rem; font: inherit; font-size: 0.72rem; font-weight: 500; color: var(--jek-ink-soft); background: none; border: 1px dashed var(--jek-line-2); border-radius: 3px; padding: 0 0.3rem; cursor: pointer; }
+  .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
+  .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
+  .rt-laspc { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; align-items: center; }
+  .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
+  .rt-lnum.wide { width: 7.6rem; }
+  .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
   .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
   .rt-lsheet { display: block; }
@@ -5095,7 +5102,9 @@ function normAssemblies(list, els) {
    (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
-const DESIGN_KEY = /^([Rtkg]):(.{1,120}\.\d+)$/;
+/* a key: R (radius), k (conic), t (gap after), g (glass after), or a4 … a16 (an even aspheric coefficient, A4 r⁴ …) */
+const DESIGN_KEY = /^([Rtkg]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
   focus: { on: k => k === 't:image', label: 'Paraxial focus' },
@@ -5131,11 +5140,12 @@ function normDesign(d) {
    the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
    index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
    statistics, trials and seed */
-const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5 };
+const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1 };
+const TOL_OFF = { irr: true };              // kinds off until turned on
 function normTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
-  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
+  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on === undefined ? !TOL_OFF[k] : x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
   out.comp = o.comp !== false;
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
@@ -5149,7 +5159,8 @@ function normMerit(m) {
   return {
     crit: ['spot', 'chief', 'wfe'].includes(m.crit) ? m.crit : 'spot',
     rings: Math.round(clamp(num(m.rings, 3), 1, 4)), arms: [4, 6, 8, 12].includes(+m.arms) ? +m.arms : 6,
-    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3) },
+    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3),
+      aspMax: clamp(num(b.aspMax, 0.5), 0, 1e3), slopeMax: clamp(num(b.slopeMax, 0), 0, 89) },
     ops: (Array.isArray(m.ops) ? m.ops : []).filter(o => o && MERIT_OPS.includes(o.op)).slice(0, 50)
       .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6) })),
   };
@@ -5163,6 +5174,8 @@ function remapDesign(d, map) {
   o.vars = (d.vars || []).map(k2);
   o.solves = Object.fromEntries(Object.entries(d.solves || {}).map(([k, v]) => [k2(k), v]));
   o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
+  if (d.merit) o.merit = d.merit;
+  if (d.tol) o.tol = d.tol;
   return o;
 }
 
@@ -22028,7 +22041,8 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['dec', 'Lens decentre', 'mm', 'Each lens moved across the axis, in x and in y'],
   ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
   ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
-  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion']];
+  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion'],
+  ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius']];
 const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 let TOL = null;
 const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
@@ -22288,7 +22302,8 @@ function drawSheet(g, D, meta) {
   row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
-  if (D.surfaces.some(s => s.form !== undefined)) row('3/ Surface form', D.surfaces.map(s => s.form === undefined ? '—' : '3/' + dfmt(s.form, 2) + '(-)'));
+  if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
   ty += 10;
   text(g, D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
@@ -22306,7 +22321,7 @@ function drawSheet(g, D, meta) {
   text(g, 'Notes', tx, ty, { size: 9.5, bold: true }); ty += 13;
   const notes = ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
-    D.toleranced ? 'Surface form (3/): fringes of power at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
+    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
   D.surfaces.forEach(s => {
     if (!(s.A.length || s.a2 || s.odd)) return;
     const terms = [];
@@ -22573,7 +22588,7 @@ function reportRecs(asm) {
   // ---- 4: tolerances ----
   pg = rpPage(meta, 'Tolerances');
   const T = D.tol, R = tolResultsFor(asm, P);
-  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %']];
+  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm']];
   rpTable(pg, [{ label: 'Tolerance', w: 180 }, { label: 'Limit', w: 90, mono: true }, { label: 'Unit', w: 229 }], kinds.map(([k, l, u]) => [l, T[k].on ? rf(T[k].v, 4) : 'off', u]));
   rpPara(pg, 'Compensator: ' + (T.comp ? 'the image plane refocused for each build.' : 'none.') + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
   const crit = { spot: 'RMS spot about the centroid (mm)', chief: 'RMS spot about the chief ray (mm)', wfe: 'RMS wavefront error (waves)' }[(R && R.crit) || D.merit.crit];
@@ -22981,7 +22996,12 @@ function dataCard(asm, P) {
     const sp = sps[i], s = P.surfaces[i];
     const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
     tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
-    tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), h('td', { class: 'nm' }, surfaceName(P, sps, i)));
+    // a lens surface's aspheric terms: shown under it once it has any, or once asked for
+    const sid = s.from ? s.from.id + '.' + s.from.i : '', nA = sp.kind === 'lens' ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
+    const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
+    if (sp.kind === 'lens' && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
+      onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ asphere'));
+    tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
     const gtd = h('td');
@@ -23002,6 +23022,7 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'k', i));
     if (moved) tr.append(h('td', { class: 'mono ro tl', title: 'Set on the bench: turn or move the part there. A tilt is about the part’s first vertex, in the plane of the fields; a decentre is across the axis.' }, sp.j === 0 ? tiltText(s) : ''));
     tb.append(tr);
+    if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
   }
   const F = designFigures(asm, P);
   tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? [h('td')] : [])));
@@ -23035,14 +23056,15 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : 'Conic') + ' of surface ' + (i + 1);
-  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : 'Conic') + ' of surface ' + (i + 1);
+  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e');
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -23053,7 +23075,20 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+/* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
+function asphRow(P, D, i, sid, nA, moved) {
+  const cells = h('div', { class: 'rt-laspc' });
+  for (let j = 0; j < Math.min(nA, ASPH_ORDERS.length); j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, 'A' + ASPH_ORDERS[j]), valueCell(P, D, 'a' + ASPH_ORDERS[j], i)));
+  const grow = n => { (WS.asp || (WS.asp = {}))[sid] = n; };
+  if (nA < ASPH_ORDERS.length) cells.append(h('button', { type: 'button', class: 'rt-link', onclick: () => { grow(nA + 1); renderWs(); } }, 'Add A' + ASPH_ORDERS[nA]));
+  cells.append(h('button', { type: 'button', class: 'rt-link', title: 'Take the last term off (its value set to 0, and its variable, solve or pickup cleared)', onclick: () => {
+    const q = 'a' + ASPH_ORDERS[nA - 1], key = keyAt(P, q, i);
+    grow(nA - 1);
+    edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
+  } }, nA > 1 ? 'Remove A' + ASPH_ORDERS[nA - 1] : 'No aspheric terms'));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 6 : 5) }, cells));
+}
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');
   if (!dl) { dl = h('datalist', { id: 'lensGlasses' }); for (const [k] of glassSearch('')) dl.append(h('option', { value: k })); document.body.append(dl); }
@@ -23119,7 +23154,9 @@ function meritCard(asm, P) {
   const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));
   card.append(h('h3', null, 'Boundaries every design keeps to (mm)'), h('div', { class: 'rt-lbnds' },
     bnum('Glass at the centre, at least', 'glassMin'), bnum('Glass at the centre, at most', 'glassMax', '0 for no limit'),
-    bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge')));
+    bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge'),
+    bnum('Aspheric departure, at most', 'aspMax', 'The sag the aspheric terms add to a surface, anywhere over its clear radius; 0 for no limit'),
+    bnum('Departure’s slope, at most (°)', 'slopeMax', 'How steep the aspheric terms’ own sag may get, in degrees; 0 for no limit')));
   card.append(h('p', { class: 'rt-lsub' }, 'The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'));
   return card;
 }
@@ -30551,6 +30588,7 @@ function seidel(S, fieldDeg, Sshort, Slong) {
      pickups: a value that follows another, times a scale plus an offset.
    A key names one value of one surface by where it came from, so it survives surfaces inserted
    or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
+   "g:..." (the glass after it), "a4:..." to "a16:..." (its even aspheric coefficients, A4 to A16),
    and "t:image". Solves and pickups are worked out after every change, and the result is written
    back to the parts: the bench is always the design.
    ========================================================================== */
@@ -30573,23 +30611,35 @@ function surfaceParts(P) {
   P.parts.forEach((p, pi) => { for (let j = 0; j < p.n; j++) out.push({ pi, kind: p.kind, id: p.id, j, n: p.n }); });
   return out;
 }
-/* what can be changed: a lens's or a mirror's radii and conics; any gap; a lens's glass (the gaps inside it) */
+/* what can be changed: a lens's or a mirror's radii and conics; a lens's aspheric terms; any gap; a lens's glass (the gaps inside it) */
 function editable(P, q, i) {
   const sp = surfaceParts(P)[i];
   if (!sp) return false;
   if (q === 'R' || q === 'k') return sp.kind === 'lens' || sp.kind === 'mirror';
+  if (q[0] === 'a') return sp.kind === 'lens';
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
 function getV(P, at) {
   if (at.q === 'R') return P.surfaces[at.i].R;
   if (at.q === 'k') return P.surfaces[at.i].k;
+  if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   return at.image ? P.image : P.gaps[at.i];
+}
+/* a surface's even aspheric coefficient of order n (A4 is s.A[0]), and set: the list as long as it needs, no zeros trailing */
+const asphGet = (s, n) => (s.A || [])[(n - 4) / 2] || 0;
+function asphSet(s, n, v) {
+  const A = (s.A || []).slice(), j = (n - 4) / 2;
+  while (A.length <= j) A.push(0);
+  A[j] = isFinite(v) ? v : 0;
+  while (A.length && !A[A.length - 1]) A.pop();
+  s.A = A;
 }
 function setV(P, at, v) {
   if (!editable(P, at.q, at.i)) return;
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
+  else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
 }
@@ -30935,8 +30985,12 @@ function optVars(prob) {
   }
   return out;
 }
+/* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
+   the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
+const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
 function getX(P, v) {
   if (v.at.q === 'R') { const R = P.surfaces[v.at.i].R; return R ? 1 / R : 0; }
+  if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); return asphGet(P.surfaces[v.at.i], n) * Math.pow(asphH(P, v.at.i), n); }
   if (v.at.q === 'g') return P.materials[v.at.i][v.part];
   return getV(P, v.at);
 }
@@ -30944,13 +30998,14 @@ function setX(P, v, x) {
   const i = v.at.i;
   if (v.at.q === 'R') P.surfaces[i].R = Math.abs(x) < 1e-12 ? null : 1 / x;
   else if (v.at.q === 'k') P.surfaces[i].k = x;
+  else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4 };
-const stepOf = v => STEP[v.part || v.at.q];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q === 'nd' ? 0.02 : 3; };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6 };
+const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured */
 function designAt(prob, V, x) {
@@ -31039,6 +31094,23 @@ function meritTerms(prob, P, detail) {
       // air between two lenses (a stop may sit against a lens)
       broke(B.airMin - t, 'the air after surface ' + (i + 1) + ' is narrower than ' + B.airMin + ' mm');
       broke(B.airMin - (isFinite(edge) ? edge : -1), 'the air after surface ' + (i + 1) + ' is narrower than ' + B.airMin + ' mm at the edge');
+    }
+  }
+  // each lens surface's aspheric terms: their sag from the conic (the departure) and its slope, over the clear radius
+  if (B.aspMax > 0 || B.slopeMax > 0) {
+    for (let i = 0; i < N; i++) {
+      if (sps[i].kind !== 'lens') continue;
+      const A = P.surfaces[i].A || [], h = P.surfaces[i].semi > 0 && isFinite(P.surfaces[i].semi) ? P.surfaces[i].semi : 10;
+      let dep = 0, slope = 0;
+      if (A.some(a => a)) for (let q = 1; q <= 24; q++) {
+        const r = h * q / 24;
+        let d = 0, ds = 0, p = r * r * r;
+        A.forEach((a, j) => { d += a * p * r; ds += (4 + 2 * j) * a * p; p *= r * r; });
+        dep = Math.max(dep, Math.abs(d)); slope = Math.max(slope, Math.atan(Math.abs(ds)) * 180 / Math.PI);
+      }
+      // counted against the limit itself, so a limit of a few micrometres holds as well as one of a millimetre
+      if (B.aspMax > 0) broke((dep - B.aspMax) / Math.min(B.aspMax, 1), 'surface ' + (i + 1) + '’s aspheric departure is more than ' + B.aspMax + ' mm');
+      if (B.slopeMax > 0) broke((slope - B.slopeMax) / 10, 'surface ' + (i + 1) + '’s aspheric departure is steeper than ' + B.slopeMax + '°');
     }
   }
   // a model glass kept on the glass map: within reach of a real glass
@@ -31140,6 +31212,7 @@ function globalSearch(prob, V, best, trials, seed) {
       if (q === 'R') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.01);
       else if (q === 't') x[j] = Math.max(0, x[j] * Math.exp(0.3 * z));
       else if (q === 'k') x[j] += 0.3 * z;
+      else if (q[0] === 'a') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });
@@ -31465,6 +31538,8 @@ const mtfPerfect = v => v >= 1 ? 0 : (2 / Math.PI) * (Math.acos(v) - v * Math.sq
    might make it, with nothing re-solved but the compensator:
      a surface's radius, by N fringes at 632.8 nm over its clear aperture: its sag at its clear
        radius changes by N λ / 2 (more curved for N > 0);
+     a surface's irregularity, by N fringes peak to valley: a fourth-order form error with no sag at
+       its clear radius, a (r⁴ − h² r²) with a h⁴ / 4 = N λ / 2 (off unless turned on);
      a thickness or air gap, by ± mm;
      a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
        and about y) by ± arcminutes: its surfaces traced in their own moved frames;
@@ -31483,6 +31558,7 @@ const LAMBDA_TEST = 632.8e-6, ARCMIN = Math.PI / 180 / 60;
 function tolOps(P, T) {
   const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
   if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
+  if (T.irr && T.irr.on && T.irr.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'irr', i, lim: T.irr.v, label: 'Irregularity of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
@@ -31509,6 +31585,11 @@ function perturb(P0, ops, vals) {
       const s = P.surfaces[o.i], h = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, c0 = s.R ? 1 / s.R : 0;
       const s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0, s1 = s0 + Math.sign(c0 || 1) * v * LAMBDA_TEST / 2, c = 2 * s1 / (s1 * s1 + h * h);
       s.R = Math.abs(c) < 1e-14 ? null : 1 / c;
+    } else if (o.kind === 'irr') {
+      // a fourth-order form error with no sag at the clear radius: a (r⁴ − h² r²), its peak to valley a h⁴ / 4 = N λ / 2
+      const s = P.surfaces[o.i], h = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, a = 2 * v * LAMBDA_TEST / (h * h * h * h);
+      const A = (s.A || []).slice(); if (!A.length) A.push(0);
+      A[0] += a; s.A = A; s.a2 = (s.a2 || 0) - a * h * h;
     } else if (o.kind === 'thk') P.gaps[o.i] = Math.max(0, P.gaps[o.i] + v);
     else if (o.kind === 'ind') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dn: (P.materials[o.i].dn || 0) + v });
     else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
@@ -31617,7 +31698,8 @@ function tolRun(prob, args) {
    thickness at its full diameter (a reference dimension, from the sags), its glass with its index
    and Abbe number, and the tolerances the design's tolerance settings give, written as the
    standard writes them:
-     3/ A(-)  surface form: A fringes of power at 632.8 nm over the clear aperture; the radius's own
+     3/ A(B)  surface form: A fringes of power at 632.8 nm over the clear aperture, B of irregularity
+              (or -, where none is set); the radius's own
               tolerance follows from it (near A λ R² / h² for clear radius h; exactly, the spheres whose
               sags there differ by A λ / 2, the larger change);
      4/ σ     centring: each surface's tilt to the lens's reference axis, in arcminutes: the lens's
@@ -31651,7 +31733,7 @@ function drawingData(P, pi, opts) {
   const S = P.surfaces.slice(k0, k0 + n), G = P.gaps.slice(k0, k0 + n - 1), M = P.materials.slice(k0, k0 + n - 1);
   const dia = opts.dia > 0 ? opts.dia : 2 * Math.max(...S.map(s => s.semi || 0)), rim = dia / 2;
   const on = k => T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : null;
-  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe');
+  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irr = on('irr');
   const surfaces = S.map((s, j) => {
     const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
     const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h,
@@ -31665,6 +31747,9 @@ function drawingData(P, pi, opts) {
       const c0 = R ? 1 / R : 0, s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0;
       out.dR = R === null ? null : Math.max(...[1, -1].map(q => { const s1 = s0 + q * Math.sign(c0) * fr * DRAW_LAMBDA / 2, c = 2 * s1 / (s1 * s1 + h * h); return Math.abs(1 / c - R); }));
     }
+    if (irr !== null) out.irr = irr;
+    // the aspheric terms' sag at the clear radius, beyond the conic
+    if (out.A.length) { let d = 0, p = h * h * h * h; for (const a of s.A || []) { d += a * p; p *= h * h; } out.asphDep = d; }
     if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
     return out;
   });
@@ -31679,7 +31764,7 @@ function drawingData(P, pi, opts) {
   const notes = [];
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv].some(v => v !== null), notes };
+  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
 }
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
@@ -37376,6 +37461,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Aspheric surfaces</b> in lens design: <b>+ asphere</b> on any lens surface in the lens data gives its terms A4 to A16, each typed, picked up or marked <b>V</b> for the optimiser, which varies them as the sag each adds at the clear radius. Two new boundaries keep what it finds makeable: the aspheric departure (0.5 mm unless set) and its slope. Tolerancing adds <b>surface irregularity</b> in fringes, and drawings give the departure and the surface form as 3/A(B). A fast plano-convex singlet, its curved side made aspheric, goes from a 497 \u00b5m spot to 0.01 \u00b5m.',
     '<b>Folds, tilts, drawings and the design report</b>, the last step of lens design. An assembly may now hold <b>mirrors</b> (flat or curved, the axis folding at each) and lenses <b>tilted</b> up to 30\u00b0 or <b>moved across</b> the axis; the lens engine traces each surface in its own frame, exactly as the bench does, and the layout draws the design folded as it stands. A fold mirror\u2019s tilt tolerance turns its face alone. The <b>Drawings</b> tab gives each lens a dimensioned sheet (its section, diameter, centre and edge thicknesses, surfaces and glass, the tolerances in ISO 10110\u2019s notation) to save as SVG or PDF, and <b>Report (PDF)</b> writes the whole design: conditions, first order, layout, prescription, Seidel sums, spot diagrams, field curvature, distortion, MTF, tolerances and every drawing.',
     '<b>Tolerance the design</b>, the sixth step of lens design: radius (in fringes), thickness and air gaps, lens decentre and tilt, glass index and Abbe number, each with its limit; the image refocused for each build. <b>Sensitivity</b> takes each tolerance alone at its limits, worst first, with the criterion expected over the builds; <b>Monte Carlo</b> builds the lens again and again at random and gives the spread: mean, deviation, the 50, 80, 90 and 98% builds and a histogram. Decentred and tilted lenses are traced exactly, each surface in its own frame. Runs in the background.',
     '<b>Analyses</b>, the fifth step of lens design: in the workspace\u2019s Analyses tab, the <b>spot diagram</b> (every field, each wavelength, with its RMS radius and the Airy disc), <b>ray fans</b> and <b>OPD fans</b>, <b>field curvature and distortion</b>, <b>longitudinal aberration and chromatic focal shift</b>, the <b>wavefront</b> with its Zernike terms, the <b>PSF</b> by FFT with its Strehl ratio and encircled energy, and the diffraction <b>MTF</b> beside its limit, each from real rays, each saving its numbers as CSV.',

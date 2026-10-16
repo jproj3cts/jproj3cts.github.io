@@ -1,4 +1,4 @@
-import { asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
+import { ASPH_ORDERS, asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -9,7 +9,7 @@ import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
 import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
-  insertSurface, keyAt, posOf, primaryNm, removeSurface, surfaceParts } from '../engines/lens-design.js';
+  insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { analysesPanel } from './lens-analyses.js';
 import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
@@ -393,7 +393,12 @@ function dataCard(asm, P) {
     const sp = sps[i], s = P.surfaces[i];
     const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
     tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
-    tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), h('td', { class: 'nm' }, surfaceName(P, sps, i)));
+    // a lens surface's aspheric terms: shown under it once it has any, or once asked for
+    const sid = s.from ? s.from.id + '.' + s.from.i : '', nA = sp.kind === 'lens' ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
+    const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
+    if (sp.kind === 'lens' && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
+      onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ asphere'));
+    tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
     const gtd = h('td');
@@ -414,6 +419,7 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'k', i));
     if (moved) tr.append(h('td', { class: 'mono ro tl', title: 'Set on the bench: turn or move the part there. A tilt is about the part’s first vertex, in the plane of the fields; a decentre is across the axis.' }, sp.j === 0 ? tiltText(s) : ''));
     tb.append(tr);
+    if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
   }
   const F = designFigures(asm, P);
   tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? [h('td')] : [])));
@@ -447,14 +453,15 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : 'Conic') + ' of surface ' + (i + 1);
-  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : 'Conic') + ' of surface ' + (i + 1);
+  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e');
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -465,7 +472,20 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+/* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
+function asphRow(P, D, i, sid, nA, moved) {
+  const cells = h('div', { class: 'rt-laspc' });
+  for (let j = 0; j < Math.min(nA, ASPH_ORDERS.length); j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, 'A' + ASPH_ORDERS[j]), valueCell(P, D, 'a' + ASPH_ORDERS[j], i)));
+  const grow = n => { (WS.asp || (WS.asp = {}))[sid] = n; };
+  if (nA < ASPH_ORDERS.length) cells.append(h('button', { type: 'button', class: 'rt-link', onclick: () => { grow(nA + 1); renderWs(); } }, 'Add A' + ASPH_ORDERS[nA]));
+  cells.append(h('button', { type: 'button', class: 'rt-link', title: 'Take the last term off (its value set to 0, and its variable, solve or pickup cleared)', onclick: () => {
+    const q = 'a' + ASPH_ORDERS[nA - 1], key = keyAt(P, q, i);
+    grow(nA - 1);
+    edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
+  } }, nA > 1 ? 'Remove A' + ASPH_ORDERS[nA - 1] : 'No aspheric terms'));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 6 : 5) }, cells));
+}
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');
   if (!dl) { dl = h('datalist', { id: 'lensGlasses' }); for (const [k] of glassSearch('')) dl.append(h('option', { value: k })); document.body.append(dl); }
@@ -531,7 +551,9 @@ function meritCard(asm, P) {
   const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));
   card.append(h('h3', null, 'Boundaries every design keeps to (mm)'), h('div', { class: 'rt-lbnds' },
     bnum('Glass at the centre, at least', 'glassMin'), bnum('Glass at the centre, at most', 'glassMax', '0 for no limit'),
-    bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge')));
+    bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge'),
+    bnum('Aspheric departure, at most', 'aspMax', 'The sag the aspheric terms add to a surface, anywhere over its clear radius; 0 for no limit'),
+    bnum('Departure’s slope, at most (°)', 'slopeMax', 'How steep the aspheric terms’ own sag may get, in degrees; 0 for no limit')));
   card.append(h('p', { class: 'rt-lsub' }, 'The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'));
   return card;
 }

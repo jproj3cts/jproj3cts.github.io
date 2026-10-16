@@ -47,7 +47,9 @@ export function normAssemblies(list, els) {
    (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
-export const DESIGN_KEY = /^([Rtkg]):(.{1,120}\.\d+)$/;
+/* a key: R (radius), k (conic), t (gap after), g (glass after), or a4 … a16 (an even aspheric coefficient, A4 r⁴ …) */
+export const DESIGN_KEY = /^([Rtkg]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
   focus: { on: k => k === 't:image', label: 'Paraxial focus' },
@@ -83,11 +85,12 @@ export function normDesign(d) {
    the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
    index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
    statistics, trials and seed */
-export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5 };
+export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1 };
+const TOL_OFF = { irr: true };              // kinds off until turned on
 export function normTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
-  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
+  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on === undefined ? !TOL_OFF[k] : x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
   out.comp = o.comp !== false;
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
@@ -101,7 +104,8 @@ export function normMerit(m) {
   return {
     crit: ['spot', 'chief', 'wfe'].includes(m.crit) ? m.crit : 'spot',
     rings: Math.round(clamp(num(m.rings, 3), 1, 4)), arms: [4, 6, 8, 12].includes(+m.arms) ? +m.arms : 6,
-    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3) },
+    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3),
+      aspMax: clamp(num(b.aspMax, 0.5), 0, 1e3), slopeMax: clamp(num(b.slopeMax, 0), 0, 89) },
     ops: (Array.isArray(m.ops) ? m.ops : []).filter(o => o && MERIT_OPS.includes(o.op)).slice(0, 50)
       .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6) })),
   };
@@ -115,6 +119,8 @@ export function remapDesign(d, map) {
   o.vars = (d.vars || []).map(k2);
   o.solves = Object.fromEntries(Object.entries(d.solves || {}).map(([k, v]) => [k2(k), v]));
   o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
+  if (d.merit) o.merit = d.merit;
+  if (d.tol) o.tol = d.tol;
   return o;
 }
 

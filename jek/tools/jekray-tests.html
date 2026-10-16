@@ -8968,6 +8968,35 @@ const TESTS = [
     },
   },
   {
+    name: 'Aspheric terms are added, typed, varied and optimised in the lens data, and drawn',
+    why: 'a plano-convex N-BK7 lens at f/2 opened with Design…: + asphere on its curved surface gives an A4 cell, Add A6 and Add A8 more; A4 typed reaches the lens on the bench; all three marked V and optimised: the RMS spot from hundreds of micrometres to within a fifth of the Airy radius; its drawing gives the aspheric departure; Remove A8 takes the last term off (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Beam', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 9, width: 25, divergence: 0 },
+        { type: 'stop', name: 'Iris', x: -1, y: 0, angle: 0, aperture: 25 },
+        { type: 'lens', name: 'PCX', x: 3, y: 0, angle: 0, diameter: 26, surfaces: [{ R: 25.8 }, { R: null }], gaps: [6], materials: [{ glass: 'N-BK7' }] }] });
+      J.makeAssembly(['Iris', 'PCX']);
+      const name = J.assemblies()[0].name;
+      J.openLensDesign(name);
+      try {
+        const s0 = J.lensAnalysis(name, 'spot', 0);
+        wsClick('+ asphere', 'Aspheric terms for surface 2');
+        wsSet('A4 of surface 2', '1e-6');
+        const typedOk = J.byName('PCX').surfaces[0].A[0] === 1e-6;
+        wsClick('Add A6'); wsClick('Add A8');
+        for (const n of [4, 6, 8]) wsClick('V', 'Vary a' + n + ' of surface 2');
+        for (let k = 0; k < 3; k++) J.lensOptimise('dls');
+        const s1 = J.lensAnalysis(name, 'spot', 0), optOk = s0.rms > 0.1 && s1.rms < 0.2 * s1.airy;
+        const svg = J.lensDrawingSvg(name, 0), drawOk = /Aspheric departure/.test(svg);
+        wsClick('Remove A8');
+        const A = J.byName('PCX').surfaces[0].A, removeOk = A.length === 2 && !rigDoc().querySelector('#lensWs [aria-label="A8 of surface 2"]');
+        if (!(typedOk && optOk && drawOk && removeOk)) console.log('asph', typedOk, optOk, drawOk, removeOk, s0.rms, s1.rms, s1.airy, A);
+        return typedOk && optOk && drawOk && removeOk ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

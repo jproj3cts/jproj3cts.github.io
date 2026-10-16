@@ -8,7 +8,8 @@ import { surfaceParts } from './lens-design.js';
    thickness at its full diameter (a reference dimension, from the sags), its glass with its index
    and Abbe number, and the tolerances the design's tolerance settings give, written as the
    standard writes them:
-     3/ A(-)  surface form: A fringes of power at 632.8 nm over the clear aperture; the radius's own
+     3/ A(B)  surface form: A fringes of power at 632.8 nm over the clear aperture, B of irregularity
+              (or -, where none is set); the radius's own
               tolerance follows from it (near A λ R² / h² for clear radius h; exactly, the spheres whose
               sags there differ by A λ / 2, the larger change);
      4/ σ     centring: each surface's tilt to the lens's reference axis, in arcminutes: the lens's
@@ -42,7 +43,7 @@ export function drawingData(P, pi, opts) {
   const S = P.surfaces.slice(k0, k0 + n), G = P.gaps.slice(k0, k0 + n - 1), M = P.materials.slice(k0, k0 + n - 1);
   const dia = opts.dia > 0 ? opts.dia : 2 * Math.max(...S.map(s => s.semi || 0)), rim = dia / 2;
   const on = k => T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : null;
-  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe');
+  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irr = on('irr');
   const surfaces = S.map((s, j) => {
     const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
     const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h,
@@ -56,6 +57,9 @@ export function drawingData(P, pi, opts) {
       const c0 = R ? 1 / R : 0, s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0;
       out.dR = R === null ? null : Math.max(...[1, -1].map(q => { const s1 = s0 + q * Math.sign(c0) * fr * DRAW_LAMBDA / 2, c = 2 * s1 / (s1 * s1 + h * h); return Math.abs(1 / c - R); }));
     }
+    if (irr !== null) out.irr = irr;
+    // the aspheric terms' sag at the clear radius, beyond the conic
+    if (out.A.length) { let d = 0, p = h * h * h * h; for (const a of s.A || []) { d += a * p; p *= h * h; } out.asphDep = d; }
     if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
     return out;
   });
@@ -70,5 +74,5 @@ export function drawingData(P, pi, opts) {
   const notes = [];
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv].some(v => v !== null), notes };
+  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
 }

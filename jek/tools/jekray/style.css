@@ -1274,6 +1274,13 @@
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
   .rt-ltable td.tl { white-space: nowrap; }
+  .rt-lasp { margin-left: 0.5rem; font: inherit; font-size: 0.72rem; font-weight: 500; color: var(--jek-ink-soft); background: none; border: 1px dashed var(--jek-line-2); border-radius: 3px; padding: 0 0.3rem; cursor: pointer; }
+  .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
+  .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
+  .rt-laspc { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; align-items: center; }
+  .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
+  .rt-lnum.wide { width: 7.6rem; }
+  .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
   .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
   .rt-lsheet { display: block; }

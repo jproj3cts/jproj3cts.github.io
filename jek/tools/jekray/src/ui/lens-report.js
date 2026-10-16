@@ -209,7 +209,7 @@ export function reportRecs(asm) {
   // ---- 4: tolerances ----
   pg = rpPage(meta, 'Tolerances');
   const T = D.tol, R = tolResultsFor(asm, P);
-  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %']];
+  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm']];
   rpTable(pg, [{ label: 'Tolerance', w: 180 }, { label: 'Limit', w: 90, mono: true }, { label: 'Unit', w: 229 }], kinds.map(([k, l, u]) => [l, T[k].on ? rf(T[k].v, 4) : 'off', u]));
   rpPara(pg, 'Compensator: ' + (T.comp ? 'the image plane refocused for each build.' : 'none.') + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
   const crit = { spot: 'RMS spot about the centroid (mm)', chief: 'RMS spot about the chief ray (mm)', wfe: 'RMS wavefront error (waves)' }[(R && R.crit) || D.merit.crit];

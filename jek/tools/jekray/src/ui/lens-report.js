@@ -244,6 +244,7 @@ export function reportRecs(asm) {
     rpHead(pg, 'Monte Carlo: ' + st.n + ' builds');
     rpTable(pg, [{ label: 'Nominal', w: 70, mono: true }, { label: 'Mean', w: 70, mono: true }, { label: 'Deviation', w: 70, mono: true }, { label: '50% within', w: 72, mono: true }, { label: '90% within', w: 72, mono: true }, { label: '98% within', w: 72, mono: true }, { label: 'Worst', w: 73, mono: true }],
       [[rf(R.mc.nominal, 4), rf(st.mean, 4), rf(st.sd, 4), rf(st.p50, 4), rf(st.p90, 4), rf(st.p98, 4), rf(st.worst, 4)]]);
+    if (R.mc.yield) { const Y = R.mc.yield, pc = v => rf(100 * v, 3) + '%'; rpPara(pg, 'Yield: ' + pc(Y.rate) + ' of the builds (' + Y.k + ' of ' + Y.n + ') meet the specification set, ' + pc(Y.lo) + ' to ' + pc(Y.hi) + ' at 95% confidence.'); }
   }
 
   // ---- the drawings, landscape ----

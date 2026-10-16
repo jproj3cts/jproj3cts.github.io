@@ -3,7 +3,7 @@ import { hooks } from '../core/hooks.js';
 import { normTol } from '../core/assembly.js';
 import { designOf } from '../engines/lens-design.js';
 import { cloneP, optProblem } from '../engines/lens-opt.js';
-import { compensated, compsFor, mcStats, rssEstimate, tolOps, tolRun } from '../engines/lens-tol.js';
+import { compensated, compsFor, mcStats, opValues, rssEstimate, tolOps, tolRun, yieldOf } from '../engines/lens-tol.js';
 import { surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
@@ -28,13 +28,14 @@ const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' :
 let TOL = null;
 export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
 export function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
-const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
+// (the yield's specification is left out: it is worked out again from the builds as they are, whatever it says)
+const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, Object.assign({}, prob.design.tol, { yield: null })]);
 
 /* the last runs' results, if they were made on the design as it now is: { sens (when complete), mc, est } */
 export function tolResultsFor(asm, P) {
   if (!TOL || TOL.id !== asm.id || TOL.key !== keyOf(optProblem(asm, P))) return null;
   const T = TOL.prob.design.tol, S = TOL.sens && TOL.sens.rows.length >= TOL.sens.count ? TOL.sens : null, M = TOL.mc && TOL.mc.trials.length ? TOL.mc : null;
-  return { sens: S, est: S ? rssEstimate(S.nominal, S.rows, T.dist) : null, mc: M && { n: M.trials.length, nominal: M.nominal, stats: mcStats(M.trials.map(t => t.crit)) }, crit: TOL.prob.design.merit.crit };
+  return { sens: S, est: S ? rssEstimate(S.nominal, S.rows, T.dist) : null, mc: M && { n: M.trials.length, nominal: M.nominal, stats: mcStats(M.trials.map(t => t.crit)), yield: yieldOf(M.trials, T.yield) }, crit: TOL.prob.design.merit.crit };
 }
 /* a run: ctx { asm, P, redraw, sync } */
 export function tolStart(mode, ctx) {
@@ -43,7 +44,7 @@ export function tolStart(mode, ctx) {
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
     sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
     inv: mode === 'inv' ? { nominal: null, target: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.inv : null),
-    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz, nominalOps: prob.design.merit.ops.length ? opValues(prob, n.fin) : null }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
   ctx.redraw();
   if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
   setTimeout(() => tolBatch(ctx), 0);
@@ -108,6 +109,7 @@ export function tolCard(ctx) {
   piv.value = T.pivot; piv.addEventListener('change', () => set(t => { t.pivot = piv.value; }));
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'A lens tilts about ', piv, h('span', { class: 'rt-lsub' }, ' (its mechanical reference: where its cell holds it)'))));
   card.append(compsCard(P, T, set));
+  card.append(yieldCard(D, T, wf, set));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
   const invV = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: T.inv.by === 'abs' ? tolFmt(wf ? T.inv.v : 1000 * T.inv.v, 6) : tolFmt(T.inv.v, 6), 'aria-label': 'Worsening allowed' });
@@ -171,6 +173,12 @@ export function tolCard(ctx) {
       const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, v.length - 1)), big = Math.max(...v.map(Math.abs));
       rr.push([compLabel(mine.prob.P, c), tolFmt(m, 3) + ' \u00b1 ' + tolFmt(sd, 3) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + ', at most ' + tolFmt(big, 3) + (big >= c.range * (1 - 1e-9) ? ' (at its range)' : '')]);
     });
+    const Yd = yieldOf(M.trials, T.yield);
+    if (Yd) {
+      const pc = v => tolFmt(100 * v, 3) + '%';
+      rr.unshift(['Yield, meeting the specification', pc(Yd.rate) + ' (' + Yd.k + ' of ' + Yd.n + '; ' + pc(Yd.lo) + ' to ' + pc(Yd.hi) + ' at 95% confidence)']);
+      if (Yd.per.length > 1) Yd.per.forEach((q, i) => rr.splice(1 + i, 0, ['  ' + (q.what === 'crit' ? 'criterion at most ' + unit(T.yield.crit) : specName(D, T.yield.specs.find(s => s.j === q.what))), pc(q.rate) + ' of builds']));
+    }
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
   card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
@@ -198,6 +206,27 @@ function invView(ctx, I, T, unit, set) {
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
   out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
   return out;
+}
+/* a merit operand as the yield names it, and its specification */
+const specName = (D, sp) => { const o = D.merit.ops[sp.j]; return (o ? o.op : 'operand') + ' ' + (sp.j + 1) + (sp.lo !== null && sp.hi !== null ? ' within ' + tolFmt(sp.lo, 5) + ' to ' + tolFmt(sp.hi, 5) : sp.lo !== null ? ' at least ' + tolFmt(sp.lo, 5) : ' at most ' + tolFmt(sp.hi, 5)); };
+/* the yield's specification: the criterion at most this, and any merit operand within limits */
+function yieldCard(D, T, wf, set) {
+  const Y = T.yield || { crit: null, specs: [] }, wrap = h('div', { class: 'rt-lyield' });
+  const crit = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: Y.crit === null ? '' : tolFmt(wf ? Y.crit : 1000 * Y.crit, 6), placeholder: 'none', 'aria-label': 'Yield: the criterion at most (' + (wf ? 'waves' : '\u00b5m') + ')' });
+  crit.addEventListener('change', () => { const t = crit.value.trim(), x = parseFloat(t); set(q => { q.yield = Object.assign({ specs: [] }, q.yield || {}, { crit: t === '' || !(x > 0) ? null : wf ? x : x / 1000 }); }); });
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Yield'), h('label', null, 'the share of builds with the criterion at most ', crit, ' ' + (wf ? 'waves' : '\u00b5m'))));
+  if (D.merit.ops.length) {
+    const tb = h('tbody');
+    D.merit.ops.forEach((o, j) => {
+      const sp = Y.specs.find(q => q.j === j) || { lo: null, hi: null };
+      const box = side => { const i = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: sp[side] === null ? '' : tolFmt(sp[side], 6), placeholder: 'none', 'aria-label': (side === 'lo' ? 'Yield: least ' : 'Yield: greatest ') + o.op + ' ' + (j + 1) });
+        i.addEventListener('change', () => { const t = i.value.trim(), x = parseFloat(t); set(q => { const y = Object.assign({ crit: null, specs: [] }, q.yield || {}), cur = Object.assign({ j, lo: null, hi: null }, y.specs.find(z => z.j === j) || {}); cur[side] = t === '' || !isFinite(x) ? null : x; y.specs = y.specs.filter(z => z.j !== j).concat([cur]); q.yield = y; }); }); return i; };
+      tb.append(h('tr', null, h('td', null, o.op + ' ' + (j + 1)), h('td', { class: 'rt-lsub' }, 'target ' + tolFmt(o.target, 5)), h('td', null, 'from ', box('lo'), ' to ', box('hi'))));
+    });
+    wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Merit operand', '', 'Within, on each build'].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  }
+  wrap.append(h('p', { class: 'rt-lsub' }, 'Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'));
+  return wrap;
 }
 /* a compensator's name, in this prescription */
 export function compLabel(P, c) {

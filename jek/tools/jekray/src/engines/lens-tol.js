@@ -140,7 +140,7 @@ function withComps(P, comps, c, dz, pivot) {
 export function compensated(prob, P, comp, comps) {
   const C = compsFor(P, comps);
   if (C.length) return compensatedMany(prob, P, comp, C);
-  if (!comp) return { crit: criterion(prob, P), dz: 0 };
+  if (!comp) return { crit: criterion(prob, P), dz: 0, fin: P };
   const img = P.image, at = dz => { P.image = img + dz; return criterion(prob, P); };
   // the spot's square is a parabola in the focus: through three points, then once more about its bottom
   let c0 = at(0), best = { crit: c0, dz: 0 }, centre = 0, h = 0.05;
@@ -152,7 +152,7 @@ export function compensated(prob, P, comp, comps) {
     centre = best.dz; h = Math.max(h / 10, 1e-4);
   }
   P.image = img + best.dz;
-  return best;
+  return Object.assign(best, { fin: P });
 }
 
 const COMP_STEP = { gap: 1e-4, dec: 1e-4, tilt: 0.01 };
@@ -182,8 +182,9 @@ function compensatedMany(prob, P, comp, C) {
     if (!took) break;
   }
   const { dz, c } = split(x);
+  const fin = withComps(P, C, c, dz, pv);
   P.image = P.image + dz;
-  return { crit: Math.sqrt(f), dz, cv: c };
+  return { crit: Math.sqrt(f), dz, cv: c, fin };
 }
 function gaussSolve(M, b) {
   const n = b.length;
@@ -258,10 +259,37 @@ export function tolMonteCarlo(prob, T, from, to) {
       return (2 * R() - 1) * o.lim;
     });
     const c = compensated(prob, perturb(prob.P, ops, vals, T.pivot), T.comp, T.comps);
-    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}));
+    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}, prob.design.merit.ops.length ? { ops: opValues(prob, c.fin) } : {}));
   }
   return out;
 }
+/* every merit operand's value on a build as compensated (for the yield, which can then be worked out again for any
+   specification without building again) */
+export function opValues(prob, P) {
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
+  return prob.design.merit.ops.map((_, j) => { const o = T.ops[j]; return o && isFinite(o.value) ? o.value : null; });
+}
+/* ---------- Yield ----------
+   The share of the builds that meet the specification (T.yield): the criterion no worse than crit (if set), and each
+   merit operand named (j, its index in the merit function) within its lo and hi (either or both). With the Wilson score
+   interval for 95% confidence, as many builds being a sample of all that could be made; and each specification's own
+   pass rate, to say which one costs the yield. */
+export function wilson(k, n, z) {
+  if (!n) return [0, 1];
+  z = z || 1.959964;
+  const p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+export function yieldOf(trials, Y) {
+  const tests = [];
+  if (Y && isFinite(Y.crit) && Y.crit > 0) tests.push({ what: 'crit', ok: t => isFinite(t.crit) && t.crit <= Y.crit });
+  for (const s of (Y && Y.specs) || []) tests.push({ what: s.j, ok: t => { const v = t.ops && t.ops[s.j]; return v !== null && v !== undefined && isFinite(v) && (s.lo === null || s.lo === undefined || v >= s.lo) && (s.hi === null || s.hi === undefined || v <= s.hi); } });
+  const n = trials.length;
+  if (!tests.length || !n) return null;
+  const k = trials.filter(t => tests.every(q => q.ok(t))).length, [lo, hi] = wilson(k, n);
+  return { n, k, rate: k / n, lo, hi, per: tests.map(q => { const m = trials.filter(q.ok).length; return { what: q.what, k: m, rate: m / n }; }) };
+}
+
 /* the spread over the builds: mean, deviation, and the criterion this share of them are at least as good as */
 export function mcStats(crits) {
   const s = crits.filter(isFinite).slice().sort((a, b) => a - b), n = s.length;

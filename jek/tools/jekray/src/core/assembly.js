@@ -174,6 +174,16 @@ export function normTol(o) {
     if (!comps.some(q => q.kind === m.kind && q.i === m.i && q.axis === m.axis)) comps.push(m);
   }
   if (comps.length) out.comps = comps;
+  // the yield's specification: the criterion at most crit (mm, or waves), and merit operands (by index) within lo to hi
+  const yv = o.yield && typeof o.yield === 'object' ? o.yield : {}, specs = [];
+  for (const sp of Array.isArray(yv.specs) ? yv.specs.slice(0, 40) : []) {
+    if (!sp || !Number.isInteger(sp.j) || sp.j < 0 || sp.j > 200) continue;
+    const lo = sp.lo === null || sp.lo === undefined || sp.lo === '' || !isFinite(+sp.lo) ? null : +sp.lo, hi = sp.hi === null || sp.hi === undefined || sp.hi === '' || !isFinite(+sp.hi) ? null : +sp.hi;
+    if (lo === null && hi === null) continue;
+    if (!specs.some(q => q.j === sp.j)) specs.push(lo !== null && hi !== null && lo > hi ? { j: sp.j, lo: hi, hi: lo } : { j: sp.j, lo, hi });
+  }
+  const yc = yv.crit === null || yv.crit === undefined || yv.crit === '' || !isFinite(+yv.crit) || +yv.crit <= 0 ? null : +yv.crit;
+  if (yc !== null || specs.length) out.yield = { crit: yc, specs };
   return out;
 }
 export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];

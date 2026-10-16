@@ -5401,6 +5401,16 @@ function normTol(o) {
     if (!comps.some(q => q.kind === m.kind && q.i === m.i && q.axis === m.axis)) comps.push(m);
   }
   if (comps.length) out.comps = comps;
+  // the yield's specification: the criterion at most crit (mm, or waves), and merit operands (by index) within lo to hi
+  const yv = o.yield && typeof o.yield === 'object' ? o.yield : {}, specs = [];
+  for (const sp of Array.isArray(yv.specs) ? yv.specs.slice(0, 40) : []) {
+    if (!sp || !Number.isInteger(sp.j) || sp.j < 0 || sp.j > 200) continue;
+    const lo = sp.lo === null || sp.lo === undefined || sp.lo === '' || !isFinite(+sp.lo) ? null : +sp.lo, hi = sp.hi === null || sp.hi === undefined || sp.hi === '' || !isFinite(+sp.hi) ? null : +sp.hi;
+    if (lo === null && hi === null) continue;
+    if (!specs.some(q => q.j === sp.j)) specs.push(lo !== null && hi !== null && lo > hi ? { j: sp.j, lo: hi, hi: lo } : { j: sp.j, lo, hi });
+  }
+  const yc = yv.crit === null || yv.crit === undefined || yv.crit === '' || !isFinite(+yv.crit) || +yv.crit <= 0 ? null : +yv.crit;
+  if (yc !== null || specs.length) out.yield = { crit: yc, specs };
   return out;
 }
 const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
@@ -22776,13 +22786,14 @@ const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' :
 let TOL = null;
 const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
 function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
-const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
+// (the yield's specification is left out: it is worked out again from the builds as they are, whatever it says)
+const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, Object.assign({}, prob.design.tol, { yield: null })]);
 
 /* the last runs' results, if they were made on the design as it now is: { sens (when complete), mc, est } */
 function tolResultsFor(asm, P) {
   if (!TOL || TOL.id !== asm.id || TOL.key !== keyOf(optProblem(asm, P))) return null;
   const T = TOL.prob.design.tol, S = TOL.sens && TOL.sens.rows.length >= TOL.sens.count ? TOL.sens : null, M = TOL.mc && TOL.mc.trials.length ? TOL.mc : null;
-  return { sens: S, est: S ? rssEstimate(S.nominal, S.rows, T.dist) : null, mc: M && { n: M.trials.length, nominal: M.nominal, stats: mcStats(M.trials.map(t => t.crit)) }, crit: TOL.prob.design.merit.crit };
+  return { sens: S, est: S ? rssEstimate(S.nominal, S.rows, T.dist) : null, mc: M && { n: M.trials.length, nominal: M.nominal, stats: mcStats(M.trials.map(t => t.crit)), yield: yieldOf(M.trials, T.yield) }, crit: TOL.prob.design.merit.crit };
 }
 /* a run: ctx { asm, P, redraw, sync } */
 function tolStart(mode, ctx) {
@@ -22791,7 +22802,7 @@ function tolStart(mode, ctx) {
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
     sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
     inv: mode === 'inv' ? { nominal: null, target: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.inv : null),
-    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz, nominalOps: prob.design.merit.ops.length ? opValues(prob, n.fin) : null }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
   ctx.redraw();
   if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
   setTimeout(() => tolBatch(ctx), 0);
@@ -22856,6 +22867,7 @@ function tolCard(ctx) {
   piv.value = T.pivot; piv.addEventListener('change', () => set(t => { t.pivot = piv.value; }));
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'A lens tilts about ', piv, h('span', { class: 'rt-lsub' }, ' (its mechanical reference: where its cell holds it)'))));
   card.append(compsCard(P, T, set));
+  card.append(yieldCard(D, T, wf, set));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
   const invV = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: T.inv.by === 'abs' ? tolFmt(wf ? T.inv.v : 1000 * T.inv.v, 6) : tolFmt(T.inv.v, 6), 'aria-label': 'Worsening allowed' });
@@ -22919,6 +22931,12 @@ function tolCard(ctx) {
       const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, v.length - 1)), big = Math.max(...v.map(Math.abs));
       rr.push([compLabel(mine.prob.P, c), tolFmt(m, 3) + ' \u00b1 ' + tolFmt(sd, 3) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + ', at most ' + tolFmt(big, 3) + (big >= c.range * (1 - 1e-9) ? ' (at its range)' : '')]);
     });
+    const Yd = yieldOf(M.trials, T.yield);
+    if (Yd) {
+      const pc = v => tolFmt(100 * v, 3) + '%';
+      rr.unshift(['Yield, meeting the specification', pc(Yd.rate) + ' (' + Yd.k + ' of ' + Yd.n + '; ' + pc(Yd.lo) + ' to ' + pc(Yd.hi) + ' at 95% confidence)']);
+      if (Yd.per.length > 1) Yd.per.forEach((q, i) => rr.splice(1 + i, 0, ['  ' + (q.what === 'crit' ? 'criterion at most ' + unit(T.yield.crit) : specName(D, T.yield.specs.find(s => s.j === q.what))), pc(q.rate) + ' of builds']));
+    }
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
   card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
@@ -22946,6 +22964,27 @@ function invView(ctx, I, T, unit, set) {
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
   out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
   return out;
+}
+/* a merit operand as the yield names it, and its specification */
+const specName = (D, sp) => { const o = D.merit.ops[sp.j]; return (o ? o.op : 'operand') + ' ' + (sp.j + 1) + (sp.lo !== null && sp.hi !== null ? ' within ' + tolFmt(sp.lo, 5) + ' to ' + tolFmt(sp.hi, 5) : sp.lo !== null ? ' at least ' + tolFmt(sp.lo, 5) : ' at most ' + tolFmt(sp.hi, 5)); };
+/* the yield's specification: the criterion at most this, and any merit operand within limits */
+function yieldCard(D, T, wf, set) {
+  const Y = T.yield || { crit: null, specs: [] }, wrap = h('div', { class: 'rt-lyield' });
+  const crit = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: Y.crit === null ? '' : tolFmt(wf ? Y.crit : 1000 * Y.crit, 6), placeholder: 'none', 'aria-label': 'Yield: the criterion at most (' + (wf ? 'waves' : '\u00b5m') + ')' });
+  crit.addEventListener('change', () => { const t = crit.value.trim(), x = parseFloat(t); set(q => { q.yield = Object.assign({ specs: [] }, q.yield || {}, { crit: t === '' || !(x > 0) ? null : wf ? x : x / 1000 }); }); });
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Yield'), h('label', null, 'the share of builds with the criterion at most ', crit, ' ' + (wf ? 'waves' : '\u00b5m'))));
+  if (D.merit.ops.length) {
+    const tb = h('tbody');
+    D.merit.ops.forEach((o, j) => {
+      const sp = Y.specs.find(q => q.j === j) || { lo: null, hi: null };
+      const box = side => { const i = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: sp[side] === null ? '' : tolFmt(sp[side], 6), placeholder: 'none', 'aria-label': (side === 'lo' ? 'Yield: least ' : 'Yield: greatest ') + o.op + ' ' + (j + 1) });
+        i.addEventListener('change', () => { const t = i.value.trim(), x = parseFloat(t); set(q => { const y = Object.assign({ crit: null, specs: [] }, q.yield || {}), cur = Object.assign({ j, lo: null, hi: null }, y.specs.find(z => z.j === j) || {}); cur[side] = t === '' || !isFinite(x) ? null : x; y.specs = y.specs.filter(z => z.j !== j).concat([cur]); q.yield = y; }); }); return i; };
+      tb.append(h('tr', null, h('td', null, o.op + ' ' + (j + 1)), h('td', { class: 'rt-lsub' }, 'target ' + tolFmt(o.target, 5)), h('td', null, 'from ', box('lo'), ' to ', box('hi'))));
+    });
+    wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Merit operand', '', 'Within, on each build'].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  }
+  wrap.append(h('p', { class: 'rt-lsub' }, 'Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'));
+  return wrap;
 }
 /* a compensator's name, in this prescription */
 function compLabel(P, c) {
@@ -23431,6 +23470,7 @@ function reportRecs(asm) {
     rpHead(pg, 'Monte Carlo: ' + st.n + ' builds');
     rpTable(pg, [{ label: 'Nominal', w: 70, mono: true }, { label: 'Mean', w: 70, mono: true }, { label: 'Deviation', w: 70, mono: true }, { label: '50% within', w: 72, mono: true }, { label: '90% within', w: 72, mono: true }, { label: '98% within', w: 72, mono: true }, { label: 'Worst', w: 73, mono: true }],
       [[rf(R.mc.nominal, 4), rf(st.mean, 4), rf(st.sd, 4), rf(st.p50, 4), rf(st.p90, 4), rf(st.p98, 4), rf(st.worst, 4)]]);
+    if (R.mc.yield) { const Y = R.mc.yield, pc = v => rf(100 * v, 3) + '%'; rpPara(pg, 'Yield: ' + pc(Y.rate) + ' of the builds (' + Y.k + ' of ' + Y.n + ') meet the specification set, ' + pc(Y.lo) + ' to ' + pc(Y.hi) + ' at 95% confidence.'); }
   }
 
   // ---- the drawings, landscape ----
@@ -33630,7 +33670,7 @@ function withComps(P, comps, c, dz, pivot) {
 function compensated(prob, P, comp, comps) {
   const C = compsFor(P, comps);
   if (C.length) return compensatedMany(prob, P, comp, C);
-  if (!comp) return { crit: criterion(prob, P), dz: 0 };
+  if (!comp) return { crit: criterion(prob, P), dz: 0, fin: P };
   const img = P.image, at = dz => { P.image = img + dz; return criterion(prob, P); };
   // the spot's square is a parabola in the focus: through three points, then once more about its bottom
   let c0 = at(0), best = { crit: c0, dz: 0 }, centre = 0, h = 0.05;
@@ -33642,7 +33682,7 @@ function compensated(prob, P, comp, comps) {
     centre = best.dz; h = Math.max(h / 10, 1e-4);
   }
   P.image = img + best.dz;
-  return best;
+  return Object.assign(best, { fin: P });
 }
 
 const COMP_STEP = { gap: 1e-4, dec: 1e-4, tilt: 0.01 };
@@ -33672,8 +33712,9 @@ function compensatedMany(prob, P, comp, C) {
     if (!took) break;
   }
   const { dz, c } = split(x);
+  const fin = withComps(P, C, c, dz, pv);
   P.image = P.image + dz;
-  return { crit: Math.sqrt(f), dz, cv: c };
+  return { crit: Math.sqrt(f), dz, cv: c, fin };
 }
 function gaussSolve(M, b) {
   const n = b.length;
@@ -33748,10 +33789,37 @@ function tolMonteCarlo(prob, T, from, to) {
       return (2 * R() - 1) * o.lim;
     });
     const c = compensated(prob, perturb(prob.P, ops, vals, T.pivot), T.comp, T.comps);
-    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}));
+    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}, prob.design.merit.ops.length ? { ops: opValues(prob, c.fin) } : {}));
   }
   return out;
 }
+/* every merit operand's value on a build as compensated (for the yield, which can then be worked out again for any
+   specification without building again) */
+function opValues(prob, P) {
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
+  return prob.design.merit.ops.map((_, j) => { const o = T.ops[j]; return o && isFinite(o.value) ? o.value : null; });
+}
+/* ---------- Yield ----------
+   The share of the builds that meet the specification (T.yield): the criterion no worse than crit (if set), and each
+   merit operand named (j, its index in the merit function) within its lo and hi (either or both). With the Wilson score
+   interval for 95% confidence, as many builds being a sample of all that could be made; and each specification's own
+   pass rate, to say which one costs the yield. */
+function wilson(k, n, z) {
+  if (!n) return [0, 1];
+  z = z || 1.959964;
+  const p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+function yieldOf(trials, Y) {
+  const tests = [];
+  if (Y && isFinite(Y.crit) && Y.crit > 0) tests.push({ what: 'crit', ok: t => isFinite(t.crit) && t.crit <= Y.crit });
+  for (const s of (Y && Y.specs) || []) tests.push({ what: s.j, ok: t => { const v = t.ops && t.ops[s.j]; return v !== null && v !== undefined && isFinite(v) && (s.lo === null || s.lo === undefined || v >= s.lo) && (s.hi === null || s.hi === undefined || v <= s.hi); } });
+  const n = trials.length;
+  if (!tests.length || !n) return null;
+  const k = trials.filter(t => tests.every(q => q.ok(t))).length, [lo, hi] = wilson(k, n);
+  return { n, k, rate: k / n, lo, hi, per: tests.map(q => { const m = trials.filter(q.ok).length; return { what: q.what, k: m, rate: m / n }; }) };
+}
+
 /* the spread over the builds: mean, deviation, and the criterion this share of them are at least as good as */
 function mcStats(crits) {
   const s = crits.filter(isFinite).slice().sort((a, b) => a - b), n = s.length;
@@ -39636,6 +39704,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Yield</b> in tolerancing: set a specification (the criterion at most a figure, and any merit operand within limits) and Monte Carlo gives the share of its builds that meet it, with its range at 95% confidence and each part\u2019s own share; change the specification and it is worked out again from the same builds.',
     '<b>A lens\u2019s mechanical reference</b> in tolerancing: each lens tilts about its first vertex, its centre or its last vertex, where its cell holds it. And <b>surface decentre</b>: each surface moved on its own, as a cemented lens\u2019s parts glued off one another\u2019s axis; with surface wedge, a cemented interface is toleranced like any other face.',
     '<b>Compensators</b> in tolerancing: besides the refocus, add any air gap, or a lens\u2019s decentre or tilt, each with a range; for each build they are set, with the focus, to make it as good as it can be, as an assembler would adjust them. Sensitivity, Monte Carlo and inverse sensitivity all use them, and Monte Carlo reports how far each had to move.',
     '<b>Inverse sensitivity</b> in tolerancing: say how much worse the image may get (a share of nominal, or an amount), and it finds each tolerance\u2019s limit for that, each kind\u2019s tightest against what is set, with <b>Use these limits</b> to take them.',

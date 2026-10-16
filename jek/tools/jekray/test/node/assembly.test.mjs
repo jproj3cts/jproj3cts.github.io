@@ -78,8 +78,11 @@ test('which parts can be one: lenses and round stops on one axis, upright and no
   assert.ok(ok.ok, ok.why);
   assert.equal(ok.rev, false);
   assert.deepEqual(ok.order, ['L1', 'L2', 'S', 'L3']);
-  assert.match(A.asmCheck([...set, by('src')]).why, /only lenses, stops and windows/);
+  assert.match(A.asmCheck([...set, by('src')]).why, /only lenses, mirrors, stops and windows/);
+  // a lens a little off the axis is decentred; past its half-width it is off it
   by('L2').y = 0.5;
+  assert.ok(A.asmCheck(set).ok);
+  by('L2').y = 15;
   assert.match(A.asmCheck(set).why, /off the axis/);
   by('L2').y = 0; by('L2').cyl = 'plane';
   assert.match(A.asmCheck(set).why, /cylindrical/);
@@ -98,4 +101,50 @@ test('the light runs away from a source on the axis; a record whose parts are go
   assert.deepEqual(kept.map(a => a.id), ['g1']);
   assert.equal(kept[0].ref, 'L1');
   assert.deepEqual(kept[0].cond, A.normCond({}));
+});
+
+test('a fold: lens, mirror at 45°, lens read as one prescription along the folded axis, written back as it was, and as the straight system it unfolds to', async () => {
+  const L = (id, x, y, ang, R1, R2) => ({ type: 'lens', id, name: id, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [4], materials: [{ glass: 'N-BK7' }], group: 'g' });
+  loadProject({ format: 'jekray', version: 1, elements: [L('L1', 0, 0, 0, 60, -60), { type: 'mirror', id: 'M', name: 'M', x: 30, y: 0, angle: 135, length: 30, group: 'g' }, L('L2', 30, 40, 90, 80, null)],
+    assemblies: [{ id: 'g', name: 'Fold', ref: 'L1' }] });
+  const asm = ST.project.assemblies[0], els = ST.project.elements, before = clean(els);
+  const C = A.asmCheck(els, { ref: 'L1', rev: false });
+  assert.ok(C.ok && C.folded, C.why);
+  assert.deepEqual(C.order, ['L1', 'M', 'L2']);
+  const P = A.asmPrescription(asm);
+  assert.deepEqual(P.parts.map(p => p.kind), ['lens', 'mirror', 'lens']);
+  // L1's back vertex at 2, the mirror at 30, L2's front vertex 38 on: gaps 28 and 38
+  assert.ok(Math.abs(P.gaps[1] - 28) < 1e-9 && Math.abs(P.gaps[2] - 38) < 1e-9, JSON.stringify(P.gaps));
+  assert.ok(P.surfaces[2].mirror && Math.abs(Math.abs(P.surfaces[2].tilt[0]) - Math.PI / 4) < 1e-12);
+  A.asmApply(asm, P);
+  clean(els).forEach((e, i) => { for (const k of ['x', 'y', 'angle']) assert.ok(Math.abs(e[k] - before[i][k]) < 1e-9, e.id + ' ' + k + ' ' + e[k] + ' / ' + before[i][k]); });
+  // a gap after the fold moves L2 up the bench; one before it moves the mirror and L2 along it
+  const P2 = A.asmPrescription(asm); P2.gaps[2] += 5; A.asmApply(asm, P2);
+  assert.ok(Math.abs(els[2].y - 45) < 1e-9 && Math.abs(els[2].x - 30) < 1e-9);
+  const P3 = A.asmPrescription(asm); P3.gaps[1] += 3; A.asmApply(asm, P3);
+  assert.ok(Math.abs(els[1].x - 33) < 1e-9 && Math.abs(els[2].x - 33) < 1e-9 && Math.abs(els[2].y - 45) < 1e-9 && Math.abs(els[1].angle - 135) < 1e-9);
+  // the same as the straight system it unfolds to
+  const E = await import('../../src/engines/lens-engine.js');
+  const Pf = A.asmPrescription(asm), Sf = E.lensSystem(Pf, 587.56, { epd: 8 });
+  loadProject({ format: 'jekray', version: 1, elements: [L('L1', 0, 0, 0, 60, -60), L('L2', 78, 0, 0, 80, null)], assemblies: [{ id: 'g', name: 'Straight', ref: 'L1' }] });
+  const Ss = E.lensSystem(A.asmPrescription(ST.project.assemblies[0]), 587.56, { epd: 8 });
+  assert.ok(Math.abs(Sf.par.efl - Ss.par.efl) < 1e-9, Sf.par.efl + ' / ' + Ss.par.efl);
+  const a = E.spotOf(Sf, 2, E.pupilRings(3, 6)), b = E.spotOf(Ss, 2, E.pupilRings(3, 6));
+  assert.ok(Math.abs(a.rms - b.rms) < 1e-12 && Math.abs(a.wfeRms - b.wfeRms) < 1e-8, a.rms + ' / ' + b.rms);
+});
+
+test('a lens tilted and decentred from the axis: read with its tilt and decentre, and written back as it was', () => {
+  const asm = triplet(), by = id => ST.project.elements.find(e => e.id === id);
+  // L2 turned 3° and moved 0.4 mm across
+  const c = Math.cos(3 * Math.PI / 180), s = Math.sin(3 * Math.PI / 180);
+  by('L2').angle = 3; by('L2').y = 0.4;
+  const C = A.asmCheck(A.asmMembers(asm), { ref: 'L1', rev: false });
+  assert.ok(C.ok, C.why);
+  const P = A.asmPrescription(asm);
+  assert.ok(Math.abs(P.surfaces[2].tilt[0] - 3 * Math.PI / 180) < 1e-12, JSON.stringify(P.surfaces[2]));
+  // its first vertex half its thickness back along its own axis: 0.4 - 0.5 sin 3° across
+  assert.ok(Math.abs(P.surfaces[2].dec[1] - (0.4 - 0.5 * s)) < 1e-12 && Math.abs(P.surfaces[3].dec[1] - (0.4 - 0.5 * s + 1.0 * s)) < 1e-12 && Math.abs(P.surfaces[3].dec[2] - (c - 1)) < 1e-12);
+  const before = clean(ST.project.elements);
+  A.asmApply(asm, P);
+  clean(ST.project.elements).forEach((e, i) => { for (const k of ['x', 'y', 'angle']) if (e[k] !== undefined) assert.ok(Math.abs(e[k] - before[i][k]) < 1e-9, e.id + ' ' + k); });
 });

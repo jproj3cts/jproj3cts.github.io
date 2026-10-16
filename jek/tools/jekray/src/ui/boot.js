@@ -355,6 +355,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm, { image: imageDist });
       return { origin: P.origin, dir: P.dir, imageZ: S.imageZ, out: rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(S, R, 0, S.N - 1); if (R[7] === 0) { const t = (S.imageZ - R[2]) / R[5]; R[0] += R[3] * t; R[1] += R[4] * t; R[2] = S.imageZ; R[6] += t; } return Array.from(R); }) };
     },
+    lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
     closeLensDesign() { closeLensDesign(); },

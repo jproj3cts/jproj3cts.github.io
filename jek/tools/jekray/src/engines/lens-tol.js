@@ -61,16 +61,14 @@ export function perturb(P0, ops, vals) {
     }
   });
   if (moves.size) {
-    // each moved lens: its surfaces in frames turned about its first vertex, then shifted across
+    // each moved lens: tilted about its first vertex (its later surfaces carried round with it), then shifted across
     const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1] + g);
     for (const [pi, m] of moves) {
       const idx = sps.map((s, i) => s.pi === pi ? i : -1).filter(i => i >= 0), z0 = z[idx[0]];
       const cx = Math.cos(m.ax), sx = Math.sin(m.ax), cy = Math.cos(m.ay), sy = Math.sin(m.ay);
-      // R = Ry(ay) Rx(ax), row by row
-      const R = [cy, sy * sx, sy * cx, 0, cx, -sx, -sy, cy * sx, cy * cx];
       for (const i of idx) {
-        const d = z[i] - z0;
-        P.surfaces[i] = Object.assign({}, P.surfaces[i], { frame: { o: [m.dx + R[2] * d, m.dy + R[5] * d, z0 + R[8] * d], R } });
+        const s = P.surfaces[i], dd = z[i] - z0, t = s.tilt || [0, 0], dc = s.dec || [0, 0, 0];
+        P.surfaces[i] = Object.assign({}, s, { tilt: [t[0] + m.ax, t[1] + m.ay], dec: [dc[0] + m.dx + dd * sy, dc[1] + m.dy + dd * sx * cy, (dc[2] || 0) + dd * (cx * cy - 1)] });
       }
     }
   }

@@ -18,7 +18,7 @@ const surf = (R, x) => ({ R, k: 0, a2: 0, A: [], odd: null, semi: 20, ...x });
 test('a decentred surface traces as the centred one with the light moved across; a tilted plate shifts a ray as its closed form says', () => {
   const n = { glass: 'custom', n: 1.6 };
   const P0 = { surfaces: [surf(30)], gaps: [], materials: [], stopIndex: 0, parts: [{ id: 'L', kind: 'lens', n: 1 }] };
-  const P1 = { surfaces: [surf(30, { frame: { o: [0.2, 0.3, 0], R: [1, 0, 0, 0, 1, 0, 0, 0, 1] } })], gaps: [], materials: [], stopIndex: 0 };
+  const P1 = { surfaces: [surf(30, { dec: [0.2, 0.3, 0] })], gaps: [], materials: [], stopIndex: 0 };
   const S0 = E.lensSystem(P0, 587.56, { imageMaterial: n }), S1 = E.lensSystem(P1, 587.56, { imageMaterial: n });
   for (const [x, y, l, m] of [[1, 2, 0.05, -0.1], [-3, 0.5, 0, 0.2]]) {
     const N = Math.sqrt(1 - l * l - m * m), a = new Float64Array([x, y, -5, l, m, N, 0, 0]), b = new Float64Array([x - 0.2, y - 0.3, -5, l, m, N, 0, 0]);

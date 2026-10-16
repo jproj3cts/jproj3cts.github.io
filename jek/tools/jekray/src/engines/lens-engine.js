@@ -45,17 +45,54 @@ export function lensSystem(P, nm, opts) {
     k[i] = s.k || 0; a2[i] = s.a2 || 0; semi[i] = s.semi > 0 ? s.semi : Infinity;
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
-    n[i + 1] = i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
+    n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
   const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
-  // surfaces moved off the axis: each its vertex o and its rotation R (local to global, row by row)
-  if (P.surfaces.some(s => s.frame)) S.fr = P.surfaces.map(s => s.frame || null);
+  S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
+  if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) geometry(S, P, opts);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
   S.stopR = S.epr * S.par.stopMag;
   S.imageZ = z[N - 1] + (isFinite(opts.image) ? opts.image : isFinite(S.par.bfl) ? S.par.bfl : 0);
+  if (S.ax) { const a = S.ax[N - 1], g = S.imageZ - z[N - 1]; S.img = { p: [a.p[0] + a.d[0] * g, a.p[1] + a.d[1] * g, a.p[2] + a.d[2] * g], e1: a.e1, e2: a.e2, d: a.d }; }
   return S;
+}
+
+/* ---------- Surfaces off the axis, and folds ----------
+   Each surface may be tilted (tilt [about x, about y], radians: about x turns it in the plane of the
+   fields, its local z toward +y) and decentred (dec [x, y, along]) from the axis, and may be a mirror.
+   The axis is walked from the first vertex, each gap along it; at a mirror it is reflected about the
+   mirror's normal, and with it the axis's own x and y. Each surface then has its frame: its vertex o
+   and its rotation R (local to global, row by row), which traceRay uses. The image plane is square
+   to the axis after the last surface, the image distance along it. */
+const ladd3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+const ldot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const lrefl3 = (v, m) => { const k = 2 * ldot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
+function geometry(S, P) {
+  let p = [0, 0, 0], e1 = [1, 0, 0], e2 = [0, 1, 0], d = [0, 0, 1];
+  S.fr = []; S.ax = [];
+  for (let i = 0; i < S.N; i++) {
+    if (i) p = ladd3(p, d, P.gaps[i - 1]);
+    const s = P.surfaces[i], t = s.tilt || [0, 0], dc = s.dec || [0, 0, 0];
+    const cx = Math.cos(t[0]), sx = Math.sin(t[0]), cy = Math.cos(t[1]), sy = Math.sin(t[1]);
+    // the local axes in the axis's own: Rx(tx) Ry(ty), Rx taking z toward +y
+    const lx = [cy, -sx * sy, -cx * sy], ly = [0, cx, -sx], lz = [sy, sx * cy, cx * cy];
+    const toG = v => [e1[0] * v[0] + e2[0] * v[1] + d[0] * v[2], e1[1] * v[0] + e2[1] * v[1] + d[1] * v[2], e1[2] * v[0] + e2[2] * v[1] + d[2] * v[2]];
+    const gx = toG(lx), gy = toG(ly), gz = toG(lz);
+    const o = ladd3(ladd3(ladd3(p, e1, dc[0]), e2, dc[1]), d, dc[2] || 0);
+    S.fr.push({ o, R: [gx[0], gy[0], gz[0], gx[1], gy[1], gz[1], gx[2], gy[2], gz[2]] });
+    if (s.mirror) { e1 = lrefl3(e1, gz); e2 = lrefl3(e2, gz); d = lrefl3(d, gz); }
+    S.ax.push({ p, d, e1, e2 });
+  }
+}
+/* a point and a direction in the image's frame: x and y across the image plane, z the unfolded
+   distance along the axis (the image plane at S.imageZ) */
+function toImageFrame(S, R) {
+  const I = S.img, v = [R[0] - I.p[0], R[1] - I.p[1], R[2] - I.p[2]], q = [R[3], R[4], R[5]];
+  R[0] = ldot3(v, I.e1); R[1] = ldot3(v, I.e2); R[2] = S.imageZ + ldot3(v, I.d);
+  R[3] = ldot3(q, I.e1); R[4] = ldot3(q, I.e2); R[5] = ldot3(q, I.d);
+  return R;
 }
 
 /* ---------- First order ----------
@@ -67,7 +104,9 @@ function paraStep(S, y, u, i0, i1) {
   for (let i = i0; i <= i1; i++) {
     if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
     const pc = S.c[i] + 2 * S.a2[i];                                    // the paraxial curvature
-    u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
+    // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
+    if (S.mir && S.mir[i]) u += 2 * pc * y;
+    else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
   }
   return [y, u];
 }
@@ -156,16 +195,26 @@ export function traceRay(S, R, i0, i1, noClip) {
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
     const g = dsagOverR(S, i, r2), nx = -g * x, ny = -g * y, nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
-    const mu = ni / S.n[i + 1], ci = L * ux + M * uy + Nn * uz, kk = 1 - mu * mu * (1 - ci * ci);
-    if (kk < 0) return stop(-(1 + i));
-    const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
-    L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    const ci = L * ux + M * uy + Nn * uz;
+    if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
+    else {
+      const mu = ni / S.n[i + 1], kk = 1 - mu * mu * (1 - ci * ci);
+      if (kk < 0) return stop(-(1 + i));
+      const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
+      L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    }
     if (F) { global(); F = null; }
   }
   return stop(0);
 }
 /* on to the plane z = zp, in the last medium */
 function toPlane(S, R, zp) {
+  if (S.img) {
+    // the image plane square to the folded axis
+    const I = S.img, t = ((I.p[0] - R[0]) * I.d[0] + (I.p[1] - R[1]) * I.d[1] + (I.p[2] - R[2]) * I.d[2]) / (R[3] * I.d[0] + R[4] * I.d[1] + R[5] * I.d[2]);
+    R[0] += R[3] * t; R[1] += R[4] * t; R[2] += R[5] * t; R[6] += S.n[S.N] * t;
+    return R;
+  }
   const t = (zp - R[2]) / R[5];
   R[0] += R[3] * t; R[1] += R[4] * t; R[2] = zp; R[6] += S.n[S.N] * t;
   return R;
@@ -186,7 +235,11 @@ const tmp = new Float64Array(8);
 function atStop(S, th, a, b, out) {
   launch(S, th, a, b, tmp);
   traceRay(S, tmp, 0, S.stop, true);
-  out[0] = tmp[0]; out[1] = tmp[1];
+  if (S.fr) {
+    // in the stop's own frame
+    const F = S.fr[S.stop], Q = F.R, dx = tmp[0] - F.o[0], dy = tmp[1] - F.o[1], dz = tmp[2] - F.o[2];
+    out[0] = Q[0] * dx + Q[3] * dy + Q[6] * dz; out[1] = Q[1] * dx + Q[4] * dy + Q[7] * dz;
+  } else { out[0] = tmp[0]; out[1] = tmp[1]; }
   return tmp[7] === 0;
 }
 /* where the ray of field th (radians) through pupil point (px, py) starts: [a, b], or null if none can be found */
@@ -213,12 +266,13 @@ export function rayAt(S, th, px, py, R, noClip) {
   R = R || new Float64Array(8);
   launch(S, th, ab[0], ab[1], R);
   traceRay(S, R, 0, S.N - 1, noClip);
-  if (R[7] === 0) toPlane(S, R, S.imageZ);
+  if (R[7] === 0) { toPlane(S, R, S.imageZ); if (S.img) toImageFrame(S, R); }
   return R;
 }
 
 /* a ray's path through the system, for drawing: [y, z] where it starts (on the launch plane), at
-   each surface and on the image plane; lost: the surface it was stopped at, or -1 */
+   each surface and on the image plane, in the global frame (folds and all); lost: the surface it was
+   stopped at, or -1 */
 export function rayPath(S, th, px, py) {
   const ab = aimRay(S, th, px, py);
   if (!ab) return null;
@@ -322,27 +376,31 @@ export function seidel(S, fieldDeg, Sshort, Slong) {
   const N = S.N, ub0 = Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
   let y = S.epr, u = 0, yb = -ub0 * S.par.epz, ub = ub0;
   const H = S.n[0] * (ub * y - u * yb), rows = [], sum = { SI: 0, SII: 0, SIII: 0, SIV: 0, SV: 0, CL: 0, CT: 0 };
+  // a mirror is a refraction into -n, the light then running back along the axis: after each one the
+  // indices, gaps and curvatures (as seen along the fixed axis) change sign
+  let sg = 1;
   for (let i = 0; i < N; i++) {
-    if (i) { const t = S.z[i] - S.z[i - 1]; y += t * u; yb += t * ub; }
-    const n = S.n[i], n1 = S.n[i + 1], c = S.c[i] + 2 * S.a2[i];
+    if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
+    const sg1 = S.mir && S.mir[i] ? -sg : sg;
+    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = sg * (S.c[i] + 2 * S.a2[i]);
     const A = n * (u + y * c), Ab = n * (ub + yb * c);
     const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
     const d = u1 / n1 - u / n;
     const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
       SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
     // the aspheric part: fourth-order sag beyond the paraxial sphere
-    const c0 = S.c[i], A4 = S.A[i] ? S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    const c0 = sg * S.c[i], A4 = S.A[i] ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
     if (G) {
       const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
       r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;
     }
     if (Sshort && Slong) {
-      const dn = Sshort.n[i] - Slong.n[i], dn1 = Sshort.n[i + 1] - Slong.n[i + 1], dd = dn1 / n1 - dn / n;
+      const dn = sg * (Sshort.n[i] - Slong.n[i]), dn1 = sg1 * (Sshort.n[i + 1] - Slong.n[i + 1]), dd = dn1 / n1 - dn / n;
       r.CL = A * y * dd; r.CT = Ab * y * dd;
     }
     for (const k in sum) sum[k] += r[k];
     rows.push(r);
-    u = u1; ub = ub1;
+    u = u1; ub = ub1; sg = sg1;
   }
   return { rows, sum, H, u: u, nImg: S.n[N] };
 }

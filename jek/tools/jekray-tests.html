@@ -8862,6 +8862,36 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine traces the bench’s own rays through a folded assembly with a tilted, decentred lens exactly',
+    why: 'a lens, a fold mirror at 45° and a second lens tilted 2° and moved 0.3 mm across, made an assembly and lit by a grid of rays (in the bench plane and out of it): each ray traced by the lens engine from where the source starts it meets the sensor where the bench’s ray does, with the same optical path (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Fan', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 8, divergence: 0, pattern: 'grid' },
+        L('Front', 0, 0, 0, 40, -200, 4, 'N-BK7'), { type: 'mirror', name: 'Fold', x: 22, y: 0, angle: 135, length: 30 },
+        L('Back', 22.3, 25, 92, 60, -60, 3, 'F2'), { type: 'screen', name: 'Sensor', x: 22, y: 70, angle: 270, length: 40 }] });
+      if (!J.makeAssembly(['Front', 'Fold', 'Back'])) return 98;
+      J.trace();
+      const name = J.assemblies()[0].name, H = J.hitsOn('Sensor'), s = J.byName('Fan');
+      if (H.length < 40) return 99;
+      const n = 7, W = 8, at = i => i / (n - 1) - 0.5;
+      // the engine's frame: z along the first run of the axis (+x on the bench) from the first vertex, y across it (+y)
+      const o = J.asmPrescription(name).origin;
+      const T = J.lensTraceRaw(name, 587.56, H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + t - o[1], s.x - o[0], 0, 0, 1]; }));
+      let worst = 0, skew = 0;
+      H.forEach((h, q) => {
+        const R = T.out[q];
+        if (R[7] !== 0) { worst = 99; return; }
+        // on to the sensor's plane, bench y = 70; there the sensor's own coordinate runs along bench x from its centre
+        const t = ((70 - o[1]) - R[1]) / R[4], X = o[0] + R[2] + R[5] * t, Z = R[0] + R[3] * t, opl = R[6] + t;
+        if (Math.abs(h.z || 0) > 1e-6) skew++;
+        worst = Math.max(worst, Math.abs(X - 22 - h.y), Math.abs(Z - (h.z || 0)), Math.abs(opl - h.opl));
+      });
+      return skew > 30 ? worst : 97;
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

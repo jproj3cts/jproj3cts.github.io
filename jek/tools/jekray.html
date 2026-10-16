@@ -1300,6 +1300,8 @@
   .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
   .rt-lnum.wide { width: 7.6rem; }
   .rt-lpose { display: flex; flex-direction: column; gap: 0.2rem; }
+  .rt-ltable td.pose .rt-lnum { width: 3.8rem; }
+  .rt-ltable th.pose { white-space: nowrap; }
   .rt-lpose > div { display: flex; align-items: center; }
   .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 2.6rem; white-space: nowrap; }
   .rt-lpose > div.out { padding-top: 0.15rem; border-top: 1px dashed var(--jek-line); }
@@ -23216,10 +23218,10 @@ function dataCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable' });
   // tilts and decentres, where a part has them (a fold mirror always)
   const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec) || !!WS.poseOn;
-  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].concat(moved ? ['Tilt, decentre'] : []).map(t => h('th', { scope: 'col' }, t)))));
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)), ...(moved ? POSE_HEADS.map(([t, tip]) => h('th', { scope: 'col', class: 'pose', title: tip }, t)) : []))));
   const tb = h('tbody');
   const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
-    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...(moved ? [h('td')] : []));
+    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono', title: asm.cond.object ? 'The object’s distance, set in the design conditions' : 'At infinity' }, asm.cond.object ? wsFmt(asm.cond.object.d, 7) : '∞'), h('td'), h('td'), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : []));
   obj.addEventListener('click', () => { WS.sel = WS.sel === -2 ? -1 : -2; renderWs(); });
   tb.append(obj);
   for (let i = 0; i < N; i++) {
@@ -23251,23 +23253,13 @@ function dataCard(asm, P) {
     tr.append(ctd);
     tr.append(valueCell(P, D, 'k', i));
     // a part's tilt (°) and decentre (mm), about its first vertex: typed, varied, solved or picked up here, or set by turning it on the bench
-    if (moved) {
-      const td = h('td', { class: 'tl' });
-      if (editable(P, 'T', i)) {
-        const cells = h('div', { class: 'rt-lpose' }, h('div', null, valueCell(P, D, 'T', i), h('span', { class: 'u' }, '°')));
-        if (editable(P, 'D', i)) cells.append(h('div', null, valueCell(P, D, 'D', i), h('span', { class: 'u' }, 'mm')));
-        // and out of the plane of the fields (up and down on the bench)
-        if (editable(P, 'U', i)) cells.append(h('div', { class: 'out' }, valueCell(P, D, 'U', i), h('span', { class: 'u', title: 'Out of the plane of the fields: tipped up' }, '° up')),
-          h('div', { class: 'out' }, valueCell(P, D, 'X', i), h('span', { class: 'u', title: 'Out of the plane of the fields: raised' }, 'mm up')));
-        td.append(cells);
-      }
-      tr.append(td);
-    }
+    // in the plane of the fields (across the bench) and out of it (up and down), a column each, on the part's first surface
+    if (moved) for (const q of POSE_QS) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
     tb.append(tr);
     if (nA) tb.append(asphRow(P, D, i, sid, nA, moved));
   }
   const F = designFigures(asm, P);
-  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? [h('td')] : [])));
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? POSE_QS.map(() => h('td')) : [])));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
@@ -23288,6 +23280,9 @@ function dataCard(asm, P) {
   card.append(bar);
   return card;
 }
+const POSE_QS = ['T', 'D', 'U', 'X'];
+const POSE_HEADS = [['Tilt (°)', 'In the plane of the fields: turned across the bench, about its first vertex'], ['Decentre (mm)', 'In the plane of the fields: moved across the bench'],
+  ['Tilt up (°)', 'Out of the plane of the fields: tipped up, about its first vertex'], ['Decentre up (mm)', 'Out of the plane of the fields: raised']];
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
@@ -23324,7 +23319,7 @@ function asphRow(P, D, i, sid, nA, moved) {
     grow(nA - 1);
     edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
   } }, nA > 1 ? 'Remove A' + ASPH_ORDERS[nA - 1] : 'No aspheric terms'));
-  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 6 : 5) }, cells));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp' }, 'aspheric terms'), h('td', { colspan: String(moved ? 5 + POSE_QS.length : 5) }, cells));
 }
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');

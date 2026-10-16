@@ -1287,6 +1287,8 @@
   .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
   .rt-lnum.wide { width: 7.6rem; }
   .rt-lpose { display: flex; flex-direction: column; gap: 0.2rem; }
+  .rt-ltable td.pose .rt-lnum { width: 3.8rem; }
+  .rt-ltable th.pose { white-space: nowrap; }
   .rt-lpose > div { display: flex; align-items: center; }
   .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 2.6rem; white-space: nowrap; }
   .rt-lpose > div.out { padding-top: 0.15rem; border-top: 1px dashed var(--jek-line); }

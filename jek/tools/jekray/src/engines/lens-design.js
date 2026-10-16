@@ -105,7 +105,9 @@ export function setV(P, at, v) {
 }
 /* a surface's sag at height h (NaN beyond a sphere's edge) */
 export function surfSag(s, h) {
-  const c = s.R ? 1 / s.R : 0, r2 = h * h;
+  // (in the plane of the fields: a cylinder curved out of it is flat there)
+  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = h * h;
+  if (s.cyl === 'x') { let v = 0; if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]); return v; }
   let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
   v += (s.a2 || 0) * r2;
   let p = r2 * r2;

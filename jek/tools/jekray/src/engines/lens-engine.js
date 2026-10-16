@@ -38,7 +38,7 @@ function indexOf(m, nm) {
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [];
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [];
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -48,9 +48,10 @@ export function lensSystem(P, nm, opts) {
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
     FL.push(ffList(s.F));
+    cy.push(s.cyl === 'y' ? 1 : s.cyl === 'x' ? 2 : 0);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, FL, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -111,7 +112,7 @@ function paraStep(S, y, u, i0, i1) {
   // from just before surface i0 to just after surface i1: [height at i1, angle after i1]
   for (let i = i0; i <= i1; i++) {
     if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = S.c[i] + 2 * S.a2[i] + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields)
+    const pc = (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
@@ -202,8 +203,9 @@ export function traceRay(S, R, i0, i1, noClip) {
     // to the vertex plane, then Newton along the ray onto the surface
     let t = (zi - z) / Nn, ok = false;
     for (let it = 0; it < 40; it++) {
-      const X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = X * X + Y * Y, FF = S.FL && S.FL[i];
-      let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (X * L + Y * M);
+      // a cylinder's sag goes with one coordinate alone: y (curved in the plane of the fields) or x (out of it)
+      const cl = S.cyl ? S.cyl[i] : 0, X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = cl === 1 ? Y * Y : cl === 2 ? X * X : X * X + Y * Y, FF = S.FL && S.FL[i];
+      let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (cl === 1 ? Y * M : cl === 2 ? X * L : X * L + Y * M);
       if (FF) { const [gx, gy] = ffGrad(FF, X, Y); f -= ffSag(FF, X, Y); d -= gx * L + gy * M; }
       if (!isFinite(f) || Math.abs(d) < 1e-15) break;
       const dt = f / d;
@@ -215,7 +217,8 @@ export function traceRay(S, R, i0, i1, noClip) {
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
-    const g = dsagOverR(S, i, r2), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = -g * x - (FG ? FG[0] : 0), ny = -g * y - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
+    const cl = S.cyl ? S.cyl[i] : 0, rs = cl === 1 ? y * y : cl === 2 ? x * x : r2;
+    const g = dsagOverR(S, i, rs), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = (cl === 1 ? 0 : -g * x) - (FG ? FG[0] : 0), ny = (cl === 2 ? 0 : -g * y) - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
@@ -414,14 +417,16 @@ export function seidel(S, fieldDeg, Sshort, Slong) {
   for (let i = 0; i < N; i++) {
     if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
-    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = sg * (S.c[i] + 2 * S.a2[i]);
+    // (in the plane of the fields: a cylinder curved out of it counts as flat)
+    const flatHere = S.cyl && S.cyl[i] === 2;
+    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * (S.c[i] + 2 * S.a2[i]);
     const A = n * (u + y * c), Ab = n * (ub + yb * c);
     const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
     const d = u1 / n1 - u / n;
     const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
       SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
     // the aspheric part: fourth-order sag beyond the paraxial sphere
-    const c0 = sg * S.c[i], A4 = S.A[i] ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    const c0 = flatHere ? 0 : sg * S.c[i], A4 = S.A[i] && !flatHere ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
     if (G) {
       const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
       r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;

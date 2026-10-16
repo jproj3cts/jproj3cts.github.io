@@ -229,8 +229,9 @@ export function asmCheck(els, opts) {
   if (els.some(e => e.bench !== els[0].bench)) return { ok: false, why: 'The parts are on different tabs.' };
   const lenses = els.filter(e => asmKind(e) !== 'stop');
   if (!lenses.length) return { ok: false, why: 'An assembly needs at least one lens, mirror or window.' };
-  const cyl = els.find(e => e.type === 'lens' && e.cyl);
-  if (cyl) return { ok: false, why: name(cyl) + ' is cylindrical: an assembly’s parts are round about the axis.' };
+  // a cylindrical lens: its power in the bench's plane or out of it, as its shape says (not rolled about its axis)
+  const cyl = els.find(e => e.type === 'lens' && e.cyl && e.roll);
+  if (cyl) return { ok: false, why: name(cyl) + ' is a cylindrical lens rolled about its axis: in an assembly a cylinder’s power is in the bench’s plane or out of it, as its Shape sets.' };
   const stopOdd = els.find(e => e.type === 'stop' && (e.shape !== 'round' || e.offset));
   if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
   const seg = els.find(e => e.type === 'mirror' && (e.offset || e.film));
@@ -307,7 +308,7 @@ export function asmAxisZ(asm, els) {
 const OUT_Z = 1, OUT_TIP = 1;
 // a freeform's terms in the prescription: y across as the engine has it, for a lens and for a mirror (as its part has it, times these)
 const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
-const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1) });
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1), ...(s.cyl ? { cyl: s.cyl } : {}) });
 export function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
   const C = asmCheck(els, { ref: asm.ref, rev: asm.rev, min: 1 });
@@ -337,7 +338,9 @@ export function asmPrescription(asm, els) {
       const ax = flip ? [-a[0], -a[1]] : a;
       tilt = hand * angFrom(d, ax);
       if (kind === 'lens') {
-        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+        // a cylinder: its power across (y, in the bench's plane) or up (x, out of it)
+        const cl = e.cyl ? (e.cyl === 'plane' ? 'y' : 'x') : null;
+        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
         G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));

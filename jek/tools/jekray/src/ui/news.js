@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Cylindrical lenses in lens design</b>: a cylinder, curved in the bench\u2019s plane or out of it, can now be part of an assembly or designed on its own, its surfaces marked in the lens data. Crossed cylinders make an anamorphic focus, and the bench and the lens engine trace them alike.',
     '<b>Freeform surfaces</b> in lens design: an asphere\u2019s surface or a mirror may carry XY terms on its sag (x² to y⁶, symmetric about the bench\u2019s plane), added with <b>+ XY</b> in the lens data or from the part\u2019s panel, and varied by the optimiser. The bench and the lens engine trace them exactly, in the plane and out of it. A concave mirror turned 10° loses its astigmatism when made a toroid this way.',
     '<b>Save to cloud</b> now asks where the bench goes: My benches, or any team you can edit in, where everyone in the team can open it, and under what name. <b>New bench</b> on My benches\u2019 page makes a new, empty cloud bench in the workspace and folder you are looking at, and opens it; what was on the bench is kept in Earlier versions.',
     '<b>Aspheric mirrors</b>: a mirror takes aspheric terms A4 to A16 on its conic, added in its panel or with <b>+ A</b> in the lens data, and varied by the optimiser like an asphere\u2019s. A concave sphere at f/2.5 optimised this way images a star as a paraboloid does. Lens files of a single mirror write and read them.',

@@ -10,7 +10,7 @@ import { rayPath } from '../engines/lens-engine.js';
 import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
-  insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfaceParts } from '../engines/lens-design.js';
+  insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
 import { analysesPanel } from './lens-analyses.js';
@@ -326,14 +326,8 @@ export function layoutData(asm, P, F) {
   });
   return out;
 }
-function wsSag(s, y) {
-  const c = s.R ? 1 / s.R : 0, r2 = y * y;
-  let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
-  v += (s.a2 || 0) * r2;
-  let p = r2 * r2;
-  for (const a of s.A || []) { v += a * p; p *= r2; }
-  return v;
-}
+// a surface's profile in the plane of the fields, as drawn (a cylinder curved out of it flat; a freeform's terms in it)
+const wsSag = (s, y) => surfSag(s, y);
 function drawLayout(cv, asm, P, F) {
   const L = layoutData(asm, P, F), dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800;
   // the rays from the plane a lead before the first surface
@@ -434,6 +428,7 @@ function dataCard(asm, P) {
     // a lens surface's aspheric terms: shown under it once it has any, or once asked for
     const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
+    if (s.cyl) nmTd.append(h('span', { class: 'rt-lcyl', title: s.cyl === 'y' ? 'Cylindrical: curved in the plane of the fields only (its radius there), flat out of it' : 'Cylindrical: curved out of the plane of the fields only (its radius there), flat in it, so it has no power in the layout or the first-order figures' }, s.cyl === 'y' ? ' cyl ⟂' : ' cyl ↕'));
     if (asph && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
       onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
     // a freeform's XY terms: those it has, and those asked for

@@ -1281,6 +1281,7 @@
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
   .rt-ltable td.tl { white-space: nowrap; }
   .rt-lasp { margin-left: 0.5rem; font: inherit; font-size: 0.72rem; font-weight: 500; color: var(--jek-ink-soft); background: none; border: 1px dashed var(--jek-line-2); border-radius: 3px; padding: 0 0.3rem; cursor: pointer; }
+  .rt-lcyl { margin-left: 0.4rem; font-size: 0.72rem; font-weight: 600; color: #8a4fd1; white-space: nowrap; }
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
   .rt-laspc { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; align-items: center; }

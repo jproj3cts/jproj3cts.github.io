@@ -84,9 +84,12 @@ test('which parts can be one: lenses and round stops on one axis, upright and no
   assert.ok(A.asmCheck(set).ok);
   by('L2').y = 15;
   assert.match(A.asmCheck(set).why, /off the axis/);
+  // a cylindrical lens may be one of them, as its Shape sets it; not one rolled about its axis
   by('L2').y = 0; by('L2').cyl = 'plane';
+  assert.equal(A.asmCheck(set).ok, true);
+  by('L2').roll = 30;
   assert.match(A.asmCheck(set).why, /cylindrical/);
-  delete by('L2').cyl; by('L3').x = 10;
+  delete by('L2').cyl; delete by('L2').roll; by('L3').x = 10;
   assert.match(A.asmCheck(set).why, /overlaps/);
   by('L3').x = 16.493; by('S').angle = 90;
   assert.match(A.asmCheck(set).why, /faces another way/);

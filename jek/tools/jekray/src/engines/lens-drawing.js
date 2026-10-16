@@ -20,7 +20,8 @@ import { surfaceParts } from './lens-design.js';
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
 
 export function drawSag(s, y) {
-  const c = s.R ? 1 / s.R : 0, r2 = y * y;
+  // (the section drawn is in the plane of the fields: a cylinder curved out of it is flat there)
+  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = y * y;
   const q = 1 - (1 + (s.k || 0)) * c * c * r2;
   if (q < 0) return NaN;
   let v = c ? c * r2 / (1 + Math.sqrt(q)) : 0;
@@ -74,6 +75,7 @@ export function drawingData(P, pi, opts) {
       ctTol: thk, ndTol: dn, vdTol: dv !== null && isFinite(vd) ? vd * dv / 100 : null });
   }
   const notes = [];
+  if (S.some(s => s.cyl)) notes.push('A cylindrical lens: its radii are of its curve ' + (S.find(s => s.cyl).cyl === 'y' ? 'in the section drawn; it is flat at right angles to it.' : 'at right angles to the section drawn, which is flat.'));
   S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the lens data.'); });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });

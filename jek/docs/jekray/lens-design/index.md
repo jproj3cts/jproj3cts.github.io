@@ -255,6 +255,17 @@ Some things don't see a freeform: the paraxial figures and Seidel sums (only its
 - A freeform asphere facing the light and facing back, and a freeform concave fold mirror: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
 - A concave mirror (radius 400 mm, f/10) turned 10° from its axis: its spot at best focus 0.110 mm, mostly astigmatism. With its x² and y² terms varied (a toroid), the spot falls to 0.018 mm. That is the coma left, near θf/(16N²) = 0.022 mm, which a toroid cannot take out.
 
+### Cylindrical lenses
+
+A cylindrical lens can be part of an assembly, curved in the plane of the fields or out of it as its **Shape** sets. In the lens data its surfaces are marked **cyl ⟂** (curved in the plane) or **cyl ↕** (curved out of it). Its radius is the radius of that curve, and like any value it can be typed, varied, solved or picked up. A cylinder rolled about its own axis, so that its power lies between the two, can't be in an assembly.
+
+The trace of a cylinder is exact in both directions. The first-order figures, the Seidel sums, the layout and the drawings are of the plane of the fields. There, a cylinder curved out of the plane is flat and has no power, so a design's focal length is its focal length in the plane. For a toroid, curved one way in the plane and another out of it, give an asphere or a mirror unequal x² and y² freeform terms.
+
+**Checked against.**
+- A cylinder curved in the plane has the same focal length there as the round lens of its radii; one curved out of the plane has none.
+- Two crossed cylinders whose line foci meet (focal lengths about 100 and 50 mm, the weaker 50 mm in front) bring a beam to a point, with a spot under a twentieth of the line focus that one alone gives.
+- Cylinders curved in the plane and out of it, facing the light and facing back: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, to 10⁻⁹ mm.
+
 ### Model glass
 
 Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.

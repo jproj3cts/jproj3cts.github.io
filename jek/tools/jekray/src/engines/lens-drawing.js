@@ -1,5 +1,6 @@
 import { refIndex, matLabel } from '../core/glass.js';
 import { surfaceParts } from './lens-design.js';
+import { dpPhase, dpSlopeOverR } from '../core/diffractive.js';
 
 /* ==========================================================================
    A lens drawn to be made: what its drawing says
@@ -77,6 +78,14 @@ export function drawingData(P, pi, opts) {
   const notes = [];
   if (S.some(s => s.cyl)) notes.push('A cylindrical lens: its radii are of its curve ' + (S.find(s => s.cyl).cyl === 'y' ? 'in the section drawn; it is flat at right angles to it.' : 'at right angles to the section drawn, which is flat.'));
   S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the lens data.'); });
+  // a diffractive face: its phase, and what its zones come to over the clear radius (each a wrap of 2π in φ, m waves deep)
+  S.forEach((s, j) => {
+    if (!s.ph || !s.ph.some(v => v)) return;
+    const fmtE = v => +v.toPrecision(6), h = s.semi, terms = s.ph.map((c, q) => (c ? fmtE(c) + ' ρ' + ['²', '⁴', '⁶', '⁸'][q] : '')).filter(Boolean).join(' + ').replace(/\+ -/g, '− ');
+    const zones = Math.abs(dpPhase(s.ph, h * h)) / (2 * Math.PI), g = Math.abs(dpSlopeOverR(s.ph, h * h) * h);
+    notes.push('Surface ' + (k0 + j + 1) + ' is diffractive, in order ' + (s.dm || 1) + ': phase φ(ρ) = ' + terms + ' rad (ρ in mm), ' + Math.round(zones) + ' zones to its clear radius' +
+      (g > 0 ? ', the last ' + (2 * Math.PI / g * 1000).toPrecision(3) + ' µm wide' : '') + '; the surface drawn is its substrate.');
+  });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };

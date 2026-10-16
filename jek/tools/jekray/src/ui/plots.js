@@ -12,6 +12,7 @@ import { bindSync, h, panel, selectField, vs } from './panel.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
+import { ffTurn } from '../core/freeform.js';
 
 /* ---------- Zooming a panel plot ----------
    Each plot of each element keeps its own window: a zoom factor and a centre for each
@@ -682,9 +683,11 @@ export function removeSweeps(el, prefix) {
 export function flipLens(el) {
   // surface-specific sweeps don't survive the reversal
   for (const pre of ['surfaces.', 'gaps.', 'materials.']) removeSweeps(el, pre);
+  // (a freeform's terms turned over with it, y and the sag both; a diffractive phase and a coating the same either way)
   el.surfaces = el.surfaces.slice().reverse().map(s => ({
     R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v),
     odd: s.odd ? s.odd.map(v => -v) : undefined, semi: s.semi,
+    ...(s.F ? { F: ffTurn(s.F, -1, -1) } : {}), ...(s.ph ? { ph: s.ph.slice() } : {}), ...(s.coat ? { coat: s.coat } : {}),
   }));
   el.gaps = el.gaps.slice().reverse();
   el.materials = el.materials.slice().reverse();

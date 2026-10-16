@@ -92,6 +92,7 @@ function zmxSystem(els) {
     const coats = e.type === 'lens' ? e.surfaces.map(s => s.coat) : [e.coat];
     if (coats.some(c => c && c.mode !== 'bare')) warnings.add('coatings are not written');
     if (e.type === 'lens' && e.surfaces.some(t => t.F && Object.values(t.F).some(v => v))) warnings.add('freeform terms are not written');
+    if (e.type === 'lens' && e.diffractive && e.surfaces.some(t => t.ph && t.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
     return { e, z0: c - T / 2, z1: c + T / 2, surfaces, gaps, materials };
   }).sort((a, b) => a.z0 - b.z0);
   const surfaces = [], gaps = [], materials = [];
@@ -115,6 +116,7 @@ function zmxAssemblySystem(asm) {
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
+  if (P.surfaces.some(s => s.ph && s.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
   const mc = asm.design && asm.design.mc && asm.design.mc.configs && asm.design.mc.configs.length > 1 ? asm.design.mc : null;
   if (mc) warnings.add('only the configuration shown (' + mc.configs[mc.active].name + ') is written');
   // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance

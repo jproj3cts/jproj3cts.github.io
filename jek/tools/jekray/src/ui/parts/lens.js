@@ -15,6 +15,7 @@ import {
 } from '../plots.js';
 import { changed } from '../actions.js';
 import { FF_KEYS, ffLabel } from '../../core/freeform.js';
+import { DP_N, dpLabel, normOrder } from '../../core/diffractive.js';
 import { checkpoint } from '../tabs.js';
 
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
@@ -34,6 +35,12 @@ function drawLens(el, sel) {
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
   }
+  // a diffractive face: its zones, as a broken line along it
+  for (const s of ss) {
+    if (!s.ph) continue;
+    pathLocal(f, surfPoints(s, 48, false, f));
+    ctx.save(); ctx.setLineDash([1.5, 2.5]); ctx.lineWidth = 3.2; ctx.strokeStyle = sel ? selInk() : glass; ctx.stroke(); ctx.restore();
+  }
   if (el.mount) {
     // the flange about the middle of the rim: where the first and last faces meet the edge
     const rimX = s => { const P = surfPoints(s, 8, false, null); return P.reduce((b, p) => (Math.abs(p[1]) > Math.abs(b[1]) ? p : b))[0]; };
@@ -48,6 +55,12 @@ function lensPanel(el) {
       () => el.cyl || 'round', v => { el.cyl = v === 'round' ? undefined : v; }, { wide: true })));
   const clip = clipNote(el);
   if (clip) panel.append(h('p', { class: 'rt-assumed' }, clip));
+  if (el.diffractive) {
+    // a diffractive lens: the order its faces send the light into (all of it, as a blaze would)
+    const oid = 'rtf' + (setFid(fid + 1));
+    panel.append(h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide', title: 'The order of diffraction its zones are blazed for: all the light is taken to go into it' },
+      h('label', { for: oid }, 'Diffraction order'), numInput(oid, () => el.diffOrder || 1, v => { const m = normOrder(Math.round(v)); el.diffOrder = m === 1 ? undefined : m; }))));
+  }
 
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {
@@ -73,6 +86,17 @@ function lensPanel(el) {
     ));
     // an asphere's freeform terms, c x^m y^n on the sag (x up, y across): those it has, and one more to add
     if (el.asphere) rows.append(...ffRows(el, s, `surfaces.${i}.F`, 'surface ' + (i + 1)));
+    // a diffractive lens's phase on this face, c ρ² … in radians: those it has, and one more to add
+    if (el.diffractive) {
+      const ph = s.ph || [];
+      ph.forEach((_, j) => rows.append(param('Phase ' + dpLabel(j) + ' (rad)', el, `surfaces.${i}.ph.${j}`, { blank: 0 })));
+      rows.append(h('div', { class: 'rt-inline wide', title: 'The phase written on this face, φ = c₁ρ² + c₂ρ⁴ + …, radians at ρ mm from the axis' },
+        ph.length < DP_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a phase term to surface ' + (i + 1), onclick: () => { checkpoint(); s.ph = ph.concat(0); changed(true); } },
+          ph.length ? 'Add ' + dpLabel(ph.length) + ' phase term' : 'Add a diffractive phase') : null,
+        ph.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+          checkpoint(); removeSweeps(el, `surfaces.${i}.ph.${ph.length - 1}`); s.ph = ph.slice(0, -1); if (!s.ph.length) delete s.ph; changed(true);
+        } }, 'Remove ' + dpLabel(ph.length - 1) + ' term') : null));
+    }
     panel.append(rows);
     panel.append(coatingRows(el, s));
 

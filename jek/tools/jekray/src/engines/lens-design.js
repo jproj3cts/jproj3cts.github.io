@@ -16,6 +16,7 @@ import { lensSystem, seidel } from './lens-engine.js';
    A key names one value of one surface by where it came from, so it survives surfaces inserted
    or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
    "g:..." (the glass after it), "a4:..." to "a16:..." (its even aspheric coefficients, A4 to A16),
+   "p2:..." to "p8:..." (a diffractive face's phase terms, on ρ² to ρ⁸, radians),
    "T:..." and "D:..." on a part's first surface (the part's tilt in degrees and decentre in mm, about
    its first vertex), and "t:image". Solves and pickups are worked out after every change, and the result is written
    back to the parts: the bench is always the design.
@@ -47,6 +48,8 @@ export function editable(P, q, i) {
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  // a diffractive lens's phase terms
+  if (q[0] === 'p') return sp.kind === 'lens' && !!P.parts[sp.pi].diff;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
@@ -57,6 +60,7 @@ export function getV(P, at) {
   if (at.q === 'k') return P.surfaces[at.i].k;
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   if (at.q[0] === 'f') { const F = P.surfaces[at.i].F; return F && F[at.q.slice(1)] || 0; }
+  if (at.q[0] === 'p') { const ph = P.surfaces[at.i].ph; return ph && ph[+at.q[1] / 2 - 1] || 0; }
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
@@ -94,6 +98,7 @@ export function setV(P, at, v) {
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
   else if (at.q[0] === 'f') { const s = P.surfaces[at.i], F = Object.assign({}, s.F || {}); F[at.q.slice(1)] = isFinite(v) ? v : 0; s.F = F; }
+  else if (at.q[0] === 'p') { const s = P.surfaces[at.i], ph = (s.ph || [0, 0, 0, 0]).slice(); ph[+at.q[1] / 2 - 1] = isFinite(v) ? v : 0; s.ph = ph; }
   else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
     const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;

@@ -1,12 +1,13 @@
 import { deg, nextName, normMat, num } from '../state/project.js';
 import { normSurface } from '../state/elements.js';
 import { normMount } from '../core/rf.js';
+import { normOrder } from '../core/diffractive.js';
 
-/* Lens: A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass. */
+/* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
 export const LENS = {
   type: 'lens', label: 'Lens',
-  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
-  keys: ['lens', 'asphere', 'cylinder', 'axicon'],
+  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
+  keys: ['lens', 'asphere', 'diffractive', 'cylinder', 'axicon'],
   make(x, y, kind) {
     switch (kind) {
       case 'lens':
@@ -15,6 +16,11 @@ export const LENS = {
       case 'asphere':
         return { type: 'lens', name: nextName('Asphere'), asphere: true, x, y, diameter: 12.7,
           surfaces: [{ R: 8.2, k: -0.9 }, { R: null }], gaps: [5], materials: [{ glass: 'S-LAH64' }] };
+      case 'diffractive':
+        // a hybrid achromat: a plano-convex lens with a diffractive face whose colour, the opposite way to
+        // glass's, cancels its own (f 50 mm, C and F lines meeting)
+        return { type: 'lens', name: nextName('Diffractive lens'), diffractive: true, x, y, diameter: 12.7,
+          surfaces: [{ R: 27.28 }, { R: null, ph: [-5.938] }], gaps: [4], materials: [{ glass: 'N-BK7' }] };
       case 'cylinder':
         return { type: 'lens', name: nextName('Cylindrical lens'), x, y, diameter: 25.4, cyl: 'plane',
           surfaces: [{ R: 25.8 }, { R: null }], gaps: [5], materials: [{ glass: 'N-BK7' }] };
@@ -37,14 +43,19 @@ export const LENS = {
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
       asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,
+      // a diffractive lens: its surfaces may carry a phase, in one order of diffraction (not a cylinder's)
+      diffractive: !e.cyl && (e.diffractive === true || (e.diffractive === undefined && surfaces.some(s => s.ph))) ? true : undefined,
+      diffOrder: e.diffOrder !== undefined && +e.diffOrder !== 1 ? normOrder(e.diffOrder) : undefined,
     });
   },
   guide: {
-    what: 'A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.',
+    what: 'A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.',
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
+    diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',
+    diffOrder: 'optional: a diffractive lens’s order of diffraction, a whole number (1 unless given).',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.' },

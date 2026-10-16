@@ -34,7 +34,7 @@ test('every picker key makes an element, and making then normalising again chang
   assert.equal(makeElement('no-such-part', 0, 0), undefined);
 });
 test('the keys map: lens presets are lenses, the fibre palette is fibre components, the chopper is electronics', () => {
-  for (const k of ['lens', 'asphere', 'cylinder', 'axicon']) assert.equal(PART_BY_KEY[k], PARTS.lens);
+  for (const k of ['lens', 'asphere', 'diffractive', 'cylinder', 'axicon']) assert.equal(PART_BY_KEY[k], PARTS.lens);
   for (const k of ['laser', 'coupler', 'splitter', 'combiner', 'led', 'bpd', 'soa', 'pd', 'thru']) assert.equal(PART_BY_KEY[k], PARTS.fcomp);
   assert.equal(makeElement('elec:chopper', 0, 0).type, 'chopper');
   assert.equal(makeElement('splitter', 0, 0).kind, 'split'); assert.equal(makeElement('combiner', 0, 0).combine, true);

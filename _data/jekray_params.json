@@ -222,7 +222,7 @@
   },
   "lens": {
    "label": "Lens",
-   "what": "A lens of any number of surfaces (singlet, doublet, asphere, cylinder, axicon) in real glass.",
+   "what": "A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.",
    "angle": "the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.",
    "fields": [
     {
@@ -264,6 +264,16 @@
      "k": "asphere",
      "def": null,
      "meaning": "true for an asphere: only an asphere’s surfaces take a conic (\"k\"), aspheric terms (\"A\") and freeform terms (\"F\": {\"mn\": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; \"20\", \"02\", \"21\", \"03\", \"40\", \"22\", \"04\", \"41\", \"23\", \"05\", \"60\", \"42\", \"24\", \"06\"); a plain lens’s are spheres."
+    },
+    {
+     "k": "diffractive",
+     "def": null,
+     "meaning": "true for a diffractive lens: its surfaces may take phase terms (\"ph\": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction \"diffOrder\" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π."
+    },
+    {
+     "k": "diffOrder",
+     "def": null,
+     "meaning": "optional: a diffractive lens’s order of diffraction, a whole number (1 unless given)."
     }
    ]
   },

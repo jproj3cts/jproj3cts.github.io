@@ -1,6 +1,7 @@
 import { DOVE_RATIO, deg } from '../state/project.js';
 import { rollFrame } from '../engines/trace.js';
 import { ffGrad, ffList, ffSag } from './freeform.js';
+import { dpOn, normOrder } from './diffractive.js';
 
 /* ==========================================================================
    Geometry
@@ -124,6 +125,8 @@ export function lensSurfaces(el) {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat,
+        // a diffractive lens's phase on this face, in its order (core/diffractive.js)
+        ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
         back: i === el.surfaces.length - 1 ? { glass: 'AIR' } : el.materials[i],
       });

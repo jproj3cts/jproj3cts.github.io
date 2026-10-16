@@ -8927,6 +8927,31 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine traces the bench’s own rays exactly through diffractive faces, tipped and facing back',
+    why: 'a diffractive lens (a phase of four terms on its flat face) and a second whose curved face carries one, the second tipped 2° and raised 0.3 mm, the first facing back in a second case: each ray of a grid traced by the lens engine meets the sensor where the bench’s does, with the same optical path, the phase’s path counted in it (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      let worst = 0;
+      for (const face of [0, 180]) {
+        J.load({ format: 'jekray', version: 1, elements: [
+          { type: 'source', name: 'Fan', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 8, divergence: 0, pattern: 'grid' },
+          { type: 'lens', name: 'A', x: 0, y: 0, angle: face, diffractive: true, diameter: 20, surfaces: [{ R: 60 }, { R: null, ph: [-8, 0.02, -1e-4, 2e-7] }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+          { type: 'lens', name: 'B', x: 20, y: 0, angle: 0, z: 75.3, tip: 2, diffractive: true, diffOrder: 2, diameter: 20, surfaces: [{ R: 50, ph: [3, -0.01] }, { R: -80 }], gaps: [3], materials: [{ glass: 'F2' }] },
+          { type: 'screen', name: 'Sensor', x: 60, y: 0, angle: 180, length: 40 }] });
+        if (!J.makeAssembly(['A', 'B'])) return 98;
+        J.trace();
+        const name = J.assemblies()[0].name, H = J.hitsOn('Sensor'), s = J.byName('Fan'), n = 7, W = 8, at = i => i / (n - 1) - 0.5;
+        if (H.length < 40) return 99;
+        const P = J.asmPrescription(name), o = P.origin, len = P.gaps.reduce((u, v) => u + v, 0);
+        // (both faces' phases read into the prescription, the second in its order)
+        if (P.surfaces.filter(f => f.ph && f.ph[0]).length !== 2 || !P.surfaces.some(f => f.dm === 2)) return 96;
+        const E = J.lensTrace(name, 587.56, 60 - (o[0] + len), H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + t - o[1], s.x - o[0], 0, 0, 1]; }));
+        H.forEach((h, q) => { const e = E.out[q]; worst = Math.max(worst, e[7] !== 0 ? 99 : 0, Math.abs(e[1] + h.y), Math.abs(e[0] - (h.z || 0)), Math.abs(e[6] - h.opl)); });
+      }
+      return worst;
+    },
+  },
+  {
     name: 'A lens’s tilt and decentre out of the plane are typed in the lens data and put on the bench as its tip and height',
     why: 'two singlets made an assembly and opened with Design…, Tilts and decentres shown: the second’s tilt up typed as 2° and decentre up as 0.3 mm puts it on the bench tipped 2° and raised 0.3 mm plus half its thickness times sin 2° (to 1e-9 mm); the first’s stays as it was (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -8993,6 +9018,49 @@ const TESTS = [
         if (!ok) console.log('mirror asph', panelOk, a4 && a4.value, J.byName('Cup').A);
         return ok ? 1 : 0;
       } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'A diffractive lens takes its order and phase in its panel, and its phase in the lens data',
+    why: 'a diffractive lens’s panel: Add a diffractive phase on surface 2 gives a ρ² field, typed in, and its order set to 2; designed alone, its lens data has that ρ² to type and vary, and + φ opens a phase row on surface 1 (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Kino', x: 0, y: 0, angle: 0, diffractive: true, diameter: 12.7, surfaces: [{ R: 27.28 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
+      J.select('Kino');
+      const D = rigDoc(), W = rigWin(), btn = t => [...D.querySelectorAll('#panel button')].find(x => x.getAttribute('aria-label') === t || x.textContent.trim() === t);
+      const type = (inp, v) => { inp.value = v; inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
+      btn('Add a phase term to surface 2').click();
+      const f = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'Phase ρ² (rad)');
+      if (!f) return 0;
+      type(f.querySelector('input'), '-5.938');
+      const o = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'Diffraction order');
+      if (!o) return 0;
+      type(o.querySelector('input'), '2');
+      const el = J.byName('Kino'), panelOk = el.surfaces[1].ph && el.surfaces[1].ph[0] === -5.938 && el.diffOrder === 2;
+      btn('Design as a lens…').click();
+      try {
+        const ws = () => rigDoc().querySelector('#lensWs'), p2 = ws().querySelector('input[aria-label="Phase ρ² of surface 2"]');
+        const vary = !!ws().querySelector('button[aria-label="Vary phase ρ² of surface 2"]');
+        wsClick('+ φ', 'Phase terms for surface 1');
+        const p1 = ws().querySelector('input[aria-label="Phase ρ² of surface 1"]');
+        const ok = panelOk && !!p2 && Math.abs(parseFloat(p2.value) + 5.938) < 1e-9 && vary && !!p1;
+        if (!ok) console.log('diffractive ui', panelOk, p2 && p2.value, vary, !!p1, JSON.stringify(el.surfaces[1].ph), el.diffOrder);
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The diffracted field through a diffractive face focuses as a mask lens of the same delay does',
+    why: 'a Gaussian beam (w₀ = 2 mm, 633 nm) through a flat window whose back face carries c₁ = -π/(λf), f = 100 mm (its path −ρ²/2f), and through a mask with that delay where the face was: the spot’s 1/e² radius on a screen 100 mm on, the face’s over the mask’s',
+    want: 1, tol: 0.01, rel: true, unit: '',
+    run: J => {
+      const mk = L => bench('dpfield', [src({ gauss: true, w0: 2, z0: 0, width: 4, rays: 3 }), L, screen({ name: 'Sc', x: 102, length: 4 })]);
+      J.load(mk({ type: 'lens', name: 'K', x: 0.5, y: 0, angle: 0, diffractive: true, diameter: 20, surfaces: [{ R: null }, { R: null, ph: [-Math.PI / (633e-6 * 100)] }], gaps: [3], materials: [{ glass: 'N-BK7' }] }));
+      J.diffraction('Sc');
+      const a = J.diffraction('Sc').wx;
+      J.load(mk({ type: 'mask', name: 'L', x: 2, y: 0, angle: 0, length: 20, amp: '1', delay: '-(r^2)/(2*100*lambda)' }));
+      J.diffraction('Sc');
+      return a / J.diffraction('Sc').wx;
     },
   },
   {

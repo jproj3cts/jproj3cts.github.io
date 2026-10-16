@@ -16,6 +16,7 @@ import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { modsCarried, normCarried } from '../engines/mods.js';
 import { normF } from '../core/freeform.js';
+import { normPh } from '../core/diffractive.js';
 
 export function normSurface(s) {
   s = s || {};
@@ -25,6 +26,7 @@ export function normSurface(s) {
     A: Array.isArray(s.A) ? s.A.map(Number).filter(isFinite) : [],
     odd: Array.isArray(s.odd) && s.odd.some(v => +v) ? s.odd.map(Number).filter(isFinite) : undefined,
     F: normF(s.F),                     // freeform terms (an asphere's): core/freeform.js
+    ph: normPh(s.ph),                  // diffractive phase terms (a diffractive lens's): core/diffractive.js
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     coat: normCoat(s.coat),
   };
@@ -212,6 +214,7 @@ export function benchNms() {
 }
 
 export function lensKind(el) {
+  if (el.diffractive) return el.asphere ? 'Diffractive asphere' : 'Diffractive lens';
   if (el.asphere) return 'Asphere';
   return 'Lens';
 }

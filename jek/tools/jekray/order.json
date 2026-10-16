@@ -18,6 +18,7 @@
  "core/horns.js",
  "core/antenna.js",
  "core/freeform.js",
+ "core/diffractive.js",
  "core/assembly.js",
  "core/beams-hom.js",
  "core/colour.js",

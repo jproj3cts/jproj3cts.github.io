@@ -1,5 +1,6 @@
 import { linesPerMm } from '../core/modulators.js';
 import { rawDsag, rawSag } from '../core/geometry.js';
+import { dpBend, dpPhase, dpSlopeOverR } from '../core/diffractive.js';
 import { faceFrame, rollFrame, tipFrame, zOf } from './trace.js';
 
 /* ---------- A surface as a phase screen, by tracing rays in three dimensions ----------
@@ -40,6 +41,16 @@ function surfWorld(s, a, b, c) {
   [a, c] = [a * ct - c * st, a * st + c * ct];
   const f = s.ef; return [a * f.c - b * f.s, a * f.s + b * f.c, c];
 }
+/* a diffractive face (s.ph, order s.dm) at (u, v) across and up on it: the ray's way bent by Snell's law
+   with the phase's pull along the face (into e), false if it cannot leave; and the path it adds, mm */
+const DPO = [0, 0, 0];
+function dpRefract(s, lam0, u, v, d, nrm, n1, n2, e) {
+  const q = s.dm * lam0 / (2 * Math.PI), r2 = u * u + v * v, g = q * dpSlopeOverR(s.ph, r2);
+  if (!dpBend(d, nrm, n1, n2, [0, g * u, g * v], DPO)) return false;
+  e[0] = DPO[0]; e[1] = DPO[1]; e[2] = DPO[2];
+  return true;
+}
+const dpPath = (s, lam0, u, v) => s.dm * lam0 / (2 * Math.PI) * dpPhase(s.ph, u * u + v * v);
 function popScreen3(ev, invRx, invRy, lam0) {
   const s = ev.surf;
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
@@ -51,7 +62,9 @@ function popScreen3(ev, invRx, invRy, lam0) {
   const H = [ev.hx, ev.hy, ev.hz !== undefined ? ev.hz : zOf(s.el)];
   const y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
   const n1 = ev.n1, n2 = ev.mode === 'T' ? ev.n2 : ev.n1;
-  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
+  // a diffractive face's path where the beam's own ray met it, which that ray's path already carries
+  const P0 = s.ph ? (L => dpPath(s, lam0, L[1], L[2]))(surfLocal(s, H[0], H[1], H[2], true)) : 0;
+  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && (n1 !== n2 || s.ph)) ? 'refract' : 'pass';
   const flat = s.flat, cyl = s.cyl, cs = s.cylS;
   let sS = 0, sY = 0, sZ = 0;
   const sagAt = (u, lz) => {
@@ -92,6 +105,7 @@ function popScreen3(ev, invRx, invRy, lam0) {
       let c = -(ldx * nx + ldy * ny + ldz * nz);
       if (c < 0) { nx = -nx; ny = -ny; nz = -nz; c = -c; }
       if (bend === 'reflect') { ex = ldx + 2 * c * nx; ey = ldy + 2 * c * ny; ez = ldz + 2 * c * nz; }
+      else if (s.ph) { const e = [0, 0, 0]; if (!dpRefract(s, lam0, ly, lz, [ldx, ldy, ldz], [nx, ny, nz], n1, n2, e)) ok = false; [ex, ey, ez] = e; }
       else {
         const eta = n1 / n2, k = 1 - eta * eta * (1 - c * c);
         if (k < 0) ok = false;
@@ -106,6 +120,7 @@ function popScreen3(ev, invRx, invRy, lam0) {
     const Ex = Px + t2 * wx - H[0], Ey = Py + t2 * wy - H[1], Ez = Pz + t2 * wz - H[2];
     let opl = n1 * t + n2 * t2, amp = 1;
     if (fn) { const [A, D] = fn(ly, lz, lam0); amp = A; opl += (D - D0) * lam0; }
+    if (s.ph && bend === 'refract') opl += dpPath(s, lam0, ly, lz) - P0;
     return [opl, Ex * exo[0] + Ey * exo[1] + Ez * exo[2], Ex * eyo[0] + Ey * eyo[1] + Ez * eyo[2], edge(ly, lz), ok, amp, ly, lz,
       dx, dy, dz, Nx, Ny, Nz, wx, wy, wz];
   };
@@ -123,7 +138,9 @@ export function popScreen(ev, invRx, invRy, lam0) {
   const exix = -di[1], exiy = di[0], exox = -dO[1], exoy = dO[0];
   const f = s.f, y0 = s.y0 || 0, sag0 = s.y0 ? s.sag0 : 0;
   const n1 = ev.n1, n2 = ev.mode === 'T' ? ev.n2 : ev.n1;
-  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && n1 !== n2) ? 'refract' : 'pass';
+  // a diffractive face's path where the beam's own ray met it, which that ray's path already carries
+  const P02 = s.ph && isFinite(ev.ly) ? dpPath(s, lam0, ev.ly + y0, 0) : 0;
+  const bend = s.kind === 'grating' ? 'grating' : ev.mode === 'R' ? 'reflect' : (ev.mode === 'T' && ev.kind === 'refract' && (n1 !== n2 || s.ph)) ? 'refract' : 'pass';
   const flat = s.flat;
   // a cylinder is curved one way only: across the beam in the bench plane ('plane'), or out
   // of it ('out', flat to the bench's own rays; its profile is kept aside in cylS)
@@ -179,6 +196,7 @@ export function popScreen(ev, invRx, invRy, lam0) {
       let c = -(ldx * nx + ldy * ny + ldz * nz);
       if (c < 0) { nx = -nx; ny = -ny; nz = -nz; c = -c; }        // normal against the ray
       if (bend === 'reflect') { ex = ldx + 2 * c * nx; ey = ldy + 2 * c * ny; ez = ldz + 2 * c * nz; }
+      else if (s.ph) { const e = [0, 0, 0]; if (!dpRefract(s, lam0, ly + y0, lz, [ldx, ldy, ldz], [nx, ny, nz], n1, n2, e)) ok = false; [ex, ey, ez] = e; }
       else {
         const eta = n1 / n2, k = 1 - eta * eta * (1 - c * c);
         if (k < 0) ok = false;                                     // lost to total internal reflection
@@ -196,6 +214,7 @@ export function popScreen(ev, invRx, invRy, lam0) {
     // a mask: amplitude, and delay in waves, as a departure from its delay where the
     // reference ray crossed it, which the ray's own path already carries
     if (fn) { const [A, D] = fn(ly, lz, lam0); amp = A; opl += (D - D0) * lam0; }
+    if (s.ph && bend === 'refract') opl += dpPath(s, lam0, ly + y0, lz) - P02;
     // for polarisation: the ray in, the surface normal and the ray out, in the world
     return [opl, Ex * exox + Ey * exoy, Ez, edge(ly, lz), ok, amp, ly, lz,
       dx, dy, dz, nx * f.c - ny * f.s, nx * f.s + ny * f.c, nz, wx, wy, wz];

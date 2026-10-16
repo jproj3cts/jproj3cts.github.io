@@ -1,5 +1,6 @@
 import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
+import { normOrder, normPh } from './diffractive.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
@@ -63,8 +64,9 @@ export function normAssemblies(list, els) {
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
    A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
-   U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js) */
-export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)):(.{1,120}\.\d+)$/;
+   U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
+   face's phase term on ρ² … ρ⁸ (core/diffractive.js) */
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]):(.{1,120}\.\d+)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -308,7 +310,8 @@ export function asmAxisZ(asm, els) {
 const OUT_Z = 1, OUT_TIP = 1;
 // a freeform's terms in the prescription: y across as the engine has it, for a lens and for a mirror (as its part has it, times these)
 const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
-const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1), ...(s.cyl ? { cyl: s.cyl } : {}) });
+// (a diffractive face's phase is the same read either way: it bends light toward its axis whichever way it comes)
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1), ...(s.cyl ? { cyl: s.cyl } : {}), ...(s.ph ? { ph: s.ph.slice(), dm: s.dm } : {}) });
 export function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
   const C = asmCheck(els, { ref: asm.ref, rev: asm.rev, min: 1 });
@@ -340,7 +343,9 @@ export function asmPrescription(asm, els) {
       if (kind === 'lens') {
         // a cylinder: its power across (y, in the bench's plane) or up (x, out of it)
         const cl = e.cyl ? (e.cyl === 'plane' ? 'y' : 'x') : null;
-        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}),
+          // a diffractive lens's faces carry their phase (all four terms, so each can be set), in its order
+          ...(e.diffractive ? { ph: [0, 1, 2, 3].map(j => (s.ph && s.ph[j]) || 0), dm: normOrder(e.diffOrder) } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
         G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
@@ -366,7 +371,7 @@ export function asmPrescription(asm, els) {
     });
     gaps.push(...G2); materials.push(...M2);
     lastAx = along + tv + T;
-    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}) });
+    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}) });
     if (kind === 'mirror') {
       // the axis turns where it meets the mirror's plane; on from there
       const n = v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
@@ -454,6 +459,7 @@ export function asmApply(asm, P, els) {
           const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
           t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
           const tF = ffTurn(s.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
+          const tP = normPh(s.ph); if (tP) t.ph = tP; else delete t.ph;
           // a clear radius that is the lens's own stays unset
           if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
           else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;

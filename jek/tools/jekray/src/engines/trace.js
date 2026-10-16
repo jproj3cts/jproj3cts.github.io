@@ -21,6 +21,7 @@ import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
 import { ffGrad, ffSag } from '../core/freeform.js';
+import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
 import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
@@ -465,6 +466,14 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
 }
 // its unit normal where a ray at (px, py) in the part's frame, h up, meets it: in the frame of
 // the surface's own in-plane axes (s.f), as the trace takes it
+/* A diffractive face (s.ph, in order s.dm): at a point of its part's frame (y across, h up), the pull
+   m λ/2π ∇φ along it, as a direction of the frame of s.f, and the path m λ φ/2π it adds (mm) */
+function dpPull(s, px, py, h, lam) {
+  let fy = py, fz = h;
+  if (s.tilt) { const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0); fy = faceFrame(s, qx, qy, true)[1]; fz = qz; }
+  const r2 = fy * fy + fz * fz, q = s.dm * lam / (2 * Math.PI), g = q * dpSlopeOverR(s.ph, r2);
+  return { G: s.tilt ? faceToLocal(s, 0, g * fy, g * fz) : [0, g * fy, g * fz], path: q * dpPhase(s.ph, r2) };
+}
 function tipNormal(s, px, py, h) {
   const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0), [, fy] = faceFrame(s, qx, qy, true);
   return faceToLocal(s, ...(s.flat ? [1, 0, 0] : normal3(s, fy, qz)));
@@ -1276,7 +1285,9 @@ function traceSceneOnce() {
             if (k0 > 0) {
               const ct0 = Math.sqrt(k0);
               const kp = kap * (goingBack0 ? 1 : -1);
-              tr = abcd(ct0 / ci0, (n1 * ci0 - n2 * ct0) * kp / (n2 * ci0 * ct0), n1 * ci0 / (n2 * ct0), n2, 'T', n1);
+              // a diffractive face's own power on top, as its phase's curvature gives it
+              const Pd = s.ph ? dpPower(s.ph, s.dm, nm * 1e-6) : 0;
+              tr = abcd(ct0 / ci0, ((n1 * ci0 - n2 * ct0) * kp - Pd) / (n2 * ci0 * ct0), n1 * ci0 / (n2 * ct0), n2, 'T', n1);
             }
             // both media, so the field can work out each sample's own Fresnel coefficients
             rf.ev.nIn = tr.ev.nIn = n1; rf.ev.nOut = tr.ev.nOut = n2;
@@ -1434,8 +1445,15 @@ function traceSceneOnce() {
             sr = nsr; si = nsi; pr = npr; pi = npi;
           } else {
             if (rsr || rsi || rpr || rpi) branch(rsr, rsi, rpr, rpi);
-            const q = eta * ci - Math.sqrt(k);
-            ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny; ldz = eta * ldz - q * tnz;
+            if (s.ph) {
+              // a diffractive face: Snell's law with its phase's pull along it, and its path
+              const D = dpPull(s, ...(s.tilt ? toLocal(s.ef, px, py) : [lx, ly]), hS, nm * 1e-6), o = [0, 0, 0];
+              if (!dpBend([ldx, ldy, ldz], [tnx, tny, tnz], n1, n2, D.G, o)) { dropped++; break; }
+              [ldx, ldy, ldz] = o; opl += D.path;
+            } else {
+              const q = eta * ci - Math.sqrt(k);
+              ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny; ldz = eta * ldz - q * tnz;
+            }
             nCur = n2;               // the ray is now travelling in the second medium
             gCur = ngOf(goingBack ? s.back : s.front, tag, thInto);
             aCur = absorbAt(goingBack ? s.back : s.front, nm);

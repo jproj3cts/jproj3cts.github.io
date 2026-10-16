@@ -13,6 +13,7 @@ import { commitDesign, condFromBench, condFromRays, designFigures, designOf, des
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
+import { DP_KEYS, DP_N, dpLabel } from '../core/diffractive.js';
 import { analysesPanel } from './lens-analyses.js';
 import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
 import { drawingsCard } from './lens-drawing.js';
@@ -435,6 +436,10 @@ function dataCard(asm, P) {
     const ffKs = asph ? FF_KEYS.filter(k => (s.F && k in s.F) || (WS.ff && WS.ff[sid] && WS.ff[sid].includes(k))) : [];
     if (asph && !ffKs.length) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Make this surface a freeform: XY terms c x^m y^n on its sag (x up out of the plane of the fields, y across), to type or to vary', 'aria-label': 'Freeform terms for surface ' + (i + 1),
       onclick: () => { (WS.ff || (WS.ff = {}))[sid] = ['02']; renderWs(); } }, '+ XY'));
+    // a diffractive lens's phase on this face: shown under it once it has any, or once asked for
+    const dif = sp.kind === 'lens' && !!P.parts[sp.pi].diff, nPh = dif ? Math.max(s.ph ? s.ph.reduce((n, v, j) => (v ? j + 1 : n), 0) : 0, (WS.ph && WS.ph[sid]) || 0) : 0;
+    if (dif && !nPh) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Write a diffractive phase on this surface (c₁ρ² + c₂ρ⁴ …, radians), to type or to vary', 'aria-label': 'Phase terms for surface ' + (i + 1),
+      onclick: () => { (WS.ph || (WS.ph = {}))[sid] = 1; renderWs(); } }, '+ φ'));
     tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
@@ -460,6 +465,7 @@ function dataCard(asm, P) {
     tb.append(tr);
     if (nA) tb.append(asphRow(P, D, i, sid, nA, PQ.length));
     if (ffKs.length) tb.append(ffRow(P, D, i, sid, ffKs, PQ.length));
+    if (nPh) tb.append(phRow(P, D, i, sid, nPh, PQ.length));
   }
   const F = designFigures(asm, P);
   tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...PQ.map(() => h('td'))));
@@ -491,15 +497,15 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
-  const asp = q[0] === 'a' || q[0] === 'f', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
+  const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -510,7 +516,7 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ').replace(/^p(\d):/, (m, k) => 'phase ' + dpLabel(+k / 2 - 1) + ' ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 /* a freeform's XY terms, a row under its surface: each typed, varied, solved or picked up, and taken off with its ×; another added from the list */
 function ffRow(P, D, i, sid, ks, nPose) {
@@ -527,6 +533,19 @@ function ffRow(P, D, i, sid, ks, nPose) {
     cells.append(pick, h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Add the term to surface ' + (i + 1), onclick: () => { const L = (WS.ff || (WS.ff = {}))[sid] || []; WS.ff[sid] = L.concat([pick.value]); renderWs(); } }, 'Add the term'));
   }
   return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp', title: 'c x^m y^n added to the sag: x up out of the plane of the fields, y across it' }, 'freeform terms'), h('td', { colspan: String(5 + nPose) }, cells));
+}
+/* a diffractive face's phase terms, a row under it: c₁ρ² … each typed (radians), varied, solved or picked up; one more, or the last taken off */
+function phRow(P, D, i, sid, n, nPose) {
+  const cells = h('div', { class: 'rt-laspc' });
+  for (let j = 0; j < n; j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, dpLabel(j)), valueCell(P, D, DP_KEYS[j], i)));
+  const grow = m => { (WS.ph || (WS.ph = {}))[sid] = m; };
+  if (n < DP_N) cells.append(h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Add the ' + dpLabel(n) + ' phase term to surface ' + (i + 1), onclick: () => { grow(n + 1); renderWs(); } }, 'Add ' + dpLabel(n)));
+  cells.append(h('button', { type: 'button', class: 'rt-link', title: 'Take the last term off (its value set to 0, and its variable, solve or pickup cleared)', onclick: () => {
+    const key = keyAt(P, DP_KEYS[n - 1], i);
+    grow(n - 1);
+    edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
+  } }, n > 1 ? 'Remove ' + dpLabel(n - 1) : 'No phase'));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp', title: 'The phase written on the face, radians at ρ mm from the axis, in the lens’s order of diffraction' }, 'diffractive phase'), h('td', { colspan: String(5 + nPose) }, cells));
 }
 function asphRow(P, D, i, sid, nA, nPose) {
   const cells = h('div', { class: 'rt-laspc' });
@@ -582,7 +601,7 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
 const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };

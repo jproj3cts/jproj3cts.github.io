@@ -1,3 +1,4 @@
+import { dpBend, dpOn, dpPhase, dpPower, dpSlopeOverR, normOrder } from '../core/diffractive.js';
 import { ffGrad, ffList, ffSag } from '../core/freeform.js';
 import { refIndex } from '../core/glass.js';
 
@@ -14,7 +15,8 @@ import { refIndex } from '../core/glass.js';
    A_4 rho^4, A_6 rho^6, ... and the odd terms o_1 rho, o_2 rho^2, .... A ray meets it where Newton's
    method finds the root along the ray, and is refracted by Snell's law in vector form. A ray that
    lands outside a surface's clear radius is vignetted there; one that cannot refract is turned back
-   (total internal reflection) and is lost.
+   (total internal reflection) and is lost. A diffractive face (core/diffractive.js) adds its phase's
+   path and bends the ray by its slope as well, in its order.
 
    Rays are aimed: each is found that crosses the stop at the pupil point asked for (px, py, each -1
    to 1 of the stop's radius for the aperture set), by Newton's method on where it starts. Its optical
@@ -38,7 +40,7 @@ function indexOf(m, nm) {
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [];
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N);
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -49,9 +51,10 @@ export function lensSystem(P, nm, opts) {
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
     FL.push(ffList(s.F));
     cy.push(s.cyl === 'y' ? 1 : s.cyl === 'x' ? 2 : 0);
+    PH.push(!s.mirror && dpOn(s.ph) ? Float64Array.from(s.ph) : null); DM[i] = normOrder(s.dm);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -115,7 +118,7 @@ function paraStep(S, y, u, i0, i1) {
     const pc = (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
-    else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
+    else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y - dPow(S, i) * y) / S.n[i + 1];
   }
   return [y, u];
 }
@@ -149,6 +152,8 @@ export function paraxialOf(S) {
 
 /* ---------- One surface ----------
    rotationally symmetric (sag of r², its slope over r), and a freeform's XY terms (core/freeform.js) on top */
+// a diffractive face's power at the system's wavelength (0 for any other)
+const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
 function sag(S, i, r2) {
   const c = S.c[i];
@@ -178,6 +183,7 @@ function dsagOverR(S, i, r2) {
    R: a Float64Array(8) [x, y, z, L, M, N, opl, flag], position, direction cosines, optical path and
    0 while alive. Traces from where it is through surfaces i0 to i1 (inclusive), in place. Flag on
    failing: 1 + the surface it was vignetted at, or -(1 + the surface) where it missed or turned back. */
+const DB = [0, 0, 0];
 export function traceRay(S, R, i0, i1, noClip) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
   // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
@@ -222,7 +228,12 @@ export function traceRay(S, R, i0, i1, noClip) {
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
-    else {
+    else if (S.PH && S.PH[i]) {
+      // a diffractive face: Snell's law with its phase's slope along the face, and its path
+      const PH = S.PH[i], q = S.DM[i] * S.lam / (2 * Math.PI), g = q * dpSlopeOverR(PH, r2), o = DB;
+      if (!dpBend([L, M, Nn], [ux, uy, uz], ni, S.n[i + 1], [g * x, g * y, 0], o)) return stop(-(1 + i));
+      L = o[0]; M = o[1]; Nn = o[2]; opl += q * dpPhase(PH, r2);
+    } else {
       const mu = ni / S.n[i + 1], kk = 1 - mu * mu * (1 - ci * ci);
       if (kk < 0) return stop(-(1 + i));
       const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
@@ -405,6 +416,7 @@ export function spotOf(S, fieldDeg, pts) {
    wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has
    SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
    wavelength, Sshort and Slong at the shortest and longest (or null). */
+const NS = 1e6;
 export function seidel(S, fieldDeg, Sshort, Slong) {
   // the marginal ray (at the edge of the entrance pupil) and the chief ray (through its centre), at the
   // first surface: from infinity, parallel and at the field's angle; from an object at d, from its points
@@ -414,30 +426,45 @@ export function seidel(S, fieldDeg, Sshort, Slong) {
   // a mirror is a refraction into -n, the light then running back along the axis: after each one the
   // indices, gaps and curvatures (as seen along the fixed axis) change sign
   let sg = 1;
+  // one refraction from n into n1 at curvature c, G its fourth-order sag beyond that sphere, dn and dn1
+  // the indices' spreads (null without them): its row, the two rays carried on past it
+  const face = (n, n1, c, G, dn, dn1) => {
+    const A = n * (u + y * c), Ab = n * (ub + yb * c);
+    const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
+    const d = u1 / n1 - u / n;
+    const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
+      SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
+    if (G) {
+      const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
+      r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;
+    }
+    if (dn !== null) { const dd = dn1 / n1 - dn / n; r.CL = A * y * dd; r.CT = Ab * y * dd; }
+    u = u1; ub = ub1;
+    return r;
+  };
   for (let i = 0; i < N; i++) {
     if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
     // (in the plane of the fields: a cylinder curved out of it counts as flat)
     const flatHere = S.cyl && S.cyl[i] === 2;
     const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * (S.c[i] + 2 * S.a2[i]);
-    const A = n * (u + y * c), Ab = n * (ub + yb * c);
-    const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
-    const d = u1 / n1 - u / n;
-    const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
-      SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
     // the aspheric part: fourth-order sag beyond the paraxial sphere
     const c0 = flatHere ? 0 : sg * S.c[i], A4 = S.A[i] && !flatHere ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
-    if (G) {
-      const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
-      r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;
-    }
-    if (Sshort && Slong) {
-      const dn = sg * (Sshort.n[i] - Slong.n[i]), dn1 = sg1 * (Sshort.n[i + 1] - Slong.n[i + 1]), dd = dn1 / n1 - dn / n;
-      r.CL = A * y * dd; r.CT = Ab * y * dd;
-    }
+    const dn = Sshort && Slong ? sg * (Sshort.n[i] - Slong.n[i]) : null, dn1 = Sshort && Slong ? sg1 * (Sshort.n[i + 1] - Slong.n[i + 1]) : null;
+    let r;
+    if (S.PH && S.PH[i]) {
+      // A diffractive face, as a layer of no thickness and an index NS so high its shape carries the
+      // phase (Sweatt): its front curved more by the phase's power over (NS - n), and deformed by its
+      // fourth-order path over the same; its index's spread is the phase's, in proportion to λ
+      const ns = sg * NS, P = dPow(S, i), q = S.DM[i] * S.lam / (2 * Math.PI), ca = c + P / (ns - n);
+      const Ga = G + (c * c * c - ca * ca * ca) / 8 - q * (S.PH[i][1] || 0) / (ns - n);
+      const dns = dn === null ? null : (ns - n) * (Sshort.lam - Slong.lam) / S.lam;
+      const ra = face(n, ns, ca, Ga, dn, dns), rb = face(ns, n1, c, G, dns, dn1);
+      r = {}; for (const k in ra) r[k] = ra[k] + rb[k];
+    } else r = face(n, n1, c, G, dn, dn1);
     for (const k in sum) sum[k] += r[k];
     rows.push(r);
-    u = u1; ub = ub1; sg = sg1;
+    sg = sg1;
   }
   return { rows, sum, H, u: u, nImg: S.n[N] };
 }

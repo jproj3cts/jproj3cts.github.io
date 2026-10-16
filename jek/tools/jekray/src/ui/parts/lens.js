@@ -16,6 +16,7 @@ import {
 import { changed } from '../actions.js';
 import { FF_KEYS, ffLabel } from '../../core/freeform.js';
 import { DP_N, dpLabel, normOrder } from '../../core/diffractive.js';
+import { GR_N, grLabel } from '../../core/gradient.js';
 import { checkpoint } from '../tabs.js';
 
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
@@ -116,6 +117,17 @@ function lensPanel(el) {
       if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
       if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
       if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
+      // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
+      if (el.graded && m.glass !== 'AIR') {
+        const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
+        G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
+        mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
+          G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
+            G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
+          G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+            checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
+          } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
+      }
       panel.append(mrows);
     }
   }

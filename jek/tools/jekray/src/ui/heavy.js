@@ -207,7 +207,7 @@ function drawPopOn(c, R) {
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
     c.save();
     c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c);
+    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c, true);
     const nx = -b.dy, ny = b.dx;
     c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     c.globalAlpha = glowA(0.95 * D.alpha);

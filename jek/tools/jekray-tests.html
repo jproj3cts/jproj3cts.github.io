@@ -8952,6 +8952,73 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine traces the bench’s own rays exactly through graded glass, tipped and facing back',
+    why: 'a graded lens (curved faces, its glass n + g₂r² + g₄r⁴) facing the light and turned to face back, before a GRIN rod tipped 2° and raised 0.2 mm: each ray of a grid, curving through the graded glass by the same steps in both, traced by the lens engine meets the sensor where the bench’s does, with the same optical path (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      let worst = 0;
+      for (const face of [0, 180]) {
+        J.load({ format: 'jekray', version: 1, elements: [
+          { type: 'source', name: 'Fan', x: -30, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 4, divergence: 0, pattern: 'grid' },
+          { type: 'lens', name: 'A', x: 0, y: 0, angle: face, graded: true, diameter: 8, surfaces: [{ R: 30 }, { R: -60 }], gaps: [4], materials: [{ glass: 'N-BK7', grad: [-0.004, 2e-5] }] },
+          { type: 'lens', name: 'B', x: 10, y: 0, angle: 0, z: 75.2, tip: 2, graded: true, diameter: 3, surfaces: [{ R: null }, { R: null }], gaps: [3], materials: [{ glass: 'custom', n: 1.608, grad: [-0.08545] }] },
+          { type: 'screen', name: 'Sensor', x: 30, y: 0, angle: 180, length: 40 }] });
+        if (!J.makeAssembly(['A', 'B'])) return 98;
+        J.trace();
+        const name = J.assemblies()[0].name, H = J.hitsOn('Sensor'), s = J.byName('Fan'), n = 7, W = 4, at = i => i / (n - 1) - 0.5;
+        if (H.length < 30) { console.log('grin hits', H.length); return 99; }
+        const P = J.asmPrescription(name), o = P.origin, len = P.gaps.reduce((u, v) => u + v, 0);
+        if (P.materials.filter(m => m.grad).length !== 2) return 96;
+        const E = J.lensTrace(name, 587.56, 30 - (o[0] + len), H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + t - o[1], s.x - o[0], 0, 0, 1]; }));
+        H.forEach((h, q) => { const e = E.out[q]; worst = Math.max(worst, e[7] !== 0 ? 99 : 0, Math.abs(e[1] + h.y), Math.abs(e[0] - (h.z || 0)), Math.abs(e[6] - h.opl)); });
+      }
+      return worst;
+    },
+  },
+  {
+    name: 'A graded lens takes its glass’s gradient in its panel and in the lens data',
+    why: 'a graded singlet’s panel: Grade this glass gives an r² field, typed in; designed alone, its lens data has that r² to type and vary, and + n(r) on a plain one opens its row (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Gr', x: 0, y: 0, angle: 0, graded: true, diameter: 8, surfaces: [{ R: 30 }, { R: -30 }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
+      J.select('Gr');
+      const D = rigDoc(), W = rigWin(), btn = t => [...D.querySelectorAll('#panel button')].find(x => x.getAttribute('aria-label') === t || x.textContent.trim() === t);
+      const type = (inp, v) => { inp.value = v; inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
+      btn('Add a gradient term to glass 1').click();
+      const f = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'Gradient r² (mm⁻²)');
+      if (!f) return 0;
+      type(f.querySelector('input'), '-0.004');
+      const el = J.byName('Gr'), panelOk = el.materials[0].grad && el.materials[0].grad[0] === -0.004;
+      btn('Design as a lens…').click();
+      try {
+        const ws = () => rigDoc().querySelector('#lensWs'), g = ws().querySelector('input[aria-label="Gradient r² after surface 1"]');
+        const vary = !!ws().querySelector('button[aria-label="Vary gradient r² after surface 1"]');
+        const ok = panelOk && !!g && Math.abs(parseFloat(g.value) + 0.004) < 1e-12 && vary;
+        if (!ok) console.log('grin ui', panelOk, g && g.value, vary, JSON.stringify(el.materials[0]));
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The diffracted field through a GRIN rod lens spreads from the waist its matrix gives it',
+    why: 'a Gaussian beam (w₀ = 0.3 mm, 633 nm, its waist on the rod’s face) into a quarter-pitch GRIN rod (n₀ = 1.608, √A = 0.326 mm⁻¹), its field carried through the graded glass a slab at a time: the waist on the rod’s back face is λ/(π n₀ √A w₀) by its matrix, and 5 mm on in air the beam’s 1/e² radius is w′√(1 + (5/z_R)²); the field’s radius on a screen there over that (1 when they agree)',
+    want: 1, tol: 0.02, rel: true, unit: '',
+    run: J => {
+      J.load(bench('grinfield', [src({ gauss: true, w0: 0.3, z0: 3.59, x: -6, width: 0.6, rays: 3 }),
+        { type: 'lens', name: 'Rod', x: 0, y: 0, angle: 0, graded: true, diameter: 1.8, surfaces: [{ R: null }, { R: null }], gaps: [4.82], materials: [{ glass: 'custom', n: 1.608, grad: [-0.08545] }] },
+        screen({ name: 'Sc', x: 2.41 + 5, length: 6 })]));
+      J.diffraction('Sc');
+      const lam = 633e-6, n0 = 1.608, k = Math.sqrt(2 * 0.08545 / n0), L = 4.82;
+      // the matrix of the rod on the beam that meets it at its waist (q = i zR in the glass), out to the air
+      const zR = Math.PI * 0.3 * 0.3 * n0 / lam, c = Math.cos(k * L), s = Math.sin(k * L);
+      // q′ = (A q + B)/(C q + D), A = D = cos kL, B = sin kL / k, C = -k sin kL; into air divided by n₀
+      const num = [s / k, c * zR], den = [c, -k * s * zR], d2 = den[0] ** 2 + den[1] ** 2;
+      const qo = [(num[0] * den[0] + num[1] * den[1]) / d2 / n0, (num[1] * den[0] - num[0] * den[1]) / d2 / n0];
+      const z = qo[0] + 5, zr = qo[1], w = Math.sqrt(lam * zr / Math.PI) * Math.sqrt(1 + (z / zr) ** 2);
+      return J.diffraction('Sc').wx / w;
+    },
+  },
+  {
     name: 'A lens’s tilt and decentre out of the plane are typed in the lens data and put on the bench as its tip and height',
     why: 'two singlets made an assembly and opened with Design…, Tilts and decentres shown: the second’s tilt up typed as 2° and decentre up as 0.3 mm puts it on the bench tipped 2° and raised 0.3 mm plus half its thickness times sin 2° (to 1e-9 mm); the first’s stays as it was (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -68,6 +68,8 @@ function getX(P, v) {
   if (v.at.q[0] === 'f') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1] + +v.at.q[2]);
   // a diffractive phase term: the waves it adds at the clear radius, c h^n / 2π
   if (v.at.q[0] === 'p') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1]) / (2 * Math.PI);
+  // a graded glass's term: the index it adds at the clear radius, g h^n
+  if (v.at.q[0] === 'n') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1]);
   if (v.at.q === 'g') return P.materials[v.at.i][v.part];
   return getV(P, v.at);
 }
@@ -78,14 +80,15 @@ function setX(P, v, x) {
   else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
   else if (v.at.q[0] === 'f') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1] + +v.at.q[2]));
   else if (v.at.q[0] === 'p') setV(P, v.at, 2 * Math.PI * x / Math.pow(asphH(P, i), +v.at.q[1]));
+  else if (v.at.q[0] === 'n') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1]));
   else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
-const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
+const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q[0] === 'n' && v.at.q !== 'nd' ? 'n' : v.at.q)];
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -346,6 +349,7 @@ export function globalSearch(prob, V, best, trials, seed) {
       else if (q === 'k') x[j] += 0.3 * z;
       else if (q[0] === 'a' || q[0] === 'f') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
       else if (q[0] === 'p') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 5);
+      else if (/^n\d$/.test(q)) x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.002);
       else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
       else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));

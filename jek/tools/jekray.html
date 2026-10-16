@@ -5163,6 +5163,59 @@ function dpBend(d, u, n1, n2, G, out) {
   out[0] = (t0 + s * u[0]) / n2; out[1] = (t1 + s * u[1]) / n2; out[2] = (t2 + s * u[2]) / n2;
   return true;
 }
+/* ==========================================================================
+   A graded glass: its index falling (or rising) from the axis of the part it is in
+   n(r) = n_g(λ) + g₂ r² + g₄ r⁴ + g₆ r⁶, n_g the glass's own index, r the distance from the axis in
+   mm. A ray in it bends toward the higher index along d/ds (n t) = ∇n; it is traced by the
+   fourth-order Runge–Kutta method in its length, with p = n t carried, in steps short against the
+   distance over which its path curves. A rod whose index falls as a parabola (g₂ < 0) is the
+   graded-index rod lens: a ray in it swings about the axis with the period 2π/√(-2g₂/n₀) (its pitch).
+   ========================================================================== */
+const GR_N = 3;
+const grLabel = j => 'r' + ['²', '⁴', '⁶'][j];
+/* the step a ray takes in a part's graded glass: short against its width (diameter, mm), so the curve is
+   followed and no face is stepped past unseen; the bench and the lens engine take the same */
+const grH = dia => Math.max(0.002, Math.min(0.1, dia / 80));
+// a face within this many steps along the ray's line is met straight (a step would land on it, or just short of it)
+const GR_REACH = 1.5;
+/* the terms kept on a glass: up to three finite numbers, trailing zeros dropped; none when all are 0 */
+function normGrad(G) {
+  if (!Array.isArray(G)) return undefined;
+  const out = G.slice(0, GR_N).map(v => (v === null || v === '' || !isFinite(+v) ? 0 : +v));
+  while (out.length && !out[out.length - 1]) out.pop();
+  return out.length ? out : undefined;
+}
+const grOn = G => !!G && G.some(v => v);
+/* the index added at r² = r2, and dn/dr over r */
+function grDelta(G, r2) { let v = 0, p = r2; for (let j = 0; j < G.length; j++) { v += G[j] * p; p *= r2; } return v; }
+function grSlopeOverR(G, r2) { let v = 0, p = 1; for (let j = 0; j < G.length; j++) { v += 2 * (j + 1) * G[j] * p; p *= r2; } return v; }
+/* One step of length h along a ray in a medium: X its point, P = n t (t its unit way), nAt(X) the index
+   there and gradAt(X) its gradient. X and P are moved in place; the optical path of the step is returned
+   (Simpson's rule on n along it). */
+function grStep(X, P, h, nAt, gradAt) {
+  const f = (x, p) => { const n = nAt(x), g = gradAt(x); return [p[0] / n, p[1] / n, p[2] / n, g[0], g[1], g[2]]; };
+  const add = (x, p, k, s) => [[x[0] + k[0] * s, x[1] + k[1] * s, x[2] + k[2] * s], [p[0] + k[3] * s, p[1] + k[4] * s, p[2] + k[5] * s]];
+  const n0 = nAt(X);
+  const k1 = f(X, P), [x2, p2] = add(X, P, k1, h / 2), k2 = f(x2, p2), [x3, p3] = add(X, P, k2, h / 2), k3 = f(x3, p3), [x4, p4] = add(X, P, k3, h), k4 = f(x4, p4);
+  const nm = nAt(x2);
+  for (let q = 0; q < 3; q++) {
+    X[q] += h / 6 * (k1[q] + 2 * k2[q] + 2 * k3[q] + k4[q]);
+    P[q] += h / 6 * (k1[q + 3] + 2 * k2[q + 3] + 2 * k3[q + 3] + k4[q + 3]);
+  }
+  // p's length is the index where the ray is: held to it, so the step's errors do not build up
+  const n1 = nAt(X), pl = Math.hypot(P[0], P[1], P[2]) || 1;
+  for (let q = 0; q < 3; q++) P[q] *= n1 / pl;
+  return h / 6 * (n0 + 4 * nm + n1);
+}
+/* the paraxial matrix of a length L of it, its r² term alone, n0 the index on the axis: [A, B, C, D] on
+   (height, slope) — a ray swings with k² = -2 g₂ / n₀ */
+function grMatrix(g2, n0, L) {
+  const k2 = -2 * g2 / n0;
+  if (Math.abs(k2) * L * L < 1e-12) return [1, L, 0, 1];
+  if (k2 > 0) { const k = Math.sqrt(k2), c = Math.cos(k * L), s = Math.sin(k * L); return [c, s / k, -k * s, c]; }
+  const k = Math.sqrt(-k2), c = Math.cosh(k * L), s = Math.sinh(k * L);
+  return [c, s / k, k * s, c];
+}
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
    An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
    its own: a name, the conditions it is designed for, and which way the light goes through it. Its
@@ -5225,8 +5278,9 @@ function normAssemblies(list, els) {
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
    A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
-   face's phase term on ρ² … ρ⁸ (core/diffractive.js) */
-const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]):(.{1,120}\.\d+)$/;
+   face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
+   that surface (core/gradient.js) */
+const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+)$/;
 const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
@@ -5506,7 +5560,9 @@ function asmPrescription(asm, els) {
         S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}),
           // a diffractive lens's faces carry their phase (all four terms, so each can be set), in its order
           ...(e.diffractive ? { ph: [0, 1, 2, 3].map(j => (s.ph && s.ph[j]) || 0), dm: normOrder(e.diffOrder) } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
-        G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
+        G2 = e.gaps.slice();
+        // a graded lens's glass keeps its terms, and the step its rays take in it (as the bench's do); another's is plain
+        M2 = e.materials.map(m => { const c = Object.assign({}, m); if (e.graded) { if (m.grad) c.grad = m.grad.slice(); c.gh = grH(e.diameter); } else delete c.grad; return c; });
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
         G2 = [e.thickness]; M2 = [Object.assign({}, e.material)];
@@ -5531,7 +5587,7 @@ function asmPrescription(asm, els) {
     });
     gaps.push(...G2); materials.push(...M2);
     lastAx = along + tv + T;
-    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}) });
+    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}), ...(e.graded ? { grin: true } : {}) });
     if (kind === 'mirror') {
       // the axis turns where it meets the mirror's plane; on from there
       const n = v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
@@ -5626,7 +5682,7 @@ function asmApply(asm, P, els) {
           return t;
         });
         e.gaps = (p.flip ? G.slice().reverse() : G).slice();
-        e.materials = (p.flip ? M.slice().reverse() : M).map(m => Object.assign({}, m));
+        e.materials = (p.flip ? M.slice().reverse() : M).map(m => { const c = Object.assign({}, m); delete c.gh; if (c.grad) c.grad = c.grad.slice(); return c; });
       } else if (p.kind === 'window') { e.thickness = G[0]; e.material = Object.assign({}, M[0]); }
     }
     k += p.n;
@@ -6155,8 +6211,8 @@ const PRISM = {
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
 const LENS = {
   type: 'lens', label: 'Lens',
-  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
-  keys: ['lens', 'asphere', 'diffractive', 'cylinder', 'axicon'],
+  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'grinrod', short: 'GRIN rod lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
+  keys: ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon'],
   make(x, y, kind) {
     switch (kind) {
       case 'lens':
@@ -6170,6 +6226,11 @@ const LENS = {
         // glass's, cancels its own (f 50 mm, C and F lines meeting)
         return { type: 'lens', name: nextName('Diffractive lens'), diffractive: true, x, y, diameter: 12.7,
           surfaces: [{ R: 27.28 }, { R: null, ph: [-5.938] }], gaps: [4], materials: [{ glass: 'N-BK7' }] };
+      case 'grinrod':
+        // a graded-index rod lens, a quarter of its pitch long: its index falling as a parabola from 1.608 on
+        // its axis (√A = 0.326 mm⁻¹), it brings a collimated beam to a point on its back face
+        return { type: 'lens', name: nextName('GRIN rod lens'), graded: true, x, y, diameter: 1.8,
+          surfaces: [{ R: null }, { R: null }], gaps: [4.82], materials: [{ glass: 'custom', n: 1.608, grad: [-0.08545] }] };
       case 'cylinder':
         return { type: 'lens', name: nextName('Cylindrical lens'), x, y, diameter: 25.4, cyl: 'plane',
           surfaces: [{ R: 25.8 }, { R: null }], gaps: [5], materials: [{ glass: 'N-BK7' }] };
@@ -6195,6 +6256,8 @@ const LENS = {
       // a diffractive lens: its surfaces may carry a phase, in one order of diffraction (not a cylinder's)
       diffractive: !e.cyl && (e.diffractive === true || (e.diffractive === undefined && surfaces.some(s => s.ph))) ? true : undefined,
       diffOrder: e.diffOrder !== undefined && +e.diffOrder !== 1 ? normOrder(e.diffOrder) : undefined,
+      // a graded lens: its glasses may grade from its axis (core/gradient.js; not a cylinder's)
+      graded: !e.cyl && (e.graded === true || (e.graded === undefined && materials.some(m => m.grad))) ? true : undefined,
     });
   },
   guide: {
@@ -6204,6 +6267,7 @@ const LENS = {
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',
+    graded: 'true for a graded-index lens (a GRIN rod lens): each of its glasses may grade from its axis, "grad": [g2, g4, g6] in its material, the index n(r) = n + g2 r² + g4 r⁴ + g6 r⁶ with r in mm (n the glass\u2019s own); rays in it curve. A rod whose index falls as n0 (1 - A r²/2) has g2 = -n0 A / 2 and a pitch 2π/√A.',
     diffOrder: 'optional: a diffractive lens’s order of diffraction, a whole number (1 unless given).',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
@@ -6635,7 +6699,7 @@ const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, CHOPPER, AOM, EOM, LINK];
 const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']],
-  ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'cylinder', 'axicon']],
+  ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
   ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']],
@@ -6691,6 +6755,8 @@ function normMat(m) {
   if (isFinite(m.vd)) out.vd = +m.vd;
   // a dispersion formula from a lens file's own catalogue (see glass.js, agfIndex)
   if (m.agf && Array.isArray(m.agf.c) && m.agf.c.length) out.agf = { f: Math.max(1, Math.min(13, Math.round(num(m.agf.f, 2)))), c: m.agf.c.slice(0, 10).map(v => num(v, 0)) };
+  // a graded glass's terms (core/gradient.js; a graded lens's glass only is traced so)
+  const G = normGrad(m.grad); if (G) out.grad = G;
   return out;
 }
 function normCoat(c) {
@@ -7003,6 +7069,7 @@ function benchNms() {
 }
 
 function lensKind(el) {
+  if (el.graded) return 'GRIN lens';
   if (el.diffractive) return el.asphere ? 'Diffractive asphere' : 'Diffractive lens';
   if (el.asphere) return 'Asphere';
   return 'Lens';
@@ -8297,6 +8364,21 @@ function dpPull(s, px, py, h, lam) {
   const r2 = fy * fy + fz * fz, q = s.dm * lam / (2 * Math.PI), g = q * dpSlopeOverR(s.ph, r2);
   return { G: s.tilt ? faceToLocal(s, 0, g * fy, g * fz) : [0, g * fy, g * fz], path: q * dpPhase(s.ph, r2) };
 }
+/* A graded glass (core/gradient.js) in a lens: a point of the world (x, y, height) across and up from the
+   part's axis (in the face frame of a part tipped or rolled), the index there, and its gradient in the world */
+const GR_STEPS = 20000;               // steps a ray may take in one before it is given up (one guided round for ever)
+function grLocal(s, X) {
+  const [lx, ly] = toLocal(s.tilt ? s.ef : s.f, X[0], X[1]), h = X[2] - zOf(s.el);
+  if (!s.tilt) return [ly, h];
+  const [qx, qz0] = tipFrame(s, lx, h), [qy, qz] = rollFrame(s, ly, qz0);
+  return [faceFrame(s, qx, qy, true)[1], qz];
+}
+function grN(gr, X) { const [y, z] = grLocal(gr.s, X); return gr.nb + grDelta(gr.G, y * y + z * z); }
+function grGrad(gr, X) {
+  const s = gr.s, [y, z] = grLocal(s, X), g = grSlopeOverR(gr.G, y * y + z * z);
+  const L = s.tilt ? faceToLocal(s, 0, g * y, g * z) : [0, g * y, g * z], [wx, wy] = toWorldDir(s.f, L[0], L[1]);
+  return [wx, wy, L[2]];
+}
 function tipNormal(s, px, py, h) {
   const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0), [, fy] = faceFrame(s, qx, qy, true);
   return faceToLocal(s, ...(s.flat ? [1, 0, 0] : normal3(s, fy, qz)));
@@ -8491,8 +8573,9 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
+      gr = gr || null;                  // inside a graded glass: its part, terms and own index (see grIn)
       let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
@@ -8513,7 +8596,8 @@ function traceSceneOnce() {
         hid('zs', [zh]); hid('zNext', undefined);
         hid('push', function (x, y) { this.zs[this.length >> 1] = this.zNext !== undefined ? this.zNext : zh; this.zNext = undefined; return Array.prototype.push.call(this, x, y); });
       }
-      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; } stack.push(o); };
+      // (a branch carries on in the medium the ray is in: a graded glass, unless it says otherwise)
+      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; } if (o.gr === undefined) o.gr = gr; stack.push(o); };
       // a beam segment of length L along the ray, as the beam's models take it: its direction in the
       // plane (a unit vector), its length there and its slope out of it; and, when it rises, its 3D
       // direction and length too (a leg straight up has none in the plane)
@@ -8578,6 +8662,40 @@ function traceSceneOnce() {
           const fin = apertureShare(near, ly, cth, bw, bw);
           if (fin * qShare > SPLIT_MIN && splitsLeft > 0) { best = nearT; hit = near; hitSeg = false; nearShare = fin; splitsLeft--; }
         }
+        // In a graded glass the ray curves: no surface within a step and a half (a step would land on it, or just
+        // short), it goes one step along its curve (not counted as a bounce; a ray that never leaves is stopped)
+        if (gr && best > GR_REACH * gr.h) {
+          if (++gr.steps > GR_STEPS) break;
+          const X = [px, py, anyZ ? zh : zOf(gr.s.el)], n0 = grN(gr, X), P = [dx * n0, dy * n0, (uz || 0) * n0];
+          opl += grStep(X, P, gr.h, Q => grN(gr, Q), Q => grGrad(gr, Q));
+          if (aCur > 0) { const a = Math.exp(-0.5 * aCur * gr.h); sr *= a; si *= a; pr *= a; pi *= a; ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          gpl += gCur * gr.h;
+          [px, py] = X; if (anyZ) zh = X[2];
+          const pl = anyZ ? Math.hypot(P[0], P[1], P[2]) : Math.hypot(P[0], P[1]);
+          dx = P[0] / pl; dy = P[1] / pl; if (anyZ) uz = P[2] / pl;
+          nCur = grN(gr, X);
+          if (chief) qr += gr.h;
+          pts.push(px, py);
+          // The beam in it, split-step: every GRIN_SLAB of the way a segment of plain glass (its index on the
+          // axis) ends, and a thin plate with the path the grading adds over it (Δ (n(r) - n₀)) bends the
+          // field and the pilot; the field engine carries the beam through these as through any phase plate
+          if (isQ && gr.at && (gr.sub = (gr.sub || 0) + gr.h) >= gr.slab) {
+            const A0 = gr.at, cx = px - A0.x, cy = py - A0.y, cz = anyZ ? zh - A0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
+            const sd = cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 };
+            beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
+              J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: A0.opl, gpl, ng: gCur, bench: bn, fo, z0: A0.z, ...(hole > 0 ? { hole } : {}) }, sd));
+            bid = beams.length - 1;
+            const Dz = gr.sub, Gs = gr.G, lam0 = nm * 1e-6, C = 2 * Gs[0] * Dz / gr.nb;
+            const [lxs] = toLocal(gr.s.f, px, py), ms = Object.assign(Object.create(gr.s), { kind: 'mask', z: lxs, flat: true, c: 0, ph: null,
+              maskFn: (u, v, lam) => [1, Dz * grDelta(Gs, u * u + v * v) / (lam || lam0)] });
+            evt = Object.defineProperty({ el: gr.s.el.id, kind: 'mask', semi: gr.s.semi, ly: toLocal(gr.s.f, px, py)[1], cth: 1, A: 1, C, D: 1, n1: gr.nb, n2: gr.nb, mode: 'M',
+              hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy], ...(anyZ ? { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh } : {}) }, 'surf', { value: ms, enumerable: false });
+            if (chief) { const dr = C * qr + 1, di = C * qi, den = dr * dr + di * di; [qr, qi] = [(qr * dr + qi * di) / den, (qi * dr - qr * di) / den]; }
+            gr.at = { x: px, y: py, z: zh, qr, qi, opl }; gr.sub = 0;
+          }
+          bounce--;
+          continue;
+        }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
@@ -8587,9 +8705,14 @@ function traceSceneOnce() {
           break;
         }
         if (isQ) {
-          beams.push(Object.defineProperty(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh, ...(hole > 0 ? { hole } : {}) }, segDir(best)),
+          // through a graded glass, one segment from where the beam came into it: the chord of its curve
+          const G0 = gr && gr.at, ex = px + dx * best, ey = py + dy * best;
+          const sd = G0 ? (() => { const cx = ex - G0.x, cy = ey - G0.y, cz = anyZ ? zh + (uz || 0) * best - G0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
+            return cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 }; })() : segDir(best);
+          beams.push(Object.defineProperty(Object.assign({ x0: G0 ? G0.x : px, y0: G0 ? G0.y : py, qr: G0 ? G0.qr : qr, qi: G0 ? G0.qi : qi, n: G0 ? gr.nb : nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: G0 ? G0.opl : opl, gpl, ng: gCur, bench: bn, fo, z0: G0 ? G0.z : zh, ...(hole > 0 ? { hole } : {}) }, sd),
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
+          if (G0) gr.at = null;
           bid = beams.length - 1; evt = null;
         }
         px += dx * best; py += dy * best;
@@ -9212,14 +9335,16 @@ function traceSceneOnce() {
           // in a turned crystal, the extraordinary index at the wave normal's own angle to the axis:
           // on the way in, that of the light refracted (found by going round twice)
           const thFrom = tc && mFrom.bire && tag === mFrom.ePol ? angTo(mFrom, [ldx, ldy, ldz]) : undefined;
-          const n1 = nOf(mFrom, tag, thFrom);
+          // a face of a graded glass: its index where the ray meets the face
+          const grF = s.el && s.el.graded && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
+          const n1 = nOf(mFrom, tag, thFrom) + (grF && mFrom.grad ? grDelta(mFrom.grad, grR2) : 0);
           let thInto;
           if (tc && mInto.bire && tag === mInto.ePol) for (let it = 0, nn = nOf(mInto, tag, Math.PI / 2); it < 3; it++) {
             const e = n1 / nn, kk = 1 - e * e * (1 - ci * ci); if (kk < 0) break;
             const q = e * ci - Math.sqrt(kk);
             thInto = angTo(mInto, [e * ldx - q * tnx, e * ldy - q * tny, e * ldz - q * tnz]); nn = nOf(mInto, tag, thInto);
           }
-          const n2 = nOf(mInto, tag, thInto);
+          const n2 = nOf(mInto, tag, thInto) + (grF && mInto.grad ? grDelta(mInto.grad, grR2) : 0);
           const eta = n1 / n2;
           const k = 1 - eta * eta * (1 - ci * ci);
           let rsr = 0, rsi = 0, rpr = 0, rpi = 0, total = false;
@@ -9281,6 +9406,8 @@ function traceSceneOnce() {
               ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny; ldz = eta * ldz - q * tnz;
             }
             nCur = n2;               // the ray is now travelling in the second medium
+            // into a graded glass, the ray curves from here (see grStep); out of one, no longer
+            gr = grF && mInto.grad ? { s, G: mInto.grad, nb: nOf(mInto, tag), h: grH(s.el.diameter), slab: Math.max(grH(s.el.diameter), Math.min(0.25, s.el.diameter / 6)), steps: 0, at: isQ ? true : null } : null;
             gCur = ngOf(goingBack ? s.back : s.front, tag, thInto);
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
             const mNow = goingBack ? s.back : s.front;
@@ -9305,6 +9432,8 @@ function traceSceneOnce() {
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
+        // where the beam came into a graded glass, and its pilot there: its segment runs from here to where it leaves
+        if (gr && gr.at === true) gr.at = { x: px, y: py, z: zh, qr, qi, opl };
         if (wentR) par ^= 1;
         if (w < floorOf(fo) && !chief) { dropped++; break; }
         if (sLoc) [sr, si, pr, pi] = fromSurfFrame([sr, si, pr, pi], sLoc, [ldx, ldy, ldz], par ? -1 : 1, fxL);
@@ -9759,10 +9888,12 @@ function segPlanes(B, i) {
   return { p0, p1, len };
 }
 // the canvas clipped to between a segment's planes (screen coordinates); W the widest it is drawn, mm
-function clipSegPlanes(P, W, c = ctx) {
+function clipSegPlanes(P, W, c = ctx, sq = false) {
   const big = 4 * W + 50;
   for (const q of [P.p0, P.p1]) {
     if (!q || !q.flat) continue;                              // a plane lying flat (a periscope's mirror) cuts nothing seen from above
+    // a plane square to the segment cuts where its end is anyway: a clip there only leaves a seam with the next
+    if (q.tan < 1e-9 && sq) continue;
     const tx = -q.ny, ty = q.nx;
     c.beginPath();
     c.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); c.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));
@@ -16417,22 +16548,39 @@ const V3D = (() => {
       float a = uTs[lo], b = uTs[hi];
       f = b > a ? clamp((t - a) / (b - a), 0.0, 1.0) : 0.0; rm = max(uRm[lo], uRm[hi]); gap = max(b - a, 1e-6);
     }
+    // the outer fifth of a cut's reach fades to nothing, so light that reaches the edge of what is
+    // held (a faint tail, on a log scale) ends softly, not in a rim where a wider piece meets it
+    float edgeFade(float q) { return q > 0.8 ? 0.5 + 0.5 * cos(3.14159265 * (q - 0.8) / 0.2) : 1.0; }
     // one cut's irradiance at a point across the beam, nothing beyond its reach
     float row(int j, vec2 xy) {
       float M = float(uM), nc = float(uNc), rm = uRm[j];
-      if (uTwo == 0) { float q = length(xy) / rm; return q > 1.0 ? 0.0 : texture2D(uTex, vec2((sqrt(q) * (M - 1.0) + 0.5) / M, (float(j) + 0.5) / nc)).r; }
+      if (uTwo == 0) { float q = length(xy) / rm; return q > 1.0 ? 0.0 : edgeFade(q) * texture2D(uTex, vec2((sqrt(q) * (M - 1.0) + 0.5) / M, (float(j) + 0.5) / nc)).r; }
       vec2 u = xy / rm;
-      if (max(abs(u.x), abs(u.y)) > 1.0) return 0.0;
+      float qs = max(abs(u.x), abs(u.y));
+      if (qs > 1.0) return 0.0;
       vec2 g = (u * 0.5 + 0.5) * (M - 1.0) + 0.5;
-      return texture2D(uTex, vec2(g.x / M, (float(j) * M + g.y) / (M * nc))).r;
+      return edgeFade(qs) * texture2D(uTex, vec2(g.x / M, (float(j) * M + g.y) / (M * nc))).r;
     }
     void main() {
       vec3 ro = uCam, rd = normalize(vP - uCam);
       vec3 sg = vec3(rd.x < 0.0 ? -1.0 : 1.0, rd.y < 0.0 ? -1.0 : 1.0, rd.z < 0.0 ? -1.0 : 1.0), iv = sg / max(abs(rd), vec3(1e-9));
       vec3 t0 = (vec3(-uR, -uR, uZa) - ro) * iv, t1 = (vec3(uR, uR, uZb) - ro) * iv, tn = min(t0, t1), tf = max(t0, t1);
       float sN = max(max(max(tn.x, tn.y), tn.z), 0.0), sF = min(min(tf.x, tf.y), tf.z);
+      // and between the surfaces the segment runs from and to: the march starts and ends on them, so the light
+      // right at a cut is sampled (stepping in from the box's face, it skipped a sliver there, which drew each
+      // join between two pieces as a broken ring)
+      for (int k = 0; k < 2; k++) {
+        vec4 P = k == 0 ? uP0 : uP1; float dn = dot(P.xyz, rd);
+        if (abs(dn) < 1e-9) continue;
+        float tc = -(dot(P.xyz, ro) + P.w) / dn;
+        if (dn > 0.0) sN = max(sN, tc); else sF = min(sF, tc);
+      }
       if (sF <= sN) discard;
       float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
+      // each pixel's steps start a different fraction of a step in (after a first sample on the cut), so the
+      // samples of neighbouring lines of sight do not line up into a moiré of the beam's fine structure
+      float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      bool first = true;
       for (int i = 0; i < 320; i++) {
         if (sp > sF) break;
         vec3 p = ro + rd * sp;
@@ -16442,10 +16590,10 @@ const V3D = (() => {
         else {
           // the two cuts each at this distance from the axis (not the same share of their reach),
           // only between the surfaces the segment runs from and to
-          if (dot(uP0.xyz, p) + uP0.w >= 0.0 && dot(uP1.xyz, p) + uP1.w >= 0.0) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
+          if (dot(uP0.xyz, p) + uP0.w >= -1e-4 && dot(uP1.xyz, p) + uP1.w >= -1e-4) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
           ds = min(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);   // a cut with almost no reach does not stall the march
         }
-        sp += max(ds, minStep);
+        sp += max(first ? ds * jit : ds, minStep); first = false;
       }
       float v = best;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0);
@@ -18554,6 +18702,17 @@ function lensPanel(el) {
       if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
       if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
       if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
+      // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
+      if (el.graded && m.glass !== 'AIR') {
+        const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
+        G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
+        mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
+          G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
+            G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
+          G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+            checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
+          } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
+      }
       panel.append(mrows);
     }
   }
@@ -23442,6 +23601,10 @@ function dataCard(asm, P) {
     const dif = sp.kind === 'lens' && !!P.parts[sp.pi].diff, nPh = dif ? Math.max(s.ph ? s.ph.reduce((n, v, j) => (v ? j + 1 : n), 0) : 0, (WS.ph && WS.ph[sid]) || 0) : 0;
     if (dif && !nPh) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Write a diffractive phase on this surface (c₁ρ² + c₂ρ⁴ …, radians), to type or to vary', 'aria-label': 'Phase terms for surface ' + (i + 1),
       onclick: () => { (WS.ph || (WS.ph = {}))[sid] = 1; renderWs(); } }, '+ φ'));
+    // a graded lens's glass after this surface: its terms shown under it once it has any, or once asked for
+    const gra = editable(P, 'n2', i), nGr = gra ? Math.max(P.materials[i].grad ? P.materials[i].grad.length : 0, (WS.gr && WS.gr[sid]) || 0) : 0;
+    if (gra && !nGr) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Grade the glass after this surface: its index n + g₂r² + g₄r⁴ + g₆r⁶ from the lens\u2019s axis, to type or to vary', 'aria-label': 'Gradient terms for the glass after surface ' + (i + 1),
+      onclick: () => { (WS.gr || (WS.gr = {}))[sid] = 1; renderWs(); } }, '+ n(r)'));
     tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
@@ -23468,6 +23631,7 @@ function dataCard(asm, P) {
     if (nA) tb.append(asphRow(P, D, i, sid, nA, PQ.length));
     if (ffKs.length) tb.append(ffRow(P, D, i, sid, ffKs, PQ.length));
     if (nPh) tb.append(phRow(P, D, i, sid, nPh, PQ.length));
+    if (nGr) tb.append(grRow(P, D, i, sid, nGr, PQ.length));
   }
   const F = designFigures(asm, P);
   tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...PQ.map(() => h('td'))));
@@ -23499,15 +23663,15 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
-  const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q[0] === 'n' ? 'Gradient ' + grLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + (q[0] === 'n' ? ' after surface ' : ' of surface ') + (i + 1);
+  const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -23518,7 +23682,7 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ').replace(/^p(\d):/, (m, k) => 'phase ' + dpLabel(+k / 2 - 1) + ' ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ').replace(/^p(\d):/, (m, k) => 'phase ' + dpLabel(+k / 2 - 1) + ' ').replace(/^n(\d):/, (m, k) => 'gradient ' + grLabel(+k / 2 - 1) + ' after ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 /* a freeform's XY terms, a row under its surface: each typed, varied, solved or picked up, and taken off with its ×; another added from the list */
 function ffRow(P, D, i, sid, ks, nPose) {
@@ -23548,6 +23712,19 @@ function phRow(P, D, i, sid, n, nPose) {
     edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
   } }, n > 1 ? 'Remove ' + dpLabel(n - 1) : 'No phase'));
   return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp', title: 'The phase written on the face, radians at ρ mm from the axis, in the lens’s order of diffraction' }, 'diffractive phase'), h('td', { colspan: String(5 + nPose) }, cells));
+}
+/* a graded glass's terms, a row under the surface it follows: g₂r² … each typed, varied, solved or picked up; one more, or the last taken off */
+function grRow(P, D, i, sid, n, nPose) {
+  const cells = h('div', { class: 'rt-laspc' }), keys = ['n2', 'n4', 'n6'];
+  for (let j = 0; j < n; j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, grLabel(j)), valueCell(P, D, keys[j], i)));
+  const grow = m => { (WS.gr || (WS.gr = {}))[sid] = m; };
+  if (n < GR_N) cells.append(h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Add the ' + grLabel(n) + ' gradient term after surface ' + (i + 1), onclick: () => { grow(n + 1); renderWs(); } }, 'Add ' + grLabel(n)));
+  cells.append(h('button', { type: 'button', class: 'rt-link', title: 'Take the last term off (its value set to 0, and its variable, solve or pickup cleared)', onclick: () => {
+    const key = keyAt(P, keys[n - 1], i);
+    grow(n - 1);
+    edit((PP, a) => { const at = posOf(PP, key); if (at) setV(PP, at, 0); const dd = designOf(a); dd.vars = dd.vars.filter(k => k !== key); delete dd.solves[key]; delete dd.pickups[key]; });
+  } }, n > 1 ? 'Remove ' + grLabel(n - 1) : 'Not graded'));
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp', title: 'The index of the glass after this surface: n + g₂r² + g₄r⁴ + g₆r⁶, r mm from the lens\u2019s axis (mm⁻², mm⁻⁴, mm⁻⁶)' }, 'graded glass'), h('td', { colspan: String(5 + nPose) }, cells));
 }
 function asphRow(P, D, i, sid, nA, nPose) {
   const cells = h('div', { class: 'rt-laspc' });
@@ -23603,7 +23780,7 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q[0] === 'n' ? 'Gradient ' + grLabel(+at.q[1] / 2 - 1) + ' after' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
 const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
@@ -28459,7 +28636,9 @@ function popGroups(segs) {
     const ox = b.x0 - a.x0, oy = b.y0 - a.y0;
     const side = Math.abs(-a.dy * ox + a.dx * oy), along = Math.abs(a.dx * ox + a.dy * oy);
     if (side > 2 * (w[i] + w[j]) + 1e-6) continue;
-    if (along > Math.max(1, 0.05 * Math.min(a.len, b.len))) continue;
+    // (within a millimetre, or a twentieth of their length; never as far as half the shorter, so short
+    // segments end to end, as through a graded glass, stay apart)
+    if (along > Math.max(Math.min(1, 0.5 * Math.min(a.len, b.len)), 0.05 * Math.min(a.len, b.len))) continue;
     parent[find(i)] = find(j);
   }
   const groups = new Map();
@@ -28876,7 +29055,7 @@ function volPartners(segs, tab) {
 }
 /* where a segment's volume is cut across it: its direction, height, and the distances along it,
    or null for none (no length, or off the board) */
-function volCuts(sg, bb, two) {
+function volCuts(sg, bb, two, coh) {
   const b = sg.b, L3 = b.len3 || b.len;
   if (!(L3 > 0)) return null;
   const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]), e = d.map(v => v / dl);
@@ -28893,9 +29072,10 @@ function volCuts(sg, bb, two) {
   const A = two ? (F0.ax && F0.ay && F0.ax.zR <= F0.ay.zR ? F0.ax : F0.ay) : F0;
   const zR = A && A.zR > 0 ? A.zR : (tb - ta), tw = A && isFinite(A.z) ? -A.z : (ta + tb) / 2;
   // where to cut: dense through the waist (three to each unit of asinh), and every 10 mm along
-  // (20 mm for a 2D map, each of which is a whole propagation)
+  // (20 mm for a 2D map, each of which is a whole propagation; 5 mm for beams that interfere, whose
+  // fringes change along the way as their wavefronts' curvatures part, in blocks between cuts far apart)
   const ua = Math.asinh((ta - tw) / zR), ub = Math.asinh((tb - tw) / zR), set = new Set();
-  const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (two ? 20 : 10)), 1, 12);
+  const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (coh ? 5 : two ? 20 : 10)), 1, 12);
   for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
   for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
   return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y)) };
@@ -28911,7 +29091,7 @@ function volData(segs, tab, bb, only) {
     const leg = volLegBase(sg.leg), F0 = sg.F0 || leg.field || {}, cohs = mates.get(sg) || [], coh = cohs.length > 0;
     // a segment whose light interferes with its mates' is a map of their fields added, whatever its engine
     const two = sg.eng === '2d' || coh, Fd = sg.eng === '2d' && !coh ? volDecimate(leg.field || F0) : null;
-    const C = volCuts(sg, bb, two);
+    const C = volCuts(sg, bb, two, coh);
     if (!C) continue;
     const { e, z0, ts } = C, ranges = only instanceof Map ? only.get(sg.i) : null;
     // the launch's share of its laser (half each for an unpolarised one's two halves)
@@ -28946,10 +29126,24 @@ function volData(segs, tab, bb, only) {
         // each member's field cut exactly where this cut crosses its axis; across the cut, the
         // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
         const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
+        // Fringes the grid can show: between beams running the same way, no finer than a few of its cells
+        // across. Beams crossing at an angle, or running against each other, make fringes of a fraction
+        // of a micron (across the beam, or along it, between the cuts): no grid resolves them, sampled
+        // they alias into blocks, and the eye sees their mean. Each such group's fields add; the groups'
+        // irradiances add.
+        const cell = 2 * R / (M - 1), grp = [], lead = [];
+        for (const h of here) {
+          const d = [h.m.b.dx, h.m.b.dy], lam = 2 * Math.PI / (h.L.k || 1e4);
+          let g = lead.findIndex(D => { const c = D[0] * d[0] + D[1] * d[1], sn = Math.abs(D[0] * d[1] - D[1] * d[0]); return c > 0 && lam > 4 * cell * sn; });
+          if (g < 0) { g = lead.length; lead.push(d); }
+          grp.push(g);
+        }
+        const accs = lead.map(() => [0, 0, 0, 0]);
         for (let q = 0; q < M; q++) for (let p2 = 0; p2 < M; p2++) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
-          const acc = [0, 0, 0, 0];
-          for (const { m, L, a, G, pzc, J } of here) {
+          for (const A of accs) A.fill(0);
+          for (let hi = 0; hi < here.length; hi++) {
+            const { m, L, a, G, pzc, J } = here[hi], acc = accs[grp[hi]];
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
@@ -28959,7 +29153,7 @@ function volData(segs, tab, bb, only) {
             acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
             acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);
           }
-          const val = acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
+          let val = 0; for (const acc of accs) val += acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2] + acc[3] * acc[3];
           I[(j * M + q) * M + p2] = val; if (val > pk) pk = val;
         }
         return;
@@ -29065,7 +29259,7 @@ function volShare(segs, tab, n, bb) {
   const chunks = [];
   for (const sg of segs) {
     if (!sg.b || (tab && sg.b.bench !== tab)) continue;
-    const two = sg.eng === '2d' || mates.has(sg), C = volCuts(sg, bb, two);
+    const two = sg.eng === '2d' || mates.has(sg), C = volCuts(sg, bb, two, mates.has(sg));
     if (!C) continue;
     const nc = C.ts.length, per = two ? 20 : 1, k = two ? Math.min(n, nc) : 1, step = Math.ceil(nc / k);
     for (let j0 = 0; j0 < nc; j0 += step) chunks.push({ i: sg.i, r: [j0, Math.min(nc, j0 + step)], c: per * (Math.min(nc, j0 + step) - j0) });
@@ -29492,7 +29686,7 @@ function drawPopOn(c, R) {
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
     c.save();
     c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c);
+    clipSegPlanes(PL, (b.len3 || b.len) + 6 * Math.max(...D.Ys), c, true);
     const nx = -b.dy, ny = b.dx;
     c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     c.globalAlpha = glowA(0.95 * D.alpha);
@@ -30837,7 +31031,7 @@ function indexOf(m, nm) {
 function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N);
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N), GR = [];
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -30849,9 +31043,12 @@ function lensSystem(P, nm, opts) {
     FL.push(ffList(s.F));
     cy.push(s.cyl === 'y' ? 1 : s.cyl === 'x' ? 2 : 0);
     PH.push(!s.mirror && dpOn(s.ph) ? Float64Array.from(s.ph) : null); DM[i] = normOrder(s.dm);
+    // the glass after it graded (a graded lens's): its terms and the step its rays take
+    const gm = i < N - 1 && P.materials[i] && P.materials[i].grad && P.materials[i].grad.some(v => v) ? P.materials[i] : null;
+    GR.push(gm ? { G: Float64Array.from(gm.grad), h: gm.gh > 0 ? gm.gh : 0.05 } : null);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, GR: GR.some(g => g) ? GR : null, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -30911,7 +31108,9 @@ function toImageFrame(S, R) {
 function paraStep(S, y, u, i0, i1) {
   // from just before surface i0 to just after surface i1: [height at i1, angle after i1]
   for (let i = i0; i <= i1; i++) {
-    if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
+    // through a graded glass its r² term's matrix; else straight
+    if (i > i0 && S.GR && S.GR[i - 1]) { const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]); [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; }
+    else if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
     const pc = (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
@@ -30981,6 +31180,27 @@ function dsagOverR(S, i, r2) {
    0 while alive. Traces from where it is through surfaces i0 to i1 (inclusive), in place. Flag on
    failing: 1 + the surface it was vignetted at, or -(1 + the surface) where it missed or turned back. */
 const DB = [0, 0, 0];
+/* how far along a straight line from (x, y, z) the way (L, M, N) surface i is (in the system's frame), or null */
+function meetT(S, i, x, y, z, L, M, Nn) {
+  const F = S.fr ? S.fr[i] : null;
+  if (F) {
+    const o = F.o, Q = F.R, dx = x - o[0], dy = y - o[1], dz = z - o[2];
+    [x, y, z, L, M, Nn] = [Q[0] * dx + Q[3] * dy + Q[6] * dz, Q[1] * dx + Q[4] * dy + Q[7] * dz, Q[2] * dx + Q[5] * dy + Q[8] * dz,
+      Q[0] * L + Q[3] * M + Q[6] * Nn, Q[1] * L + Q[4] * M + Q[7] * Nn, Q[2] * L + Q[5] * M + Q[8] * Nn];
+  }
+  const zi = F ? 0 : S.z[i];
+  let t = (zi - z) / Nn;
+  for (let it = 0; it < 40; it++) {
+    const cl = S.cyl ? S.cyl[i] : 0, X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = cl === 1 ? Y * Y : cl === 2 ? X * X : X * X + Y * Y, FF = S.FL && S.FL[i];
+    let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (cl === 1 ? Y * M : cl === 2 ? X * L : X * L + Y * M);
+    if (FF) { const [gx, gy] = ffGrad(FF, X, Y); f -= ffSag(FF, X, Y); d -= gx * L + gy * M; }
+    if (!isFinite(f) || Math.abs(d) < 1e-15) return null;
+    const dt = f / d;
+    t -= dt;
+    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return t > -1e-9 ? t : null;
+  }
+  return null;
+}
 function traceRay(S, R, i0, i1, noClip) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
   // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
@@ -31000,6 +31220,25 @@ function traceRay(S, R, i0, i1, noClip) {
   };
   const stop = flag => { if (F) global(); R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = flag; return R; };
   for (let i = i0; i <= i1; i++) {
+    // In a graded glass the ray curves: while surface i is not within a step and a half along its line, it takes a step
+    // along its curve (as the bench's rays do: core/gradient.js), its path counted as it goes
+    const GM = i > 0 && S.GR ? S.GR[i - 1] : null;
+    let nHere = S.n[i];
+    if (GM) {
+      const Fa = S.fr ? S.fr[i - 1] : null, nb = S.n[i];
+      const loc = X => { if (!Fa) return [X[0], X[1]]; const d0 = X[0] - Fa.o[0], d1 = X[1] - Fa.o[1], d2 = X[2] - Fa.o[2], Q = Fa.R; return [Q[0] * d0 + Q[3] * d1 + Q[6] * d2, Q[1] * d0 + Q[4] * d1 + Q[7] * d2]; };
+      const nAt = X => { const [a, b] = loc(X); return nb + grDelta(GM.G, a * a + b * b); };
+      const gAt = X => { const [a, b] = loc(X), g = grSlopeOverR(GM.G, a * a + b * b), u0 = g * a, u1 = g * b; if (!Fa) return [u0, u1, 0]; const Q = Fa.R; return [Q[0] * u0 + Q[1] * u1, Q[3] * u0 + Q[4] * u1, Q[6] * u0 + Q[7] * u1]; };
+      for (let st = 0; ; st++) {
+        if (st > 20000) return stop(-(1 + i));
+        const tm = meetT(S, i, x, y, z, L, M, Nn);
+        if (tm !== null && tm <= GR_REACH * GM.h) break;
+        const X = [x, y, z], n0 = nAt(X), Pv = [L * n0, M * n0, Nn * n0];
+        opl += grStep(X, Pv, GM.h, nAt, gAt);
+        [x, y, z] = X; const pl = Math.hypot(Pv[0], Pv[1], Pv[2]); L = Pv[0] / pl; M = Pv[1] / pl; Nn = Pv[2] / pl;
+      }
+      nHere = nAt([x, y, z]);
+    }
     F = S.fr ? S.fr[i] : null;
     if (F) local();
     const ni = S.n[i], zi = F ? 0 : S.z[i];
@@ -31016,7 +31255,7 @@ function traceRay(S, R, i0, i1, noClip) {
       if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
     }
     if (!ok) return stop(-(1 + i));
-    x += L * t; y += M * t; z += Nn * t; opl += ni * t;
+    x += L * t; y += M * t; z += Nn * t; opl += (GM ? nHere : ni) * t;
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
@@ -31024,14 +31263,16 @@ function traceRay(S, R, i0, i1, noClip) {
     const g = dsagOverR(S, i, rs), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = (cl === 1 ? 0 : -g * x) - (FG ? FG[0] : 0), ny = (cl === 2 ? 0 : -g * y) - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
+    // either side a graded glass: its index where the ray meets the face
+    const nIn = GM ? ni + grDelta(GM.G, r2) : ni, nOut = S.GR && S.GR[i] ? S.n[i + 1] + grDelta(S.GR[i].G, r2) : S.n[i + 1];
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
     else if (S.PH && S.PH[i]) {
       // a diffractive face: Snell's law with its phase's slope along the face, and its path
       const PH = S.PH[i], q = S.DM[i] * S.lam / (2 * Math.PI), g = q * dpSlopeOverR(PH, r2), o = DB;
-      if (!dpBend([L, M, Nn], [ux, uy, uz], ni, S.n[i + 1], [g * x, g * y, 0], o)) return stop(-(1 + i));
+      if (!dpBend([L, M, Nn], [ux, uy, uz], nIn, nOut, [g * x, g * y, 0], o)) return stop(-(1 + i));
       L = o[0]; M = o[1]; Nn = o[2]; opl += q * dpPhase(PH, r2);
     } else {
-      const mu = ni / S.n[i + 1], kk = 1 - mu * mu * (1 - ci * ci);
+      const mu = nIn / nOut, kk = 1 - mu * mu * (1 - ci * ci);
       if (kk < 0) return stop(-(1 + i));
       const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
       L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
@@ -31240,7 +31481,11 @@ function seidel(S, fieldDeg, Sshort, Slong) {
     return r;
   };
   for (let i = 0; i < N; i++) {
-    if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
+    if (i && S.GR && S.GR[i - 1] && sg > 0) {
+      // through a graded glass the two rays take its r² term's matrix (its own third-order part is not counted)
+      const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]);
+      [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; [yb, ub] = [m[0] * yb + m[1] * ub, m[2] * yb + m[3] * ub];
+    } else if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
     // (in the plane of the fields: a cylinder curved out of it counts as flat)
     const flatHere = S.cyl && S.cyl[i] === 2;
@@ -31278,7 +31523,8 @@ function seidel(S, fieldDeg, Sshort, Slong) {
    A key names one value of one surface by where it came from, so it survives surfaces inserted
    or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
    "g:..." (the glass after it), "a4:..." to "a16:..." (its even aspheric coefficients, A4 to A16),
-   "p2:..." to "p8:..." (a diffractive face's phase terms, on ρ² to ρ⁸, radians),
+   "p2:..." to "p8:..." (a diffractive face's phase terms, on ρ² to ρ⁸, radians), "n2:..." to "n6:..." (a graded
+   glass's terms on r² to r⁶, the glass after that surface),
    "T:..." and "D:..." on a part's first surface (the part's tilt in degrees and decentre in mm, about
    its first vertex), and "t:image". Solves and pickups are worked out after every change, and the result is written
    back to the parts: the bench is always the design.
@@ -31312,6 +31558,8 @@ function editable(P, q, i) {
   if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   // a diffractive lens's phase terms
   if (q[0] === 'p') return sp.kind === 'lens' && !!P.parts[sp.pi].diff;
+  // a graded lens's glass (the gap after the surface, inside the lens)
+  if (q[0] === 'n') return sp.kind === 'lens' && !!P.parts[sp.pi].grin && sp.j < sp.n - 1 && P.materials[i].glass !== 'AIR';
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
@@ -31323,6 +31571,7 @@ function getV(P, at) {
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   if (at.q[0] === 'f') { const F = P.surfaces[at.i].F; return F && F[at.q.slice(1)] || 0; }
   if (at.q[0] === 'p') { const ph = P.surfaces[at.i].ph; return ph && ph[+at.q[1] / 2 - 1] || 0; }
+  if (at.q[0] === 'n') { const G = P.materials[at.i] && P.materials[at.i].grad; return G && G[+at.q[1] / 2 - 1] || 0; }
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
@@ -31361,6 +31610,13 @@ function setV(P, at, v) {
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
   else if (at.q[0] === 'f') { const s = P.surfaces[at.i], F = Object.assign({}, s.F || {}); F[at.q.slice(1)] = isFinite(v) ? v : 0; s.F = F; }
   else if (at.q[0] === 'p') { const s = P.surfaces[at.i], ph = (s.ph || [0, 0, 0, 0]).slice(); ph[+at.q[1] / 2 - 1] = isFinite(v) ? v : 0; s.ph = ph; }
+  else if (at.q[0] === 'n') {
+    const m = P.materials[at.i] = Object.assign({}, P.materials[at.i]), G = (m.grad || []).slice();
+    while (G.length < 3) G.push(0);
+    G[+at.q[1] / 2 - 1] = isFinite(v) ? v : 0;
+    while (G.length && !G[G.length - 1]) G.pop();
+    if (G.length) m.grad = G; else delete m.grad;
+  }
   else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
     const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
@@ -31893,6 +32149,8 @@ function getX(P, v) {
   if (v.at.q[0] === 'f') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1] + +v.at.q[2]);
   // a diffractive phase term: the waves it adds at the clear radius, c h^n / 2π
   if (v.at.q[0] === 'p') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1]) / (2 * Math.PI);
+  // a graded glass's term: the index it adds at the clear radius, g h^n
+  if (v.at.q[0] === 'n') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1]);
   if (v.at.q === 'g') return P.materials[v.at.i][v.part];
   return getV(P, v.at);
 }
@@ -31903,14 +32161,15 @@ function setX(P, v, x) {
   else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
   else if (v.at.q[0] === 'f') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1] + +v.at.q[2]));
   else if (v.at.q[0] === 'p') setV(P, v.at, 2 * Math.PI * x / Math.pow(asphH(P, i), +v.at.q[1]));
+  else if (v.at.q[0] === 'n') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1]));
   else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
-const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
+const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q[0] === 'n' && v.at.q !== 'nd' ? 'n' : v.at.q)];
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -32171,6 +32430,7 @@ function globalSearch(prob, V, best, trials, seed) {
       else if (q === 'k') x[j] += 0.3 * z;
       else if (q[0] === 'a' || q[0] === 'f') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
       else if (q[0] === 'p') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 5);
+      else if (/^n\d$/.test(q)) x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.002);
       else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
       else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
@@ -32779,6 +33039,12 @@ function drawingData(P, pi, opts) {
     const zones = Math.abs(dpPhase(s.ph, h * h)) / (2 * Math.PI), g = Math.abs(dpSlopeOverR(s.ph, h * h) * h);
     notes.push('Surface ' + (k0 + j + 1) + ' is diffractive, in order ' + (s.dm || 1) + ': phase φ(ρ) = ' + terms + ' rad (ρ in mm), ' + Math.round(zones) + ' zones to its clear radius' +
       (g > 0 ? ', the last ' + (2 * Math.PI / g * 1000).toPrecision(3) + ' µm wide' : '') + '; the surface drawn is its substrate.');
+  });
+  // a graded glass: its index's terms from the axis
+  M.forEach((m, j) => {
+    if (!m.grad || !m.grad.some(v => v)) return;
+    const terms = m.grad.map((g, q) => (g ? (+g.toPrecision(6)) + ' r' + ['²', '⁴', '⁶'][q] : '')).filter(Boolean).join(' + ').replace(/\+ -/g, '− ');
+    notes.push('The glass between surfaces ' + (k0 + j + 1) + ' and ' + (k0 + j + 2) + ' is graded: n(r) = n + ' + terms + ' (r in mm from the axis, n its index on the axis).');
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
@@ -35800,6 +36066,7 @@ function zmxSystem(els) {
     if (coats.some(c => c && c.mode !== 'bare')) warnings.add('coatings are not written');
     if (e.type === 'lens' && e.surfaces.some(t => t.F && Object.values(t.F).some(v => v))) warnings.add('freeform terms are not written');
     if (e.type === 'lens' && e.diffractive && e.surfaces.some(t => t.ph && t.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
+    if (e.type === 'lens' && e.graded && e.materials.some(m => m.grad && m.grad.some(v => v))) warnings.add('graded glass is not written: it goes as the glass on its axis');
     return { e, z0: c - T / 2, z1: c + T / 2, surfaces, gaps, materials };
   }).sort((a, b) => a.z0 - b.z0);
   const surfaces = [], gaps = [], materials = [];
@@ -35824,6 +36091,7 @@ function zmxAssemblySystem(asm) {
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
   if (P.surfaces.some(s => s.ph && s.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
+  if (P.materials.some(m => m && m.grad && m.grad.some(v => v))) warnings.add('graded glass is not written: it goes as the glass on its axis');
   const mc = asm.design && asm.design.mc && asm.design.mc.configs && asm.design.mc.configs.length > 1 ? asm.design.mc : null;
   if (mc) warnings.add('only the configuration shown (' + mc.configs[mc.active].name + ') is written');
   // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
@@ -38556,6 +38824,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>GRIN lenses</b>: a lens\u2019s glass may grade from its axis (n + g₂r² + g₄r⁴ + g₆r⁶), and a GRIN rod lens joins the lens presets. Rays curve through the glass, traced step by step alike on the bench and in lens design, where the terms are added with <b>+ n(r)</b> and varied by the optimiser; the diffracted field goes through it a slab at a time.',
+    '<b>The 3D field</b> joins its pieces without rings, and beams that interfere show their fringes without moiré or blocks.',
     '<b>Diffractive lenses</b>: a new lens preset whose faces may carry a phase (c₁ρ² to c₄ρ⁸ radians) in one order of diffraction, its power growing with the wavelength, the other way to glass. The preset is a hybrid achromat, f 50 mm, its F and C lines at one focus. The bench, the diffracted field and the lens engine trace the phase exactly; in lens design its terms are added with <b>+ φ</b>, varied by the optimiser, and counted in the Seidel sums and the drawings.',
     '<b>The diffracted field in a beam-splitter cube</b> is drawn cleanly: the light going straight through the diagonal is cut along it, and there are no dark and bright lines where a beam narrows to its waist.',
     '<b>Cylindrical lenses in lens design</b>: a cylinder, curved in the bench\u2019s plane or out of it, can now be part of an assembly or designed on its own, its surfaces marked in the lens data. Crossed cylinders make an anamorphic focus, and the bench and the lens engine trace them alike.',

@@ -1,6 +1,7 @@
 import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
 import { normOrder, normPh } from './diffractive.js';
+import { grH } from './gradient.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
@@ -65,8 +66,9 @@ export function normAssemblies(list, els) {
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
    A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
-   face's phase term on ρ² … ρ⁸ (core/diffractive.js) */
-export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]):(.{1,120}\.\d+)$/;
+   face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
+   that surface (core/gradient.js) */
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -346,7 +348,9 @@ export function asmPrescription(asm, els) {
         S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}),
           // a diffractive lens's faces carry their phase (all four terms, so each can be set), in its order
           ...(e.diffractive ? { ph: [0, 1, 2, 3].map(j => (s.ph && s.ph[j]) || 0), dm: normOrder(e.diffOrder) } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
-        G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
+        G2 = e.gaps.slice();
+        // a graded lens's glass keeps its terms, and the step its rays take in it (as the bench's do); another's is plain
+        M2 = e.materials.map(m => { const c = Object.assign({}, m); if (e.graded) { if (m.grad) c.grad = m.grad.slice(); c.gh = grH(e.diameter); } else delete c.grad; return c; });
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
         G2 = [e.thickness]; M2 = [Object.assign({}, e.material)];
@@ -371,7 +375,7 @@ export function asmPrescription(asm, els) {
     });
     gaps.push(...G2); materials.push(...M2);
     lastAx = along + tv + T;
-    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}) });
+    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}), ...(e.graded ? { grin: true } : {}) });
     if (kind === 'mirror') {
       // the axis turns where it meets the mirror's plane; on from there
       const n = v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
@@ -466,7 +470,7 @@ export function asmApply(asm, P, els) {
           return t;
         });
         e.gaps = (p.flip ? G.slice().reverse() : G).slice();
-        e.materials = (p.flip ? M.slice().reverse() : M).map(m => Object.assign({}, m));
+        e.materials = (p.flip ? M.slice().reverse() : M).map(m => { const c = Object.assign({}, m); delete c.gh; if (c.grad) c.grad = c.grad.slice(); return c; });
       } else if (p.kind === 'window') { e.thickness = G[0]; e.material = Object.assign({}, M[0]); }
     }
     k += p.n;

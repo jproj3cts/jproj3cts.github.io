@@ -1,5 +1,6 @@
 import { dpBend, dpOn, dpPhase, dpPower, dpSlopeOverR, normOrder } from '../core/diffractive.js';
 import { ffGrad, ffList, ffSag } from '../core/freeform.js';
+import { GR_REACH, grDelta, grMatrix, grSlopeOverR, grStep } from '../core/gradient.js';
 import { refIndex } from '../core/glass.js';
 
 /* ==========================================================================
@@ -40,7 +41,7 @@ function indexOf(m, nm) {
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N);
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N), GR = [];
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -52,9 +53,12 @@ export function lensSystem(P, nm, opts) {
     FL.push(ffList(s.F));
     cy.push(s.cyl === 'y' ? 1 : s.cyl === 'x' ? 2 : 0);
     PH.push(!s.mirror && dpOn(s.ph) ? Float64Array.from(s.ph) : null); DM[i] = normOrder(s.dm);
+    // the glass after it graded (a graded lens's): its terms and the step its rays take
+    const gm = i < N - 1 && P.materials[i] && P.materials[i].grad && P.materials[i].grad.some(v => v) ? P.materials[i] : null;
+    GR.push(gm ? { G: Float64Array.from(gm.grad), h: gm.gh > 0 ? gm.gh : 0.05 } : null);
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, GR: GR.some(g => g) ? GR : null, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -114,7 +118,9 @@ function toImageFrame(S, R) {
 function paraStep(S, y, u, i0, i1) {
   // from just before surface i0 to just after surface i1: [height at i1, angle after i1]
   for (let i = i0; i <= i1; i++) {
-    if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
+    // through a graded glass its r² term's matrix; else straight
+    if (i > i0 && S.GR && S.GR[i - 1]) { const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]); [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; }
+    else if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
     const pc = (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
@@ -184,6 +190,27 @@ function dsagOverR(S, i, r2) {
    0 while alive. Traces from where it is through surfaces i0 to i1 (inclusive), in place. Flag on
    failing: 1 + the surface it was vignetted at, or -(1 + the surface) where it missed or turned back. */
 const DB = [0, 0, 0];
+/* how far along a straight line from (x, y, z) the way (L, M, N) surface i is (in the system's frame), or null */
+function meetT(S, i, x, y, z, L, M, Nn) {
+  const F = S.fr ? S.fr[i] : null;
+  if (F) {
+    const o = F.o, Q = F.R, dx = x - o[0], dy = y - o[1], dz = z - o[2];
+    [x, y, z, L, M, Nn] = [Q[0] * dx + Q[3] * dy + Q[6] * dz, Q[1] * dx + Q[4] * dy + Q[7] * dz, Q[2] * dx + Q[5] * dy + Q[8] * dz,
+      Q[0] * L + Q[3] * M + Q[6] * Nn, Q[1] * L + Q[4] * M + Q[7] * Nn, Q[2] * L + Q[5] * M + Q[8] * Nn];
+  }
+  const zi = F ? 0 : S.z[i];
+  let t = (zi - z) / Nn;
+  for (let it = 0; it < 40; it++) {
+    const cl = S.cyl ? S.cyl[i] : 0, X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = cl === 1 ? Y * Y : cl === 2 ? X * X : X * X + Y * Y, FF = S.FL && S.FL[i];
+    let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (cl === 1 ? Y * M : cl === 2 ? X * L : X * L + Y * M);
+    if (FF) { const [gx, gy] = ffGrad(FF, X, Y); f -= ffSag(FF, X, Y); d -= gx * L + gy * M; }
+    if (!isFinite(f) || Math.abs(d) < 1e-15) return null;
+    const dt = f / d;
+    t -= dt;
+    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return t > -1e-9 ? t : null;
+  }
+  return null;
+}
 export function traceRay(S, R, i0, i1, noClip) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
   // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
@@ -203,6 +230,25 @@ export function traceRay(S, R, i0, i1, noClip) {
   };
   const stop = flag => { if (F) global(); R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = flag; return R; };
   for (let i = i0; i <= i1; i++) {
+    // In a graded glass the ray curves: while surface i is not within a step and a half along its line, it takes a step
+    // along its curve (as the bench's rays do: core/gradient.js), its path counted as it goes
+    const GM = i > 0 && S.GR ? S.GR[i - 1] : null;
+    let nHere = S.n[i];
+    if (GM) {
+      const Fa = S.fr ? S.fr[i - 1] : null, nb = S.n[i];
+      const loc = X => { if (!Fa) return [X[0], X[1]]; const d0 = X[0] - Fa.o[0], d1 = X[1] - Fa.o[1], d2 = X[2] - Fa.o[2], Q = Fa.R; return [Q[0] * d0 + Q[3] * d1 + Q[6] * d2, Q[1] * d0 + Q[4] * d1 + Q[7] * d2]; };
+      const nAt = X => { const [a, b] = loc(X); return nb + grDelta(GM.G, a * a + b * b); };
+      const gAt = X => { const [a, b] = loc(X), g = grSlopeOverR(GM.G, a * a + b * b), u0 = g * a, u1 = g * b; if (!Fa) return [u0, u1, 0]; const Q = Fa.R; return [Q[0] * u0 + Q[1] * u1, Q[3] * u0 + Q[4] * u1, Q[6] * u0 + Q[7] * u1]; };
+      for (let st = 0; ; st++) {
+        if (st > 20000) return stop(-(1 + i));
+        const tm = meetT(S, i, x, y, z, L, M, Nn);
+        if (tm !== null && tm <= GR_REACH * GM.h) break;
+        const X = [x, y, z], n0 = nAt(X), Pv = [L * n0, M * n0, Nn * n0];
+        opl += grStep(X, Pv, GM.h, nAt, gAt);
+        [x, y, z] = X; const pl = Math.hypot(Pv[0], Pv[1], Pv[2]); L = Pv[0] / pl; M = Pv[1] / pl; Nn = Pv[2] / pl;
+      }
+      nHere = nAt([x, y, z]);
+    }
     F = S.fr ? S.fr[i] : null;
     if (F) local();
     const ni = S.n[i], zi = F ? 0 : S.z[i];
@@ -219,7 +265,7 @@ export function traceRay(S, R, i0, i1, noClip) {
       if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
     }
     if (!ok) return stop(-(1 + i));
-    x += L * t; y += M * t; z += Nn * t; opl += ni * t;
+    x += L * t; y += M * t; z += Nn * t; opl += (GM ? nHere : ni) * t;
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
@@ -227,14 +273,16 @@ export function traceRay(S, R, i0, i1, noClip) {
     const g = dsagOverR(S, i, rs), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = (cl === 1 ? 0 : -g * x) - (FG ? FG[0] : 0), ny = (cl === 2 ? 0 : -g * y) - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
+    // either side a graded glass: its index where the ray meets the face
+    const nIn = GM ? ni + grDelta(GM.G, r2) : ni, nOut = S.GR && S.GR[i] ? S.n[i + 1] + grDelta(S.GR[i].G, r2) : S.n[i + 1];
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
     else if (S.PH && S.PH[i]) {
       // a diffractive face: Snell's law with its phase's slope along the face, and its path
       const PH = S.PH[i], q = S.DM[i] * S.lam / (2 * Math.PI), g = q * dpSlopeOverR(PH, r2), o = DB;
-      if (!dpBend([L, M, Nn], [ux, uy, uz], ni, S.n[i + 1], [g * x, g * y, 0], o)) return stop(-(1 + i));
+      if (!dpBend([L, M, Nn], [ux, uy, uz], nIn, nOut, [g * x, g * y, 0], o)) return stop(-(1 + i));
       L = o[0]; M = o[1]; Nn = o[2]; opl += q * dpPhase(PH, r2);
     } else {
-      const mu = ni / S.n[i + 1], kk = 1 - mu * mu * (1 - ci * ci);
+      const mu = nIn / nOut, kk = 1 - mu * mu * (1 - ci * ci);
       if (kk < 0) return stop(-(1 + i));
       const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
       L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
@@ -443,7 +491,11 @@ export function seidel(S, fieldDeg, Sshort, Slong) {
     return r;
   };
   for (let i = 0; i < N; i++) {
-    if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
+    if (i && S.GR && S.GR[i - 1] && sg > 0) {
+      // through a graded glass the two rays take its r² term's matrix (its own third-order part is not counted)
+      const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]);
+      [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; [yb, ub] = [m[0] * yb + m[1] * ub, m[2] * yb + m[3] * ub];
+    } else if (i) { const t = sg * (S.z[i] - S.z[i - 1]); y += t * u; yb += t * ub; }
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
     // (in the plane of the fields: a cylinder curved out of it counts as flat)
     const flatHere = S.cyl && S.cyl[i] === 2;

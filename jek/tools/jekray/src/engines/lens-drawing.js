@@ -86,6 +86,12 @@ export function drawingData(P, pi, opts) {
     notes.push('Surface ' + (k0 + j + 1) + ' is diffractive, in order ' + (s.dm || 1) + ': phase φ(ρ) = ' + terms + ' rad (ρ in mm), ' + Math.round(zones) + ' zones to its clear radius' +
       (g > 0 ? ', the last ' + (2 * Math.PI / g * 1000).toPrecision(3) + ' µm wide' : '') + '; the surface drawn is its substrate.');
   });
+  // a graded glass: its index's terms from the axis
+  M.forEach((m, j) => {
+    if (!m.grad || !m.grad.some(v => v)) return;
+    const terms = m.grad.map((g, q) => (g ? (+g.toPrecision(6)) + ' r' + ['²', '⁴', '⁶'][q] : '')).filter(Boolean).join(' + ').replace(/\+ -/g, '− ');
+    notes.push('The glass between surfaces ' + (k0 + j + 1) + ' and ' + (k0 + j + 2) + ' is graded: n(r) = n + ' + terms + ' (r in mm from the axis, n its index on the axis).');
+  });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };

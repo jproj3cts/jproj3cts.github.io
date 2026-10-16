@@ -22,6 +22,7 @@ import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
 import { ffGrad, ffSag } from '../core/freeform.js';
 import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
+import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
 import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
@@ -476,6 +477,21 @@ function dpPull(s, px, py, h, lam) {
   const r2 = fy * fy + fz * fz, q = s.dm * lam / (2 * Math.PI), g = q * dpSlopeOverR(s.ph, r2);
   return { G: s.tilt ? faceToLocal(s, 0, g * fy, g * fz) : [0, g * fy, g * fz], path: q * dpPhase(s.ph, r2) };
 }
+/* A graded glass (core/gradient.js) in a lens: a point of the world (x, y, height) across and up from the
+   part's axis (in the face frame of a part tipped or rolled), the index there, and its gradient in the world */
+const GR_STEPS = 20000;               // steps a ray may take in one before it is given up (one guided round for ever)
+function grLocal(s, X) {
+  const [lx, ly] = toLocal(s.tilt ? s.ef : s.f, X[0], X[1]), h = X[2] - zOf(s.el);
+  if (!s.tilt) return [ly, h];
+  const [qx, qz0] = tipFrame(s, lx, h), [qy, qz] = rollFrame(s, ly, qz0);
+  return [faceFrame(s, qx, qy, true)[1], qz];
+}
+function grN(gr, X) { const [y, z] = grLocal(gr.s, X); return gr.nb + grDelta(gr.G, y * y + z * z); }
+function grGrad(gr, X) {
+  const s = gr.s, [y, z] = grLocal(s, X), g = grSlopeOverR(gr.G, y * y + z * z);
+  const L = s.tilt ? faceToLocal(s, 0, g * y, g * z) : [0, g * y, g * z], [wx, wy] = toWorldDir(s.f, L[0], L[1]);
+  return [wx, wy, L[2]];
+}
 function tipNormal(s, px, py, h) {
   const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0), [, fy] = faceFrame(s, qx, qy, true);
   return faceToLocal(s, ...(s.flat ? [1, 0, 0] : normal3(s, fy, qz)));
@@ -670,8 +686,9 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
+      gr = gr || null;                  // inside a graded glass: its part, terms and own index (see grIn)
       let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
       fo = fo || 0;                     // its frequency offset from its laser, Hz
@@ -692,7 +709,8 @@ function traceSceneOnce() {
         hid('zs', [zh]); hid('zNext', undefined);
         hid('push', function (x, y) { this.zs[this.length >> 1] = this.zNext !== undefined ? this.zNext : zh; this.zNext = undefined; return Array.prototype.push.call(this, x, y); });
       }
-      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; } stack.push(o); };
+      // (a branch carries on in the medium the ray is in: a graded glass, unless it says otherwise)
+      const push = o => { if (anyZ && o.zh === undefined) { o.zh = zh; o.uz = uz; } if (o.gr === undefined) o.gr = gr; stack.push(o); };
       // a beam segment of length L along the ray, as the beam's models take it: its direction in the
       // plane (a unit vector), its length there and its slope out of it; and, when it rises, its 3D
       // direction and length too (a leg straight up has none in the plane)
@@ -757,6 +775,40 @@ function traceSceneOnce() {
           const fin = apertureShare(near, ly, cth, bw, bw);
           if (fin * qShare > SPLIT_MIN && splitsLeft > 0) { best = nearT; hit = near; hitSeg = false; nearShare = fin; splitsLeft--; }
         }
+        // In a graded glass the ray curves: no surface within a step and a half (a step would land on it, or just
+        // short), it goes one step along its curve (not counted as a bounce; a ray that never leaves is stopped)
+        if (gr && best > GR_REACH * gr.h) {
+          if (++gr.steps > GR_STEPS) break;
+          const X = [px, py, anyZ ? zh : zOf(gr.s.el)], n0 = grN(gr, X), P = [dx * n0, dy * n0, (uz || 0) * n0];
+          opl += grStep(X, P, gr.h, Q => grN(gr, Q), Q => grGrad(gr, Q));
+          if (aCur > 0) { const a = Math.exp(-0.5 * aCur * gr.h); sr *= a; si *= a; pr *= a; pi *= a; ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          gpl += gCur * gr.h;
+          [px, py] = X; if (anyZ) zh = X[2];
+          const pl = anyZ ? Math.hypot(P[0], P[1], P[2]) : Math.hypot(P[0], P[1]);
+          dx = P[0] / pl; dy = P[1] / pl; if (anyZ) uz = P[2] / pl;
+          nCur = grN(gr, X);
+          if (chief) qr += gr.h;
+          pts.push(px, py);
+          // The beam in it, split-step: every GRIN_SLAB of the way a segment of plain glass (its index on the
+          // axis) ends, and a thin plate with the path the grading adds over it (Δ (n(r) - n₀)) bends the
+          // field and the pilot; the field engine carries the beam through these as through any phase plate
+          if (isQ && gr.at && (gr.sub = (gr.sub || 0) + gr.h) >= gr.slab) {
+            const A0 = gr.at, cx = px - A0.x, cy = py - A0.y, cz = anyZ ? zh - A0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
+            const sd = cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 };
+            beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
+              J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: A0.opl, gpl, ng: gCur, bench: bn, fo, z0: A0.z, ...(hole > 0 ? { hole } : {}) }, sd));
+            bid = beams.length - 1;
+            const Dz = gr.sub, Gs = gr.G, lam0 = nm * 1e-6, C = 2 * Gs[0] * Dz / gr.nb;
+            const [lxs] = toLocal(gr.s.f, px, py), ms = Object.assign(Object.create(gr.s), { kind: 'mask', z: lxs, flat: true, c: 0, ph: null,
+              maskFn: (u, v, lam) => [1, Dz * grDelta(Gs, u * u + v * v) / (lam || lam0)] });
+            evt = Object.defineProperty({ el: gr.s.el.id, kind: 'mask', semi: gr.s.semi, ly: toLocal(gr.s.f, px, py)[1], cth: 1, A: 1, C, D: 1, n1: gr.nb, n2: gr.nb, mode: 'M',
+              hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy], ...(anyZ ? { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh } : {}) }, 'surf', { value: ms, enumerable: false });
+            if (chief) { const dr = C * qr + 1, di = C * qi, den = dr * dr + di * di; [qr, qi] = [(qr * dr + qi * di) / den, (qi * dr - qr * di) / den]; }
+            gr.at = { x: px, y: py, z: zh, qr, qi, opl }; gr.sub = 0;
+          }
+          bounce--;
+          continue;
+        }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
@@ -766,9 +818,14 @@ function traceSceneOnce() {
           break;
         }
         if (isQ) {
-          beams.push(Object.defineProperty(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
-            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh, ...(hole > 0 ? { hole } : {}) }, segDir(best)),
+          // through a graded glass, one segment from where the beam came into it: the chord of its curve
+          const G0 = gr && gr.at, ex = px + dx * best, ey = py + dy * best;
+          const sd = G0 ? (() => { const cx = ex - G0.x, cy = ey - G0.y, cz = anyZ ? zh + (uz || 0) * best - G0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
+            return cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 }; })() : segDir(best);
+          beams.push(Object.defineProperty(Object.assign({ x0: G0 ? G0.x : px, y0: G0 ? G0.y : py, qr: G0 ? G0.qr : qr, qi: G0 ? G0.qi : qi, n: G0 ? gr.nb : nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
+            fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: G0 ? G0.opl : opl, gpl, ng: gCur, bench: bn, fo, z0: G0 ? G0.z : zh, ...(hole > 0 ? { hole } : {}) }, sd),
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
+          if (G0) gr.at = null;
           bid = beams.length - 1; evt = null;
         }
         px += dx * best; py += dy * best;
@@ -1391,14 +1448,16 @@ function traceSceneOnce() {
           // in a turned crystal, the extraordinary index at the wave normal's own angle to the axis:
           // on the way in, that of the light refracted (found by going round twice)
           const thFrom = tc && mFrom.bire && tag === mFrom.ePol ? angTo(mFrom, [ldx, ldy, ldz]) : undefined;
-          const n1 = nOf(mFrom, tag, thFrom);
+          // a face of a graded glass: its index where the ray meets the face
+          const grF = s.el && s.el.graded && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
+          const n1 = nOf(mFrom, tag, thFrom) + (grF && mFrom.grad ? grDelta(mFrom.grad, grR2) : 0);
           let thInto;
           if (tc && mInto.bire && tag === mInto.ePol) for (let it = 0, nn = nOf(mInto, tag, Math.PI / 2); it < 3; it++) {
             const e = n1 / nn, kk = 1 - e * e * (1 - ci * ci); if (kk < 0) break;
             const q = e * ci - Math.sqrt(kk);
             thInto = angTo(mInto, [e * ldx - q * tnx, e * ldy - q * tny, e * ldz - q * tnz]); nn = nOf(mInto, tag, thInto);
           }
-          const n2 = nOf(mInto, tag, thInto);
+          const n2 = nOf(mInto, tag, thInto) + (grF && mInto.grad ? grDelta(mInto.grad, grR2) : 0);
           const eta = n1 / n2;
           const k = 1 - eta * eta * (1 - ci * ci);
           let rsr = 0, rsi = 0, rpr = 0, rpi = 0, total = false;
@@ -1460,6 +1519,8 @@ function traceSceneOnce() {
               ldx = eta * ldx - q * tnx; ldy = eta * ldy - q * tny; ldz = eta * ldz - q * tnz;
             }
             nCur = n2;               // the ray is now travelling in the second medium
+            // into a graded glass, the ray curves from here (see grStep); out of one, no longer
+            gr = grF && mInto.grad ? { s, G: mInto.grad, nb: nOf(mInto, tag), h: grH(s.el.diameter), slab: Math.max(grH(s.el.diameter), Math.min(0.25, s.el.diameter / 6)), steps: 0, at: isQ ? true : null } : null;
             gCur = ngOf(goingBack ? s.back : s.front, tag, thInto);
             aCur = absorbAt(goingBack ? s.back : s.front, nm);
             const mNow = goingBack ? s.back : s.front;
@@ -1484,6 +1545,8 @@ function traceSceneOnce() {
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
+        // where the beam came into a graded glass, and its pilot there: its segment runs from here to where it leaves
+        if (gr && gr.at === true) gr.at = { x: px, y: py, z: zh, qr, qi, opl };
         if (wentR) par ^= 1;
         if (w < floorOf(fo) && !chief) { dropped++; break; }
         if (sLoc) [sr, si, pr, pi] = fromSurfFrame([sr, si, pr, pi], sLoc, [ldx, ldy, ldz], par ? -1 : 1, fxL);

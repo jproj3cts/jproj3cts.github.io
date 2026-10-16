@@ -214,6 +214,7 @@ export function benchNms() {
 }
 
 export function lensKind(el) {
+  if (el.graded) return 'GRIN lens';
   if (el.diffractive) return el.asphere ? 'Diffractive asphere' : 'Diffractive lens';
   if (el.asphere) return 'Asphere';
   return 'Lens';

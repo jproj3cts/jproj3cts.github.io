@@ -14,6 +14,8 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>GRIN lenses</b>: a lens\u2019s glass may grade from its axis (n + g₂r² + g₄r⁴ + g₆r⁶), and a GRIN rod lens joins the lens presets. Rays curve through the glass, traced step by step alike on the bench and in lens design, where the terms are added with <b>+ n(r)</b> and varied by the optimiser; the diffracted field goes through it a slab at a time.',
+    '<b>The 3D field</b> joins its pieces without rings, and beams that interfere show their fringes without moiré or blocks.',
     '<b>Diffractive lenses</b>: a new lens preset whose faces may carry a phase (c₁ρ² to c₄ρ⁸ radians) in one order of diffraction, its power growing with the wavelength, the other way to glass. The preset is a hybrid achromat, f 50 mm, its F and C lines at one focus. The bench, the diffracted field and the lens engine trace the phase exactly; in lens design its terms are added with <b>+ φ</b>, varied by the optimiser, and counted in the Seidel sums and the drawings.',
     '<b>The diffracted field in a beam-splitter cube</b> is drawn cleanly: the light going straight through the diagonal is cut along it, and there are no dark and bright lines where a beam narrows to its waist.',
     '<b>Cylindrical lenses in lens design</b>: a cylinder, curved in the bench\u2019s plane or out of it, can now be part of an assembly or designed on its own, its surfaces marked in the lens data. Crossed cylinders make an anamorphic focus, and the bench and the lens engine trace them alike.',

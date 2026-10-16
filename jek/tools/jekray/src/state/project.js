@@ -1,4 +1,5 @@
 import { clamp } from '../core/constants.js';
+import { normGrad } from '../core/gradient.js';
 import { CRYSTAL_SHAPES, FILTER_TYPES } from '../core/crystals.js';
 import { DRAW_SHAPES } from './drawings.js';
 import { TYPE_LABEL } from '../parts/registry.js';
@@ -55,6 +56,8 @@ export function normMat(m) {
   if (isFinite(m.vd)) out.vd = +m.vd;
   // a dispersion formula from a lens file's own catalogue (see glass.js, agfIndex)
   if (m.agf && Array.isArray(m.agf.c) && m.agf.c.length) out.agf = { f: Math.max(1, Math.min(13, Math.round(num(m.agf.f, 2)))), c: m.agf.c.slice(0, 10).map(v => num(v, 0)) };
+  // a graded glass's terms (core/gradient.js; a graded lens's glass only is traced so)
+  const G = normGrad(m.grad); if (G) out.grad = G;
   return out;
 }
 export function normCoat(c) {

@@ -332,10 +332,12 @@ export function segPlanes(B, i) {
   return { p0, p1, len };
 }
 // the canvas clipped to between a segment's planes (screen coordinates); W the widest it is drawn, mm
-export function clipSegPlanes(P, W, c = ctx) {
+export function clipSegPlanes(P, W, c = ctx, sq = false) {
   const big = 4 * W + 50;
   for (const q of [P.p0, P.p1]) {
     if (!q || !q.flat) continue;                              // a plane lying flat (a periscope's mirror) cuts nothing seen from above
+    // a plane square to the segment cuts where its end is anyway: a clip there only leaves a seam with the next
+    if (q.tan < 1e-9 && sq) continue;
     const tx = -q.ny, ty = q.nx;
     c.beginPath();
     c.moveTo(sx(q.x + tx * big), sy(q.y + ty * big)); c.lineTo(sx(q.x - tx * big), sy(q.y - ty * big));

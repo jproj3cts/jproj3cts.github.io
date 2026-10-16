@@ -210,6 +210,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylind
 | asphere | (none) | true for an asphere: only an asphere’s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens’s are spheres. |
 | diffractive | (none) | true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π. |
 | diffOrder | (none) | optional: a diffractive lens’s order of diffraction, a whole number (1 unless given). |
+| graded | (none) | true for a graded-index lens (a GRIN rod lens): each of its glasses may grade from its axis, "grad": [g2, g4, g6] in its material, the index n(r) = n + g2 r² + g4 r⁴ + g6 r⁶ with r in mm (n the glass’s own); rays in it curve. A rod whose index falls as n0 (1 - A r²/2) has g2 = -n0 A / 2 and a pitch 2π/√A. |
 
 ### "screen": Screen
 

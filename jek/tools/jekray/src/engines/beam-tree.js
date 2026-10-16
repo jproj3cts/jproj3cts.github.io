@@ -348,7 +348,9 @@ export function popGroups(segs) {
     const ox = b.x0 - a.x0, oy = b.y0 - a.y0;
     const side = Math.abs(-a.dy * ox + a.dx * oy), along = Math.abs(a.dx * ox + a.dy * oy);
     if (side > 2 * (w[i] + w[j]) + 1e-6) continue;
-    if (along > Math.max(1, 0.05 * Math.min(a.len, b.len))) continue;
+    // (within a millimetre, or a twentieth of their length; never as far as half the shorter, so short
+    // segments end to end, as through a graded glass, stay apart)
+    if (along > Math.max(Math.min(1, 0.5 * Math.min(a.len, b.len)), 0.05 * Math.min(a.len, b.len))) continue;
     parent[find(i)] = find(j);
   }
   const groups = new Map();

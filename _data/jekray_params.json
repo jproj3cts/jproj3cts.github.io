@@ -274,6 +274,11 @@
      "k": "diffOrder",
      "def": null,
      "meaning": "optional: a diffractive lens’s order of diffraction, a whole number (1 unless given)."
+    },
+    {
+     "k": "graded",
+     "def": null,
+     "meaning": "true for a graded-index lens (a GRIN rod lens): each of its glasses may grade from its axis, \"grad\": [g2, g4, g6] in its material, the index n(r) = n + g2 r² + g4 r⁴ + g6 r⁶ with r in mm (n the glass’s own); rays in it curve. A rod whose index falls as n0 (1 - A r²/2) has g2 = -n0 A / 2 and a pitch 2π/√A."
     }
    ]
   },

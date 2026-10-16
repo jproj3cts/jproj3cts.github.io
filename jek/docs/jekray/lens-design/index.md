@@ -368,6 +368,22 @@ Both run in the background worker, a batch at a time, and can be stopped. The to
 - inverse sensitivity: at each limit found, the worsening Sensitivity finds is the one allowed, to a part in a hundred; twice the worsening allows between √2 and 2 times the limit, as effects between linear and quadratic do; an amount allowed the same as that share; the triplet with each kind set to its tightest has no tolerance worsening it by more than allowed;
 - a triplet's wedges out of the plane of its fields worsen its image alike either way; in that plane (its fields on one side) one way is better and the other worse, as a linear term makes them.
 
+### Stock lenses
+
+The **Stock lenses** tab matches the lenses of a design against stock lenses: lens files you have (.zmx or .zar), such as the ones lens makers publish for their parts. **Add lens files…** reads them in the browser and keeps them in that browser only; they are never sent anywhere, and nothing is bundled or fetched. A file holding one lens, a singlet or a cemented lens, is kept; any other is noted and left out. **Remove them all** clears them.
+
+For each round lens of the design the tab gives its focal length alone in air at the primary wavelength, its number of faces and the beam's diameter on its faces (from the footprints over every field and wavelength), and how many stock lenses could stand in for it: those with as many faces, a focal length of the same sign within 30% of its own and a diameter at least the beam's. They are ranked by how near their focal length is and by how near their faces' curvatures are (as multiples of $$1/f$$, either way round), and the best eight kept.
+
+**Try them** puts each in the design in place of the lens, as its file has it and turned round: its faces, thicknesses, glasses and diameter, its first vertex where the lens's was. The air either side of it and the image distance (where not solved) are then optimised for the design's own merit, by damped least squares, and the better way round shown with its merit and that merit against the design's own lens with the same air optimised. The lenses are taken as made: the merit here leaves out the limits on glass thickness, edge thickness and aspheric departure, and keeps only the air between lenses from closing. **Use** puts the stock lens in the design, with the air as optimised; **Undo** takes it back.
+
+A stock lens is only as its file describes it. Check its maker's specification (its tolerances, coating and availability) before buying.
+
+**Checked against.**
+
+- the design's own lens, as a stock lens file, matches with the same merit as the design with the same air optimised;
+- a plano-convex lens, its curved side towards the collimated light, better than turned round, as third-order theory has it;
+- a lens of the wrong sign, with a different number of faces, too narrow for the beam or with a focal length too far off, not offered; the variables only the air either side and the image distance.
+
 ### Drawings
 
 The **Drawings** tab gives each lens (and window) of the design a drawing on an A4 sheet, landscape, in the manner of ISO 10110: on the left the lens in section, to a standard scale, the light from the left, with its diameter, the centre thickness of each glass (with its tolerance) and its edge thickness at the full diameter (in brackets: a reference dimension), each surface's clear aperture marked where it is less than the diameter; on the right a table of its surfaces and its glass:

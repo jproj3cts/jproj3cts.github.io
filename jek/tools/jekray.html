@@ -24990,6 +24990,117 @@ async function saveReport(asm) {
   catch (e) { toast('The report could not be made: ' + e.message, true); }
   return name;
 }
+/* ---------- Stock lenses: the user's own lens files, matched to the lenses of a design ----------
+   The lens files are the user's: chosen here, read in the browser, kept in this browser only (its local storage),
+   never sent anywhere. */
+const STORE = 'JEK_STOCK_LENSES';
+let LIB = null;
+function lib() {
+  if (LIB) return LIB;
+  LIB = [];
+  try { const v = JSON.parse(localStorage.getItem(STORE) || '[]'); if (Array.isArray(v)) LIB = v.filter(x => x && x.el && x.el.type === 'lens'); } catch (e) { /* none kept */ }
+  return LIB;
+}
+function keep() { try { localStorage.setItem(STORE, JSON.stringify(LIB)); return true; } catch (e) { return false; } }
+/* lens files read into the stock: each a lens (a singlet or a cemented lens); others noted */
+async function stockAdd(files) {
+  const added = [], skipped = [];
+  for (const f of files) {
+    try {
+      const buf = await f.arrayBuffer(), F = readZmxFile(buf, f.name), Z = parseZmx(F.text, f.name, F.agf), el = zmxPart(Z, f.name, 'lens');
+      if (el.type !== 'lens' || el.materials.some(m => m.glass === 'AIR')) { skipped.push(f.name + ' (not a single lens)'); continue; }
+      const name = f.name.replace(/\.(zmx|zar)$/i, '');
+      lib().push({ name, file: f.name, el: Object.assign(el, { name }) });
+      added.push(name);
+    } catch (err) { skipped.push(f.name + ' (' + err.message + ')'); }
+  }
+  const kept = keep();
+  return { added, skipped, kept };
+}
+function stockClear() { LIB = []; keep(); }
+const stockLibrary = () => lib();
+
+const stFmt = (v, p) => (isFinite(v) ? String(+(+v).toPrecision(p || 4)) : '—');
+let RUN = null;
+/* the card: the stock kept, and for each lens of the design its matches, tried in the design */
+function stockCard({ asm, P, redraw, edit, toast }) {
+  const card = h('div', { class: 'rt-lcard rt-lstock', role: 'tabpanel' }), L = lib(), nm = asm.cond.waves[asm.cond.primary].nm;
+  const file = h('input', { type: 'file', accept: '.zmx,.zar', multiple: true, hidden: true, onchange: async () => {
+    const r = await stockAdd([...file.files]);
+    toast((r.added.length ? 'Added ' + r.added.length + ' lens file' + (r.added.length === 1 ? '' : 's') : 'No lenses added') + (r.skipped.length ? '. Not added: ' + r.skipped.join('; ') : '') + (r.kept ? '' : '. This browser would not keep them past this visit.'), !r.added.length);
+    RUN = null; redraw();
+  } });
+  card.append(h('h3', null, 'Stock lenses'),
+    h('p', { class: 'rt-lsub' }, 'Match the lenses of this design against stock lenses: lens files you have, such as the ones lens makers publish for their parts. Add them here; they are read and kept in this browser only, and never sent anywhere. ' +
+      'For each lens of the design, the stock lenses with as many faces, a focal length within 30% and room for the beam are ranked, and the best tried in the design either way round, the air either side and the image distance optimised for the design’s merit. The lenses are taken as made: the merit here leaves out the limits on glass thickness and edges, and keeps only the air between lenses from closing.'),
+    h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, 'Add lens files…'), file,
+      h('span', { class: 'rt-lsub' }, L.length + ' stock lens' + (L.length === 1 ? '' : 'es') + ' kept'),
+      ...(L.length ? [h('button', { type: 'button', class: 'rt-link', onclick: () => { stockClear(); RUN = null; redraw(); } }, 'Remove them all')] : [])));
+  if (!L.length) { card.append(h('p', { class: 'rt-lsub' }, 'No stock lenses yet. Add .zmx or .zar lens files to match against.')); return card; }
+  const stock = L.map(x => stockOf(x.el, nm)), lenses = designLenses(asm, P), sps = surfaceParts(P);
+  if (!lenses.length) { card.append(h('p', { class: 'rt-lsub' }, 'This design has no round lenses to match.')); return card; }
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lstocktab' });
+  tbl.append(h('thead', null, h('tr', null, ...['Lens', 'Focal length', 'Faces', 'Beam', 'Candidates', ''].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  for (const d of lenses) {
+    const e = getEl(d.id), C = stockCandidates(d, stock), on = RUN && RUN.id === d.id;
+    tb.append(h('tr', { class: on ? 'on' : '' }, h('td', null, e ? e.name : d.id), h('td', { class: 'mono' }, stFmt(d.f, 5) + ' mm'), h('td', { class: 'mono' }, String(d.n)), h('td', { class: 'mono' }, '⌀ ' + stFmt(d.beam, 3) + ' mm'),
+      h('td', { class: 'mono' }, String(C.length)), h('td', null, C.length ? h('button', { type: 'button', class: 'rt-btn', onclick: () => start(d, C) }, on && !RUN.done ? 'Trying…' : 'Try them') : h('span', { class: 'rt-lsub' }, 'none fit'))));
+  }
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // the stock tried for one lens, a candidate at a time so the page stays live
+  function start(d, C) {
+    const prob = optProblem(asm, P), run = RUN = { id: d.id, d, rows: [], done: false, base: null, nominal: stockNominal(prob) };
+    const jobs = [() => { run.base = stockBaseline(prob, d).merit; }];
+    for (const c of C) jobs.push(() => {
+      const a = stockTry(prob, d, c.s, false), b = stockTry(prob, d, c.s, true), best = a.merit <= b.merit ? a : b;
+      run.rows.push({ c, merit: best.merit, flip: best.flip, prob: best.prob, other: (best === a ? b : a).merit });
+    });
+    let k = 0;
+    const step = () => {
+      if (RUN !== run) return;
+      jobs[k++]();
+      if (k < jobs.length) { setTimeout(step, 0); if (k === 2 || k % 2 === 0) redraw(); return; }
+      run.rows.sort((p, q) => p.merit - q.merit); run.done = true; redraw();
+    };
+    redraw(); setTimeout(step, 0);
+  }
+  if (RUN && lenses.some(d => d.id === RUN.id)) {
+    const run = RUN, e = getEl(run.id);
+    card.append(h('h3', null, 'Stock for ' + (e ? e.name : run.id)));
+    if (!run.done) card.append(h('p', { class: 'rt-lsub', role: 'status' }, 'Trying them in the design… ' + run.rows.length + ' tried'));
+    if (run.base !== null) card.append(h('p', { class: 'rt-lsub' }, 'The design’s own lens, the same air optimised: merit ' + stFmt(run.base, 4) + ' (as it is: ' + stFmt(run.nominal, 4) + '). Each stock lens either way round; its better way shown.'));
+    const t2 = h('table', { class: 'rt-ltable rt-lghost rt-lstockres' });
+    t2.append(h('thead', null, h('tr', null, ...['Stock lens', 'Focal length', 'Diameter', 'Glass', 'Way round', 'Merit', 'Against the design’s', ''].map(t => h('th', { scope: 'col' }, t)))));
+    const b2 = h('tbody');
+    for (const r of run.rows) {
+      const s = r.c.s, ratio = run.base > 0 ? r.merit / run.base : NaN;
+      b2.append(h('tr', null, h('td', null, s.name), h('td', { class: 'mono' }, stFmt(s.f, 5) + ' mm'), h('td', { class: 'mono' }, stFmt(s.dia, 4) + ' mm'), h('td', null, s.glasses.join(' / ')),
+        h('td', null, r.flip ? 'turned round' : 'as its file has it'), h('td', { class: 'mono' }, stFmt(r.merit, 4)), h('td', { class: 'mono' + (ratio > 1.5 ? ' warn' : '') }, isFinite(ratio) ? '×' + stFmt(ratio, 3) : '—'),
+        h('td', null, run.done ? h('button', { type: 'button', class: 'rt-btn', 'aria-label': 'Use ' + s.name + ' for ' + (e ? e.name : run.id), onclick: () => use(run, r) } , 'Use') : '')));
+    }
+    t2.append(b2);
+    card.append(h('div', { class: 'rt-ltwrap' }, t2));
+    card.append(h('p', { class: 'rt-lsub' }, 'A stock lens is only as its file describes it: check its maker’s specification before buying. Use puts it in the design (its shape, thickness, glass and diameter, and the air as optimised); Undo takes it back.'));
+  }
+  // the chosen stock lens into the design: its shape, thicknesses, glasses and diameter, and the air as optimised
+  function use(run, r) {
+    const q = r.prob.P, el = getEl(run.id), s = r.c.s;
+    edit(Pd => {
+      const d = run.d;
+      for (let j = 0; j < d.n; j++) Object.assign(Pd.surfaces[d.i0 + j], { R: q.surfaces[d.i0 + j].R, k: q.surfaces[d.i0 + j].k, a2: q.surfaces[d.i0 + j].a2, A: q.surfaces[d.i0 + j].A.slice(), odd: q.surfaces[d.i0 + j].odd, semi: s.dia / 2 });
+      for (let j = 0; j < d.n - 1; j++) { Pd.gaps[d.i0 + j] = q.gaps[d.i0 + j]; Pd.materials[d.i0 + j] = Object.assign({}, q.materials[d.i0 + j]); }
+      if (d.i0 > 0) Pd.gaps[d.i0 - 1] = q.gaps[d.i0 - 1];
+      if (d.i0 + d.n - 1 < Pd.gaps.length) Pd.gaps[d.i0 + d.n - 1] = q.gaps[d.i0 + d.n - 1];
+      if (isFinite(q.image)) Pd.image = q.image;
+      if (el) { el.diameter = s.dia; if (q.parts[d.pi].asph) el.asphere = true; }
+    });
+    RUN = null;
+    toast(s.name + ' is in the design in place of ' + (el ? el.name : 'the lens') + '.');
+  }
+  return card;
+}
 /* ==========================================================================
    The lens design workspace
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
@@ -25111,7 +25222,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -25374,7 +25485,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
 /* ---------- Lens data ---------- */
@@ -35773,6 +35884,109 @@ function thermalAnalysis(asm, P, temps, p, cteH) {
   return { p, cteH, nominal: nom, rows, drift: (up.focus - dn.focus) / (2 * h), eflDrift: (up.efl - dn.efl) / (2 * h), missing: [...missing] };
 }
 /* ==========================================================================
+   Stock lenses: a lens of a design swapped for one the user has (a lens file of theirs)
+   The user's own lens files are the stock: nothing is fetched or bundled. For a lens of the design:
+     - what it needs: its focal length alone in air (at the primary wavelength), its number of faces (a singlet
+       two, a cemented doublet three), and the beam's diameter on its faces (from the footprints);
+     - the stock that could do: the same number of faces, a focal length of the same sign within a share of it
+       (30% by default), wide enough for the beam; ranked by how near its focal length is, and its faces' curvatures
+       (as multiples of 1/f, either way round);
+     - each of the best tried either way round in the design: its shape, thicknesses and glasses put in, its first
+       vertex where the design's was, then the air either side of it and the image distance optimised for the
+       design's own merit (damped least squares), and that merit against the design's own lens with the same air
+       optimised.
+   ========================================================================== */
+const fOf = (surfaces, gaps, materials, nm) => {
+  const P = { surfaces: surfaces.map(s => ({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: s.A || [], odd: s.odd || null, semi: 1e3 })), gaps, materials, stopIndex: 0 };
+  return lensSystem(P, nm).par.efl;
+};
+const curv = R => (R === null || R === undefined || !isFinite(R) || !R ? 0 : 1 / R);
+/* a stock lens (a lens element, as a lens file reads) as matching sees it */
+function stockOf(el, nm) {
+  const f = fOf(el.surfaces, el.gaps, el.materials, nm);
+  return { el, name: el.name || 'Lens', n: el.surfaces.length, f, dia: el.diameter, c1: curv(el.surfaces[0].R), c2: curv(el.surfaces[el.surfaces.length - 1].R),
+    thick: el.gaps.reduce((a, b) => a + b, 0), glasses: el.materials.map(m => m.glass) };
+}
+/* the lenses of a design as matching sees them: each its part index, focal length, faces, curvatures and the beam's diameter */
+function designLenses(asm, P) {
+  const nm = asm.cond.waves[asm.cond.primary].nm, A = anaSystems(asm, P), FP = footprints(A, 11, 24), out = [];
+  let i0 = 0;
+  P.parts.forEach((p, pi) => {
+    if (p.kind === 'lens' && !p.diff && !p.grin) {
+      const S = P.surfaces.slice(i0, i0 + p.n), G = P.gaps.slice(i0, i0 + p.n - 1), M = P.materials.slice(i0, i0 + p.n - 1);
+      if (!S.some(s => s.cyl || (s.F && s.F.length))) {
+        const beam = Math.max(...FP.surfaces.slice(i0, i0 + p.n).map(u => u.beam));
+        out.push({ pi, i0, n: p.n, id: p.id, f: fOf(S, G, M, nm), c1: curv(S[0].R), c2: curv(S[p.n - 1].R), beam: 2 * beam, thick: G.reduce((a, b) => a + b, 0) });
+      }
+    }
+    i0 += p.n;
+  });
+  return out;
+}
+/* the stock that could stand in for lens d, best first: { s, score, flip (the way round its curvatures fit best) } */
+function stockCandidates(d, stock, opts) {
+  opts = opts || {};
+  const tol = opts.tol || 0.3, out = [];
+  for (const s of stock) {
+    if (s.n !== d.n || !isFinite(s.f) || Math.sign(s.f) !== Math.sign(d.f)) continue;
+    const df = Math.abs(s.f - d.f) / Math.abs(d.f);
+    if (df > tol || s.dia < d.beam * (1 - 1e-9)) continue;
+    const f = Math.abs(d.f), shape = flip => { const a = flip ? -s.c2 : s.c1, b = flip ? -s.c1 : s.c2; return Math.abs(a - d.c1) * f + Math.abs(b - d.c2) * f; };
+    const s0 = shape(false), s1 = shape(true);
+    out.push({ s, score: df + 0.25 * Math.min(s0, s1), flip: s1 < s0 });
+  }
+  return out.sort((a, b) => a.score - b.score).slice(0, opts.n || 8);
+}
+/* the design's problem with lens d swapped for stock s (turned round if flip), its variables the air either side and the
+   image distance */
+function stockTrial(prob, d, s, flip) {
+  const q = JSON.parse(JSON.stringify(prob)), P = q.P, N = P.surfaces.length, el = s.el;
+  let S = el.surfaces.map(t => ({ R: t.R === undefined ? null : t.R, k: t.k || 0, a2: t.a2 || 0, A: (t.A || []).slice(), odd: t.odd ? t.odd.slice() : null }));
+  let G = el.gaps.slice(), M = el.materials.map(m => Object.assign({}, m));
+  if (flip) {
+    S = S.reverse().map(t => ({ R: t.R === null || !isFinite(t.R) ? null : -t.R, k: t.k, a2: -t.a2, A: t.A.map(v => -v), odd: t.odd ? t.odd.map(v => -v) : null }));
+    G = G.reverse(); M = M.reverse();
+  }
+  S.forEach((t, j) => { Object.assign(P.surfaces[d.i0 + j], t, { semi: el.diameter / 2 }); if (!t.odd) delete P.surfaces[d.i0 + j].odd; });
+  G.forEach((g, j) => { P.gaps[d.i0 + j] = g; });
+  M.forEach((m, j) => { P.materials[d.i0 + j] = m; });
+  P.parts[d.pi].asph = S.some(t => t.k || t.a2 || t.A.some(v => v) || (t.odd && t.odd.some(v => v)));
+  q.design.vars = airAbout(q, d);
+  made(q);
+  return q;
+}
+// lenses as made: their glass's thickness, edges and aspheric departure are the maker's, not limits to hold;
+// only the air between lenses is kept from closing
+function made(q) { q.design.merit.bounds = Object.assign({}, q.design.merit.bounds, { glassMin: -1e9, glassMax: 0, edgeMin: -1e9, aspMax: 0, slopeMax: 0 }); }
+// the air either side of lens d and the image distance, as variables (those not solved or picked up)
+function airAbout(q, d) {
+  const P = q.P, N = P.surfaces.length, last = d.i0 + d.n - 1, keys = [];
+  if (d.i0 > 0 && P.materials[d.i0 - 1] && P.materials[d.i0 - 1].glass === 'AIR') keys.push('t:' + sidOf(P.surfaces[d.i0 - 1]));
+  if (last < N - 1 && P.materials[last] && P.materials[last].glass === 'AIR') keys.push('t:' + sidOf(P.surfaces[last]));
+  keys.push('t:image');
+  return keys.filter(k => !q.design.solves[k] && !q.design.pickups[k]);
+}
+/* the design's merit as it is, its lenses taken as made */
+function stockNominal(prob) { const q = JSON.parse(JSON.stringify(prob)); made(q); return meritReport(q).merit; }
+/* the design's own lens d, the same air about it optimised: what a stock lens is measured against */
+function stockBaseline(prob, d, iters) {
+  const q = JSON.parse(JSON.stringify(prob));
+  q.design.vars = airAbout(q, d);
+  made(q);
+  if (!q.design.vars.length) return { prob: q, merit: meritReport(q).merit };
+  const out = optRun(q, { mode: 'dls', iters: iters || 15 });
+  optApply(q.P, q, out, q.design);
+  return { prob: q, merit: out.merit };
+}
+/* stock s tried in the design for lens d: the merit once the air about it is optimised */
+function stockTry(prob, d, s, flip, iters) {
+  const q = stockTrial(prob, d, s, flip);
+  if (!q.design.vars.length) return { prob: q, merit: meritReport(q).merit, flip };
+  const out = optRun(q, { mode: 'dls', iters: iters || 15 });
+  optApply(q.P, q, out, q.design);
+  return { prob: q, merit: out.merit, flip };
+}
+/* ==========================================================================
    Tolerancing a lens design: how much worse it gets as it is made
    The design as solved is the nominal lens; each tolerance is a change made to it as a maker
    might make it, with nothing re-solved but the compensator:
@@ -42273,6 +42487,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Stock lenses</b> in lens design: add lens files you have (.zmx or .zar, such as lens makers publish for their parts; kept in your browser only) and the <b>Stock lenses</b> tab finds, for each lens of the design, those with the right focal length, faces and room for the beam, tries each in the design either way round with the air about it optimised, and ranks them by the design\u2019s merit; <b>Use</b> puts one in.',
     '<b>Export for CAD</b>: an assembly\u2019s panel exports its lenses, windows, mirrors and stops as solids for mechanical design, placed as the design has them (folds and tilts too): <b>Export for CAD (.step)</b> writes exact spheres and planes and each asphere as its profile turned, and <b>Export as a mesh (.stl)</b> the same in triangles.',
     '<b>Thermal analysis</b> in lens design: <b>Analyses \u203a Thermal</b> takes the design from one temperature to another, at any pressure, in an aluminium, steel, brass, titanium or Invar housing: each glass\u2019s index by its maker\u2019s thermal data (over 1,100 glasses) and the air\u2019s, the lenses growing with their glasses and the spacers and detector with the housing. It gives the focal length, the focus against the detector, each field\u2019s spot and the focus drift per kelvin.',
     '<b>Through-focus MTF</b> in lens design: <b>Analyses \u203a Through-focus MTF</b> plots the MTF at a frequency you choose, tangential and sagittal for each field, as the image plane moves along the axis, with the best focus and the depth of focus.',

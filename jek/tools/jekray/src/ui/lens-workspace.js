@@ -19,6 +19,7 @@ import { GR_N, grLabel } from '../core/gradient.js';
 import { analysesPanel } from './lens-analyses.js';
 import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
 import { drawingsCard } from './lens-drawing.js';
+import { stockCard } from './lens-stock.js';
 import { saveReport } from './lens-report.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
@@ -145,7 +146,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -408,7 +409,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
 /* ---------- Lens data ---------- */

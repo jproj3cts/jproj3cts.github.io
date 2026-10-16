@@ -3,11 +3,11 @@ layout: docs
 title: Lens
 permalink: /jek/docs/jekray/free-space/lens/
 redirect_from: /jek/docs/jekray2d/free-space/lens/
-description: The JEKray lens, any number of surfaces in real glass, with conic, aspheric and odd terms and coatings; singlets, doublets, aspheres, cylinders and axicons.
+description: The JEKray lens, any number of surfaces in real glass, with conic, aspheric and odd terms and coatings; singlets, doublets, aspheres, diffractive lenses, cylinders and axicons.
 element: { palette: Free space, type: lens }
 ---
 
-<p class="dx-lead">A lens is any number of refracting surfaces in real glass: a singlet, a cemented doublet or triplet, an asphere, a cylindrical lens or an axicon. Rays are traced through each surface exactly, and a beam takes the phase the real surfaces give it.</p>
+<p class="dx-lead">A lens is any number of refracting surfaces in real glass: a singlet, a cemented doublet or triplet, an asphere, a diffractive lens, a cylindrical lens or an axicon. Rays are traced through each surface exactly, and a beam takes the phase the real surfaces give it.</p>
 
 ## The model
 
@@ -32,6 +32,7 @@ Signs follow the usual optical convention along the lens's axis: $$R > 0$$ has i
 The presets build on this:
 
 - **Asphere:** a conic surface with $$k \ne 0$$.
+- **Diffractive lens:** a lens whose faces may carry a phase, $$\phi = c_1\rho^2 + c_2\rho^4 + \dots$$ radians, in one order of diffraction: it adds $$m\lambda\phi/2\pi$$ of path and bends rays by the phase's slope, with a power $$-m\lambda c_1/\pi$$ that grows with the wavelength. See [Lens design › Diffractive surfaces](/jek/docs/jekray/lens-design/#diffractive-surfaces).
 - **Axicon:** a flat surface with a first odd term $$\alpha_1 = \tan\beta$$, a cone of half-angle $$\beta$$.
 - **Cylindrical lens:** a lens with power in only one direction, either in the bench plane or out of it. Power out of the plane is flat to the rays, which stay in the plane, but rides along for the beam, the field and cavity matrices.
 

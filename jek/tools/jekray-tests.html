@@ -8900,6 +8900,24 @@ const TESTS = [
     },
   },
   {
+    name: 'Relative illumination: the Cooke triplet’s falls steadily across the field, and the view says what it is at the edge',
+    why: 'the published Cooke triplet’s Analyses › Relative illumination: a plot is drawn; 1 on the axis, falling at every step to the edge of the field, where it is between 85 and 95% (above cos⁴ of the chief ray, 80%, as the exit pupil seen from the edge of the image is not just the axial one tipped); the share of the pupil getting through never above 1; the text gives the edge value the engine gives (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Analyses', null, 'tab');
+        [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === 'Relative illumination').click();
+        const body = rigDoc().querySelector('#lensWs .rt-lanabody'), I = J.lensAnalysis('Cooke triplet', 'ri'), k = I.ri.length - 1;
+        const shape = Math.abs(I.ri[0] - 1) < 1e-9 && I.ri.every(v => v <= 1 + 1e-6) && I.ri[k] < I.ri[0];
+        const vigd = I.ri.every((v, j) => !j || v < I.ri[j - 1]) && I.ri[k] > 0.85 && I.ri[k] < 0.95 && I.vig.every(v => v <= 1 + 1e-9);
+        const said = body.textContent.includes('it is ' + String(+(100 * I.ri[k]).toPrecision(3)) + '%');
+        return !!body.querySelector('canvas') && shape && vigd && said ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Substitute glasses: a model glass becomes the catalogue glass that best takes out a doublet’s colour, and Undo takes it back',
     why: 'an air-spaced doublet (N-BK7, then a model glass at nd 1.62, Vd 36.4) aimed at f 100 mm and no axial colour, its second glass and two radii marked V: Optimise \u203a Substitute glasses, from Schott, ten candidates a glass, puts in a real flint (Vd under 45), the merit at least ten times lower; the table of what changed is shown; Undo brings back the model glass (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -22454,7 +22454,7 @@ function makeAssemblyRow(list) {
 const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -22496,6 +22496,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'long') longView(body, A, cached(key + '|long', () => longitudinal(A, 21)));
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
+  else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
@@ -22690,6 +22691,15 @@ function mtfView(body, A, M) {
   body.append(legend([['tangential', WAVE_COLOURS[0]], ['sagittal', WAVE_COLOURS[1], true], ['diffraction limit', '#666']]));
   const at = f => { const k = Math.min(v.length - 1, Math.round(f / v[v.length - 1] * (v.length - 1))); return anFmt(M.tan[k], 3) + ' / ' + anFmt(M.sag[k], 3); };
   body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF over the wavelengths, weighted, from the pupil’s autocorrelation; cutoff ' + anFmt(M.cutoff, 4) + ' cycles/mm at the primary wavelength. Tangential / sagittal at 10, 30 and 50 cycles/mm: ' + at(10) + ', ' + at(30) + ', ' + at(50) + '.'));
+}
+function riView(body, A, I) {
+  const g = I.degs, top = Math.max(...g) || 1, k = g.length - 1;
+  linePlot(body, { label: 'Relative illumination', x: { kind: 'plain', title: 'Field, ' + FU_WORD }, y: { kind: 'plain', title: 'Against the axis' }, xr: [0, top], yr: [0, 1.05],
+    series: [{ label: 'relative illumination', colour: WAVE_COLOURS[0], xs: g, ys: I.ri }, { label: 'unvignetted', colour: WAVE_COLOURS[1], dash: true, xs: g, ys: I.vig }, { label: 'cos⁴', colour: '#666', xs: g, ys: I.cos4 }],
+    xName: 'field', H: 280, csv: { name: 'relative illumination', cols: ['field (' + FU_CSV + ')', 'relative illumination', 'unvignetted share', 'cos4 of chief ray'], rows: () => g.map((v, j) => [v, I.ri[j], I.vig[j], I.cos4[j]]) } });
+  body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
+  body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
+    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
@@ -33219,6 +33229,55 @@ function fieldCurves(A, n) {
   return { degs, waves, dist };
 }
 
+/* ---------- Relative illumination ----------
+   How bright the image is across the field, against its centre, for a uniformly bright object (a scene, or an
+   object of even radiance). Radiance is kept through a lens (over n²), so the irradiance at an image point goes as
+   the projected solid angle its light arrives in: the exit pupil as the image point sees it, the area in the direction
+   cosines (L, M) across the image plane of the directions from the image point (where the chief ray lands) to where
+   each ray crosses the exit pupil's plane (so the bundle's own aberrations, which spread its rays' directions, do not
+   count). A grid across the stop (N cells to its diameter), each cell split in two triangles, each
+   triangle whose three rays all get through the stop and every clear radius counted with its area in (L, M);
+   summed, at each field, over the axis's. Vignetting is the share of the stop's grid that gets through.
+   With it, cos⁴ of the chief ray's angle to the image plane's normal: the natural fall-off of a lens without pupil
+   aberration, to set the result against. At the primary wavelength. */
+function relIllum(A, n, N) {
+  n = n || 21; N = N || 64;
+  const S = A.Sp, fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))), R = new Float64Array(8);
+  const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
+  const xpz = S.par.xpz, tele = !isFinite(xpz);
+  const one = g => {
+    const th = g * D2R, G = [], C0 = rayAt(S, th, 0, 0, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
+    let alive = 0, inside = 0;
+    for (let j = 0; j <= N; j++) {
+      const row = [];
+      for (let i = 0; i <= N; i++) {
+        const px = -1 + 2 * i / N, py = -1 + 2 * j / N;
+        if (px * px + py * py > 1 + 1e-12) { row.push(null); continue; }
+        inside++;
+        const r = rayAt(S, th, px, py, R);
+        if (r && r[7] === 0 && isFinite(r[3]) && ok0) {
+          // the direction from the image point (the chief ray's) to where this ray crosses the exit pupil's plane (an image-space
+          // telecentric lens: its own direction): the exit pupil as the image point sees it, the bundle's aberrations aside
+          if (tele || Math.abs(r[5]) < 1e-12) row.push([r[3], r[4]]);
+          else { const t = (xpz - r[2]) / r[5], X = r[0] + r[3] * t - C0[0], Y = r[1] + r[4] * t - C0[1], Z = xpz - C0[2], l = Math.hypot(X, Y, Z); row.push([X / l, Y / l]); }
+          alive++;
+        } else row.push(null);
+      }
+      G.push(row);
+    }
+    const tri = (a, b, c) => (a && b && c ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2 : 0);
+    let area = 0;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = G[j][i], b = G[j][i + 1], c = G[j + 1][i + 1], d = G[j + 1][i];
+      area += tri(a, b, c) + tri(a, c, d);
+    }
+    const C = rayAt(S, th, 0, 0, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
+    return { area, vig: inside ? alive / inside : 0, cos4: cz === null ? null : cz ** 4 };
+  };
+  const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
+  return { degs, ri: pts.map(p => p.area / a0), vig: pts.map(p => p.vig / v0), cos4: pts.map(p => p.cos4) };
+}
+
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */
 function longitudinal(A, n) {
   n = n || 21;
@@ -39704,6 +39763,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Relative illumination</b> in lens design: <b>Analyses \u203a Relative illumination</b> plots how bright the image is across the field against its centre, from the solid angle the exit pupil fills seen from each image point, with the vignetted rays left out; beside it, the share of the pupil getting through and cos\u2074 of the chief ray, and its numbers as CSV.',
     '<b>Yield</b> in tolerancing: set a specification (the criterion at most a figure, and any merit operand within limits) and Monte Carlo gives the share of its builds that meet it, with its range at 95% confidence and each part\u2019s own share; change the specification and it is worked out again from the same builds.',
     '<b>A lens\u2019s mechanical reference</b> in tolerancing: each lens tilts about its first vertex, its centre or its last vertex, where its cell holds it. And <b>surface decentre</b>: each surface moved on its own, as a cemented lens\u2019s parts glued off one another\u2019s axis; with surface wedge, a cemented interface is toleranced like any other face.',
     '<b>Compensators</b> in tolerancing: besides the refocus, add any air gap, or a lens\u2019s decentre or tilt, each with a range; for each build they are set, with the focus, to make it as good as it can be, as an assembler would adjust them. Sensitivity, Monte Carlo and inverse sensitivity all use them, and Monte Carlo reports how far each had to move.',
@@ -41557,6 +41617,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'ri') { const r = relIllum(A, 21, 64); return { degs: r.degs, ri: r.ri, vig: r.vig, cos4: r.cos4 }; }
       if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }
       return null; },
     lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },

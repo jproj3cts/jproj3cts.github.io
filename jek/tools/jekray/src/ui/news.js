@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Relative illumination</b> in lens design: <b>Analyses \u203a Relative illumination</b> plots how bright the image is across the field against its centre, from the solid angle the exit pupil fills seen from each image point, with the vignetted rays left out; beside it, the share of the pupil getting through and cos\u2074 of the chief ray, and its numbers as CSV.',
     '<b>Yield</b> in tolerancing: set a specification (the criterion at most a figure, and any merit operand within limits) and Monte Carlo gives the share of its builds that meet it, with its range at 95% confidence and each part\u2019s own share; change the specification and it is worked out again from the same builds.',
     '<b>A lens\u2019s mechanical reference</b> in tolerancing: each lens tilts about its first vertex, its centre or its last vertex, where its cell holds it. And <b>surface decentre</b>: each surface moved on its own, as a cemented lens\u2019s parts glued off one another\u2019s axis; with surface wedge, a cemented interface is toleranced like any other face.',
     '<b>Compensators</b> in tolerancing: besides the refocus, add any air gap, or a lens\u2019s decentre or tilt, each with a range; for each build they are set, with the focus, to make it as good as it can be, as an assembler would adjust them. Sensitivity, Monte Carlo and inverse sensitivity all use them, and Monte Carlo reports how far each had to move.',

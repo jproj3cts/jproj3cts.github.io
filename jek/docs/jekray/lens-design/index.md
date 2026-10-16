@@ -408,6 +408,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **Wavefront:** the wavefront error over the pupil, on a 48 × 48 grid, its piston taken out, with its RMS and peak to valley, and its first 16 fringe Zernike terms fitted by least squares.
 - **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so.
 - **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
+- **Relative illumination:** the image's brightness across the field against its centre, below.
 - **Seidel:** the third-order sums, below.
 - **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
 
@@ -431,6 +432,16 @@ the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$.
 - a published Cooke triplet (f 50 mm, f/5, fields to 20°), typed into the lens data cell by cell: its focal length and Seidel sums agree with an independent program's to 10⁻¹⁰;
 - the real rays in the third-order limit: $$S_I/8$$ is the edge ray's wavefront error at a small pupil, and $$S_V$$ the chief ray's distortion at a small field;
 - the ellipsoid that images perfectly, whose $$S_I$$ is 0.
+
+#### Relative illumination
+
+How bright the image of an even object is across the field, against its centre. The light reaching a point of the image comes from the exit pupil, so its irradiance goes as the solid angle the pupil fills, seen from that point, projected on the image plane:
+
+$$E \propto \int \cos	heta\,d\Omega = \iint dL\,dM,$$
+
+$$L$$ and $$M$$ the direction cosines across the image plane. For each field, from the axis to the largest, a 65 × 65 grid of rays across the entrance pupil is traced to the image; the direction from where the chief ray lands to where each ray crosses the plane of the exit pupil gives its $$(L, M)$$ (the ray's own direction when the design is telecentric), and the area these cover, over the triangles of the grid whose corners all get through, is the projected solid angle. The view shows that against the axis's, beside the share of the pupil that gets through (the vignetting) and $$\cos^4$$ of the chief ray's angle in image space, the usual rule of thumb, which it can fall below (vignetting) or rise above (the exit pupil seen from the edge of the image is not only the axial one tipped).
+
+**Checked against.** A stop and a singlet 15 mm behind it, at 20°, against each ray's own share of the image found the other way: a grid of rays across a plane wave, each ray's patch of the wave over the area it lands on (from how its landing point moves as the direction of the wave is tipped either way), summed. They agree within 1%, with the singlet wide enough to pass the whole pupil (when both are within 10% of $$\cos^4$$) and narrowed so that its edge cuts off over 40% of the pupil at the edge of the field.
 
 #### Ghosts
 

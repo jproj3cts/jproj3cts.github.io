@@ -1,5 +1,5 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
-import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
@@ -14,7 +14,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -56,6 +56,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'long') longView(body, A, cached(key + '|long', () => longitudinal(A, 21)));
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
+  else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
@@ -250,6 +251,15 @@ function mtfView(body, A, M) {
   body.append(legend([['tangential', WAVE_COLOURS[0]], ['sagittal', WAVE_COLOURS[1], true], ['diffraction limit', '#666']]));
   const at = f => { const k = Math.min(v.length - 1, Math.round(f / v[v.length - 1] * (v.length - 1))); return anFmt(M.tan[k], 3) + ' / ' + anFmt(M.sag[k], 3); };
   body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF over the wavelengths, weighted, from the pupil’s autocorrelation; cutoff ' + anFmt(M.cutoff, 4) + ' cycles/mm at the primary wavelength. Tangential / sagittal at 10, 30 and 50 cycles/mm: ' + at(10) + ', ' + at(30) + ', ' + at(50) + '.'));
+}
+function riView(body, A, I) {
+  const g = I.degs, top = Math.max(...g) || 1, k = g.length - 1;
+  linePlot(body, { label: 'Relative illumination', x: { kind: 'plain', title: 'Field, ' + FU_WORD }, y: { kind: 'plain', title: 'Against the axis' }, xr: [0, top], yr: [0, 1.05],
+    series: [{ label: 'relative illumination', colour: WAVE_COLOURS[0], xs: g, ys: I.ri }, { label: 'unvignetted', colour: WAVE_COLOURS[1], dash: true, xs: g, ys: I.vig }, { label: 'cos⁴', colour: '#666', xs: g, ys: I.cos4 }],
+    xName: 'field', H: 280, csv: { name: 'relative illumination', cols: ['field (' + FU_CSV + ')', 'relative illumination', 'unvignetted share', 'cos4 of chief ray'], rows: () => g.map((v, j) => [v, I.ri[j], I.vig[j], I.cos4[j]]) } });
+  body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
+  body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
+    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];

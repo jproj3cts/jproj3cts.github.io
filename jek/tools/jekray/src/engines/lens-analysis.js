@@ -109,6 +109,55 @@ export function fieldCurves(A, n) {
   return { degs, waves, dist };
 }
 
+/* ---------- Relative illumination ----------
+   How bright the image is across the field, against its centre, for a uniformly bright object (a scene, or an
+   object of even radiance). Radiance is kept through a lens (over n²), so the irradiance at an image point goes as
+   the projected solid angle its light arrives in: the exit pupil as the image point sees it, the area in the direction
+   cosines (L, M) across the image plane of the directions from the image point (where the chief ray lands) to where
+   each ray crosses the exit pupil's plane (so the bundle's own aberrations, which spread its rays' directions, do not
+   count). A grid across the stop (N cells to its diameter), each cell split in two triangles, each
+   triangle whose three rays all get through the stop and every clear radius counted with its area in (L, M);
+   summed, at each field, over the axis's. Vignetting is the share of the stop's grid that gets through.
+   With it, cos⁴ of the chief ray's angle to the image plane's normal: the natural fall-off of a lens without pupil
+   aberration, to set the result against. At the primary wavelength. */
+export function relIllum(A, n, N) {
+  n = n || 21; N = N || 64;
+  const S = A.Sp, fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))), R = new Float64Array(8);
+  const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
+  const xpz = S.par.xpz, tele = !isFinite(xpz);
+  const one = g => {
+    const th = g * D2R, G = [], C0 = rayAt(S, th, 0, 0, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
+    let alive = 0, inside = 0;
+    for (let j = 0; j <= N; j++) {
+      const row = [];
+      for (let i = 0; i <= N; i++) {
+        const px = -1 + 2 * i / N, py = -1 + 2 * j / N;
+        if (px * px + py * py > 1 + 1e-12) { row.push(null); continue; }
+        inside++;
+        const r = rayAt(S, th, px, py, R);
+        if (r && r[7] === 0 && isFinite(r[3]) && ok0) {
+          // the direction from the image point (the chief ray's) to where this ray crosses the exit pupil's plane (an image-space
+          // telecentric lens: its own direction): the exit pupil as the image point sees it, the bundle's aberrations aside
+          if (tele || Math.abs(r[5]) < 1e-12) row.push([r[3], r[4]]);
+          else { const t = (xpz - r[2]) / r[5], X = r[0] + r[3] * t - C0[0], Y = r[1] + r[4] * t - C0[1], Z = xpz - C0[2], l = Math.hypot(X, Y, Z); row.push([X / l, Y / l]); }
+          alive++;
+        } else row.push(null);
+      }
+      G.push(row);
+    }
+    const tri = (a, b, c) => (a && b && c ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2 : 0);
+    let area = 0;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = G[j][i], b = G[j][i + 1], c = G[j + 1][i + 1], d = G[j + 1][i];
+      area += tri(a, b, c) + tri(a, c, d);
+    }
+    const C = rayAt(S, th, 0, 0, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
+    return { area, vig: inside ? alive / inside : 0, cos4: cz === null ? null : cz ** 4 };
+  };
+  const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
+  return { degs, ri: pts.map(p => p.area / a0), vig: pts.map(p => p.vig / v0), cos4: pts.map(p => p.cos4) };
+}
+
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */
 export function longitudinal(A, n) {
   n = n || 21;

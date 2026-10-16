@@ -98,8 +98,21 @@ export function normDesign(d) {
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
   const mc = normMc(d.mc);
-  const found = normFound(d.found);
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}) };
+  const found = normFound(d.found), lims = normLims(d.lims);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}), ...(lims ? { lims } : {}) };
+}
+/* limits on values marked V: by key (and /nd or /vd for a model glass's), a least and a greatest, either or both */
+export function normLims(L) {
+  if (!L || typeof L !== 'object') return null;
+  const out = {};
+  for (const id of Object.keys(L).slice(0, 500)) {
+    const m = L[id], [k, part] = id.split('/');
+    if (!okKey(k) || (part !== undefined && part !== 'nd' && part !== 'vd') || !m || typeof m !== 'object') continue;
+    const lo = m.lo === null || m.lo === undefined || m.lo === '' || !isFinite(+m.lo) ? null : clamp(+m.lo, -1e6, 1e6), hi = m.hi === null || m.hi === undefined || m.hi === '' || !isFinite(+m.hi) ? null : clamp(+m.hi, -1e6, 1e6);
+    if (lo === null && hi === null) continue;
+    out[id] = lo !== null && hi !== null && lo > hi ? { lo: hi, hi: lo } : Object.assign({}, lo !== null ? { lo } : {}, hi !== null ? { hi } : {});
+  }
+  return Object.keys(out).length ? out : null;
 }
 /* designs kept from a global search (or by hand): each its variables (key, which part of a model glass, which
    configuration) and their values, its merit when found, and when; ten at most, best first */

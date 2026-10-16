@@ -1,4 +1,4 @@
-import { ASPH_ORDERS, asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_AT_FIELD, MERIT_AT_FREQ, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
+import { ASM_FIELDS_MAX, ASM_WAVES_MAX, ASPH_ORDERS, MERIT_AT_FIELD, MERIT_AT_FREQ, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS, asmAxisAt, asmCheck, asmMembers, normCond, normLims, normMerit } from '../core/assembly.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -8,7 +8,7 @@ import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
-import { FOUND_MAX, GLASS_MAKERS, glassCandidates, isModel, keepFound, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
+import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, keepFound, limitKey, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
@@ -878,8 +878,39 @@ function substBatch(O, asm, prob) {
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(p, run));
   else hooks.fwRequest('lensopt', 'lensopt', { prob: p, run }).then(o => take(o && o.out)).catch(() => take(null));
 }
+/* each variable, its value now, and the least and greatest the optimiser may take it to */
+function limitsCard(asm, prob, V, running) {
+  const L = designOf(asm).lims || {}, x = optValues(prob), at = atLimits(prob, V, x), tb = h('tbody');
+  const setLim = (id, side, txt) => edit((PP, a) => {
+    const dd = designOf(a), all = Object.assign({}, dd.lims || {}), cur = Object.assign({}, all[id] || {}), t = String(txt).trim();
+    if (t === '') delete cur[side]; else { const n = parseNum(t); if (n === null) return 'Not a number: ' + t; cur[side] = n; }
+    all[id] = cur;
+    const L2 = normLims(all), R = PP && limitBad(prob.P, id, L2 && L2[id]);
+    if (R) return R;
+    if (L2) dd.lims = L2; else delete dd.lims;
+    return false;
+  });
+  V.forEach((v, j) => {
+    const id = limitKey(v), m = L[id] || {}, can = LIMITED(v.at.q) && v.cfg === undefined, name = foundLabel({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg });
+    const box = side => can ? h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: isFinite(m[side]) ? wsFmt(m[side]) : '', placeholder: 'none', 'aria-label': (side === 'lo' ? 'Least ' : 'Greatest ') + name, disabled: running ? '' : null,
+      onchange: e => setLim(id, side, e.target.value) }) : h('span', { class: 'rt-lsub' }, '\u2014');
+    tb.append(h('tr', { class: at[j] ? 'on' : '' }, h('td', null, name), h('td', { class: 'mono' }, foundVal({ k: v.k, part: v.part || null }, x[j])), h('td', null, box('lo')), h('td', null, box('hi')),
+      h('td', { class: 'rt-lsub' }, at[j] ? 'at its limit' : '')));
+  });
+  const det = h('details', { class: 'rt-llims' }, h('summary', null, 'Limits on the variables' + (Object.keys(L).length ? ' (' + Object.keys(L).length + ' set)' : '')),
+    h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
+    h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
+  if (WS.limsOpen || Object.keys(L).length) det.open = true;
+  det.addEventListener('toggle', () => { WS.limsOpen = det.open; });
+  return det;
+}
+/* why a radius's limits can't be kept (two of opposite signs), or null */
+function limitBad(P, id, m) {
+  if (!m || id[0] !== 'R' || !isFinite(m.lo) || !isFinite(m.hi)) return null;
+  return m.lo * m.hi <= 0 ? 'A radius\u2019s two limits must be of one sign: a radius between them would pass through flat' : null;
+}
 /* a kept value as the lens data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
-const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? m[2] + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
+const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? ((getEl(m[2]) || {}).name || m[2]) + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
 const foundVal = (v, x) => v.k[0] === 'R' && !v.part ? (Math.abs(x) < 1e-12 ? 'flat' : wsFmt(1 / x, 5)) : wsFmt(x, 5);
 /* the designs kept: those the global search found (the best distinct ones), and any kept by hand; each can be
    put back, its variables' values as they were, the rest of the design as it is now */
@@ -912,6 +943,7 @@ function optCard(asm, P) {
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
   const count = q => V.filter(v => v.at.q === q && v.part !== 'vd').length;
   card.append(h('p', null, 'Variables: ', h('b', null, String(V.length)), V.length ? ' (radii ' + count('R') + ', thicknesses ' + count('t') + ', conics ' + count('k') + (count('g') ? ', model glasses ' + count('g') + ', each its nd and Vd' : '') + ')' : ' — mark values V in the lens data.'));
+  if (V.length) card.append(limitsCard(asm, prob, V, running));
   WS.method = WS.method || 'dls';
   const radio = (k, label, t) => h('button', { type: 'button', role: 'radio', class: 'rt-ltab', 'aria-checked': String(WS.method === k), 'aria-selected': String(WS.method === k), title: t, disabled: running ? '' : null, onclick: () => { WS.method = k; renderWs(); } }, label);
   card.append(h('div', { class: 'rt-ltabs', role: 'radiogroup', 'aria-label': 'Method' },

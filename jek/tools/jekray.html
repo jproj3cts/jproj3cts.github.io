@@ -5325,8 +5325,21 @@ function normDesign(d) {
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
   const mc = normMc(d.mc);
-  const found = normFound(d.found);
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}) };
+  const found = normFound(d.found), lims = normLims(d.lims);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}), ...(lims ? { lims } : {}) };
+}
+/* limits on values marked V: by key (and /nd or /vd for a model glass's), a least and a greatest, either or both */
+function normLims(L) {
+  if (!L || typeof L !== 'object') return null;
+  const out = {};
+  for (const id of Object.keys(L).slice(0, 500)) {
+    const m = L[id], [k, part] = id.split('/');
+    if (!okKey(k) || (part !== undefined && part !== 'nd' && part !== 'vd') || !m || typeof m !== 'object') continue;
+    const lo = m.lo === null || m.lo === undefined || m.lo === '' || !isFinite(+m.lo) ? null : clamp(+m.lo, -1e6, 1e6), hi = m.hi === null || m.hi === undefined || m.hi === '' || !isFinite(+m.hi) ? null : clamp(+m.hi, -1e6, 1e6);
+    if (lo === null && hi === null) continue;
+    out[id] = lo !== null && hi !== null && lo > hi ? { lo: hi, hi: lo } : Object.assign({}, lo !== null ? { lo } : {}, hi !== null ? { hi } : {});
+  }
+  return Object.keys(out).length ? out : null;
 }
 /* designs kept from a global search (or by hand): each its variables (key, which part of a model glass, which
    configuration) and their values, its merit when found, and when; ten at most, best first */
@@ -24193,8 +24206,39 @@ function substBatch(O, asm, prob) {
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(p, run));
   else hooks.fwRequest('lensopt', 'lensopt', { prob: p, run }).then(o => take(o && o.out)).catch(() => take(null));
 }
+/* each variable, its value now, and the least and greatest the optimiser may take it to */
+function limitsCard(asm, prob, V, running) {
+  const L = designOf(asm).lims || {}, x = optValues(prob), at = atLimits(prob, V, x), tb = h('tbody');
+  const setLim = (id, side, txt) => edit((PP, a) => {
+    const dd = designOf(a), all = Object.assign({}, dd.lims || {}), cur = Object.assign({}, all[id] || {}), t = String(txt).trim();
+    if (t === '') delete cur[side]; else { const n = parseNum(t); if (n === null) return 'Not a number: ' + t; cur[side] = n; }
+    all[id] = cur;
+    const L2 = normLims(all), R = PP && limitBad(prob.P, id, L2 && L2[id]);
+    if (R) return R;
+    if (L2) dd.lims = L2; else delete dd.lims;
+    return false;
+  });
+  V.forEach((v, j) => {
+    const id = limitKey(v), m = L[id] || {}, can = LIMITED(v.at.q) && v.cfg === undefined, name = foundLabel({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg });
+    const box = side => can ? h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: isFinite(m[side]) ? wsFmt(m[side]) : '', placeholder: 'none', 'aria-label': (side === 'lo' ? 'Least ' : 'Greatest ') + name, disabled: running ? '' : null,
+      onchange: e => setLim(id, side, e.target.value) }) : h('span', { class: 'rt-lsub' }, '\u2014');
+    tb.append(h('tr', { class: at[j] ? 'on' : '' }, h('td', null, name), h('td', { class: 'mono' }, foundVal({ k: v.k, part: v.part || null }, x[j])), h('td', null, box('lo')), h('td', null, box('hi')),
+      h('td', { class: 'rt-lsub' }, at[j] ? 'at its limit' : '')));
+  });
+  const det = h('details', { class: 'rt-llims' }, h('summary', null, 'Limits on the variables' + (Object.keys(L).length ? ' (' + Object.keys(L).length + ' set)' : '')),
+    h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
+    h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
+  if (WS.limsOpen || Object.keys(L).length) det.open = true;
+  det.addEventListener('toggle', () => { WS.limsOpen = det.open; });
+  return det;
+}
+/* why a radius's limits can't be kept (two of opposite signs), or null */
+function limitBad(P, id, m) {
+  if (!m || id[0] !== 'R' || !isFinite(m.lo) || !isFinite(m.hi)) return null;
+  return m.lo * m.hi <= 0 ? 'A radius\u2019s two limits must be of one sign: a radius between them would pass through flat' : null;
+}
 /* a kept value as the lens data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
-const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? m[2] + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
+const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? ((getEl(m[2]) || {}).name || m[2]) + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
 const foundVal = (v, x) => v.k[0] === 'R' && !v.part ? (Math.abs(x) < 1e-12 ? 'flat' : wsFmt(1 / x, 5)) : wsFmt(x, 5);
 /* the designs kept: those the global search found (the best distinct ones), and any kept by hand; each can be
    put back, its variables' values as they were, the rest of the design as it is now */
@@ -24227,6 +24271,7 @@ function optCard(asm, P) {
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
   const count = q => V.filter(v => v.at.q === q && v.part !== 'vd').length;
   card.append(h('p', null, 'Variables: ', h('b', null, String(V.length)), V.length ? ' (radii ' + count('R') + ', thicknesses ' + count('t') + ', conics ' + count('k') + (count('g') ? ', model glasses ' + count('g') + ', each its nd and Vd' : '') + ')' : ' — mark values V in the lens data.'));
+  if (V.length) card.append(limitsCard(asm, prob, V, running));
   WS.method = WS.method || 'dls';
   const radio = (k, label, t) => h('button', { type: 'button', role: 'radio', class: 'rt-ltab', 'aria-checked': String(WS.method === k), 'aria-selected': String(WS.method === k), title: t, disabled: running ? '' : null, onclick: () => { WS.method = k; renderWs(); } }, label);
   card.append(h('div', { class: 'rt-ltabs', role: 'radiogroup', 'aria-label': 'Method' },
@@ -32680,7 +32725,8 @@ function solveSym(A, b, n) {
 }
 function evalAt(prob, V, x) { const P = designAt(prob, V, x), T = meritTerms(prob, P); return T; }
 function dls(prob, V, x0, iters, lambda0) {
-  let x = Float64Array.from(x0), T = evalAt(prob, V, x), lambda = lambda0 || 1e-3, it = 0, done = false, still = 0, trust = 1;
+  const Lm = limitsX(prob, V);
+  let x = clampX(Float64Array.from(x0), Lm), T = evalAt(prob, V, x), lambda = lambda0 || 1e-3, it = 0, done = false, still = 0, trust = 1;
   const n = V.length;
   if (!n) return { x, ss: T.ss, Wt: T.Wt, lambda, iters: 0, done: true };
   for (; it < iters && !done; it++) {
@@ -32698,6 +32744,11 @@ function dls(prob, V, x0, iters, lambda0) {
       for (let b = 0; b <= a; b++) { let s = 0; const ca = J[a], cb = J[b]; for (let q = 0; q < m; q++) s += ca[q] * cb[q]; A[a * n + b] = A[b * n + a] = s; }
       let s = 0; for (let q = 0; q < m; q++) s += J[a][q] * T.r[q]; g[a] = -s;
     }
+    // a value on a limit that the descent would take past it is held where it is for this step (the active set):
+    // pushed against its limit it gains nothing, and would keep the steps from settling
+    const held = new Uint8Array(n);
+    for (let a = 0; a < n; a++) if ((x[a] <= Lm.lo[a] && g[a] < 0) || (x[a] >= Lm.hi[a] && g[a] > 0)) held[a] = 1;
+    for (let a = 0; a < n; a++) if (held[a]) { for (let b = 0; b < n; b++) A[a * n + b] = A[b * n + a] = 0; A[a * n + a] = 1; g[a] = 0; }
     let took = false, capped = false;
     for (let tries = 0; tries < 10; tries++) {
       const Ad = Float64Array.from(A);
@@ -32713,6 +32764,7 @@ function dls(prob, V, x0, iters, lambda0) {
         if (capped) for (let a = 0; a < n; a++) d[a] *= sc;
         const xn = Float64Array.from(x);
         for (let a = 0; a < n; a++) xn[a] += d[a];
+        clampX(xn, Lm);                              // and none past a limit set on a value
         const Tn = evalAt(prob, V, xn);
         if (Tn.ss < T.ss) {
           const gain = (T.ss - Tn.ss) / T.ss;
@@ -32753,6 +32805,7 @@ function globalSearch(prob, V, best, trials, seed) {
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });
+    clampX(x, limitsX(prob, V));
     const D = dls(prob, V, x, 25);
     out.tried++;
     keepFound(out.found, { x: Array.from(D.x), merit: Math.sqrt(D.ss / D.Wt) });
@@ -32888,6 +32941,39 @@ function keepFound(list, item, n) {
   list.sort((a, b) => a.merit - b.merit);
   list.length = Math.min(list.length, n || FOUND_MAX);
   return list;
+}
+
+/* ---------- Limits on values ----------
+   A value marked V may be given a least and a greatest value (design.lims, by its key, and for a model glass
+   its key and /nd or /vd), in the units the lens data shows: a radius, a thickness or gap, the image distance,
+   a conic, a tilt or decentre, a glass's nd or Vd. The optimiser never takes it past them. A radius is varied as
+   its curvature, so a radius limited keeps the sign of its limits: between two of one sign, or one alone on
+   its own side of flat (at least 20: 20 ≤ R, out to flat; at most 20: 0 < R ≤ 20; at least -20: -20 ≤ R < 0;
+   at most -20: R ≤ -20, out to flat). */
+const limitKey = v => v.k + (v.part ? '/' + v.part : '');
+const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g';
+/* each variable's limits in the optimiser's own terms (a radius's as curvatures): [lo, hi] arrays */
+function limitsX(prob, V) {
+  const L = prob.design.lims || {}, lo = new Float64Array(V.length).fill(-Infinity), hi = new Float64Array(V.length).fill(Infinity);
+  V.forEach((v, j) => {
+    const m = L[limitKey(v)];
+    if (!m || !LIMITED(v.at.q)) return;
+    const a = isFinite(m.lo) ? m.lo : null, b = isFinite(m.hi) ? m.hi : null;
+    if (v.at.q !== 'R') { if (a !== null) lo[j] = a; if (b !== null) hi[j] = b; return; }
+    // a radius: curvature between the reciprocals, on the side of the limits' sign
+    if (a !== null && b !== null) { if (a * b <= 0) return; lo[j] = Math.min(1 / a, 1 / b); hi[j] = Math.max(1 / a, 1 / b); }
+    else if (a !== null && a > 0) { lo[j] = 0; hi[j] = 1 / a; }            // R ≥ a > 0
+    else if (a !== null && a < 0) { hi[j] = 1 / a; }                       // a ≤ R < 0: curvature at most 1/a
+    else if (b !== null && b > 0) { lo[j] = 1 / b; }                       // 0 < R ≤ b
+    else if (b !== null && b < 0) { lo[j] = 1 / b; hi[j] = 0; }            // R ≤ b < 0
+  });
+  return { lo, hi };
+}
+function clampX(x, L) { for (let j = 0; j < x.length; j++) x[j] = Math.min(L.hi[j], Math.max(L.lo[j], x[j])); return x; }
+/* which variables are at a limit (within a part in 10⁶ of it): for the table */
+function atLimits(prob, V, x) {
+  const L = limitsX(prob, V);
+  return V.map((v, j) => { const e = 1e-6 * (Math.abs(x[j]) + 1e-6); return x[j] <= L.lo[j] + e ? (v.at.q === 'R' ? 'curv-lo' : 'lo') : x[j] >= L.hi[j] - e ? (v.at.q === 'R' ? 'curv-hi' : 'hi') : null; });
 }
 /* ==========================================================================
    Analyses of a lens design
@@ -39336,6 +39422,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',
     '<b>Designs kept</b> in lens design: a global search keeps the ten best distinct designs it finds, not only the best, saved with the design; <b>Use</b> puts any of them back, and <b>Keep this design</b> adds the design as it is now, to come back to.',
     '<b>Substitute glasses</b> in lens design: a third way to optimise, it tries each glass marked V as the real glasses nearest it on the glass map (from the makers you tick, each transmitting at every wavelength of the design), optimises the rest of the design again with each, and keeps the best, glass by glass, pass after pass, until nothing does better.',
     '<b>Ghosts in lens design</b>: <b>Analyses \u203a Ghosts</b> lists every ghost of a design, light reflected by one surface and sent on by an earlier one, each with its reflectances (a coating\u2019s, or bare glass\u2019s), the share of the light reaching the image, where it focuses, its size on the image and how bright it is against the image, the brightest first. A ghost that focuses within a millimetre of a surface or in glass is marked. Choose one and its rays are drawn in the layout.',

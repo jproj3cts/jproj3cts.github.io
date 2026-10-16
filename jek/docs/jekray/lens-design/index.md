@@ -216,12 +216,15 @@ Mark the values the optimiser may change with **V** in the lens data: radii, thi
 
 Both run in the page's background worker, a few cycles or trials at a time, and the design (and its parts on the bench) changes as they go. **Undo** takes it all back. Changing the design by hand stops a run.
 
+**Limits on the variables.** Under **Limits on the variables** in the Optimise tab, each value marked V has a least and a greatest the optimiser may take it to, either or both, in the units the lens data shows (radii, thicknesses, gaps, the image distance and decentres in mm, tilts in degrees, a conic, a model glass's nd and Vd). Every method keeps to them: a step that would go past one stops at it, a global search's shaken starts are brought back inside, and a design started outside is brought to the nearest limit first. A value sitting on a limit is marked in the table. A radius is varied as its curvature, so a radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat); two of opposite signs are refused, since a radius between them passes through flat. Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits. The limits are saved with the design.
+
 **Designs kept.** A global search keeps the ten best distinct designs it reaches, best first, not only the best: a design a little worse may be easier to make, or better where the merit function does not look. Two designs are the same when every variable is within a part in 10³ (an optimiser reaching one minimum twice, not quite to its bottom, keeps it once). They are listed under **Designs kept**, each with its merit when kept, where it came from and its first values, and are saved with the design. **Use** puts one back, its variables' values as they were and the rest of the design as it is now; Undo takes them out again. **Keep this design** adds the design as it is now (to come back to after trying something), and **Remove** and **Clear the list** tidy it. A design's merit is the one it had when kept, under the merit function then; one kept with other variables than now puts back those that still are.
 
 **Checked against.**
 - a singlet bent for least spherical aberration: the shape the third-order closed form gives, $$(R_2+R_1)/(R_2-R_1) = 2(n^2-1)/(n+2)$$, and the bottom of a fine scan of its merit;
 - a Cooke triplet with its radii spoilt by up to 30%: optimised back to at least as good as the published design, its focal length kept;
 - a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint;
+- a singlet whose best bending is out of bounds: optimised, its front radius ends exactly on its limit, the focal length still met, and nothing a little further inside does better; a global search's designs all inside their limits;
 - a global search on a triplet: the designs it keeps are distinct, the best is its result, and each put back has the merit it was kept with, to 10⁻⁹; they come back from a saved file.
 
 ### Aspheric surfaces

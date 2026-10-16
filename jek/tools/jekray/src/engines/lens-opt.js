@@ -284,7 +284,8 @@ function solveSym(A, b, n) {
 }
 function evalAt(prob, V, x) { const P = designAt(prob, V, x), T = meritTerms(prob, P); return T; }
 export function dls(prob, V, x0, iters, lambda0) {
-  let x = Float64Array.from(x0), T = evalAt(prob, V, x), lambda = lambda0 || 1e-3, it = 0, done = false, still = 0, trust = 1;
+  const Lm = limitsX(prob, V);
+  let x = clampX(Float64Array.from(x0), Lm), T = evalAt(prob, V, x), lambda = lambda0 || 1e-3, it = 0, done = false, still = 0, trust = 1;
   const n = V.length;
   if (!n) return { x, ss: T.ss, Wt: T.Wt, lambda, iters: 0, done: true };
   for (; it < iters && !done; it++) {
@@ -302,6 +303,11 @@ export function dls(prob, V, x0, iters, lambda0) {
       for (let b = 0; b <= a; b++) { let s = 0; const ca = J[a], cb = J[b]; for (let q = 0; q < m; q++) s += ca[q] * cb[q]; A[a * n + b] = A[b * n + a] = s; }
       let s = 0; for (let q = 0; q < m; q++) s += J[a][q] * T.r[q]; g[a] = -s;
     }
+    // a value on a limit that the descent would take past it is held where it is for this step (the active set):
+    // pushed against its limit it gains nothing, and would keep the steps from settling
+    const held = new Uint8Array(n);
+    for (let a = 0; a < n; a++) if ((x[a] <= Lm.lo[a] && g[a] < 0) || (x[a] >= Lm.hi[a] && g[a] > 0)) held[a] = 1;
+    for (let a = 0; a < n; a++) if (held[a]) { for (let b = 0; b < n; b++) A[a * n + b] = A[b * n + a] = 0; A[a * n + a] = 1; g[a] = 0; }
     let took = false, capped = false;
     for (let tries = 0; tries < 10; tries++) {
       const Ad = Float64Array.from(A);
@@ -317,6 +323,7 @@ export function dls(prob, V, x0, iters, lambda0) {
         if (capped) for (let a = 0; a < n; a++) d[a] *= sc;
         const xn = Float64Array.from(x);
         for (let a = 0; a < n; a++) xn[a] += d[a];
+        clampX(xn, Lm);                              // and none past a limit set on a value
         const Tn = evalAt(prob, V, xn);
         if (Tn.ss < T.ss) {
           const gain = (T.ss - Tn.ss) / T.ss;
@@ -357,6 +364,7 @@ export function globalSearch(prob, V, best, trials, seed) {
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });
+    clampX(x, limitsX(prob, V));
     const D = dls(prob, V, x, 25);
     out.tried++;
     keepFound(out.found, { x: Array.from(D.x), merit: Math.sqrt(D.ss / D.Wt) });
@@ -492,4 +500,37 @@ export function keepFound(list, item, n) {
   list.sort((a, b) => a.merit - b.merit);
   list.length = Math.min(list.length, n || FOUND_MAX);
   return list;
+}
+
+/* ---------- Limits on values ----------
+   A value marked V may be given a least and a greatest value (design.lims, by its key, and for a model glass
+   its key and /nd or /vd), in the units the lens data shows: a radius, a thickness or gap, the image distance,
+   a conic, a tilt or decentre, a glass's nd or Vd. The optimiser never takes it past them. A radius is varied as
+   its curvature, so a radius limited keeps the sign of its limits: between two of one sign, or one alone on
+   its own side of flat (at least 20: 20 ≤ R, out to flat; at most 20: 0 < R ≤ 20; at least -20: -20 ≤ R < 0;
+   at most -20: R ≤ -20, out to flat). */
+export const limitKey = v => v.k + (v.part ? '/' + v.part : '');
+export const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g';
+/* each variable's limits in the optimiser's own terms (a radius's as curvatures): [lo, hi] arrays */
+export function limitsX(prob, V) {
+  const L = prob.design.lims || {}, lo = new Float64Array(V.length).fill(-Infinity), hi = new Float64Array(V.length).fill(Infinity);
+  V.forEach((v, j) => {
+    const m = L[limitKey(v)];
+    if (!m || !LIMITED(v.at.q)) return;
+    const a = isFinite(m.lo) ? m.lo : null, b = isFinite(m.hi) ? m.hi : null;
+    if (v.at.q !== 'R') { if (a !== null) lo[j] = a; if (b !== null) hi[j] = b; return; }
+    // a radius: curvature between the reciprocals, on the side of the limits' sign
+    if (a !== null && b !== null) { if (a * b <= 0) return; lo[j] = Math.min(1 / a, 1 / b); hi[j] = Math.max(1 / a, 1 / b); }
+    else if (a !== null && a > 0) { lo[j] = 0; hi[j] = 1 / a; }            // R ≥ a > 0
+    else if (a !== null && a < 0) { hi[j] = 1 / a; }                       // a ≤ R < 0: curvature at most 1/a
+    else if (b !== null && b > 0) { lo[j] = 1 / b; }                       // 0 < R ≤ b
+    else if (b !== null && b < 0) { lo[j] = 1 / b; hi[j] = 0; }            // R ≤ b < 0
+  });
+  return { lo, hi };
+}
+export function clampX(x, L) { for (let j = 0; j < x.length; j++) x[j] = Math.min(L.hi[j], Math.max(L.lo[j], x[j])); return x; }
+/* which variables are at a limit (within a part in 10⁶ of it): for the table */
+export function atLimits(prob, V, x) {
+  const L = limitsX(prob, V);
+  return V.map((v, j) => { const e = 1e-6 * (Math.abs(x[j]) + 1e-6); return x[j] <= L.lo[j] + e ? (v.at.q === 'R' ? 'curv-lo' : 'lo') : x[j] >= L.hi[j] - e ? (v.at.q === 'R' ? 'curv-hi' : 'hi') : null; });
 }

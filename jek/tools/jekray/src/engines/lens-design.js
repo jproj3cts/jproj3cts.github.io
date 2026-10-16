@@ -46,7 +46,7 @@ export function editable(P, q, i) {
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
-  if (q[0] === 'a') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
@@ -56,6 +56,7 @@ export function getV(P, at) {
   if (at.q === 'R') return P.surfaces[at.i].R;
   if (at.q === 'k') return P.surfaces[at.i].k;
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
+  if (at.q[0] === 'f') { const F = P.surfaces[at.i].F; return F && F[at.q.slice(1)] || 0; }
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
@@ -92,6 +93,7 @@ export function setV(P, at, v) {
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
+  else if (at.q[0] === 'f') { const s = P.surfaces[at.i], F = Object.assign({}, s.F || {}); F[at.q.slice(1)] = isFinite(v) ? v : 0; s.F = F; }
   else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
     const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
@@ -110,6 +112,8 @@ export function surfSag(s, h) {
   for (const a of s.A || []) { v += a * p; p *= r2; }
   let q = h;
   for (const o of s.odd || []) { v += o * q; q *= h; }
+  // a freeform's terms in the plane of the fields (x = 0)
+  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
   return v;
 }
 

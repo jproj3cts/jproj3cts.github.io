@@ -1,3 +1,4 @@
+import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { fmtIrr } from '../core/format.js';
@@ -336,7 +337,8 @@ export const V3D = (() => {
     for (let j = 0; j < nt; j++) { bi.push(0, 1 + (j + 1) % nt, 1 + j); const a1 = 2 * j, a2 = 2 * ((j + 1) % nt); ri.push(a1, a1 + 1, a2 + 1, a1, a2 + 1, a2); }
     return [mesh(geo(fp, fi), mFace), mesh(geo(bp, bi), mRest), mesh(geo(rp, ri), mRest)];
   }
-  const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0);
+  // (a freeform mirror's terms too, z up and y across; a freeform lens is drawn round, as its profile in the plane)
+  const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0) + (s.FL ? ffSag(s.FL, z, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0);
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
   function part(el) {

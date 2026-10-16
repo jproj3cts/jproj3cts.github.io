@@ -8984,6 +8984,73 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine traces the bench’s own rays exactly through freeform surfaces',
+    why: 'an asphere with six XY terms on its first face (x², y², y³, x²y, x²y², y⁴), facing the light and turned to face back, before a second lens; and a freeform concave fold mirror between two lenses: lit by a grid of rays in the plane and out of it, each ray traced by the lens engine meets the sensor where the bench’s ray does, with the same optical path (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      const F = { '20': 0.002, '02': -0.001, '03': 2e-5, '21': -3e-5, '22': 1e-6, '04': -2e-6 };
+      let worst = 0;
+      for (const face of [0, 180]) {
+        J.load({ format: 'jekray', version: 1, elements: [
+          { type: 'source', name: 'Fan', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 8, divergence: 0, pattern: 'grid' },
+          { type: 'lens', name: 'A', asphere: true, x: 0, y: 0, angle: face, diameter: 20, surfaces: [{ R: 40, F }, { R: -200 }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+          { type: 'lens', name: 'B', x: 20, y: 0, angle: 0, diameter: 20, surfaces: [{ R: 60 }, { R: -60 }], gaps: [3], materials: [{ glass: 'F2' }] },
+          { type: 'screen', name: 'Sensor', x: 60, y: 0, angle: 180, length: 40 }] });
+        if (!J.makeAssembly(['A', 'B'])) return 98;
+        J.trace();
+        const name = J.assemblies()[0].name, H = J.hitsOn('Sensor'), s = J.byName('Fan'), n = 7, W = 8, at = i => i / (n - 1) - 0.5;
+        if (H.length < 40) return 99;
+        const P = J.asmPrescription(name), o = P.origin, len = P.gaps.reduce((u, v) => u + v, 0);
+        const E = J.lensTrace(name, 587.56, 60 - (o[0] + len), H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + t - o[1], s.x - o[0], 0, 0, 1]; }));
+        H.forEach((h, q) => { const e = E.out[q]; worst = Math.max(worst, e[7] !== 0 ? 99 : 0, Math.abs(e[1] + h.y), Math.abs(e[0] - (h.z || 0)), Math.abs(e[6] - h.opl)); });
+      }
+      const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Fan', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 8, divergence: 0, pattern: 'grid' },
+        L('Front', 0, 0, 0, 40, -200, 4, 'N-BK7'), { type: 'mirror', name: 'Fold', x: 22, y: 0, angle: 135, length: 30, R: 300, F },
+        L('Back', 22, 25, 90, 60, -60, 3, 'F2'), { type: 'screen', name: 'Sensor', x: 22, y: 70, angle: 270, length: 40 }] });
+      if (!J.makeAssembly(['Front', 'Fold', 'Back'])) return 97;
+      J.trace();
+      const name = J.assemblies()[0].name, H = J.hitsOn('Sensor'), s = J.byName('Fan'), n = 7, W = 8, at = i => i / (n - 1) - 0.5, o = J.asmPrescription(name).origin;
+      if (H.length < 40) return 96;
+      const T = J.lensTraceRaw(name, 587.56, H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + t - o[1], s.x - o[0], 0, 0, 1]; }));
+      H.forEach((h, q) => { const R = T.out[q]; if (R[7] !== 0) { worst = 99; return; } const t = ((70 - o[1]) - R[1]) / R[4], X = o[0] + R[2] + R[5] * t, Z = R[0] + R[3] * t, opl = R[6] + t; worst = Math.max(worst, Math.abs(X - 22 - h.y), Math.abs(Z - (h.z || 0)), Math.abs(opl - h.opl)); });
+      return worst;
+    },
+  },
+  {
+    name: 'A freeform term is added on the bench and in the lens data',
+    why: 'an asphere’s panel: a freeform term picked from its list (x²) is a field to type, and takes effect on the trace; designed, its lens data has the term, + XY on another surface opens a freeform row, a second term added there and typed is on the bench part, and its × takes it off again (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Asph', asphere: true, x: 0, y: 0, angle: 0, diameter: 20, surfaces: [{ R: 30 }, { R: -60 }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
+      J.select('Asph');
+      const D = rigDoc(), Ev = t => new (rigWin().Event)(t, { bubbles: true });
+      const pick = D.querySelector('#panel select[aria-label="Freeform term to add to surface 1"]');
+      if (!pick) return 0;
+      pick.value = '20'; pick.dispatchEvent(Ev('change'));
+      const f = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'x² (freeform)');
+      if (!f) return 0;
+      const inp = f.querySelector('input'); inp.value = '0.001'; inp.dispatchEvent(Ev('input')); inp.dispatchEvent(Ev('change'));
+      const benchOk = J.byName('Asph').surfaces[0].F && J.byName('Asph').surfaces[0].F['20'] === 0.001;
+      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…').click();
+      try {
+        const has20 = !!D.querySelector('#lensWs input[aria-label="Freeform x² of surface 1"]');
+        wsClick('+ XY', 'Freeform terms for surface 2');
+        const sel = D.querySelector('#lensWs select[aria-label="Freeform term to add to surface 2"]');
+        sel.value = '21'; sel.dispatchEvent(Ev('change'));
+        wsClick('Add the term', 'Add the term to surface 2');
+        wsSet('Freeform x²y of surface 2', 2e-5);
+        const typedOk = J.byName('Asph').surfaces[1].F && J.byName('Asph').surfaces[1].F['21'] === 2e-5;
+        wsClick('×', 'Take x²y off surface 2');
+        const goneOk = !(J.byName('Asph').surfaces[1].F && '21' in J.byName('Asph').surfaces[1].F);
+        const ok = benchOk && has20 && typedOk && goneOk;
+        if (!ok) console.log('freeform ui', benchOk, has20, typedOk, goneOk, JSON.stringify(J.byName('Asph').surfaces.map(s => s.F)));
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'A folded assembly opens in the design workspace with its mirror in the lens data',
     why: 'a lens, a fold mirror at 45° and a second lens tilted and moved across, made an assembly and opened with Design…: the mirror is surface 3, its glass Mirror and its tilt a 45° fold; the tilted lens shows its tilt and decentre; the mirror’s radius set to -400 in the lens data makes the mirror on the bench concave with radius 400; the mirror can’t be removed; the layout is drawn; and the lens file export says it can’t write a fold (1 when all hold)',
     want: 1, tol: 0, unit: '',

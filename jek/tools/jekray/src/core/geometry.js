@@ -1,5 +1,6 @@
 import { DOVE_RATIO, deg } from '../state/project.js';
 import { rollFrame } from '../engines/trace.js';
+import { ffGrad, ffList, ffSag } from './freeform.js';
 
 /* ==========================================================================
    Geometry
@@ -8,10 +9,12 @@ import { rollFrame } from '../engines/trace.js';
    ========================================================================== */
 
 export function sagFn(s, y) {
-  if (s.y0) return rawSag(s, y + s.y0) - s.sag0;
-  return rawSag(s, y);
+  // a freeform's terms in the plane (x = 0), about the parent surface's vertex as the rest
+  const f = s.FL ? ffSag(s.FL, 0, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0;
+  if (s.y0) return rawSag(s, y + s.y0) - s.sag0 + f;
+  return rawSag(s, y) + f;
 }
-export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)); }
+export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
 export function rawSag(s, y) {
   const y2 = y * y;
@@ -83,13 +86,21 @@ export function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0));
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
   if (!s.flat) {
     for (let i = 0; i <= 64; i++) {
       const v = sagFn(s, semi * (i / 32 - 1));
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    // a freeform's sag up and down out of the plane too, over its round aperture
+    if (s.FL) for (let i = -16; i <= 16; i++) for (let j = -16; j <= 16; j++) {
+      const y = semi * i / 16, h = semi * j / 16;
+      if (y * y + h * h > semi * semi) continue;
+      const v = rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0 + ffSag(s.FL, h, y + s.y0) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0);
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
@@ -110,7 +121,7 @@ export function lensSurfaces(el) {
     const out2 = el.cyl === 'out';
     const s = makeSurf(el, z, out2 ? 0 : c, out2 ? 0 : sd.k, out2 ? 0 : sd.a2, out2 ? [] : sd.A,
       sd.semi || el.diameter / 2, {
-        odd: out2 ? undefined : sd.odd,
+        odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat,
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],

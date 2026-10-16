@@ -15,6 +15,7 @@ import { CONNS, FC, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { modsCarried, normCarried } from '../engines/mods.js';
+import { normF } from '../core/freeform.js';
 
 export function normSurface(s) {
   s = s || {};
@@ -23,6 +24,7 @@ export function normSurface(s) {
     R, k: num(s.k, 0), a2: num(s.a2, 0),
     A: Array.isArray(s.A) ? s.A.map(Number).filter(isFinite) : [],
     odd: Array.isArray(s.odd) && s.odd.some(v => +v) ? s.odd.map(Number).filter(isFinite) : undefined,
+    F: normF(s.F),                     // freeform terms (an asphere's): core/freeform.js
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     coat: normCoat(s.coat),
   };

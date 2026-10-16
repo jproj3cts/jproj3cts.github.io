@@ -28,6 +28,8 @@ export function drawSag(s, y) {
   let p = r2 * r2;
   for (const a of s.A || []) { v += a * p; p *= r2; }
   if (s.odd) { let r = Math.abs(y); for (const a of s.odd) { v += a * r; r *= Math.abs(y); } }
+  // a freeform's terms along the section drawn (the plane of the fields)
+  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(y, +k[1]);
   return v;
 }
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
@@ -72,6 +74,7 @@ export function drawingData(P, pi, opts) {
       ctTol: thk, ndTol: dn, vdTol: dv !== null && isFinite(vd) ? vd * dv / 100 : null });
   }
   const notes = [];
+  S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the lens data.'); });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };

@@ -14,6 +14,7 @@ import {
   unknownGlassNote
 } from '../plots.js';
 import { changed } from '../actions.js';
+import { FF_KEYS, ffLabel } from '../../core/freeform.js';
 import { checkpoint } from '../tabs.js';
 
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
@@ -70,6 +71,8 @@ function lensPanel(el) {
         checkpoint(); removeSweeps(el, `surfaces.${i}.A.${s.A.length - 1}`); s.A.pop(); changed(true);
       } }, 'Remove A' + (2 + 2 * s.A.length)) : null,
     ));
+    // an asphere's freeform terms, c x^m y^n on the sag (x up, y across): those it has, and one more to add
+    if (el.asphere) rows.append(...ffRows(el, s, `surfaces.${i}.F`, 'surface ' + (i + 1)));
     panel.append(rows);
     panel.append(coatingRows(el, s));
 
@@ -100,6 +103,24 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),
   ));
+}
+
+/* a surface's freeform terms on the bench: each a number, taken off with its ×, and a list of those it has not */
+export function ffRows(el, obj, path, what) {
+  const F = obj.F || {}, out = FF_KEYS.filter(k => k in F).map(k => {
+    const row = param(ffLabel(k) + ' (freeform)', el, path + '.' + k, { blank: 0 });
+    row.append(h('button', { type: 'button', class: 'rt-link', title: 'Take this term off', 'aria-label': 'Take ' + ffLabel(k) + ' off ' + what, onclick: () => {
+      checkpoint(); removeSweeps(el, path + '.' + k); const G = Object.assign({}, obj.F); delete G[k]; if (Object.keys(G).length) obj.F = G; else delete obj.F; changed(true);
+    } }, '×'));
+    return row;
+  });
+  const left = FF_KEYS.filter(k => !(k in F));
+  if (left.length) {
+    const pick = h('select', { 'aria-label': 'Freeform term to add to ' + what }, h('option', { value: '' }, 'Add a freeform term…'), ...left.map(k => h('option', { value: k }, ffLabel(k))));
+    pick.addEventListener('change', () => { if (!pick.value) return; checkpoint(); obj.F = Object.assign({}, obj.F || {}, { [pick.value]: 0 }); changed(true); });
+    out.push(h('div', { class: 'rt-inline wide', title: 'Terms c x^m y^n added to its sag: x up out of the bench plane, y across the part' }, pick));
+  }
+  return out;
 }
 
 function hitLens(el, lx, ly, tol) {

@@ -1,3 +1,4 @@
+import { ffList } from './freeform.js';
 import { CRYSTALS, bireMat } from './crystals.js';
 import { deg, num } from '../state/project.js';
 import { faceSurf, lensSurfaces, makeSurf, polySurfaces } from './geometry.js';
@@ -266,7 +267,7 @@ export function elementSurfaces(el) {
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
     const c = el.R ? 1 / el.R : 0;
-    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
+    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F) })];
   }
   if (el.type === 'screen') {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve

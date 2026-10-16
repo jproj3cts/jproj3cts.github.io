@@ -17,6 +17,7 @@ import './core/coherence.js';
 import './core/pulses.js';
 import './core/horns.js';
 import './core/antenna.js';
+import './core/freeform.js';
 import './core/assembly.js';
 import './core/beams-hom.js';
 import './core/colour.js';

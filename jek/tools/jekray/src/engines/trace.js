@@ -20,6 +20,7 @@ import { stackAmp } from '../core/coatings.js';
 import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
+import { ffGrad, ffSag } from '../core/freeform.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
 import {
   frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
@@ -352,8 +353,10 @@ function cylOut(s) {
 export function sag3(s, y, h) {
   if (s.cylS) return rawSag(cylOut(s), h);
   if (s.cyl === 'plane') return sagFn(s, y);
-  if (s.y0) return rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0;
-  return rawSag(s, Math.hypot(y, h));
+  // a freeform's terms, x up (h) and y across, about the parent surface's vertex
+  const f = s.FL ? ffSag(s.FL, h, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0;
+  if (s.y0) return rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0 + f;
+  return rawSag(s, Math.hypot(y, h)) + f;
 }
 // its unit normal there, towards local +x
 function normal3(s, y, h) {
@@ -363,6 +366,7 @@ function normal3(s, y, h) {
   else {
     const Y = y + (s.y0 || 0), r = Math.hypot(Y, h);
     if (r > 1e-12) { const m = rawDsag(s, r) / r; ny = -m * Y; nz = -m * h; }
+    if (s.FL) { const [gh, gy] = ffGrad(s.FL, h, Y); ny -= gy; nz -= gh; }
   }
   const l = Math.hypot(nx, ny, nz);
   return [nx / l, ny / l, nz / l];

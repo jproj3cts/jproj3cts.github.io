@@ -1,3 +1,4 @@
+import { ffGrad, ffList, ffSag } from '../core/freeform.js';
 import { refIndex } from '../core/glass.js';
 
 /* ==========================================================================
@@ -37,7 +38,7 @@ function indexOf(m, nm) {
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [];
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [];
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -46,9 +47,10 @@ export function lensSystem(P, nm, opts) {
     k[i] = s.k || 0; a2[i] = s.a2 || 0; semi[i] = s.semi > 0 ? s.semi : Infinity;
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
+    FL.push(ffList(s.F));
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -109,7 +111,7 @@ function paraStep(S, y, u, i0, i1) {
   // from just before surface i0 to just after surface i1: [height at i1, angle after i1]
   for (let i = i0; i <= i1; i++) {
     if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = S.c[i] + 2 * S.a2[i];                                    // the paraxial curvature
+    const pc = S.c[i] + 2 * S.a2[i] + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
@@ -144,7 +146,9 @@ export function paraxialOf(S) {
   return out;
 }
 
-/* ---------- One surface ---------- */
+/* ---------- One surface ----------
+   rotationally symmetric (sag of r², its slope over r), and a freeform's XY terms (core/freeform.js) on top */
+const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
 function sag(S, i, r2) {
   const c = S.c[i];
   let v = 0;
@@ -198,8 +202,9 @@ export function traceRay(S, R, i0, i1, noClip) {
     // to the vertex plane, then Newton along the ray onto the surface
     let t = (zi - z) / Nn, ok = false;
     for (let it = 0; it < 40; it++) {
-      const X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = X * X + Y * Y;
-      const f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (X * L + Y * M);
+      const X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = X * X + Y * Y, FF = S.FL && S.FL[i];
+      let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (X * L + Y * M);
+      if (FF) { const [gx, gy] = ffGrad(FF, X, Y); f -= ffSag(FF, X, Y); d -= gx * L + gy * M; }
       if (!isFinite(f) || Math.abs(d) < 1e-15) break;
       const dt = f / d;
       t -= dt;
@@ -210,7 +215,7 @@ export function traceRay(S, R, i0, i1, noClip) {
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
-    const g = dsagOverR(S, i, r2), nx = -g * x, ny = -g * y, nn = Math.sqrt(nx * nx + ny * ny + 1);
+    const g = dsagOverR(S, i, r2), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = -g * x - (FG ? FG[0] : 0), ny = -g * y - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }

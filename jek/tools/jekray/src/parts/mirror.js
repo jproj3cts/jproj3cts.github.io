@@ -1,6 +1,7 @@
 import { clamp } from '../core/constants.js';
 import { nextName, num } from '../state/project.js';
 import { RF_METALS } from '../core/rf.js';
+import { normF } from '../core/freeform.js';
 
 /* Mirror: A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100. */
 export const MIRROR = {
@@ -16,6 +17,8 @@ export const MIRROR = {
       k: num(e.k, 0),
       // even aspheric terms on the conic, A4 r⁴ … (as a lens surface's)
       ...(Array.isArray(e.A) && e.A.length ? { A: e.A.slice(0, 7).map(v => isFinite(+v) ? +v : 0) } : {}),
+      // freeform terms on the sag, c_mn x^m y^n (x up, y across): core/freeform.js
+      ...(normF(e.F) ? { F: normF(e.F) } : {}),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
       // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
@@ -32,7 +35,7 @@ export const MIRROR = {
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
     fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
-    k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
+    k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', F: 'optional: freeform terms {"mn": c_mn}, c_mn x^m y^n added to the sag (x up out of the bench plane, y across the mirror; m even).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
     metal: 'an RF metal mirror: "Al", "Cu", "Au", "brass", "steel" or "ideal", for its loss by surface resistance.',
     film: 'a film beam splitter (RF): { "n": index, "t": mm thickness } of a dielectric sheet, reflecting by its two faces\u2019 interference; then reflect is ignored.',

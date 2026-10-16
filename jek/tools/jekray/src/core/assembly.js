@@ -1,4 +1,5 @@
 import { clamp } from './constants.js';
+import { ffTurn } from './freeform.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
@@ -62,8 +63,8 @@ export function normAssemblies(list, els) {
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
    A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
-   U and X the same out of it */
-export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+   U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js) */
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)):(.{1,120}\.\d+)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -304,7 +305,9 @@ export function asmAxisZ(asm, els) {
 }
 /* out of the plane: the engine's x is up (the bench's z), and a part tipped up turns its own axis up */
 const OUT_Z = 1, OUT_TIP = 1;
-const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null });
+// a freeform's terms in the prescription: y across as the engine has it, for a lens and for a mirror (as its part has it, times these)
+const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1) });
 export function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
   const C = asmCheck(els, { ref: asm.ref, rev: asm.rev, min: 1 });
@@ -327,14 +330,14 @@ export function asmPrescription(asm, els) {
       // its normal through it (away from the light): the axis of its own frame
       const thr = v2(e.angle + 180);
       tilt = hand * angFrom(d, thr);
-      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
       flip = dot2(a, d) < 0;
       const ax = flip ? [-a[0], -a[1]] : a;
       tilt = hand * angFrom(d, ax);
       if (kind === 'lens') {
-        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
         G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
@@ -435,6 +438,7 @@ export function asmApply(asm, P, els) {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
       const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
       if (mA.length) e.A = mA; else delete e.A;
+      const mF = ffTurn(S[0].F, FF_SY_MIRROR, -1); if (mF && Object.keys(mF).length) e.F = mF; else delete e.F;
       const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
     } else {
@@ -446,6 +450,7 @@ export function asmApply(asm, P, els) {
         e.surfaces = ss.map((s, i) => {
           const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
           t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
+          const tF = ffTurn(s.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
           // a clear radius that is the lens's own stays unset
           if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
           else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;

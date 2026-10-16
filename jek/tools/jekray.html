@@ -5081,6 +5081,46 @@ function steerField({ w, R, yh, sb, a, lam, T, path }) {
   for (let m = 0; m <= M; m++) if ((m < lo || m > hi) && g[m] > side) side = g[m];
   return { beam: t0, G: G0, lobe: side > 0 ? 10 * Math.log10(side / G0) : null, th, g };
 }
+/* ==========================================================================
+   Freeform terms: an XY polynomial added to a surface's sag
+   sag += Σ c_mn x^m y^n, x out of the plane of the fields (up on the bench), y across it in the
+   plane. Only even powers of x: the surface is mirror-symmetric about the bench's plane, so light
+   in the plane stays in it. Second to sixth order, fourteen terms, each kept by its key "mn"
+   (x² is "20", x²y³ is "23").
+   ========================================================================== */
+const FF_TERMS = [[2, 0], [0, 2], [2, 1], [0, 3], [4, 0], [2, 2], [0, 4], [4, 1], [2, 3], [0, 5], [6, 0], [4, 2], [2, 4], [0, 6]];
+const FF_KEYS = FF_TERMS.map(([m, n]) => '' + m + n);
+const SUP = { 1: '', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶' };
+const ffLabel = k => { const m = +k[0], n = +k[1]; return (m ? 'x' + SUP[m] : '') + (n ? 'y' + SUP[n] : ''); };
+/* the terms kept on a surface: an object of allowed keys to finite numbers (a term just added is 0), or none */
+function normF(F) {
+  if (!F || typeof F !== 'object') return undefined;
+  const out = {};
+  for (const k of FF_KEYS) if (k in F && isFinite(+F[k]) && F[k] !== null && F[k] !== '') out[k] = +F[k];
+  return Object.keys(out).length ? out : undefined;
+}
+/* as a list of [m, n, c] for the trace, the zero terms left out; null when it has none */
+function ffList(F) {
+  if (!F) return null;
+  const L = [];
+  for (const k of FF_KEYS) if (F[k]) L.push([+k[0], +k[1], F[k]]);
+  return L.length ? L : null;
+}
+const pw = (v, n) => { let r = 1; for (let i = 0; i < n; i++) r *= v; return r; };
+function ffSag(L, x, y) { let v = 0; for (const [m, n, c] of L) v += c * pw(x, m) * pw(y, n); return v; }
+/* its slope: [d/dx, d/dy] */
+function ffGrad(L, x, y) {
+  let gx = 0, gy = 0;
+  for (const [m, n, c] of L) { if (m) gx += c * m * pw(x, m - 1) * pw(y, n); if (n) gy += c * n * pw(x, m) * pw(y, n - 1); }
+  return [gx, gy];
+}
+/* the terms with y turned over (sy = -1) and the sag's sign turned (sz = -1): a surface read the other way round */
+function ffTurn(F, sy, sz) {
+  if (!F) return F;
+  const out = {};
+  for (const k of Object.keys(F)) out[k] = sz * (+k[1] % 2 && sy < 0 ? -1 : 1) * F[k];
+  return out;
+}
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
    An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
    its own: a name, the conditions it is designed for, and which way the light goes through it. Its
@@ -5142,8 +5182,8 @@ function normAssemblies(list, els) {
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
    A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
-   U and X the same out of it */
-const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+   U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js) */
+const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)):(.{1,120}\.\d+)$/;
 const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
@@ -5384,7 +5424,9 @@ function asmAxisZ(asm, els) {
 }
 /* out of the plane: the engine's x is up (the bench's z), and a part tipped up turns its own axis up */
 const OUT_Z = 1, OUT_TIP = 1;
-const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null });
+// a freeform's terms in the prescription: y across as the engine has it, for a lens and for a mirror (as its part has it, times these)
+const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1) });
 function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
   const C = asmCheck(els, { ref: asm.ref, rev: asm.rev, min: 1 });
@@ -5407,14 +5449,14 @@ function asmPrescription(asm, els) {
       // its normal through it (away from the light): the axis of its own frame
       const thr = v2(e.angle + 180);
       tilt = hand * angFrom(d, thr);
-      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
       flip = dot2(a, d) < 0;
       const ax = flip ? [-a[0], -a[1]] : a;
       tilt = hand * angFrom(d, ax);
       if (kind === 'lens') {
-        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
         G2 = e.gaps.slice(); M2 = e.materials.map(m => Object.assign({}, m));
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
@@ -5515,6 +5557,7 @@ function asmApply(asm, P, els) {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
       const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
       if (mA.length) e.A = mA; else delete e.A;
+      const mF = ffTurn(S[0].F, FF_SY_MIRROR, -1); if (mF && Object.keys(mF).length) e.F = mF; else delete e.F;
       const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
     } else {
@@ -5526,6 +5569,7 @@ function asmApply(asm, P, els) {
         e.surfaces = ss.map((s, i) => {
           const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
           t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
+          const tF = ffTurn(s.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
           // a clear radius that is the lens's own stays unset
           if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
           else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
@@ -5848,6 +5892,8 @@ const MIRROR = {
       k: num(e.k, 0),
       // even aspheric terms on the conic, A4 r⁴ … (as a lens surface's)
       ...(Array.isArray(e.A) && e.A.length ? { A: e.A.slice(0, 7).map(v => isFinite(+v) ? +v : 0) } : {}),
+      // freeform terms on the sag, c_mn x^m y^n (x up, y across): core/freeform.js
+      ...(normF(e.F) ? { F: normF(e.F) } : {}),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
       // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
@@ -5864,7 +5910,7 @@ const MIRROR = {
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
     fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
-    k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
+    k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', F: 'optional: freeform terms {"mn": c_mn}, c_mn x^m y^n added to the sag (x up out of the bench plane, y across the mirror; m even).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
     metal: 'an RF metal mirror: "Al", "Cu", "Au", "brass", "steel" or "ideal", for its loss by surface resistance.',
     film: 'a film beam splitter (RF): { "n": index, "t": mm thickness } of a dielectric sheet, reflecting by its two faces\u2019 interference; then reflect is ignored.',
@@ -6090,7 +6136,7 @@ const LENS = {
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
-      asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a))) ? true : undefined,
+      asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,
     });
   },
   guide: {
@@ -6098,7 +6144,7 @@ const LENS = {
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
-    asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k") and aspheric terms ("A"); a plain lens\u2019s are spheres.',
+    asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.' },
@@ -6708,6 +6754,7 @@ function normSurface(s) {
     R, k: num(s.k, 0), a2: num(s.a2, 0),
     A: Array.isArray(s.A) ? s.A.map(Number).filter(isFinite) : [],
     odd: Array.isArray(s.odd) && s.odd.some(v => +v) ? s.odd.map(Number).filter(isFinite) : undefined,
+    F: normF(s.F),                     // freeform terms (an asphere's): core/freeform.js
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     coat: normCoat(s.coat),
   };
@@ -6989,10 +7036,12 @@ function linkPartner(el) {
    ========================================================================== */
 
 function sagFn(s, y) {
-  if (s.y0) return rawSag(s, y + s.y0) - s.sag0;
-  return rawSag(s, y);
+  // a freeform's terms in the plane (x = 0), about the parent surface's vertex as the rest
+  const f = s.FL ? ffSag(s.FL, 0, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0;
+  if (s.y0) return rawSag(s, y + s.y0) - s.sag0 + f;
+  return rawSag(s, y) + f;
 }
-function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)); }
+function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
 function rawSag(s, y) {
   const y2 = y * y;
@@ -7064,13 +7113,21 @@ function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0));
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
   if (!s.flat) {
     for (let i = 0; i <= 64; i++) {
       const v = sagFn(s, semi * (i / 32 - 1));
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    // a freeform's sag up and down out of the plane too, over its round aperture
+    if (s.FL) for (let i = -16; i <= 16; i++) for (let j = -16; j <= 16; j++) {
+      const y = semi * i / 16, h = semi * j / 16;
+      if (y * y + h * h > semi * semi) continue;
+      const v = rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0 + ffSag(s.FL, h, y + s.y0) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0);
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
@@ -7091,7 +7148,7 @@ function lensSurfaces(el) {
     const out2 = el.cyl === 'out';
     const s = makeSurf(el, z, out2 ? 0 : c, out2 ? 0 : sd.k, out2 ? 0 : sd.a2, out2 ? [] : sd.A,
       sd.semi || el.diameter / 2, {
-        odd: out2 ? undefined : sd.odd,
+        odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat,
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
@@ -7413,7 +7470,7 @@ function elementSurfaces(el) {
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
     const c = el.R ? 1 / el.R : 0;
-    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0 })];
+    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F) })];
   }
   if (el.type === 'screen') {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve
@@ -8054,8 +8111,10 @@ function cylOut(s) {
 function sag3(s, y, h) {
   if (s.cylS) return rawSag(cylOut(s), h);
   if (s.cyl === 'plane') return sagFn(s, y);
-  if (s.y0) return rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0;
-  return rawSag(s, Math.hypot(y, h));
+  // a freeform's terms, x up (h) and y across, about the parent surface's vertex
+  const f = s.FL ? ffSag(s.FL, h, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0;
+  if (s.y0) return rawSag(s, Math.hypot(y + s.y0, h)) - s.sag0 + f;
+  return rawSag(s, Math.hypot(y, h)) + f;
 }
 // its unit normal there, towards local +x
 function normal3(s, y, h) {
@@ -8065,6 +8124,7 @@ function normal3(s, y, h) {
   else {
     const Y = y + (s.y0 || 0), r = Math.hypot(Y, h);
     if (r > 1e-12) { const m = rawDsag(s, r) / r; ny = -m * Y; nz = -m * h; }
+    if (s.FL) { const [gh, gy] = ffGrad(s.FL, h, Y); ny -= gy; nz -= gh; }
   }
   const l = Math.hypot(nx, ny, nz);
   return [nx / l, ny / l, nz / l];
@@ -15840,7 +15900,8 @@ const V3D = (() => {
     for (let j = 0; j < nt; j++) { bi.push(0, 1 + (j + 1) % nt, 1 + j); const a1 = 2 * j, a2 = 2 * ((j + 1) % nt); ri.push(a1, a1 + 1, a2 + 1, a1, a2 + 1, a2); }
     return [mesh(geo(fp, fi), mFace), mesh(geo(bp, bi), mRest), mesh(geo(rp, ri), mRest)];
   }
-  const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0);
+  // (a freeform mirror's terms too, z up and y across; a freeform lens is drawn round, as its profile in the plane)
+  const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0) + (s.FL ? ffSag(s.FL, z, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0);
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
   function part(el) {
@@ -18295,6 +18356,7 @@ function mirrorPanel(el) {
       (el.A || []).length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
         checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
       } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
+    ...ffRows(el, el, 'F', el.name || 'the mirror'),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));
@@ -18360,6 +18422,8 @@ function lensPanel(el) {
         checkpoint(); removeSweeps(el, `surfaces.${i}.A.${s.A.length - 1}`); s.A.pop(); changed(true);
       } }, 'Remove A' + (2 + 2 * s.A.length)) : null,
     ));
+    // an asphere's freeform terms, c x^m y^n on the sag (x up, y across): those it has, and one more to add
+    if (el.asphere) rows.append(...ffRows(el, s, `surfaces.${i}.F`, 'surface ' + (i + 1)));
     panel.append(rows);
     panel.append(coatingRows(el, s));
 
@@ -18390,6 +18454,24 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-actions' },
     h('button', { class: 'rt-btn', onclick: () => { checkpoint(); flipLens(el); changed(true); } }, 'Flip'),
   ));
+}
+
+/* a surface's freeform terms on the bench: each a number, taken off with its ×, and a list of those it has not */
+function ffRows(el, obj, path, what) {
+  const F = obj.F || {}, out = FF_KEYS.filter(k => k in F).map(k => {
+    const row = param(ffLabel(k) + ' (freeform)', el, path + '.' + k, { blank: 0 });
+    row.append(h('button', { type: 'button', class: 'rt-link', title: 'Take this term off', 'aria-label': 'Take ' + ffLabel(k) + ' off ' + what, onclick: () => {
+      checkpoint(); removeSweeps(el, path + '.' + k); const G = Object.assign({}, obj.F); delete G[k]; if (Object.keys(G).length) obj.F = G; else delete obj.F; changed(true);
+    } }, '×'));
+    return row;
+  });
+  const left = FF_KEYS.filter(k => !(k in F));
+  if (left.length) {
+    const pick = h('select', { 'aria-label': 'Freeform term to add to ' + what }, h('option', { value: '' }, 'Add a freeform term…'), ...left.map(k => h('option', { value: k }, ffLabel(k))));
+    pick.addEventListener('change', () => { if (!pick.value) return; checkpoint(); obj.F = Object.assign({}, obj.F || {}, { [pick.value]: 0 }); changed(true); });
+    out.push(h('div', { class: 'rt-inline wide', title: 'Terms c x^m y^n added to its sag: x up out of the bench plane, y across the part' }, pick));
+  }
+  return out;
 }
 
 function hitLens(el, lx, ly, tol) {
@@ -23246,6 +23328,10 @@ function dataCard(asm, P) {
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
     if (asph && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
       onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
+    // a freeform's XY terms: those it has, and those asked for
+    const ffKs = asph ? FF_KEYS.filter(k => (s.F && k in s.F) || (WS.ff && WS.ff[sid] && WS.ff[sid].includes(k))) : [];
+    if (asph && !ffKs.length) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Make this surface a freeform: XY terms c x^m y^n on its sag (x up out of the plane of the fields, y across), to type or to vary', 'aria-label': 'Freeform terms for surface ' + (i + 1),
+      onclick: () => { (WS.ff || (WS.ff = {}))[sid] = ['02']; renderWs(); } }, '+ XY'));
     tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
@@ -23270,6 +23356,7 @@ function dataCard(asm, P) {
     for (const q of PQ) { const c = editable(P, q, i) ? valueCell(P, D, q, i) : h('td'); c.classList.add('pose'); tr.append(c); }
     tb.append(tr);
     if (nA) tb.append(asphRow(P, D, i, sid, nA, PQ.length));
+    if (ffKs.length) tb.append(ffRow(P, D, i, sid, ffKs, PQ.length));
   }
   const F = designFigures(asm, P);
   tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...PQ.map(() => h('td'))));
@@ -23301,15 +23388,15 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
-  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
+  const asp = q[0] === 'a' || q[0] === 'f', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -23320,8 +23407,24 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
+/* a freeform's XY terms, a row under its surface: each typed, varied, solved or picked up, and taken off with its ×; another added from the list */
+function ffRow(P, D, i, sid, ks, nPose) {
+  const cells = h('div', { class: 'rt-laspc' });
+  for (const k of ks) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, ffLabel(k)), valueCell(P, D, 'f' + k, i),
+    h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Take ' + ffLabel(k) + ' off surface ' + (i + 1), title: 'Take this term off (its value 0, and its variable, solve or pickup cleared)', onclick: () => {
+      const key = keyAt(P, 'f' + k, i);
+      if (WS.ff && WS.ff[sid]) WS.ff[sid] = WS.ff[sid].filter(x => x !== k);
+      edit((PP, a) => { const at = posOf(PP, key); if (at) { const sf = PP.surfaces[at.i]; if (sf.F) { const F = Object.assign({}, sf.F); delete F[k]; sf.F = Object.keys(F).length ? F : undefined; } } const dd = designOf(a); dd.vars = dd.vars.filter(x => x !== key); delete dd.solves[key]; delete dd.pickups[key]; });
+    } }, '×')));
+  const left = FF_KEYS.filter(k => !ks.includes(k));
+  if (left.length) {
+    const pick = h('select', { 'aria-label': 'Freeform term to add to surface ' + (i + 1) }, ...left.map(k => h('option', { value: k }, ffLabel(k))));
+    cells.append(pick, h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Add the term to surface ' + (i + 1), onclick: () => { const L = (WS.ff || (WS.ff = {}))[sid] || []; WS.ff[sid] = L.concat([pick.value]); renderWs(); } }, 'Add the term'));
+  }
+  return h('tr', { class: 'asp' }, h('td'), h('td', { class: 'nm asp', title: 'c x^m y^n added to the sag: x up out of the plane of the fields, y across it' }, 'freeform terms'), h('td', { colspan: String(5 + nPose) }, cells));
+}
 function asphRow(P, D, i, sid, nA, nPose) {
   const cells = h('div', { class: 'rt-laspc' });
   for (let j = 0; j < Math.min(nA, ASPH_ORDERS.length); j++) cells.append(h('div', { class: 'rt-lasp1' }, h('span', { class: 'mono' }, 'A' + ASPH_ORDERS[j]), valueCell(P, D, 'a' + ASPH_ORDERS[j], i)));
@@ -23376,7 +23479,7 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
 const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
@@ -30583,7 +30686,7 @@ function indexOf(m, nm) {
 function lensSystem(P, nm, opts) {
   opts = opts || {};
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
-  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [];
+  const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [];
   n[0] = 1;
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -30592,9 +30695,10 @@ function lensSystem(P, nm, opts) {
     k[i] = s.k || 0; a2[i] = s.a2 || 0; semi[i] = s.semi > 0 ? s.semi : Infinity;
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
+    FL.push(ffList(s.F));
     n[i + 1] = s.mirror ? n[i] : i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
-  const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
+  const S = { N, z, c, k, a2, A, odd, FL, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -30655,7 +30759,7 @@ function paraStep(S, y, u, i0, i1) {
   // from just before surface i0 to just after surface i1: [height at i1, angle after i1]
   for (let i = i0; i <= i1; i++) {
     if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = S.c[i] + 2 * S.a2[i];                                    // the paraxial curvature
+    const pc = S.c[i] + 2 * S.a2[i] + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y) / S.n[i + 1];
@@ -30690,7 +30794,9 @@ function paraxialOf(S) {
   return out;
 }
 
-/* ---------- One surface ---------- */
+/* ---------- One surface ----------
+   rotationally symmetric (sag of r², its slope over r), and a freeform's XY terms (core/freeform.js) on top */
+const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
 function sag(S, i, r2) {
   const c = S.c[i];
   let v = 0;
@@ -30744,8 +30850,9 @@ function traceRay(S, R, i0, i1, noClip) {
     // to the vertex plane, then Newton along the ray onto the surface
     let t = (zi - z) / Nn, ok = false;
     for (let it = 0; it < 40; it++) {
-      const X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = X * X + Y * Y;
-      const f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (X * L + Y * M);
+      const X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = X * X + Y * Y, FF = S.FL && S.FL[i];
+      let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (X * L + Y * M);
+      if (FF) { const [gx, gy] = ffGrad(FF, X, Y); f -= ffSag(FF, X, Y); d -= gx * L + gy * M; }
       if (!isFinite(f) || Math.abs(d) < 1e-15) break;
       const dt = f / d;
       t -= dt;
@@ -30756,7 +30863,7 @@ function traceRay(S, R, i0, i1, noClip) {
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
-    const g = dsagOverR(S, i, r2), nx = -g * x, ny = -g * y, nn = Math.sqrt(nx * nx + ny * ny + 1);
+    const g = dsagOverR(S, i, r2), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = -g * x - (FG ? FG[0] : 0), ny = -g * y - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const ci = L * ux + M * uy + Nn * uz;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
@@ -31020,7 +31127,7 @@ function editable(P, q, i) {
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
-  if (q[0] === 'a') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
@@ -31030,6 +31137,7 @@ function getV(P, at) {
   if (at.q === 'R') return P.surfaces[at.i].R;
   if (at.q === 'k') return P.surfaces[at.i].k;
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
+  if (at.q[0] === 'f') { const F = P.surfaces[at.i].F; return F && F[at.q.slice(1)] || 0; }
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
@@ -31066,6 +31174,7 @@ function setV(P, at, v) {
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
+  else if (at.q[0] === 'f') { const s = P.surfaces[at.i], F = Object.assign({}, s.F || {}); F[at.q.slice(1)] = isFinite(v) ? v : 0; s.F = F; }
   else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
     const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
@@ -31084,6 +31193,8 @@ function surfSag(s, h) {
   for (const a of s.A || []) { v += a * p; p *= r2; }
   let q = h;
   for (const o of s.odd || []) { v += o * q; q *= h; }
+  // a freeform's terms in the plane of the fields (x = 0)
+  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
   return v;
 }
 
@@ -31590,6 +31701,8 @@ const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h 
 function getX(P, v) {
   if (v.at.q === 'R') { const R = P.surfaces[v.at.i].R; return R ? 1 / R : 0; }
   if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); return asphGet(P.surfaces[v.at.i], n) * Math.pow(asphH(P, v.at.i), n); }
+  // a freeform term, likewise: the sag it adds at the clear radius, c h^(m+n)
+  if (v.at.q[0] === 'f') return getV(P, v.at) * Math.pow(asphH(P, v.at.i), +v.at.q[1] + +v.at.q[2]);
   if (v.at.q === 'g') return P.materials[v.at.i][v.part];
   return getV(P, v.at);
 }
@@ -31598,14 +31711,15 @@ function setX(P, v, x) {
   if (v.at.q === 'R') P.surfaces[i].R = Math.abs(x) < 1e-12 ? null : 1 / x;
   else if (v.at.q === 'k') P.surfaces[i].k = x;
   else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
+  else if (v.at.q[0] === 'f') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1] + +v.at.q[2]));
   else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
 const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
-const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q)];
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -31864,7 +31978,7 @@ function globalSearch(prob, V, best, trials, seed) {
       if (q === 'R') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.01);
       else if (q === 't') x[j] = Math.max(0, x[j] * Math.exp(0.3 * z));
       else if (q === 'k') x[j] += 0.3 * z;
-      else if (q[0] === 'a') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
+      else if (q[0] === 'a' || q[0] === 'f') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
       else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
       else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
@@ -32417,6 +32531,8 @@ function drawSag(s, y) {
   let p = r2 * r2;
   for (const a of s.A || []) { v += a * p; p *= r2; }
   if (s.odd) { let r = Math.abs(y); for (const a of s.odd) { v += a * r; r *= Math.abs(y); } }
+  // a freeform's terms along the section drawn (the plane of the fields)
+  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(y, +k[1]);
   return v;
 }
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
@@ -32461,6 +32577,7 @@ function drawingData(P, pi, opts) {
       ctTol: thk, ndTol: dn, vdTol: dv !== null && isFinite(vd) ? vd * dv / 100 : null });
   }
   const notes = [];
+  S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the lens data.'); });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
@@ -35479,6 +35596,7 @@ function zmxSystem(els) {
     const T = gaps.reduce((a, b) => a + b, 0), c = rx * d[0] + ry * d[1];
     const coats = e.type === 'lens' ? e.surfaces.map(s => s.coat) : [e.coat];
     if (coats.some(c => c && c.mode !== 'bare')) warnings.add('coatings are not written');
+    if (e.type === 'lens' && e.surfaces.some(t => t.F && Object.values(t.F).some(v => v))) warnings.add('freeform terms are not written');
     return { e, z0: c - T / 2, z1: c + T / 2, surfaces, gaps, materials };
   }).sort((a, b) => a.z0 - b.z0);
   const surfaces = [], gaps = [], materials = [];
@@ -35500,6 +35618,7 @@ function zmxAssemblySystem(asm) {
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
+  if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
   const mc = asm.design && asm.design.mc && asm.design.mc.configs && asm.design.mc.configs.length > 1 ? asm.design.mc : null;
   if (mc) warnings.add('only the configuration shown (' + mc.configs[mc.active].name + ') is written');
   // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
@@ -35530,6 +35649,7 @@ function zmxExport(els, nms) {
   if (S.mirror) {
     const m = S.mirror;
     if (m.offset) S.warnings.add('the mirror’s off-axis offset is not written');
+    if (m.F && Object.values(m.F).some(v => v)) S.warnings.add('the mirror’s freeform terms are not written');
     // its aspheric terms as an even asphere's, the other sign as its curvature (the file's convention)
     const mA = m.A || [], asp = mA.some(v => v);
     const lines = ['STOP', asp ? 'TYPE EVENASPH' : 'TYPE STANDARD', 'CURV ' + zmxNum(m.R === null ? 0 : -1 / m.R), 'CONI ' + zmxNum(m.k),
@@ -38231,6 +38351,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Freeform surfaces</b> in lens design: an asphere\u2019s surface or a mirror may carry XY terms on its sag (x² to y⁶, symmetric about the bench\u2019s plane), added with <b>+ XY</b> in the lens data or from the part\u2019s panel, and varied by the optimiser. The bench and the lens engine trace them exactly, in the plane and out of it. A concave mirror turned 10° loses its astigmatism when made a toroid this way.',
     '<b>Save to cloud</b> now asks where the bench goes: My benches, or any team you can edit in, where everyone in the team can open it, and under what name. <b>New bench</b> on My benches\u2019 page makes a new, empty cloud bench in the workspace and folder you are looking at, and opens it; what was on the bench is kept in Earlier versions.',
     '<b>Aspheric mirrors</b>: a mirror takes aspheric terms A4 to A16 on its conic, added in its panel or with <b>+ A</b> in the lens data, and varied by the optimiser like an asphere\u2019s. A concave sphere at f/2.5 optimised this way images a star as a paraboloid does. Lens files of a single mirror write and read them.',
     '<b>Tilts and decentres out of the plane</b> in lens design: a lens or window tipped up or down and raised or lowered from the assembly\u2019s axis, typed or varied in the lens data (<b>\u00b0 up</b>, <b>mm up</b>) and put on the bench as the part\u2019s Tip and height. Parts of an assembly may now sit at different heights and be tipped; the assembly\u2019s Height z moves them all together. The bench\u2019s rays and the lens engine\u2019s agree through them to 10\u207b\u00b9\u00b3 mm.',

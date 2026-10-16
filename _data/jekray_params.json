@@ -263,7 +263,7 @@
     {
      "k": "asphere",
      "def": null,
-     "meaning": "true for an asphere: only an asphere’s surfaces take a conic (\"k\") and aspheric terms (\"A\"); a plain lens’s are spheres."
+     "meaning": "true for an asphere: only an asphere’s surfaces take a conic (\"k\"), aspheric terms (\"A\") and freeform terms (\"F\": {\"mn\": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; \"20\", \"02\", \"21\", \"03\", \"40\", \"22\", \"04\", \"41\", \"23\", \"05\", \"60\", \"42\", \"24\", \"06\"); a plain lens’s are spheres."
     }
    ]
   },

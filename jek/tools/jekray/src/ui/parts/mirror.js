@@ -8,6 +8,7 @@ import { h, panel, param, selectField } from '../panel.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
 import { removeSweeps } from '../plots.js';
+import { ffRows } from './lens.js';
 import { C_NM_GHZ, RF_METALS, filmCoef, metalR } from '../../core/rf.js';
 import { benchNms } from '../../state/elements.js';
 import { readoutTabs } from '../panels.js';
@@ -67,6 +68,7 @@ function mirrorPanel(el) {
       (el.A || []).length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
         checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
       } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
+    ...ffRows(el, el, 'F', el.name || 'the mirror'),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));

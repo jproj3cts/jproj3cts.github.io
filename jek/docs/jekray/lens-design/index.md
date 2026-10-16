@@ -238,6 +238,23 @@ The Seidel sums carry a surface's fourth-order term (its $$A_4$$ and its conic) 
 - the same with the departure kept within 20 µm: kept;
 - a coefficient set, read back and moved with a copy of the assembly by its key.
 
+### Freeform surfaces
+
+An asphere's surface, or a mirror, can also be a **freeform**: XY polynomial terms added to its sag,
+
+$$z \mathrel{+}= \sum c_{mn}\, x^m y^n,$$
+
+with x up, out of the plane of the fields, and y across it in that plane. Only even powers of x are allowed: the surface stays mirror-symmetric about the bench's plane, so light in the plane stays in it. The fourteen terms run from second to sixth order: x², y², x²y, y³, x⁴, x²y², y⁴, x⁴y, x²y³, y⁵, x⁶, x⁴y², x²y⁴, y⁶.
+
+**+ XY** beside an asphere's or a mirror's surface in the lens data opens its freeform row. Terms are added from its list and taken off with their **×**, and each is typed, marked **V**, solved or picked up like any other value. The optimiser varies each one as the sag it adds at the clear radius. On the bench, the part's panel lists its terms under **Add a freeform term…**. Unequal x² and y² terms make a toroid; odd powers of y tilt and bend the surface across the plane. The bench's trace and the lens engine both trace a freeform exactly, out of the plane as well as in it.
+
+Some things don't see a freeform: the paraxial figures and Seidel sums (only its y² term counts there, as curvature in the plane of the fields), the lens file export (which warns), the 3D view of a lens (drawn round, from its profile in the plane), and its drawing (a section in the plane, with a note). Like a tilt, a freeform's effect is not paraxial, so an image distance solved at the paraxial focus doesn't follow it: leave the image distance free, marked **V**, when optimising one.
+
+**Checked against.**
+- A ray through a freeform face: met where the sag says, and refracted by Snell's law about the surface's normal from the terms' slope, to 10⁻¹².
+- A freeform asphere facing the light and facing back, and a freeform concave fold mirror: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
+- A concave mirror (radius 400 mm, f/10) turned 10° from its axis: its spot at best focus 0.110 mm, mostly astigmatism. With its x² and y² terms varied (a toroid), the spot falls to 0.018 mm. That is the coma left, near θf/(16N²) = 0.022 mm, which a toroid cannot take out.
+
 ### Model glass
 
 Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.

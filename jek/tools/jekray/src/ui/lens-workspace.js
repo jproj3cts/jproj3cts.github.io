@@ -1,4 +1,4 @@
-import { ASPH_ORDERS, asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
+import { ASPH_ORDERS, asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_AT_FIELD, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -540,7 +540,9 @@ function parseGlass(t) {
 
 /* ---------- The merit function ---------- */
 const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Total track (mm)', DIST: 'Distortion at the largest field (%)',
-  SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)' };
+  SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
+  BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
+  IMH: 'Chief ray’s height on the image (mm)', CRA: 'Chief ray’s angle at the image (°)', RAYY: 'A ray’s height on the image (mm)' };
 const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
 function meritEdit(fn) {
   optStop('Stopped: the merit function was changed.');
@@ -566,10 +568,17 @@ function meritCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
   tbl.append(h('thead', null, h('tr', null, ...['Term', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
-  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + '°'), h('td', { class: 'mono ro' }, '0'),
+  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
     h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i].w, 4)),
     h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
-  R.ops.forEach((o, i) => tb.append(h('tr', null, h('td', null, OP_LABEL[o.op]),
+  // a term at a field: which one; a ray: where in the pupil
+  const fin = !!asm.cond.object, opWhere = (o, i) => {
+    const out = [];
+    if (MERIT_AT_FIELD.includes(o.op)) out.push(sel('Field of ' + OP_LABEL[o.op], asm.cond.fields.map((f, j) => [j, 'at ' + wsFmt(f.deg, 4) + (fin ? ' mm' : '°')]), Math.min(o.f === undefined ? 99 : o.f, asm.cond.fields.length - 1), v => meritEdit(m => { m.ops[i].f = +v; })));
+    if (MERIT_AT_PUPIL.includes(o.op)) out.push(h('span', null, ' pupil y '), wsNumInput(o.p, v => meritEdit(m => { m.ops[i].p = Math.max(-1, Math.min(1, v)); }), { label: 'Pupil of ' + OP_LABEL[o.op] }));
+    return out;
+  };
+  R.ops.forEach((o, i) => tb.append(h('tr', null, h('td', null, h('div', { class: 'rt-lopw' }, OP_LABEL[o.op], ...opWhere(o, i))),
     h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
     h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
     h('td', { class: 'mono' }, wsFmt(o.value, 6)), h('td', null, share(o.share)),
@@ -579,8 +588,8 @@ function meritCard(asm, P) {
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});
   card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
-    const F = designFigures(asm, P), now = { EFL: F.efl, FNO: Math.abs(F.fno), TTL: F.track }[add.value];
-    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1 }); });
+    const F = designFigures(asm, P), now = { EFL: F.efl, FNO: Math.abs(F.fno), TTL: F.track, BFL: F.bfl, IMD: F.imgDist, MAG: F.mag, NA: F.S.n[F.S.N] * F.S.epr * Math.abs(F.S.par.uEp), XPD: F.S.imageZ - F.S.par.xpz }[add.value];
+    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1, ...(MERIT_AT_FIELD.includes(add.value) ? { f: asm.cond.fields.length - 1 } : {}), ...(MERIT_AT_PUPIL.includes(add.value) ? { p: 1 } : {}) }); });
   } }, 'Add a term')));
   if (R.bounds.broken.length) card.append(h('div', { class: 'rt-lnote' }, 'Broken: ' + R.bounds.broken.map(b => b.what).join('; ') + '.'));
   const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));

@@ -111,7 +111,9 @@ export function normTol(o) {
   out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
   return out;
 }
-export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
+export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY'];
+/* the terms that are measured at one of the design's fields (f, its index), and at a point of the pupil (p, -1 to 1) */
+export const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY'], MERIT_AT_PUPIL = ['RAYY'];
 export function normMerit(m) {
   m = m && typeof m === 'object' ? m : {};
   const b = m.bounds && typeof m.bounds === 'object' ? m.bounds : {};
@@ -121,7 +123,9 @@ export function normMerit(m) {
     bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3),
       aspMax: clamp(num(b.aspMax, 0.5), 0, 1e3), slopeMax: clamp(num(b.slopeMax, 0), 0, 89) },
     ops: (Array.isArray(m.ops) ? m.ops : []).filter(o => o && MERIT_OPS.includes(o.op)).slice(0, 50)
-      .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6) })),
+      .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6),
+        ...(MERIT_AT_FIELD.includes(o.op) ? { f: Math.round(clamp(num(o.f, ASM_FIELDS_MAX - 1), 0, ASM_FIELDS_MAX - 1)) } : {}),
+        ...(MERIT_AT_PUPIL.includes(o.op) ? { p: clamp(num(o.p, 1), -1, 1) } : {}) })),
   };
 }
 /* a design's keys with part ids changed (an assembly pasted as a copy) */

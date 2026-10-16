@@ -1284,6 +1284,9 @@
   .rt-lpose > div { display: flex; align-items: center; }
   .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 1.4rem; }
   .rt-lpose td { border: 0; padding: 0; }
+  .rt-lopw { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+  .rt-lopw select { font-size: 0.8rem; }
+  .rt-lopw .rt-lnum { width: 3.6rem; }
   .rt-lpose .rt-lnum { width: 4.2rem; }
   .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }

@@ -138,13 +138,23 @@ export function meritTerms(prob, P, detail) {
     else if (o.op === 'DIST') {
       const fm = Math.max(...c.fields.map(f => Math.abs(f.deg))), th = fm * Math.PI / 180, C = rayAt(Sp, th, 0, 0, R, true), yp = paraxHeight(Sp, fm);
       v = C && C[7] === 0 && yp ? 100 * (C[1] - yp) / yp : 0;
+    } else if (o.op === 'BFL') v = S0.par.bfl;
+    else if (o.op === 'IMD') v = S0.par.back;
+    else if (o.op === 'MAG') v = S0.par.mag || 0;
+    else if (o.op === 'NA') v = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp);
+    else if (o.op === 'XPD') v = Sp.imageZ - Sp.par.xpz;                       // the exit pupil before the image (positive)
+    else if (o.op === 'IMH' || o.op === 'CRA' || o.op === 'RAYY') {
+      // a real ray at one of the fields (the last one asked for beyond the list): the chief ray, or the ray through (0, p) of the pupil
+      const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)], th = f.deg * Math.PI / 180;
+      const Q = rayAt(Sp, th, 0, o.op === 'RAYY' ? o.p : 0, R, true);
+      v = !Q || Q[7] !== 0 ? NaN : o.op === 'CRA' ? Math.atan2(Q[4], Q[5]) * 180 / Math.PI : Q[1];
     } else {
       if (!sd) { const nms = c.waves.map(w => w.nm), lo = nms.indexOf(Math.min(...nms)), hi = nms.indexOf(Math.max(...nms)); sd = seidel(Sp, Math.max(...c.fields.map(f => Math.abs(f.deg))), lo !== hi ? Sw[lo] : null, lo !== hi ? Sw[hi] : null).sum; }
       v = sd[o.op];
     }
     const e = isFinite(v) ? v - o.target : 1e3;
     r.push(Math.sqrt(o.weight) * e);
-    ops.push({ op: o.op, value: v, target: o.target, weight: o.weight, part: o.weight * e * e });
+    ops.push({ op: o.op, value: v, target: o.target, weight: o.weight, part: o.weight * e * e, f: o.f, p: o.p });
   }
   // the boundaries, counted only where broken
   const B = M.bounds, sps = surfaceParts(P), N = P.surfaces.length;

@@ -128,13 +128,14 @@ export function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [] });
+const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
   project.fibres = S.f || [];
   project.measures = S.m || [];
+  project.assemblies = S.a || [];
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();

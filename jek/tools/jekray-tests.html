@@ -8562,6 +8562,58 @@ const TESTS = [
     },
   },
   {
+    name: 'Lenses and a stop made an assembly change nothing on the bench, read as one prescription, and split back the same',
+    why: 'a Cooke triplet (three lenses and an iris on one axis, a published prescription of 50 mm focal length) and a sensor: made an assembly, the sensor sees exactly what it saw before; the assembly reads as 7 surfaces with the stop the 5th and a focal length of 50 mm; split, the sensor still sees the same and the record is gone; a source can’t join one (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.trace();
+      const sig = () => { const s = J.stats('Sensor'); return JSON.stringify([s.count, s.rms, s.centroid, s.full]); };
+      const s0 = sig(), id = J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']), s1 = sig();
+      const A = J.assemblies(), P = J.asmPrescription(A[0].name), f = J.asmEfl(A[0].name);
+      const noSource = J.makeAssembly(['Front', 'Field fan']) === null;
+      J.splitAssembly(A[0].name);
+      return id && s1 === s0 && A.length === 1 && P.surfaces.length === 7 && P.stopIndex === 4 && Math.abs(f - 50) < 0.1 && sig() === s0 && J.assemblies().length === 0 && noSource ? 1 : 0;
+    },
+  },
+  {
+    name: 'An assembly goes out as a lens file with its stop and conditions, and comes back as the same assembly',
+    why: 'the triplet assembly given fields of 0, 14 and 20 degrees and three wavelengths, exported as .zmx: the stop is the 5th surface written, the fields and wavelengths are in it; read back, it is an assembly of the same four parts, the same focal length and the same conditions (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const a = J.serialize(); a.assemblies[0].cond = { aperture: { kind: 'epd', v: 9.6 }, fields: [{ deg: 0, w: 1 }, { deg: 14, w: 1 }, { deg: 20, w: 1 }], waves: [{ nm: 486.13, w: 1 }, { nm: 587.56, w: 2 }, { nm: 656.27, w: 1 }], primary: 1 };
+      J.load(a);
+      const f0 = J.asmEfl(J.assemblies()[0].name), out = J.exportZmx(['Front', 'Middle', 'Iris', 'Back']);
+      const surfs = out.text.split(/\r\n/).join('\n').split(/\nSURF /).slice(1), stopAt = surfs.findIndex(t => /\n\s*STOP/.test('\n' + t));
+      const nums = key => { const l = out.text.split(/\r\n/).find(x => x.startsWith(key + ' ')); return l ? l.split(/\s+/).slice(1).map(Number) : []; };
+      const close = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-9);
+      const hasCond = close(nums('YFLN'), [0, 14, 20]) && close(nums('WAVM').slice(0, 3), [1, 0.48613, 1]) && /\r\nWAVM 2 5\.8756/.test(out.text) && close(nums('PWAV'), [2]) && close(nums('ENPD'), [9.6]);
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const name = J.importZmxAssembly(out.text, 'triplet.zmx'), B = J.assemblies();
+      if (!name || B.length !== 1) return 0;
+      const P = J.asmPrescription(name), f1 = J.asmEfl(name), c = B[0].cond;
+      return stopAt === 5 && hasCond && P.surfaces.length === 7 && P.stopIndex === 4 && Math.abs(f1 - f0) < 1e-6 && c.fields.length === 3 && c.waves.length === 3 && c.primary === 1 && Math.abs(c.aperture.v - 9.6) < 1e-9 ? 1 : 0;
+    },
+  },
+  {
+    name: 'An assembly is kept through saving, undo and copying, and a new design starts as one',
+    why: 'the triplet assembly saved and opened again is still one; undone, it is gone, redone, back; copied and pasted, the copy is an assembly of its own; File › New lens design puts a stop and a singlet on the bench as an assembly (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      J.load(J.serialize());
+      const saved = J.assemblies().length === 1;
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      J.undo(); const undone = J.assemblies().length === 0;
+      J.redo(); const redone = J.assemblies().length === 1;
+      J.paste(J.copy(['Front', 'Middle', 'Iris', 'Back']));
+      const two = J.assemblies(), copied = two.length === 2 && two[0].id !== two[1].id && /copy/.test(two[1].name);
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const nd = J.newLensDesign(), fresh = J.assemblies().length === 1 && J.asmPrescription(nd).stopIndex === 0;
+      return saved && undone && redone && copied && fresh ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',
@@ -8707,6 +8759,15 @@ function stlBench(J, src, o) {
   J.trace(); const el = J.byName(n);
   return { z: el.z, size: el.mesh.size, tris: el.mesh.n, hits: J.lastTrace().screens.Sc.map(h => +h.y.toFixed(2)).sort((a, b) => a - b) };
 }
+const asmTriplet = () => {
+  const L = (name, x, R1, R2, t, glass) => ({ type: 'lens', name, x, y: 0, angle: 0, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
+  return { format: 'jekray', version: 1, name: 'Triplet', elements: [
+    { type: 'source', name: 'Field fan', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 15, width: 9, divergence: 0 },
+    L('Front', 1.6295, 22.014, -435.76, 3.259, 'N-SK16'), L('Middle', 9.767, -22.213, 20.292, 1.0, 'F2'),
+    { type: 'stop', name: 'Iris', x: 12.767, y: 0, angle: 0, aperture: 9.6, outer: 25.4 },
+    L('Back', 16.493, 79.684, -18.395, 2.952, 'N-SK16'),
+    { type: 'screen', name: 'Sensor', x: 60, y: 0, angle: 180, length: 30 }] };
+};
 const getDemo = k => { const x = new XMLHttpRequest(); x.open('GET', 'demos/' + k + '.jekray', false); x.send(); return x.responseText; };
 const rigrodOut = (Psat, R1, R2, G0) => Math.max(0, Psat * (1 - R2) * Math.sqrt(R1) / ((Math.sqrt(R1) + Math.sqrt(R2)) * (1 - Math.sqrt(R1 * R2))) * (Math.log(G0) + Math.log(Math.sqrt(R1 * R2))));
 function laserBench(g0, oc) {

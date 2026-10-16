@@ -178,6 +178,8 @@
       url: /jek/docs/jekray/chips/phase-shifter/
     - title: On-chip photodiode
       url: /jek/docs/jekray/chips/photodiode/
+- title: Lens design
+  url: /jek/docs/jekray/lens-design/
 - title: RF and millimetre waves
   url: /jek/docs/jekray/rf/
   cat: rf

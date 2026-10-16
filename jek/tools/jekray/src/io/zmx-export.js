@@ -1,11 +1,12 @@
 import { glassKey, refIndex } from '../core/glass.js';
-import { deg, project, selectOne, typeLabel } from '../state/project.js';
+import { deg, project, selectOne, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
-import { selection } from '../ui/render.js';
+import { selection, setSelection } from '../ui/render.js';
 import { changed, clipOf, downloadFile, safeFileName, toast } from '../ui/actions.js';
 import { checkpoint } from '../ui/tabs.js';
+import { asmOfSelection, asmPrescription, normCond } from '../core/assembly.js';
 import { parseZmx, readZmxFile, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
@@ -103,17 +104,27 @@ function zmxSystem(els) {
 }
 
 /* The .zmx text for the parts chosen; nms, the wavelengths to list, the first being primary */
+/* an assembly's prescription as the exporter takes it: its stop where it is, its design conditions */
+function zmxAssemblySystem(asm) {
+  const P = asmPrescription(asm), warnings = new Set();
+  if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
+  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings };
+}
 export function zmxExport(els, nms) {
-  const S = zmxSystem(els);
+  const asm = asmOfSelection(els);
+  const S = asm ? zmxAssemblySystem(asm) : zmxSystem(els);
   nms = (nms && nms.length ? nms : [587.56]).slice(0, 24);
+  const C = S.cond || null, waves = C ? C.waves : nms.map(nm => ({ nm, w: 1 })), fields = C ? C.fields : [{ deg: 0, w: 1 }];
   const L = [];
   const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
+  const aperture = C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
   L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
     'NOTE 0 Exported from JEKray. Coatings, tilts and decentres are not included.',
-    'UNIT MM X W X CM MR CPMM', 'ENPD ' + zmxNum(2 * semiFirst), 'GCAT SCHOTT OHARA MISC',
-    'FTYP 0 0 1 ' + nms.length + ' 0 0 0', 'XFLN 0', 'YFLN 0', 'FWGN 1');
-  nms.forEach((nm, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(nm / 1000) + ' 1'));
-  L.push('PWAV 1');
+    'UNIT MM X W X CM MR CPMM', aperture, 'GCAT SCHOTT OHARA MISC',
+    'FTYP 0 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
+  waves.forEach((v, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(v.nm / 1000) + ' ' + zmxNum(v.w)));
+  L.push('PWAV ' + (C ? C.primary + 1 : 1));
+  nms = C ? [C.waves[C.primary].nm] : nms;
   let n = 0;
   const surf = (lines) => { L.push('SURF ' + n++); for (const l of lines) L.push('  ' + l); };
   const diam = semi => 'DIAM ' + zmxNum(semi) + ' 1 0 0 1 ""';
@@ -129,8 +140,9 @@ export function zmxExport(els, nms) {
   }
   const p = paraxial({ surfaces: S.surfaces, gaps: S.gaps, materials: S.materials }, nms[0]);
   if (!isFinite(p.bfl)) S.warnings.add('it is afocal, so the image is placed at the last face');
+  const stopAt = S.stopIndex >= 0 ? S.stopIndex : 0;
   S.surfaces.forEach((s, i) => {
-    const lines = i === 0 ? ['STOP'] : [];
+    const lines = i === stopAt ? ['STOP'] : [];
     const A = s.A.slice();
     if (s.odd) {
       // all powers r^1 to r^8, the even ones carrying the even terms
@@ -193,6 +205,42 @@ function zmxElement(file, mode) {
 // onto the bench (the first file), or, from My parts, each file into My parts
 export let zmxToMine = false;
 export function setZmxToMine(v) { return (zmxToMine = v); }
+/* A lens file of several lenses (air between them) or with a stop of its own, made into the parts it
+   is, on one axis, as an assembly with the file's design conditions; null for a single lens. el: the
+   lens the file reads as (all its surfaces, air gaps as AIR), Z: the parsed file. */
+export function zmxAssembly(Z, el) {
+  if (el.type !== 'lens') return null;
+  const segs = [];
+  let a = 0;
+  el.materials.forEach((m, i) => { if (m.glass === 'AIR') { segs.push([a, i]); a = i + 1; } });
+  segs.push([a, el.surfaces.length - 1]);
+  const S = Z.stopAt;
+  if (segs.length === 1 && !(S && (S.before !== undefined || S.after !== undefined))) return null;
+  const T = el.gaps.reduce((p, q) => p + q, 0), zs = [0];
+  el.gaps.forEach((g, i) => zs.push(zs[i] + g));
+  const g = 'g' + uid().slice(1), els = [], semiOf = s => s.semi || el.diameter / 2;
+  let k = 0;
+  const stop = (zc, semi) => els.push(normElement({ type: 'stop', id: uid(), name: el.name + ' stop', x: el.x + zc, y: el.y, angle: 0, aperture: 2 * (semi || el.diameter / 2), outer: Math.max(25.4, 2.4 * (semi || el.diameter / 2)), group: g }));
+  if (S && S.before !== undefined) stop(-T / 2 - S.before, S.semi);
+  for (const [i0, i1] of segs) {
+    const zc = (zs[i0] + zs[i1]) / 2 - T / 2;
+    if (i0 === i1) {                                   // a surface with air either side: the stop, or a dummy
+      if (S && S.at === i0) stop(zc, S.semi || semiOf(el.surfaces[i0]));
+      continue;
+    }
+    const surfaces = el.surfaces.slice(i0, i1 + 1).map(s => Object.assign({}, s)), dia = 2 * Math.max(...surfaces.map(semiOf));
+    surfaces.forEach(s => { if (s.semi && Math.abs(2 * s.semi - dia) < 1e-6) s.semi = null; });
+    els.push(normElement({ type: 'lens', id: uid(), name: el.name + ' L' + (++k), x: el.x + zc, y: el.y, angle: 0, diameter: dia,
+      surfaces, gaps: el.gaps.slice(i0, i1), materials: el.materials.slice(i0, i1), group: g, ...(el.design ? { design: el.design } : {}) }));
+  }
+  if (S && S.after !== undefined) stop(T / 2 + S.after, S.semi);
+  const lenses = els.filter(e => e.type === 'lens');
+  if (!lenses.length) return null;
+  const c = Z.cond || {};
+  const cond = normCond({ aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
+    fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
+  return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
+}
 export async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
@@ -202,6 +250,17 @@ export async function importZmx(files) {
   try {
     const { Z, el } = await zmxElement(files[0], mode);
     checkpoint();
+    const A = zmxAssembly(Z, el);
+    if (A) {
+      for (const e of A.els) { e.bench = project.tab; if (el.assumed) e.assumed = el.assumed; project.elements.push(e); }
+      project.assemblies = (project.assemblies || []).concat([Object.assign(A.asm, { bench: project.tab })]);
+      setSelection(A.els);
+      changed(true);
+      if (dlg.open) dlg.close();
+      const w = [...Z.warnings];
+      toast('Imported ' + A.asm.name + ' as an assembly of ' + A.els.length + ' parts' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
+      return;
+    }
     el.bench = project.tab;
     project.elements.push(el);
     selectOne(el.id);

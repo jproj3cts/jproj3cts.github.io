@@ -9,6 +9,7 @@ import { benchName, linkPartner, onTab } from '../state/tabs.js';
 import { polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
 import { frame, toLocal, toWorld } from '../core/mask.js';
+import { asmCheck, asmMembers, assemblies } from '../core/assembly.js';
 import { exporting, lastTrace } from '../engines/trace.js';
 import { drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
 import { drag } from './pointer.js';
@@ -727,6 +728,37 @@ function drawSelection() {
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
+/* an assembly: a dashed box round its parts along its axis, its name above it (red, and saying so,
+   once its parts are no longer on one axis) */
+function drawAssemblies() {
+  const k = 1 / V().scale;
+  for (const a of assemblies()) {
+    const M = asmMembers(a).filter(onTab);
+    if (!M.length) continue;
+    const ref = M.find(e => e.id === a.ref) || M[0], ang = (ref.angle + (a.rev ? 180 : 0)) * deg;
+    const fA = { ox: ref.x, oy: ref.y, c: Math.cos(ang), s: Math.sin(ang) };
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const e of M) {
+      const f = frame(e);
+      for (const [p, q] of bodyOutline(e)) { const [x, y] = toWorld(f, p, q), [u, v] = toLocal(fA, x, y); u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    }
+    const m = 3 * k + 0.04 * Math.max(u1 - u0, v1 - v0);
+    u0 -= m; u1 += m; v0 -= m; v1 += m;
+    const ok = asmCheck(M, { ref: a.ref, rev: a.rev }).ok, ink = ok ? '#f07a35' : '#e5484d';
+    ctx.save();
+    pathLocal(fA, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], true);
+    ctx.fillStyle = ok ? 'rgba(240,122,53,0.06)' : 'rgba(229,72,77,0.07)'; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+    // its name over the box's top edge, whichever way the axis runs on the page
+    const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => toWorld(fA, u, v)).map(([x, y]) => [sx(x), sy(y)]);
+    const top = Math.min(...corners.map(c => c[1])), mid = corners.reduce((s2, c) => s2 + c[0], 0) / 4;
+    ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = ink;
+    ctx.fillText(a.name + (ok ? '' : ' (no longer on one axis)'), mid, top - 4);
+    ctx.restore();
+  }
+}
+
 export function niceStep(target) {
   const p = Math.pow(10, Math.floor(Math.log10(target)));
   for (const m of [1, 2, 5, 10]) if (m * p >= target) return m * p;
@@ -783,6 +815,7 @@ function renderAll(stale) {
   }
   for (const el of els) if (el.type === 'source') draw(el);
   for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
+  drawAssemblies();
   drawAssumed(els);
   drawLabels();
   drawMeasures();

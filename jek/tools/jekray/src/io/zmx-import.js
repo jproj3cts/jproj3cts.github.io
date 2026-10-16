@@ -92,8 +92,8 @@ export function decodeZmx(buf) {
 
 export function parseZmx(text, fileName, agf) {
   const lines = text.split(/\r?\n/);
-  let unit = 1, title = null, pwav = 1;
-  const surfs = [], wavm = {};
+  let unit = 1, title = null, pwav = 1, enpd = null, fnum = null, ftyp = 0;
+  const surfs = [], wavm = {}, wwgt = {}, sys = { yfln: [], fwgn: [] };
   let cur = null;
   const warnings = new Set();
   for (const raw of lines) {
@@ -112,6 +112,17 @@ export function parseZmx(text, fileName, agf) {
       title = t.slice(5).trim().replace(/^"|"$/g, '') || title;
     } else if (key === 'WAVM' && !cur) {
       wavm[parseInt(tok[1], 10)] = parseFloat(tok[2]);       // the design wavelengths, um
+      if (isFinite(parseFloat(tok[3]))) wwgt[parseInt(tok[1], 10)] = parseFloat(tok[3]);
+    } else if (key === 'ENPD' && !cur) {
+      enpd = parseFloat(tok[1]);                              // the entrance pupil's diameter
+    } else if (key === 'FNUM' && !cur) {
+      fnum = parseFloat(tok[1]);                              // or the image space F-number
+    } else if (key === 'FTYP' && !cur) {
+      ftyp = parseInt(tok[1], 10) || 0;                       // 0: the fields are angles
+    } else if (key === 'YFLN' && !cur) {
+      sys.yfln = tok.slice(1).map(Number).filter(isFinite);
+    } else if (key === 'FWGN' && !cur) {
+      sys.fwgn = tok.slice(1).map(Number).filter(isFinite);
     } else if (key === 'PWAV' && !cur) {
       pwav = parseInt(tok[1], 10) || 1;                       // which of them is the primary
     } else if (key === 'SURF') {
@@ -119,7 +130,8 @@ export function parseZmx(text, fileName, agf) {
       surfs.push(cur);
     } else if (!cur) {
       continue;
-    } else if (key === 'TYPE') cur.type = (tok[1] || 'STANDARD').toUpperCase();
+    } else if (key === 'STOP') cur.stop = true;
+    else if (key === 'TYPE') cur.type = (tok[1] || 'STANDARD').toUpperCase();
     else if (key === 'CURV') cur.curv = parseFloat(tok[1]) || 0;
     else if (key === 'CONI') cur.conic = parseFloat(tok[1]) || 0;
     else if (key === 'PARM') cur.parm[parseInt(tok[1], 10)] = parseFloat(tok[2]) || 0;
@@ -140,7 +152,15 @@ export function parseZmx(text, fileName, agf) {
   }
   if (surfs.length < 2) throw new Error('No surfaces were found in ' + fileName + '.');
   const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
-  return { title, unit, surfs, warnings, design, agf: agf || null };
+  // the conditions it was designed for, for an assembly made from it: aperture, fields (angles only), wavelengths
+  const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0).sort((a, b) => a - b);
+  const cond = {
+    aperture: enpd > 0 ? { kind: 'epd', v: enpd * unit } : fnum > 0 ? { kind: 'fno', v: fnum } : null,
+    fields: ftyp === 0 && sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null,
+    waves: ks.length ? ks.map(k => ({ nm: Math.round(wavm[k] * 1e6) / 1000, w: wwgt[k] !== undefined ? wwgt[k] : 1 })) : null,
+    primary: Math.max(0, ks.indexOf(pwav)),
+  };
+  return { title, unit, surfs, warnings, design, cond, agf: agf || null };
 }
 
 export const IMPORT_AS = { auto: 'Work it out from the file', lens: 'Lens', mirror: 'Mirror', cube: 'Beam splitter cube', prism: 'Right-angle prism', window: 'Window' };
@@ -285,6 +305,13 @@ export function zmxToElement(Z, fileName, mode) {
       range.splice(n - 3, 3, range[n - 3]);
       range[range.length - 1] = Object.assign({}, range[range.length - 1], { glass: null });
     }
+  }
+  // where the file's stop is against the lens: on one of its surfaces, or in front of it or behind
+  {
+    const si = surfs.findIndex(t => t.stop), dz = (i0, i1) => { let z = 0; for (let i = i0; i < i1; i++) z += isFinite(surfs[i].disz) ? Math.abs(surfs[i].disz) * unit : 0; return z; };
+    const ri = si > 0 ? range.indexOf(surfs[si]) : -1, f0 = surfs.indexOf(range[0]), l0 = surfs.indexOf(range[range.length - 1]);
+    Z.stopAt = si <= 0 ? null : ri >= 0 ? { at: ri, semi: semiOf(surfs[si]) }
+      : si < f0 ? { before: dz(si, f0), semi: semiOf(surfs[si]) } : si > l0 && si < surfs.length - 1 ? { after: dz(l0, si), semi: semiOf(surfs[si]) } : null;
   }
   let cylinder = false;
   const lensCoat = arCoat();

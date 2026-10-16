@@ -67,13 +67,15 @@ import {
   addElement, alignEls, changed, clipOf, fitView, measureOpl, measureSnap, pasteClip, rotateEls,
   setStatus, toast, updateUndoButtons, wireActions
 } from './actions.js';
-import { addBench, renderBenchTabs, switchTab } from './tabs.js';
+import { addBench, renderBenchTabs, switchTab, undo, redo } from './tabs.js';
 import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
 import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
-import { zmxExport, zmxPart } from '../io/zmx-export.js';
+import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
+import { asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
+import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
@@ -328,6 +330,22 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     importZmxBench(text, fileName, mode) { const el = zmxPart(parseZmx(text, fileName), fileName, mode || 'auto'); el.bench = project.tab; project.elements.push(el); selectOne(el.id); changed(true); traceScene(); return el.name; },
     // a part kept in My parts placed on the bench, its content given (as fetched)
     minePlace(p, content) { MINE.content.set(p.id + '@' + p.updated_at, content); return placeMine(p); },
+    // assemblies: made from parts named, split, read as a prescription; a lens file onto the bench as an assembly
+    makeAssembly(names) { const a = makeAssembly(names.map(n => this.byName(n))); traceScene(); return a && a.id; },
+    splitAssembly(name) { const a = (project.assemblies || []).find(x => x.name === name); if (a) splitAssembly(a); traceScene(); return !!a; },
+    assemblies() { return assemblies().map(a => JSON.parse(JSON.stringify(a))); },
+    asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
+    asmEfl(name) { const a = assemblies().find(x => x.name === name); return a ? asmParaxial(asmPrescription(a), a.cond.waves[a.cond.primary].nm, paraxial).efl : null; },
+    importZmxAssembly(text, fileName) {
+      const Z = parseZmx(text, fileName), el = zmxPart(Z, fileName, 'auto'), A = zmxAssembly(Z, el);
+      if (!A) return null;
+      for (const e of A.els) { e.bench = project.tab; project.elements.push(e); }
+      project.assemblies = (project.assemblies || []).concat([Object.assign(A.asm, { bench: project.tab })]);
+      changed(true); traceScene();
+      return A.asm.name;
+    },
+    undo() { undo(); traceScene(); }, redo() { redo(); traceScene(); },
+    newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },

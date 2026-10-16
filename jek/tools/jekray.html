@@ -1257,6 +1257,7 @@
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
+            <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from">New lens design</button>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
             <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
@@ -4922,6 +4923,187 @@ function steerField({ w, R, yh, sb, a, lam, T, path }) {
   for (let m = 0; m <= M; m++) if ((m < lo || m > hi) && g[m] > side) side = g[m];
   return { beam: t0, G: G0, lobe: side > 0 ? 10 * Math.log10(side / G0) : null, th, g };
 }
+/* ---------- Assemblies: lenses and stops on one axis, designed together ----------
+   An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
+   its own: a name, the conditions it is designed for, and which way the light goes through it. Its
+   parts stay parts: the bench traces them as it always has, so making an assembly, or splitting
+   one, changes nothing the light does. What the record adds is the view a lens designer works in:
+   the parts as one sequence of surfaces along the axis (its prescription), read from them and
+   written back to them.
+
+   The record: { id: the group's id (its parts carry it as "group"), name, bench, ref: the id of the
+   part whose facing sets the axis, rev: true when the light runs against that part's facing,
+   cond: its design conditions }. Its parts are found by their group, so a record whose group has
+   lost them all is dropped. */
+const ASM_FIELDS_MAX = 12, ASM_WAVES_MAX = 12;
+const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'stop' ? 'stop' : e.type === 'prism' && e.shape === 'window' ? 'window' : null;
+
+/* design conditions: the aperture (an entrance pupil diameter, mm, or an F-number), the fields
+   (angles of the incoming light, degrees, each with a weight) and the wavelengths (nm, each with a
+   weight, one of them primary) */
+function normCond(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const ap = c.aperture && typeof c.aperture === 'object' ? c.aperture : {};
+  const kind = ap.kind === 'fno' ? 'fno' : 'epd';
+  const fields = (Array.isArray(c.fields) && c.fields.length ? c.fields : [{ deg: 0, w: 1 }]).slice(0, ASM_FIELDS_MAX)
+    .map(f => ({ deg: clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
+  const waves = (Array.isArray(c.waves) && c.waves.length ? c.waves : [{ nm: 587.56, w: 1 }]).slice(0, ASM_WAVES_MAX)
+    .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 1e7), w: clamp(num(v && v.w, 1), 0, 1e3) }));
+  return {
+    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : clamp(num(ap.v, 10), 1e-3, 1e5) },
+    fields, waves, primary: Math.round(clamp(num(c.primary, 0), 0, waves.length - 1)),
+  };
+}
+function normAssemblies(list, els) {
+  const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
+  for (const a of Array.isArray(list) ? list : []) {
+    if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
+    seen.add(a.id);
+    const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond) });
+  }
+  return out;
+}
+const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
+const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
+const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
+/* the assembly a selection is, whole: every one of its parts and nothing else */
+function asmOfSelection(list) {
+  if (!list.length) return null;
+  const a = asmOf(list[0]);
+  if (!a) return null;
+  const m = asmMembers(a);
+  return m.length === list.length && list.every(e => e.group === a.id) ? a : null;
+}
+
+/* ---------- Can these parts be one assembly? ----------
+   Lenses (round about their axes, not cylinders), round stops and windows, all on one axis: facing
+   along it (a lens either way round), on it, at one height, upright. The light runs along the axis
+   away from a source on it; with none, the way most of the lenses face. */
+const ang = a => ((a % 360) + 360) % 360;
+const sameAng = (a, b, tol) => { const d = ang(a - b); return Math.min(d, 360 - d) <= tol; };
+function asmCheck(els, opts) {
+  opts = opts || {};
+  const name = e => e.name || e.type;
+  if (els.length < (opts.min || 2)) return { ok: false, why: 'Select at least two parts: lenses and stops on one axis.' };
+  const bad = els.find(e => !asmKind(e));
+  if (bad) return { ok: false, why: name(bad) + ' can’t be in an assembly: only lenses, stops and windows on one axis can (leave out sources, screens and the rest).' };
+  if (els.some(e => e.bench !== els[0].bench)) return { ok: false, why: 'The parts are on different tabs.' };
+  const lenses = els.filter(e => asmKind(e) !== 'stop');
+  if (!lenses.length) return { ok: false, why: 'An assembly needs at least one lens or window.' };
+  const cyl = els.find(e => e.type === 'lens' && e.cyl);
+  if (cyl) return { ok: false, why: name(cyl) + ' is cylindrical: an assembly’s parts are round about the axis.' };
+  const stopOdd = els.find(e => e.type === 'stop' && (e.shape !== 'round' || e.offset));
+  if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
+  const ref = opts.ref ? els.find(e => e.id === opts.ref) || lenses[0] : lenses[0], a0 = ref.angle;
+  const d = [Math.cos(a0 * deg), Math.sin(a0 * deg)];
+  for (const e of els) {
+    const ok = asmKind(e) === 'stop' ? sameAng(e.angle, a0, 1e-6) || sameAng(e.angle, a0 + 180, 1e-6) : sameAng(e.angle, a0, 1e-6) || sameAng(e.angle, a0 + 180, 1e-6);
+    if (!ok) return { ok: false, why: name(e) + ' faces another way from ' + name(ref) + ': an assembly’s parts face along one axis.' };
+    const rx = e.x - ref.x, ry = e.y - ref.y;
+    if (Math.abs(-rx * d[1] + ry * d[0]) > 1e-3) return { ok: false, why: name(e) + ' is off the axis of ' + name(ref) + ' (by ' + (+Math.abs(-rx * d[1] + ry * d[0]).toPrecision(3)) + ' mm). Line them up first.' };
+    if (Math.abs((e.z === undefined ? 75 : e.z) - (ref.z === undefined ? 75 : ref.z)) > 1e-3) return { ok: false, why: name(e) + ' is at another height from ' + name(ref) + '.' };
+    if (e.tip) return { ok: false, why: name(e) + ' is tipped out of the plane.' };
+  }
+  // which way the light runs: away from a source on the axis, else the way most lenses face
+  let rev = opts.rev;
+  if (rev === undefined) {
+    const half = Math.max(...lenses.map(e => (e.diameter || e.size || 0) / 2));
+    const srcs = (opts.sources || []).filter(s => Math.abs(-(s.x - ref.x) * d[1] + (s.y - ref.y) * d[0]) < half && s.bench === ref.bench)
+      .sort((p, q) => Math.hypot(p.x - ref.x, p.y - ref.y) - Math.hypot(q.x - ref.x, q.y - ref.y));
+    if (srcs.length) rev = (srcs[0].x - ref.x) * d[0] + (srcs[0].y - ref.y) * d[1] > 0;
+    else {
+      const turned = lenses.filter(e => !sameAng(e.angle, a0, 1e-6)).length;
+      rev = 2 * turned > lenses.length;
+    }
+  }
+  // in order along the light, and none overlapping
+  const D = rev ? [-d[0], -d[1]] : d;
+  const span = e => { const c = (e.x - ref.x) * D[0] + (e.y - ref.y) * D[1], T = asmKind(e) === 'lens' ? e.gaps.reduce((a, b) => a + b, 0) : asmKind(e) === 'window' ? e.thickness : 0; return [c - T / 2, c + T / 2]; };
+  const order = els.slice().sort((p, q) => span(p)[0] - span(q)[0]);
+  for (let i = 1; i < order.length; i++) if (span(order[i])[0] < span(order[i - 1])[1] - 1e-6) return { ok: false, why: name(order[i]) + ' overlaps ' + name(order[i - 1]) + '.' };
+  return { ok: true, ref: ref.id, rev, order: order.map(e => e.id) };
+}
+
+/* ---------- The prescription: the parts as one sequence of surfaces ----------
+   Along the light, from the first surface's vertex: each surface's shape (R, conic k, a2, the even
+   terms A, the odd terms), its clear radius, the gap to the next and the material in that gap (air
+   between parts), the stop as a flat surface in air. Each surface remembers which part, and which
+   of its surfaces, it came from, so changes can be written back. A lens turned against the light is
+   read face for face the other way round, each sag of the other sign. */
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null });
+function asmPrescription(asm, els) {
+  els = els || asmMembers(asm);
+  const ref = els.find(e => e.id === asm.ref) || els[0];
+  const a0 = ref.angle * deg, d = [Math.cos(a0), Math.sin(a0)].map(v => v * (asm.rev ? -1 : 1));
+  const along = e => (e.x - ref.x) * d[0] + (e.y - ref.y) * d[1];
+  const parts = els.map(e => {
+    const kind = asmKind(e), c = along(e);
+    if (kind === 'stop') return { e, kind, z0: c, z1: c, surfaces: [{ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.aperture / 2, stop: true, from: { id: e.id, i: 0 } }], gaps: [], materials: [] };
+    let surfaces, gaps, materials;
+    const flip = (Math.cos(e.angle * deg) * d[0] + Math.sin(e.angle * deg) * d[1]) < 0;
+    if (kind === 'lens') {
+      surfaces = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+      gaps = e.gaps.slice(); materials = e.materials.map(m => Object.assign({}, m));
+    } else {
+      surfaces = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
+      gaps = [e.thickness]; materials = [Object.assign({}, e.material)];
+    }
+    if (flip) {
+      surfaces = surfaces.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from }));
+      gaps.reverse(); materials.reverse();
+    }
+    const T = gaps.reduce((a, b) => a + b, 0);
+    return { e, kind, flip, z0: c - T / 2, z1: c + T / 2, surfaces, gaps, materials };
+  }).sort((p, q) => p.z0 - q.z0 || (p.kind === 'stop' ? -1 : 1));
+  const surfaces = [], gaps = [], materials = [];
+  parts.forEach((p, i) => {
+    if (i) { gaps.push(Math.max(0, p.z0 - parts[i - 1].z1)); materials.push({ glass: 'AIR' }); }
+    surfaces.push(...p.surfaces); gaps.push(...p.gaps); materials.push(...p.materials);
+  });
+  const stopIndex = surfaces.findIndex(s => s.stop);
+  // the first vertex, in the world, and the axis: where the prescription sits on the bench
+  const z0 = parts[0].z0, origin = [ref.x + d[0] * z0, ref.y + d[1] * z0];
+  return { surfaces, gaps, materials, stopIndex, origin, dir: d, parts: parts.map(p => ({ id: p.e.id, kind: p.kind, flip: !!p.flip, n: p.surfaces.length })) };
+}
+
+/* Writes a prescription back to the parts: each surface's shape to the surface it came from, each
+   part's own thicknesses and glass, and each part's place along the axis from the gaps (the first
+   vertex stays where it is). The prescription must keep the parts' surfaces in the same order. */
+function asmApply(asm, P, els) {
+  els = els || asmMembers(asm);
+  const byId = new Map(els.map(e => [e.id, e]));
+  let z = 0, k = 0;
+  P.parts.forEach((p, pi) => {
+    const e = byId.get(p.id), S = P.surfaces.slice(k, k + p.n), G = P.gaps.slice(k, k + p.n - 1), M = P.materials.slice(k, k + p.n - 1);
+    const zFirst = z;
+    for (let i = 0; i < p.n - 1; i++) z += P.gaps[k + i];
+    const zLast = z, c = (zFirst + zLast) / 2;
+    // moved only when it moves: a prescription written back unchanged leaves every place exactly as it was
+    const nx = P.origin[0] + P.dir[0] * c, ny = P.origin[1] + P.dir[1] * c;
+    if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
+    if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
+    else if (p.kind === 'lens') {
+      const ss = p.flip ? S.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi })) : S;
+      ss.forEach((s, i) => {
+        const t = e.surfaces[i];
+        t.R = s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
+        // a clear radius that is the lens's own stays unset
+        if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
+        else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+      });
+      e.gaps = (p.flip ? G.slice().reverse() : G).slice();
+      e.materials = (p.flip ? M.slice().reverse() : M).map(m => Object.assign({}, m));
+    } else if (p.kind === 'window') { e.thickness = G[0]; e.material = Object.assign({}, M[0]); }
+    k += p.n;
+    if (pi < P.parts.length - 1) z += P.gaps[k - 1];
+  });
+}
+
+/* first-order figures of the prescription at one wavelength: its focal length and back focal distance */
+function asmParaxial(P, nm, paraxial) {
+  return paraxial({ surfaces: P.surfaces, gaps: P.gaps, materials: P.materials }, nm);
+}
 /* ---------- Higher-order beams ----------
    A Gaussian source can launch a Hermite-Gauss mode HG_mn (m nodes across the bench plane, n
    out of it) or a Laguerre-Gauss mode LG_pl (p rings, and for l != 0 a vortex of charge l, its
@@ -6188,6 +6370,7 @@ function serialize() {
     benches: project.benches, tab: project.tab,
     elements: project.elements,
     fibres: project.fibres || [],
+    ...(assemblies().length ? { assemblies: assemblies() } : {}),
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
@@ -6307,6 +6490,7 @@ function loadProject(data) {
   } else p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view }];
   ensureBenches(p);
   p.fibres = normFibres(data.fibres, p.elements);
+  p.assemblies = normAssemblies(data.assemblies, p.elements);
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
@@ -9376,6 +9560,37 @@ function drawSelection() {
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
+/* an assembly: a dashed box round its parts along its axis, its name above it (red, and saying so,
+   once its parts are no longer on one axis) */
+function drawAssemblies() {
+  const k = 1 / V().scale;
+  for (const a of assemblies()) {
+    const M = asmMembers(a).filter(onTab);
+    if (!M.length) continue;
+    const ref = M.find(e => e.id === a.ref) || M[0], ang = (ref.angle + (a.rev ? 180 : 0)) * deg;
+    const fA = { ox: ref.x, oy: ref.y, c: Math.cos(ang), s: Math.sin(ang) };
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const e of M) {
+      const f = frame(e);
+      for (const [p, q] of bodyOutline(e)) { const [x, y] = toWorld(f, p, q), [u, v] = toLocal(fA, x, y); u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    }
+    const m = 3 * k + 0.04 * Math.max(u1 - u0, v1 - v0);
+    u0 -= m; u1 += m; v0 -= m; v1 += m;
+    const ok = asmCheck(M, { ref: a.ref, rev: a.rev }).ok, ink = ok ? '#f07a35' : '#e5484d';
+    ctx.save();
+    pathLocal(fA, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], true);
+    ctx.fillStyle = ok ? 'rgba(240,122,53,0.06)' : 'rgba(229,72,77,0.07)'; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+    // its name over the box's top edge, whichever way the axis runs on the page
+    const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => toWorld(fA, u, v)).map(([x, y]) => [sx(x), sy(y)]);
+    const top = Math.min(...corners.map(c => c[1])), mid = corners.reduce((s2, c) => s2 + c[0], 0) / 4;
+    ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = ink;
+    ctx.fillText(a.name + (ok ? '' : ' (no longer on one axis)'), mid, top - 4);
+    ctx.restore();
+  }
+}
+
 function niceStep(target) {
   const p = Math.pow(10, Math.floor(Math.log10(target)));
   for (const m of [1, 2, 5, 10]) if (m * p >= target) return m * p;
@@ -9432,6 +9647,7 @@ function renderAll(stale) {
   }
   for (const el of els) if (el.type === 'source') draw(el);
   for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
+  drawAssemblies();
   drawAssumed(els);
   drawLabels();
   drawMeasures();
@@ -20036,7 +20252,11 @@ function sectionise(box, kind) {
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
-  if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
+  if (el && panel === mainPanel && extraSel.size && selection().length > 1) {
+    const A = asmOfSelection(selection());                // an assembly picked whole shows as one
+    if (A) { assemblyPanel(A); sectionise(panel, 'assembly'); return; }
+    groupPanel(selection()); return;
+  }
   if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
@@ -21003,6 +21223,9 @@ function groupPanel(list) {
     list.every(e => e.group && e.group === list[0].group) ? B('Ungroup', () => ungroupEls(list), 'Ctrl+Shift+G') : B('Group', () => groupEls(list), 'Ctrl+G: picked and moved as one'),
 
     h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEls(list) }, 'Delete')));
+  // lenses and stops on one axis: one assembly, to design as one
+  const mk = makeAssemblyRow(list);
+  if (mk) { panel.append(h('h3', null, 'Lens design')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'));
@@ -21092,6 +21315,88 @@ function drawCellSpectrum(cv, el, span) {
   drawAxes(g, A, [lo / 1e9, hi / 1e9], yr, { kind: 'plain', title: 'GHz from the ' + ATOMS[el.atom].iso.slice().sort((a, b) => b[1] - a[1])[0][0].replace(/(\d+)/, '-$1') + ' ' + el.line + ' centre' }, { kind: 'plain', title: 'transmission' });
 }
 
+/* ---------- Assemblies on the bench ----------
+   Made from lenses and stops picked on the bench, split back into them, or started afresh from the
+   File menu. The parts stay the bench's own parts (core/assembly.js); this is how they are made one,
+   shown and taken apart. */
+const sources = () => project.elements.filter(e => e.type === 'source' && onTab(e));
+const nextAsmName = () => { let n = 1; while ((project.assemblies || []).some(a => a.name === 'Assembly ' + n)) n++; return 'Assembly ' + n; };
+/* conditions to start from: the aperture its stop (or smallest part) sets, the axis alone, the bench's wavelengths */
+function startCond(els) {
+  const ap = Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.type === 'lens' ? e.diameter : e.size));
+  const nms = benchNms().filter(nm => nm < 1e5).slice(0, 3);
+  return normCond({ aperture: { kind: 'epd', v: ap }, fields: [{ deg: 0, w: 1 }], waves: (nms.length ? nms : [587.56]).map(nm => ({ nm, w: 1 })) });
+}
+function makeAssembly(list) {
+  const C = asmCheck(list, { sources: sources() });
+  if (!C.ok) { toast(C.why, true); return null; }
+  checkpoint();
+  const id = 'g' + uid().slice(1);
+  for (const e of list) e.group = id;
+  const asm = { id, name: nextAsmName(), bench: list[0].bench, ref: C.ref, rev: C.rev, cond: startCond(list) };
+  project.assemblies = (project.assemblies || []).concat([asm]);
+  setSelection(list);
+  toast('Made ' + asm.name + ' from ' + list.length + ' parts');
+  changed(true);
+  return asm;
+}
+function splitAssembly(asm) {
+  checkpoint();
+  const M = asmMembers(asm);
+  for (const e of M) delete e.group;
+  project.assemblies = (project.assemblies || []).filter(a => a.id !== asm.id);
+  setSelection(M);
+  toast('Split ' + asm.name + ' into its ' + M.length + ' parts');
+  changed(true);
+}
+/* a new design: a stop and a singlet, f about 50 mm at f/5, in the middle of the view */
+function newLensDesign() {
+  checkpoint();
+  const id = 'g' + uid().slice(1), x = Math.round(V().cx), y = Math.round(V().cy);
+  const stop = normElement({ type: 'stop', id: uid(), name: 'Stop', x: x - 8, y, angle: 0, aperture: 10, outer: 25.4, group: id, bench: project.tab });
+  const lens = normElement({ type: 'lens', id: uid(), name: 'Singlet', x, y, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }], group: id, bench: project.tab });
+  project.elements.push(stop, lens);
+  const asm = { id, name: 'New design', bench: project.tab, ref: lens.id, rev: false, cond: normCond({ aperture: { kind: 'epd', v: 10 }, fields: [{ deg: 0, w: 1 }, { deg: 5, w: 1 }], waves: [{ nm: 486.13, w: 1 }, { nm: 587.56, w: 2 }, { nm: 656.27, w: 1 }], primary: 1 }) };
+  project.assemblies = (project.assemblies || []).concat([asm]);
+  setSelection([stop, lens]);
+  changed(true);
+  return asm;
+}
+
+/* its panel: what it is made of, its first-order figures at its primary wavelength, its conditions */
+function assemblyPanel(asm) {
+  const M = asmMembers(asm), C = asmCheck(M, { ref: asm.ref, rev: asm.rev });
+  const title = h('h2', null, h('span', null, asm.name), h('span', { class: 'kind' }, 'Assembly'));
+  panel.append(title);
+  panel.append(h('div', { class: 'rt-rows' }, textField('Name', () => asm.name, v => { asm.name = String(v || 'Assembly').slice(0, 80); title.firstChild.textContent = asm.name; }, { wide: true })));
+  if (!C.ok) panel.append(h('p', { class: 'note', style: 'color:var(--jek-red, #b3261e)' }, 'Its parts are no longer on one axis: ' + C.why + ' Line them up again, or split it into its parts.'));
+  panel.append(h('h3', null, 'Parts'));
+  const P = C.ok ? asmPrescription(asm, M) : null, order = P ? P.parts.map(p => M.find(e => e.id === p.id)) : M;
+  const ul = h('ul', { class: 'rt-list' });
+  for (const e of order) ul.append(h('li', null, h('button', { type: 'button', onclick: () => setSelection([e]) }, e.name, h('span', { class: 't' }, typeLabel(e)))));
+  panel.append(ul);
+  if (P) {
+    const c = asm.cond, nm = c.waves[c.primary].nm, p = asmParaxial(P, nm, paraxial);
+    const len = P.gaps.reduce((a, b) => a + b, 0), ap = c.aperture.kind === 'fno' ? 'f/' + (+c.aperture.v.toPrecision(4)) : fmtLen(c.aperture.v) + ' entrance pupil';
+    const rows = [['EFL at ' + (+nm.toPrecision(5)) + ' nm', isFinite(p.efl) ? fmtLen(p.efl) : 'afocal'], ['BFL', isFinite(p.bfl) ? fmtLen(p.bfl) : '—'],
+      ['Surfaces', P.surfaces.length + (P.stopIndex >= 0 ? ', the stop the ' + ordinal(P.stopIndex + 1) : ', no stop of its own')], ['First to last surface', fmtLen(len)],
+      ['Designed for', ap + ', fields to ' + Math.max(...c.fields.map(f => Math.abs(f.deg))) + '°, ' + c.waves.map(v => +v.nm.toPrecision(5)).join(', ') + ' nm']];
+    panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))));
+  }
+  const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
+  panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
+    B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone.'));
+}
+const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
+
+/* in a selection's panel: the button that makes these parts one, or why it can't */
+function makeAssemblyRow(list) {
+  const C = asmCheck(list, { sources: sources() });
+  if (C.ok) return h('button', { class: 'rt-btn', type: 'button', title: 'Lenses and stops on one axis, designed as one; nothing on the bench changes', onclick: () => makeAssembly(list) }, 'Make an assembly');
+  return list.some(e => e.type === 'lens') ? h('p', { class: 'note' }, 'Not an assembly: ' + C.why) : null;
+}
 /* ---------- Zooming a panel plot ----------
    Each plot of each element keeps its own window: a zoom factor and a centre for each
    axis, the centre as a fraction of the plot's full range. The wheel zooms about the
@@ -28866,7 +29171,8 @@ function alignEls(list, how) {
 let clipMem = null;
 function clipOf(list) {
   const ids = new Set(list.map(e => e.id));
-  return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)),
+  const asms = (project.assemblies || []).filter(a => list.some(e => e.group === a.id) && project.elements.filter(e => e.group === a.id).every(e => ids.has(e.id)));
+  return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)), ...(asms.length ? { assemblies: JSON.parse(JSON.stringify(asms)) } : {}),
     fibres: JSON.parse(JSON.stringify((project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0])))) };
 }
 function pasteClip(clip, at) {
@@ -28889,6 +29195,11 @@ function pasteClip(clip, at) {
     project.elements.push(e);             // at once, so the next one's name sees it
   }
   for (const e of made) if (e.splitFrom && map.has(e.splitFrom)) e.splitFrom = map.get(e.splitFrom);
+  // a whole assembly copied: its record with it, for the copy's own group
+  for (const a of Array.isArray(clip.assemblies) ? clip.assemblies : []) {
+    if (!groups.has(a.id) || !map.has(a.ref)) continue;
+    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy' })], made));
+  }
   project.fibres = project.fibres || [];
   for (const F of clip.fibres || []) {
     if (!map.has(F.a[0]) || !map.has(F.b[0])) continue;
@@ -28952,6 +29263,8 @@ function benchMenu(X, Y, hit, at, in3d) {
     ...(list.some(x => x.type === 'draw') ? [{ label: 'Flip horizontal', key: 'H', fn: () => flipEls(list, 'h') }, { label: 'Flip vertical', key: 'V', fn: () => flipEls(list, 'v') },
       { label: 'Raise to top', key: 'Home', fn: () => restack(list, 'top') }, { label: 'Lower to bottom', key: 'End', fn: () => restack(list, 'bottom') }] : []), '-',
     ...(n > 1 && !grouped ? [{ label: 'Group', key: 'Ctrl+G', fn: () => groupEls(list) }] : []),
+    ...(n > 1 && !asmOfSelection(list) && asmCheck(list).ok ? [{ label: 'Make an assembly', fn: () => makeAssembly(list) }] : []),
+    ...(asmOfSelection(list) ? [{ label: 'Split the assembly into parts', fn: () => splitAssembly(asmOfSelection(list)) }] : []),
     ...(list.some(x => x.group) ? [{ label: 'Ungroup', key: 'Ctrl+Shift+G', fn: () => ungroupEls(list) }] : []),
     ...(one && one.type !== 'draw' && !in3d ? [{ label: 'Edit name', fn: () => editText(one, 'name') }] : []),
     ...(one && one.type === 'draw' && one.shape === 'text' ? [{ label: 'Edit text', fn: () => editText(one, 'text') }] : []),
@@ -29436,13 +29749,14 @@ function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [] });
+const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
   project.fibres = S.f || [];
   project.measures = S.m || [];
+  project.assemblies = S.a || [];
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
@@ -29972,7 +30286,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
+const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -30597,8 +30911,8 @@ function decodeZmx(buf) {
 
 function parseZmx(text, fileName, agf) {
   const lines = text.split(/\r?\n/);
-  let unit = 1, title = null, pwav = 1;
-  const surfs = [], wavm = {};
+  let unit = 1, title = null, pwav = 1, enpd = null, fnum = null, ftyp = 0;
+  const surfs = [], wavm = {}, wwgt = {}, sys = { yfln: [], fwgn: [] };
   let cur = null;
   const warnings = new Set();
   for (const raw of lines) {
@@ -30617,6 +30931,17 @@ function parseZmx(text, fileName, agf) {
       title = t.slice(5).trim().replace(/^"|"$/g, '') || title;
     } else if (key === 'WAVM' && !cur) {
       wavm[parseInt(tok[1], 10)] = parseFloat(tok[2]);       // the design wavelengths, um
+      if (isFinite(parseFloat(tok[3]))) wwgt[parseInt(tok[1], 10)] = parseFloat(tok[3]);
+    } else if (key === 'ENPD' && !cur) {
+      enpd = parseFloat(tok[1]);                              // the entrance pupil's diameter
+    } else if (key === 'FNUM' && !cur) {
+      fnum = parseFloat(tok[1]);                              // or the image space F-number
+    } else if (key === 'FTYP' && !cur) {
+      ftyp = parseInt(tok[1], 10) || 0;                       // 0: the fields are angles
+    } else if (key === 'YFLN' && !cur) {
+      sys.yfln = tok.slice(1).map(Number).filter(isFinite);
+    } else if (key === 'FWGN' && !cur) {
+      sys.fwgn = tok.slice(1).map(Number).filter(isFinite);
     } else if (key === 'PWAV' && !cur) {
       pwav = parseInt(tok[1], 10) || 1;                       // which of them is the primary
     } else if (key === 'SURF') {
@@ -30624,7 +30949,8 @@ function parseZmx(text, fileName, agf) {
       surfs.push(cur);
     } else if (!cur) {
       continue;
-    } else if (key === 'TYPE') cur.type = (tok[1] || 'STANDARD').toUpperCase();
+    } else if (key === 'STOP') cur.stop = true;
+    else if (key === 'TYPE') cur.type = (tok[1] || 'STANDARD').toUpperCase();
     else if (key === 'CURV') cur.curv = parseFloat(tok[1]) || 0;
     else if (key === 'CONI') cur.conic = parseFloat(tok[1]) || 0;
     else if (key === 'PARM') cur.parm[parseInt(tok[1], 10)] = parseFloat(tok[2]) || 0;
@@ -30645,7 +30971,15 @@ function parseZmx(text, fileName, agf) {
   }
   if (surfs.length < 2) throw new Error('No surfaces were found in ' + fileName + '.');
   const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
-  return { title, unit, surfs, warnings, design, agf: agf || null };
+  // the conditions it was designed for, for an assembly made from it: aperture, fields (angles only), wavelengths
+  const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0).sort((a, b) => a - b);
+  const cond = {
+    aperture: enpd > 0 ? { kind: 'epd', v: enpd * unit } : fnum > 0 ? { kind: 'fno', v: fnum } : null,
+    fields: ftyp === 0 && sys.yfln.length ? sys.yfln.map((d, i) => ({ deg: d, w: sys.fwgn[i] !== undefined ? sys.fwgn[i] : 1 })).filter((f, i, all) => all.findIndex(g => g.deg === f.deg) === i) : null,
+    waves: ks.length ? ks.map(k => ({ nm: Math.round(wavm[k] * 1e6) / 1000, w: wwgt[k] !== undefined ? wwgt[k] : 1 })) : null,
+    primary: Math.max(0, ks.indexOf(pwav)),
+  };
+  return { title, unit, surfs, warnings, design, cond, agf: agf || null };
 }
 
 const IMPORT_AS = { auto: 'Work it out from the file', lens: 'Lens', mirror: 'Mirror', cube: 'Beam splitter cube', prism: 'Right-angle prism', window: 'Window' };
@@ -30791,6 +31125,13 @@ function zmxToElement(Z, fileName, mode) {
       range[range.length - 1] = Object.assign({}, range[range.length - 1], { glass: null });
     }
   }
+  // where the file's stop is against the lens: on one of its surfaces, or in front of it or behind
+  {
+    const si = surfs.findIndex(t => t.stop), dz = (i0, i1) => { let z = 0; for (let i = i0; i < i1; i++) z += isFinite(surfs[i].disz) ? Math.abs(surfs[i].disz) * unit : 0; return z; };
+    const ri = si > 0 ? range.indexOf(surfs[si]) : -1, f0 = surfs.indexOf(range[0]), l0 = surfs.indexOf(range[range.length - 1]);
+    Z.stopAt = si <= 0 ? null : ri >= 0 ? { at: ri, semi: semiOf(surfs[si]) }
+      : si < f0 ? { before: dz(si, f0), semi: semiOf(surfs[si]) } : si > l0 && si < surfs.length - 1 ? { after: dz(l0, si), semi: semiOf(surfs[si]) } : null;
+  }
   let cylinder = false;
   const lensCoat = arCoat();
   const surfaces = range.map((s, si) => {
@@ -30928,17 +31269,27 @@ function zmxSystem(els) {
 }
 
 /* The .zmx text for the parts chosen; nms, the wavelengths to list, the first being primary */
+/* an assembly's prescription as the exporter takes it: its stop where it is, its design conditions */
+function zmxAssemblySystem(asm) {
+  const P = asmPrescription(asm), warnings = new Set();
+  if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
+  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings };
+}
 function zmxExport(els, nms) {
-  const S = zmxSystem(els);
+  const asm = asmOfSelection(els);
+  const S = asm ? zmxAssemblySystem(asm) : zmxSystem(els);
   nms = (nms && nms.length ? nms : [587.56]).slice(0, 24);
+  const C = S.cond || null, waves = C ? C.waves : nms.map(nm => ({ nm, w: 1 })), fields = C ? C.fields : [{ deg: 0, w: 1 }];
   const L = [];
   const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
+  const aperture = C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
   L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
     'NOTE 0 Exported from JEKray. Coatings, tilts and decentres are not included.',
-    'UNIT MM X W X CM MR CPMM', 'ENPD ' + zmxNum(2 * semiFirst), 'GCAT SCHOTT OHARA MISC',
-    'FTYP 0 0 1 ' + nms.length + ' 0 0 0', 'XFLN 0', 'YFLN 0', 'FWGN 1');
-  nms.forEach((nm, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(nm / 1000) + ' 1'));
-  L.push('PWAV 1');
+    'UNIT MM X W X CM MR CPMM', aperture, 'GCAT SCHOTT OHARA MISC',
+    'FTYP 0 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
+  waves.forEach((v, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(v.nm / 1000) + ' ' + zmxNum(v.w)));
+  L.push('PWAV ' + (C ? C.primary + 1 : 1));
+  nms = C ? [C.waves[C.primary].nm] : nms;
   let n = 0;
   const surf = (lines) => { L.push('SURF ' + n++); for (const l of lines) L.push('  ' + l); };
   const diam = semi => 'DIAM ' + zmxNum(semi) + ' 1 0 0 1 ""';
@@ -30954,8 +31305,9 @@ function zmxExport(els, nms) {
   }
   const p = paraxial({ surfaces: S.surfaces, gaps: S.gaps, materials: S.materials }, nms[0]);
   if (!isFinite(p.bfl)) S.warnings.add('it is afocal, so the image is placed at the last face');
+  const stopAt = S.stopIndex >= 0 ? S.stopIndex : 0;
   S.surfaces.forEach((s, i) => {
-    const lines = i === 0 ? ['STOP'] : [];
+    const lines = i === stopAt ? ['STOP'] : [];
     const A = s.A.slice();
     if (s.odd) {
       // all powers r^1 to r^8, the even ones carrying the even terms
@@ -31018,6 +31370,42 @@ function zmxElement(file, mode) {
 // onto the bench (the first file), or, from My parts, each file into My parts
 let zmxToMine = false;
 function setZmxToMine(v) { return (zmxToMine = v); }
+/* A lens file of several lenses (air between them) or with a stop of its own, made into the parts it
+   is, on one axis, as an assembly with the file's design conditions; null for a single lens. el: the
+   lens the file reads as (all its surfaces, air gaps as AIR), Z: the parsed file. */
+function zmxAssembly(Z, el) {
+  if (el.type !== 'lens') return null;
+  const segs = [];
+  let a = 0;
+  el.materials.forEach((m, i) => { if (m.glass === 'AIR') { segs.push([a, i]); a = i + 1; } });
+  segs.push([a, el.surfaces.length - 1]);
+  const S = Z.stopAt;
+  if (segs.length === 1 && !(S && (S.before !== undefined || S.after !== undefined))) return null;
+  const T = el.gaps.reduce((p, q) => p + q, 0), zs = [0];
+  el.gaps.forEach((g, i) => zs.push(zs[i] + g));
+  const g = 'g' + uid().slice(1), els = [], semiOf = s => s.semi || el.diameter / 2;
+  let k = 0;
+  const stop = (zc, semi) => els.push(normElement({ type: 'stop', id: uid(), name: el.name + ' stop', x: el.x + zc, y: el.y, angle: 0, aperture: 2 * (semi || el.diameter / 2), outer: Math.max(25.4, 2.4 * (semi || el.diameter / 2)), group: g }));
+  if (S && S.before !== undefined) stop(-T / 2 - S.before, S.semi);
+  for (const [i0, i1] of segs) {
+    const zc = (zs[i0] + zs[i1]) / 2 - T / 2;
+    if (i0 === i1) {                                   // a surface with air either side: the stop, or a dummy
+      if (S && S.at === i0) stop(zc, S.semi || semiOf(el.surfaces[i0]));
+      continue;
+    }
+    const surfaces = el.surfaces.slice(i0, i1 + 1).map(s => Object.assign({}, s)), dia = 2 * Math.max(...surfaces.map(semiOf));
+    surfaces.forEach(s => { if (s.semi && Math.abs(2 * s.semi - dia) < 1e-6) s.semi = null; });
+    els.push(normElement({ type: 'lens', id: uid(), name: el.name + ' L' + (++k), x: el.x + zc, y: el.y, angle: 0, diameter: dia,
+      surfaces, gaps: el.gaps.slice(i0, i1), materials: el.materials.slice(i0, i1), group: g, ...(el.design ? { design: el.design } : {}) }));
+  }
+  if (S && S.after !== undefined) stop(T / 2 + S.after, S.semi);
+  const lenses = els.filter(e => e.type === 'lens');
+  if (!lenses.length) return null;
+  const c = Z.cond || {};
+  const cond = normCond({ aperture: c.aperture || { kind: 'epd', v: Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.diameter)) },
+    fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
+  return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
+}
 async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
@@ -31027,6 +31415,17 @@ async function importZmx(files) {
   try {
     const { Z, el } = await zmxElement(files[0], mode);
     checkpoint();
+    const A = zmxAssembly(Z, el);
+    if (A) {
+      for (const e of A.els) { e.bench = project.tab; if (el.assumed) e.assumed = el.assumed; project.elements.push(e); }
+      project.assemblies = (project.assemblies || []).concat([Object.assign(A.asm, { bench: project.tab })]);
+      setSelection(A.els);
+      changed(true);
+      if (dlg.open) dlg.close();
+      const w = [...Z.warnings];
+      toast('Imported ' + A.asm.name + ' as an assembly of ' + A.els.length + ' parts' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
+      return;
+    }
     el.bench = project.tab;
     project.elements.push(el);
     selectOne(el.id);
@@ -33536,6 +33935,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Assemblies</b>, the first step of lens design: select lenses and stops on one axis and <b>Make an assembly</b>. It is picked and moved as one and read as one prescription (its focal length, back focus and stop in its panel), with the aperture, fields and wavelengths it is designed for; nothing the light does changes, and <b>Split into parts</b> gives the parts back. <b>File \u203a New lens design</b> starts one, a lens file of several lenses imports as one, and an assembly exports as a lens file with its stop and conditions.',
     '<b>Steering</b>: a horn moved off an RF lens\u2019s axis steers its beam, and the lens\u2019s readout gives where it points and the scan loss against the horn on the axis, the bench traced again with it there; <b>Work out the scan</b> moves the horn round the lens and plots the scan loss.',
     '<b>How closely it must be made</b>: an RF lens\u2019s readout traces the bench again with its plastic\u2019s permittivity 5% higher and lower, and gives the gain, the focus and what each receiving horn takes in, and how far it may be off before the gain falls 1 dB. A graded-index lens gives the <b>highest frequency</b> it holds to by the design rule (its least dense lines a quarter wave apart), and warns above it; matched faces give the band they match over.',
     '<b>Matching layers</b>: a graded-index lens\u2019s faces can carry a quarter-wave layer, printed less dense, so they reflect nothing at the design frequency (and partly match where the layer cannot be made so sparse); its core is graded to keep the focal length. A made-to-order solid lens\u2019s Matching layer coating is made as a less dense skin, and its panel says whether that can be made.',
@@ -34119,6 +34519,7 @@ function wireTours() {
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
   document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
+  document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
@@ -35302,6 +35703,22 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     importZmxBench(text, fileName, mode) { const el = zmxPart(parseZmx(text, fileName), fileName, mode || 'auto'); el.bench = project.tab; project.elements.push(el); selectOne(el.id); changed(true); traceScene(); return el.name; },
     // a part kept in My parts placed on the bench, its content given (as fetched)
     minePlace(p, content) { MINE.content.set(p.id + '@' + p.updated_at, content); return placeMine(p); },
+    // assemblies: made from parts named, split, read as a prescription; a lens file onto the bench as an assembly
+    makeAssembly(names) { const a = makeAssembly(names.map(n => this.byName(n))); traceScene(); return a && a.id; },
+    splitAssembly(name) { const a = (project.assemblies || []).find(x => x.name === name); if (a) splitAssembly(a); traceScene(); return !!a; },
+    assemblies() { return assemblies().map(a => JSON.parse(JSON.stringify(a))); },
+    asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
+    asmEfl(name) { const a = assemblies().find(x => x.name === name); return a ? asmParaxial(asmPrescription(a), a.cond.waves[a.cond.primary].nm, paraxial).efl : null; },
+    importZmxAssembly(text, fileName) {
+      const Z = parseZmx(text, fileName), el = zmxPart(Z, fileName, 'auto'), A = zmxAssembly(Z, el);
+      if (!A) return null;
+      for (const e of A.els) { e.bench = project.tab; project.elements.push(e); }
+      project.assemblies = (project.assemblies || []).concat([Object.assign(A.asm, { bench: project.tab })]);
+      changed(true); traceScene();
+      return A.asm.name;
+    },
+    undo() { undo(); traceScene(); }, redo() { redo(); traceScene(); },
+    newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },

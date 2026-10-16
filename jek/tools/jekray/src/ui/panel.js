@@ -1,4 +1,6 @@
 import { BEAM_Z, TEST_MODE } from '../core/constants.js';
+import { asmOfSelection } from '../core/assembly.js';
+import { assemblyPanel } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
@@ -505,7 +507,11 @@ function sectionise(box, kind) {
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
-  if (el && panel === mainPanel && extraSel.size && selection().length > 1) { groupPanel(selection()); return; }
+  if (el && panel === mainPanel && extraSel.size && selection().length > 1) {
+    const A = asmOfSelection(selection());                // an assembly picked whole shows as one
+    if (A) { assemblyPanel(A); sectionise(panel, 'assembly'); return; }
+    groupPanel(selection()); return;
+  }
   if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));

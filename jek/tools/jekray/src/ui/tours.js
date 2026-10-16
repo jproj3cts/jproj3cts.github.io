@@ -1,4 +1,5 @@
 import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { newLensDesign } from './assembly.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { curBench, ensureBenches, onTab } from '../state/tabs.js';
@@ -238,6 +239,7 @@ export function wireTours() {
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
   document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
+  document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 

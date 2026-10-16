@@ -1,4 +1,6 @@
 import { LOCKED, clamp } from '../core/constants.js';
+import { asmCheck, asmOfSelection, normAssemblies } from '../core/assembly.js';
+import { makeAssembly, splitAssembly } from './assembly.js';
 import { fmtLen } from '../core/format.js';
 import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
@@ -107,7 +109,8 @@ export function alignEls(list, how) {
 let clipMem = null;
 export function clipOf(list) {
   const ids = new Set(list.map(e => e.id));
-  return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)),
+  const asms = (project.assemblies || []).filter(a => list.some(e => e.group === a.id) && project.elements.filter(e => e.group === a.id).every(e => ids.has(e.id)));
+  return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)), ...(asms.length ? { assemblies: JSON.parse(JSON.stringify(asms)) } : {}),
     fibres: JSON.parse(JSON.stringify((project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0])))) };
 }
 export function pasteClip(clip, at) {
@@ -130,6 +133,11 @@ export function pasteClip(clip, at) {
     project.elements.push(e);             // at once, so the next one's name sees it
   }
   for (const e of made) if (e.splitFrom && map.has(e.splitFrom)) e.splitFrom = map.get(e.splitFrom);
+  // a whole assembly copied: its record with it, for the copy's own group
+  for (const a of Array.isArray(clip.assemblies) ? clip.assemblies : []) {
+    if (!groups.has(a.id) || !map.has(a.ref)) continue;
+    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy' })], made));
+  }
   project.fibres = project.fibres || [];
   for (const F of clip.fibres || []) {
     if (!map.has(F.a[0]) || !map.has(F.b[0])) continue;
@@ -193,6 +201,8 @@ export function benchMenu(X, Y, hit, at, in3d) {
     ...(list.some(x => x.type === 'draw') ? [{ label: 'Flip horizontal', key: 'H', fn: () => flipEls(list, 'h') }, { label: 'Flip vertical', key: 'V', fn: () => flipEls(list, 'v') },
       { label: 'Raise to top', key: 'Home', fn: () => restack(list, 'top') }, { label: 'Lower to bottom', key: 'End', fn: () => restack(list, 'bottom') }] : []), '-',
     ...(n > 1 && !grouped ? [{ label: 'Group', key: 'Ctrl+G', fn: () => groupEls(list) }] : []),
+    ...(n > 1 && !asmOfSelection(list) && asmCheck(list).ok ? [{ label: 'Make an assembly', fn: () => makeAssembly(list) }] : []),
+    ...(asmOfSelection(list) ? [{ label: 'Split the assembly into parts', fn: () => splitAssembly(asmOfSelection(list)) }] : []),
     ...(list.some(x => x.group) ? [{ label: 'Ungroup', key: 'Ctrl+Shift+G', fn: () => ungroupEls(list) }] : []),
     ...(one && one.type !== 'draw' && !in3d ? [{ label: 'Edit name', fn: () => editText(one, 'name') }] : []),
     ...(one && one.type === 'draw' && one.shape === 'text' ? [{ label: 'Edit text', fn: () => editText(one, 'text') }] : []),

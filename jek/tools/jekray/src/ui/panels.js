@@ -1,4 +1,5 @@
 import { clamp } from '../core/constants.js';
+import { makeAssemblyRow } from './assembly.js';
 import { fmtDbm, fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
 import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
 import { ATOMS, ATOM_ISO, C_SI, KB } from '../core/cells.js';
@@ -942,6 +943,9 @@ export function groupPanel(list) {
     list.every(e => e.group && e.group === list[0].group) ? B('Ungroup', () => ungroupEls(list), 'Ctrl+Shift+G') : B('Group', () => groupEls(list), 'Ctrl+G: picked and moved as one'),
 
     h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEls(list) }, 'Delete')));
+  // lenses and stops on one axis: one assembly, to design as one
+  const mk = makeAssemblyRow(list);
+  if (mk) { panel.append(h('h3', null, 'Lens design')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'));

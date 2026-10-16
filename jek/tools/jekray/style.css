@@ -1320,6 +1320,14 @@
   .rt-lmrow { font-size: 0.85rem; margin-bottom: 0.6rem; }
   .rt-lmrow select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
   .rt-lmtable { min-width: 40rem; }
+  .rt-lnum.mc { border-color: #c38bff; box-shadow: inset 3px 0 0 #8a4fd1; }
+  .rt-lcfgsel { font: inherit; font-size: 0.85rem; padding: 0.35rem 0.4rem; border: 1px solid #8a4fd1; border-radius: 2px; background: #fff; max-width: 14rem; }
+  .rt-lcfgt td.nm { text-align: left; font-weight: 600; font-size: 0.85rem; white-space: normal; min-width: 13rem; }
+  .rt-lcfgt th.on { background: #f3ecfb; }
+  .rt-lcfgt tr.ro td.nm { font-weight: 400; color: var(--jek-ink-soft); }
+  .rt-lcfgh { display: flex; align-items: center; gap: 0.3rem; }
+  .rt-lcfgh .rt-link { margin-right: 0; }
+  .rt-lcfgname { width: 8.5rem; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
   .rt-lshare { display: flex; align-items: center; gap: 0.5rem; }
   .rt-lshare .bar { width: 7rem; height: 0.5rem; background: var(--jek-well); border-radius: 4px; overflow: hidden; flex: none; }
   .rt-lshare .bar span { display: block; height: 100%; background: var(--jek-orange); }

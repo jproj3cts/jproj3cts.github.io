@@ -1,4 +1,4 @@
-import { DESIGN_KEY, asmApply, asmMembers, asmPrescription, normCond, normDesign } from '../core/assembly.js';
+import { DESIGN_KEY, MC_MAX, asmApply, asmMembers, asmPrescription, normCond, normDesign } from '../core/assembly.js';
 import { deg, nextName, project, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { lensSystem, seidel } from './lens-engine.js';
@@ -184,11 +184,122 @@ export function solveDesign(asm, P) {
   D.image = P.image;
   return notes;
 }
-/* a change made: solved, written to the parts */
+/* a change made: solved, written to the parts; with configurations, the active one's values kept as
+   its own and every other configuration solved again round the change */
 export function commitDesign(asm, P) {
   const notes = solveDesign(asm, P);
   asmApply(asm, P);
+  mcStore(asm, P);
+  mcRefresh(asm, P);
   return notes;
+}
+
+/* ---------- Configurations ----------
+   The active configuration is the one on the bench: its values are the parts' and its object's
+   distance is the conditions'. Each other one keeps its own values for the keys the configurations
+   list, and its own object distance; the rest it shares. */
+export const mcOf = D => D && D.mc && D.mc.configs && D.mc.configs.length > 1 ? D.mc : null;
+/* the conditions configuration ci is designed for: the object moved to its own distance */
+export function cfgCond(c, cfg) {
+  if (!cfg || !(cfg.obj > 0) || !(c.object && c.object.kind === 'finite')) return c;
+  return Object.assign({}, c, { object: { kind: 'finite', d: cfg.obj } });
+}
+const mcClone = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
+/* configuration ci's values put into P (a prescription of the shared values) */
+export function cfgApply(P, M, ci) {
+  const cfg = M.configs[ci];
+  for (const k of M.keys) { const at = posOf(P, k); if (at && k in cfg.v) setV(P, at, cfg.v[k]); }
+}
+/* configuration ci, solved: P (any configuration's prescription) with its values; D.image is left as it was */
+export function cfgSolved(asm, P, ci) {
+  const D = designOf(asm), M = mcOf(D), Pc = mcClone(P), img = D.image;
+  cfgApply(Pc, M, ci);
+  const notes = solveDesign({ cond: cfgCond(asm.cond, M.configs[ci]), design: D }, Pc);
+  D.image = img;
+  Pc.notes = notes;
+  return Pc;
+}
+/* the active configuration's values (from P, as on the bench) kept as its own */
+export function mcStore(asm, P) {
+  const M = mcOf(designOf(asm));
+  if (!M) return;
+  const cfg = M.configs[M.active];
+  for (const k of M.keys) { const at = posOf(P, k); if (at) cfg.v[k] = getV(P, at); }
+  if (asm.cond.object && asm.cond.object.kind === 'finite') cfg.obj = asm.cond.object.d;
+}
+/* every other configuration solved again (a solved value it keeps, such as its own focus, follows a change made in another) */
+function mcRefresh(asm, P) {
+  const M = mcOf(designOf(asm));
+  if (!M) return;
+  M.configs.forEach((cfg, ci) => {
+    if (ci === M.active) return;
+    const Pc = cfgSolved(asm, P, ci);
+    for (const k of M.keys) { const at = posOf(Pc, k); if (at) cfg.v[k] = getV(Pc, at); }
+  });
+}
+/* another configuration made active: its values onto the bench, its object distance into the conditions */
+export function mcSwitch(asm, ci) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M || ci === M.active || !M.configs[ci]) return false;
+  mcStore(asm, designPrescription(asm));
+  M.active = ci;
+  const cfg = M.configs[ci];
+  if (cfg.obj > 0 && asm.cond.object && asm.cond.object.kind === 'finite') asm.cond = normCond(Object.assign({}, asm.cond, { object: { kind: 'finite', d: cfg.obj } }));
+  const P = designPrescription(asm);
+  cfgApply(P, M, ci);
+  if (M.keys.includes('t:image')) D.image = P.image;
+  commitDesign(asm, P);
+  return true;
+}
+/* a configuration added, a copy of the active one (the first time, two: the design as it is, and its copy) */
+export function mcAdd(asm) {
+  const D = designOf(asm);
+  let M = mcOf(D);
+  if (!M) {
+    const c0 = { name: 'Configuration 1', w: 1, v: {} };
+    if (asm.cond.object && asm.cond.object.kind === 'finite') c0.obj = asm.cond.object.d;
+    D.mc = M = { keys: [], configs: [c0], active: 0 };
+  }
+  if (M.configs.length >= MC_MAX) return 'A design has at most ' + MC_MAX + ' configurations.';
+  mcStore(asm, designPrescription(asm));
+  const a = M.configs[M.active], n = M.configs.length + 1;
+  M.configs.push({ name: 'Configuration ' + n, w: a.w, v: Object.assign({}, a.v), ...(a.obj ? { obj: a.obj } : {}) });
+  return true;
+}
+/* configuration ci taken out (the active one hands over to its neighbour); with one left, the design has none */
+export function mcRemove(asm, ci) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M || !M.configs[ci]) return false;
+  if (ci === M.active) mcSwitch(asm, ci ? ci - 1 : 1);
+  M.configs.splice(ci, 1);
+  if (M.active > ci) M.active--;
+  // an operand in that configuration only goes with it; those in later ones follow their configuration
+  D.merit.ops = D.merit.ops.filter(o => o.c !== ci).map(o => o.c > ci ? Object.assign({}, o, { c: o.c - 1 }) : o);
+  if (M.configs.length < 2) delete D.mc;
+  return true;
+}
+/* a key made to differ between the configurations (each starts from the value it has now), or made shared again (the active one's value kept) */
+export function mcKey(asm, P, key, on) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M) return false;
+  const at = posOf(P, key);
+  if (!at || key[0] === 'g') return false;
+  if (on) {
+    if (M.keys.includes(key)) return false;
+    M.keys.push(key);
+    const v = getV(P, at);
+    for (const cfg of M.configs) cfg.v[key] = v;
+  } else {
+    M.keys = M.keys.filter(k => k !== key);
+    for (const cfg of M.configs) delete cfg.v[key];
+  }
+  return true;
+}
+/* one configuration's value of a key (the active one's is the bench's) */
+export function mcValue(asm, P, ci, key) {
+  const M = mcOf(designOf(asm));
+  if (!M || ci === M.active) { const at = posOf(P, key); return at ? getV(P, at) : null; }
+  return M.configs[ci].v[key];
 }
 
 /* ---------- Surfaces and lenses in and out ----------
@@ -199,15 +310,20 @@ function reKey(asm, P, edit) {
   const pos = k => { const at = posOf(P, k); return at ? { q: at.q, i: at.image ? -1 : at.i } : null; };
   const vars = D.vars.map(k => [pos(k)]), solves = Object.entries(D.solves).map(([k, s]) => [pos(k), s]);
   const picks = Object.entries(D.pickups).map(([k, p]) => [pos(k), pos(p.from), p]);
+  const mcKeys = mcOf(D) ? D.mc.keys.map(k => [k, pos(k)]) : null;
   const map = edit();
   if (!map) return false;
   asmApply(asm, P);
   const P2 = asmPrescription(asm);
   P2.image = P.image;
   const back = a => { if (!a) return null; if (a.i === -1) return 't:image'; const j = map(a.i); return j < 0 || j >= P2.surfaces.length ? null : keyAt(P2, a.q, j); };
-  const nd = { image: P.image, vars: vars.map(([a]) => back(a)).filter(Boolean), solves: {}, pickups: {} };
+  const nd = { image: P.image, vars: vars.map(([a]) => back(a)).filter(Boolean), solves: {}, pickups: {}, merit: D.merit, tol: D.tol };
   for (const [a, s] of solves) { const k = back(a); if (k) nd.solves[k] = s; }
   for (const [a, f, p] of picks) { const k = back(a), kf = back(f); if (k && kf) nd.pickups[k] = Object.assign({}, p, { from: kf }); }
+  if (mcKeys) {
+    const ks = mcKeys.map(([k, a]) => [k, back(a)]).filter(([, k2]) => k2);
+    nd.mc = { active: D.mc.active, keys: ks.map(([, k2]) => k2), configs: D.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(ks.filter(([k]) => k in c.v).map(([k, k2]) => [k2, c.v[k]])) })) };
+  }
   void N0;
   asm.design = normDesign(nd);
   commitDesign(asm, P2);

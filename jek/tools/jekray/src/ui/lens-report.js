@@ -2,7 +2,7 @@ import { matLabel } from '../core/glass.js';
 import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
-import { designFigures, designOf, designPrescription, primaryNm, surfaceParts } from '../engines/lens-design.js';
+import { cfgSolved, designFigures, designOf, designPrescription, mcOf, mcValue, posOf, primaryNm, surfaceParts } from '../engines/lens-design.js';
 import { anaSystems, fieldCurves, mtfAnalysis, spotDiagram } from '../engines/lens-analysis.js';
 import { VecCtx, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
@@ -166,6 +166,20 @@ export function reportRecs(asm) {
   if (asph.length) {
     rpHead(pg, 'Aspheric terms');
     for (const [i, s] of asph) rpPara(pg, 'Surface ' + (i + 1) + ': ' + [s.a2 ? 'A2 ' + s.a2.toExponential(6) : '', ...(s.A || []).map((a, q) => a ? 'A' + (4 + 2 * q) + ' ' + a.toExponential(6) : ''), ...((s.odd || []).map((a, q) => a ? 'B' + (q + 1) + ' ' + a.toExponential(6) : ''))].filter(Boolean).join(', '));
+  }
+  // the configurations: what differs between them, and what each gives (the rest of the report is the one shown)
+  const MC = mcOf(D);
+  if (MC) {
+    rpHead(pg, 'Configurations (this report is of ' + MC.configs[MC.active].name + ')');
+    const shown = MC.configs.slice(0, 6), cw = Math.floor((RP_W - 2 * RP_M - 160) / shown.length);
+    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
+    const figs = shown.map((cf, ci) => ci === MC.active ? F : designFigures({ cond: cf.obj && fin ? Object.assign({}, c, { object: { kind: 'finite', d: cf.obj } }) : c, design: D }, cfgSolved(asm, P, ci)));
+    const crow = [['Weight', ...shown.map(cf => rf(cf.w, 4))]];
+    if (fin) crow.push(['Object distance', ...shown.map((cf, ci) => rf(ci === MC.active ? F.object : cf.obj || F.object, 6))]);
+    for (const k of MC.keys) crow.push([keyName(k), ...shown.map((cf, ci) => { const v = mcValue(asm, P, ci, k); return v === null ? 'Flat' : rf(v, 7); })]);
+    crow.push(['Focal length', ...figs.map(f => rf(f.efl, 6))], ['Working F-number', ...figs.map(f => isFinite(f.fno) ? 'f/' + rf(Math.abs(f.fno), 4) : '—')], ['Total track', ...figs.map(f => rf(f.track, 6))]);
+    rpTable(pg, [{ label: '', w: 160 }].concat(shown.map(cf => ({ label: cf.name, w: cw, mono: true, align: 'right' }))), crow, { size: 7.5 });
+    if (MC.configs.length > shown.length) rpPara(pg, 'And ' + (MC.configs.length - shown.length) + ' more configurations, not shown.', { ink: RP_SOFT });
   }
   const nSolve = Object.keys(D.solves).length, nPick = Object.keys(D.pickups).length;
   if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the lens data.'); }

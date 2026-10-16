@@ -1,5 +1,5 @@
 import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine.js';
-import { asphGet, asphSet, designEpd, designOf, objOpts, editable, getV, posOf, setV, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
+import { asphGet, asphSet, cfgApply, cfgCond, designEpd, designOf, objOpts, editable, getV, mcOf, posOf, setV, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
 import { mtfAt, paraxHeight } from './lens-analysis.js';
 
@@ -41,18 +41,23 @@ export function optProblem(asm, P) {
 export const cloneP = P => ({ surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)),
   stopIndex: P.stopIndex, parts: P.parts, image: P.image, origin: P.origin, dir: P.dir });
 
-/* the variables: each key marked V that is free (not solved, not picked up); a model glass is two */
+/* the variables: each key marked V that is free (not solved, not picked up); a model glass is two;
+   a key the configurations each have their own value of is one in each configuration (cfg, its index) */
 export function optVars(prob) {
-  const { P, design: D } = prob, out = [];
+  const { P, design: D } = prob, out = [], M = mcOf(D);
   for (const k of D.vars) {
     if (D.solves[k] || D.pickups[k]) continue;
     const at = posOf(P, k);
     if (!at || !editable(P, at.q, at.i)) continue;
     if (at.q === 'g') { if (isModel(P.materials[at.i])) out.push({ k, at, part: 'nd' }, { k, at, part: 'vd' }); }
+    else if (M && M.keys.includes(k)) M.configs.forEach((c, cfg) => out.push({ k, at, cfg }));
     else out.push({ k, at });
   }
   return out;
 }
+/* configuration ci's prescription before solving: the shared values with its own */
+function cfgP(prob, ci) { const P = cloneP(prob.P); cfgApply(P, prob.design.mc, ci); return P; }
+const xOf = (prob, v) => getX(v.cfg === undefined ? prob.P : cfgP(prob, v.cfg), v);
 /* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
    the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
 const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
@@ -76,17 +81,53 @@ const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, 
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
 const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' ? 1 : q === 'D' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
-/* the design with values x: solved, then measured */
+/* the design with values x: solved, then measured. With configurations, each one is solved with its own
+   values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
 function designAt(prob, V, x) {
-  const P = cloneP(prob.P);
-  V.forEach((v, j) => setX(P, v, x[j]));
-  solveDesign(prob, P);
-  return P;
+  const P = cloneP(prob.P), M = mcOf(prob.design);
+  V.forEach((v, j) => { if (v.cfg === undefined) setX(P, v, x[j]); });
+  if (!M) { solveDesign(prob, P); return P; }
+  const img = prob.design.image;
+  const Ps = M.configs.map((cfg, ci) => {
+    const Pc = cloneP(P);
+    cfgApply(Pc, M, ci);
+    V.forEach((v, j) => { if (v.cfg === ci) setX(Pc, v, x[j]); });
+    solveDesign({ cond: cfgCond(prob.cond, cfg), design: prob.design }, Pc);
+    return Pc;
+  });
+  prob.design.image = img;
+  const A = Ps[M.active];
+  A.cfgs = Ps;
+  return A;
 }
 
-/* ---------- The merit function ---------- */
+/* ---------- The merit function ----------
+   With configurations: each one's terms (its image, the operands set for it or for every
+   configuration, its boundaries), each scaled by the square root of its share of the weights, so the
+   merit is the weighted mean of theirs */
 export function meritTerms(prob, P, detail) {
-  const c = prob.cond, M = prob.design.merit, nm0 = primaryNm(c);
+  const MC = mcOf(prob.design), Ms = prob.design.merit;
+  if (!MC) return meritOne(prob.cond, Ms, Ms.ops, P, detail);
+  const Ps = P.cfgs || MC.configs.map((cfg, ci) => { const Pc = cfgP(prob, ci); solveDesign({ cond: cfgCond(prob.cond, cfg), design: prob.design }, Pc); return Pc; });
+  const Wc = MC.configs.reduce((a, c) => a + c.w, 0) || 1;
+  const out = { r: [], ss: 0, Wt: 0, nImage: 0, fields: [], ops: [], bounds: 0, epd: 0 };
+  MC.configs.forEach((cfg, ci) => {
+    const ops = Ms.ops.map((o, j) => [o, j]).filter(([o]) => o.c === undefined || o.c === ci), sh = cfg.w / Wc, sq = Math.sqrt(sh);
+    const dt = detail ? [] : null, T = meritOne(cfgCond(prob.cond, cfg), Ms, ops.map(([o]) => o), Ps[ci], dt);
+    for (const v of T.r) out.r.push(sq * v);
+    out.ss += sh * T.ss; out.Wt += sh * T.Wt; out.nImage += T.nImage; out.bounds += sh * T.bounds;
+    if (ci === MC.active) out.epd = T.epd;
+    T.fields.forEach(f => out.fields.push(Object.assign(f, { part: sh * f.part, cfg: ci })));
+    T.ops.forEach((o, q) => out.ops.push(Object.assign(o, { part: sh * o.part, cfg: ci, j: ops[q][1] })));
+    if (detail && dt) for (const b of dt) detail.push(Object.assign(b, { what: MC.configs[ci].name + ': ' + b.what }));
+  });
+  out.Wt = out.Wt || 1;
+  if (!isFinite(out.ss)) out.ss = Infinity;
+  out.merit = Math.sqrt(out.ss / out.Wt);
+  return out;
+}
+function meritOne(c, M, mops, P, detail) {
+  const nm0 = primaryNm(c);
   const S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), opts = objOpts(c, { epd, image: P.image });
   const Sw = c.waves.map(w => w.nm === nm0 ? lensSystem(P, nm0, opts) : lensSystem(P, w.nm, opts)), Sp = Sw[c.primary];
   const pts = pupilRings(M.rings, M.arms), Wf = c.fields.reduce((a, f) => a + f.w, 0) || 1, Ww = c.waves.reduce((a, w) => a + w.w, 0) || 1;
@@ -130,7 +171,7 @@ export function meritTerms(prob, P, detail) {
   // the operands
   const ops = [];
   let sd = null;
-  for (const o of M.ops) {
+  for (const o of mops) {
     let v;
     if (o.op === 'EFL') v = S0.par.efl;
     else if (o.op === 'FNO') v = Math.abs(S0.par.uEp) > 0 ? 1 / (epd * Math.abs(S0.par.uEp)) : 1e3;
@@ -200,7 +241,7 @@ export function meritTerms(prob, P, detail) {
   }
   // a model glass kept on the glass map: within reach of a real glass
   for (const m of P.materials) if (isModel(m)) { const g = nearestGlass(m.nd, m.vd, true); broke(0.02 * (g.d - GLASS_REACH), 'a model glass (nd ' + (+m.nd.toFixed(4)) + ', Vd ' + (+m.vd.toFixed(2)) + ') is far from any real glass'); }
-  const Wt = 1 + M.ops.reduce((a, o) => a + o.weight, 0);
+  const Wt = 1 + mops.reduce((a, o) => a + o.weight, 0);
   let ss = 0;
   for (const v of r) ss += v * v;
   if (!isFinite(ss)) ss = Infinity;
@@ -209,11 +250,11 @@ export function meritTerms(prob, P, detail) {
 
 /* what the merit is made of, for the Merit tab: each term's value and its share */
 export function meritReport(prob) {
-  const P = cloneP(prob.P);
-  solveDesign(prob, P);
+  const P = designAt(prob, [], []);
   const broken = [], T = meritTerms(prob, P, broken), tot = T.ss || 1;
-  return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot })),
-    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p, v: o.v })), bounds: { share: T.bounds / tot, broken } };
+  return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot, cfg: f.cfg })),
+    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p, v: o.v, cfg: o.cfg, j: o.j })), bounds: { share: T.bounds / tot, broken },
+    configs: mcOf(prob.design) ? prob.design.mc.configs.map(c => c.name) : null };
 }
 
 /* ---------- Damped least squares ---------- */
@@ -314,18 +355,28 @@ export function globalSearch(prob, V, best, trials, seed) {
    args: mode 'dls' (iters cycles from x) or 'global' (trials from the best, x); returns the variables'
    keys and the values reached, with the merit before and after */
 export function optRun(prob, args) {
-  const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => getX(prob.P, v)));
+  const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => xOf(prob, v)));
   const T0 = evalAt(prob, V, x0);
   let res;
   if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
-  return { vars: V.map(v => ({ k: v.k, part: v.part || null })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
+  return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
     iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0 };
 }
-/* the values reached, written into a prescription */
-export function optApply(P, prob, out) {
-  const V = optVars(Object.assign({}, prob, { P }));
-  V.forEach((v, j) => { const k = out.vars.findIndex(w => w.k === v.k && (w.part || null) === (v.part || null)); if (k >= 0) setX(P, v, out.x[k]); });
+/* the values reached, written into a prescription (P, the active configuration's) and, for a value
+   each configuration has its own of, into the configurations of the design D */
+export function optApply(P, prob, out, D) {
+  const V = optVars(Object.assign({}, prob, { P })), M = mcOf(prob.design);
+  V.forEach(v => {
+    const k = out.vars.findIndex(w => w.k === v.k && (w.part || null) === (v.part || null) && (w.cfg === null || w.cfg === undefined ? undefined : w.cfg) === v.cfg);
+    if (k < 0) return;
+    if (v.cfg === undefined || v.cfg === M.active) { setX(P, v, out.x[k]); return; }
+    // another configuration's: its value worked out in its own prescription
+    const Pc = cfgP(prob, v.cfg);
+    setX(Pc, v, out.x[k]);
+    const cm = D && mcOf(D);
+    if (cm && cm.configs[v.cfg]) cm.configs[v.cfg].v[v.k] = getV(Pc, v.at);
+  });
 }
 
 /* ---------- Model glass, and the nearest real one ----------

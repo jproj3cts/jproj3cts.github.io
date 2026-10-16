@@ -8,6 +8,7 @@ import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
 import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
+import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
@@ -131,13 +132,14 @@ function drawWs() {
     h('span', { class: 'rt-hmark' }, 'JEKray'),
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
+    ...cfgPicker(asm),
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -397,7 +399,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
 }
 
 /* ---------- Lens data ---------- */
@@ -489,9 +491,9 @@ function valueCell(P, D, q, i) {
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : 'Conic') + ' of surface ' + (i + 1);
-  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e');
-  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
-    title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
+  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
+    title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
@@ -539,6 +541,116 @@ function parseGlass(t) {
 }
 
 /* ---------- The merit function ---------- */
+/* ---------- Configurations ----------
+   The design in several states: a table of the values that differ between them, a column each;
+   the active one's are the bench's, and showing another puts its values there. */
+function cfgPicker(asm) {
+  const M = mcOf(designOf(asm));
+  if (!M) return [];
+  const x = h('select', { class: 'rt-lcfgsel', 'aria-label': 'Configuration shown', title: 'The configuration on the bench, and in the layout, lens data and analyses' }, ...M.configs.map((c, i) => h('option', { value: String(i) }, c.name)));
+  x.value = String(M.active);
+  x.addEventListener('change', fromField(x, () => cfgShow(+x.value)));
+  return [x];
+}
+function cfgShow(ci) {
+  optStop('Stopped: another configuration was shown.');
+  tolStop('Stopped: another configuration was shown.');
+  checkpoint();
+  mcSwitch(WS.asm, ci);
+  changed(true);
+  renderWs();
+}
+/* a key in words: "Thickness after surface 3 (L1, back)" */
+function keyLabel(P, sps, key) {
+  const at = posOf(P, key);
+  if (!at) return key;
+  if (at.image) return 'Image distance';
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
+  return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
+}
+const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm' };
+function configsCard(asm, P) {
+  const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
+  const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
+  const addBtn = h('button', { class: 'rt-btn', type: 'button', title: 'A copy of the configuration shown, to change', onclick: () => {
+    checkpoint(); const r = mcAdd(asm); if (r !== true) { toast(r, true); return; } WS.tab = 'cfg'; changed(false); renderWs();
+  } }, M ? 'Add a configuration' : 'Make configurations');
+  if (!M) {
+    card.append(h('p', { class: 'rt-lsub' }, 'One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
+      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'), h('div', { class: 'rt-lbar' }, addBtn));
+    if (!fin) card.append(h('p', { class: 'rt-lsub' }, 'To refocus for different object distances, set the object at a distance in the design conditions first.'));
+    return card;
+  }
+  const sps = surfaceParts(P), nC = M.configs.length;
+  // per configuration, solved: its first order, read only
+  const solved = M.configs.map((c, ci) => ci === M.active ? P : cfgSolved(asm, P, ci));
+  const figs = solved.map((Pc, ci) => { try { return designFigures({ cond: ci === M.active ? asm.cond : Object.assign({}, asm.cond, M.configs[ci].obj && fin ? { object: { kind: 'finite', d: M.configs[ci].obj } } : {}), design: D }, Pc); } catch (e) { return null; } });
+  const cfgEdit = fn => { optStop('Stopped: a configuration was changed.'); tolStop('Stopped: a configuration was changed.'); checkpoint(); fn(); const notes = commitDesign(asm, designPrescription(asm)); if (notes.length) toast(notes.join(' '), true); changed(true); renderWs(); };
+  const tbl = h('table', { class: 'rt-ltable rt-lcfgt' });
+  const head = h('tr', null, h('th', { scope: 'col' }, ''));
+  M.configs.forEach((c, ci) => {
+    const nm = h('input', { type: 'text', class: 'rt-lcfgname', value: c.name, 'aria-label': 'Name of configuration ' + (ci + 1), spellcheck: 'false' });
+    nm.addEventListener('change', fromField(nm, () => { checkpoint(); c.name = String(nm.value || 'Configuration ' + (ci + 1)).slice(0, 40); changed(false); renderWs(); }));
+    head.append(h('th', { scope: 'col', class: ci === M.active ? 'on' : '' }, h('div', { class: 'rt-lcfgh' }, nm,
+      ci === M.active ? h('span', { class: 'rt-lpill', title: 'On the bench, and in the layout, lens data and analyses' }, 'Shown') : h('button', { type: 'button', class: 'rt-link', onclick: () => cfgShow(ci) }, 'Show'),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Remove ' + c.name, title: 'Take this configuration out (with any merit term set for it alone)', onclick: () => { checkpoint(); mcRemove(asm, ci); changed(true); renderWs(); } }, '×'))));
+  });
+  tbl.append(h('thead', null, head));
+  const tb = h('tbody');
+  const row = (label, cells, extra) => tb.append(h('tr', extra || null, h('td', { class: 'nm' }, ...[].concat(label)), ...cells));
+  row('Weight in the merit', M.configs.map((c, ci) => h('td', null, wsNumInput(c.w, v => { checkpoint(); c.w = Math.max(0, Math.min(1e3, v)); changed(false); renderWs(); }, { label: 'Weight of ' + c.name }))));
+  if (fin) row('Object distance (mm)', M.configs.map((c, ci) => h('td', null, wsNumInput(ci === M.active ? asm.cond.object.d : c.obj || asm.cond.object.d, v => {
+    if (!(v > 0)) { toast('An object distance is more than 0.', true); return; }
+    if (ci === M.active) condEdit(cc => { cc.object.d = v; }); else cfgEdit(() => { c.obj = v; });
+  }, { label: 'Object distance in ' + c.name }))));
+  for (const key of M.keys) {
+    const at = posOf(P, key);
+    if (!at) continue;
+    const sv = D.solves[key], pk = D.pickups[key], isVar = D.vars.includes(key) && !sv && !pk, fixed = !!(sv || pk);
+    const lab = [keyLabel(P, sps, key) + (KEY_UNIT[at.q] && !at.image ? ', ' + KEY_UNIT[at.q] : at.image ? ', mm' : ''),
+      h('span', { class: 'rt-lsub' }, sv ? ' solved' : pk ? ' picked up' : isVar ? ' varied in each' : ''),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Share ' + keyLabel(P, sps, key) + ' again', title: 'One value for every configuration again (the one shown now)', onclick: () => { checkpoint(); mcKey(asm, P, key, false); changed(false); renderWs(); } }, '×')];
+    row(lab, M.configs.map((c, ci) => {
+      const v = mcValue(asm, P, ci, key), asp = at.q[0] === 'a';
+      const shown = at.q === 'R' ? fmtR(v) : asp ? (v ? v.toExponential(5) : '0') : wsFmt(v, 7);
+      if (fixed) return h('td', { class: 'mono ro' }, shown);
+      const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : ''), value: shown, 'aria-label': keyLabel(P, sps, key) + ' in ' + c.name, spellcheck: 'false' });
+      inp.addEventListener('change', fromField(inp, () => {
+        const t = inp.value.trim().toLowerCase();
+        const val = at.q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞') ? null : parseNum(t);
+        if (val === null && at.q !== 'R') { inp.value = shown; return; }
+        if (at.q === 't' && !at.image && val < 0) { toast('A thickness can’t be negative.', true); inp.value = shown; return; }
+        if (ci === M.active) edit(PP => { setV(PP, posOf(PP, key), val); });
+        else cfgEdit(() => { c.v[key] = val; });
+      }));
+      return h('td', null, inp);
+    }));
+  }
+  // what each one gives
+  const ro = (label, fn) => row(label, figs.map(F => h('td', { class: 'mono ro' }, F ? fn(F) : '—')), { class: 'ro' });
+  ro('Focal length (mm)', F => isFinite(F.efl) ? wsFmt(F.efl, 6) : 'afocal');
+  ro('Working F-number', F => isFinite(F.fno) ? 'f/' + wsFmt(Math.abs(F.fno), 4) : '—');
+  if (fin) ro('Magnification', F => wsFmt(F.mag, 5));
+  ro('Image height (mm)', F => wsFmt(Math.abs(F.imgH), 5));
+  ro('Total track (mm)', F => wsFmt(F.track, 6));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // a value made to differ: any radius, thickness, conic, tilt or decentre not yet listed
+  const opts = [];
+  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D']) {
+    if (!editable(P, q, i)) continue;
+    const k = keyAt(P, q, i);
+    if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]);
+  }
+  for (let i = 0; i < P.surfaces.length; i++) for (const n of ASPH_ORDERS) { if (!editable(P, 'a' + n, i) || !(P.surfaces[i].A || [])[(n - 4) / 2]) continue; const k = keyAt(P, 'a' + n, i); if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]); }
+  const pick = h('select', { 'aria-label': 'Value to make differ between the configurations' }, ...opts.map(([k, t]) => h('option', { value: k }, t)));
+  card.append(h('div', { class: 'rt-lbar' }, pick, h('button', { class: 'rt-btn', type: 'button', disabled: opts.length ? null : '', title: 'Give each configuration its own value of it, starting from the one it has now', onclick: () => {
+    checkpoint(); mcKey(asm, designPrescription(asm), pick.value, true); changed(false); renderWs();
+  } }, 'Make it differ'), addBtn));
+  card.append(h('p', { class: 'rt-lsub' }, 'The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'));
+  return card;
+}
+
 const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Total track (mm)', DIST: 'Distortion at the largest field (%)',
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
@@ -569,8 +681,9 @@ function meritCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
   tbl.append(h('thead', null, h('tr', null, ...['Term', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
-  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
-    h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i].w, 4)),
+  const cfgs = R.configs, nf = asm.cond.fields.length;
+  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (cfgs ? cfgs[f.cfg] + ': ' : '') + (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
+    h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i % nf].w, 4)),
     h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
   // a term at a field: which one; a ray: where in the pupil
   const fin = !!asm.cond.object, opWhere = (o, i) => {
@@ -580,10 +693,13 @@ function meritCard(asm, P) {
     if (MERIT_AT_FREQ.includes(o.op)) out.push(wsNumInput(o.v, v => meritEdit(m => { m.ops[i].v = Math.max(0, v); }), { label: 'Frequency of ' + OP_LABEL[o.op] }), h('span', null, 'cycles/mm'));
     return out;
   };
-  R.ops.forEach((o, i) => tb.append(h('tr', null, h('td', null, h('div', { class: 'rt-lopw' }, OP_LABEL[o.op], ...opWhere(o, i))),
+  // with configurations: each term once, in every configuration or in one, its value in each it is measured in
+  const rows = cfgs ? M.ops.map((o, j) => { const at = R.ops.filter(r => r.j === j); return Object.assign({}, o, { at, share: at.reduce((a, r) => a + r.share, 0) }); }) : R.ops;
+  rows.forEach((o, i) => tb.append(h('tr', null, h('td', null, h('div', { class: 'rt-lopw' }, OP_LABEL[o.op], ...opWhere(o, i),
+      ...(cfgs ? [sel('Configuration of ' + OP_LABEL[o.op], [[-1, 'in every configuration']].concat(cfgs.map((n, c) => [c, 'in ' + n])), o.c === undefined ? -1 : o.c, v => meritEdit(m => { if (+v < 0) delete m.ops[i].c; else m.ops[i].c = +v; }))] : []))),
     h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
     h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
-    h('td', { class: 'mono' }, wsFmt(o.value, 6)), h('td', null, share(o.share)),
+    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, share(o.share)),
     h('td', null, h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + OP_LABEL[o.op], onclick: () => meritEdit(m => { m.ops.splice(i, 1); }) }, '×')))));
   tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, share(R.bounds.share)), h('td')));
   tbl.append(tb);
@@ -634,7 +750,7 @@ function optBatch() {
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
     if (out.merit < O.now || O.mode === 'dls') {
       const P2 = designPrescription(asm);
-      optApply(P2, prob, out);
+      optApply(P2, prob, out, designOf(asm));
       commitDesign(asm, P2);
       changed(false);
     }

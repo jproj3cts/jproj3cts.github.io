@@ -91,7 +91,25 @@ export function normDesign(d) {
     if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol) };
+  const mc = normMc(d.mc);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}) };
+}
+/* configurations: the same design in several states (a zoom's positions, a lens refocused for nearer
+   objects), each its own values for the keys listed (radii, conics, aspheric terms, gaps, the image
+   distance, tilts, decentres) and for a finite object its own distance; a weight in the merit
+   function; a name. One is active: its values are the ones on the bench. None with fewer than two. */
+export const MC_MAX = 16;
+const MC_KEY = k => okKey(k) && k[0] !== 'g';
+export function normMc(m) {
+  if (!m || typeof m !== 'object' || !Array.isArray(m.configs) || m.configs.length < 2) return null;
+  const keys = Array.isArray(m.keys) ? [...new Set(m.keys.filter(MC_KEY))].slice(0, 100) : [];
+  const configs = m.configs.slice(0, MC_MAX).map((c, i) => {
+    c = c && typeof c === 'object' ? c : {};
+    const v = {}, src = c.v && typeof c.v === 'object' ? c.v : {};
+    for (const k of keys) if (k in src) { const x = src[k]; if (x === null && k[0] === 'R') v[k] = null; else if (isFinite(+x) && x !== null && x !== '') v[k] = clamp(+x, -1e9, 1e9); }
+    return { name: String(c.name || 'Configuration ' + (i + 1)).slice(0, 40), w: clamp(num(c.w, 1), 0, 1e3), v, ...(c.obj !== undefined && isFinite(+c.obj) && +c.obj > 0 ? { obj: clamp(+c.obj, 1e-3, 1e7) } : {}) };
+  });
+  return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
 }
 /* the merit function: the image term (what is measured, over how many pupil rings and arms), the
    boundaries every design keeps to, and the operands added to it, each with a target and a weight */
@@ -127,7 +145,9 @@ export function normMerit(m) {
       .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6),
         ...(MERIT_AT_FIELD.includes(o.op) ? { f: Math.round(clamp(num(o.f, ASM_FIELDS_MAX - 1), 0, ASM_FIELDS_MAX - 1)) } : {}),
         ...(MERIT_AT_PUPIL.includes(o.op) ? { p: clamp(num(o.p, 1), -1, 1) } : {}),
-        ...(MERIT_AT_FREQ.includes(o.op) ? { v: clamp(num(o.v, 50), 0, 1e5) } : {}) })),
+        ...(MERIT_AT_FREQ.includes(o.op) ? { v: clamp(num(o.v, 50), 0, 1e5) } : {}),
+        // in one configuration only (its index), or in every one (none)
+        ...(o.c !== undefined && o.c !== null && isFinite(+o.c) && +o.c >= 0 ? { c: Math.round(clamp(+o.c, 0, MC_MAX - 1)) } : {}) })),
   };
 }
 /* a design's keys with part ids changed (an assembly pasted as a copy) */
@@ -141,6 +161,8 @@ export function remapDesign(d, map) {
   o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
   if (d.merit) o.merit = d.merit;
   if (d.tol) o.tol = d.tol;
+  if (d.mc && Array.isArray(d.mc.configs)) o.mc = { keys: (d.mc.keys || []).map(k2), active: d.mc.active,
+    configs: d.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v || {}).map(([k, v]) => [k2(k), v])) })) };
   return o;
 }
 

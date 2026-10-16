@@ -1333,6 +1333,14 @@
   .rt-lmrow { font-size: 0.85rem; margin-bottom: 0.6rem; }
   .rt-lmrow select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
   .rt-lmtable { min-width: 40rem; }
+  .rt-lnum.mc { border-color: #c38bff; box-shadow: inset 3px 0 0 #8a4fd1; }
+  .rt-lcfgsel { font: inherit; font-size: 0.85rem; padding: 0.35rem 0.4rem; border: 1px solid #8a4fd1; border-radius: 2px; background: #fff; max-width: 14rem; }
+  .rt-lcfgt td.nm { text-align: left; font-weight: 600; font-size: 0.85rem; white-space: normal; min-width: 13rem; }
+  .rt-lcfgt th.on { background: #f3ecfb; }
+  .rt-lcfgt tr.ro td.nm { font-weight: 400; color: var(--jek-ink-soft); }
+  .rt-lcfgh { display: flex; align-items: center; gap: 0.3rem; }
+  .rt-lcfgh .rt-link { margin-right: 0; }
+  .rt-lcfgname { width: 8.5rem; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
   .rt-lshare { display: flex; align-items: center; gap: 0.5rem; }
   .rt-lshare .bar { width: 7rem; height: 0.5rem; background: var(--jek-well); border-radius: 4px; overflow: hidden; flex: none; }
   .rt-lshare .bar span { display: block; height: 100%; background: var(--jek-orange); }
@@ -5154,7 +5162,25 @@ function normDesign(d) {
     if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol) };
+  const mc = normMc(d.mc);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}) };
+}
+/* configurations: the same design in several states (a zoom's positions, a lens refocused for nearer
+   objects), each its own values for the keys listed (radii, conics, aspheric terms, gaps, the image
+   distance, tilts, decentres) and for a finite object its own distance; a weight in the merit
+   function; a name. One is active: its values are the ones on the bench. None with fewer than two. */
+const MC_MAX = 16;
+const MC_KEY = k => okKey(k) && k[0] !== 'g';
+function normMc(m) {
+  if (!m || typeof m !== 'object' || !Array.isArray(m.configs) || m.configs.length < 2) return null;
+  const keys = Array.isArray(m.keys) ? [...new Set(m.keys.filter(MC_KEY))].slice(0, 100) : [];
+  const configs = m.configs.slice(0, MC_MAX).map((c, i) => {
+    c = c && typeof c === 'object' ? c : {};
+    const v = {}, src = c.v && typeof c.v === 'object' ? c.v : {};
+    for (const k of keys) if (k in src) { const x = src[k]; if (x === null && k[0] === 'R') v[k] = null; else if (isFinite(+x) && x !== null && x !== '') v[k] = clamp(+x, -1e9, 1e9); }
+    return { name: String(c.name || 'Configuration ' + (i + 1)).slice(0, 40), w: clamp(num(c.w, 1), 0, 1e3), v, ...(c.obj !== undefined && isFinite(+c.obj) && +c.obj > 0 ? { obj: clamp(+c.obj, 1e-3, 1e7) } : {}) };
+  });
+  return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
 }
 /* the merit function: the image term (what is measured, over how many pupil rings and arms), the
    boundaries every design keeps to, and the operands added to it, each with a target and a weight */
@@ -5190,7 +5216,9 @@ function normMerit(m) {
       .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6),
         ...(MERIT_AT_FIELD.includes(o.op) ? { f: Math.round(clamp(num(o.f, ASM_FIELDS_MAX - 1), 0, ASM_FIELDS_MAX - 1)) } : {}),
         ...(MERIT_AT_PUPIL.includes(o.op) ? { p: clamp(num(o.p, 1), -1, 1) } : {}),
-        ...(MERIT_AT_FREQ.includes(o.op) ? { v: clamp(num(o.v, 50), 0, 1e5) } : {}) })),
+        ...(MERIT_AT_FREQ.includes(o.op) ? { v: clamp(num(o.v, 50), 0, 1e5) } : {}),
+        // in one configuration only (its index), or in every one (none)
+        ...(o.c !== undefined && o.c !== null && isFinite(+o.c) && +o.c >= 0 ? { c: Math.round(clamp(+o.c, 0, MC_MAX - 1)) } : {}) })),
   };
 }
 /* a design's keys with part ids changed (an assembly pasted as a copy) */
@@ -5204,6 +5232,8 @@ function remapDesign(d, map) {
   o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
   if (d.merit) o.merit = d.merit;
   if (d.tol) o.tol = d.tol;
+  if (d.mc && Array.isArray(d.mc.configs)) o.mc = { keys: (d.mc.keys || []).map(k2), active: d.mc.active,
+    configs: d.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v || {}).map(([k, v]) => [k2(k), v])) })) };
   return o;
 }
 
@@ -22634,6 +22664,20 @@ function reportRecs(asm) {
     rpHead(pg, 'Aspheric terms');
     for (const [i, s] of asph) rpPara(pg, 'Surface ' + (i + 1) + ': ' + [s.a2 ? 'A2 ' + s.a2.toExponential(6) : '', ...(s.A || []).map((a, q) => a ? 'A' + (4 + 2 * q) + ' ' + a.toExponential(6) : ''), ...((s.odd || []).map((a, q) => a ? 'B' + (q + 1) + ' ' + a.toExponential(6) : ''))].filter(Boolean).join(', '));
   }
+  // the configurations: what differs between them, and what each gives (the rest of the report is the one shown)
+  const MC = mcOf(D);
+  if (MC) {
+    rpHead(pg, 'Configurations (this report is of ' + MC.configs[MC.active].name + ')');
+    const shown = MC.configs.slice(0, 6), cw = Math.floor((RP_W - 2 * RP_M - 160) / shown.length);
+    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
+    const figs = shown.map((cf, ci) => ci === MC.active ? F : designFigures({ cond: cf.obj && fin ? Object.assign({}, c, { object: { kind: 'finite', d: cf.obj } }) : c, design: D }, cfgSolved(asm, P, ci)));
+    const crow = [['Weight', ...shown.map(cf => rf(cf.w, 4))]];
+    if (fin) crow.push(['Object distance', ...shown.map((cf, ci) => rf(ci === MC.active ? F.object : cf.obj || F.object, 6))]);
+    for (const k of MC.keys) crow.push([keyName(k), ...shown.map((cf, ci) => { const v = mcValue(asm, P, ci, k); return v === null ? 'Flat' : rf(v, 7); })]);
+    crow.push(['Focal length', ...figs.map(f => rf(f.efl, 6))], ['Working F-number', ...figs.map(f => isFinite(f.fno) ? 'f/' + rf(Math.abs(f.fno), 4) : '—')], ['Total track', ...figs.map(f => rf(f.track, 6))]);
+    rpTable(pg, [{ label: '', w: 160 }].concat(shown.map(cf => ({ label: cf.name, w: cw, mono: true, align: 'right' }))), crow, { size: 7.5 });
+    if (MC.configs.length > shown.length) rpPara(pg, 'And ' + (MC.configs.length - shown.length) + ' more configurations, not shown.', { ink: RP_SOFT });
+  }
   const nSolve = Object.keys(D.solves).length, nPick = Object.keys(D.pickups).length;
   if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the lens data.'); }
   rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + FU + ' (transverse, mm)');
@@ -22825,13 +22869,14 @@ function drawWs() {
     h('span', { class: 'rt-hmark' }, 'JEKray'),
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
+    ...cfgPicker(asm),
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -23091,7 +23136,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
 }
 
 /* ---------- Lens data ---------- */
@@ -23183,9 +23228,9 @@ function valueCell(P, D, q, i) {
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : 'Conic') + ' of surface ' + (i + 1);
-  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e');
-  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
-    title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
+  const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
+    title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
@@ -23233,6 +23278,116 @@ function parseGlass(t) {
 }
 
 /* ---------- The merit function ---------- */
+/* ---------- Configurations ----------
+   The design in several states: a table of the values that differ between them, a column each;
+   the active one's are the bench's, and showing another puts its values there. */
+function cfgPicker(asm) {
+  const M = mcOf(designOf(asm));
+  if (!M) return [];
+  const x = h('select', { class: 'rt-lcfgsel', 'aria-label': 'Configuration shown', title: 'The configuration on the bench, and in the layout, lens data and analyses' }, ...M.configs.map((c, i) => h('option', { value: String(i) }, c.name)));
+  x.value = String(M.active);
+  x.addEventListener('change', fromField(x, () => cfgShow(+x.value)));
+  return [x];
+}
+function cfgShow(ci) {
+  optStop('Stopped: another configuration was shown.');
+  tolStop('Stopped: another configuration was shown.');
+  checkpoint();
+  mcSwitch(WS.asm, ci);
+  changed(true);
+  renderWs();
+}
+/* a key in words: "Thickness after surface 3 (L1, back)" */
+function keyLabel(P, sps, key) {
+  const at = posOf(P, key);
+  if (!at) return key;
+  if (at.image) return 'Image distance';
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
+  return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
+}
+const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm' };
+function configsCard(asm, P) {
+  const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
+  const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
+  const addBtn = h('button', { class: 'rt-btn', type: 'button', title: 'A copy of the configuration shown, to change', onclick: () => {
+    checkpoint(); const r = mcAdd(asm); if (r !== true) { toast(r, true); return; } WS.tab = 'cfg'; changed(false); renderWs();
+  } }, M ? 'Add a configuration' : 'Make configurations');
+  if (!M) {
+    card.append(h('p', { class: 'rt-lsub' }, 'One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
+      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'), h('div', { class: 'rt-lbar' }, addBtn));
+    if (!fin) card.append(h('p', { class: 'rt-lsub' }, 'To refocus for different object distances, set the object at a distance in the design conditions first.'));
+    return card;
+  }
+  const sps = surfaceParts(P), nC = M.configs.length;
+  // per configuration, solved: its first order, read only
+  const solved = M.configs.map((c, ci) => ci === M.active ? P : cfgSolved(asm, P, ci));
+  const figs = solved.map((Pc, ci) => { try { return designFigures({ cond: ci === M.active ? asm.cond : Object.assign({}, asm.cond, M.configs[ci].obj && fin ? { object: { kind: 'finite', d: M.configs[ci].obj } } : {}), design: D }, Pc); } catch (e) { return null; } });
+  const cfgEdit = fn => { optStop('Stopped: a configuration was changed.'); tolStop('Stopped: a configuration was changed.'); checkpoint(); fn(); const notes = commitDesign(asm, designPrescription(asm)); if (notes.length) toast(notes.join(' '), true); changed(true); renderWs(); };
+  const tbl = h('table', { class: 'rt-ltable rt-lcfgt' });
+  const head = h('tr', null, h('th', { scope: 'col' }, ''));
+  M.configs.forEach((c, ci) => {
+    const nm = h('input', { type: 'text', class: 'rt-lcfgname', value: c.name, 'aria-label': 'Name of configuration ' + (ci + 1), spellcheck: 'false' });
+    nm.addEventListener('change', fromField(nm, () => { checkpoint(); c.name = String(nm.value || 'Configuration ' + (ci + 1)).slice(0, 40); changed(false); renderWs(); }));
+    head.append(h('th', { scope: 'col', class: ci === M.active ? 'on' : '' }, h('div', { class: 'rt-lcfgh' }, nm,
+      ci === M.active ? h('span', { class: 'rt-lpill', title: 'On the bench, and in the layout, lens data and analyses' }, 'Shown') : h('button', { type: 'button', class: 'rt-link', onclick: () => cfgShow(ci) }, 'Show'),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Remove ' + c.name, title: 'Take this configuration out (with any merit term set for it alone)', onclick: () => { checkpoint(); mcRemove(asm, ci); changed(true); renderWs(); } }, '×'))));
+  });
+  tbl.append(h('thead', null, head));
+  const tb = h('tbody');
+  const row = (label, cells, extra) => tb.append(h('tr', extra || null, h('td', { class: 'nm' }, ...[].concat(label)), ...cells));
+  row('Weight in the merit', M.configs.map((c, ci) => h('td', null, wsNumInput(c.w, v => { checkpoint(); c.w = Math.max(0, Math.min(1e3, v)); changed(false); renderWs(); }, { label: 'Weight of ' + c.name }))));
+  if (fin) row('Object distance (mm)', M.configs.map((c, ci) => h('td', null, wsNumInput(ci === M.active ? asm.cond.object.d : c.obj || asm.cond.object.d, v => {
+    if (!(v > 0)) { toast('An object distance is more than 0.', true); return; }
+    if (ci === M.active) condEdit(cc => { cc.object.d = v; }); else cfgEdit(() => { c.obj = v; });
+  }, { label: 'Object distance in ' + c.name }))));
+  for (const key of M.keys) {
+    const at = posOf(P, key);
+    if (!at) continue;
+    const sv = D.solves[key], pk = D.pickups[key], isVar = D.vars.includes(key) && !sv && !pk, fixed = !!(sv || pk);
+    const lab = [keyLabel(P, sps, key) + (KEY_UNIT[at.q] && !at.image ? ', ' + KEY_UNIT[at.q] : at.image ? ', mm' : ''),
+      h('span', { class: 'rt-lsub' }, sv ? ' solved' : pk ? ' picked up' : isVar ? ' varied in each' : ''),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Share ' + keyLabel(P, sps, key) + ' again', title: 'One value for every configuration again (the one shown now)', onclick: () => { checkpoint(); mcKey(asm, P, key, false); changed(false); renderWs(); } }, '×')];
+    row(lab, M.configs.map((c, ci) => {
+      const v = mcValue(asm, P, ci, key), asp = at.q[0] === 'a';
+      const shown = at.q === 'R' ? fmtR(v) : asp ? (v ? v.toExponential(5) : '0') : wsFmt(v, 7);
+      if (fixed) return h('td', { class: 'mono ro' }, shown);
+      const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : ''), value: shown, 'aria-label': keyLabel(P, sps, key) + ' in ' + c.name, spellcheck: 'false' });
+      inp.addEventListener('change', fromField(inp, () => {
+        const t = inp.value.trim().toLowerCase();
+        const val = at.q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞') ? null : parseNum(t);
+        if (val === null && at.q !== 'R') { inp.value = shown; return; }
+        if (at.q === 't' && !at.image && val < 0) { toast('A thickness can’t be negative.', true); inp.value = shown; return; }
+        if (ci === M.active) edit(PP => { setV(PP, posOf(PP, key), val); });
+        else cfgEdit(() => { c.v[key] = val; });
+      }));
+      return h('td', null, inp);
+    }));
+  }
+  // what each one gives
+  const ro = (label, fn) => row(label, figs.map(F => h('td', { class: 'mono ro' }, F ? fn(F) : '—')), { class: 'ro' });
+  ro('Focal length (mm)', F => isFinite(F.efl) ? wsFmt(F.efl, 6) : 'afocal');
+  ro('Working F-number', F => isFinite(F.fno) ? 'f/' + wsFmt(Math.abs(F.fno), 4) : '—');
+  if (fin) ro('Magnification', F => wsFmt(F.mag, 5));
+  ro('Image height (mm)', F => wsFmt(Math.abs(F.imgH), 5));
+  ro('Total track (mm)', F => wsFmt(F.track, 6));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // a value made to differ: any radius, thickness, conic, tilt or decentre not yet listed
+  const opts = [];
+  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D']) {
+    if (!editable(P, q, i)) continue;
+    const k = keyAt(P, q, i);
+    if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]);
+  }
+  for (let i = 0; i < P.surfaces.length; i++) for (const n of ASPH_ORDERS) { if (!editable(P, 'a' + n, i) || !(P.surfaces[i].A || [])[(n - 4) / 2]) continue; const k = keyAt(P, 'a' + n, i); if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]); }
+  const pick = h('select', { 'aria-label': 'Value to make differ between the configurations' }, ...opts.map(([k, t]) => h('option', { value: k }, t)));
+  card.append(h('div', { class: 'rt-lbar' }, pick, h('button', { class: 'rt-btn', type: 'button', disabled: opts.length ? null : '', title: 'Give each configuration its own value of it, starting from the one it has now', onclick: () => {
+    checkpoint(); mcKey(asm, designPrescription(asm), pick.value, true); changed(false); renderWs();
+  } }, 'Make it differ'), addBtn));
+  card.append(h('p', { class: 'rt-lsub' }, 'The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'));
+  return card;
+}
+
 const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Total track (mm)', DIST: 'Distortion at the largest field (%)',
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
@@ -23263,8 +23418,9 @@ function meritCard(asm, P) {
   const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
   tbl.append(h('thead', null, h('tr', null, ...['Term', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
-  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
-    h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i].w, 4)),
+  const cfgs = R.configs, nf = asm.cond.fields.length;
+  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (cfgs ? cfgs[f.cfg] + ': ' : '') + (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
+    h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i % nf].w, 4)),
     h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
   // a term at a field: which one; a ray: where in the pupil
   const fin = !!asm.cond.object, opWhere = (o, i) => {
@@ -23274,10 +23430,13 @@ function meritCard(asm, P) {
     if (MERIT_AT_FREQ.includes(o.op)) out.push(wsNumInput(o.v, v => meritEdit(m => { m.ops[i].v = Math.max(0, v); }), { label: 'Frequency of ' + OP_LABEL[o.op] }), h('span', null, 'cycles/mm'));
     return out;
   };
-  R.ops.forEach((o, i) => tb.append(h('tr', null, h('td', null, h('div', { class: 'rt-lopw' }, OP_LABEL[o.op], ...opWhere(o, i))),
+  // with configurations: each term once, in every configuration or in one, its value in each it is measured in
+  const rows = cfgs ? M.ops.map((o, j) => { const at = R.ops.filter(r => r.j === j); return Object.assign({}, o, { at, share: at.reduce((a, r) => a + r.share, 0) }); }) : R.ops;
+  rows.forEach((o, i) => tb.append(h('tr', null, h('td', null, h('div', { class: 'rt-lopw' }, OP_LABEL[o.op], ...opWhere(o, i),
+      ...(cfgs ? [sel('Configuration of ' + OP_LABEL[o.op], [[-1, 'in every configuration']].concat(cfgs.map((n, c) => [c, 'in ' + n])), o.c === undefined ? -1 : o.c, v => meritEdit(m => { if (+v < 0) delete m.ops[i].c; else m.ops[i].c = +v; }))] : []))),
     h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
     h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
-    h('td', { class: 'mono' }, wsFmt(o.value, 6)), h('td', null, share(o.share)),
+    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, share(o.share)),
     h('td', null, h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + OP_LABEL[o.op], onclick: () => meritEdit(m => { m.ops.splice(i, 1); }) }, '×')))));
   tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, share(R.bounds.share)), h('td')));
   tbl.append(tb);
@@ -23328,7 +23487,7 @@ function optBatch() {
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
     if (out.merit < O.now || O.mode === 'dls') {
       const P2 = designPrescription(asm);
-      optApply(P2, prob, out);
+      optApply(P2, prob, out, designOf(asm));
       commitDesign(asm, P2);
       changed(false);
     }
@@ -30925,11 +31084,122 @@ function solveDesign(asm, P) {
   D.image = P.image;
   return notes;
 }
-/* a change made: solved, written to the parts */
+/* a change made: solved, written to the parts; with configurations, the active one's values kept as
+   its own and every other configuration solved again round the change */
 function commitDesign(asm, P) {
   const notes = solveDesign(asm, P);
   asmApply(asm, P);
+  mcStore(asm, P);
+  mcRefresh(asm, P);
   return notes;
+}
+
+/* ---------- Configurations ----------
+   The active configuration is the one on the bench: its values are the parts' and its object's
+   distance is the conditions'. Each other one keeps its own values for the keys the configurations
+   list, and its own object distance; the rest it shares. */
+const mcOf = D => D && D.mc && D.mc.configs && D.mc.configs.length > 1 ? D.mc : null;
+/* the conditions configuration ci is designed for: the object moved to its own distance */
+function cfgCond(c, cfg) {
+  if (!cfg || !(cfg.obj > 0) || !(c.object && c.object.kind === 'finite')) return c;
+  return Object.assign({}, c, { object: { kind: 'finite', d: cfg.obj } });
+}
+const mcClone = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
+/* configuration ci's values put into P (a prescription of the shared values) */
+function cfgApply(P, M, ci) {
+  const cfg = M.configs[ci];
+  for (const k of M.keys) { const at = posOf(P, k); if (at && k in cfg.v) setV(P, at, cfg.v[k]); }
+}
+/* configuration ci, solved: P (any configuration's prescription) with its values; D.image is left as it was */
+function cfgSolved(asm, P, ci) {
+  const D = designOf(asm), M = mcOf(D), Pc = mcClone(P), img = D.image;
+  cfgApply(Pc, M, ci);
+  const notes = solveDesign({ cond: cfgCond(asm.cond, M.configs[ci]), design: D }, Pc);
+  D.image = img;
+  Pc.notes = notes;
+  return Pc;
+}
+/* the active configuration's values (from P, as on the bench) kept as its own */
+function mcStore(asm, P) {
+  const M = mcOf(designOf(asm));
+  if (!M) return;
+  const cfg = M.configs[M.active];
+  for (const k of M.keys) { const at = posOf(P, k); if (at) cfg.v[k] = getV(P, at); }
+  if (asm.cond.object && asm.cond.object.kind === 'finite') cfg.obj = asm.cond.object.d;
+}
+/* every other configuration solved again (a solved value it keeps, such as its own focus, follows a change made in another) */
+function mcRefresh(asm, P) {
+  const M = mcOf(designOf(asm));
+  if (!M) return;
+  M.configs.forEach((cfg, ci) => {
+    if (ci === M.active) return;
+    const Pc = cfgSolved(asm, P, ci);
+    for (const k of M.keys) { const at = posOf(Pc, k); if (at) cfg.v[k] = getV(Pc, at); }
+  });
+}
+/* another configuration made active: its values onto the bench, its object distance into the conditions */
+function mcSwitch(asm, ci) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M || ci === M.active || !M.configs[ci]) return false;
+  mcStore(asm, designPrescription(asm));
+  M.active = ci;
+  const cfg = M.configs[ci];
+  if (cfg.obj > 0 && asm.cond.object && asm.cond.object.kind === 'finite') asm.cond = normCond(Object.assign({}, asm.cond, { object: { kind: 'finite', d: cfg.obj } }));
+  const P = designPrescription(asm);
+  cfgApply(P, M, ci);
+  if (M.keys.includes('t:image')) D.image = P.image;
+  commitDesign(asm, P);
+  return true;
+}
+/* a configuration added, a copy of the active one (the first time, two: the design as it is, and its copy) */
+function mcAdd(asm) {
+  const D = designOf(asm);
+  let M = mcOf(D);
+  if (!M) {
+    const c0 = { name: 'Configuration 1', w: 1, v: {} };
+    if (asm.cond.object && asm.cond.object.kind === 'finite') c0.obj = asm.cond.object.d;
+    D.mc = M = { keys: [], configs: [c0], active: 0 };
+  }
+  if (M.configs.length >= MC_MAX) return 'A design has at most ' + MC_MAX + ' configurations.';
+  mcStore(asm, designPrescription(asm));
+  const a = M.configs[M.active], n = M.configs.length + 1;
+  M.configs.push({ name: 'Configuration ' + n, w: a.w, v: Object.assign({}, a.v), ...(a.obj ? { obj: a.obj } : {}) });
+  return true;
+}
+/* configuration ci taken out (the active one hands over to its neighbour); with one left, the design has none */
+function mcRemove(asm, ci) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M || !M.configs[ci]) return false;
+  if (ci === M.active) mcSwitch(asm, ci ? ci - 1 : 1);
+  M.configs.splice(ci, 1);
+  if (M.active > ci) M.active--;
+  // an operand in that configuration only goes with it; those in later ones follow their configuration
+  D.merit.ops = D.merit.ops.filter(o => o.c !== ci).map(o => o.c > ci ? Object.assign({}, o, { c: o.c - 1 }) : o);
+  if (M.configs.length < 2) delete D.mc;
+  return true;
+}
+/* a key made to differ between the configurations (each starts from the value it has now), or made shared again (the active one's value kept) */
+function mcKey(asm, P, key, on) {
+  const D = designOf(asm), M = mcOf(D);
+  if (!M) return false;
+  const at = posOf(P, key);
+  if (!at || key[0] === 'g') return false;
+  if (on) {
+    if (M.keys.includes(key)) return false;
+    M.keys.push(key);
+    const v = getV(P, at);
+    for (const cfg of M.configs) cfg.v[key] = v;
+  } else {
+    M.keys = M.keys.filter(k => k !== key);
+    for (const cfg of M.configs) delete cfg.v[key];
+  }
+  return true;
+}
+/* one configuration's value of a key (the active one's is the bench's) */
+function mcValue(asm, P, ci, key) {
+  const M = mcOf(designOf(asm));
+  if (!M || ci === M.active) { const at = posOf(P, key); return at ? getV(P, at) : null; }
+  return M.configs[ci].v[key];
 }
 
 /* ---------- Surfaces and lenses in and out ----------
@@ -30940,15 +31210,20 @@ function reKey(asm, P, edit) {
   const pos = k => { const at = posOf(P, k); return at ? { q: at.q, i: at.image ? -1 : at.i } : null; };
   const vars = D.vars.map(k => [pos(k)]), solves = Object.entries(D.solves).map(([k, s]) => [pos(k), s]);
   const picks = Object.entries(D.pickups).map(([k, p]) => [pos(k), pos(p.from), p]);
+  const mcKeys = mcOf(D) ? D.mc.keys.map(k => [k, pos(k)]) : null;
   const map = edit();
   if (!map) return false;
   asmApply(asm, P);
   const P2 = asmPrescription(asm);
   P2.image = P.image;
   const back = a => { if (!a) return null; if (a.i === -1) return 't:image'; const j = map(a.i); return j < 0 || j >= P2.surfaces.length ? null : keyAt(P2, a.q, j); };
-  const nd = { image: P.image, vars: vars.map(([a]) => back(a)).filter(Boolean), solves: {}, pickups: {} };
+  const nd = { image: P.image, vars: vars.map(([a]) => back(a)).filter(Boolean), solves: {}, pickups: {}, merit: D.merit, tol: D.tol };
   for (const [a, s] of solves) { const k = back(a); if (k) nd.solves[k] = s; }
   for (const [a, f, p] of picks) { const k = back(a), kf = back(f); if (k && kf) nd.pickups[k] = Object.assign({}, p, { from: kf }); }
+  if (mcKeys) {
+    const ks = mcKeys.map(([k, a]) => [k, back(a)]).filter(([, k2]) => k2);
+    nd.mc = { active: D.mc.active, keys: ks.map(([, k2]) => k2), configs: D.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(ks.filter(([k]) => k in c.v).map(([k, k2]) => [k2, c.v[k]])) })) };
+  }
   void N0;
   asm.design = normDesign(nd);
   commitDesign(asm, P2);
@@ -31210,18 +31485,23 @@ function optProblem(asm, P) {
 const cloneP = P => ({ surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)),
   stopIndex: P.stopIndex, parts: P.parts, image: P.image, origin: P.origin, dir: P.dir });
 
-/* the variables: each key marked V that is free (not solved, not picked up); a model glass is two */
+/* the variables: each key marked V that is free (not solved, not picked up); a model glass is two;
+   a key the configurations each have their own value of is one in each configuration (cfg, its index) */
 function optVars(prob) {
-  const { P, design: D } = prob, out = [];
+  const { P, design: D } = prob, out = [], M = mcOf(D);
   for (const k of D.vars) {
     if (D.solves[k] || D.pickups[k]) continue;
     const at = posOf(P, k);
     if (!at || !editable(P, at.q, at.i)) continue;
     if (at.q === 'g') { if (isModel(P.materials[at.i])) out.push({ k, at, part: 'nd' }, { k, at, part: 'vd' }); }
+    else if (M && M.keys.includes(k)) M.configs.forEach((c, cfg) => out.push({ k, at, cfg }));
     else out.push({ k, at });
   }
   return out;
 }
+/* configuration ci's prescription before solving: the shared values with its own */
+function cfgP(prob, ci) { const P = cloneP(prob.P); cfgApply(P, prob.design.mc, ci); return P; }
+const xOf = (prob, v) => getX(v.cfg === undefined ? prob.P : cfgP(prob, v.cfg), v);
 /* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
    the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
 const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
@@ -31245,17 +31525,53 @@ const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, 
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
 const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' ? 1 : q === 'D' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
-/* the design with values x: solved, then measured */
+/* the design with values x: solved, then measured. With configurations, each one is solved with its own
+   values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
 function designAt(prob, V, x) {
-  const P = cloneP(prob.P);
-  V.forEach((v, j) => setX(P, v, x[j]));
-  solveDesign(prob, P);
-  return P;
+  const P = cloneP(prob.P), M = mcOf(prob.design);
+  V.forEach((v, j) => { if (v.cfg === undefined) setX(P, v, x[j]); });
+  if (!M) { solveDesign(prob, P); return P; }
+  const img = prob.design.image;
+  const Ps = M.configs.map((cfg, ci) => {
+    const Pc = cloneP(P);
+    cfgApply(Pc, M, ci);
+    V.forEach((v, j) => { if (v.cfg === ci) setX(Pc, v, x[j]); });
+    solveDesign({ cond: cfgCond(prob.cond, cfg), design: prob.design }, Pc);
+    return Pc;
+  });
+  prob.design.image = img;
+  const A = Ps[M.active];
+  A.cfgs = Ps;
+  return A;
 }
 
-/* ---------- The merit function ---------- */
+/* ---------- The merit function ----------
+   With configurations: each one's terms (its image, the operands set for it or for every
+   configuration, its boundaries), each scaled by the square root of its share of the weights, so the
+   merit is the weighted mean of theirs */
 function meritTerms(prob, P, detail) {
-  const c = prob.cond, M = prob.design.merit, nm0 = primaryNm(c);
+  const MC = mcOf(prob.design), Ms = prob.design.merit;
+  if (!MC) return meritOne(prob.cond, Ms, Ms.ops, P, detail);
+  const Ps = P.cfgs || MC.configs.map((cfg, ci) => { const Pc = cfgP(prob, ci); solveDesign({ cond: cfgCond(prob.cond, cfg), design: prob.design }, Pc); return Pc; });
+  const Wc = MC.configs.reduce((a, c) => a + c.w, 0) || 1;
+  const out = { r: [], ss: 0, Wt: 0, nImage: 0, fields: [], ops: [], bounds: 0, epd: 0 };
+  MC.configs.forEach((cfg, ci) => {
+    const ops = Ms.ops.map((o, j) => [o, j]).filter(([o]) => o.c === undefined || o.c === ci), sh = cfg.w / Wc, sq = Math.sqrt(sh);
+    const dt = detail ? [] : null, T = meritOne(cfgCond(prob.cond, cfg), Ms, ops.map(([o]) => o), Ps[ci], dt);
+    for (const v of T.r) out.r.push(sq * v);
+    out.ss += sh * T.ss; out.Wt += sh * T.Wt; out.nImage += T.nImage; out.bounds += sh * T.bounds;
+    if (ci === MC.active) out.epd = T.epd;
+    T.fields.forEach(f => out.fields.push(Object.assign(f, { part: sh * f.part, cfg: ci })));
+    T.ops.forEach((o, q) => out.ops.push(Object.assign(o, { part: sh * o.part, cfg: ci, j: ops[q][1] })));
+    if (detail && dt) for (const b of dt) detail.push(Object.assign(b, { what: MC.configs[ci].name + ': ' + b.what }));
+  });
+  out.Wt = out.Wt || 1;
+  if (!isFinite(out.ss)) out.ss = Infinity;
+  out.merit = Math.sqrt(out.ss / out.Wt);
+  return out;
+}
+function meritOne(c, M, mops, P, detail) {
+  const nm0 = primaryNm(c);
   const S0 = lensSystem(P, nm0, objOpts(c)), epd = designEpd(c, S0), opts = objOpts(c, { epd, image: P.image });
   const Sw = c.waves.map(w => w.nm === nm0 ? lensSystem(P, nm0, opts) : lensSystem(P, w.nm, opts)), Sp = Sw[c.primary];
   const pts = pupilRings(M.rings, M.arms), Wf = c.fields.reduce((a, f) => a + f.w, 0) || 1, Ww = c.waves.reduce((a, w) => a + w.w, 0) || 1;
@@ -31299,7 +31615,7 @@ function meritTerms(prob, P, detail) {
   // the operands
   const ops = [];
   let sd = null;
-  for (const o of M.ops) {
+  for (const o of mops) {
     let v;
     if (o.op === 'EFL') v = S0.par.efl;
     else if (o.op === 'FNO') v = Math.abs(S0.par.uEp) > 0 ? 1 / (epd * Math.abs(S0.par.uEp)) : 1e3;
@@ -31369,7 +31685,7 @@ function meritTerms(prob, P, detail) {
   }
   // a model glass kept on the glass map: within reach of a real glass
   for (const m of P.materials) if (isModel(m)) { const g = nearestGlass(m.nd, m.vd, true); broke(0.02 * (g.d - GLASS_REACH), 'a model glass (nd ' + (+m.nd.toFixed(4)) + ', Vd ' + (+m.vd.toFixed(2)) + ') is far from any real glass'); }
-  const Wt = 1 + M.ops.reduce((a, o) => a + o.weight, 0);
+  const Wt = 1 + mops.reduce((a, o) => a + o.weight, 0);
   let ss = 0;
   for (const v of r) ss += v * v;
   if (!isFinite(ss)) ss = Infinity;
@@ -31378,11 +31694,11 @@ function meritTerms(prob, P, detail) {
 
 /* what the merit is made of, for the Merit tab: each term's value and its share */
 function meritReport(prob) {
-  const P = cloneP(prob.P);
-  solveDesign(prob, P);
+  const P = designAt(prob, [], []);
   const broken = [], T = meritTerms(prob, P, broken), tot = T.ss || 1;
-  return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot })),
-    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p, v: o.v })), bounds: { share: T.bounds / tot, broken } };
+  return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot, cfg: f.cfg })),
+    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p, v: o.v, cfg: o.cfg, j: o.j })), bounds: { share: T.bounds / tot, broken },
+    configs: mcOf(prob.design) ? prob.design.mc.configs.map(c => c.name) : null };
 }
 
 /* ---------- Damped least squares ---------- */
@@ -31483,18 +31799,28 @@ function globalSearch(prob, V, best, trials, seed) {
    args: mode 'dls' (iters cycles from x) or 'global' (trials from the best, x); returns the variables'
    keys and the values reached, with the merit before and after */
 function optRun(prob, args) {
-  const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => getX(prob.P, v)));
+  const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => xOf(prob, v)));
   const T0 = evalAt(prob, V, x0);
   let res;
   if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
-  return { vars: V.map(v => ({ k: v.k, part: v.part || null })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
+  return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
     iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0 };
 }
-/* the values reached, written into a prescription */
-function optApply(P, prob, out) {
-  const V = optVars(Object.assign({}, prob, { P }));
-  V.forEach((v, j) => { const k = out.vars.findIndex(w => w.k === v.k && (w.part || null) === (v.part || null)); if (k >= 0) setX(P, v, out.x[k]); });
+/* the values reached, written into a prescription (P, the active configuration's) and, for a value
+   each configuration has its own of, into the configurations of the design D */
+function optApply(P, prob, out, D) {
+  const V = optVars(Object.assign({}, prob, { P })), M = mcOf(prob.design);
+  V.forEach(v => {
+    const k = out.vars.findIndex(w => w.k === v.k && (w.part || null) === (v.part || null) && (w.cfg === null || w.cfg === undefined ? undefined : w.cfg) === v.cfg);
+    if (k < 0) return;
+    if (v.cfg === undefined || v.cfg === M.active) { setX(P, v, out.x[k]); return; }
+    // another configuration's: its value worked out in its own prescription
+    const Pc = cfgP(prob, v.cfg);
+    setX(Pc, v, out.x[k]);
+    const cm = D && mcOf(D);
+    if (cm && cm.configs[v.cfg]) cm.configs[v.cfg].v[v.k] = getV(Pc, v.at);
+  });
 }
 
 /* ---------- Model glass, and the nearest real one ----------
@@ -31907,9 +32233,9 @@ function perturb(P0, ops, vals) {
   return P;
 }
 
-/* the criterion: the merit's image term, its square root */
+/* the criterion: the merit's image term, its square root (in the active configuration, the one on the bench) */
 function criterion(prob, P) {
-  const T = meritTerms(prob, P);
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
   let s = 0;
   for (let q = 0; q < T.nImage; q++) s += T.r[q] * T.r[q];
   return Math.sqrt(s);
@@ -35088,6 +35414,8 @@ function zmxAssemblySystem(asm) {
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
+  const mc = asm.design && asm.design.mc && asm.design.mc.configs && asm.design.mc.configs.length > 1 ? asm.design.mc : null;
+  if (mc) warnings.add('only the configuration shown (' + mc.configs[mc.active].name + ') is written');
   // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
   const d = objectOf(asm.cond);
   let fin = null;
@@ -37760,6 +38088,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Configurations</b> in lens design: one design in several states, such as a zoom at each focal length or a lens refocused for a nearer object. Each configuration has its own values for the spacings and radii you choose, and its own object distance. The merit function weighs them all, and one optimisation finds each configuration\u2019s own values and the shared ones together. Show any one on the bench.',
     '<b>Design as a lens\u2026</b> on any lone lens, mirror or window (its panel or right-click menu) makes it an assembly of its own and opens the lens design workspace on it straight away.',
     '<b>MTF in the merit function</b>: add the diffraction MTF at a field and frequency, tangential, sagittal or their mean, and the optimiser raises it. Worked out from the pupil function at just the frequency asked for, so it is quick enough to optimise on.',
     '<b>An assembly\u2019s place on the bench</b>: its panel gives its X and Y (its first vertex), its Angle (the way its axis runs) and its Height, to type; every part moves or turns with it, about its first vertex, the design unchanged.',

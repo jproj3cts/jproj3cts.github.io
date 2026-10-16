@@ -180,6 +180,24 @@ The **Merit** tab sets what the optimiser makes small: the merit function, a sum
 
 The merit is $$\sqrt{\sum r_i^2 / W}$$, $$W$$ one for the image plus the added terms' weights. The table gives each term's value now and its share of the merit. Rays are traced through every surface whatever its clear radius, as the lenses are sized to the light afterwards.
 
+### Configurations
+
+The **Configurations** tab holds one design in several states: a zoom lens at each of its focal lengths, a lens refocused for nearer objects, a relay at two magnifications. **Make configurations** gives two, the design as it is and a copy; **Add a configuration** copies the one shown. Each has a name and a weight in the merit function.
+
+Choose the values that differ between them in the list under the table and **Make it differ**: any radius, thickness or air space, conic, aspheric term, tilt or decentre, or the image distance. Each configuration starts from the value it has now and keeps its own; everything else is shared. With the object at a distance (in the design conditions), each configuration also has its own object distance. The **×** beside a value makes it shared again, at the value shown.
+
+One configuration is shown at a time, chosen in the workspace's header or with **Show** in the table. It is the one on the bench, in the layout and lens data (where a value that differs is marked at its left edge), and in the analyses, drawings, tolerancing and the lens file export. Showing another puts its values on the bench and its object distance in the conditions. The table also gives each configuration's focal length, working F-number, image height and total track.
+
+- **Solves** are worked out in each configuration: an image distance solved for the paraxial focus is each configuration's own focus.
+- **The merit function** is the weighted mean of each configuration's: its image term, its boundaries, and the terms added in the Merit tab. Each added term is measured **in every configuration** unless it is set for one (a zoom's focal length target in each position).
+- **The optimiser** varies a value marked V once for all the configurations if it is shared, and separately in each if it differs. A zoom's moving spacings are found for each position while its radii serve them all.
+- **Tolerancing** is of the configuration shown.
+
+**Checked against.**
+- Two identical configurations measure exactly as the design alone.
+- A singlet refocused for objects at 200 and 1000 mm holds each configuration's image at its own paraxial focus, which is checked against a separate paraxial trace.
+- Two singlets 100 mm in focal length, their spacing differing between two configurations: one optimisation reaches 60 mm and 75 mm focal length (each within 0.05 mm), the wider spacing giving the longer focal length, with the radii unchanged.
+
 ### Optimise the design
 
 Mark the values the optimiser may change with **V** in the lens data: radii, thicknesses, conics and glasses. Solves and pickups are worked out again at every step, so a radius solved for an F-number keeps the focal length while the others change.
@@ -319,4 +337,4 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`, each `{"op", "target", "weight"}` with a field index `"f"`, a pupil point `"p"` and a frequency `"v"` where the term needs them) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (its aspheric terms), `"T:…"` and `"D:…"` (a part's tilt and decentre, on its first surface) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`, each `{"op", "target", "weight"}` with a field index `"f"`, a pupil point `"p"` and a frequency `"v"` where the term needs them, and a configuration index `"c"` when it is measured in one configuration only) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (its aspheric terms), `"T:…"` and `"D:…"` (a part's tilt and decentre, on its first surface) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`. A design with configurations has `"mc"`: `{"keys", "configs", "active"}`. `keys` lists the values that differ, and each configuration is `{"name", "w", "v", "obj"}`: its weight, its own value for each key, and, for an object at a distance, that distance. The parts on the bench hold the active configuration's values.

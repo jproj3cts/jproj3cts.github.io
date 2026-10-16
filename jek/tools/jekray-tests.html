@@ -9168,6 +9168,44 @@ const TESTS = [
     },
   },
   {
+    name: 'A two-position zoom is designed with configurations, each optimised to its own focal length',
+    why: 'two singlets behind a stop: Configurations makes two, the spacing between the lenses made to differ and marked V, a focal length of 60 mm set for the first and 75 mm for the second in the Merit tab; one optimisation reaches both (each within 0.05 mm, read after showing each configuration, which moves the rear lens on the bench), and the radii stay shared (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'stop', name: 'Stop', x: -5, y: 0, angle: 0, aperture: 6 },
+        { type: 'lens', name: 'Front', x: 1.5, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 103 }, { R: -103 }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+        { type: 'lens', name: 'Rear', x: 31.5, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 103 }, { R: -103 }], gaps: [3], materials: [{ glass: 'N-BK7' }] }] });
+      J.makeAssembly(['Stop', 'Front', 'Rear']);
+      const name = J.assemblies()[0].name;
+      J.openLensDesign(name);
+      const q = sel => rigDoc().querySelector('#lensWs ' + sel), set = (el, v) => { el.value = v; el.dispatchEvent(new (rigWin().Event)('change', { bubbles: true })); };
+      try {
+        wsClick('Configurations', null, 'tab');
+        wsClick('Make configurations');
+        set(q('select[aria-label="Value to make differ between the configurations"]'), [...q('select[aria-label="Value to make differ between the configurations"]').options].find(o => o.textContent === 'Thickness after surface 3 (Front, back)').value);
+        wsClick('Make it differ');
+        wsClick('Configurations', null, 'tab');
+        wsClick('Lens data', null, 'tab');
+        wsClick('V', 'Vary thickness of surface 3');
+        wsClick('Merit', null, 'tab');
+        for (const c of [0, 1]) {
+          set(q('select[aria-label="Term to add"]'), 'EFL'); wsClick('Add a term');
+          set([...rigDoc().querySelectorAll('#lensWs select[aria-label="Configuration of Focal length (mm)"]')][c], String(c));
+          set([...rigDoc().querySelectorAll('#lensWs input[aria-label="Target of Focal length (mm)"]')][c], c ? '75' : '60');
+          set([...rigDoc().querySelectorAll('#lensWs input[aria-label="Weight of Focal length (mm)"]')][c], '1000');
+        }
+        J.lensOptimise('dls', { iters: 40 });
+        const R1 = J.byName('Front').surfaces[0].R, f0 = J.lensFigures(name).efl, x0 = J.byName('Rear').x;
+        set(q('select[aria-label="Configuration shown"]'), '1');
+        const f1 = J.lensFigures(name).efl, x1 = J.byName('Rear').x;
+        const ok = Math.abs(f0 - 60) < 0.05 && Math.abs(f1 - 75) < 0.05 && x1 > x0 + 1 && J.byName('Front').surfaces[0].R === R1;
+        if (!ok) console.log('zoom', f0, f1, x0, x1, R1, J.byName('Front').surfaces[0].R);
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

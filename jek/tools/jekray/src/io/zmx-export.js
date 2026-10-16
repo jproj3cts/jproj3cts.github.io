@@ -112,6 +112,8 @@ function zmxAssemblySystem(asm) {
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
+  const mc = asm.design && asm.design.mc && asm.design.mc.configs && asm.design.mc.configs.length > 1 ? asm.design.mc : null;
+  if (mc) warnings.add('only the configuration shown (' + mc.configs[mc.active].name + ') is written');
   // an object at a finite distance: its entrance pupil worked out (whatever the aperture is given as), and its image distance
   const d = objectOf(asm.cond);
   let fin = null;

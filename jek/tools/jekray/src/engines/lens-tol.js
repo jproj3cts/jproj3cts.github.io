@@ -85,9 +85,9 @@ export function perturb(P0, ops, vals) {
   return P;
 }
 
-/* the criterion: the merit's image term, its square root */
+/* the criterion: the merit's image term, its square root (in the active configuration, the one on the bench) */
 function criterion(prob, P) {
-  const T = meritTerms(prob, P);
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
   let s = 0;
   for (let q = 0; q < T.nImage; q++) s += T.r[q] * T.r[q];
   return Math.sqrt(s);

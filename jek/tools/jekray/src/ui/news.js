@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Configurations</b> in lens design: one design in several states, such as a zoom at each focal length or a lens refocused for a nearer object. Each configuration has its own values for the spacings and radii you choose, and its own object distance. The merit function weighs them all, and one optimisation finds each configuration\u2019s own values and the shared ones together. Show any one on the bench.',
     '<b>Design as a lens\u2026</b> on any lone lens, mirror or window (its panel or right-click menu) makes it an assembly of its own and opens the lens design workspace on it straight away.',
     '<b>MTF in the merit function</b>: add the diffraction MTF at a field and frequency, tangential, sagittal or their mean, and the optimiser raises it. Worked out from the pupil function at just the frequency asked for, so it is quick enough to optimise on.',
     '<b>An assembly\u2019s place on the bench</b>: its panel gives its X and Y (its first vertex), its Angle (the way its axis runs) and its Height, to type; every part moves or turns with it, about its first vertex, the design unchanged.',

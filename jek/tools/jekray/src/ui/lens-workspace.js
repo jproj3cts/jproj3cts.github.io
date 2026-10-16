@@ -8,7 +8,7 @@ import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
-import { GLASS_MAKERS, glassCandidates, isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars, substIndices, withGlass } from '../engines/lens-opt.js';
+import { FOUND_MAX, GLASS_MAKERS, glassCandidates, isModel, keepFound, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
@@ -826,6 +826,8 @@ function optBatch() {
       changed(false);
     }
     O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    // the global search's designs, kept with the design: the best distinct ones it has reached
+    if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
     if (O.mode === 'global' && O.trials >= O.maxTrials) { O.running = false; O.note = 'Done: ' + O.trials + ' trials.'; }
     renderWs();
@@ -876,6 +878,35 @@ function substBatch(O, asm, prob) {
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(p, run));
   else hooks.fwRequest('lensopt', 'lensopt', { prob: p, run }).then(o => take(o && o.out)).catch(() => take(null));
 }
+/* a kept value as the lens data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
+const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? m[2] + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
+const foundVal = (v, x) => v.k[0] === 'R' && !v.part ? (Math.abs(x) < 1e-12 ? 'flat' : wsFmt(1 / x, 5)) : wsFmt(x, 5);
+/* the designs kept: those the global search found (the best distinct ones), and any kept by hand; each can be
+   put back, its variables' values as they were, the rest of the design as it is now */
+function foundCard(asm, P, prob, V, running) {
+  const D = designOf(asm), L = D.found || [], wrap = h('div', { class: 'rt-lfound' });
+  const keep = h('button', { class: 'rt-btn', type: 'button', disabled: running || !V.length ? '' : null, title: 'Keep the design as it is now in this list, to come back to',
+    onclick: () => edit((PP, a) => { const pr = optProblem(a, PP), VV = optVars(pr), dd = designOf(a), x = optValues(pr);
+      keepFound(dd.found || (dd.found = []), { vars: VV.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x, merit: meritReport(pr).merit, t: Date.now(), by: 'hand' }); return false; }) }, 'Keep this design');
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Designs kept'), keep,
+    L.length ? h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => edit((PP, a) => { delete designOf(a).found; return false; }) }, 'Clear the list') : null));
+  if (!L.length) { wrap.append(h('p', { class: 'rt-lsub' }, 'A global search keeps here the ' + FOUND_MAX + ' best distinct designs it reaches, best first, saved with the design: a design a little worse may be easier to make. Keep this design adds the design as it is now.')); return wrap; }
+  const now = meritReport(prob).merit, tb = h('tbody');
+  const curX = optValues(prob);
+  L.forEach((f, i) => {
+    const same = f.vars.length === V.length && f.vars.every((v, j) => v.k === V[j].k && (v.part || null) === (V[j].part || null)), here = same && sameDesign(f.x, curX);
+    const vals = f.vars.slice(0, 4).map((v, j) => foundLabel(v) + ' ' + foundVal(v, f.x[j])).join(', ') + (f.vars.length > 4 ? ', \u2026' : '');
+    tb.append(h('tr', { class: here ? 'on' : '' }, h('td', null, String(i + 1)), h('td', { class: 'mono' }, wsFmt(f.merit, 5)),
+      h('td', null, (f.by === 'hand' ? 'kept by hand' : 'global search') + (f.t ? ', ' + new Date(f.t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '')),
+      h('td', { class: 'rt-lsub' }, vals + (same ? '' : ' (other variables than now)')),
+      h('td', null, here ? h('span', { class: 'rt-lsub' }, 'the design now') : h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, 'aria-label': 'Use design ' + (i + 1),
+        onclick: () => edit((PP, a) => { optApply(PP, optProblem(a, PP), f, designOf(a)); }) }, 'Use'),
+        ' ', h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, 'aria-label': 'Remove design ' + (i + 1), onclick: () => edit((PP, a) => { const dd = designOf(a); dd.found = (dd.found || []).filter(g => g !== dd.found[i]); if (!dd.found.length) delete dd.found; return false; }) }, 'Remove'))));
+  });
+  wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-lfoundt' }, h('thead', null, h('tr', null, ...['', 'Merit when kept', 'From', 'Values', ''].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  wrap.append(h('p', { class: 'rt-lsub' }, 'The merit now: ' + wsFmt(now, 5) + '. Use puts a design\u2019s values back (Undo takes them out again); its merit is as it was when kept, under the merit function then.'));
+  return wrap;
+}
 function optCard(asm, P) {
   const prob = optProblem(asm, P), V = optVars(prob), O = OPT && OPT.id === asm.id ? OPT : null, running = !!(O && O.running);
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
@@ -918,6 +949,7 @@ function optCard(asm, P) {
       toast('Model glasses replaced by ' + names.join(', ') + '. Optimise again to settle the design on them.');
     } }, 'Replace model glasses with the nearest real ones'), h('span', { class: 'rt-lsub' }, models.length + ' model glass' + (models.length === 1 ? '' : 'es'))));
   card.append(h('p', { class: 'rt-lsub' }, 'Runs in the background; the design, and its parts on the bench, change as it goes. Undo takes it back to where it started.'));
+  card.append(foundCard(asm, P, prob, V, running));
   return card;
 }
 

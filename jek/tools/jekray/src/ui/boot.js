@@ -77,6 +77,7 @@ import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
 import { asmMembers, asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine.js';
 import { ghostPrescription } from '../engines/lens-ghost.js';
+import { meritReport, optProblem } from '../engines/lens-opt.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
@@ -372,6 +373,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
     glassInfo(k) { return glassInfo(k); },
+    lensMerit(name) { const a = assemblies().find(x => x.name === name); return a ? meritReport(optProblem(a, designPrescription(a))).merit : null; },
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },

@@ -5325,7 +5325,21 @@ function normDesign(d) {
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
   const mc = normMc(d.mc);
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}) };
+  const found = normFound(d.found);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}) };
+}
+/* designs kept from a global search (or by hand): each its variables (key, which part of a model glass, which
+   configuration) and their values, its merit when found, and when; ten at most, best first */
+function normFound(L) {
+  if (!Array.isArray(L)) return [];
+  const out = [];
+  for (const f of L.slice(0, 10)) {
+    if (!f || typeof f !== 'object' || !Array.isArray(f.vars) || !Array.isArray(f.x) || f.vars.length !== f.x.length || f.x.length > 500) continue;
+    const vars = f.vars.map(v => v && okKey(v.k) ? { k: v.k, part: v.part === 'nd' || v.part === 'vd' ? v.part : null, cfg: Number.isInteger(v.cfg) && v.cfg >= 0 && v.cfg < 16 ? v.cfg : null } : null);
+    if (vars.some(v => !v) || !f.x.every(v => isFinite(+v) && v !== null)) continue;
+    out.push({ vars, x: f.x.map(v => clamp(+v, -1e9, 1e9)), merit: Math.max(0, num(f.merit, 0)), t: Math.max(0, Math.round(num(f.t, 0))), ...(f.by === 'hand' ? { by: 'hand' } : {}) });
+  }
+  return out.sort((a, b) => a.merit - b.merit);
 }
 /* configurations: the same design in several states (a zoom's positions, a lens refocused for nearer
    objects), each its own values for the keys listed (radii, conics, aspheric terms, gaps, the image
@@ -24127,6 +24141,8 @@ function optBatch() {
       changed(false);
     }
     O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    // the global search's designs, kept with the design: the best distinct ones it has reached
+    if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
     if (O.mode === 'global' && O.trials >= O.maxTrials) { O.running = false; O.note = 'Done: ' + O.trials + ' trials.'; }
     renderWs();
@@ -24177,6 +24193,35 @@ function substBatch(O, asm, prob) {
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(p, run));
   else hooks.fwRequest('lensopt', 'lensopt', { prob: p, run }).then(o => take(o && o.out)).catch(() => take(null));
 }
+/* a kept value as the lens data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
+const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? m[2] + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
+const foundVal = (v, x) => v.k[0] === 'R' && !v.part ? (Math.abs(x) < 1e-12 ? 'flat' : wsFmt(1 / x, 5)) : wsFmt(x, 5);
+/* the designs kept: those the global search found (the best distinct ones), and any kept by hand; each can be
+   put back, its variables' values as they were, the rest of the design as it is now */
+function foundCard(asm, P, prob, V, running) {
+  const D = designOf(asm), L = D.found || [], wrap = h('div', { class: 'rt-lfound' });
+  const keep = h('button', { class: 'rt-btn', type: 'button', disabled: running || !V.length ? '' : null, title: 'Keep the design as it is now in this list, to come back to',
+    onclick: () => edit((PP, a) => { const pr = optProblem(a, PP), VV = optVars(pr), dd = designOf(a), x = optValues(pr);
+      keepFound(dd.found || (dd.found = []), { vars: VV.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x, merit: meritReport(pr).merit, t: Date.now(), by: 'hand' }); return false; }) }, 'Keep this design');
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Designs kept'), keep,
+    L.length ? h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => edit((PP, a) => { delete designOf(a).found; return false; }) }, 'Clear the list') : null));
+  if (!L.length) { wrap.append(h('p', { class: 'rt-lsub' }, 'A global search keeps here the ' + FOUND_MAX + ' best distinct designs it reaches, best first, saved with the design: a design a little worse may be easier to make. Keep this design adds the design as it is now.')); return wrap; }
+  const now = meritReport(prob).merit, tb = h('tbody');
+  const curX = optValues(prob);
+  L.forEach((f, i) => {
+    const same = f.vars.length === V.length && f.vars.every((v, j) => v.k === V[j].k && (v.part || null) === (V[j].part || null)), here = same && sameDesign(f.x, curX);
+    const vals = f.vars.slice(0, 4).map((v, j) => foundLabel(v) + ' ' + foundVal(v, f.x[j])).join(', ') + (f.vars.length > 4 ? ', \u2026' : '');
+    tb.append(h('tr', { class: here ? 'on' : '' }, h('td', null, String(i + 1)), h('td', { class: 'mono' }, wsFmt(f.merit, 5)),
+      h('td', null, (f.by === 'hand' ? 'kept by hand' : 'global search') + (f.t ? ', ' + new Date(f.t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '')),
+      h('td', { class: 'rt-lsub' }, vals + (same ? '' : ' (other variables than now)')),
+      h('td', null, here ? h('span', { class: 'rt-lsub' }, 'the design now') : h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, 'aria-label': 'Use design ' + (i + 1),
+        onclick: () => edit((PP, a) => { optApply(PP, optProblem(a, PP), f, designOf(a)); }) }, 'Use'),
+        ' ', h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, 'aria-label': 'Remove design ' + (i + 1), onclick: () => edit((PP, a) => { const dd = designOf(a); dd.found = (dd.found || []).filter(g => g !== dd.found[i]); if (!dd.found.length) delete dd.found; return false; }) }, 'Remove'))));
+  });
+  wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-lfoundt' }, h('thead', null, h('tr', null, ...['', 'Merit when kept', 'From', 'Values', ''].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  wrap.append(h('p', { class: 'rt-lsub' }, 'The merit now: ' + wsFmt(now, 5) + '. Use puts a design\u2019s values back (Undo takes them out again); its merit is as it was when kept, under the merit function then.'));
+  return wrap;
+}
 function optCard(asm, P) {
   const prob = optProblem(asm, P), V = optVars(prob), O = OPT && OPT.id === asm.id ? OPT : null, running = !!(O && O.running);
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
@@ -24219,6 +24264,7 @@ function optCard(asm, P) {
       toast('Model glasses replaced by ' + names.join(', ') + '. Optimise again to settle the design on them.');
     } }, 'Replace model glasses with the nearest real ones'), h('span', { class: 'rt-lsub' }, models.length + ' model glass' + (models.length === 1 ? '' : 'es'))));
   card.append(h('p', { class: 'rt-lsub' }, 'Runs in the background; the design, and its parts on the bench, change as it goes. Undo takes it back to where it started.'));
+  card.append(foundCard(asm, P, prob, V, running));
   return card;
 }
 
@@ -32408,6 +32454,8 @@ function optVars(prob) {
 /* configuration ci's prescription before solving: the shared values with its own */
 function cfgP(prob, ci) { const P = cloneP(prob.P); cfgApply(P, prob.design.mc, ci); return P; }
 const xOf = (prob, v) => getX(v.cfg === undefined ? prob.P : cfgP(prob, v.cfg), v);
+/* the variables' values as the design has them now, in optVars's order */
+const optValues = prob => optVars(prob).map(v => xOf(prob, v));
 /* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
    the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
 const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
@@ -32689,7 +32737,7 @@ function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>>
 const gauss = R => Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
 function globalSearch(prob, V, best, trials, seed) {
   const R = rng(seed || 1);
-  let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0 };
+  let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0, found: [] };
   for (let t = 0; t < trials; t++) {
     const x = Float64Array.from(out.x);
     V.forEach((v, j) => {
@@ -32707,6 +32755,7 @@ function globalSearch(prob, V, best, trials, seed) {
     });
     const D = dls(prob, V, x, 25);
     out.tried++;
+    keepFound(out.found, { x: Array.from(D.x), merit: Math.sqrt(D.ss / D.Wt) });
     if (D.ss < out.ss) { out = Object.assign(out, { x: D.x, ss: D.ss, Wt: D.Wt }); out.better++; }
   }
   return out;
@@ -32722,7 +32771,7 @@ function optRun(prob, args) {
   if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
   return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
-    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0 };
+    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(res.found ? { found: res.found } : {}) };
 }
 /* the values reached, written into a prescription (P, the active configuration's) and, for a value
    each configuration has its own of, into the configurations of the design D */
@@ -32818,6 +32867,27 @@ function substituteRun(prob, opts) {
     if (!changed) break;
   }
   return { prob: cur, log, merit: meritReport(cur).merit };
+}
+
+/* ---------- Designs found ----------
+   The global search keeps the best distinct designs it reaches (each its variables' values and its merit),
+   not only the best: a design a little worse may be easier to make, or better where the merit does not
+   look. Two are the same design when every value is within a part in 10³ (of its size, or of 10⁻³). */
+const FOUND_MAX = 10;
+function sameDesign(a, b) {
+  if (a.length !== b.length) return false;
+  for (let j = 0; j < a.length; j++) if (Math.abs(a[j] - b[j]) > 1e-3 * (Math.abs(a[j]) + Math.abs(b[j]) + 1e-3)) return false;
+  return true;
+}
+/* item ({ x, merit, …}) into the list, best first, at most n: in place of the same design if it is better */
+function keepFound(list, item, n) {
+  if (!item || !isFinite(item.merit)) return list;
+  const k = list.findIndex(f => sameDesign(f.x, item.x));
+  if (k >= 0) { if (item.merit < list[k].merit) list[k] = item; else return list; }
+  else list.push(item);
+  list.sort((a, b) => a.merit - b.merit);
+  list.length = Math.min(list.length, n || FOUND_MAX);
+  return list;
 }
 /* ==========================================================================
    Analyses of a lens design
@@ -39266,6 +39336,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Designs kept</b> in lens design: a global search keeps the ten best distinct designs it finds, not only the best, saved with the design; <b>Use</b> puts any of them back, and <b>Keep this design</b> adds the design as it is now, to come back to.',
     '<b>Substitute glasses</b> in lens design: a third way to optimise, it tries each glass marked V as the real glasses nearest it on the glass map (from the makers you tick, each transmitting at every wavelength of the design), optimises the rest of the design again with each, and keeps the best, glass by glass, pass after pass, until nothing does better.',
     '<b>Ghosts in lens design</b>: <b>Analyses \u203a Ghosts</b> lists every ghost of a design, light reflected by one surface and sent on by an earlier one, each with its reflectances (a coating\u2019s, or bare glass\u2019s), the share of the light reaching the image, where it focuses, its size on the image and how bright it is against the image, the brightest first. A ghost that focuses within a millimetre of a surface or in glass is marked. Choose one and its rays are drawn in the layout.',
     '<b>GRIN lenses</b>: a lens\u2019s glass may grade from its axis (n + g₂r² + g₄r⁴ + g₆r⁶), and a GRIN rod lens joins the lens presets. Rays curve through the glass, traced step by step alike on the bench and in lens design, where the terms are added with <b>+ n(r)</b> and varied by the optimiser; the diffracted field goes through it a slab at a time.',
@@ -41102,6 +41173,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
     glassInfo(k) { return glassInfo(k); },
+    lensMerit(name) { const a = assemblies().find(x => x.name === name); return a ? meritReport(optProblem(a, designPrescription(a))).merit : null; },
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },

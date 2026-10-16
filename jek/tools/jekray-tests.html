@@ -8926,6 +8926,36 @@ const TESTS = [
     },
   },
   {
+    name: 'A global search keeps the best designs it finds; Use puts one back with its merit, and they are saved with the design',
+    why: 'the Cooke triplet\u2019s global search, 6 trials: the Designs kept table lists them, best first, the best marked as the design now; Use on the second puts its values back and the merit becomes the one it was kept with (to 10\u207b\u2079); Undo takes it out; a radius changed by hand and Keep this design adds a row kept by hand; the list survives a save and a load (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Optimise the design', null, 'tab');
+        wsClick('Global search', null, 'radio');
+        J.lensOptimise('global', { trials: 6, seed: 3 });
+        const rows = () => [...rigDoc().querySelectorAll('#lensWs .rt-lfoundt tbody tr')];
+        const R = rows(), merits = R.map(r => +r.children[1].textContent);
+        const ordered = R.length >= 2 && merits.every((m, i) => !i || m >= merits[i - 1]) && R[0].classList.contains('on');
+        const want = J.serialize().assemblies[0].design.found[1].merit;
+        rows()[1].querySelector('button[aria-label="Use design 2"]').click();
+        const used = Math.abs(J.lensMerit('Cooke triplet') - want) < 1e-9 * Math.max(1, want) && rows()[1].classList.contains('on');
+        wsClick('Undo');
+        const undone = Math.abs(J.lensMerit('Cooke triplet') - merits[0]) < 1e-5;
+        // a design of its own (a radius changed by hand), kept
+        wsClick('Lens data', null, 'tab'); wsSet('Radius of surface 1', 24); wsClick('Optimise the design', null, 'tab');
+        wsClick('Keep this design');
+        const hand = rows().some(r => /kept by hand/.test(r.textContent));
+        const n = rows().length, B = J.serialize();
+        J.closeLensDesign(); J.load(B); J.openLensDesign('Cooke triplet'); wsClick('Optimise the design', null, 'tab');
+        const kept = rows().length === n;
+        return ordered && used && undone && hand && kept ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
     why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
     want: 1, tol: 0, unit: '',

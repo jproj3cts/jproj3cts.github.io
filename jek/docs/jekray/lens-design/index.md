@@ -216,10 +216,13 @@ Mark the values the optimiser may change with **V** in the lens data: radii, thi
 
 Both run in the page's background worker, a few cycles or trials at a time, and the design (and its parts on the bench) changes as they go. **Undo** takes it all back. Changing the design by hand stops a run.
 
+**Designs kept.** A global search keeps the ten best distinct designs it reaches, best first, not only the best: a design a little worse may be easier to make, or better where the merit function does not look. Two designs are the same when every variable is within a part in 10³ (an optimiser reaching one minimum twice, not quite to its bottom, keeps it once). They are listed under **Designs kept**, each with its merit when kept, where it came from and its first values, and are saved with the design. **Use** puts one back, its variables' values as they were and the rest of the design as it is now; Undo takes them out again. **Keep this design** adds the design as it is now (to come back to after trying something), and **Remove** and **Clear the list** tidy it. A design's merit is the one it had when kept, under the merit function then; one kept with other variables than now puts back those that still are.
+
 **Checked against.**
 - a singlet bent for least spherical aberration: the shape the third-order closed form gives, $$(R_2+R_1)/(R_2-R_1) = 2(n^2-1)/(n+2)$$, and the bottom of a fine scan of its merit;
 - a Cooke triplet with its radii spoilt by up to 30%: optimised back to at least as good as the published design, its focal length kept;
-- a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint.
+- a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint;
+- a global search on a triplet: the designs it keeps are distinct, the best is its result, and each put back has the merit it was kept with, to 10⁻⁹; they come back from a saved file.
 
 ### Aspheric surfaces
 

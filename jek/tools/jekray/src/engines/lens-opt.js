@@ -58,6 +58,8 @@ export function optVars(prob) {
 /* configuration ci's prescription before solving: the shared values with its own */
 function cfgP(prob, ci) { const P = cloneP(prob.P); cfgApply(P, prob.design.mc, ci); return P; }
 const xOf = (prob, v) => getX(v.cfg === undefined ? prob.P : cfgP(prob, v.cfg), v);
+/* the variables' values as the design has them now, in optVars's order */
+export const optValues = prob => optVars(prob).map(v => xOf(prob, v));
 /* an aspheric coefficient is varied as the sag it adds at the surface's clear radius (mm), A h^n:
    the raw coefficients (1e-6, 1e-9, …) are far too unlike each other for the steps to be */
 const asphH = (P, i) => { const h = P.surfaces[i].semi; return isFinite(h) && h > 0 ? h : 10; };
@@ -339,7 +341,7 @@ function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>>
 const gauss = R => Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
 export function globalSearch(prob, V, best, trials, seed) {
   const R = rng(seed || 1);
-  let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0 };
+  let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0, found: [] };
   for (let t = 0; t < trials; t++) {
     const x = Float64Array.from(out.x);
     V.forEach((v, j) => {
@@ -357,6 +359,7 @@ export function globalSearch(prob, V, best, trials, seed) {
     });
     const D = dls(prob, V, x, 25);
     out.tried++;
+    keepFound(out.found, { x: Array.from(D.x), merit: Math.sqrt(D.ss / D.Wt) });
     if (D.ss < out.ss) { out = Object.assign(out, { x: D.x, ss: D.ss, Wt: D.Wt }); out.better++; }
   }
   return out;
@@ -372,7 +375,7 @@ export function optRun(prob, args) {
   if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
   return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
-    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0 };
+    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(res.found ? { found: res.found } : {}) };
 }
 /* the values reached, written into a prescription (P, the active configuration's) and, for a value
    each configuration has its own of, into the configurations of the design D */
@@ -468,4 +471,25 @@ export function substituteRun(prob, opts) {
     if (!changed) break;
   }
   return { prob: cur, log, merit: meritReport(cur).merit };
+}
+
+/* ---------- Designs found ----------
+   The global search keeps the best distinct designs it reaches (each its variables' values and its merit),
+   not only the best: a design a little worse may be easier to make, or better where the merit does not
+   look. Two are the same design when every value is within a part in 10³ (of its size, or of 10⁻³). */
+export const FOUND_MAX = 10;
+export function sameDesign(a, b) {
+  if (a.length !== b.length) return false;
+  for (let j = 0; j < a.length; j++) if (Math.abs(a[j] - b[j]) > 1e-3 * (Math.abs(a[j]) + Math.abs(b[j]) + 1e-3)) return false;
+  return true;
+}
+/* item ({ x, merit, …}) into the list, best first, at most n: in place of the same design if it is better */
+export function keepFound(list, item, n) {
+  if (!item || !isFinite(item.merit)) return list;
+  const k = list.findIndex(f => sameDesign(f.x, item.x));
+  if (k >= 0) { if (item.merit < list[k].merit) list[k] = item; else return list; }
+  else list.push(item);
+  list.sort((a, b) => a.merit - b.merit);
+  list.length = Math.min(list.length, n || FOUND_MAX);
+  return list;
 }

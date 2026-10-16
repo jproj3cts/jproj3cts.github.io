@@ -98,7 +98,21 @@ export function normDesign(d) {
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
   const mc = normMc(d.mc);
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}) };
+  const found = normFound(d.found);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}) };
+}
+/* designs kept from a global search (or by hand): each its variables (key, which part of a model glass, which
+   configuration) and their values, its merit when found, and when; ten at most, best first */
+export function normFound(L) {
+  if (!Array.isArray(L)) return [];
+  const out = [];
+  for (const f of L.slice(0, 10)) {
+    if (!f || typeof f !== 'object' || !Array.isArray(f.vars) || !Array.isArray(f.x) || f.vars.length !== f.x.length || f.x.length > 500) continue;
+    const vars = f.vars.map(v => v && okKey(v.k) ? { k: v.k, part: v.part === 'nd' || v.part === 'vd' ? v.part : null, cfg: Number.isInteger(v.cfg) && v.cfg >= 0 && v.cfg < 16 ? v.cfg : null } : null);
+    if (vars.some(v => !v) || !f.x.every(v => isFinite(+v) && v !== null)) continue;
+    out.push({ vars, x: f.x.map(v => clamp(+v, -1e9, 1e9)), merit: Math.max(0, num(f.merit, 0)), t: Math.max(0, Math.round(num(f.t, 0))), ...(f.by === 'hand' ? { by: 'hand' } : {}) });
+  }
+  return out.sort((a, b) => a.merit - b.merit);
 }
 /* configurations: the same design in several states (a zoom's positions, a lens refocused for nearer
    objects), each its own values for the keys listed (radii, conics, aspheric terms, gaps, the image

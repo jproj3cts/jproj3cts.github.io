@@ -52,3 +52,17 @@ export function stackAmp(layers, n0, ns, ci, nmWave, pol) {
   if (!dd) return [0, 0];
   return [(numR * denR + numI * denI) / dd, (numI * denR - numR * denI) / dd];
 }
+/* a surface's reflectance square to it (0 to 1), light going from index n1 into n2 at nm, its coating as the
+   bench traces it: bare glass by Fresnel, a stack by its layers (met in reverse from the glass side), a band
+   coating its R inside its band and bare outside, any other its R */
+export function coatR(coat, n1, n2, nm) {
+  const bare = ((n1 - n2) / (n1 + n2)) ** 2;
+  if (!coat || coat.mode === 'bare') return bare;
+  if (coat.mode === 'band') return nm >= coat.lo && nm <= coat.hi ? coat.R / 100 : bare;
+  if (coat.mode === 'stack') {
+    if (!coat.layers || !coat.layers.length) return bare;
+    const r = stackAmp(n1 > n2 ? coat.layers.slice().reverse() : coat.layers, n1, n2, 1, nm, 's');
+    return r[0] * r[0] + r[1] * r[1];
+  }
+  return (coat.R || 0) / 100;
+}

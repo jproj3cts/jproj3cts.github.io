@@ -7,6 +7,7 @@ import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
+import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
 import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
@@ -326,6 +327,13 @@ export function layoutData(asm, P, F) {
       if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
     }
   });
+  // the ghost chosen in the Analyses, its rays from the field shown there
+  const an = WS && WS.tab === 'analyses' && WS.ana;
+  if (an && an.view === 'ghost' && an.ghost && ghostsTraceable(P)) {
+    const f = c.fields[an.field >= 0 && an.field < c.fields.length ? an.field : 0], A = { Sp: S, P, c };
+    out.ghost = [];
+    for (const py of [-1, -0.5, 0, 0.5, 1]) { const r = ghostPath(A, an.ghost[0], an.ghost[1], f.deg, 0, py); if (r) out.ghost.push(r); }
+  }
   return out;
 }
 // a surface's profile in the plane of the fields, as drawn (a cylinder curved out of it flat; a freeform's terms in it)
@@ -378,6 +386,8 @@ function drawLayout(cv, asm, P, F) {
   g.lineWidth = 1; g.globalAlpha = 0.9;
   for (const r of rays) { g.strokeStyle = FIELD_COLOURS[r.field % FIELD_COLOURS.length]; path(r.pts); g.stroke(); }
   g.globalAlpha = 1;
+  // a ghost's rays, over the rest
+  if (L.ghost) { g.strokeStyle = '#ff5fd2'; g.lineWidth = 1.2; for (const r of L.ghost) { path(r.pts.slice(1)); g.stroke(); } }
   // the image plane
   g.strokeStyle = '#f2f2ec'; g.lineWidth = 2; path(img); g.stroke();
   // the object, from the axis to its highest field point

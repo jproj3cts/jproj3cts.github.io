@@ -76,6 +76,7 @@ import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
 import { asmMembers, asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine.js';
+import { ghostPrescription } from '../engines/lens-ghost.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
@@ -261,7 +262,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
-    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean'))); },
+    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path'))); },
     beams: () => lastTrace.beams,
     segPlanes: i => segPlanes(lastTrace.beams, i),
     maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
@@ -356,6 +357,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTrace(name, nm, imageDist, rays) {
       const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm, { image: imageDist });
       return { origin: P.origin, dir: P.dir, imageZ: S.imageZ, out: rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(S, R, 0, S.N - 1); if (R[7] === 0) { const t = (S.imageZ - R[2]) / R[5]; R[0] += R[3] * t; R[1] += R[4] * t; R[2] = S.imageZ; R[6] += t; } return Array.from(R); }) };
+    },
+    // the same, along the ghost off surface a then b (lens-ghost.js): unfolded, back along the axis between its reflections
+    lensGhostTrace(name, nm, imageDist, a, b, rays) {
+      const as = assemblies().find(x => x.name === name), P = asmPrescription(as), G = lensSystem(ghostPrescription(P, a, b), nm, { image: imageDist }), I = G.img;
+      return rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(G, R, 0, G.N - 1); if (R[7] === 0) { const t = ((I.p[0] - R[0]) * I.d[0] + (I.p[1] - R[1]) * I.d[1] + (I.p[2] - R[2]) * I.d[2]) / (R[3] * I.d[0] + R[4] * I.d[1] + R[5] * I.d[2]); for (let q = 0; q < 3; q++) R[q] += R[q + 3] * t; } return Array.from(R); });
     },
     lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },

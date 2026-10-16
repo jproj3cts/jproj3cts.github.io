@@ -1323,6 +1323,11 @@
   .rt-lseidel { min-width: 40rem; }
   .rt-lseidel td, .rt-lseidel th { text-align: right; }
   .rt-lseidel td:first-child, .rt-lseidel th:first-child { text-align: left; }
+  .rt-lghost { min-width: 44rem; }
+  .rt-lghost td, .rt-lghost th { text-align: right; }
+  .rt-lghost td:first-child, .rt-lghost th:first-child, .rt-lghost td:last-child, .rt-lghost th:last-child { text-align: left; }
+  .rt-lghost tr.on td { background: color-mix(in srgb, #ff5fd2 14%, transparent); }
+  .rt-lghost td.warn { color: #c2410c; font-weight: 600; }
   .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
   .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
@@ -2003,6 +2008,13 @@ function fmtIrr(v) {
   if (!(w > 0)) return '0 W/cm²';
   const [k, u] = w >= 1e6 ? [1e6, 'MW'] : w >= 1e3 ? [1e3, 'kW'] : w >= 1 ? [1, 'W'] : w >= 1e-3 ? [1e-3, 'mW'] : w >= 1e-6 ? [1e-6, 'µW'] : [1e-9, 'nW'];
   return (+(w / k).toPrecision(3)) + ' ' + u + '/cm²';
+}
+
+/* light added up along a line of sight, v in W/mm (irradiance times length): side-on through a beam, its power per mm across it */
+function fmtLine(v) {
+  if (!(v > 0)) return '0 W/mm';
+  const [k, u] = v >= 1e3 ? [1e3, 'kW'] : v >= 1 ? [1, 'W'] : v >= 1e-3 ? [1e-3, 'mW'] : v >= 1e-6 ? [1e-6, 'µW'] : v >= 1e-9 ? [1e-9, 'nW'] : [1e-12, 'pW'];
+  return (+(v / k).toPrecision(3)) + ' ' + u + '/mm';
 }
 
 const packText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';
@@ -6872,6 +6884,20 @@ function stackAmp(layers, n0, ns, ci, nmWave, pol) {
   const dd = denR * denR + denI * denI;
   if (!dd) return [0, 0];
   return [(numR * denR + numI * denI) / dd, (numI * denR - numR * denI) / dd];
+}
+/* a surface's reflectance square to it (0 to 1), light going from index n1 into n2 at nm, its coating as the
+   bench traces it: bare glass by Fresnel, a stack by its layers (met in reverse from the glass side), a band
+   coating its R inside its band and bare outside, any other its R */
+function coatR(coat, n1, n2, nm) {
+  const bare = ((n1 - n2) / (n1 + n2)) ** 2;
+  if (!coat || coat.mode === 'bare') return bare;
+  if (coat.mode === 'band') return nm >= coat.lo && nm <= coat.hi ? coat.R / 100 : bare;
+  if (coat.mode === 'stack') {
+    if (!coat.layers || !coat.layers.length) return bare;
+    const r = stackAmp(n1 > n2 ? coat.layers.slice().reverse() : coat.layers, n1, n2, 1, nm, 's');
+    return r[0] * r[0] + r[1] * r[1];
+  }
+  return (coat.R || 0) / 100;
 }
 function normSurface(s) {
   s = s || {};
@@ -16029,6 +16055,7 @@ const V3D = (() => {
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
     spreadNames(camera);
+    volPass();
     gl.render(scene, camera);
     // the view cube, looking the way the camera looks
     const c = cubeRect();
@@ -16540,14 +16567,16 @@ const V3D = (() => {
   // a segment's planes as the renderer's clipping planes (the world is the bench's frame, in mm)
   // always two (one that cuts nothing standing in), so every beam shares one compiled shader
   const segClip3 = P => [P.p0, P.p1].map(q => q ? new T.Plane(new T.Vector3(...q.n3), -(q.n3[0] * q.x + q.n3[1] * q.y + q.n3[2] * q.z)) : new T.Plane(new T.Vector3(0, 0, 1), 1e9));
-  /* The diffracted field as a glowing volume, segment by segment: a box round each, its shader
-     marching the view's ray through it in steps fitted to the beam (long outside it, short
-     across it, and never past more than half the gap between two cuts along it) and keeping the
-     brightest irradiance it meets, in the bench's colours and scale (lin or log, 30 dB) against
-     the brightest on the tab: what the key under it reads */
+  /* The diffracted field as glowing light, segment by segment: a box round each, its shader marching the
+     view's ray through it in steps fitted to the beam (long outside it, short across it, and never past
+     more than half the gap between two cuts along it) and adding up the irradiance along it, as a camera
+     sees light scattered evenly out of a beam (by a faint haze) in proportion to the irradiance there. All
+     the segments add into one buffer first (in any order, so where one meets the next, or two beams cross,
+     nothing shows but their sum), and that buffer is coloured once, in the bench's colours and scale (lin
+     or log, 30 dB): light along the line of sight, W/mm, what the key under it reads */
   const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
   const VOL_FS = `
-    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uDec; uniform vec3 uCam; uniform vec4 uP0, uP1;
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam; uniform vec4 uP0, uP1;
     varying vec3 vP;
     // the two cuts either side of t, how far between them, the larger reach, and their gap
     void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
@@ -16584,27 +16613,34 @@ const V3D = (() => {
         if (dn > 0.0) sN = max(sN, tc); else sF = min(sF, tc);
       }
       if (sF <= sN) discard;
-      float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
-      // each pixel's steps start a different fraction of a step in (after a first sample on the cut), so the
-      // samples of neighbouring lines of sight do not line up into a moiré of the beam's fine structure
+      float sp = sN, sum = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
+      // each step's sample is taken a fraction of the way along it that differs from pixel to pixel, so the
+      // sum has no bias and the samples of neighbouring lines of sight do not line up into a moiré
       float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      bool first = true;
-      for (int i = 0; i < 320; i++) {
-        if (sp > sF) break;
+      for (int i = 0; i < 640; i++) {
+        if (sp >= sF) break;
         vec3 p = ro + rd * sp;
         int lo, hi; float f, rm, gap; cutAt(clamp(p.z, uTa, uTb), lo, hi, f, rm, gap);
-        float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm, ds;
-        if (q > 1.0) ds = min((q - 1.0) * rm * 0.6 / side, gap / along);
-        else {
-          // the two cuts each at this distance from the axis (not the same share of their reach),
-          // only between the surfaces the segment runs from and to
-          if (dot(uP0.xyz, p) + uP0.w >= -1e-4 && dot(uP1.xyz, p) + uP1.w >= -1e-4) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
-          ds = min(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);   // a cut with almost no reach does not stall the march
-        }
-        sp += max(first ? ds * jit : ds, minStep); first = false;
+        float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm;
+        if (q > 1.0) { sp += max(min((q - 1.0) * rm * 0.6 / side, gap / along), minStep); continue; }
+        // a cut with almost no reach does not stall the march
+        float ds = min(max(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.06 / side, minStep), min(gap * 0.25 / along, sF - sp));
+        vec3 m = ro + rd * (sp + jit * ds);
+        cutAt(clamp(m.z, uTa, uTb), lo, hi, f, rm, gap);
+        // the two cuts each at this distance from the axis (not the same share of their reach)
+        sum += mix(row(lo, m.xy), row(hi, m.xy), f) * ds;
+        sp += ds;
       }
-      float v = best;
-      if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0);
+      if (sum <= 0.0) discard;
+      gl_FragColor = vec4(sum * uK, 0.0, 0.0, 1.0);
+    }`;
+  // the buffer they add into, coloured: the light along each line of sight against the top of the key
+  const VOLQ_VS = 'varying vec2 vU; void main() { vU = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const VOLQ_FS = `
+    uniform sampler2D uAcc, uMap; uniform float uDec; varying vec2 vU;
+    void main() {
+      float v = texture2D(uAcc, vU).r;
+      if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       if (v <= 0.002) discard;
       gl_FragColor = vec4(texture2D(uMap, vec2(v, 0.5)).rgb, clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v));
     }`;
@@ -16625,11 +16661,9 @@ const V3D = (() => {
       for (let i = 0; i < 256; i++) { const c = magma(i / 255); d.set([c[0], c[1], c[2], 255], i * 4); }
       magmaTex = new T.DataTexture(d, 256, 1, T.RGBAFormat); magmaTex.magFilter = magmaTex.minFilter = T.LinearFilter; magmaTex.needsUpdate = true;
     }
-    // the brightest drawn last, over the rest: each pixel shows the brightest light along its line of sight
-    const rank = new Map([...V.segs].sort((a, b) => a.peak - b.peak).map((s, k) => [s, k]));
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
-      const top = volDisp(V);
+      const top = volDisp(V), K = top / (volDispLine(V) || 1);
       for (let i = 0; i < data.length; i++) data[i] = Math.min(1e4, s.I[i] / top);   // above the top colour, held at it (half floats end at 65504)
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
@@ -16639,13 +16673,14 @@ const V3D = (() => {
       for (let j = 0; j < 64; j++) { ts[j] = s.ts[Math.min(j, nc - 1)]; rm[j] = s.rmax[Math.min(j, nc - 1)]; }
       const za = s.ta - ext[0] * Rm, zb = s.tb + ext[1] * Rm, geo = new T.BoxGeometry(2 * Rm, 2 * Rm, zb - za); geo.translate(0, 0, (za + zb) / 2);
       const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
+        blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
         uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
-          uDec: { value: dec }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+          uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
       const o = new T.Mesh(geo, m3);
       const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
-      o.renderOrder = 2 + rank.get(s);
-      o.userData.vol = s; o.userData.texs = [tex];
+      o.layers.set(1);                                    // drawn only into the buffer (see volPass)
+      o.userData.vol = s; o.userData.texs = [tex]; o.userData.lim = { za, zb, pl: pl.map(v => v.toArray()) };
       // its near faces are drawn, so the depth test is where the light starts along each line of sight, and
       // a part behind the beam (a screen with its pattern on its face) does not hide light in front of it;
       // from inside the box, its far faces (the march itself starts at the eye)
@@ -16655,6 +16690,36 @@ const V3D = (() => {
       };
       G.add(o);
     }
+    // the buffer, coloured over the scene where the volumes were drawn among the light
+    const q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaTex }, uDec: { value: dec } } }));
+    q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
+    q.onBeforeRender = () => { q.material.uniforms.uAcc.value = R.volRT ? R.volRT.texture : null; };
+    G.add(q);
+  }
+  /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
+     depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
+  function volPass() {
+    const ms = R.volMeshes;
+    if (!ms || !ms.length) return;
+    const { gl, scene, camera } = R, sz = gl.getDrawingBufferSize(new T.Vector2());
+    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+    else if (R.volRT.width !== sz.x || R.volRT.height !== sz.y) R.volRT.setSize(sz.x, sz.y);
+    const hid = [];
+    scene.traverse(o => {
+      if (!o.visible || !(o.isMesh || o.isLine || o.isPoints || o.isSprite)) return;
+      const m = [].concat(o.material)[0];
+      if (!o.isMesh || !m || m.transparent || m.depthWrite === false) { o.visible = false; hid.push(o); }
+    });
+    const cc = gl.getClearColor(new T.Color()), ca = gl.getClearAlpha(), sh = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
+    gl.setRenderTarget(R.volRT); gl.setClearColor(0x000000, 0); gl.clear(true, true, false);
+    scene.overrideMaterial = R.depthOnly || (R.depthOnly = new T.MeshBasicMaterial({ colorWrite: false }));
+    gl.render(scene, camera);
+    scene.overrideMaterial = null;
+    for (const o of hid) o.visible = true;
+    camera.layers.set(1); gl.render(scene, camera); camera.layers.set(0);
+    gl.setRenderTarget(null); gl.setClearColor(cc, ca); gl.shadowMap.needsUpdate = sh;
   }
   /* the key under the 3D view while it shows the field: its colours against irradiance, and
      what is under the pointer */
@@ -16664,33 +16729,36 @@ const V3D = (() => {
     D.vkey.hidden = !on;
     if (!on) return;
     if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
-    const pk = volDisp(R.vol), over = pk < 0.999 * R.vol.peak, dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    const pk = volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
     cv.width = 240; cv.height = 1;
     const g = cv.getContext('2d'), img = g.createImageData(240, 1);
     for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
     g.putImageData(img, 0, 0);
     const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
     D.vread = h('div', { class: 'rd' }, 'Point at the light to read it');
-    D.vkey.replaceChildren(h('b', null, 'Irradiance' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
-      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%', title: f === 1 && over ? 'Brighter light (up to ' + fmtIrr(R.vol.peak) + ', where the beam is narrowest) shows in this colour too' : null }, v ? (f === 1 && over ? '\u2265 ' : '') + fmtIrr(v) : '0'))),
+    D.vkey.replaceChildren(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
+      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? (f === 1 ? '\u2265 ' : '') + fmtLine(v) : '0'))),
       D.vread);
   }
-  /* the brightest irradiance along the line of sight under the pointer, and where: { I, p } */
+  /* along the line of sight under the pointer: the light added up (L, W/mm, as its colour shows it), and
+     the brightest irradiance on it and where: { L, I, p } */
   function volUnder(e) {
     if (!R || !R.vol || !R.volMeshes || !R.volMeshes.length) return null;
     const rc = new T.Raycaster(); rc.setFromCamera(ndc(e), R.camera);
-    let best = null;
+    let best = null, L = 0;
     for (const o of R.volMeshes) {
       const inv = o.matrixWorld.clone().invert(), ro = rc.ray.origin.clone().applyMatrix4(inv), rd = rc.ray.direction.clone().transformDirection(inv);
-      const r = volRayMax(o.userData.vol, ro.toArray(), rd.toArray());
-      if (r && (!best || r.I > best.I)) best = { I: r.I, p: rc.ray.at(r.s, new T.Vector3()).toArray() };
+      const r = volRay(o.userData.vol, ro.toArray(), rd.toArray(), o.userData.lim);
+      if (!r) continue;
+      L += r.L;
+      if (!best || r.I > best.I) best = { I: r.I, p: rc.ray.at(r.s, new T.Vector3()).toArray() };
     }
-    return best;
+    return best && Object.assign(best, { L });
   }
   function readVol(e) {
     if (!D || !D.vread || D.vkey.hidden) return;
     const r = volUnder(e);
-    D.vread.textContent = r ? fmtIrr(r.I) + ' at ' + r.p.map(v => v.toFixed(1)).join(', ') + ' mm' : 'Point at the light to read it';
+    D.vread.textContent = r ? fmtLine(r.L) + '; brightest ' + fmtIrr(r.I) + ' at ' + r.p.map(v => v.toFixed(1)).join(', ') + ' mm' : 'Point at the light to read it';
   }
   /* the breadboard under it all, its holes on the bench's 25 mm grid */
   function board(box) {
@@ -17148,7 +17216,7 @@ const V3D = (() => {
   function png() {
     if (!R) return;
     const { gl, scene, camera } = R;
-    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); gl.render(scene, camera);
+    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(); gl.render(scene, camera);
     D.cv.toBlob(b => {
       if (!b) return;
       const a = h('a', { href: URL.createObjectURL(b), download: (project.name || 'bench').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '-' + benchName(project.tab).replace(/\s+/g, '-') + '-3d.png' });
@@ -17324,7 +17392,7 @@ const V3D = (() => {
       field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
       // each piece of the field volume: where it starts, its direction, and its extent along it
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
-      fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, p: r.p }; },
+      fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },
@@ -22332,7 +22400,7 @@ function makeAssemblyRow(list) {
 const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -22358,7 +22426,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
-  const perField = ['spot', 'fans', 'opd', 'wave', 'psf', 'mtf'].includes(st.view) && st.view !== 'spot';
+  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
@@ -22375,6 +22443,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
+  else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
   return card;
 }
@@ -22580,6 +22649,68 @@ function seidelView(body, asm, P, F) {
   tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
   tbl.append(tb);
   body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+}
+
+/* ---------- Ghosts ---------- */
+// each surface's coating, from its part (a lens's faces; any other surface bare)
+function coatsOf(P) {
+  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
+}
+const coatKey = P => JSON.stringify(coatsOf(P));
+const ghPct = v => v >= 0.01 ? anFmt(100 * v, 3) + '%' : v >= 1e-5 ? anFmt(1e6 * v, 3) + ' ppm' : v > 0 ? v.toExponential(2) : '0';
+const ghLen = v => !isFinite(v) ? '∞' : Math.abs(v) < 1 ? um(v) : anFmt(v, 4) + ' mm';
+function ghostView(body, A, P, G, st, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1);
+  body.append(h('h3', null, 'Ghosts: light reflected by one surface and back by an earlier one'));
+  if (!G.ok) {
+    body.append(h('p', { class: 'rt-lsub' }, ghostsTraceable(P) ? 'There are no two surfaces here to reflect between.' : 'Ghosts are followed in a centred design without mirrors, tilts or decentres; this one has some. On the bench, tick Follow weak reflections (ghosts) in the bench settings to follow every reflection there.'));
+    return;
+  }
+  const L = G.ghosts.filter(g => g.R > 0);
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
+    'The image\u2019s own spot: RMS ' + um(G.main.rms) + ', the Airy disc ' + um(G.main.airy) + '. Each surface reflects as its coating does, square to it (bare glass by Fresnel). ' +
+    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'));
+  if (!L.length) return;
+  if (!st.ghost || !L.some(g => g.a === st.ghost[0] && g.b === st.ghost[1])) st.ghost = [L[0].a, L[0].b];
+  const tbl = h('table', { class: 'rt-ltable rt-lghost' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Off', 'The surface that reflects first, then the one that sends it on'], ['Reflects', 'Each surface\u2019s reflectance'], ['Reaching the image', 'The share of the light through the pupil that reaches the image this way'],
+    ['Focus', 'Where it comes to a focus, from the image plane (paraxial; + beyond it)'], ['RMS on the image', 'Its rays\u2019 RMS radius on the image plane'], ['Against the image', 'Its irradiance on the image over the image\u2019s own'], ['Focus inside', 'Where it focuses within the design, if it does']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody');
+  for (const g of L) {
+    const on = st.ghost[0] === g.a && st.ghost[1] === g.b;
+    const near = g.near ? (g.near.after ? anFmt(g.near.d, 3) + ' mm after ' + name(g.near.surf) : anFmt(g.near.d, 3) + ' mm from ' + name(g.near.surf) + (g.near.glass ? ', in glass' : '')) : '—';
+    const warn = g.near && g.near.d < 1;
+    tb.append(h('tr', { class: on ? 'on' : '' },
+      h('td', null, h('button', { type: 'button', class: 'rt-link', 'aria-pressed': String(on), 'aria-label': 'Show the ghost off surface ' + name(g.a) + ' then ' + name(g.b) + ' in the layout', onclick: () => { st.ghost = [g.a, g.b]; redraw(); } }, name(g.a) + ' then ' + name(g.b))),
+      h('td', { class: 'mono' }, ghPct(g.Ra) + ' × ' + ghPct(g.Rb)), h('td', { class: 'mono' }, ghPct(g.R * g.reach)), h('td', { class: 'mono' }, ghLen(g.focus)),
+      h('td', { class: 'mono' }, g.n ? ghLen(g.rms) : '—'), h('td', { class: 'mono' }, g.rel > 0 ? g.rel.toExponential(2) : '—'), h('td', { class: warn ? 'warn' : '' }, near)));
+  }
+  tbl.append(tb);
+  const wrap = h('div', { class: 'rt-ltwrap' }, tbl);
+  body.append(wrap);
+  // the chosen ghost on the image plane, with the image's own spot
+  const g = L.find(q => q.a === st.ghost[0] && q.b === st.ghost[1]);
+  const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'The ghost off surface ' + name(g.a) + ' then ' + name(g.b) + ' on the image plane: RMS radius ' + ghLen(g.rms) });
+  cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, name(g.a) + ' then ' + name(g.b)), ' on the image, ' + g.n + ' rays; the image\u2019s spot in grey'));
+  body.append(h('div', { class: 'rt-lspots' }, cell));
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, S = Math.max(160, Math.min(280, cell.clientWidth || 220));
+    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+    const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    const c0 = G.main.c[0] || 0, c1 = G.main.c[1] || 0;
+    let ext = Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * 1.2;
+    for (const [px, py] of g.pts) ext = Math.max(ext, Math.abs(px - c0), Math.abs(py - c1));
+    ext *= 1.1;
+    const k = (S / 2 - 6) / ext, X = v => S / 2 + (v - c0) * k, Y = v => S / 2 - (v - c1) * k;
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
+    x.fillStyle = WAVE_COLOURS[6];
+    for (const [px, py] of g.pts) { x.beginPath(); x.arc(X(px), Y(py), 1.6, 0, 2 * Math.PI); x.fill(); }
+  });
+  plotCsv(cv, 'ghosts', ['first surface', 'second surface', 'reflectance first', 'reflectance second', 'share reaching the image', 'focus from image (mm)', 'paraxial height on image (mm)', 'RMS on image (mm)', 'against the image', 'focus inside, from surface', 'distance (mm)'],
+    () => L.map(q => [name(q.a), name(q.b), q.Ra, q.Rb, q.R * q.reach, q.focus, q.yImg, q.rms, q.rel, q.near ? name(q.near.surf) : '', q.near ? q.near.d : '']));
+  cell.append(plotSaveRow(cv));
+  body.append(h('p', { class: 'rt-lsub' }, 'The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'));
 }
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
@@ -23494,6 +23625,13 @@ function layoutData(asm, P, F) {
       if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
     }
   });
+  // the ghost chosen in the Analyses, its rays from the field shown there
+  const an = WS && WS.tab === 'analyses' && WS.ana;
+  if (an && an.view === 'ghost' && an.ghost && ghostsTraceable(P)) {
+    const f = c.fields[an.field >= 0 && an.field < c.fields.length ? an.field : 0], A = { Sp: S, P, c };
+    out.ghost = [];
+    for (const py of [-1, -0.5, 0, 0.5, 1]) { const r = ghostPath(A, an.ghost[0], an.ghost[1], f.deg, 0, py); if (r) out.ghost.push(r); }
+  }
   return out;
 }
 // a surface's profile in the plane of the fields, as drawn (a cylinder curved out of it flat; a freeform's terms in it)
@@ -23546,6 +23684,8 @@ function drawLayout(cv, asm, P, F) {
   g.lineWidth = 1; g.globalAlpha = 0.9;
   for (const r of rays) { g.strokeStyle = FIELD_COLOURS[r.field % FIELD_COLOURS.length]; path(r.pts); g.stroke(); }
   g.globalAlpha = 1;
+  // a ghost's rays, over the rest
+  if (L.ghost) { g.strokeStyle = '#ff5fd2'; g.lineWidth = 1.2; for (const r of L.ghost) { path(r.pts.slice(1)); g.stroke(); } }
   // the image plane
   g.strokeStyle = '#f2f2ec'; g.lineWidth = 2; path(img); g.stroke();
   // the object, from the axis to its highest field point
@@ -29281,43 +29421,91 @@ function volShare(segs, tab, n, bb) {
   }
   return parts;
 }
-/* the brightest irradiance (W/mm²) a ray (origin ro, unit direction rd, in a volume segment's
-   frame: x across, y up, z along) meets in it, and how far along the ray: as the 3D view's
-   shader finds it, for the readout under the pointer */
-function volRayMax(s, ro, rd) {
-  const nc = s.ts.length, M = s.M, Rm = Math.max(...s.rmax);
+/* Along a line of sight through a volume segment (origin ro, unit direction rd, in its frame: x across, y
+   up, z along), as the 3D view's shader marches it: the irradiance added up along it (W/mm²·mm = W/mm,
+   what its colour shows: side-on through a round beam's middle, its power per mm across it), and the
+   brightest irradiance it meets (W/mm²) and how far along. Each step's irradiance is taken at its
+   middle. lim, if given, is the box and the two surfaces the segment runs between, as the shader has
+   them: { za, zb, pl: [[nx, ny, nz, w], …] } (a point is in where n·p + w ≥ 0) */
+function volRay(s, ro, rd, lim) {
+  const nc = s.ts.length, M = s.M, Rm = Math.max(...s.rmax), za = lim ? lim.za : s.ta, zb = lim ? lim.zb : s.tb;
   let sN = 0, sF = Infinity;
-  for (const [o, d, lo, hi] of [[ro[0], rd[0], -Rm, Rm], [ro[1], rd[1], -Rm, Rm], [ro[2], rd[2], s.ta, s.tb]]) {
+  for (const [o, d, lo, hi] of [[ro[0], rd[0], -Rm, Rm], [ro[1], rd[1], -Rm, Rm], [ro[2], rd[2], za, zb]]) {
     if (Math.abs(d) < 1e-12) { if (o < lo || o > hi) return null; continue; }
     const a = (lo - o) / d, b = (hi - o) / d;
     sN = Math.max(sN, Math.min(a, b)); sF = Math.min(sF, Math.max(a, b));
   }
+  for (const P of (lim && lim.pl) || []) {
+    const dn = P[0] * rd[0] + P[1] * rd[1] + P[2] * rd[2];
+    if (Math.abs(dn) < 1e-12) continue;
+    const tc = -(P[0] * ro[0] + P[1] * ro[1] + P[2] * ro[2] + P[3]) / dn;
+    if (dn > 0) sN = Math.max(sN, tc); else sF = Math.min(sF, tc);
+  }
   if (!(sF > sN)) return null;
   const side = Math.sqrt(Math.max(1 - rd[2] * rd[2], 1e-6)), along = Math.max(Math.abs(rd[2]), 1e-6), minStep = (sF - sN) / 4000;
-  let best = 0, at = null;
-  for (let sp = sN, it = 0; sp <= sF && it < 2000; it++) {
-    const x = ro[0] + rd[0] * sp, y = ro[1] + rd[1] * sp, t = clamp(ro[2] + rd[2] * sp, s.ta, s.tb);
+  // the cuts either side of t, how far between them, the larger reach and their gap
+  const cut = t => {
+    t = clamp(t, s.ta, s.tb);
     let lo = 0, hi = nc - 1;
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s.ts[m] <= t) lo = m; else hi = m; }
-    const f = s.ts[hi] > s.ts[lo] ? clamp((t - s.ts[lo]) / (s.ts[hi] - s.ts[lo]), 0, 1) : 0, rm = Math.max(s.rmax[lo], s.rmax[hi]), gap = Math.max(s.ts[hi] - s.ts[lo], 1e-6);
-    const q = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rm : Math.hypot(x, y) / rm;
-    let ds;
-    if (q > 1) ds = Math.min((q - 1) * rm * 0.6 / side, gap / along);
-    else {
-      const at1 = j => {
-        const rj = s.rmax[j], qj = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rj : Math.hypot(x, y) / rj;
-        if (qj > 1) return 0;
-        if (!s.two) { const g = Math.sqrt(qj) * (M - 1), i = Math.min(M - 2, Math.floor(g)), a = g - i; return s.I[j * M + i] * (1 - a) + s.I[j * M + i + 1] * a; }
-        const gx = (x / rj * 0.5 + 0.5) * (M - 1), gy = (y / rj * 0.5 + 0.5) * (M - 1), i = Math.min(M - 2, Math.floor(gx)), k = Math.min(M - 2, Math.floor(gy)), a = gx - i, b = gy - k, o = (j * M + k) * M + i;
-        return (s.I[o] * (1 - a) + s.I[o + 1] * a) * (1 - b) + (s.I[o + M] * (1 - a) + s.I[o + M + 1] * a) * b;
-      };
-      const v = at1(lo) * (1 - f) + at1(hi) * f;
-      if (v > best) { best = v; at = sp; }
-      ds = Math.min(Math.max(Math.min(s.rmax[lo], s.rmax[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);
-    }
-    sp += Math.max(ds, minStep);
+    return { lo, hi, f: s.ts[hi] > s.ts[lo] ? clamp((t - s.ts[lo]) / (s.ts[hi] - s.ts[lo]), 0, 1) : 0, rm: Math.max(s.rmax[lo], s.rmax[hi]), gap: Math.max(s.ts[hi] - s.ts[lo], 1e-6) };
+  };
+  const at1 = (j, x, y) => {
+    const rj = s.rmax[j], qj = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rj : Math.hypot(x, y) / rj;
+    if (qj > 1) return 0;
+    if (!s.two) { const g = Math.sqrt(qj) * (M - 1), i = Math.min(M - 2, Math.floor(g)), a = g - i; return s.I[j * M + i] * (1 - a) + s.I[j * M + i + 1] * a; }
+    const gx = (x / rj * 0.5 + 0.5) * (M - 1), gy = (y / rj * 0.5 + 0.5) * (M - 1), i = Math.min(M - 2, Math.floor(gx)), k = Math.min(M - 2, Math.floor(gy)), a = gx - i, b = gy - k, o = (j * M + k) * M + i;
+    return (s.I[o] * (1 - a) + s.I[o + 1] * a) * (1 - b) + (s.I[o + M] * (1 - a) + s.I[o + M + 1] * a) * b;
+  };
+  const Iat = p => { const c = cut(p[2]); return at1(c.lo, p[0], p[1]) * (1 - c.f) + at1(c.hi, p[0], p[1]) * c.f; };
+  let best = 0, at = null, L = 0;
+  for (let sp = sN, it = 0; sp < sF && it < 4000; it++) {
+    const x = ro[0] + rd[0] * sp, y = ro[1] + rd[1] * sp, c = cut(ro[2] + rd[2] * sp);
+    const q = s.two ? Math.max(Math.abs(x), Math.abs(y)) / c.rm : Math.hypot(x, y) / c.rm;
+    if (q > 1) { sp += Math.max(Math.min((q - 1) * c.rm * 0.6 / side, c.gap / along), minStep); continue; }
+    const ds = Math.min(Math.max(Math.max(Math.min(s.rmax[c.lo], s.rmax[c.hi]), 0.25 * c.rm) * 0.06 / side, minStep), c.gap * 0.25 / along, sF - sp);
+    const m = sp + ds / 2, v = Iat([ro[0] + rd[0] * m, ro[1] + rd[1] * m, ro[2] + rd[2] * m]);
+    L += v * ds;
+    if (v > best) { best = v; at = m; }
+    sp += ds;
   }
-  return best > 0 ? { I: best, s: at } : null;
+  return best > 0 ? { I: best, s: at, L } : null;
+}
+/* the light added up along a line of sight that the 3D colours run up to (W/mm): each cut's, seen
+   side-on through the beam's axis (the most that comes of one beam but along it), the brightest but for
+   the brightest 3% of the light's length, as volDisp does for irradiance */
+function volDispLine(V) {
+  if (V.dispL) return V.dispL;
+  const pts = [];
+  for (const s of V.segs) {
+    const M = s.M, n = s.ts.length;
+    for (let j = 0; j < n; j++) {
+      const rm = s.rmax[j];
+      let m = 0;
+      if (!s.two) {
+        // the profile at r = (i/(M − 1))² rm, both sides of the axis
+        for (let i = 0; i < M - 1; i++) { const r0 = (i / (M - 1)) ** 2 * rm, r1 = ((i + 1) / (M - 1)) ** 2 * rm; m += (s.I[j * M + i] + s.I[j * M + i + 1]) * (r1 - r0); }
+      } else {
+        // across the map's middle, row and column, the larger
+        const c = (M - 1) / 2, k0 = Math.floor(c), k1 = Math.ceil(c), h = 2 * rm / (M - 1);
+        let a = 0, b = 0;
+        for (let i = 0; i < M; i++) {
+          const w = i === 0 || i === M - 1 ? 0.5 : 1;
+          a += w * h * 0.5 * (s.I[(j * M + k0) * M + i] + s.I[(j * M + k1) * M + i]);
+          b += w * h * 0.5 * (s.I[(j * M + i) * M + k0] + s.I[(j * M + i) * M + k1]);
+        }
+        m = Math.max(a, b);
+      }
+      const w = 0.5 * ((s.ts[Math.min(n - 1, j + 1)] - s.ts[j]) + (s.ts[j] - s.ts[Math.max(0, j - 1)]));
+      if (m > 0 && w > 0) pts.push([m, w]);
+    }
+  }
+  if (!pts.length) return (V.dispL = 0);
+  pts.sort((a, b) => b[0] - a[0]);
+  const tot = pts.reduce((a, p) => a + p[1], 0);
+  let acc = 0, d = pts[0][0];
+  for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
+  return (V.dispL = Math.max(d, pts[0][0] * 1e-9));
 }
 
 /* The field at one world point, for the checks: every Gaussian source's tree, as the
@@ -31302,6 +31490,12 @@ function toPlane(S, R, zp) {
   return R;
 }
 
+/* for the ghosts (engines/lens-ghost.js): a field's ray launched as the design launches it, the y-nu trace,
+   and a ray taken on to the image plane in the image's frame */
+const lensLaunch = (S, th, a, b, R) => launch(S, th, a, b, R);
+const lensParaStep = (S, y, u, i0, i1) => paraStep(S, y, u, i0, i1);
+function lensToImage(S, R) { toPlane(S, R, S.imageZ); if (S.img) toImageFrame(S, R); return R; }
+
 /* ---------- Aiming ----------
    A field's ray starts on the plane square to the incoming light through the entrance pupil's centre,
    at (a, b) in it (a across the bench plane, out of it; b in it), and is moved back along the light so
@@ -32805,6 +32999,119 @@ function mtfAt(Sw, ws, fw, deg, nu, dir, N) {
 }
 /* the diffraction-limited MTF of a round pupil, ν over its cutoff */
 const mtfPerfect = v => v >= 1 ? 0 : (2 / Math.PI) * (Math.acos(v) - v * Math.sqrt(1 - v * v));
+/* ==========================================================================
+   Ghosts: light reflected twice inside a design, off the paths it was designed for
+   Every surface sends a little of the light back (bare glass about 4%, a coating less). Light sent back
+   by surface a and sent forward again by an earlier surface b reaches the image as a ghost: R_a R_b of
+   the light, focused somewhere else. Each pair (a after b) is traced as a design of its own, unfolded:
+   forward through the surfaces to a, which is a mirror; back through those between, each met from
+   behind (its sag the other way in the frame the light now runs in); b a mirror met from behind; then
+   forward to the image as the design goes. The lens engine traces it exactly (folds and all), each ray
+   launched where the design's own ray for that pupil point starts, so the stop, the vignetting and the
+   aim are the design's.
+
+   For each ghost: where it focuses (paraxially, from the image plane), how wide it is on the image
+   (its paraxial marginal ray, and its real rays' RMS radius), how much of its light gets there, and
+   how bright it is against the image itself: R_a R_b times the share arriving, over its area, against
+   the image's spot (its RMS spot, or the Airy disc if smaller) — both as even discs, so an estimate.
+   And where a ghost comes to a focus inside the design, near a surface or in glass: light the
+   coatings, cements and glass take there concentrated.
+   ========================================================================== */
+
+/* a surface as light meets it running back: its sag the other way (x and y as they were) */
+const backward = s => Object.assign({}, s, { R: s.R === null || s.R === undefined ? null : -s.R, a2: -(s.a2 || 0), A: (s.A || []).map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, 1, -1), stop: false });
+/* the unfolded design of the ghost off surface a then b (b < a): its surfaces and where each came from */
+function ghostPrescription(P, a, b) {
+  const S = P.surfaces, G = P.gaps, M = P.materials, N = S.length, out = [], gaps = [], mats = [], from = [];
+  const put = (s, m, g, f) => { out.push(s); mats.push(m); gaps.push(g); from.push(f); };
+  for (let i = 0; i < a; i++) put(S[i], M[i], G[i], i);
+  put(Object.assign({}, S[a], { mirror: true, stop: false }), M[a - 1], G[a - 1], a);
+  for (let j = a - 1; j > b; j--) put(backward(S[j]), M[j - 1], G[j - 1], j);
+  put(Object.assign(backward(S[b]), { mirror: true }), M[b], G[b], b);
+  for (let i = b + 1; i < N; i++) put(S[i], M[i], G[i], i);
+  gaps.length = mats.length = out.length - 1;
+  return { surfaces: out, gaps, materials: mats, stopIndex: -1, from };
+}
+/* a design the ghosts can be traced in: centred, no mirrors of its own (a fold's ghosts are not followed) */
+const ghostsTraceable = P => P.surfaces.length >= 2 && !P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec);
+
+/* The ghosts of a design (A, as lens-analysis's anaSystems gives it) at its primary wavelength and field deg:
+   coats, each surface's coating (or null for bare); n, the pupil grid across. Brightest against the image first. */
+function ghostAnalysis(A, coats, deg, n) {
+  const S = A.Sp, P = A.P, N = S.N, nm = S.nm, th = deg * Math.PI / 180;
+  if (!ghostsTraceable(P)) return { ok: false, ghosts: [] };
+  const Rs = [];
+  for (let i = 0; i < N; i++) Rs.push(coatR(coats && coats[i], S.n[i], S.n[i + 1], nm));
+  const imgD = S.imageZ - S.z[N - 1], opts = objOpts(A.c, { image: imgD });
+  // the image's own spot: its RMS radius about its centroid, and the Airy disc's radius
+  const pts = pupilGrid(n || 15), R = new Float64Array(8), main = [];
+  for (const [px, py] of pts) { const r = rayAt(S, th, px, py, R); if (r && r[7] === 0) main.push([r[0], r[1]]); }
+  const spread = L => {
+    if (!L.length) return { c: [NaN, NaN], rms: NaN };
+    const cx = L.reduce((u, p) => u + p[0], 0) / L.length, cy = L.reduce((u, p) => u + p[1], 0) / L.length;
+    return { c: [cx, cy], rms: Math.sqrt(L.reduce((u, p) => u + (p[0] - cx) ** 2 + (p[1] - cy) ** 2, 0) / L.length) };
+  };
+  const ms = spread(main), airy = 1.22 * nm * 1e-6 * A.fw, rMain = Math.max(Math.SQRT2 * ms.rms, airy);
+  // where each pupil point's ray starts, as the design aims it
+  const starts = pts.map(([px, py]) => aimRay(S, th, px, py));
+  // the paraxial marginal ray at the first surface: from the axial object point, or parallel at the pupil's edge
+  const m0 = S.obj ? [S.epr * S.obj / (S.obj + S.par.epz), S.epr / (S.obj + S.par.epz)] : [S.epr, 0];
+  const ghosts = [];
+  for (let a = 1; a < N; a++) for (let b = 0; b < a; b++) {
+    const Rab = Rs[a] * Rs[b];
+    if (!(Rab > 0)) continue;
+    const Pg = ghostPrescription(P, a, b), G = lensSystem(Pg, nm, opts);
+    // paraxially: the marginal ray's height at each surface, and where it crosses the axis after the first reflection
+    let y = m0[0], u = m0[1], yPrev = null, near = null, waist = Infinity;
+    const first = a;                                  // the list index of the first mirror (surfaces before it are the design's own)
+    for (let k = 0; k < G.N; k++) {
+      [y, u] = lensParaStep(G, m0[0], m0[1], 0, k);    // its height at surface k and its angle after it
+      if (k >= first) {
+        waist = Math.min(waist, Math.abs(y));
+        if (k > first && yPrev !== null && yPrev * y < 0) {
+          const t = yPrev / (yPrev - y), gap = G.z[k] - G.z[k - 1], d = Math.min(t, 1 - t) * gap, at = t < 0.5 ? Pg.from[k - 1] : Pg.from[k];
+          if (!near || d < near.d) near = { d, surf: at, glass: Math.abs(G.n[k] - 1) > 1e-6 };
+        }
+      }
+      yPrev = y;
+    }
+    const yImg = y + imgD * u, focus = Math.abs(u) > 1e-14 ? -y / u - imgD : Infinity;
+    // a focus after the last surface but before the image
+    if (Math.abs(u) > 1e-14 && -y / u > 0 && -y / u < imgD) { const d = -y / u; if (!near || d < near.d) near = { d, surf: N - 1, glass: false, after: true }; }
+    // its real rays on the image
+    const hit = [];
+    starts.forEach(ab => {
+      if (!ab) return;
+      const Rr = lensLaunch(S, th, ab[0], ab[1], new Float64Array(8));
+      traceRay(G, Rr, 0, G.N - 1);
+      if (Rr[7] !== 0) return;
+      lensToImage(G, Rr);
+      if (isFinite(Rr[0]) && isFinite(Rr[1])) hit.push([Rr[0], Rr[1]]);
+    });
+    const gs = spread(hit), reach = starts.filter(Boolean).length ? hit.length / starts.filter(Boolean).length : 0;
+    const rG = Math.max(Math.SQRT2 * gs.rms, airy);
+    ghosts.push({ a, b, Ra: Rs[a], Rb: Rs[b], R: Rab, focus, yImg: Math.abs(yImg), rms: gs.rms, centre: gs.c, reach, n: hit.length, waist,
+      rel: hit.length ? Rab * reach * (rMain / rG) ** 2 : 0, near, pts: hit });
+  }
+  ghosts.sort((p, q) => q.rel - p.rel || q.R - p.R);
+  return { ok: true, ghosts, main: { rms: ms.rms, airy, c: ms.c, n: main.length }, Rs, deg, nm };
+}
+/* a ghost's path for drawing, as rayPath draws the design's: [y, z] where it starts, at each surface, and on
+   the image plane (in the unfolded design's frame: back along the axis between its two reflections) */
+function ghostPath(A, a, b, deg, px, py) {
+  const S = A.Sp, th = deg * Math.PI / 180, ab = aimRay(S, th, px, py);
+  if (!ab) return null;
+  const G = lensSystem(ghostPrescription(A.P, a, b), S.nm, objOpts(A.c, { image: S.imageZ - S.z[S.N - 1] }));
+  const R = lensLaunch(S, th, ab[0], ab[1], new Float64Array(8)), pts = [[R[1], R[2]]];
+  for (let i = 0; i < G.N; i++) {
+    traceRay(G, R, i, i);
+    pts.push([R[1], R[2]]);
+    if (R[7] !== 0) return { pts, lost: i };
+  }
+  const t = ((G.img.p[0] - R[0]) * G.img.d[0] + (G.img.p[1] - R[1]) * G.img.d[1] + (G.img.p[2] - R[2]) * G.img.d[2]) / (R[3] * G.img.d[0] + R[4] * G.img.d[1] + R[5] * G.img.d[2]);
+  pts.push([R[1] + R[4] * t, R[2] + R[5] * t]);
+  return { pts, lost: -1 };
+}
 /* ==========================================================================
    Tolerancing a lens design: how much worse it gets as it is made
    The design as solved is the nominal lens; each tolerance is a change made to it as a maker
@@ -38832,8 +39139,9 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Ghosts in lens design</b>: <b>Analyses \u203a Ghosts</b> lists every ghost of a design, light reflected by one surface and sent on by an earlier one, each with its reflectances (a coating\u2019s, or bare glass\u2019s), the share of the light reaching the image, where it focuses, its size on the image and how bright it is against the image, the brightest first. A ghost that focuses within a millimetre of a surface or in glass is marked. Choose one and its rays are drawn in the layout.',
     '<b>GRIN lenses</b>: a lens\u2019s glass may grade from its axis (n + g₂r² + g₄r⁴ + g₆r⁶), and a GRIN rod lens joins the lens presets. Rays curve through the glass, traced step by step alike on the bench and in lens design, where the terms are added with <b>+ n(r)</b> and varied by the optimiser; the diffracted field goes through it a slab at a time.',
-    '<b>The 3D field</b> joins its pieces without rings, and beams that interfere show their fringes without moiré or blocks.',
+    '<b>The 3D field</b> is drawn as a haze would show it: the irradiance added up along each line of sight, in W/mm on its key (side-on through a beam, its power per mm across it), every piece of light added in one pass, so there are no rings, blocks or seams where pieces meet or beams cross. The pointer reads the light along its line of sight and the brightest irradiance on it.',
     '<b>Diffractive lenses</b>: a new lens preset whose faces may carry a phase (c₁ρ² to c₄ρ⁸ radians) in one order of diffraction, its power growing with the wavelength, the other way to glass. The preset is a hybrid achromat, f 50 mm, its F and C lines at one focus. The bench, the diffracted field and the lens engine trace the phase exactly; in lens design its terms are added with <b>+ φ</b>, varied by the optimiser, and counted in the Seidel sums and the drawings.',
     '<b>The diffracted field in a beam-splitter cube</b> is drawn cleanly: the light going straight through the diagonal is cut along it, and there are no dark and bright lines where a beam narrows to its waist.',
     '<b>Cylindrical lenses in lens design</b>: a cylinder, curved in the bench\u2019s plane or out of it, can now be part of an assembly or designed on its own, its surfaces marked in the lens data. Crossed cylinders make an anamorphic focus, and the bench and the lens engine trace them alike.',
@@ -40556,7 +40864,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
-    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean'))); },
+    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path'))); },
     beams: () => lastTrace.beams,
     segPlanes: i => segPlanes(lastTrace.beams, i),
     maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
@@ -40651,6 +40959,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTrace(name, nm, imageDist, rays) {
       const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm, { image: imageDist });
       return { origin: P.origin, dir: P.dir, imageZ: S.imageZ, out: rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(S, R, 0, S.N - 1); if (R[7] === 0) { const t = (S.imageZ - R[2]) / R[5]; R[0] += R[3] * t; R[1] += R[4] * t; R[2] = S.imageZ; R[6] += t; } return Array.from(R); }) };
+    },
+    // the same, along the ghost off surface a then b (lens-ghost.js): unfolded, back along the axis between its reflections
+    lensGhostTrace(name, nm, imageDist, a, b, rays) {
+      const as = assemblies().find(x => x.name === name), P = asmPrescription(as), G = lensSystem(ghostPrescription(P, a, b), nm, { image: imageDist }), I = G.img;
+      return rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(G, R, 0, G.N - 1); if (R[7] === 0) { const t = ((I.p[0] - R[0]) * I.d[0] + (I.p[1] - R[1]) * I.d[1] + (I.p[2] - R[2]) * I.d[2]) / (R[3] * I.d[0] + R[4] * I.d[1] + R[5] * I.d[2]); for (let q = 0; q < 3; q++) R[q] += R[q + 3] * t; } return Array.from(R); });
     },
     lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },

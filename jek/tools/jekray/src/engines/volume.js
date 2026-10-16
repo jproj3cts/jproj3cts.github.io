@@ -324,43 +324,91 @@ export function volShare(segs, tab, n, bb) {
   }
   return parts;
 }
-/* the brightest irradiance (W/mm²) a ray (origin ro, unit direction rd, in a volume segment's
-   frame: x across, y up, z along) meets in it, and how far along the ray: as the 3D view's
-   shader finds it, for the readout under the pointer */
-export function volRayMax(s, ro, rd) {
-  const nc = s.ts.length, M = s.M, Rm = Math.max(...s.rmax);
+/* Along a line of sight through a volume segment (origin ro, unit direction rd, in its frame: x across, y
+   up, z along), as the 3D view's shader marches it: the irradiance added up along it (W/mm²·mm = W/mm,
+   what its colour shows: side-on through a round beam's middle, its power per mm across it), and the
+   brightest irradiance it meets (W/mm²) and how far along. Each step's irradiance is taken at its
+   middle. lim, if given, is the box and the two surfaces the segment runs between, as the shader has
+   them: { za, zb, pl: [[nx, ny, nz, w], …] } (a point is in where n·p + w ≥ 0) */
+export function volRay(s, ro, rd, lim) {
+  const nc = s.ts.length, M = s.M, Rm = Math.max(...s.rmax), za = lim ? lim.za : s.ta, zb = lim ? lim.zb : s.tb;
   let sN = 0, sF = Infinity;
-  for (const [o, d, lo, hi] of [[ro[0], rd[0], -Rm, Rm], [ro[1], rd[1], -Rm, Rm], [ro[2], rd[2], s.ta, s.tb]]) {
+  for (const [o, d, lo, hi] of [[ro[0], rd[0], -Rm, Rm], [ro[1], rd[1], -Rm, Rm], [ro[2], rd[2], za, zb]]) {
     if (Math.abs(d) < 1e-12) { if (o < lo || o > hi) return null; continue; }
     const a = (lo - o) / d, b = (hi - o) / d;
     sN = Math.max(sN, Math.min(a, b)); sF = Math.min(sF, Math.max(a, b));
   }
+  for (const P of (lim && lim.pl) || []) {
+    const dn = P[0] * rd[0] + P[1] * rd[1] + P[2] * rd[2];
+    if (Math.abs(dn) < 1e-12) continue;
+    const tc = -(P[0] * ro[0] + P[1] * ro[1] + P[2] * ro[2] + P[3]) / dn;
+    if (dn > 0) sN = Math.max(sN, tc); else sF = Math.min(sF, tc);
+  }
   if (!(sF > sN)) return null;
   const side = Math.sqrt(Math.max(1 - rd[2] * rd[2], 1e-6)), along = Math.max(Math.abs(rd[2]), 1e-6), minStep = (sF - sN) / 4000;
-  let best = 0, at = null;
-  for (let sp = sN, it = 0; sp <= sF && it < 2000; it++) {
-    const x = ro[0] + rd[0] * sp, y = ro[1] + rd[1] * sp, t = clamp(ro[2] + rd[2] * sp, s.ta, s.tb);
+  // the cuts either side of t, how far between them, the larger reach and their gap
+  const cut = t => {
+    t = clamp(t, s.ta, s.tb);
     let lo = 0, hi = nc - 1;
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s.ts[m] <= t) lo = m; else hi = m; }
-    const f = s.ts[hi] > s.ts[lo] ? clamp((t - s.ts[lo]) / (s.ts[hi] - s.ts[lo]), 0, 1) : 0, rm = Math.max(s.rmax[lo], s.rmax[hi]), gap = Math.max(s.ts[hi] - s.ts[lo], 1e-6);
-    const q = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rm : Math.hypot(x, y) / rm;
-    let ds;
-    if (q > 1) ds = Math.min((q - 1) * rm * 0.6 / side, gap / along);
-    else {
-      const at1 = j => {
-        const rj = s.rmax[j], qj = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rj : Math.hypot(x, y) / rj;
-        if (qj > 1) return 0;
-        if (!s.two) { const g = Math.sqrt(qj) * (M - 1), i = Math.min(M - 2, Math.floor(g)), a = g - i; return s.I[j * M + i] * (1 - a) + s.I[j * M + i + 1] * a; }
-        const gx = (x / rj * 0.5 + 0.5) * (M - 1), gy = (y / rj * 0.5 + 0.5) * (M - 1), i = Math.min(M - 2, Math.floor(gx)), k = Math.min(M - 2, Math.floor(gy)), a = gx - i, b = gy - k, o = (j * M + k) * M + i;
-        return (s.I[o] * (1 - a) + s.I[o + 1] * a) * (1 - b) + (s.I[o + M] * (1 - a) + s.I[o + M + 1] * a) * b;
-      };
-      const v = at1(lo) * (1 - f) + at1(hi) * f;
-      if (v > best) { best = v; at = sp; }
-      ds = Math.min(Math.max(Math.min(s.rmax[lo], s.rmax[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);
-    }
-    sp += Math.max(ds, minStep);
+    return { lo, hi, f: s.ts[hi] > s.ts[lo] ? clamp((t - s.ts[lo]) / (s.ts[hi] - s.ts[lo]), 0, 1) : 0, rm: Math.max(s.rmax[lo], s.rmax[hi]), gap: Math.max(s.ts[hi] - s.ts[lo], 1e-6) };
+  };
+  const at1 = (j, x, y) => {
+    const rj = s.rmax[j], qj = s.two ? Math.max(Math.abs(x), Math.abs(y)) / rj : Math.hypot(x, y) / rj;
+    if (qj > 1) return 0;
+    if (!s.two) { const g = Math.sqrt(qj) * (M - 1), i = Math.min(M - 2, Math.floor(g)), a = g - i; return s.I[j * M + i] * (1 - a) + s.I[j * M + i + 1] * a; }
+    const gx = (x / rj * 0.5 + 0.5) * (M - 1), gy = (y / rj * 0.5 + 0.5) * (M - 1), i = Math.min(M - 2, Math.floor(gx)), k = Math.min(M - 2, Math.floor(gy)), a = gx - i, b = gy - k, o = (j * M + k) * M + i;
+    return (s.I[o] * (1 - a) + s.I[o + 1] * a) * (1 - b) + (s.I[o + M] * (1 - a) + s.I[o + M + 1] * a) * b;
+  };
+  const Iat = p => { const c = cut(p[2]); return at1(c.lo, p[0], p[1]) * (1 - c.f) + at1(c.hi, p[0], p[1]) * c.f; };
+  let best = 0, at = null, L = 0;
+  for (let sp = sN, it = 0; sp < sF && it < 4000; it++) {
+    const x = ro[0] + rd[0] * sp, y = ro[1] + rd[1] * sp, c = cut(ro[2] + rd[2] * sp);
+    const q = s.two ? Math.max(Math.abs(x), Math.abs(y)) / c.rm : Math.hypot(x, y) / c.rm;
+    if (q > 1) { sp += Math.max(Math.min((q - 1) * c.rm * 0.6 / side, c.gap / along), minStep); continue; }
+    const ds = Math.min(Math.max(Math.max(Math.min(s.rmax[c.lo], s.rmax[c.hi]), 0.25 * c.rm) * 0.06 / side, minStep), c.gap * 0.25 / along, sF - sp);
+    const m = sp + ds / 2, v = Iat([ro[0] + rd[0] * m, ro[1] + rd[1] * m, ro[2] + rd[2] * m]);
+    L += v * ds;
+    if (v > best) { best = v; at = m; }
+    sp += ds;
   }
-  return best > 0 ? { I: best, s: at } : null;
+  return best > 0 ? { I: best, s: at, L } : null;
+}
+/* the light added up along a line of sight that the 3D colours run up to (W/mm): each cut's, seen
+   side-on through the beam's axis (the most that comes of one beam but along it), the brightest but for
+   the brightest 3% of the light's length, as volDisp does for irradiance */
+export function volDispLine(V) {
+  if (V.dispL) return V.dispL;
+  const pts = [];
+  for (const s of V.segs) {
+    const M = s.M, n = s.ts.length;
+    for (let j = 0; j < n; j++) {
+      const rm = s.rmax[j];
+      let m = 0;
+      if (!s.two) {
+        // the profile at r = (i/(M − 1))² rm, both sides of the axis
+        for (let i = 0; i < M - 1; i++) { const r0 = (i / (M - 1)) ** 2 * rm, r1 = ((i + 1) / (M - 1)) ** 2 * rm; m += (s.I[j * M + i] + s.I[j * M + i + 1]) * (r1 - r0); }
+      } else {
+        // across the map's middle, row and column, the larger
+        const c = (M - 1) / 2, k0 = Math.floor(c), k1 = Math.ceil(c), h = 2 * rm / (M - 1);
+        let a = 0, b = 0;
+        for (let i = 0; i < M; i++) {
+          const w = i === 0 || i === M - 1 ? 0.5 : 1;
+          a += w * h * 0.5 * (s.I[(j * M + k0) * M + i] + s.I[(j * M + k1) * M + i]);
+          b += w * h * 0.5 * (s.I[(j * M + i) * M + k0] + s.I[(j * M + i) * M + k1]);
+        }
+        m = Math.max(a, b);
+      }
+      const w = 0.5 * ((s.ts[Math.min(n - 1, j + 1)] - s.ts[j]) + (s.ts[j] - s.ts[Math.max(0, j - 1)]));
+      if (m > 0 && w > 0) pts.push([m, w]);
+    }
+  }
+  if (!pts.length) return (V.dispL = 0);
+  pts.sort((a, b) => b[0] - a[0]);
+  const tot = pts.reduce((a, p) => a + p[1], 0);
+  let acc = 0, d = pts[0][0];
+  for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
+  return (V.dispL = Math.max(d, pts[0][0] * 1e-9));
 }
 
 /* The field at one world point, for the checks: every Gaussian source's tree, as the

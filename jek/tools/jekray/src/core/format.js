@@ -58,4 +58,11 @@ export function fmtIrr(v) {
   return (+(w / k).toPrecision(3)) + ' ' + u + '/cm²';
 }
 
+/* light added up along a line of sight, v in W/mm (irradiance times length): side-on through a beam, its power per mm across it */
+export function fmtLine(v) {
+  if (!(v > 0)) return '0 W/mm';
+  const [k, u] = v >= 1e3 ? [1e3, 'kW'] : v >= 1 ? [1, 'W'] : v >= 1e-3 ? [1e-3, 'mW'] : v >= 1e-6 ? [1e-6, 'µW'] : v >= 1e-9 ? [1e-9, 'nW'] : [1e-12, 'pW'];
+  return (+(v / k).toPrecision(3)) + ' ' + u + '/mm';
+}
+
 export const packText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';

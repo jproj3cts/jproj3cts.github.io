@@ -7047,8 +7047,8 @@ const TESTS = [
     },
   },
   {
-    name: 'In the 3D view the field glows along the beam, with its key, and the pointer reads the irradiance there',
-    why: 'the 1 mW, 1 mm beam with its diffracted field shown, in the 3D view from the front: one volume, the key in W/cm\u00b2 over 60 dB, and the reading under the pointer at the beam\u2019s middle is its peak, 63.66 mW/cm\u00b2, within 3% (1 when all hold)',
+    name: 'In the 3D view the field glows along the beam, with its key, and the pointer reads the light along the line of sight there',
+    why: 'the 1 mW, 1 mm beam with its diffracted field shown, in the 3D view from the front: one volume, the key in W/mm over 60 dB, and under the pointer at the beam\u2019s middle the irradiance added up along the line of sight is the power per mm across it, P\u221a(2/\u03c0)/w = 0.798 mW/mm, and the brightest on it the beam\u2019s peak, 63.66 mW/cm\u00b2, each within 3% (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load({ format: 'jekray', version: 1, light: { rays: false, envelope: false, field: true, scale: 'log60' }, elements: [
@@ -7058,7 +7058,7 @@ const TESTS = [
         await J.view3d.set(true);
         J.view3d.look([0, -200, 75], [0, 0, 75]);
         const f = J.view3d.field(), c = J.view3d.pointOnScreen([0, 0, 75]), r = c && J.view3d.fieldAt(c.x, c.y);
-        return f && f.meshes === 1 && /60 dB/.test(f.key) && /W\/cm/.test(f.key) && r && Math.abs(r.I / 0.063662 - 1) < 0.03 ? 1 : 0;
+        return f && f.meshes === 1 && /60 dB/.test(f.key) && /W\/mm/.test(f.key) && r && Math.abs(r.I / 0.063662 - 1) < 0.03 && Math.abs(r.L / 7.9788e-4 - 1) < 0.03 ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
   },
@@ -8649,6 +8649,38 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine’s ghosts land where the bench’s own twice-reflected rays do',
+    why: 'the triplet assembly with ghosts followed on the bench, lit by a grid of rays on the axis and 6\u00b0 off it: every ray of every ghost the lens engine traces to the sensor (off one glass surface, then an earlier one) has its twin among the bench\u2019s rays reflected exactly twice, landing at the same point (the largest difference, mm, over at least 150 of them); and the bench\u2019s twice-reflected rays the engine has no ghost for, light that has gone through a lens\u2019s rim, are under a tenth of them (99 if not)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      let worst = 0, n = 0, extra = 0, all = 0;
+      for (const deg of [0, 6]) {
+        const B = asmTriplet(), s = B.elements.find(e => e.type === 'source'), sn = Math.sin(deg * Math.PI / 180), cs = Math.cos(deg * Math.PI / 180);
+        Object.assign(B, { ghosts: true, minPower: 1e-4 });
+        Object.assign(s, { pattern: 'grid', rays: 5, width: 6, angle: deg, x: 12.767 - 52.767 * cs, y: -52.767 * sn });
+        J.load(B); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']); J.trace();
+        const name = J.assemblies()[0].name, k5 = 5, W = 6, at = i => i / (k5 - 1) - 0.5, all0 = J.hitsOn('Sensor'), H = all0.filter(h => (h.path.match(/r/g) || []).length === 2);
+        const P = J.asmPrescription(name), len = P.gaps.reduce((a, b) => a + b, 0), N = P.surfaces.length;
+        // the rays the source starts (its beam is round: the grid's corners are not), in the engine's frame
+        const rays = [];
+        for (let k = 0; k < k5 * k5; k++) { const t = at(Math.floor(k / k5)) * W, u = at(k % k5) * W; rays.push([u, s.y + cs * t - P.origin[1], s.x - sn * t - P.origin[0], 0, sn, cs]); }
+        const used = new Set();
+        for (let a = 1; a < N; a++) for (let b = 0; b < a; b++) {
+          if (P.surfaces[a].stop || P.surfaces[b].stop) continue;
+          J.lensGhostTrace(name, 587.56, 60 - (P.origin[0] + len), a, b, rays).forEach((e, k) => {
+            // (on the sensor, 30 mm across and up: the engine's image plane goes on for ever)
+            if (e[7] !== 0 || !all0.some(h => h.k === k) || Math.max(Math.abs(e[0]), Math.abs(e[1])) > 14.99) return;
+            let best = Infinity;
+            H.forEach((h, i) => { if (h.k !== k) return; const d = Math.hypot(e[1] + h.y, e[0] - (h.z || 0)); if (d < 1e-6) used.add(i); best = Math.min(best, d); });
+            worst = Math.max(worst, best); n++;
+          });
+        }
+        extra += H.filter((h, i) => !used.has(i)).length; all += H.length;
+      }
+      return n >= 150 && extra < 0.1 * all ? worst : 99;
+    },
+  },
+  {
     name: 'A Cooke triplet typed into the lens data from its published prescription has its focal length and Seidel sums',
     why: 'File › New lens design, two singlets inserted in front, then the published triplet (f 50 mm, a 10 mm pupil, fields to 20°, F d C) typed into the lens data table cell by cell: its focal length and its Seidel sums SI to SV against an independent program’s (theirs of the other sign), and its axial and lateral colour (the largest relative difference)',
     want: 0, tol: 1e-6, unit: '',
@@ -8842,6 +8874,28 @@ const TESTS = [
         const shown = new RegExp('20° RMS ' + (+(1000 * s.rms).toPrecision(4)) + ' µm').test(txt);
         const M = J.lensAnalysis('Cooke triplet', 'mtf', 20), under = M.tan.every((v, i) => v <= M.limT[i] + 1e-9);
         return drawn === 9 && shown && under ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The design’s ghosts are listed, the brightest first, and the one chosen is drawn in the layout',
+    why: 'the published Cooke triplet\u2019s Analyses \u203a Ghosts: all 15 pairs of its six glass surfaces (the stop reflects nothing), each with bare glass\u2019s reflectances, in falling order of brightness against the image; choosing the third marks it, and the layout is drawn again with its rays in it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Analyses', null, 'tab');
+        [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === 'Ghosts').click();
+        const rows = () => [...rigDoc().querySelectorAll('#lensWs .rt-lghost tbody tr')];
+        const R = rows(), rel = R.map(r => +r.children[5].textContent);
+        const sorted = rel.every((v, i) => !i || v <= rel[i - 1]);
+        const fres = R.every(r => /^5\.\d+% \u00d7 5\.\d+%$/.test(r.children[1].textContent.trim()));
+        const cv0 = rigDoc().querySelector('#lensWs .rt-llayout canvas');
+        R[2].querySelector('button').click();
+        const on = rows()[2].querySelector('button').getAttribute('aria-pressed') === 'true' && rows()[2].classList.contains('on');
+        const cv1 = rigDoc().querySelector('#lensWs .rt-llayout canvas');
+        return R.length === 15 && sorted && fres && on && cv1 !== cv0 && !!rigDoc().querySelector('#lensWs .rt-lspots canvas') ? 1 : 0;
       } finally { J.closeLensDesign(); }
     },
   },

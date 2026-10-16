@@ -304,6 +304,12 @@ function toPlane(S, R, zp) {
   return R;
 }
 
+/* for the ghosts (engines/lens-ghost.js): a field's ray launched as the design launches it, the y-nu trace,
+   and a ray taken on to the image plane in the image's frame */
+export const lensLaunch = (S, th, a, b, R) => launch(S, th, a, b, R);
+export const lensParaStep = (S, y, u, i0, i1) => paraStep(S, y, u, i0, i1);
+export function lensToImage(S, R) { toPlane(S, R, S.imageZ); if (S.img) toImageFrame(S, R); return R; }
+
 /* ---------- Aiming ----------
    A field's ray starts on the plane square to the incoming light through the entrance pupil's centre,
    at (a, b) in it (a across the bench plane, out of it; b in it), and is moved back along the light so

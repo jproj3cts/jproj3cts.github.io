@@ -1,7 +1,7 @@
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
 import { BEAM_Z, clamp } from '../core/constants.js';
-import { fmtIrr } from '../core/format.js';
+import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
@@ -25,7 +25,7 @@ import { h, renderPanel, syncPanel } from './panel.js';
 import { magma } from './plots.js';
 import { QFree, beamQ, cavEventABCD, ccInv, mfree, qThrough } from '../engines/cavity.js';
 import { popKeyOf, popRun, popSources, popState } from '../engines/beam-tree.js';
-import { volData, volDisp, volMerge, volPartners, volRayMax, volShare, volStitch } from '../engines/volume.js';
+import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare, volStitch } from '../engines/volume.js';
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
 import { checkpoint, undo } from './tabs.js';
@@ -239,6 +239,7 @@ export const V3D = (() => {
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
     spreadNames(camera);
+    volPass();
     gl.render(scene, camera);
     // the view cube, looking the way the camera looks
     const c = cubeRect();
@@ -750,14 +751,16 @@ export const V3D = (() => {
   // a segment's planes as the renderer's clipping planes (the world is the bench's frame, in mm)
   // always two (one that cuts nothing standing in), so every beam shares one compiled shader
   const segClip3 = P => [P.p0, P.p1].map(q => q ? new T.Plane(new T.Vector3(...q.n3), -(q.n3[0] * q.x + q.n3[1] * q.y + q.n3[2] * q.z)) : new T.Plane(new T.Vector3(0, 0, 1), 1e9));
-  /* The diffracted field as a glowing volume, segment by segment: a box round each, its shader
-     marching the view's ray through it in steps fitted to the beam (long outside it, short
-     across it, and never past more than half the gap between two cuts along it) and keeping the
-     brightest irradiance it meets, in the bench's colours and scale (lin or log, 30 dB) against
-     the brightest on the tab: what the key under it reads */
+  /* The diffracted field as glowing light, segment by segment: a box round each, its shader marching the
+     view's ray through it in steps fitted to the beam (long outside it, short across it, and never past
+     more than half the gap between two cuts along it) and adding up the irradiance along it, as a camera
+     sees light scattered evenly out of a beam (by a faint haze) in proportion to the irradiance there. All
+     the segments add into one buffer first (in any order, so where one meets the next, or two beams cross,
+     nothing shows but their sum), and that buffer is coloured once, in the bench's colours and scale (lin
+     or log, 30 dB): light along the line of sight, W/mm, what the key under it reads */
   const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
   const VOL_FS = `
-    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uDec; uniform vec3 uCam; uniform vec4 uP0, uP1;
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam; uniform vec4 uP0, uP1;
     varying vec3 vP;
     // the two cuts either side of t, how far between them, the larger reach, and their gap
     void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
@@ -794,27 +797,34 @@ export const V3D = (() => {
         if (dn > 0.0) sN = max(sN, tc); else sF = min(sF, tc);
       }
       if (sF <= sN) discard;
-      float sp = sN, best = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
-      // each pixel's steps start a different fraction of a step in (after a first sample on the cut), so the
-      // samples of neighbouring lines of sight do not line up into a moiré of the beam's fine structure
+      float sp = sN, sum = 0.0, minStep = (sF - sN) / 4000.0, side = sqrt(max(1.0 - rd.z * rd.z, 1e-6)), along = max(abs(rd.z), 1e-6);
+      // each step's sample is taken a fraction of the way along it that differs from pixel to pixel, so the
+      // sum has no bias and the samples of neighbouring lines of sight do not line up into a moiré
       float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      bool first = true;
-      for (int i = 0; i < 320; i++) {
-        if (sp > sF) break;
+      for (int i = 0; i < 640; i++) {
+        if (sp >= sF) break;
         vec3 p = ro + rd * sp;
         int lo, hi; float f, rm, gap; cutAt(clamp(p.z, uTa, uTb), lo, hi, f, rm, gap);
-        float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm, ds;
-        if (q > 1.0) ds = min((q - 1.0) * rm * 0.6 / side, gap / along);
-        else {
-          // the two cuts each at this distance from the axis (not the same share of their reach),
-          // only between the surfaces the segment runs from and to
-          if (dot(uP0.xyz, p) + uP0.w >= -1e-4 && dot(uP1.xyz, p) + uP1.w >= -1e-4) best = max(best, mix(row(lo, p.xy), row(hi, p.xy), f));
-          ds = min(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.12 / side, gap * 0.5 / along);   // a cut with almost no reach does not stall the march
-        }
-        sp += max(first ? ds * jit : ds, minStep); first = false;
+        float q = uTwo == 0 ? length(p.xy) / rm : max(abs(p.x), abs(p.y)) / rm;
+        if (q > 1.0) { sp += max(min((q - 1.0) * rm * 0.6 / side, gap / along), minStep); continue; }
+        // a cut with almost no reach does not stall the march
+        float ds = min(max(max(min(uRm[lo], uRm[hi]), 0.25 * rm) * 0.06 / side, minStep), min(gap * 0.25 / along, sF - sp));
+        vec3 m = ro + rd * (sp + jit * ds);
+        cutAt(clamp(m.z, uTa, uTb), lo, hi, f, rm, gap);
+        // the two cuts each at this distance from the axis (not the same share of their reach)
+        sum += mix(row(lo, m.xy), row(hi, m.xy), f) * ds;
+        sp += ds;
       }
-      float v = best;
-      if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0);
+      if (sum <= 0.0) discard;
+      gl_FragColor = vec4(sum * uK, 0.0, 0.0, 1.0);
+    }`;
+  // the buffer they add into, coloured: the light along each line of sight against the top of the key
+  const VOLQ_VS = 'varying vec2 vU; void main() { vU = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+  const VOLQ_FS = `
+    uniform sampler2D uAcc, uMap; uniform float uDec; varying vec2 vU;
+    void main() {
+      float v = texture2D(uAcc, vU).r;
+      if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       if (v <= 0.002) discard;
       gl_FragColor = vec4(texture2D(uMap, vec2(v, 0.5)).rgb, clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v));
     }`;
@@ -835,11 +845,9 @@ export const V3D = (() => {
       for (let i = 0; i < 256; i++) { const c = magma(i / 255); d.set([c[0], c[1], c[2], 255], i * 4); }
       magmaTex = new T.DataTexture(d, 256, 1, T.RGBAFormat); magmaTex.magFilter = magmaTex.minFilter = T.LinearFilter; magmaTex.needsUpdate = true;
     }
-    // the brightest drawn last, over the rest: each pixel shows the brightest light along its line of sight
-    const rank = new Map([...V.segs].sort((a, b) => a.peak - b.peak).map((s, k) => [s, k]));
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
-      const top = volDisp(V);
+      const top = volDisp(V), K = top / (volDispLine(V) || 1);
       for (let i = 0; i < data.length; i++) data[i] = Math.min(1e4, s.I[i] / top);   // above the top colour, held at it (half floats end at 65504)
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
@@ -849,13 +857,14 @@ export const V3D = (() => {
       for (let j = 0; j < 64; j++) { ts[j] = s.ts[Math.min(j, nc - 1)]; rm[j] = s.rmax[Math.min(j, nc - 1)]; }
       const za = s.ta - ext[0] * Rm, zb = s.tb + ext[1] * Rm, geo = new T.BoxGeometry(2 * Rm, 2 * Rm, zb - za); geo.translate(0, 0, (za + zb) / 2);
       const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
+        blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
         uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
-          uDec: { value: dec }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+          uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
       const o = new T.Mesh(geo, m3);
       const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
-      o.renderOrder = 2 + rank.get(s);
-      o.userData.vol = s; o.userData.texs = [tex];
+      o.layers.set(1);                                    // drawn only into the buffer (see volPass)
+      o.userData.vol = s; o.userData.texs = [tex]; o.userData.lim = { za, zb, pl: pl.map(v => v.toArray()) };
       // its near faces are drawn, so the depth test is where the light starts along each line of sight, and
       // a part behind the beam (a screen with its pattern on its face) does not hide light in front of it;
       // from inside the box, its far faces (the march itself starts at the eye)
@@ -865,6 +874,36 @@ export const V3D = (() => {
       };
       G.add(o);
     }
+    // the buffer, coloured over the scene where the volumes were drawn among the light
+    const q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaTex }, uDec: { value: dec } } }));
+    q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
+    q.onBeforeRender = () => { q.material.uniforms.uAcc.value = R.volRT ? R.volRT.texture : null; };
+    G.add(q);
+  }
+  /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
+     depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
+  function volPass() {
+    const ms = R.volMeshes;
+    if (!ms || !ms.length) return;
+    const { gl, scene, camera } = R, sz = gl.getDrawingBufferSize(new T.Vector2());
+    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+    else if (R.volRT.width !== sz.x || R.volRT.height !== sz.y) R.volRT.setSize(sz.x, sz.y);
+    const hid = [];
+    scene.traverse(o => {
+      if (!o.visible || !(o.isMesh || o.isLine || o.isPoints || o.isSprite)) return;
+      const m = [].concat(o.material)[0];
+      if (!o.isMesh || !m || m.transparent || m.depthWrite === false) { o.visible = false; hid.push(o); }
+    });
+    const cc = gl.getClearColor(new T.Color()), ca = gl.getClearAlpha(), sh = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
+    gl.setRenderTarget(R.volRT); gl.setClearColor(0x000000, 0); gl.clear(true, true, false);
+    scene.overrideMaterial = R.depthOnly || (R.depthOnly = new T.MeshBasicMaterial({ colorWrite: false }));
+    gl.render(scene, camera);
+    scene.overrideMaterial = null;
+    for (const o of hid) o.visible = true;
+    camera.layers.set(1); gl.render(scene, camera); camera.layers.set(0);
+    gl.setRenderTarget(null); gl.setClearColor(cc, ca); gl.shadowMap.needsUpdate = sh;
   }
   /* the key under the 3D view while it shows the field: its colours against irradiance, and
      what is under the pointer */
@@ -874,33 +913,36 @@ export const V3D = (() => {
     D.vkey.hidden = !on;
     if (!on) return;
     if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
-    const pk = volDisp(R.vol), over = pk < 0.999 * R.vol.peak, dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    const pk = volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
     cv.width = 240; cv.height = 1;
     const g = cv.getContext('2d'), img = g.createImageData(240, 1);
     for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
     g.putImageData(img, 0, 0);
     const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
     D.vread = h('div', { class: 'rd' }, 'Point at the light to read it');
-    D.vkey.replaceChildren(h('b', null, 'Irradiance' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
-      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%', title: f === 1 && over ? 'Brighter light (up to ' + fmtIrr(R.vol.peak) + ', where the beam is narrowest) shows in this colour too' : null }, v ? (f === 1 && over ? '\u2265 ' : '') + fmtIrr(v) : '0'))),
+    D.vkey.replaceChildren(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), cv,
+      h('div', { class: 'tk' }, ...ticks.map(([f, v]) => h('span', { style: 'left:' + (100 * f) + '%' }, v ? (f === 1 ? '\u2265 ' : '') + fmtLine(v) : '0'))),
       D.vread);
   }
-  /* the brightest irradiance along the line of sight under the pointer, and where: { I, p } */
+  /* along the line of sight under the pointer: the light added up (L, W/mm, as its colour shows it), and
+     the brightest irradiance on it and where: { L, I, p } */
   function volUnder(e) {
     if (!R || !R.vol || !R.volMeshes || !R.volMeshes.length) return null;
     const rc = new T.Raycaster(); rc.setFromCamera(ndc(e), R.camera);
-    let best = null;
+    let best = null, L = 0;
     for (const o of R.volMeshes) {
       const inv = o.matrixWorld.clone().invert(), ro = rc.ray.origin.clone().applyMatrix4(inv), rd = rc.ray.direction.clone().transformDirection(inv);
-      const r = volRayMax(o.userData.vol, ro.toArray(), rd.toArray());
-      if (r && (!best || r.I > best.I)) best = { I: r.I, p: rc.ray.at(r.s, new T.Vector3()).toArray() };
+      const r = volRay(o.userData.vol, ro.toArray(), rd.toArray(), o.userData.lim);
+      if (!r) continue;
+      L += r.L;
+      if (!best || r.I > best.I) best = { I: r.I, p: rc.ray.at(r.s, new T.Vector3()).toArray() };
     }
-    return best;
+    return best && Object.assign(best, { L });
   }
   function readVol(e) {
     if (!D || !D.vread || D.vkey.hidden) return;
     const r = volUnder(e);
-    D.vread.textContent = r ? fmtIrr(r.I) + ' at ' + r.p.map(v => v.toFixed(1)).join(', ') + ' mm' : 'Point at the light to read it';
+    D.vread.textContent = r ? fmtLine(r.L) + '; brightest ' + fmtIrr(r.I) + ' at ' + r.p.map(v => v.toFixed(1)).join(', ') + ' mm' : 'Point at the light to read it';
   }
   /* the breadboard under it all, its holes on the bench's 25 mm grid */
   function board(box) {
@@ -1358,7 +1400,7 @@ export const V3D = (() => {
   function png() {
     if (!R) return;
     const { gl, scene, camera } = R;
-    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); gl.render(scene, camera);
+    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(); gl.render(scene, camera);
     D.cv.toBlob(b => {
       if (!b) return;
       const a = h('a', { href: URL.createObjectURL(b), download: (project.name || 'bench').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '-' + benchName(project.tab).replace(/\s+/g, '-') + '-3d.png' });
@@ -1534,7 +1576,7 @@ export const V3D = (() => {
       field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
       // each piece of the field volume: where it starts, its direction, and its extent along it
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
-      fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, p: r.p }; },
+      fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },

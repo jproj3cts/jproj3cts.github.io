@@ -381,6 +381,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so.
 - **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
 - **Seidel:** the third-order sums, below.
+- **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
 
 **Checked against.**
 - a perfect lens (the ellipsoid that images into glass without aberration): no spot; its MTF the round pupil's $$\tfrac{2}{\pi}\left(\arccos v - v\sqrt{1-v^2}\right)$$ to within 0.003; a Strehl ratio of 1; 83.8% of the energy within the first dark ring;
@@ -402,6 +403,25 @@ the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$.
 - a published Cooke triplet (f 50 mm, f/5, fields to 20°), typed into the lens data cell by cell: its focal length and Seidel sums agree with an independent program's to 10⁻¹⁰;
 - the real rays in the third-order limit: $$S_I/8$$ is the edge ray's wavefront error at a small pupil, and $$S_V$$ the chief ray's distortion at a small field;
 - the ellipsoid that images perfectly, whose $$S_I$$ is 0.
+
+#### Ghosts
+
+Every surface sends a little of the light back: bare glass about 4% (Fresnel's $$((n-n')/(n+n'))^2$$), a coating as much as it reflects (its stack worked out square to the surface, or the reflectance it is given). Light sent back by surface $$a$$ and on again by an earlier surface $$b$$ reaches the image as a ghost, carrying $$R_a R_b$$ of the light and focused somewhere else. **Ghosts** lists every such pair at the field chosen and the primary wavelength:
+
+- **Reflects:** the two surfaces' reflectances;
+- **Reaching the image:** $$R_a R_b$$ times the share of the pupil's rays that get through every clear radius on the ghost's way;
+- **Focus:** where its paraxial marginal ray crosses the axis after its last surface, from the image plane;
+- **RMS on the image:** its real rays' RMS radius there;
+- **Against the image:** its irradiance on the image over the image's own, each its light spread evenly over a disc (the ghost's of radius $$\sqrt2$$ times its RMS radius; the image's the same, or the Airy disc if that is larger). For a point of light on the axis this is how bright the ghost's haze is against the point; for an extended scene it overstates the image's own irradiance, so read it as a ranking;
+- **Focus inside:** where the ghost comes to a focus within the design (its paraxial marginal ray crossing the axis between two surfaces after the first reflection), and how far from the nearest surface, marked when it is within a millimetre. Light focused there, on a coating, a cement or in the glass, is concentrated: in a laser system it can damage it.
+
+Choose a ghost and its rays are drawn in the layout, in magenta, and its spot on the image beside the image's own. The list saves as CSV.
+
+Each ghost is traced as a design of its own, unfolded: forward to surface $$a$$, which reflects; back through the surfaces between, each met from behind (its sag the other way in the frame the light now runs in); $$b$$ reflects from behind; then on to the image as the design goes. The lens engine traces it exactly, each ray started where the design's own ray for that pupil point starts, so the stop, the aim and the vignetting are the design's. Ghosts are followed in a centred design without mirrors, tilts or decentres. Light that reflects more than twice, or goes through a lens's rim, is left to the bench: tick **Follow weak reflections (ghosts)** in the bench settings and the bench follows every reflection, any number of times and in any order.
+
+**Checked against.**
+- a singlet's one ghost: its focus and its height on the image against its paraxial matrices written out by hand (refraction, the gap, the back face as a mirror in the glass, the gap, the front face as a mirror met from behind, the gap, refraction out), to 10⁻⁹; its strength the product of the two faces' Fresnel reflectances, or a coating's reflectance in its place;
+- the bench's own rays, in the triplet with ghosts followed on the bench: every ray of every ghost the lens engine traces to the sensor lands where the bench's twice-reflected ray from the same start does, to 10⁻¹² mm, on the axis and 6° off it. The few bench rays reflected twice that the engine has no ghost for (3% of them) went through a lens's rim.
 
 ### On the bench
 

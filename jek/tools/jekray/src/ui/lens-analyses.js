@@ -1,5 +1,7 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
 import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
+import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
@@ -12,7 +14,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -38,7 +40,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
-  const perField = ['spot', 'fans', 'opd', 'wave', 'psf', 'mtf'].includes(st.view) && st.view !== 'spot';
+  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
@@ -55,6 +57,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
+  else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
   return card;
 }
@@ -260,4 +263,66 @@ function seidelView(body, asm, P, F) {
   tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
   tbl.append(tb);
   body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+}
+
+/* ---------- Ghosts ---------- */
+// each surface's coating, from its part (a lens's faces; any other surface bare)
+function coatsOf(P) {
+  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
+}
+const coatKey = P => JSON.stringify(coatsOf(P));
+const ghPct = v => v >= 0.01 ? anFmt(100 * v, 3) + '%' : v >= 1e-5 ? anFmt(1e6 * v, 3) + ' ppm' : v > 0 ? v.toExponential(2) : '0';
+const ghLen = v => !isFinite(v) ? '∞' : Math.abs(v) < 1 ? um(v) : anFmt(v, 4) + ' mm';
+function ghostView(body, A, P, G, st, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1);
+  body.append(h('h3', null, 'Ghosts: light reflected by one surface and back by an earlier one'));
+  if (!G.ok) {
+    body.append(h('p', { class: 'rt-lsub' }, ghostsTraceable(P) ? 'There are no two surfaces here to reflect between.' : 'Ghosts are followed in a centred design without mirrors, tilts or decentres; this one has some. On the bench, tick Follow weak reflections (ghosts) in the bench settings to follow every reflection there.'));
+    return;
+  }
+  const L = G.ghosts.filter(g => g.R > 0);
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
+    'The image\u2019s own spot: RMS ' + um(G.main.rms) + ', the Airy disc ' + um(G.main.airy) + '. Each surface reflects as its coating does, square to it (bare glass by Fresnel). ' +
+    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'));
+  if (!L.length) return;
+  if (!st.ghost || !L.some(g => g.a === st.ghost[0] && g.b === st.ghost[1])) st.ghost = [L[0].a, L[0].b];
+  const tbl = h('table', { class: 'rt-ltable rt-lghost' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Off', 'The surface that reflects first, then the one that sends it on'], ['Reflects', 'Each surface\u2019s reflectance'], ['Reaching the image', 'The share of the light through the pupil that reaches the image this way'],
+    ['Focus', 'Where it comes to a focus, from the image plane (paraxial; + beyond it)'], ['RMS on the image', 'Its rays\u2019 RMS radius on the image plane'], ['Against the image', 'Its irradiance on the image over the image\u2019s own'], ['Focus inside', 'Where it focuses within the design, if it does']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody');
+  for (const g of L) {
+    const on = st.ghost[0] === g.a && st.ghost[1] === g.b;
+    const near = g.near ? (g.near.after ? anFmt(g.near.d, 3) + ' mm after ' + name(g.near.surf) : anFmt(g.near.d, 3) + ' mm from ' + name(g.near.surf) + (g.near.glass ? ', in glass' : '')) : '—';
+    const warn = g.near && g.near.d < 1;
+    tb.append(h('tr', { class: on ? 'on' : '' },
+      h('td', null, h('button', { type: 'button', class: 'rt-link', 'aria-pressed': String(on), 'aria-label': 'Show the ghost off surface ' + name(g.a) + ' then ' + name(g.b) + ' in the layout', onclick: () => { st.ghost = [g.a, g.b]; redraw(); } }, name(g.a) + ' then ' + name(g.b))),
+      h('td', { class: 'mono' }, ghPct(g.Ra) + ' × ' + ghPct(g.Rb)), h('td', { class: 'mono' }, ghPct(g.R * g.reach)), h('td', { class: 'mono' }, ghLen(g.focus)),
+      h('td', { class: 'mono' }, g.n ? ghLen(g.rms) : '—'), h('td', { class: 'mono' }, g.rel > 0 ? g.rel.toExponential(2) : '—'), h('td', { class: warn ? 'warn' : '' }, near)));
+  }
+  tbl.append(tb);
+  const wrap = h('div', { class: 'rt-ltwrap' }, tbl);
+  body.append(wrap);
+  // the chosen ghost on the image plane, with the image's own spot
+  const g = L.find(q => q.a === st.ghost[0] && q.b === st.ghost[1]);
+  const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'The ghost off surface ' + name(g.a) + ' then ' + name(g.b) + ' on the image plane: RMS radius ' + ghLen(g.rms) });
+  cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, name(g.a) + ' then ' + name(g.b)), ' on the image, ' + g.n + ' rays; the image\u2019s spot in grey'));
+  body.append(h('div', { class: 'rt-lspots' }, cell));
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, S = Math.max(160, Math.min(280, cell.clientWidth || 220));
+    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+    const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    const c0 = G.main.c[0] || 0, c1 = G.main.c[1] || 0;
+    let ext = Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * 1.2;
+    for (const [px, py] of g.pts) ext = Math.max(ext, Math.abs(px - c0), Math.abs(py - c1));
+    ext *= 1.1;
+    const k = (S / 2 - 6) / ext, X = v => S / 2 + (v - c0) * k, Y = v => S / 2 - (v - c1) * k;
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
+    x.fillStyle = WAVE_COLOURS[6];
+    for (const [px, py] of g.pts) { x.beginPath(); x.arc(X(px), Y(py), 1.6, 0, 2 * Math.PI); x.fill(); }
+  });
+  plotCsv(cv, 'ghosts', ['first surface', 'second surface', 'reflectance first', 'reflectance second', 'share reaching the image', 'focus from image (mm)', 'paraxial height on image (mm)', 'RMS on image (mm)', 'against the image', 'focus inside, from surface', 'distance (mm)'],
+    () => L.map(q => [name(q.a), name(q.b), q.Ra, q.Rb, q.R * q.reach, q.focus, q.yImg, q.rms, q.rel, q.near ? name(q.near.surf) : '', q.near ? q.near.d : '']));
+  cell.append(plotSaveRow(cv));
+  body.append(h('p', { class: 'rt-lsub' }, 'The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'));
 }

@@ -9023,7 +9023,7 @@ function traceSceneOnce() {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
             return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && cosd >= 0,
-              n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
+              n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy], sn: [...toWorldDir(s.f, nx, ny), nz] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = kapIn(s, ly);
           const cth = Math.abs(cosd) || 1;
@@ -9657,6 +9657,8 @@ function segPlanes(B, i) {
       const a = ev.din3 || [...ev.dIn, 0], c = ev.dout3 || [...ev.dOut, 0], n1 = ev.n1 || 1, n2 = ev.n2 || 1;
       n = ev.mode === 'R' ? [0, 1, 2].map(k => c[k] - a[k]) : [0, 1, 2].map(k => n1 * a[k] - n2 * c[k]);
     }
+    // straight on through a surface with the same index either side (a cube's diagonal): the surface's own normal
+    if (Math.hypot(...n) < 1e-6 && ev && ev.sn) n = ev.sn.slice();
     if (Math.hypot(...n) < 1e-6 && el && !['source', 'fcomp', 'elec', 'pic', 'draw', 'fibre'].includes(el.type)) n = [Math.cos(el.angle * deg), Math.sin(el.angle * deg), 0];
     const m = Math.hypot(...n);
     if (m < 1e-6) return null;
@@ -29351,10 +29353,16 @@ function drawPopOn(c, R) {
     const nx = -b.dy, ny = b.dx;
     c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     c.globalAlpha = glowA(0.95 * D.alpha);
+    // slices bunch up where the samples do (about a waist): one under two pixels wide is drawn
+    // together with the next, as the edges of slices that thin, filtered, show as dark and bright lines
+    const minW = 2 / (DPR * s);
+    let from = null;
     for (let k = 0; k < ts.length; k++) {
-      const tA = k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
+      const tA = from !== null ? from : k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
       const tB = k < last ? 0.5 * (ts[k] + ts[k + 1]) : ts[k] + e1;
       if (tB <= tA) continue;
+      if (tB - tA < minW && k < last) { from = tA; continue; }
+      from = null;
       c.drawImage(D.cv, 3 * k + 1, 0, 1, POP_ROWS, tA, -D.Ys[k], tB - tA, 2 * D.Ys[k]);
     }
     c.restore();

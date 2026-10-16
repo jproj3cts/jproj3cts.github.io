@@ -312,6 +312,8 @@ export function segPlanes(B, i) {
       const a = ev.din3 || [...ev.dIn, 0], c = ev.dout3 || [...ev.dOut, 0], n1 = ev.n1 || 1, n2 = ev.n2 || 1;
       n = ev.mode === 'R' ? [0, 1, 2].map(k => c[k] - a[k]) : [0, 1, 2].map(k => n1 * a[k] - n2 * c[k]);
     }
+    // straight on through a surface with the same index either side (a cube's diagonal): the surface's own normal
+    if (Math.hypot(...n) < 1e-6 && ev && ev.sn) n = ev.sn.slice();
     if (Math.hypot(...n) < 1e-6 && el && !['source', 'fcomp', 'elec', 'pic', 'draw', 'fibre'].includes(el.type)) n = [Math.cos(el.angle * deg), Math.sin(el.angle * deg), 0];
     const m = Math.hypot(...n);
     if (m < 1e-6) return null;

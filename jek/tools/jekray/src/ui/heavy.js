@@ -211,10 +211,16 @@ function drawPopOn(c, R) {
     const nx = -b.dy, ny = b.dx;
     c.setTransform(DPR * s * b.dx, -DPR * s * b.dy, DPR * s * nx, -DPR * s * ny, DPR * sx(b.x0), DPR * sy(b.y0));
     c.globalAlpha = glowA(0.95 * D.alpha);
+    // slices bunch up where the samples do (about a waist): one under two pixels wide is drawn
+    // together with the next, as the edges of slices that thin, filtered, show as dark and bright lines
+    const minW = 2 / (DPR * s);
+    let from = null;
     for (let k = 0; k < ts.length; k++) {
-      const tA = k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
+      const tA = from !== null ? from : k ? 0.5 * (ts[k - 1] + ts[k]) : ts[0] - e0;
       const tB = k < last ? 0.5 * (ts[k] + ts[k + 1]) : ts[k] + e1;
       if (tB <= tA) continue;
+      if (tB - tA < minW && k < last) { from = tA; continue; }
+      from = null;
       c.drawImage(D.cv, 3 * k + 1, 0, 1, POP_ROWS, tA, -D.Ys[k], tB - tA, 2 * D.Ys[k]);
     }
     c.restore();

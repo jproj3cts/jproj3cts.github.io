@@ -7462,6 +7462,18 @@ const TESTS = [
       const a = J.segPlanes(i).p1, b = J.segPlanes(j).p0, m = Math.SQRT1_2, ok = (q, d) => q && Math.abs(q.nx * m + q.ny * m) < 1e-9 && Math.abs(q.x - 50) < 1e-9 && Math.abs(q.y) < 1e-9 && Math.abs(q.tan - 1) < 1e-9 && (q.nx * d[0] + q.ny * d[1]) * (q === a ? -1 : 1) > 0;
       return ok(a, [1, 0]) && ok(b, [0, 1]) ? 1 : 0;
     },
+  },
+  {
+    name: '… and through a cube’s diagonal, where it goes straight on, along the diagonal too',
+    why: 'a beam along x into a 50/50 cube: glass both sides of its diagonal, so the beam through it does not bend, yet the beam in ends on the diagonal and the beam through starts on it (normal along (1, −1)/√2 or its opposite, tan 45° = 1), not square across at the cube’s centre (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('cutcube', [src({ gauss: true, w0: 1, z0: 0, width: 2, rays: 1 }), { type: 'cube', name: 'C', x: 50, y: 0, angle: 0, size: 12.7, mode: 'npbs', reflect: 50 }, screen({ name: 'S', x: 90, length: 20 })]));
+      const B = J.beams(), at = (x, d) => B.findIndex(b => Math.abs(b.x0 - x) < 1e-6 && Math.abs(b.y0) < 1e-6 && b.dx > 0.99 === d);
+      const i = at(50 - 6.35, true), j = at(50, true), m = Math.SQRT1_2;
+      const ok = q => q && Math.abs(Math.abs(q.nx * m - q.ny * m) - 1) < 1e-9 && Math.abs(q.x - 50) < 1e-9 && Math.abs(q.tan - 1) < 1e-9;
+      return i >= 0 && j >= 0 && ok(J.segPlanes(i).p1) && ok(J.segPlanes(j).p0) ? 1 : 0;
+    },
   },  { group: 'Modules' },
   {
     name: 'A module’s plate focuses as the delay it gives says',

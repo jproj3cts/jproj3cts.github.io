@@ -1261,7 +1261,7 @@ function traceSceneOnce() {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
             const q = den > 0 ? [(nr * dr + ni * di) / den, (ni * dr - nr * di) / den] : [qr, qi];
             return { q, ev: Object.defineProperty({ el: s.el.id, kind: s.kind, semi: s.semi, ly, cth: Math.abs(cosd) || 1, A, C, D, back: (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') && cosd >= 0,
-              n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy] }, 'surf', { value: s, enumerable: false }) };
+              n1: n1 === undefined ? nCur : n1, n2, mode, hx: px, hy: py, dIn: [dx, dy], sn: [...toWorldDir(s.f, nx, ny), nz] }, 'surf', { value: s, enumerable: false }) };
           };
           const kap = kapIn(s, ly);
           const cth = Math.abs(cosd) || 1;

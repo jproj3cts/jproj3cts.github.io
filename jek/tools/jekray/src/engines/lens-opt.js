@@ -207,7 +207,7 @@ export function meritReport(prob) {
   solveDesign(prob, P);
   const broken = [], T = meritTerms(prob, P, broken), tot = T.ss || 1;
   return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot })),
-    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot })), bounds: { share: T.bounds / tot, broken } };
+    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p })), bounds: { share: T.bounds / tot, broken } };
 }
 
 /* ---------- Damped least squares ---------- */

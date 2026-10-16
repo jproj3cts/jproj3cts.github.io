@@ -9062,6 +9062,33 @@ const TESTS = [
     },
   },
   {
+    name: 'A merit term at a field: the chief ray’s angle at the image, added in the Merit tab, made telecentric by the optimiser',
+    why: 'a stop and a singlet, fields 0° and 1°: Chief ray’s angle at the image added in the Merit tab at 1°, target 0, weight 10000; the stop’s distance marked V and optimised: the angle under a thousandth of a degree, and the stop at the lens’s front focal point within 0.2% (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'stop', id: 'S', name: 'Iris', x: -30, y: 0, angle: 0, aperture: 4, group: 'g' },
+        { type: 'lens', id: 'L', name: 'Lens', x: 2.5, y: 0, angle: 0, diameter: 30, surfaces: [{ R: 50 }, { R: -50 }], gaps: [5], materials: [{ glass: 'N-BK7' }], group: 'g' }],
+        assemblies: [{ id: 'g', name: 'Tele', ref: 'L', cond: { aperture: { kind: 'epd', v: 4 }, fields: [{ deg: 0 }, { deg: 1 }], waves: [{ nm: 587.56 }] }, design: { solves: { 't:image': { kind: 'focus' } } } }] });
+      J.openLensDesign('Tele');
+      try {
+        wsClick('Merit', null, 'tab');
+        const add = rigDoc().querySelector('#lensWs [aria-label="Term to add"]');
+        add.value = 'CRA'; wsClick('Add a term');
+        wsSet('Target of Chief ray’s angle at the image (°)', 0); wsSet('Weight of Chief ray’s angle at the image (°)', 10000);
+        const fsel = rigDoc().querySelector('#lensWs [aria-label="Field of Chief ray’s angle at the image (°)"]'), fieldOk = !!fsel && fsel.value === '1';
+        wsClick('Lens data', null, 'tab');
+        wsClick('V', 'Vary thickness of surface 1');
+        for (let k = 0; k < 3; k++) J.lensOptimise('dls');
+        const g = J.asmPrescription('Tele').gaps[0], F = J.lensFigures('Tele');
+        // the front focal point from the paraxial figures: f before the front principal plane, δ1 = −f (n − 1) t / (n R2)
+        const n = 1.5168, d1 = -F.efl * (n - 1) * 5 / (n * -50), ok = fieldOk && Math.abs(g - (F.efl - d1)) < 2e-3 * F.efl;
+        if (!ok) console.log('cra', fieldOk, g, F.efl - d1);
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

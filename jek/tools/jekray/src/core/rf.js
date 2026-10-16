@@ -62,7 +62,8 @@ export function printedMatch(M, coat) {
   if (!isMatchCoat(coat) || !M) return null;
   const L = coat.layers[0], lam = coat.design * 1e-6, fill = 100 * mixFill(M, L.n * L.n);
   const least = 100 * 0.45 / (lam / (4 * M.n));
-  return { n: L.n, thick: L.d * 1e-6, fill, least, ok: fill >= least && fill <= 100, ghz: C_NM_GHZ / coat.design };
+  // the least density allowed grows with the frequency: this skin's own holds up to ghzMax
+  return { n: L.n, thick: L.d * 1e-6, fill, least, ok: fill >= least && fill <= 100, ghz: C_NM_GHZ / coat.design, ghzMax: C_NM_GHZ / coat.design * fill / least };
 }
 /* A made-to-order lens's mounting: a flange round its rim, width mm out from it and thick mm
    along the axis, with holes of diameter hole on the circle through the flange's middle. It is

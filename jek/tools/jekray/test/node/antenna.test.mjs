@@ -8,7 +8,7 @@ import { workerShim } from '../../src/worker/shim.js';
 globalThis.self = globalThis;
 globalThis.location = { hostname: '', hash: '', search: '', href: '' };
 workerShim();
-const { lensAntenna } = await import('../../src/core/antenna.js');
+const { lensAntenna, steerField } = await import('../../src/core/antenna.js');
 
 test('a uniformly lit aperture: the most directivity, its beamwidth and its first sidelobe', () => {
   const lam = 12.5, a = 60, A = lensAntenna({ w: 1e6, R: Infinity, a, lam });
@@ -38,4 +38,35 @@ test('a wavefront left curved costs directivity; the lens’s loss costs gain, n
   assert.ok(bent.eta.phase < 0.95 && bent.D < flat.D && Math.abs(flat.eta.phase - 1) < 1e-9, 'phase efficiency ' + bent.eta.phase);
   const lossy = lensAntenna({ w, R: Infinity, a, lam, T: () => 0.5 });
   assert.ok(Math.abs(lossy.D / flat.D - 1) < 1e-9 && Math.abs(lossy.G / flat.G - 0.5) < 1e-9, 'a uniform loss halves the gain only');
+});
+
+/* steering: the aperture field across the whole disc, from the horn's spherical wavefront */
+const hyper = f => r => -(Math.sqrt(r * r + f * f) - f);          // an ideal thin lens's path, focus f
+test('steering on the axis: the whole-disc field agrees with the round model, and a tilted plane wave leaves at its tilt', () => {
+  const lam = 12.5, a = 60, f = 120, w = 40;
+  const S = steerField({ w, R: f, yh: 0, sb: 0, a, lam, path: hyper(f) });
+  // the round model takes the wavefront to second order only; the disc's exact sphere flattens a little better
+  const A = lensAntenna({ w, R: f, a, lam, P: hyper(f), gainOnly: true });
+  assert.ok(Math.abs(10 * Math.log10(S.G / A.G)) < 0.1, 'on the axis ' + (10 * Math.log10(S.G)).toFixed(3) + ' against ' + A.Gdbi.toFixed(3));
+  assert.ok(Math.abs(S.beam) < 1e-6, 'pointing ' + S.beam);
+  // a uniform plane wave arriving 10 degrees off leaves at 10 degrees, its gain down by its projected area and obliquity
+  const flat = steerField({ w: 1e6, R: Infinity, yh: 0, sb: 0, a, lam, path: () => 0 });
+  const tilt = steerField({ w: 1e6, R: Infinity, yh: 0, sb: Math.sin(10 * Math.PI / 180), a, lam, path: () => 0 });
+  assert.ok(Math.abs(tilt.beam - 10) < 0.05, 'beam at ' + tilt.beam);
+  const c = Math.cos(10 * Math.PI / 180), want = 10 * Math.log10(c * ((1 + c) / 2) ** 2);
+  assert.ok(Math.abs(10 * Math.log10(tilt.G / flat.G) - want) < 0.02, 'tilt loss ' + 10 * Math.log10(tilt.G / flat.G) + ' against ' + want);
+});
+
+test('a feed off the axis steers the beam the other way, a little less far; a faster lens loses more and its coma lobe rises', () => {
+  const lam = 12.5, a = 150, w = 100;
+  const scan = (f, deg) => {
+    const ref = steerField({ w, R: f, yh: 0, sb: 0, a, lam, path: hyper(f) });
+    const S = steerField({ w, R: f, yh: 0, sb: -Math.sin(deg * Math.PI / 180), a, lam, path: hyper(f) });
+    return { beam: -S.beam, loss: 10 * Math.log10(S.G / ref.G), lobe: S.lobe, ref: ref.lobe };
+  };
+  const slow = scan(300, 10), fast = scan(150, 10), far = scan(300, 20);
+  assert.ok(slow.beam > 8.5 && slow.beam < 10, 'beam deviation ' + slow.beam / 10);
+  assert.ok(fast.beam < slow.beam, 'a faster lens deviates less');
+  assert.ok(fast.loss < slow.loss - 0.3 && far.loss < slow.loss - 0.5, 'scan loss ' + [slow.loss, fast.loss, far.loss]);
+  assert.ok(fast.lobe > fast.ref + 10, 'coma lobe ' + fast.lobe + ' against ' + fast.ref + ' on the axis');
 });

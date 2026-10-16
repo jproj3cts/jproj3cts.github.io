@@ -176,6 +176,26 @@ so the gain $$G$$ is the directivity $$D$$ less what passes outside the lens (sp
 
 The pattern is the aperture field's Hankel transform, with the obliquity factor $$(1+\cos\theta)/2$$, plotted beside the horn's own: from it the half-power beamwidth and the first sidelobe. The readout gives the gain against the horn's alone. A lens that brings the beam to a waist nearer than its far field (about $$2D^2/\lambda$$, metres for a lens of ten wavelengths) works there as a focusing lens: these are still its figures far away, and the readout says so. The horn's light that passes outside the lens is left out of the pattern, which holds while that is a few percent.
 
+### Steering
+
+A horn moved off the lens's axis steers the beam the other way. The readout gives the beam's direction, the feed's, their ratio (the **beam deviation**, a little under 1), the **scan loss** against the horn on the axis, and the highest sidelobe; the **Steering** plot gives the scan loss and the highest sidelobe as the horn moves across, kept as far from the lens and aimed at its centre. These come from the aperture field across the whole lens, not only round about its axis: the arriving beam with its wavefront a sphere about the horn (whole, as the lens's coma needs, not only its curvature), times what the lens passes and the path through it at each radius. A graded-index lens is a thin plate on the bench too; a solid lens is taken as a thin plate of its focal length, with the horn as far from that plate's focus as it is from the solid lens's front focus. The far field is cut in the bench plane, where the horn moves:
+
+$$F(\theta) = \int dy\, e^{iky\sin\theta}\int dz\, E(y,z), \qquad G(\theta) = \frac{4\pi}{\lambda^2}\frac{|F(\theta)|^2}{P_\text{feed}}\left(\frac{1+\cos\theta}{2}\right)^2$$
+
+The beam's direction is the peak of $$G$$; the gain the readout gives off the axis is the gain on it less the scan loss. A lens slow against its size (a focal length long against its diameter) scans further for the same loss, and its coma lobe rises later.
+
+### How closely it must be made
+
+A printed plastic's permittivity is known to a few percent until tiles of it are measured, and the printer's flow moves it the same way. A permittivity $$\delta$$ off adds a path through the lens growing from its centre, a little extra lens: the focus moves, and with the horn left where it was the wavefront leaving the lens is no longer flat. The readout gives the gain change and the focus's move for $$\delta = \pm 5\%$$, and how far $$\delta$$ may go before the gain falls 1 dB.
+
+### The highest frequency
+
+A graded-index lens, or a printed matching layer, is a material to the wave only while its printed lines are fine against the wavelength: lines 0.45 mm wide at density $$F$$ lie about $$0.45/F$$ mm apart, and that is kept to a quarter of the wavelength in the plastic or less. Its least dense part sets the highest frequency it holds to,
+
+$$f_\text{max} = \frac{c\,F_\text{min}}{4\,n_\text{plastic} \times 0.45\ \text{mm}},$$
+
+which its panel gives, with the band over which its matching layers reflect under 1%. Above $$f_\text{max}$$ the structure scatters and the readout says the figures no longer hold. A lens designed at a frequency raises its least density to suit, so it holds to its design frequency at least.
+
 ## The parts
 
 | Part | What it is |

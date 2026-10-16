@@ -8518,6 +8518,36 @@ const TESTS = [
     },
   },
   {
+    name: 'A graded-index lens says the highest frequency it holds to, and warns above it',
+    why: 'the 24 GHz graded-index example: its least density was raised for 24 GHz, so it holds to 24 GHz, as its panel says; fed at 30 GHz its readout says the figures no longer hold (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(JSON.parse(getDemo('rf-24ghz-grin-lens'))); J.select('GRIN lens');
+      const at24 = /Highest frequency\s*24 GHz/.test(doc.querySelector('#panel').textContent) && !/no longer hold/.test(doc.querySelector('#panel [data-readout]').textContent);
+      J.setParam('Feed horn, 24 GHz', 'mmw.ghz', 30); J.select('GRIN lens');
+      return at24 && /no longer hold/.test(doc.querySelector('#panel [data-readout]').textContent) ? 1 : 0;
+    },
+  },
+  {
+    name: 'A horn off the axis steers an RF lens\u2019s beam the other way; the lens says how closely it must be made',
+    why: 'the ABS lens example, its horn moved 15 mm across and aimed at the lens: the beam leaves the other side, a little less far than the feed (beam deviation under 1), for a small scan loss and a higher sidelobe; the scan curve loses more the further it steers; the readout and the Steering plot show it; a permittivity 5% off moves the focus each way and costs a fraction of a dB, and the gain holds within 1 dB over a few percent (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = document.getElementById('rig').contentDocument;
+      J.load(JSON.parse(getDemo('rf-24ghz-abs-lens')));
+      const L = J.byName('ABS lens'), H = J.byName('Feed horn, 24 GHz');
+      J.setParam(H.name, 'y', L.y - 15); J.setParam(H.name, 'angle', Math.atan2(15, L.x - H.x) * 180 / Math.PI); J.select('ABS lens');
+      const S = J.lensSteer('ABS lens'), T = J.lensTolerance('ABS lens');
+      if (!S || !T) return 0;
+      const steer = S.feed < -5 && S.beam > 5 && S.beam / -S.feed > 0.85 && S.beam / -S.feed < 1 && S.loss < 0 && S.loss > -1 && S.lobe > S.refLobe;
+      const curve = S.curve.length > 10 && S.curve[S.curve.length - 1].loss < S.curve[5].loss && S.curve[0].loss === 0;
+      const ui = /Beam steered/.test(doc.querySelector('#panel [data-readout]').textContent) && [...doc.querySelectorAll('#panel h3')].some(x => x.textContent.trim() === 'Steering');
+      const tol = T.focusUp < 0 && T.focusDown > 0 && Math.abs(T.gainDb) < 1 && T.budget > 0.02 && T.budget < 0.5;
+      return steer && curve && ui && tol ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

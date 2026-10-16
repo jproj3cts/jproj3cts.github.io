@@ -110,3 +110,14 @@ test('matching layers: no reflection at the centre at the design frequency, the 
   }
   assert.ok(fn(0, 0, lam / 1.3)[0] < fn(0, 0, lam)[0] - 0.01, 'away from the design frequency the faces reflect again');
 });
+
+test('the highest frequency: where its least density is as coarse as the frequency allows; matching layers have a band about the design', () => {
+  // its least density raised for 24 GHz: it holds to 24 GHz exactly; set well above that, to higher
+  const raised = grinDesign(normGrin({ f: 150, ghz: 24, mat: 'PLA', fillMin: 15 }), 120);
+  assert.ok(raised.raised && Math.abs(raised.ghzMax - 24) < 1e-6, 'raised: ' + raised.ghzMax);
+  const low = grinDesign(normGrin({ f: 150, ghz: 10, mat: 'PLA', fillMin: 30 }), 120);
+  assert.ok(!low.raised && Math.abs(low.ghzMax / (10 * 30 / low.fillFreq) - 1) < 1e-9 && low.ghzMax > 10, 'not raised: ' + low.ghzMax);
+  const m = grinDesign(normGrin({ f: 150, ghz: 10, mat: 'PLA', fillMin: 30, match: true }), 120);
+  assert.ok(m.band && m.band[0] < 10 && m.band[1] > 10 && m.band[1] <= m.ghzMax, 'band ' + m.band);
+  assert.ok(m.reflM(m.nHi, Math.sqrt(m.nHi), C_NM_GHZ / m.band[0] * 1e-6) > 0.009, 'about 1% at its lower edge');
+});

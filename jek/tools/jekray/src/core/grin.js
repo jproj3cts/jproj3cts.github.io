@@ -83,6 +83,16 @@ export function grinDesign(g, dia) {
   let vol = 0;
   if (usable) for (let i = 0; i < 200; i++) { const r = (i + 0.5) * a / 200; vol += (fillAt(r) * t + layerFillAt(r) * 2 * tm) / 100 * 2 * Math.PI * r * (a / 200); }
   const grams = vol / 1000 * (M.density || 1.2);
+  // the highest frequency it holds to: where its least density's lines come a quarter wave in the
+  // plastic apart (above it the structure is coarse enough to scatter, and is no longer a material)
+  const ghzMax = usable ? C_NM_GHZ / (4 * M.n * GRIN_LINE * 100 / fillLo * 1e6) : 0;
+  // the band its matching layers work over: where the centre's face reflects under 1%
+  let band = null;
+  if (match) {
+    const n0 = nHi, nm0 = nmOf(nHi), R1 = f => reflM(n0, nm0, C_NM_GHZ / f * 1e-6);
+    const edge = dir => { let f = g.ghz; for (let k = 0; k < 400 && R1(f) < 0.01; k++) f *= 1 + dir * 0.005; return f; };
+    if (R1(g.ghz) < 0.01) band = [edge(-1), Math.min(edge(1), ghzMax)];
+  }
   const checks = [];
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
@@ -90,7 +100,7 @@ export function grinDesign(g, dia) {
     if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
-  return { M, eps, lam, a, t, tm, tTot, match, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
+  return { M, eps, lam, a, t, tm, tTot, match, ghzMax, band, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
     opdExpr: g.profile === 'parabolic' ? 'r^2/(2*' + fmt(g.f) + ')' : '(sqrt(r^2+' + fmt(g.f * g.f) + ')-' + fmt(g.f) + ')' };
 }
 /* the disc on the bench: a mask with the delay and amplitude its design gives */

@@ -8,7 +8,7 @@ import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert 
 import { C_MM } from '../core/modulators.js';
 import { RF_HORNS, RF_RX, RF_TX, applyRf, hornLam, normRf, normMount, mountedDia } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
-import { lensAntennaOf } from '../core/antenna.js';
+import { lensAntennaOf, lensSteerOf } from '../core/antenna.js';
 import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
@@ -769,6 +769,44 @@ export function rfLensPatternSection(el) {
     [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
       .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
     plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'lens_dB'], () => A.th.map((t, i) => [t, A.db[i]]));
+  });
+  rfLensSteerSection(el);
+}
+/* steering: the horn moved across, as far from the lens and aimed at its centre; the beam's
+   direction against the gain it loses and the highest sidelobe, and where the horn is now */
+function rfLensSteerSection(el) {
+  const head = h('h3', null, 'Steering'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' }), note = h('p', { class: 'note' }), lobes = h('p', { class: 'note' });
+  panel.append(head, cv, plotSaveRow(cv), note, lobes);
+  bindSync(cv, () => {
+    const S = lensAntennaOf(el) && lensSteerOf(el), sec = cv.closest('section') || cv.parentNode;
+    if (sec) sec.style.display = S && S.curve.length ? '' : 'none';
+    if (!S || !S.curve.length) return;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const C = S.curve, hi = Math.ceil(Math.max(...C.map(p => p.beam), 1) / 5) * 5, bot = Math.min(-3, Math.floor(Math.min(...C.map(p => p.loss))));
+    const sy = { kind: 'plain', title: 'scan loss, dB' }, sx = { kind: 'plain', title: 'beam off the axis, \u00b0' };
+    const P = plotArea(c, w, hgt, [bot, 0], sy), X = x => P.l + x / hi * P.w, Y = v => P.t + P.h - (Math.max(bot, Math.min(0, v)) - bot) / -bot * P.h;
+    c.save(); c.beginPath(); c.rect(P.l, P.t, P.w, P.h); c.clip();
+    c.strokeStyle = '#e0a030'; c.lineWidth = 1.5; c.beginPath();
+    C.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](X(p.beam), Y(p.loss))); c.stroke();
+    if (Math.abs(S.feed) >= 0.2) {                                   // the horn where it is now
+      c.fillStyle = '#e0a030'; c.beginPath(); c.arc(X(Math.abs(S.beam)), Y(S.loss), 3.5, 0, 2 * Math.PI); c.fill();
+    }
+    c.restore();
+    drawAxes(c, P, [0, hi], [bot, 0], sx, sy);
+    plotCsv(cv, el.name + ' steering', ['feed_deg', 'beam_deg', 'scan_loss_dB', 'sidelobe_dB'], () => C.map(p => [p.feed, p.beam, p.loss, p.lobe]));
+  });
+  bindSync(lobes, () => {});                                       // kept current, so they stay under their plot
+  bindSync(note, () => {
+    const S = lensAntennaOf(el) && lensSteerOf(el);
+    if (!S || !S.curve.length) { note.textContent = lobes.textContent = ''; return; }
+    const C = S.curve, at = deg => { for (let i = 1; i < C.length; i++) if (C[i].loss < deg) { const f = (deg - C[i - 1].loss) / (C[i].loss - C[i - 1].loss); return C[i - 1].beam + f * (C[i].beam - C[i - 1].beam); } return null; };
+    const b1 = at(-1), b3 = at(-3), end = C[C.length - 1], lob = v => (v === null ? 'none' : v.toFixed(0) + ' dB');
+    note.textContent = 'The horn moved across, as far from the lens and aimed at its centre; the beam leaves the other way. ' +
+      (b1 !== null ? 'Within 1 dB to ' + b1.toFixed(0) + '\u00b0' + (b3 !== null ? ', 3 dB to ' + b3.toFixed(0) + '\u00b0' : '') + '.' : 'Within 1 dB over all of it.') +
+      (Math.abs(S.feed) >= 0.2 ? ' The dot is the horn now.' : '');
+    lobes.textContent = 'Highest sidelobe ' + lob(C[0].lobe) + ' on the axis, ' + lob(end.lobe) + ' at ' + end.beam.toFixed(0) + '\u00b0 (each step in the CSV). A longer focal length scans further for the same loss.';
   });
 }
 /* an RF feed horn, sending or receiving: its frequency and power (a source), its type and size;

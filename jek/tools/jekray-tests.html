@@ -8614,6 +8614,43 @@ const TESTS = [
     },
   },
   {
+    name: 'The lens engine traces the bench’s own rays through an assembly exactly, out of the plane too',
+    why: 'the triplet assembly lit by a grid of rays (in the bench plane and above and below it), on the axis and 10° off it: each ray traced by the lens engine from where the source starts it lands on the sensor where the bench’s ray lands, with the same optical path (the largest difference, mm)',
+    want: 0, tol: 1e-9, unit: ' mm',
+    run: J => {
+      let worst = 0, skew = 0;
+      for (const deg of [0, 10]) {
+        const B = asmTriplet(), s = B.elements.find(e => e.type === 'source'), sn = Math.sin(deg * Math.PI / 180), cs = Math.cos(deg * Math.PI / 180);
+        // the beam aimed through the iris's centre, 52.767 mm back along it
+        Object.assign(s, { pattern: 'grid', rays: 7, width: 8, angle: deg, x: 12.767 - 52.767 * cs, y: -52.767 * sn });
+        J.load(B); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']); J.trace();
+        const name = J.assemblies()[0].name, n = 7, W = 8, at = i => i / (n - 1) - 0.5, H = J.hitsOn('Sensor');
+        const P = J.asmPrescription(name), len = P.gaps.reduce((a, b) => a + b, 0);
+        if (H.length < 40) return 99;
+        // each ray's start on the bench, in the engine's frame (z along the axis from the first vertex, y across it in the plane, x out of it)
+        const rays = H.map(h => { const t = at(Math.floor(h.k / n)) * W, u = at(h.k % n) * W; return [u, s.y + cs * t - P.origin[1], s.x - sn * t - P.origin[0], 0, sn, cs]; });
+        const E = J.lensTrace(name, 587.56, 60 - (P.origin[0] + len), rays);
+        H.forEach((h, q) => { const e = E.out[q]; if (Math.abs(h.z || 0) > 1e-6) skew++; worst = Math.max(worst, e[7] !== 0 ? 99 : 0, Math.abs(e[1] + h.y), Math.abs(e[0] - (h.z || 0)), Math.abs(e[6] - h.opl)); });
+      }
+      return skew > 40 ? worst : 99;
+    },
+  },
+  {
+    name: 'The lens engine’s first-order figures are the makers’ for their lens files',
+    why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
+    want: 12, tol: 0, unit: ' of 12',
+    run: J => {
+      let ok = 0;
+      for (const [stock, F] of Object.entries(EO_FILES)) {
+        const A = J.importZmxBytes(utf16Bytes(F.text), stock + '.zmx');
+        zmxOnBench(J, A.el);
+        const nm = stock === '88-164' ? 266 : 587.6, p = J.lensParaxial('ZL', nm), tol = Math.max(0.05, 1e-3 * Math.abs(F.efl));
+        if (Math.abs(p.efl - F.efl) <= tol && Math.abs(p.bfl - F.bfl) <= tol) ok++; else console.log('engine', stock, p.efl, p.bfl, F.efl, F.bfl);
+      }
+      return ok;
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

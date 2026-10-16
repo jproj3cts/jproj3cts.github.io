@@ -75,6 +75,7 @@ import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
 import { asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
+import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
@@ -345,6 +346,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return A.asm.name;
     },
     undo() { undo(); traceScene(); }, redo() { redo(); traceScene(); },
+    // the lens engine on an assembly: rays [x, y, z, L, M, N] in its own frame (z along its axis from the first
+    // vertex, y across it in the bench plane, x out of it), traced to the plane imageDist past its last surface
+    lensTrace(name, nm, imageDist, rays) {
+      const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm, { image: imageDist });
+      return { origin: P.origin, dir: P.dir, imageZ: S.imageZ, out: rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(S, R, 0, S.N - 1); if (R[7] === 0) { const t = (S.imageZ - R[2]) / R[5]; R[0] += R[3] * t; R[1] += R[4] * t; R[2] = S.imageZ; R[6] += t; } return Array.from(R); }) };
+    },
+    lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
+    lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },

@@ -128,6 +128,7 @@
  "ui/closeup.js",
  "engines/diffraction.js",
  "engines/antenna-field.js",
+ "engines/lens-engine.js",
  "engines/pd-cavity.js",
  "engines/pulse.js",
  "engines/screen-stats.js",

@@ -1274,6 +1274,9 @@
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
   .rt-ltable td.tl { white-space: nowrap; }
+  .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
+  .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
+  .rt-lsheet { display: block; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
   .rt-ltable tr.sel { background: rgba(0,146,178,0.1) !important; box-shadow: inset 3px 0 0 var(--jek-cyan); }

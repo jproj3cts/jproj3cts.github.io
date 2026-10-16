@@ -1287,6 +1287,9 @@
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
   .rt-ltable td.tl { white-space: nowrap; }
+  .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
+  .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
+  .rt-lsheet { display: block; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
   .rt-ltable tr.sel { background: rgba(0,146,178,0.1) !important; box-shadow: inset 3px 0 0 var(--jek-cyan); }
@@ -22173,6 +22176,200 @@ function histogram(parent, vals, k, u, nominal, p90) {
   return cv;
 }
 /* ==========================================================================
+   Lens drawings: each lens of a design on an A4 sheet, landscape, to be made from
+   The sheet is drawn with the canvas's own calls (points, 842 by 595), so the same drawing is shown
+   in the workspace and written out as SVG or PDF: on the left the lens in section, to a standard
+   scale, with its diameter, its thicknesses at the centre and its edge thickness dimensioned; on the
+   right a table of its surfaces and its glass, with the tolerances in ISO 10110's notation; notes,
+   and a title block.
+   ========================================================================== */
+const SHEET_W = 842, SHEET_H = 595, PT = 72 / 25.4;
+const SH_INK = '#1b1f24', SH_SOFT = '#5b6570', SH_GLASS = '#dbe9ef';
+const SH_SCALES = [[10, 1], [5, 1], [4, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 10]];
+const dfmt = (v, p) => !isFinite(v) ? '—' : String(+(+v).toFixed(p === undefined ? 3 : p));
+const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
+
+/* the drawing data of each drawable part of the assembly, in order */
+function lensDrawings(asm) {
+  const P = designPrescription(asm), T = asm.design && asm.design.tol;
+  return drawableParts(P).map(pi => {
+    const e = getEl(P.parts[pi].id);
+    return drawingData(P, pi, { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T });
+  });
+}
+
+function arrowLine(g, x0, y0, x1, y1) {
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  const head = (x, y, ux, uy) => { g.beginPath(); g.moveTo(x, y); g.lineTo(x + 6 * ux - 2.2 * uy, y + 6 * uy + 2.2 * ux); g.lineTo(x + 6 * ux + 2.2 * uy, y + 6 * uy - 2.2 * ux); g.closePath(); g.fill(); };
+  const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L;
+  if (L >= 16) { head(x0, y0, ux, uy); head(x1, y1, -ux, -uy); return; }
+  // too short for the heads between: outside, pointing in
+  g.beginPath(); g.moveTo(x0 - 12 * ux, y0 - 12 * uy); g.lineTo(x0, y0); g.moveTo(x1, y1); g.lineTo(x1 + 12 * ux, y1 + 12 * uy); g.stroke();
+  head(x0, y0, -ux, -uy); head(x1, y1, ux, uy);
+}
+function text(g, t, x, y, o) {
+  o = o || {};
+  g.font = (o.bold ? '600 ' : '') + (o.size || 8) + 'px ' + (o.mono ? 'Courier, monospace' : 'Helvetica, Arial, sans-serif');
+  g.fillStyle = o.ink || SH_INK; g.textAlign = o.align || 'left'; g.textBaseline = o.base || 'alphabetic';
+  g.fillText(t, x, y);
+}
+
+/* the sheet, drawn into g (a canvas context or a VecCtx); meta { assembly, sheet, of, date } */
+function drawSheet(g, D, meta) {
+  meta = meta || {};
+  g.save();
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, SHEET_W, SHEET_H);
+  g.strokeStyle = SH_INK; g.lineWidth = 1.2; g.strokeRect(18, 18, SHEET_W - 36, SHEET_H - 36);
+  g.lineWidth = 0.5; g.strokeRect(22, 22, SHEET_W - 44, SHEET_H - 44);
+  // ---- the section, to scale ----
+  const box = { x: 40, y: 50, w: 400, h: 330 }, r = D.dia / 2;
+  const span = D.length + 2 * Math.max(0, ...D.surfaces.map(s => isFinite(s.sagRim) ? Math.abs(s.sagRim) : 0));
+  const [sa, sb] = SH_SCALES.find(([a, b]) => D.dia * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
+  const k = sa / sb * PT, cx = box.x + box.w / 2 - D.length * k / 2, cy = box.y + box.h / 2;
+  const zs = [0]; D.elements.forEach(e => zs.push(zs[zs.length - 1] + e.ct));
+  const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z) * k; };
+  const Y = y => cy - y * k;
+  // each glass between its two surfaces, the rim straight across
+  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]); for (let q = 0; q <= 40; q++) { const y = -h0 + 2 * h0 * q / 40; out.push([X(j, y), Y(y)]); } return out; };
+  D.elements.forEach((e, i) => {
+    if (e.air) return;
+    const a = prof(i), b = prof(i + 1).reverse();
+    g.beginPath(); a.forEach(([x, y], q) => q ? g.lineTo(x, y) : g.moveTo(x, y)); b.forEach(([x, y]) => g.lineTo(x, y)); g.closePath();
+    g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
+  });
+  // the axis, dash-dot
+  g.strokeStyle = SH_SOFT; g.lineWidth = 0.5; g.setLineDash([14, 3, 2, 3]);
+  g.beginPath(); g.moveTo(cx - 30, cy); g.lineTo(cx + D.length * k + 30, cy); g.stroke(); g.setLineDash([]);
+  // the clear apertures: a short tick at each surface's edge of use
+  g.strokeStyle = '#2f7d95'; g.lineWidth = 0.8;
+  D.surfaces.forEach((s, j) => { const hh = s.clear / 2; if (hh >= r - 1e-9) return; for (const y of [hh, -hh]) { const x = X(j, y); g.beginPath(); g.moveTo(x - 4, Y(y)); g.lineTo(x + 4, Y(y)); g.stroke(); } });
+  // dimensions: the diameter on the left; each centre thickness below; each edge thickness above
+  g.strokeStyle = SH_INK; g.fillStyle = SH_INK; g.lineWidth = 0.5;
+  const xl = Math.min(...D.surfaces.map((s, j) => Math.min(X(j, r), X(j, 0)))) - 26;
+  for (const y of [r, -r]) { g.beginPath(); g.moveTo(X(0, y) - 3, Y(y)); g.lineTo(xl - 5, Y(y)); g.stroke(); }
+  arrowLine(g, xl, Y(r), xl, Y(-r));
+  g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia), 0, 0, { align: 'center', size: 9 }); g.restore();
+  D.elements.forEach((e, i) => {
+    if (e.air) return;
+    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-r) + 22 + 14 * (i % 2), yt = Y(r) - 22 - 14 * (i % 2);
+    for (const x of [xa, xb]) { g.beginPath(); g.moveTo(x, cy + 3); g.lineTo(x, yb + 4); g.stroke(); }
+    arrowLine(g, xa, yb, xb, yb);
+    text(g, dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''), (xa + xb) / 2, yb + 11, { align: 'center', size: 8.5 });
+    if (isFinite(e.et)) {
+      const ea = X(i, r), eb = X(i + 1, r);
+      for (const x of [ea, eb]) { g.beginPath(); g.moveTo(x, Y(r) - 3); g.lineTo(x, yt - 4); g.stroke(); }
+      arrowLine(g, ea, yt, eb, yt);
+      text(g, '(' + dfmt(e.et) + ')', (ea + eb) / 2, yt - 5, { align: 'center', size: 8.5 });
+    }
+  });
+  // each surface's number on its face
+  D.surfaces.forEach((s, j) => text(g, 'S' + s.n, X(j, 0) + (j === 0 ? -4 : 4), cy - 4, { align: j === 0 ? 'right' : 'left', size: 7, ink: SH_SOFT }));
+  text(g, 'Light from the left. Scale ' + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
+
+  // ---- the table ----
+  const tx = 462, tw = SHEET_W - 40 - tx, cols = D.surfaces.length, c0 = 104, cw = (tw - c0) / cols;
+  let ty = 56;
+  const row = (label, vals, o) => {
+    o = o || {};
+    text(g, label, tx, ty, { size: 8, ink: o.head ? SH_INK : SH_SOFT, bold: o.head });
+    vals.forEach((v, j) => text(g, v, tx + c0 + j * cw, ty, { size: 8, mono: !o.head, bold: o.head }));
+    ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10;
+  };
+  text(g, 'Surfaces', tx, ty - 10, { size: 9.5, bold: true }); ty += 4;
+  row('', D.surfaces.map(s => 'S' + s.n), { head: true });
+  row('Radius R', D.surfaces.map(s => s.R === null ? 'Flat' : sgn(s.R) + (s.face ? ' ' + s.face : '')));
+  if (D.surfaces.some(s => s.dR !== undefined)) row('  tolerance', D.surfaces.map(s => s.dR === null || s.dR === undefined ? '—' : '± ' + dfmt(s.dR, 4)));
+  row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
+  if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
+  if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
+  if (D.surfaces.some(s => s.form !== undefined)) row('3/ Surface form', D.surfaces.map(s => s.form === undefined ? '—' : '3/' + dfmt(s.form, 2) + '(-)'));
+  if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
+  ty += 10;
+  text(g, D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
+  const gl = D.elements.filter(e => !e.air), gw = (tw - c0) / Math.max(1, gl.length);
+  const grow = (label, f) => { text(g, label, tx, ty, { size: 8, ink: SH_SOFT }); gl.forEach((e, q) => text(g, f(e), tx + c0 + q * gw, ty, { size: 8, mono: true })); ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10; };
+  grow('Between', e => 'S' + D.surfaces[e.from].n + '–S' + D.surfaces[e.from + 1].n);
+  grow('Material', e => e.glass);
+  grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
+  grow('Abbe number Vd', e => dfmt(e.vd, 2) + (e.vdTol ? ' ± ' + dfmt(e.vdTol, 2) : ''));
+  grow('Centre thickness', e => dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''));
+  grow('Edge thickness', e => '(' + dfmt(e.et) + ')');
+
+  // ---- notes ----
+  ty += 8;
+  text(g, 'Notes', tx, ty, { size: 9.5, bold: true }); ty += 13;
+  const notes = ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
+    'Edge thickness, in brackets, is a reference dimension at the full diameter.',
+    D.toleranced ? 'Surface form (3/): fringes of power at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
+  D.surfaces.forEach(s => {
+    if (!(s.A.length || s.a2 || s.odd)) return;
+    const terms = [];
+    if (s.a2) terms.push('A2 ' + s.a2.toExponential(5));
+    s.A.forEach((a, q) => { if (a) terms.push('A' + (4 + 2 * q) + ' ' + a.toExponential(5)); });
+    if (s.odd) s.odd.forEach((a, q) => { if (a) terms.push('B' + (q + 1) + ' ' + a.toExponential(5)); });
+    notes.push('S' + s.n + ' aspheric sag adds ' + terms.join(', ') + ' (ρ in mm).');
+  });
+  notes.push(...D.notes);
+  const wrap = (t, n) => { const out = []; let line = ''; for (const w of t.split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
+  notes.forEach((t, i) => wrap(t, 72).forEach((ln, q) => { text(g, (q ? '    ' : (i + 1) + '. ') + ln, tx, ty, { size: 7.5 }); ty += 10; }));
+
+  // ---- the title block ----
+  const bx = SHEET_W - 22 - 330, by = SHEET_H - 22 - 92;
+  g.strokeStyle = SH_INK; g.lineWidth = 0.8; g.strokeRect(bx, by, 330, 92);
+  g.lineWidth = 0.5;
+  g.beginPath(); g.moveTo(bx, by + 40); g.lineTo(bx + 330, by + 40); g.moveTo(bx, by + 66); g.lineTo(bx + 330, by + 66);
+  g.moveTo(bx + 110, by + 40); g.lineTo(bx + 110, by + 92); g.moveTo(bx + 220, by + 40); g.lineTo(bx + 220, by + 92); g.stroke();
+  text(g, D.name, bx + 8, by + 18, { size: 14, bold: true });
+  text(g, (D.kind === 'window' ? 'Window' : 'Lens') + (meta.assembly ? ' in ' + meta.assembly : ''), bx + 8, by + 32, { size: 8.5, ink: SH_SOFT });
+  const cell = (x, y, label, v) => { text(g, label, x + 6, y + 10, { size: 6.5, ink: SH_SOFT }); text(g, v, x + 6, y + 21, { size: 8.5 }); };
+  cell(bx, by + 40, 'Scale', sa + ':' + sb); cell(bx + 110, by + 40, 'Units', 'mm'); cell(bx + 220, by + 40, 'Sheet', (meta.sheet || 1) + ' of ' + (meta.of || 1));
+  cell(bx, by + 66, 'Date', meta.date || new Date().toISOString().slice(0, 10)); cell(bx + 110, by + 66, 'Bench', meta.bench || project.name || '');
+  cell(bx + 220, by + 66, 'Drawn with', 'JEKray');
+  g.restore();
+}
+
+/* the sheets as records, for SVG or PDF */
+function sheetRecs(asm, which) {
+  const all = lensDrawings(asm), pick = which === undefined ? all.map((_, i) => i) : [which];
+  return pick.map((i, q) => { const rec = new VecCtx(SHEET_W, SHEET_H, { plain: true }); drawSheet(rec, all[i], { assembly: asm.name, sheet: q + 1, of: pick.length }); return { rec, D: all[i] }; });
+}
+function saveDrawingSvg(asm, i) {
+  const [{ rec, D }] = sheetRecs(asm, i), name = safeFileName(asm.name + ' - ' + D.name) + '.svg';
+  downloadFile(name, new Blob([layoutSvg(rec, D.name)], { type: 'image/svg+xml' }));
+  toast('Saved ' + name);
+  return name;
+}
+function drawingsPdfBlob(asm, i) { return pdfDoc(sheetRecs(asm, i).map(s => s.rec), asm.name + ' drawings'); }
+async function saveDrawingsPdf(asm, i) {
+  const all = lensDrawings(asm), name = safeFileName(asm.name + (i === undefined ? ' - drawings' : ' - ' + all[i].name)) + '.pdf';
+  downloadFile(name, await drawingsPdfBlob(asm, i));
+  toast('Saved ' + name);
+  return name;
+}
+/* the SVG text of one sheet, for the tests */
+function drawingSvgText(asm, i) { return layoutSvg(sheetRecs(asm, i)[0].rec); }
+
+/* the Drawings tab: a sheet shown for the lens chosen, and the ways to save it */
+function drawingsCard(asm, state) {
+  const all = lensDrawings(asm), card = h('div', { class: 'rt-lcard rt-ldraw', role: 'tabpanel' });
+  if (!all.length) { card.append(h('p', { class: 'rt-lnote' }, 'This assembly has no lens or window to draw: its mirrors and stop are made to the parts’ own drawings.')); return card; }
+  const i = Math.min(state.drawing || 0, all.length - 1);
+  const sel = h('select', { 'aria-label': 'Lens to draw', onchange: e => { state.drawing = +e.target.value; state.redraw(); } }, ...all.map((D, q) => h('option', { value: String(q), selected: q === i ? '' : null }, D.name)));
+  card.append(h('div', { class: 'rt-lbar' }, h('label', null, 'Drawing of ', sel),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingSvg(asm, i) }, 'Save as SVG'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingsPdf(asm, i) }, 'Save as PDF'),
+    all.length > 1 ? h('button', { class: 'rt-btn', type: 'button', title: 'Every lens of the assembly, a sheet each', onclick: () => saveDrawingsPdf(asm) }, 'All ' + all.length + ' as one PDF') : ''));
+  const cv = h('canvas', { class: 'rt-lsheet', role: 'img', 'aria-label': 'Drawing of ' + all[i].name + ': its section dimensioned, its surfaces and glass tabled with their tolerances' });
+  card.append(h('div', { class: 'rt-lsheetwrap' }, cv));
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, W = Math.min(cv.parentNode ? cv.parentNode.clientWidth : 900, 1100) || 900, s = W / SHEET_W;
+    cv.width = W * dpr; cv.height = SHEET_H * s * dpr; cv.style.width = W + 'px'; cv.style.height = SHEET_H * s + 'px';
+    const g = cv.getContext('2d'); g.scale(dpr * s, dpr * s);
+    drawSheet(g, all[i], { assembly: asm.name, sheet: 1, of: 1 });
+  });
+  return card;
+}
+/* ==========================================================================
    The lens design workspace
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
    by the lens engine, and its lens data, surface by surface, to edit as a lens designer does.
@@ -22289,7 +22486,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -22518,7 +22715,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('draw', 'Drawings'));
 }
 
 /* ---------- Lens data ---------- */
@@ -31174,6 +31371,77 @@ function tolRun(prob, args) {
   if (args.mode === 'sens') return tolSensitivity(prob, T, args.from, args.to);
   return { trials: tolMonteCarlo(prob, T, args.from, args.to) };
 }
+/* ==========================================================================
+   A lens drawn to be made: what its drawing says
+   Each lens (or window) of a design, as an optical drawing in the manner of ISO 10110 gives it:
+   its surfaces' radii, clear apertures and conics, each glass's thickness at the centre, its edge
+   thickness at its full diameter (a reference dimension, from the sags), its glass with its index
+   and Abbe number, and the tolerances the design's tolerance settings give, written as the
+   standard writes them:
+     3/ A(-)  surface form: A fringes of power at 632.8 nm over the clear aperture; the radius's own
+              tolerance follows from it (near A λ R² / h² for clear radius h; exactly, the spheres whose
+              sags there differ by A λ / 2, the larger change);
+     4/ σ     centring: each surface's tilt to the lens's reference axis, in arcminutes: the lens's
+              tilt tolerance plus its decentre over the surface's radius;
+     the thickness ± mm; the glass's nd ± Δn and νd ± per cent.
+   The light runs left to right, as on the lens data: a radius is positive with its centre to the right.
+   ========================================================================== */
+const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
+
+function drawSag(s, y) {
+  const c = s.R ? 1 / s.R : 0, r2 = y * y;
+  const q = 1 - (1 + (s.k || 0)) * c * c * r2;
+  if (q < 0) return NaN;
+  let v = c ? c * r2 / (1 + Math.sqrt(q)) : 0;
+  v += (s.a2 || 0) * r2;
+  let p = r2 * r2;
+  for (const a of s.A || []) { v += a * p; p *= r2; }
+  if (s.odd) { let r = Math.abs(y); for (const a of s.odd) { v += a * r; r *= Math.abs(y); } }
+  return v;
+}
+const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
+
+/* the parts of P a drawing can be made of: its lenses and windows, by index into P.parts */
+function drawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' || p.kind === 'window' ? pi : -1).filter(pi => pi >= 0); }
+
+/* the drawing's content for part pi of P: opts { name, dia (its full diameter, mm), T (the tolerance
+   settings, or none) } */
+function drawingData(P, pi, opts) {
+  opts = opts || {};
+  const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), part = P.parts[pi], n = part.n, T = opts.T || null;
+  const S = P.surfaces.slice(k0, k0 + n), G = P.gaps.slice(k0, k0 + n - 1), M = P.materials.slice(k0, k0 + n - 1);
+  const dia = opts.dia > 0 ? opts.dia : 2 * Math.max(...S.map(s => s.semi || 0)), rim = dia / 2;
+  const on = k => T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : null;
+  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe');
+  const surfaces = S.map((s, j) => {
+    const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
+    const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h,
+      sagClear: drawSag(s, h), sagRim: drawSag(s, rim) };
+    // convex or concave as the glass sees it: a front face (glass after it) convex with its centre behind it
+    const glassAfter = j < n - 1 && M[j].glass !== 'AIR', glassBefore = j > 0 && M[j - 1].glass !== 'AIR';
+    out.face = R === null ? 'flat' : glassAfter && !glassBefore ? (R > 0 ? 'CX' : 'CC') : glassBefore && !glassAfter ? (R < 0 ? 'CX' : 'CC') : '';
+    // the radius's tolerance: the spheres whose sags at the clear radius are A λ / 2 more and less (as tolerancing makes them)
+    if (fr !== null) {
+      out.form = fr;
+      const c0 = R ? 1 / R : 0, s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0;
+      out.dR = R === null ? null : Math.max(...[1, -1].map(q => { const s1 = s0 + q * Math.sign(c0) * fr * DRAW_LAMBDA / 2, c = 2 * s1 / (s1 * s1 + h * h); return Math.abs(1 / c - R); }));
+    }
+    if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
+    return out;
+  });
+  const elements = [];
+  for (let j = 0; j < n - 1; j++) {
+    const m = M[j], ct = G[j], et = ct + surfaces[j + 1].sagRim - surfaces[j].sagRim;
+    if (m.glass === 'AIR') { elements.push({ air: true, ct, et, from: j }); continue; }
+    const nd = refIndex(m, 587.56), vd = vdOf(m);
+    elements.push({ from: j, glass: m.glass === 'Model' ? 'Model glass' : matLabel(m), model: m.glass === 'Model', nd, vd, ct, et,
+      ctTol: thk, ndTol: dn, vdTol: dv !== null && isFinite(vd) ? vd * dv / 100 : null });
+  }
+  const notes = [];
+  surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
+  elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
+  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv].some(v => v !== null), notes };
+}
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
    allows, which for a good cavity is far short of its steady state. A diode that light
@@ -32715,8 +32983,8 @@ const cssColour = (() => {
   };
 })();
 class VecCtx {
-  constructor(w, h) {
-    this.w = w; this.h = h; this.ops = []; this.path = []; this.stack = [];
+  constructor(w, h, opts) {
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.ops = []; this.path = []; this.stack = [];
     this.M = [1, 0, 0, 1, 0, 0];
     this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
     this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
@@ -32807,7 +33075,7 @@ class VecCtx {
   drawImage(img, ...a) {
     if (!this.layer) {
       const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
-      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer ? null : 'screen', alpha: 1 });
+      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer || this.plain ? null : 'screen', alpha: 1 });
     }
     const g = this.layer.getContext('2d'), M = this.M;
     g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
@@ -32828,12 +33096,12 @@ function recordLayout() {
 const svgNum = v => +v.toFixed(2);
 const segsD = segs => segs.map(s => s[0] + (s.length > 1 ? s.slice(1).map(svgNum).join(' ') : '')).join('');
 const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function layoutSvg(rec) {
+function layoutSvg(rec, title) {
   const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   const op = (c, a) => { const o = c.a * a; return o < 0.999 ? ' ' + o.toFixed(3).replace(/0+$/, '') : ''; };
   const out = ['<?xml version="1.0" encoding="UTF-8"?>',
     '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) +
-    '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(project.name) + '</title>'];
+    '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(title || project.name) + '</title>'];
   for (const o of rec.ops) {
     const bl = o.blend ? ' style="mix-blend-mode:' + o.blend + '"' : '';
     if (o.k === 'path') {
@@ -32886,7 +33154,8 @@ function pdfText(t) {
   }
   return s;
 }
-async function layoutPdf(rec) {
+/* pages, each a VecCtx's record, as one PDF (the first page's title in its information) */
+async function pdfDoc(recs, title) {
   const n = v => +v.toFixed(3);
   const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
   const gsList = [], gsKey = new Map();
@@ -32896,34 +33165,37 @@ async function layoutPdf(rec) {
     return gsKey.get(k);
   };
   const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
-  const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
-  for (const o of rec.ops) {
-    if (o.k === 'path') {
-      const P = [];
-      for (const s of o.segs) {
-        if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
-        else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
-        else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
-        else P.push('h');
+  const streams = recs.map(rec => {
+    const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
+    for (const o of rec.ops) {
+      if (o.k === 'path') {
+        const P = [];
+        for (const s of o.segs) {
+          if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
+          else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
+          else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
+          else P.push('h');
+        }
+        if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
+        else {
+          C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
+            ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
+            o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
+        }
+      } else if (o.k === 'text') {
+        const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
+        // the standard font's own width differs from the browser's: squeeze it to fit
+        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
+        C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
+          [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
+      } else if (o.k === 'layer') {
+        C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
       }
-      if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
-      else {
-        C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
-          ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
-          o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
-      }
-    } else if (o.k === 'text') {
-      const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
-      // the standard font's own width differs from the browser's: squeeze it to fit
-      const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
-      C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
-        [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
-    } else if (o.k === 'layer') {
-      C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
     }
-  }
+    return Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
+  });
   // the pieces, each an object; byte offsets for the cross-reference table
-  const enc = new TextEncoder(), parts = [], offs = [];
+  const parts = [], offs = [];
   let len = 0;
   const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
   const obj = (i, body, stream) => {
@@ -32932,38 +33204,46 @@ async function layoutPdf(rec) {
     else put(i + ' 0 obj\n' + body + '\nendobj\n');
   };
   put('%PDF-1.4\n%âãÏÓ\n');
-  const content = Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
-  const zc = await deflateBytes(content);
-  let next = 6;
+  // 1 catalog, 2 pages, 3 information; then fonts and states, then each page: page, contents, resources, image, mask
+  let next = 4;
   const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
   const gsIds = gsList.map(() => next++);
-  let imId = 0, smId = 0, img = null;
-  if (rec.layer) {
-    const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
-    const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
-    for (let i = 0; i < N; i++) { rgb[3 * i] = d[4 * i]; rgb[3 * i + 1] = d[4 * i + 1]; rgb[3 * i + 2] = d[4 * i + 2]; al[i] = d[4 * i + 3]; }
-    img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
-    imId = next++; smId = next++;
+  const pages = [];
+  for (let i = 0; i < recs.length; i++) {
+    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: await deflateBytes(streams[i]) };
+    if (rec.layer) {
+      const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
+      const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
+      for (let q = 0; q < N; q++) { rgb[3 * q] = d[4 * q]; rgb[3 * q + 1] = d[4 * q + 1]; rgb[3 * q + 2] = d[4 * q + 2]; al[q] = d[4 * q + 3]; }
+      pg.img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
+      pg.imId = next++; pg.smId = next++;
+    }
+    pages.push(pg);
   }
   obj(1, '<</Type/Catalog/Pages 2 0 R>>');
-  obj(2, '<</Type/Pages/Kids[3 0 R]/Count 1>>');
-  obj(3, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents 4 0 R/Resources 5 0 R>>');
-  obj(4, '<<' + (zc ? '/Filter/FlateDecode' : '') + '>>', zc || content);
-  obj(5, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
-    (gsList.length ? '/ExtGState<<' + gsList.map((g, i) => '/G' + i + ' ' + gsIds[i] + ' 0 R').join('') + '>>' : '') +
-    (img ? '/XObject<</Im1 ' + imId + ' 0 R>>' : '') + '>>');
+  obj(2, '<</Type/Pages/Kids[' + pages.map(p => p.id + ' 0 R').join(' ') + ']/Count ' + pages.length + '>>');
+  obj(3, '<</Title(' + pdfText(title || project.name) + ')/Producer(JEKray)>>');
   for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
   gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? (g.bm === 'multiply' ? '/BM/Multiply' : '/BM/Screen') : '') + '>>'));
-  if (img) {
-    const F = img.z ? '/Filter/FlateDecode' : '';
-    obj(imId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + smId + ' 0 R' + F + '>>', img.rgb);
-    obj(smId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', img.al);
-  }
+  pages.forEach((pg, i) => {
+    const rec = recs[i];
+    obj(pg.id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents ' + pg.cid + ' 0 R/Resources ' + pg.rid + ' 0 R>>');
+    obj(pg.cid, '<<' + (pg.zc ? '/Filter/FlateDecode' : '') + '>>', pg.zc || streams[i]);
+    obj(pg.rid, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
+      (gsList.length ? '/ExtGState<<' + gsList.map((g, q) => '/G' + q + ' ' + gsIds[q] + ' 0 R').join('') + '>>' : '') +
+      (pg.img ? '/XObject<</Im1 ' + pg.imId + ' 0 R>>' : '') + '>>');
+    if (pg.img) {
+      const F = pg.img.z ? '/Filter/FlateDecode' : '';
+      obj(pg.imId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + pg.smId + ' 0 R' + F + '>>', pg.img.rgb);
+      obj(pg.smId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', pg.img.al);
+    }
+  });
   const xref = len, count = offs.length;
   put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
-  put('trailer\n<</Size ' + count + '/Root 1 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
+  put('trailer\n<</Size ' + count + '/Root 1 0 R/Info 3 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
   return new Blob(parts, { type: 'application/pdf' });
 }
+const layoutPdf = rec => pdfDoc([rec]);
 /* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
 async function exportLayout(kind, view) {
   const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');
@@ -38665,6 +38945,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
+    // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
+    lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
+    lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
+    async lensDrawingsPdf(name, i) { const a = assemblies().find(x => x.name === name); return a ? await (await drawingsPdfBlob(a, i)).text() : null; },
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }

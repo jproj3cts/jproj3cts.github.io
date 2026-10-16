@@ -22,9 +22,9 @@ export const cssColour = (() => {
     memo.set(s, out); return out;
   };
 })();
-class VecCtx {
-  constructor(w, h) {
-    this.w = w; this.h = h; this.ops = []; this.path = []; this.stack = [];
+export class VecCtx {
+  constructor(w, h, opts) {
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.ops = []; this.path = []; this.stack = [];
     this.M = [1, 0, 0, 1, 0, 0];
     this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
     this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
@@ -115,7 +115,7 @@ class VecCtx {
   drawImage(img, ...a) {
     if (!this.layer) {
       const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
-      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer ? null : 'screen', alpha: 1 });
+      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer || this.plain ? null : 'screen', alpha: 1 });
     }
     const g = this.layer.getContext('2d'), M = this.M;
     g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
@@ -136,12 +136,12 @@ export function recordLayout() {
 const svgNum = v => +v.toFixed(2);
 const segsD = segs => segs.map(s => s[0] + (s.length > 1 ? s.slice(1).map(svgNum).join(' ') : '')).join('');
 const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-export function layoutSvg(rec) {
+export function layoutSvg(rec, title) {
   const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   const op = (c, a) => { const o = c.a * a; return o < 0.999 ? ' ' + o.toFixed(3).replace(/0+$/, '') : ''; };
   const out = ['<?xml version="1.0" encoding="UTF-8"?>',
     '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) +
-    '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(project.name) + '</title>'];
+    '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(title || project.name) + '</title>'];
   for (const o of rec.ops) {
     const bl = o.blend ? ' style="mix-blend-mode:' + o.blend + '"' : '';
     if (o.k === 'path') {
@@ -194,7 +194,8 @@ function pdfText(t) {
   }
   return s;
 }
-async function layoutPdf(rec) {
+/* pages, each a VecCtx's record, as one PDF (the first page's title in its information) */
+export async function pdfDoc(recs, title) {
   const n = v => +v.toFixed(3);
   const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
   const gsList = [], gsKey = new Map();
@@ -204,34 +205,37 @@ async function layoutPdf(rec) {
     return gsKey.get(k);
   };
   const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
-  const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
-  for (const o of rec.ops) {
-    if (o.k === 'path') {
-      const P = [];
-      for (const s of o.segs) {
-        if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
-        else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
-        else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
-        else P.push('h');
+  const streams = recs.map(rec => {
+    const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
+    for (const o of rec.ops) {
+      if (o.k === 'path') {
+        const P = [];
+        for (const s of o.segs) {
+          if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
+          else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
+          else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
+          else P.push('h');
+        }
+        if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
+        else {
+          C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
+            ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
+            o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
+        }
+      } else if (o.k === 'text') {
+        const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
+        // the standard font's own width differs from the browser's: squeeze it to fit
+        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
+        C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
+          [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
+      } else if (o.k === 'layer') {
+        C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
       }
-      if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
-      else {
-        C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
-          ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
-          o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
-      }
-    } else if (o.k === 'text') {
-      const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
-      // the standard font's own width differs from the browser's: squeeze it to fit
-      const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
-      C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
-        [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
-    } else if (o.k === 'layer') {
-      C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
     }
-  }
+    return Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
+  });
   // the pieces, each an object; byte offsets for the cross-reference table
-  const enc = new TextEncoder(), parts = [], offs = [];
+  const parts = [], offs = [];
   let len = 0;
   const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
   const obj = (i, body, stream) => {
@@ -240,38 +244,46 @@ async function layoutPdf(rec) {
     else put(i + ' 0 obj\n' + body + '\nendobj\n');
   };
   put('%PDF-1.4\n%âãÏÓ\n');
-  const content = Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
-  const zc = await deflateBytes(content);
-  let next = 6;
+  // 1 catalog, 2 pages, 3 information; then fonts and states, then each page: page, contents, resources, image, mask
+  let next = 4;
   const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
   const gsIds = gsList.map(() => next++);
-  let imId = 0, smId = 0, img = null;
-  if (rec.layer) {
-    const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
-    const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
-    for (let i = 0; i < N; i++) { rgb[3 * i] = d[4 * i]; rgb[3 * i + 1] = d[4 * i + 1]; rgb[3 * i + 2] = d[4 * i + 2]; al[i] = d[4 * i + 3]; }
-    img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
-    imId = next++; smId = next++;
+  const pages = [];
+  for (let i = 0; i < recs.length; i++) {
+    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: await deflateBytes(streams[i]) };
+    if (rec.layer) {
+      const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
+      const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
+      for (let q = 0; q < N; q++) { rgb[3 * q] = d[4 * q]; rgb[3 * q + 1] = d[4 * q + 1]; rgb[3 * q + 2] = d[4 * q + 2]; al[q] = d[4 * q + 3]; }
+      pg.img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
+      pg.imId = next++; pg.smId = next++;
+    }
+    pages.push(pg);
   }
   obj(1, '<</Type/Catalog/Pages 2 0 R>>');
-  obj(2, '<</Type/Pages/Kids[3 0 R]/Count 1>>');
-  obj(3, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents 4 0 R/Resources 5 0 R>>');
-  obj(4, '<<' + (zc ? '/Filter/FlateDecode' : '') + '>>', zc || content);
-  obj(5, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
-    (gsList.length ? '/ExtGState<<' + gsList.map((g, i) => '/G' + i + ' ' + gsIds[i] + ' 0 R').join('') + '>>' : '') +
-    (img ? '/XObject<</Im1 ' + imId + ' 0 R>>' : '') + '>>');
+  obj(2, '<</Type/Pages/Kids[' + pages.map(p => p.id + ' 0 R').join(' ') + ']/Count ' + pages.length + '>>');
+  obj(3, '<</Title(' + pdfText(title || project.name) + ')/Producer(JEKray)>>');
   for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
   gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? (g.bm === 'multiply' ? '/BM/Multiply' : '/BM/Screen') : '') + '>>'));
-  if (img) {
-    const F = img.z ? '/Filter/FlateDecode' : '';
-    obj(imId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + smId + ' 0 R' + F + '>>', img.rgb);
-    obj(smId, '<</Type/XObject/Subtype/Image/Width ' + img.w + '/Height ' + img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', img.al);
-  }
+  pages.forEach((pg, i) => {
+    const rec = recs[i];
+    obj(pg.id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents ' + pg.cid + ' 0 R/Resources ' + pg.rid + ' 0 R>>');
+    obj(pg.cid, '<<' + (pg.zc ? '/Filter/FlateDecode' : '') + '>>', pg.zc || streams[i]);
+    obj(pg.rid, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
+      (gsList.length ? '/ExtGState<<' + gsList.map((g, q) => '/G' + q + ' ' + gsIds[q] + ' 0 R').join('') + '>>' : '') +
+      (pg.img ? '/XObject<</Im1 ' + pg.imId + ' 0 R>>' : '') + '>>');
+    if (pg.img) {
+      const F = pg.img.z ? '/Filter/FlateDecode' : '';
+      obj(pg.imId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + pg.smId + ' 0 R' + F + '>>', pg.img.rgb);
+      obj(pg.smId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', pg.img.al);
+    }
+  });
   const xref = len, count = offs.length;
   put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
-  put('trailer\n<</Size ' + count + '/Root 1 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
+  put('trailer\n<</Size ' + count + '/Root 1 0 R/Info 3 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
   return new Blob(parts, { type: 'application/pdf' });
 }
+const layoutPdf = rec => pdfDoc([rec]);
 /* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
 export async function exportLayout(kind, view) {
   const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');

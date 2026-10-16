@@ -8921,6 +8921,31 @@ const TESTS = [
     },
   },
   {
+    name: 'Each lens of a design has a drawing, shown in the workspace and saved as SVG and as one PDF',
+    why: 'the Cooke triplet: three drawings (its stop has none), each lens’s centre thickness its own and its edge thickness its sags’; the first sheet’s SVG names the lens and gives its surface form 3/3(-) and its scale; the Drawings tab shows a sheet for the lens chosen; all three as one PDF has three pages (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const D = J.lensDrawings('Cooke triplet');
+      if (!D || D.length !== 3) return 0;
+      const front = J.byName('Front'), sag = (R, h) => R ? R - Math.sign(R) * Math.sqrt(R * R - h * h) : 0, r = front.diameter / 2;
+      const et = front.gaps[0] + sag(front.surfaces[1].R, r) - sag(front.surfaces[0].R, r);
+      const dataOk = Math.abs(D[0].elements[0].ct - front.gaps[0]) < 1e-12 && Math.abs(D[0].elements[0].et - et) < 1e-9 && D[0].name === 'Front';
+      const svg = J.lensDrawingSvg('Cooke triplet', 0), svgOk = /<svg/.test(svg) && />Front</.test(svg) && /3\/3\(-\)/.test(svg) && /Scale \d+:\d+/.test(svg);
+      J.openLensDesign('Cooke triplet');
+      let tabOk = false;
+      try {
+        wsClick('Drawings', null, 'tab');
+        await new Promise(res => rigWin().requestAnimationFrame(() => res()));
+        const sel = rigDoc().querySelector('#lensWs .rt-ldraw select'), cv = rigDoc().querySelector('#lensWs .rt-ldraw canvas');
+        tabOk = !!sel && sel.options.length === 3 && !!cv && cv.width > 300;
+      } finally { J.closeLensDesign(); }
+      const pdf = await J.lensDrawingsPdf('Cooke triplet'), pdfOk = /^%PDF-1\.4/.test(pdf) && /\/Count 3>>/.test(pdf) && (pdf.match(/\/Type\/Page\//g) || []).length === 3 && /%%EOF\s*$/.test(pdf);
+      if (!(dataOk && svgOk && tabOk && pdfOk)) console.log('drawings', dataOk, svgOk, tabOk, pdfOk);
+      return dataOk && svgOk && tabOk && pdfOk ? 1 : 0;
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

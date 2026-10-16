@@ -8597,7 +8597,7 @@ const TESTS = [
   },
   {
     name: 'An assembly is kept through saving, undo and copying, and a new design starts as one',
-    why: 'the triplet assembly saved and opened again is still one; undone, it is gone, redone, back; copied and pasted, the copy is an assembly of its own; File › New lens design puts a stop and a singlet on the bench as an assembly (1 when all hold)',
+    why: 'the triplet assembly saved and opened again is still one; undone, it is gone, redone, back; copied and pasted, the copy is an assembly of its own; File › New lens design puts a stop and a singlet on the bench as an assembly, open in the lens design workspace (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
@@ -8609,7 +8609,8 @@ const TESTS = [
       J.paste(J.copy(['Front', 'Middle', 'Iris', 'Back']));
       const two = J.assemblies(), copied = two.length === 2 && two[0].id !== two[1].id && /copy/.test(two[1].name);
       J.load({ format: 'jekray', version: 1, elements: [] });
-      const nd = J.newLensDesign(), fresh = J.assemblies().length === 1 && J.asmPrescription(nd).stopIndex === 0;
+      const nd = J.newLensDesign(), fresh = J.assemblies().length === 1 && J.asmPrescription(nd).stopIndex === 0 && J.lensDesignOpen();
+      J.closeLensDesign();
       return saved && undone && redone && copied && fresh ? 1 : 0;
     },
   },
@@ -8633,6 +8634,104 @@ const TESTS = [
         H.forEach((h, q) => { const e = E.out[q]; if (Math.abs(h.z || 0) > 1e-6) skew++; worst = Math.max(worst, e[7] !== 0 ? 99 : 0, Math.abs(e[1] + h.y), Math.abs(e[0] - (h.z || 0)), Math.abs(e[6] - h.opl)); });
       }
       return skew > 40 ? worst : 99;
+    },
+  },
+  {
+    name: 'A Cooke triplet typed into the lens data from its published prescription has its focal length and Seidel sums',
+    why: 'File › New lens design, two singlets inserted in front, then the published triplet (f 50 mm, a 10 mm pupil, fields to 20°, F d C) typed into the lens data table cell by cell: its focal length and its Seidel sums SI to SV against an independent program’s (theirs of the other sign), and its axial and lateral colour (the largest relative difference)',
+    want: 0, tol: 1e-6, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const name = J.newLensDesign();
+      try {
+        for (let k = 0; k < 2; k++) { wsPick('OBJ'); wsClick('Insert a singlet'); }
+        const R = [22.01359, -435.76044, -22.21328, 20.29192, null, 79.68360, -18.39533], T = [3.25896, 6.00755, 0.99997, 0, 4.75041, 2.95208];
+        R.forEach((r, i) => { if (r !== null) wsSet('Radius of surface ' + (i + 1), r); });
+        T.forEach((t, i) => wsSet('Thickness of surface ' + (i + 1), t));
+        wsSet('Glass after surface 1', 'N-SK16'); wsSet('Glass after surface 3', 'F2'); wsSet('Glass after surface 6', 'N-SK16');
+        wsSet('Aperture', 10); wsSet('Field 2 angle', 14); wsClick('Add a field'); wsSet('Field 3 angle', 20);
+        const F = J.lensFigures(name), rel = (a, b) => Math.abs(a - b) / Math.abs(b);
+        const ref = { SI: 0.007144034865382245, SII: -0.001242131665798262, SIII: -0.009038342416049658, SIV: 0.025827585117030673, SV: -0.001779312634286496 };
+        let worst = rel(F.efl, 50.021349564043355);
+        for (const k in ref) worst = Math.max(worst, rel(F.seidel[k], ref[k]));
+        worst = Math.max(worst, rel(F.seidel.CL, 7.969853e-4) / 1e3, rel(F.seidel.CT, 9.118937e-5) / 1e3);
+        return F.surfaces === 7 && Math.abs(F.epd - 10) < 1e-9 ? worst : 99;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'In the lens data, solves, pickups and variables are set, kept and undone',
+    why: 'the triplet assembly opened with Design…: its last radius solved for f/4 (the focal length 4 times the pupil), its fourth radius picking up the third’s turned, its first thickness solved for a 1 mm edge, its second thickness marked V; the image kept at focus; one Undo takes the edge solve away; saved and opened again all are kept, and its parts on the bench are as designed (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const name = J.assemblies()[0].name;
+      if (!J.openLensDesign(name)) return 0;
+      try {
+        wsPop('radius of surface 7', 'fno', { 'F-number': 4 });
+        const f1 = J.lensFigures(name), fnoOk = Math.abs(f1.efl - 4 * f1.epd) < 1e-9;
+        wsPop('radius of surface 4', 'pick', { From: 'surface 3', Scale: -1 });
+        const pickOk = Math.abs(J.byName('Middle').surfaces[1].R - 22.213) < 1e-12;
+        wsClick('V', 'Vary thickness of surface 2');
+        wsPop('thickness of surface 1', 'edge', { 'Edge thickness': 1 });
+        const P = J.asmPrescription(name), sag = (R, h) => R ? R - Math.sign(R) * Math.sqrt(R * R - h * h) : 0;
+        const edge = P.gaps[0] + sag(P.surfaces[1].R, 10) - sag(P.surfaces[0].R, 10), edgeOk = Math.abs(edge - 1) < 1e-9;
+        const f2 = J.lensFigures(name), focusOk = Math.abs(f2.image - f2.bfl) < 1e-9;
+        wsClick('Undo');
+        const f3 = J.lensFigures(name), undoOk = !f3.design.solves['t:' + J.byName('Front').id + '.0'] && Math.abs(J.byName('Front').gaps[0] - 3.259) < 1e-9 && f3.design.solves['R:' + J.byName('Back').id + '.1'];
+        J.closeLensDesign();
+        J.load(J.serialize());
+        const f4 = J.lensFigures(name), d = f4.design;
+        const keptOk = d.solves['R:' + J.byName('Back').id + '.1'].v === 4 && d.pickups['R:' + J.byName('Middle').id + '.1'].scale === -1 && d.vars.includes('t:' + J.byName('Front').id + '.1') && Math.abs(f4.efl - 4 * f4.epd) < 1e-9;
+        return fnoOk && pickOk && edgeOk && focusOk && undoOk && keptOk ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'An assembly says when the bench uses it outside its design conditions, and takes the bench’s',
+    why: 'the triplet assembly lit as made is within its conditions; its source turned 6° and moved to 1064 nm, its panel says it is used outside them; Take conditions from the bench in its workspace gives fields 0 and 6°, 1064 nm and the 9 mm beam, and it is within them again; a new design placed on a bench gets a source for each field and a screen at its image (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const B = asmTriplet();
+      J.load(B); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const name = J.assemblies()[0].name;
+      const sel = () => { J.trace(); J.selectAssembly(name); return (rigDoc().querySelector('#panel .rt-asmnote') || {}).textContent || ''; };
+      const within = /Within its design conditions/.test(sel());
+      const s = J.byName('Field fan'), a = 6 * Math.PI / 180;
+      s.angle = 6; s.x = 12.767 - 52.767 * Math.cos(a); s.y = -52.767 * Math.sin(a); s.wavelength = 1064;
+      const out = sel(), outside = /Used outside its design conditions/.test(out) && /1064 nm/.test(out) && /6°/.test(out);
+      J.openLensDesign(name);
+      let took = false;
+      try {
+        wsClick('Take conditions from the bench');
+        const c = J.lensFigures(name).cond;
+        took = c.fields.map(f => f.deg).join() === '0,6' && c.waves.map(w => w.nm).join() === '1064' && Math.abs(c.aperture.v - 9) < 0.01 && /Taken from the light/.test(rigDoc().getElementById('lensWs').textContent);
+      } finally { J.closeLensDesign(); }
+      const again = /Within its design conditions/.test(sel());
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const nd = J.newLensDesign();
+      wsClick('Place on a bench');
+      const F = J.lensFigures(nd), srcs = J.serialize().elements.filter(e => e.type === 'source'), scr = J.serialize().elements.find(e => e.type === 'screen');
+      const P = J.asmPrescription(nd), zEnd = P.gaps.reduce((x, y) => x + y, 0);
+      const placed = !J.lensDesignOpen() && srcs.length === 2 && srcs.every(e => Math.abs(e.width - F.epd) < 1e-9) && scr && Math.abs(scr.x - (P.origin[0] + zEnd + F.image)) < 1e-6;
+      return within && outside && took && again && placed ? 1 : 0;
+    },
+  },
+  {
+    name: 'The lens design workspace opens on a double-click, keeps the bench’s keys to itself and closes on Esc',
+    why: 'the triplet assembly double-clicked on the bench opens its workspace; Delete pressed there leaves the bench’s parts be; Esc goes back to the bench with the assembly selected (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const cv = rigDoc().getElementById('bench'), r = cv.getBoundingClientRect(), [x, y] = J.elScreen('Middle');
+      cv.dispatchEvent(new (rigWin().MouseEvent)('dblclick', { bubbles: true, clientX: r.left + x, clientY: r.top + y }));
+      const opened = J.lensDesignOpen();
+      const ws = rigDoc().getElementById('lensWs');
+      ws.dispatchEvent(new (rigWin().KeyboardEvent)('keydown', { key: 'Delete', bubbles: true }));
+      const kept = J.serialize().elements.length === 6;
+      ws.dispatchEvent(new (rigWin().KeyboardEvent)('keydown', { key: 'Escape', bubbles: true }));
+      const closed = !J.lensDesignOpen() && ws.hidden;
+      return opened && kept && closed ? 1 : 0;
     },
   },
   {
@@ -8796,6 +8895,26 @@ function stlBench(J, src, o) {
   J.trace(); const el = J.byName(n);
   return { z: el.z, size: el.mesh.size, tris: el.mesh.n, hits: J.lastTrace().screens.Sc.map(h => +h.y.toFixed(2)).sort((a, b) => a - b) };
 }
+const rigWin = () => document.getElementById('rig').contentWindow, rigDoc = () => rigWin().document;
+/* the lens design workspace, driven as a person would: a value typed into the field of that label, a button by its text (and label) */
+const wsInputs = () => [...rigDoc().querySelectorAll('#lensWs input, #lensWs select')];
+const wsSet = (label, v) => { const i = wsInputs().find(x => x.getAttribute('aria-label') === label); if (!i) throw new Error('no field ' + label); i.value = String(v); i.dispatchEvent(new (rigWin().Event)('change')); };
+const wsClick = (text, label) => { const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => x.textContent.trim() === text && (!label || x.getAttribute('aria-label') === label)); if (!b) throw new Error('no button ' + text); b.click(); };
+const wsPick = n => { const td = [...rigDoc().querySelectorAll('#lensWs td.n')].find(x => x.textContent === n); td.parentNode.dispatchEvent(new (rigWin().MouseEvent)('click', { bubbles: true })); };
+/* a solve or pickup set with the button beside a value: its kind chosen, its fields filled, applied */
+const wsPop = (what, kind, vals) => {
+  const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => x.getAttribute('aria-label') === 'Solve or pickup for ' + what);
+  if (!b) throw new Error('no solve button for ' + what);
+  b.click();
+  const pop = rigDoc().querySelector('.rt-lpop'), sel = pop.querySelector('select');
+  sel.value = kind; sel.dispatchEvent(new (rigWin().Event)('change'));
+  for (const [k, v] of Object.entries(vals || {})) {
+    const f = [...pop.querySelectorAll('input, select')].find(x => x.getAttribute('aria-label') === k);
+    if (!f) throw new Error('no ' + k);
+    if (f.tagName === 'SELECT') f.value = [...f.options].find(o => o.textContent === v).value; else f.value = String(v);
+  }
+  [...pop.querySelectorAll('button')].find(x => x.textContent === 'Apply').click();
+};
 const asmTriplet = () => {
   const L = (name, x, R1, R2, t, glass) => ({ type: 'lens', name, x, y: 0, angle: 0, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
   return { format: 'jekray', version: 1, name: 'Triplet', elements: [

@@ -1226,3 +1226,81 @@
   .rt-grin-rings { width: 100%; margin-top: 0.4rem; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
   .rt-grin-rings th, .rt-grin-rings td { padding: 0.15rem 0.35rem; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.1); }
   .rt-grin-rings th { font-weight: 600; color: var(--jek-ink-soft); }
+
+  /* ---------- The lens design workspace ---------- */
+  .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
+  .rt-lens[hidden] { display: none !important; }
+  .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
+  .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
+  .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
+  .rt-lcrumb .from { color: var(--jek-ink-soft); white-space: nowrap; }
+  .rt-lname { font: inherit; font-weight: 600; max-width: 22rem; padding: 0.2rem 0.35rem; border: 1px solid transparent; border-radius: 2px; background: transparent; color: inherit; }
+  .rt-lname:hover, .rt-lname:focus { border-color: var(--jek-line-2); background: #fff; }
+  .rt-lpill { padding: 0.15rem 0.5rem; border-radius: 4px; background: #fdf1e6; color: #a2501a; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+  .rt-lgap { flex: 1; }
+  .rt-lbody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; }
+  .rt-lcard { background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); padding: 0.9rem 1rem; box-sizing: border-box; min-width: 0; }
+  .rt-lcard h2 { margin: 0 0 0.25rem; font-size: 1rem; }
+  .rt-lcard h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-lsub { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
+  .rt-lcond { flex: 1 1 17rem; max-width: 24rem; display: flex; flex-direction: column; }
+  .rt-lmain { flex: 999 1 36rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .rt-lrow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; flex-wrap: wrap; }
+  .rt-lrow select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; max-width: 15rem; }
+  .rt-lnum { width: 6.2rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
+  .rt-lnum.fixed { background: var(--jek-well); color: var(--jek-ink-soft); font-style: italic; }
+  .rt-lcond .rt-lnum { width: 5rem; }
+  .rt-lswatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
+  .rt-lx { width: 1.6rem; height: 1.6rem; flex: none; border: 0; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; cursor: pointer; border-radius: 2px; }
+  .rt-lx:hover { background: var(--jek-well); color: var(--jek-red); }
+  .rt-lens .rt-link { border: 0; background: none; padding: 0.2rem 0; color: var(--jek-cyan-dark, #007790); font: inherit; font-size: 0.85rem; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-right: 0.8rem; align-self: flex-start; }
+  .rt-ltake { margin-top: 0.9rem; white-space: normal; text-align: center; border-color: var(--jek-cyan); color: var(--jek-cyan-dark, #007790); font-weight: 600; min-height: 2.5rem; }
+  .rt-lnote { margin-top: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 4px; background: var(--jek-well); font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
+  .rt-lnote.good { background: #e5f3ec; color: #1f5b3c; }
+  .rt-llayout { background: #1e2227; border-color: #1e2227; padding: 0.6rem; }
+  .rt-lltop { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; color: #c9cfd6; font-size: 0.8rem; margin: 0 0.2rem 0.4rem; }
+  .rt-llayout canvas { display: block; width: 100%; border-radius: 4px; }
+  .rt-lfig { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.35rem 1rem; padding: 0.6rem 0.9rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); font-size: 0.82rem; }
+  .rt-lfig div { display: flex; flex-direction: column; min-width: 0; }
+  .rt-lfig span { color: var(--jek-ink-soft); font-size: 0.75rem; }
+  .rt-lfig b { font-weight: 500; overflow-wrap: anywhere; }
+  .rt-ltabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .rt-ltab { font: inherit; font-size: 0.875rem; font-weight: 600; padding: 0.45rem 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-ltwrap { overflow-x: auto; }
+  .rt-ltable { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.85rem; }
+  .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); white-space: nowrap; }
+  .rt-ltable td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--jek-line); vertical-align: middle; }
+  .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
+  .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
+  .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
+  .rt-ltable tr.sel { background: rgba(0,146,178,0.1) !important; box-shadow: inset 3px 0 0 var(--jek-cyan); }
+  .rt-ltable .ro { color: var(--jek-ink-soft); }
+  .rt-ltable tr.sum td { font-weight: 700; border-top: 2px solid var(--jek-line-2); }
+  .rt-lseidel { min-width: 40rem; }
+  .rt-lseidel td, .rt-lseidel th { text-align: right; }
+  .rt-lseidel td:first-child, .rt-lseidel th:first-child { text-align: left; }
+  .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
+  .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
+  .rt-lv:disabled { opacity: 0.35; cursor: default; }
+  .rt-ls.on { background: #e8f1f8; border-color: #a9cde0; color: #0b5f7a; }
+  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
+  .rt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.7rem; }
+  .rt-lkey { font-size: 0.8rem; color: var(--jek-ink-soft); margin-left: 0.3rem; }
+  .rt-lkey b { font-family: var(--jek-mono); }
+  .rt-lpop { position: fixed; z-index: 76; width: 17rem; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); font-size: 0.85rem; }
+  .rt-lpop select { font: inherit; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lpopb { display: flex; flex-direction: column; gap: 0.35rem; }
+  .rt-lpopb label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .rt-lpopb p { margin: 0; color: var(--jek-ink-soft); line-height: 1.4; }
+  .rt-lens .rt-toast { position: fixed; top: 4rem; z-index: 80; }
+  .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
+  .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
+  .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }
+  @media (max-width: 640px) {
+    .rt-lbody { padding: 0.6rem; }
+    .rt-lcond { max-width: none; }
+    .rt-lname { max-width: 10rem; }
+  }

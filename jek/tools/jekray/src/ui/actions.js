@@ -1,5 +1,5 @@
 import { LOCKED, clamp } from '../core/constants.js';
-import { asmCheck, asmOfSelection, normAssemblies } from '../core/assembly.js';
+import { asmCheck, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
 import { makeAssembly, splitAssembly } from './assembly.js';
 import { fmtLen } from '../core/format.js';
 import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
@@ -136,7 +136,7 @@ export function pasteClip(clip, at) {
   // a whole assembly copied: its record with it, for the copy's own group
   for (const a of Array.isArray(clip.assemblies) ? clip.assemblies : []) {
     if (!groups.has(a.id) || !map.has(a.ref)) continue;
-    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy' })], made));
+    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy', design: remapDesign(a.design, map) })], made));
   }
   project.fibres = project.fibres || [];
   for (const F of clip.fibres || []) {
@@ -435,7 +435,8 @@ export function setStatus(t) {
 }
 let toastTimer = null;
 export function toast(msg, bad) {
-  const t = document.getElementById(document.getElementById('home').hidden ? 'toast' : 'homeToast');
+  const ws = document.getElementById('lensWs');
+  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : document.getElementById('home').hidden ? 'toast' : 'homeToast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');

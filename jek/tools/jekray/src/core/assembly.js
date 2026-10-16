@@ -1,5 +1,5 @@
 import { clamp } from './constants.js';
-import { deg, num, project } from '../state/project.js';
+import { deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
    An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
@@ -38,10 +38,57 @@ export function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
   }
   return out;
 }
+
+/* ---------- The design: what a lens designer sets around the prescription ----------
+   (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
+   the values an optimiser may change, solves and pickups, each value named by a key:
+   "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
+export const DESIGN_KEY = /^([Rtk]):(.{1,120}\.\d+)$/;
+const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
+export const SOLVE_KINDS = {
+  focus: { on: k => k === 't:image', label: 'Paraxial focus' },
+  fno: { on: k => k[0] === 'R', label: 'F-number', v: 4 },
+  edge: { on: k => k[0] === 't' && k !== 't:image', label: 'Edge thickness', v: 1 },
+};
+export function normDesign(d) {
+  const fresh = !d || typeof d !== 'object';
+  d = fresh ? {} : d;
+  const vars = Array.isArray(d.vars) ? [...new Set(d.vars.filter(okKey))].slice(0, 500) : [];
+  const solves = {}, pickups = {};
+  const sv = d.solves && typeof d.solves === 'object' ? d.solves : fresh ? { 't:image': { kind: 'focus' } } : {};
+  for (const k of Object.keys(sv).slice(0, 500)) {
+    const s = sv[k], K = s && SOLVE_KINDS[s.kind];
+    if (!okKey(k) || !K || !K.on(k)) continue;
+    if (s.kind === 'focus') { solves[k] = { kind: 'focus' }; continue; }
+    let v = clamp(num(s.v, K.v), -1e3, 1e3);
+    if (s.kind === 'fno' && Math.abs(v) < 0.2) v = v < 0 ? -0.2 : 0.2;
+    if (s.kind === 'edge') v = Math.max(0, v);
+    solves[k] = { kind: s.kind, v };
+  }
+  const pk = d.pickups && typeof d.pickups === 'object' ? d.pickups : {};
+  for (const k of Object.keys(pk).slice(0, 500)) {
+    const p = pk[k];
+    if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
+    pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
+  }
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups };
+}
+/* a design's keys with part ids changed (an assembly pasted as a copy) */
+export function remapDesign(d, map) {
+  const k2 = k => { const m = DESIGN_KEY.exec(k); if (!m) return k; const j = m[2].lastIndexOf('.'), id = m[2].slice(0, j); return map.has(id) ? m[1] + ':' + map.get(id) + m[2].slice(j) : k; };
+  const o = {};
+  if (!d || typeof d !== 'object') return d;
+  o.image = d.image;
+  o.vars = (d.vars || []).map(k2);
+  o.solves = Object.fromEntries(Object.entries(d.solves || {}).map(([k, v]) => [k2(k), v]));
+  o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
+  return o;
+}
+
 export const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
 export const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
 export const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
@@ -147,7 +194,8 @@ export function asmPrescription(asm, els) {
 
 /* Writes a prescription back to the parts: each surface's shape to the surface it came from, each
    part's own thicknesses and glass, and each part's place along the axis from the gaps (the first
-   vertex stays where it is). The prescription must keep the parts' surfaces in the same order. */
+   vertex stays where it is). The prescription keeps the parts in the same order; a lens's surfaces
+   may be more or fewer than it had (a surface inserted or taken out in the design). */
 export function asmApply(asm, P, els) {
   els = els || asmMembers(asm);
   const byId = new Map(els.map(e => [e.id, e]));
@@ -163,12 +211,14 @@ export function asmApply(asm, P, els) {
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'lens') {
       const ss = p.flip ? S.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi })) : S;
-      ss.forEach((s, i) => {
-        const t = e.surfaces[i];
+      // a surface added in the prescription is a new, bare one on the part; one taken out goes from it
+      e.surfaces = ss.map((s, i) => {
+        const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
         t.R = s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
         // a clear radius that is the lens's own stays unset
         if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
         else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+        return t;
       });
       e.gaps = (p.flip ? G.slice().reverse() : G).slice();
       e.materials = (p.flip ? M.slice().reverse() : M).map(m => Object.assign({}, m));

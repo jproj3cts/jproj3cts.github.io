@@ -190,6 +190,22 @@ export function rayAt(S, th, px, py, R) {
   return R;
 }
 
+/* a ray's path through the system, for drawing: [y, z] where it starts (on the launch plane), at
+   each surface and on the image plane; lost: the surface it was stopped at, or -1 */
+export function rayPath(S, th, px, py) {
+  const ab = aimRay(S, th, px, py);
+  if (!ab) return null;
+  const R = launch(S, th, ab[0], ab[1], new Float64Array(8)), pts = [[R[1], R[2]]];
+  for (let i = 0; i < S.N; i++) {
+    traceRay(S, R, i, i);
+    pts.push([R[1], R[2]]);
+    if (R[7] !== 0) return { pts, lost: i };
+  }
+  toPlane(S, R, S.imageZ);
+  pts.push([R[1], R[2]]);
+  return { pts, lost: -1 };
+}
+
 /* ---------- A field ----------
    Its chief ray, and each pupil point's ray: where it lands on the image plane, and its wavefront
    error in waves (positive where its path to the reference sphere is longer than the chief ray's). */
@@ -260,4 +276,46 @@ export function spotOf(S, fieldDeg, pts) {
   F.rays.forEach((r, i) => { if (r.lost) return; const w = pts[i][2] || 1; s2 += w * ((r.x - mx) ** 2 + (r.y - my) ** 2); c2 += w * ((r.x - F.chief[0]) ** 2 + (r.y - F.chief[1]) ** 2); });
   const om = so / W;
   return { field: fieldDeg, chief: F.chief, centroid: [mx, my], rms: Math.sqrt(s2 / W), rmsChief: Math.sqrt(c2 / W), wfeRms: Math.sqrt(Math.max(0, so2 / W - om * om)), lost, F };
+}
+
+/* ---------- Third order: the Seidel sums ----------
+   From two paraxial rays: the marginal ray (height the entrance pupil's radius, parallel to the
+   axis) and the chief ray (through the entrance pupil's centre at the largest field's angle, its
+   paraxial slope the tangent of that angle). At each surface, A = n i and Ā = n ī are the two rays'
+   refraction invariants, Δ(u/n) the change in u/n across the surface, H the Lagrange invariant:
+     SI = -A² y Δ(u/n), SII = -A Ā y Δ(u/n), SIII = -Ā² y Δ(u/n), SIV = -H² c Δ(1/n),
+     SV = (Ā/A)(SIII + SIV), written -Ā³ y Δ(1/n²) + c Δ(1/n) Ā ȳ (Ā y + H) so it holds where A is 0,
+     CL = A y Δ(δn/n), CT = Ā y Δ(δn/n), δn the index at the shortest wavelength less that at the longest.
+   An aspheric surface adds 8 (n' - n) G y⁴ to SI, G its fourth-order sag beyond the sphere of its
+   paraxial curvature, and the same times ȳ/y, (ȳ/y)², (ȳ/y)³ to SII, SIII and SV. The sums are
+   wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has
+   SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
+   wavelength, Sshort and Slong at the shortest and longest (or null). */
+export function seidel(S, fieldDeg, Sshort, Slong) {
+  const N = S.N, ub0 = Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
+  let y = S.epr, u = 0, yb = -ub0 * S.par.epz, ub = ub0;
+  const H = S.n[0] * (ub * y - u * yb), rows = [], sum = { SI: 0, SII: 0, SIII: 0, SIV: 0, SV: 0, CL: 0, CT: 0 };
+  for (let i = 0; i < N; i++) {
+    if (i) { const t = S.z[i] - S.z[i - 1]; y += t * u; yb += t * ub; }
+    const n = S.n[i], n1 = S.n[i + 1], c = S.c[i] + 2 * S.a2[i];
+    const A = n * (u + y * c), Ab = n * (ub + yb * c);
+    const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
+    const d = u1 / n1 - u / n;
+    const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
+      SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
+    // the aspheric part: fourth-order sag beyond the paraxial sphere
+    const c0 = S.c[i], A4 = S.A[i] ? S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    if (G) {
+      const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
+      r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;
+    }
+    if (Sshort && Slong) {
+      const dn = Sshort.n[i] - Slong.n[i], dn1 = Sshort.n[i + 1] - Slong.n[i + 1], dd = dn1 / n1 - dn / n;
+      r.CL = A * y * dd; r.CT = Ab * y * dd;
+    }
+    for (const k in sum) sum[k] += r[k];
+    rows.push(r);
+    u = u1; ub = ub1;
+  }
+  return { rows, sum, H, u: u, nImg: S.n[N] };
 }

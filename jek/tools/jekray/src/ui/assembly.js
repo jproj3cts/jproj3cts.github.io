@@ -9,6 +9,8 @@ import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { exportZmx } from '../io/zmx-export.js';
+import { condMismatch } from '../engines/lens-design.js';
+import { asmBenchLight, openLensDesign } from './lens-workspace.js';
 
 /* ---------- Assemblies on the bench ----------
    Made from lenses and stops picked on the bench, split back into them, or started afresh from the
@@ -55,6 +57,7 @@ export function newLensDesign() {
   project.assemblies = (project.assemblies || []).concat([asm]);
   setSelection([stop, lens]);
   changed(true);
+  openLensDesign(asm, { draft: true });
   return asm;
 }
 
@@ -78,11 +81,22 @@ export function assemblyPanel(asm) {
       ['Designed for', ap + ', fields to ' + Math.max(...c.fields.map(f => Math.abs(f.deg))) + '°, ' + c.waves.map(v => +v.nm.toPrecision(5)).join(', ') + ' nm']];
     panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))));
   }
+  // the bench's light against what it is designed for
+  if (P) {
+    const L = asmBenchLight(asm, P);
+    if (L) {
+      const M = condMismatch(asm, L, asmParaxial(P, asm.cond.waves[asm.cond.primary].nm, paraxial).efl);
+      panel.append(M.length
+        ? h('div', { class: 'rt-asmnote bad', role: 'status' }, h('b', null, 'Used outside its design conditions: '), M.join('; ') + '. Open it with Design… to take the bench’s conditions and redesign it for them.')
+        : h('div', { class: 'rt-asmnote good', role: 'status' }, h('b', null, 'Within its design conditions. '), 'The bench’s light is what it is designed for.'));
+    }
+  }
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
+    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the lens design workspace: its conditions, layout and lens data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
     B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'));
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 

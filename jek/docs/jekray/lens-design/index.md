@@ -2,7 +2,7 @@
 layout: docs
 title: Lens design
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies in JEKray. Lenses and stops on one axis are made one assembly, read as one prescription and designed together, then used on the bench as the parts they are.
+description: Assemblies and lens design in JEKray. Lenses and stops on one axis are made one assembly, designed together in the lens design workspace (conditions, layout, lens data, solves, pickups, Seidel sums), then used on the bench as the parts they are.
 ---
 
 <p class="dx-lead">An assembly is a set of lenses and stops on one axis that are designed together: a doublet, a triplet, an objective. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
@@ -19,7 +19,7 @@ If they are not, the panel says which part is in the way and why. The light is t
 
 An assembly is picked and moved as one, drawn with a dashed outline and its name. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
 
-**File › New lens design** puts a starting assembly on the bench: a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines.
+**File › New lens design…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
 
 ## The prescription
 
@@ -77,10 +77,74 @@ Each assembly carries the conditions it is designed for:
 
 A new assembly starts with its stop's opening as the entrance pupil, the axis alone as its field and the bench's wavelengths.
 
+## The design workspace
+
+**Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own: the lens design workspace. The bar names the bench it is on and the assembly (its name can be edited there). **Back to the bench** (or Esc) returns. Nothing is copied: every change in the workspace is written to the assembly's parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places.
+
+A design started with File › New lens design has no light on the bench yet. Its button reads **Place on a bench**: it adds a source for each field (collimated, as wide as the entrance pupil, aimed through its centre, at the primary wavelength with the others as extra lines) and a screen at the image, then returns to the bench.
+
+**File › Import a lens file (.zmx) as a design…** reads a lens file as an assembly and opens it here.
+
+### Design conditions
+
+The left column holds the conditions the design is for: the aperture (an entrance pupil diameter or an F-number), the fields (angle and weight, up to 12) and the wavelengths (nm and weight, one primary, up to 12; **Visible (F, d, C)** sets the usual three). The stop opens to suit the entrance pupil these set, and its opening on the bench follows.
+
+**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil.
+
+### The layout
+
+A section through the design in the plane of the fields: its lenses cut through, its stop, its image plane, and five rays from each field across the pupil (−1, −½, 0, ½, 1 of its radius), each aimed through the stop and traced by the lens engine. Each field has its own colour, as in the conditions.
+
+Under it are the design's first-order figures at the primary wavelength: focal length, back focal distance, working F-number (focal length over entrance pupil diameter), the entrance pupil's size and place, the paraxial image height at the largest field, and the total track from the first surface to the image.
+
+### Lens data
+
+One row a surface, as a lens designer lists them, from the object (at infinity) to the image:
+
+| column | |
+|---|---|
+| Radius | in mm; type Flat (or leave it empty) for a plane surface |
+| Thickness | the gap to the next surface: a lens's centre thickness inside it, the air between parts; on the last surface, the image distance |
+| Glass | inside a lens, any glass in the catalogue by name; air between parts |
+| Clear radius | a lens surface's own; set larger than its lens, the lens is made larger. The stop's is set by the aperture |
+| Conic | the conic constant k |
+
+Beside each radius, thickness and conic:
+
+- **V** marks it a variable: what an optimiser may change. It is kept with the design; the optimiser comes with the next stage.
+- **…** sets a **solve** or a **pickup**, shown as **S** or **P**, its value then worked out and shown in grey:
+  - *Paraxial focus* (the image distance): the image plane where the marginal ray of the primary wavelength crosses the axis, the back focal distance. A new design has it.
+  - *F-number* (a radius): the curvature that gives the system the working F-number asked for, with the entrance pupil as set. The system's power is affine in one surface's curvature, so two paraxial traces give it exactly.
+  - *Edge thickness* (a thickness): the centre thickness that leaves the edge, at the smaller clear radius of its two surfaces, as thick as asked: $$t = e - \text{sag}_2(h) + \text{sag}_1(h)$$.
+  - *Pickup*: the value follows another surface's same quantity, times a scale plus an offset (a radius picked up times −1 makes a lens symmetric).
+
+  Pickups are worked out, then the solves, then the pickups again, twice over so a chain settles, then the image distance.
+
+Click a row to select it. **Insert a surface** puts a flat surface after it: inside a lens it splits the glass in two (a cemented doublet); after a lens's back it adds 2 mm of the same glass behind. **Insert a singlet** puts a flat N-BK7 singlet 2 mm thick in the air after the selected part (with the Object row selected, in front of the first surface; with nothing selected, at the end), pushing the rest back only if there is no room. **Remove** takes a surface out, or a lens of two surfaces whole. Every other surface keeps its place along the axis, and marks, solves and pickups stay with the surfaces they belong to.
+
+### Analyses
+
+The third-order (Seidel) aberrations, surface by surface and summed, from two paraxial rays: the marginal ray (height the entrance pupil's radius, parallel to the axis) and the chief ray (through the entrance pupil's centre at the largest field). At each surface, with $$A = n i$$ and $$\bar A = n \bar\imath$$ the two rays' refraction invariants, $$\Delta(u/n)$$ the change in $$u/n$$ across it and $$H$$ the Lagrange invariant:
+
+$$S_I = -A^2 y\,\Delta(u/n), \quad S_{II} = -A\bar A y\,\Delta(u/n), \quad S_{III} = -\bar A^2 y\,\Delta(u/n), \quad S_{IV} = -H^2 c\,\Delta(1/n),$$
+
+$$S_V = -\bar A^3 y\,\Delta(1/n^2) + c\,\Delta(1/n)\,\bar A\bar y\,(\bar A y + H),$$
+
+the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$. The colour terms are $$C_L = A y\,\Delta(\delta n/n)$$ and $$C_T = \bar A y\,\Delta(\delta n/n)$$, $$\delta n$$ the index at the shortest wavelength less that at the longest. An aspheric surface adds $$8(n'-n)G y^4$$ to $$S_I$$, $$G$$ its fourth-order sag beyond the sphere of its paraxial curvature, and the same times $$\bar y/y$$, $$(\bar y/y)^2$$ and $$(\bar y/y)^3$$ to $$S_{II}$$, $$S_{III}$$ and $$S_V$$. They are wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has $$S_I > 0$$.
+
+**Checked against.**
+- a published Cooke triplet (f 50 mm, f/5, fields to 20°), typed into the lens data cell by cell: its focal length and Seidel sums agree with an independent program's to 10⁻¹⁰;
+- the real rays in the third-order limit: $$S_I/8$$ is the edge ray's wavefront error at a small pupil, and $$S_V$$ the chief ray's distortion at a small field;
+- the ellipsoid that images perfectly, whose $$S_I$$ is 0.
+
+### On the bench
+
+An assembly's panel compares the light the bench sends it with its design conditions. Used outside them (a field beyond its largest, a wavelength outside its range, or a beam wider than its entrance pupil), it says so and how; within them, it says that too.
+
 ## Lens files
 
 **File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions. Coatings, tilts and decentres are not written.
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`) and the pickups (`"pickups"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface) or `"t:image"`.

@@ -20,7 +20,7 @@ import { addBench, checkpoint, redo, renderBenchTabs, undo } from './tabs.js';
 import { exportLayout } from '../io/layout.js';
 import { openJekray, openProjectData } from '../io/open.js';
 import { IMPORT_AS } from '../io/zmx-import.js';
-import { exportZmx, importZmx, setZmxToMine } from '../io/zmx-export.js';
+import { exportZmx, importZmx, setZmxAsDesign, setZmxToMine } from '../io/zmx-export.js';
 import { assignPalette, importStl, palette } from './experimental.js';
 import { layoutPalette } from './rail.js';
 import { packInstallText } from '../io/packs.js';
@@ -238,7 +238,8 @@ export function wireTours() {
 
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
-  document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
+  document.getElementById('btnImport').addEventListener('click', () => { setZmxAsDesign(false); openZmx(false); });
+  document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
@@ -262,7 +263,7 @@ export function wireTours() {
 
   document.getElementById('fileZmx').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importZmx(fs); e.target.value = ''; });
 
-  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); });
+  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); setTimeout(() => setZmxAsDesign(false), 0); });
 
   {
     const dlg = document.getElementById('matDialog');

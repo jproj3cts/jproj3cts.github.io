@@ -29,6 +29,8 @@ import { palette } from './experimental.js';
 import { setPalette } from './rail.js';
 import { scheduleSave } from '../io/autosave.js';
 import { fwPump, midDrag } from '../page/workers.js';
+import { asmOf } from '../core/assembly.js';
+import { openLensDesign } from './lens-workspace.js';
 
 /* ==========================================================================
    Hit testing and pointer interaction
@@ -326,7 +328,12 @@ export function wirePointer() {
     if (LOCKED) return;
     if (drawTool === 'node') { const r = canvas.getBoundingClientRect(); if (drawDblClick(e.clientX - r.left, e.clientY - r.top)) return; }
     const F = selFibre();
-    if (!F) return;
+    if (!F) {
+      // an assembly: into its design workspace
+      const r0 = canvas.getBoundingClientRect(), hit = hitTest(e.clientX - r0.left, e.clientY - r0.top), A = hit && asmOf(hit);
+      if (A && !e.ctrlKey && !e.metaKey) openLensDesign(A);
+      return;
+    }
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top;
     const g = fibreGrip(F, px, py);
     if (g && g.type === 'node') { checkpoint(); F.path.splice(g.i, 1); changed(); return; }

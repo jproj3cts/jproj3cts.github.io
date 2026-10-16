@@ -1239,6 +1239,84 @@
   .rt-grin-rings { width: 100%; margin-top: 0.4rem; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
   .rt-grin-rings th, .rt-grin-rings td { padding: 0.15rem 0.35rem; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.1); }
   .rt-grin-rings th { font-weight: 600; color: var(--jek-ink-soft); }
+
+  /* ---------- The lens design workspace ---------- */
+  .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
+  .rt-lens[hidden] { display: none !important; }
+  .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
+  .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
+  .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
+  .rt-lcrumb .from { color: var(--jek-ink-soft); white-space: nowrap; }
+  .rt-lname { font: inherit; font-weight: 600; max-width: 22rem; padding: 0.2rem 0.35rem; border: 1px solid transparent; border-radius: 2px; background: transparent; color: inherit; }
+  .rt-lname:hover, .rt-lname:focus { border-color: var(--jek-line-2); background: #fff; }
+  .rt-lpill { padding: 0.15rem 0.5rem; border-radius: 4px; background: #fdf1e6; color: #a2501a; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+  .rt-lgap { flex: 1; }
+  .rt-lbody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; }
+  .rt-lcard { background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); padding: 0.9rem 1rem; box-sizing: border-box; min-width: 0; }
+  .rt-lcard h2 { margin: 0 0 0.25rem; font-size: 1rem; }
+  .rt-lcard h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-lsub { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
+  .rt-lcond { flex: 1 1 17rem; max-width: 24rem; display: flex; flex-direction: column; }
+  .rt-lmain { flex: 999 1 36rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .rt-lrow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; flex-wrap: wrap; }
+  .rt-lrow select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; max-width: 15rem; }
+  .rt-lnum { width: 6.2rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
+  .rt-lnum.fixed { background: var(--jek-well); color: var(--jek-ink-soft); font-style: italic; }
+  .rt-lcond .rt-lnum { width: 5rem; }
+  .rt-lswatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
+  .rt-lx { width: 1.6rem; height: 1.6rem; flex: none; border: 0; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; cursor: pointer; border-radius: 2px; }
+  .rt-lx:hover { background: var(--jek-well); color: var(--jek-red); }
+  .rt-lens .rt-link { border: 0; background: none; padding: 0.2rem 0; color: var(--jek-cyan-dark, #007790); font: inherit; font-size: 0.85rem; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-right: 0.8rem; align-self: flex-start; }
+  .rt-ltake { margin-top: 0.9rem; white-space: normal; text-align: center; border-color: var(--jek-cyan); color: var(--jek-cyan-dark, #007790); font-weight: 600; min-height: 2.5rem; }
+  .rt-lnote { margin-top: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 4px; background: var(--jek-well); font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
+  .rt-lnote.good { background: #e5f3ec; color: #1f5b3c; }
+  .rt-llayout { background: #1e2227; border-color: #1e2227; padding: 0.6rem; }
+  .rt-lltop { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; color: #c9cfd6; font-size: 0.8rem; margin: 0 0.2rem 0.4rem; }
+  .rt-llayout canvas { display: block; width: 100%; border-radius: 4px; }
+  .rt-lfig { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.35rem 1rem; padding: 0.6rem 0.9rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); font-size: 0.82rem; }
+  .rt-lfig div { display: flex; flex-direction: column; min-width: 0; }
+  .rt-lfig span { color: var(--jek-ink-soft); font-size: 0.75rem; }
+  .rt-lfig b { font-weight: 500; overflow-wrap: anywhere; }
+  .rt-ltabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .rt-ltab { font: inherit; font-size: 0.875rem; font-weight: 600; padding: 0.45rem 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-ltwrap { overflow-x: auto; }
+  .rt-ltable { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.85rem; }
+  .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); white-space: nowrap; }
+  .rt-ltable td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--jek-line); vertical-align: middle; }
+  .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
+  .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
+  .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
+  .rt-ltable tr.sel { background: rgba(0,146,178,0.1) !important; box-shadow: inset 3px 0 0 var(--jek-cyan); }
+  .rt-ltable .ro { color: var(--jek-ink-soft); }
+  .rt-ltable tr.sum td { font-weight: 700; border-top: 2px solid var(--jek-line-2); }
+  .rt-lseidel { min-width: 40rem; }
+  .rt-lseidel td, .rt-lseidel th { text-align: right; }
+  .rt-lseidel td:first-child, .rt-lseidel th:first-child { text-align: left; }
+  .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
+  .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
+  .rt-lv:disabled { opacity: 0.35; cursor: default; }
+  .rt-ls.on { background: #e8f1f8; border-color: #a9cde0; color: #0b5f7a; }
+  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
+  .rt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.7rem; }
+  .rt-lkey { font-size: 0.8rem; color: var(--jek-ink-soft); margin-left: 0.3rem; }
+  .rt-lkey b { font-family: var(--jek-mono); }
+  .rt-lpop { position: fixed; z-index: 76; width: 17rem; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); font-size: 0.85rem; }
+  .rt-lpop select { font: inherit; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lpopb { display: flex; flex-direction: column; gap: 0.35rem; }
+  .rt-lpopb label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .rt-lpopb p { margin: 0; color: var(--jek-ink-soft); line-height: 1.4; }
+  .rt-lens .rt-toast { position: fixed; top: 4rem; z-index: 80; }
+  .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
+  .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
+  .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }
+  @media (max-width: 640px) {
+    .rt-lbody { padding: 0.6rem; }
+    .rt-lcond { max-width: none; }
+    .rt-lname { max-width: 10rem; }
+  }
 </style>
 </head>
 <body>
@@ -1257,7 +1335,7 @@
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
-            <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from">New lens design</button>
+            <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">New lens design…</button>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
             <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
@@ -1268,6 +1346,7 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
+            <button type="button" role="menuitem" id="btnImportDesign" data-icon="import" title="A lens file opened as an assembly in the lens design workspace">Import a lens file (.zmx) as a design…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
@@ -4960,10 +5039,57 @@ function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
   }
   return out;
 }
+
+/* ---------- The design: what a lens designer sets around the prescription ----------
+   (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
+   the values an optimiser may change, solves and pickups, each value named by a key:
+   "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
+const DESIGN_KEY = /^([Rtk]):(.{1,120}\.\d+)$/;
+const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
+const SOLVE_KINDS = {
+  focus: { on: k => k === 't:image', label: 'Paraxial focus' },
+  fno: { on: k => k[0] === 'R', label: 'F-number', v: 4 },
+  edge: { on: k => k[0] === 't' && k !== 't:image', label: 'Edge thickness', v: 1 },
+};
+function normDesign(d) {
+  const fresh = !d || typeof d !== 'object';
+  d = fresh ? {} : d;
+  const vars = Array.isArray(d.vars) ? [...new Set(d.vars.filter(okKey))].slice(0, 500) : [];
+  const solves = {}, pickups = {};
+  const sv = d.solves && typeof d.solves === 'object' ? d.solves : fresh ? { 't:image': { kind: 'focus' } } : {};
+  for (const k of Object.keys(sv).slice(0, 500)) {
+    const s = sv[k], K = s && SOLVE_KINDS[s.kind];
+    if (!okKey(k) || !K || !K.on(k)) continue;
+    if (s.kind === 'focus') { solves[k] = { kind: 'focus' }; continue; }
+    let v = clamp(num(s.v, K.v), -1e3, 1e3);
+    if (s.kind === 'fno' && Math.abs(v) < 0.2) v = v < 0 ? -0.2 : 0.2;
+    if (s.kind === 'edge') v = Math.max(0, v);
+    solves[k] = { kind: s.kind, v };
+  }
+  const pk = d.pickups && typeof d.pickups === 'object' ? d.pickups : {};
+  for (const k of Object.keys(pk).slice(0, 500)) {
+    const p = pk[k];
+    if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
+    pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
+  }
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups };
+}
+/* a design's keys with part ids changed (an assembly pasted as a copy) */
+function remapDesign(d, map) {
+  const k2 = k => { const m = DESIGN_KEY.exec(k); if (!m) return k; const j = m[2].lastIndexOf('.'), id = m[2].slice(0, j); return map.has(id) ? m[1] + ':' + map.get(id) + m[2].slice(j) : k; };
+  const o = {};
+  if (!d || typeof d !== 'object') return d;
+  o.image = d.image;
+  o.vars = (d.vars || []).map(k2);
+  o.solves = Object.fromEntries(Object.entries(d.solves || {}).map(([k, v]) => [k2(k), v]));
+  o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
+  return o;
+}
+
 const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
 const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
 const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
@@ -5069,7 +5195,8 @@ function asmPrescription(asm, els) {
 
 /* Writes a prescription back to the parts: each surface's shape to the surface it came from, each
    part's own thicknesses and glass, and each part's place along the axis from the gaps (the first
-   vertex stays where it is). The prescription must keep the parts' surfaces in the same order. */
+   vertex stays where it is). The prescription keeps the parts in the same order; a lens's surfaces
+   may be more or fewer than it had (a surface inserted or taken out in the design). */
 function asmApply(asm, P, els) {
   els = els || asmMembers(asm);
   const byId = new Map(els.map(e => [e.id, e]));
@@ -5085,12 +5212,14 @@ function asmApply(asm, P, els) {
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'lens') {
       const ss = p.flip ? S.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi })) : S;
-      ss.forEach((s, i) => {
-        const t = e.surfaces[i];
+      // a surface added in the prescription is a new, bare one on the part; one taken out goes from it
+      e.surfaces = ss.map((s, i) => {
+        const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
         t.R = s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
         // a clear radius that is the lens's own stays unset
         if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
         else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+        return t;
       });
       e.gaps = (p.flip ? G.slice().reverse() : G).slice();
       e.materials = (p.flip ? M.slice().reverse() : M).map(m => Object.assign({}, m));
@@ -11345,7 +11474,12 @@ function wirePointer() {
     if (LOCKED) return;
     if (drawTool === 'node') { const r = canvas.getBoundingClientRect(); if (drawDblClick(e.clientX - r.left, e.clientY - r.top)) return; }
     const F = selFibre();
-    if (!F) return;
+    if (!F) {
+      // an assembly: into its design workspace
+      const r0 = canvas.getBoundingClientRect(), hit = hitTest(e.clientX - r0.left, e.clientY - r0.top), A = hit && asmOf(hit);
+      if (A && !e.ctrlKey && !e.metaKey) openLensDesign(A);
+      return;
+    }
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top;
     const g = fibreGrip(F, px, py);
     if (g && g.type === 'node') { checkpoint(); F.path.splice(g.i, 1); changed(); return; }
@@ -21360,6 +21494,7 @@ function newLensDesign() {
   project.assemblies = (project.assemblies || []).concat([asm]);
   setSelection([stop, lens]);
   changed(true);
+  openLensDesign(asm, { draft: true });
   return asm;
 }
 
@@ -21383,11 +21518,22 @@ function assemblyPanel(asm) {
       ['Designed for', ap + ', fields to ' + Math.max(...c.fields.map(f => Math.abs(f.deg))) + '°, ' + c.waves.map(v => +v.nm.toPrecision(5)).join(', ') + ' nm']];
     panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))));
   }
+  // the bench's light against what it is designed for
+  if (P) {
+    const L = asmBenchLight(asm, P);
+    if (L) {
+      const M = condMismatch(asm, L, asmParaxial(P, asm.cond.waves[asm.cond.primary].nm, paraxial).efl);
+      panel.append(M.length
+        ? h('div', { class: 'rt-asmnote bad', role: 'status' }, h('b', null, 'Used outside its design conditions: '), M.join('; ') + '. Open it with Design… to take the bench’s conditions and redesign it for them.')
+        : h('div', { class: 'rt-asmnote good', role: 'status' }, h('b', null, 'Within its design conditions. '), 'The bench’s light is what it is designed for.'));
+    }
+  }
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
+    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the lens design workspace: its conditions, layout and lens data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
     B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone.'));
+  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'));
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 
@@ -21396,6 +21542,488 @@ function makeAssemblyRow(list) {
   const C = asmCheck(list, { sources: sources() });
   if (C.ok) return h('button', { class: 'rt-btn', type: 'button', title: 'Lenses and stops on one axis, designed as one; nothing on the bench changes', onclick: () => makeAssembly(list) }, 'Make an assembly');
   return list.some(e => e.type === 'lens') ? h('p', { class: 'note' }, 'Not an assembly: ' + C.why) : null;
+}
+/* ==========================================================================
+   The lens design workspace
+   An assembly opened on a page of its own: the conditions it is designed for, its layout traced
+   by the lens engine, and its lens data, surface by surface, to edit as a lens designer does.
+   Every change is written to its parts on the bench as it is made (and can be undone there), so
+   leaving the workspace is only going back to the bench. A design started from nothing has no
+   light on the bench yet: Place on a bench gives it a source for each field and a screen at its
+   image, set to its conditions.
+   ========================================================================== */
+let WS = null;                     // { asm, tab, sel, draft, took }
+const FIELD_COLOURS = ['#5aa9ff', '#5fd38a', '#ff7a6b', '#f2c14e', '#c38bff', '#4fd6d6', '#ff9cd0', '#b0b8c0'];
+const lensDesignOpen = () => !!WS;
+const wsFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : String(+(+v).toPrecision(p || 6));
+const fmtR = v => v === null || v === undefined ? 'Flat' : wsFmt(v, 7);
+
+/* the light the bench sends the assembly, as conditions: null when none reaches it */
+const linesOf = id => { const e = getEl(id); return !e ? [] : e.type === 'source' ? sourceLines(e) : isFinite(e.wavelength) ? [e.wavelength] : []; };
+function asmBenchLight(asm, P) {
+  traceScene();
+  return condFromRays(asm, P || designPrescription(asm), lastTrace.rays || [], linesOf);
+}
+
+function openLensDesign(asm, opts) {
+  const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
+  if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
+  designOf(asm);
+  WS = { asm, tab: 'data', sel: -1, draft: !!(opts && opts.draft), took: null };
+  const sec = shell();
+  sec.hidden = false;
+  document.body.classList.add('rt-lens-open');
+  renderWs();
+  sec.focus();
+  return true;
+}
+function closeLensDesign() {
+  if (!WS) return;
+  const asm = WS.asm;
+  WS = null;
+  document.getElementById('lensWs').hidden = true;
+  document.body.classList.remove('rt-lens-open');
+  setSelection(asmMembers(asm));
+  changed(true);
+}
+
+/* ---------- The page ---------- */
+function shell() {
+  let sec = document.getElementById('lensWs');
+  if (sec) return sec;
+  sec = h('section', { class: 'rt-lens', id: 'lensWs', hidden: '', tabindex: '-1', 'aria-label': 'Lens design' });
+  // the bench's own keys stay on the bench: here Esc goes back, and undo and redo act on the design
+  sec.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase(), typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+    if (k === 'escape') { if (closePop()) { e.stopPropagation(); return; } e.preventDefault(); leave(); }
+    else if ((e.ctrlKey || e.metaKey) && !typing && (k === 'z' || k === 'y')) { e.preventDefault(); if (k === 'y' || e.shiftKey) redo(); else undo(); afterUndo(); }
+    e.stopPropagation();
+  });
+  ['keyup', 'copy', 'cut', 'paste'].forEach(t => sec.addEventListener(t, e => e.stopPropagation()));
+  document.body.append(sec);
+  return sec;
+}
+function afterUndo() {
+  if (!WS) return;
+  // the record is replaced by an undo: find it again by its id
+  const a = (project.assemblies || []).find(x => x.id === WS.asm.id);
+  if (!a || !asmMembers(a).length) { WS = null; document.getElementById('lensWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
+  WS.asm = a; designOf(a);
+  renderWs();
+}
+function leave() {
+  if (WS && WS.draft) { checkpoint(); placeOnBench(WS.asm); }
+  closeLensDesign();
+}
+
+/* A value typed in is committed when its field loses focus, often to the next field: the page is
+   drawn again just after, focus kept on the field (by its label) the person moved to. */
+let rendering = false, deferRender = false, renderTimer = 0;
+function renderSoon() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => {
+    renderTimer = 0;
+    const a = document.activeElement, lab = a && a.closest && a.closest('#lensWs') && a.getAttribute('aria-label');
+    renderWs();
+    const n = lab && [...document.querySelectorAll('#lensWs [aria-label]')].find(x => x.getAttribute('aria-label') === lab);
+    if (n) { n.focus(); if (n.select) n.select(); }
+  }, 0);
+}
+/* a field's change: ignored while the page is being drawn again (a field taken away fires its own) */
+const fromField = (el, fn) => () => { if (rendering || !el.isConnected) return; deferRender = true; try { fn(); } finally { deferRender = false; } };
+function renderWs() {
+  if (!WS) return;
+  if (deferRender) { renderSoon(); return; }
+  clearTimeout(renderTimer); renderTimer = 0;
+  rendering = true;
+  try { drawWs(); } finally { rendering = false; }
+}
+function drawWs() {
+  const sec = document.getElementById('lensWs'), asm = WS.asm;
+  const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
+  if (!C.ok) { closeLensDesign(); toast('Its parts are no longer on one axis: ' + C.why, true); return; }
+  const P = designPrescription(asm), F = designFigures(asm, P);
+  const scroll = sec.querySelector('.rt-lbody') ? sec.querySelector('.rt-lbody').scrollTop : 0;
+  sec.replaceChildren();
+  const name = h('input', { class: 'rt-lname', type: 'text', value: asm.name, size: String(Math.max(6, Math.min(40, asm.name.length + 1))), 'aria-label': 'Design name', spellcheck: 'false' });
+  name.addEventListener('change', fromField(name, () => { checkpoint(); asm.name = String(name.value || 'Assembly').slice(0, 80); changed(false); }));
+  sec.append(h('header', { class: 'rt-lhead' },
+    h('span', { class: 'rt-hmark' }, 'JEKray'),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
+    h('span', { class: 'rt-lgap' }),
+    h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
+    h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
+    h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
+      WS.draft ? 'Place on a bench' : 'Back to the bench')));
+  const body = h('div', { class: 'rt-lbody' });
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : analysesCard(asm, P, F)));
+  sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
+  body.scrollTop = scroll;
+}
+
+/* a change: undoable, solved, written to the parts, shown */
+function edit(fn) {
+  checkpoint();
+  const asm = WS.asm, P = designPrescription(asm);
+  const r = fn(P, asm);
+  if (typeof r === 'string') { toast(r, true); return; }
+  if (r !== false) {
+    const notes = commitDesign(asm, P);
+    if (notes.length) toast(notes.join(' '), true);
+  }
+  changed(false);
+  renderWs();
+}
+
+/* ---------- Design conditions ---------- */
+function parseNum(v) { const x = parseFloat(String(v).replace(',', '.')); return isFinite(x) ? x : null; }
+function wsNumInput(value, set, opts) {
+  const i = h('input', { type: 'text', inputmode: 'decimal', value: wsFmt(value), class: 'rt-lnum', 'aria-label': opts.label, spellcheck: 'false' });
+  i.addEventListener('change', fromField(i, () => { const v = parseNum(i.value); if (v === null) { i.value = wsFmt(value); return; } set(v); }));
+  return i;
+}
+function condEdit(fn) {
+  checkpoint();
+  const c = JSON.parse(JSON.stringify(WS.asm.cond));
+  fn(c);
+  WS.asm.cond = normCond(c);
+  const notes = commitDesign(WS.asm, designPrescription(WS.asm));
+  if (notes.length) toast(notes.join(' '), true);
+  changed(false);
+  renderWs();
+}
+function conditionsCard(asm, F) {
+  const c = asm.cond, card = h('section', { class: 'rt-lcard rt-lcond', 'aria-label': 'Design conditions' }, h('h2', null, 'Design conditions'));
+  card.append(h('p', { class: 'rt-lsub' }, 'What it is designed and analysed for: light from infinity at these angles, through this aperture.'));
+  // the aperture
+  const kind = h('select', { 'aria-label': 'Aperture given as' }, h('option', { value: 'epd' }, 'Entrance pupil diameter (mm)'), h('option', { value: 'fno' }, 'F-number'));
+  kind.value = c.aperture.kind;
+  kind.addEventListener('change', fromField(kind, () => condEdit(cc => { const v = kind.value === 'fno' ? Math.abs(F.efl) / F.epd : F.epd; cc.aperture = { kind: kind.value, v: isFinite(v) && v > 0 ? +v.toPrecision(6) : (kind.value === 'fno' ? 4 : 10) }; })));
+  card.append(h('h3', null, 'Aperture'), h('div', { class: 'rt-lrow' }, kind, wsNumInput(c.aperture.v, v => condEdit(cc => { cc.aperture.v = v; }), { label: 'Aperture' })));
+  // the fields
+  card.append(h('h3', null, 'Fields (angle °, weight)'));
+  c.fields.forEach((f, i) => card.append(h('div', { class: 'rt-lrow' },
+    h('span', { class: 'rt-lswatch', style: 'background:' + FIELD_COLOURS[i % FIELD_COLOURS.length], 'aria-hidden': 'true' }),
+    wsNumInput(f.deg, v => condEdit(cc => { cc.fields[i].deg = v; }), { label: 'Field ' + (i + 1) + ' angle' }),
+    wsNumInput(f.w, v => condEdit(cc => { cc.fields[i].w = v; }), { label: 'Field ' + (i + 1) + ' weight' }),
+    c.fields.length > 1 ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove field ' + (i + 1), onclick: () => condEdit(cc => { cc.fields.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lx' }))));
+  if (c.fields.length < ASM_FIELDS_MAX) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => condEdit(cc => { const m = Math.max(...cc.fields.map(f => f.deg)); cc.fields.push({ deg: +(m + 5).toFixed(2), w: 1 }); }) }, 'Add a field'));
+  // the wavelengths
+  card.append(h('h3', null, 'Wavelengths (nm, weight)'));
+  c.waves.forEach((w, i) => {
+    const pr = h('input', { type: 'radio', name: 'lensPrimary', 'aria-label': 'Primary wavelength', title: 'The primary wavelength: first order and the Seidel sums are at it' });
+    pr.checked = i === c.primary;
+    pr.addEventListener('change', fromField(pr, () => condEdit(cc => { cc.primary = i; })));
+    card.append(h('div', { class: 'rt-lrow' }, pr,
+      wsNumInput(w.nm, v => condEdit(cc => { cc.waves[i].nm = v; }), { label: 'Wavelength ' + (i + 1) }),
+      wsNumInput(w.w, v => condEdit(cc => { cc.waves[i].w = v; }), { label: 'Wavelength ' + (i + 1) + ' weight' }),
+      c.waves.length > 1 ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove wavelength ' + (i + 1), onclick: () => condEdit(cc => { cc.waves.splice(i, 1); if (cc.primary >= cc.waves.length) cc.primary = cc.waves.length - 1; }) }, '×') : h('span', { class: 'rt-lx' })));
+  });
+  const wb = h('div', { class: 'rt-lrow' });
+  if (c.waves.length < ASM_WAVES_MAX) wb.append(h('button', { class: 'rt-link', type: 'button', onclick: () => condEdit(cc => { cc.waves.push({ nm: Math.round(Math.max(...cc.waves.map(w => w.nm)) + 50), w: 1 }); }) }, 'Add a wavelength'));
+  wb.append(h('button', { class: 'rt-link', type: 'button', title: 'F, d and C: 486.13, 587.56 and 656.27 nm, d primary', onclick: () => condEdit(cc => { cc.waves = [{ nm: 486.13, w: 1 }, { nm: 587.56, w: 1 }, { nm: 656.27, w: 1 }]; cc.primary = 1; }) }, 'Visible (F, d, C)'));
+  card.append(wb);
+  card.append(h('button', { class: 'rt-btn rt-ltake', type: 'button', onclick: takeFromBench, title: 'The fields, wavelengths and beam of the light arriving at it on the bench' }, 'Take conditions from the bench'));
+  if (WS.took) card.append(h('div', { class: 'rt-lnote good', role: 'status' }, WS.took));
+  if (WS.draft) card.append(h('div', { class: 'rt-lnote' }, 'A new design has no light on the bench yet. Place on a bench gives it a source for each field and a screen at its image, set to these conditions.'));
+  return card;
+}
+function takeFromBench() {
+  const asm = WS.asm, B = asmBenchLight(asm);
+  if (!B) { WS.took = null; toast('No light from the bench reaches it: nothing to take.', true); renderWs(); return; }
+  condEdit(cc => Object.assign(cc, condFromBench({ cond: cc }, B)));
+  const c = asm.cond;
+  WS.took = 'Taken from the light arriving at it on ' + benchName(asm.bench) + ': ' + (B.epd > 1e-6 ? 'a beam ' + wsFmt(B.epd, 3) + ' mm across, ' : '') +
+    'fields to ' + wsFmt(Math.max(...B.fields), 3) + '°, ' + (c.waves.length === 1 ? 'one wavelength, ' + wsFmt(c.waves[0].nm, 5) + ' nm' : c.waves.map(w => wsFmt(w.nm, 5)).join(', ') + ' nm') + '.';
+  renderWs();
+}
+
+/* ---------- The layout: the meridional rays of each field, traced by the lens engine ---------- */
+function layoutCard(asm, P, F) {
+  const card = h('div', { class: 'rt-lcard rt-llayout' });
+  const stats = h('span', { class: 'mono' }, 'EFL ' + wsFmt(F.efl, 5) + ' mm · f/' + wsFmt(F.fno, 3) + ' · fields to ' + wsFmt(F.fmax, 3) + '°');
+  card.append(h('div', { class: 'rt-lltop' }, h('span', null, 'Layout, in the plane of the fields'), stats));
+  const cv = h('canvas', { role: 'img', 'aria-label': 'The design’s layout: its lenses, stop and image plane, with rays from each field' });
+  card.append(cv);
+  requestAnimationFrame(() => drawLayout(cv, asm, P, F));
+  return card;
+}
+function layoutData(asm, P, F) {
+  const S = F.S, c = asm.cond, out = { lenses: [], stops: [], rays: [], imageZ: S.imageZ, zEnd: S.z[S.N - 1] };
+  const sps = surfaceParts(P);
+  // each lens: its surfaces' profiles across their clear radii
+  let i = 0;
+  while (i < P.surfaces.length) {
+    const sp = sps[i];
+    if (sp.kind === 'stop') { out.stops.push({ z: S.z[i], r: P.surfaces[i].semi }); i++; continue; }
+    const prof = [];
+    for (let j = 0; j < sp.n; j++) {
+      const k = i + j, s = P.surfaces[k], hmax = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, pts = [];
+      for (let q = 0; q <= 24; q++) { const y = -hmax + 2 * hmax * q / 24, zz = S.z[k] + wsSag(s, y); pts.push([y, isFinite(zz) ? zz : S.z[k]]); }
+      prof.push(pts);
+    }
+    out.lenses.push(prof);
+    i += sp.n;
+  }
+  c.fields.forEach((f, fi) => {
+    for (const py of [-1, -0.5, 0, 0.5, 1]) {
+      const r = rayPath(S, f.deg * deg, 0, py);
+      if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
+    }
+  });
+  return out;
+}
+function wsSag(s, y) {
+  const c = s.R ? 1 / s.R : 0, r2 = y * y;
+  let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
+  v += (s.a2 || 0) * r2;
+  let p = r2 * r2;
+  for (const a of s.A || []) { v += a * p; p *= r2; }
+  return v;
+}
+function drawLayout(cv, asm, P, F) {
+  const L = layoutData(asm, P, F), dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800, H = Math.max(180, Math.min(320, W * 0.32));
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+  const g = cv.getContext('2d');
+  g.scale(dpr, dpr);
+  g.fillStyle = '#1e2227'; g.fillRect(0, 0, W, H);
+  let ymax = 1;
+  for (const pr of L.lenses) for (const s of pr) for (const [y] of s) ymax = Math.max(ymax, Math.abs(y));
+  for (const s of L.stops) ymax = Math.max(ymax, s.r * 1.3);
+  const lead = Math.max(5, 0.25 * (L.imageZ - 0));
+  const z0 = -lead, z1 = Math.max(L.imageZ, L.zEnd) + Math.max(2, 0.03 * (L.imageZ + lead));
+  for (const r of L.rays) for (const [y, z] of r.pts) if (z >= z0 && z <= z1) ymax = Math.max(ymax, Math.abs(y));
+  const k = Math.min((W - 24) / (z1 - z0), (H - 24) / (2 * ymax * 1.05)), X = z => 12 + (z - z0) * k + ((W - 24) - (z1 - z0) * k) / 2, Y = y => H / 2 - y * k;
+  // the axis
+  g.strokeStyle = 'rgba(255,255,255,0.15)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(z0), Y(0)); g.lineTo(X(z1), Y(0)); g.stroke(); g.setLineDash([]);
+  // the lenses
+  for (const pr of L.lenses) {
+    g.beginPath();
+    for (let j = 0; j + 1 < pr.length; j++) {
+      const a = pr[j], b = pr[j + 1];
+      g.moveTo(X(a[0][1]), Y(a[0][0]));
+      for (const [y, z] of a) g.lineTo(X(z), Y(y));
+      const ha = a[a.length - 1][0], hb = b[b.length - 1][0];
+      // the rim: square across to the larger of the two
+      if (hb > ha) g.lineTo(X(a[a.length - 1][1]), Y(hb));
+      for (let q = b.length - 1; q >= 0; q--) { const [y, z] = b[q]; if (q === b.length - 1 && ha > hb) { g.lineTo(X(z), Y(ha)); } g.lineTo(X(z), Y(y)); }
+      if (ha > hb) g.lineTo(X(b[0][1]), Y(-ha)); else if (hb > ha) g.lineTo(X(a[0][1]), Y(-hb));
+      g.closePath();
+    }
+    g.fillStyle = 'rgba(115,185,202,0.28)'; g.fill();
+    g.strokeStyle = '#9ccfdc'; g.lineWidth = 1.2; g.stroke();
+  }
+  // the stops
+  g.strokeStyle = '#d8dee3'; g.lineWidth = 3;
+  for (const s of L.stops) { const e = Math.max(s.r * 0.35, 1.5); g.beginPath(); g.moveTo(X(s.z), Y(s.r)); g.lineTo(X(s.z), Y(s.r + e)); g.moveTo(X(s.z), Y(-s.r)); g.lineTo(X(s.z), Y(-s.r - e)); g.stroke(); }
+  // the rays, from the plane a lead before the first surface
+  g.lineWidth = 1;
+  for (const r of L.rays) {
+    g.strokeStyle = FIELD_COLOURS[r.field % FIELD_COLOURS.length]; g.globalAlpha = 0.9;
+    const p = r.pts.slice();
+    const [ya, za] = p[0], [yb, zb] = p[1], t = (z0 - za) / (zb - za);
+    p[0] = [ya + t * (yb - ya), z0];
+    g.beginPath(); g.moveTo(X(p[0][1]), Y(p[0][0]));
+    for (let q = 1; q < p.length; q++) g.lineTo(X(p[q][1]), Y(p[q][0]));
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  // the image plane
+  g.strokeStyle = '#f2f2ec'; g.lineWidth = 2;
+  // the image plane, as tall as the rays that land on it and a little more
+  let hi = ymax * 0.5;
+  for (const r of L.rays) if (r.lost < 0) hi = Math.max(hi, Math.abs(r.pts[r.pts.length - 1][0]) * 1.08);
+  hi = Math.min(hi, ymax * 1.05);
+  g.beginPath(); g.moveTo(X(L.imageZ), Y(hi)); g.lineTo(X(L.imageZ), Y(-hi)); g.stroke();
+}
+
+function figuresStrip(F) {
+  const row = (a, b, t) => h('div', { title: t || '' }, h('span', null, a), h('b', { class: 'mono' }, b));
+  return h('div', { class: 'rt-lfig' },
+    row('EFL', isFinite(F.efl) ? wsFmt(F.efl, 6) + ' mm' : 'afocal', 'Effective focal length at the primary wavelength'),
+    row('BFL', isFinite(F.bfl) ? wsFmt(F.bfl, 6) + ' mm' : '—', 'From the last surface to the paraxial focus'),
+    row('Working F-number', isFinite(F.fno) ? 'f/' + wsFmt(Math.abs(F.fno), 4) : '—'),
+    row('Entrance pupil', wsFmt(F.epd, 5) + ' mm, ' + wsFmt(F.epz, 5) + ' mm from the first surface'),
+    row('Image height', wsFmt(F.imgH, 5) + ' mm', 'Paraxial, at the largest field'),
+    row('Total track', wsFmt(F.track, 6) + ' mm', 'First surface to the image'));
+}
+function tabsRow() {
+  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('analyses', 'Analyses'));
+}
+
+/* ---------- Lens data ---------- */
+function surfaceName(P, sps, i) {
+  const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
+  if (sp.kind === 'stop') return /\bstop\b/i.test(nm) ? nm : nm + ' (stop)';
+  if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
+  return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
+}
+function dataCard(asm, P) {
+  const D = designOf(asm), sps = surfaceParts(P), N = P.surfaces.length;
+  const card = h('div', { class: 'rt-lcard rt-ldata', role: 'tabpanel' });
+  const tbl = h('table', { class: 'rt-ltable' });
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
+    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono' }, '∞'), h('td'), h('td'), h('td'));
+  obj.addEventListener('click', () => { WS.sel = WS.sel === -2 ? -1 : -2; renderWs(); });
+  tb.append(obj);
+  for (let i = 0; i < N; i++) {
+    const sp = sps[i], s = P.surfaces[i];
+    const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
+    tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
+    tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), h('td', { class: 'nm' }, surfaceName(P, sps, i)));
+    tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
+    // glass: inside a lens; air between the parts
+    const gtd = h('td');
+    if (editable(P, 'g', i)) gtd.append(glassInput(P.materials[i], 'Glass after surface ' + (i + 1), name => edit(PP => { const k = glassKey(name); if (!k) return 'No glass called ' + name + '.'; PP.materials[i] = { glass: k }; })));
+    else if (sp.kind === 'window' && sp.j === 0) gtd.append(h('span', { class: 'mono' }, matLabel(P.materials[i])));
+    tr.append(gtd);
+    // clear radius: a lens's surface's own; the stop's is set by the aperture
+    const ctd = h('td');
+    if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
+    else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : 'The window’s own size' }, wsFmt(s.semi, 5)));
+    tr.append(ctd);
+    tr.append(valueCell(P, D, 'k', i));
+    tb.append(tr);
+  }
+  const F = designFigures(asm, P);
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td')));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
+  const bar = h('div', { class: 'rt-lbar' },
+    h('button', { class: 'rt-btn', type: 'button', title: 'A flat surface after the one selected: inside a lens it splits the glass (a cemented doublet); after its back, it adds glass behind', onclick: () => {
+      if (sel < 0) { toast('Select a surface of a lens first: the new one goes after it.', true); return; }
+      checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
+    } }, 'Insert a surface'),
+    h('button', { class: 'rt-btn', type: 'button', title: 'A flat N-BK7 singlet, 2 mm thick, after the part selected (in front of the first surface with the object selected; at the end with nothing selected)', onclick: () => {
+      checkpoint(); const r = insertSinglet(asm, designPrescription(asm), WS.sel === -2 ? 'front' : sel); if (typeof r === 'string') { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
+    } }, 'Insert a singlet'),
+    h('button', { class: 'rt-btn', type: 'button', disabled: sel < 0 ? '' : null, title: 'Take out the surface selected; a lens of two surfaces goes whole', onclick: () => {
+      checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
+    } }, 'Remove'),
+    h('span', { class: 'rt-lkey' }, h('b', null, 'V'), ' a variable for the optimiser (' + D.vars.length + ' now) · ', h('b', null, 'S'), ' a solve · ', h('b', null, 'P'), ' a pickup'));
+  card.append(bar);
+  return card;
+}
+/* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
+function valueCell(P, D, q, i) {
+  const td = h('td', { class: 'rt-lval' });
+  if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
+  const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : 'Conic') + ' of surface ' + (i + 1);
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (fixed ? ' fixed' : ''), value: q === 'R' ? fmtR(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
+    title: fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '' });
+  inp.addEventListener('change', fromField(inp, () => {
+    const t = inp.value.trim().toLowerCase();
+    let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
+    if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+  }));
+  const isVar = D.vars.includes(key);
+  const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
+    onclick: () => { checkpoint(); D.vars = isVar ? D.vars.filter(k => k !== key) : D.vars.concat([key]); changed(false); renderWs(); } }, 'V');
+  const sb = h('button', { type: 'button', class: 'rt-ls' + (fixed ? ' on' : ''), 'aria-label': 'Solve or pickup for ' + label.toLowerCase(), title: 'A solve or a pickup for this value', onclick: e => openPop(e.currentTarget, P, D, key, q, i) },
+    sv ? 'S ' + (sv.kind === 'focus' ? 'focus' : sv.kind === 'fno' ? 'f/' + wsFmt(sv.v, 4) : 'edge') : pk ? 'P' : '…');
+  td.append(h('div', { class: 'rt-lcell' }, inp, vb, sb));
+  return td;
+}
+const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^k:/, 'conic ') + (p.off ? ' + ' + p.off : '');
+function glassInput(mat, label, set) {
+  let dl = document.getElementById('lensGlasses');
+  if (!dl) { dl = h('datalist', { id: 'lensGlasses' }); for (const [k] of glassSearch('')) dl.append(h('option', { value: k })); document.body.append(dl); }
+  const i = h('input', { type: 'text', class: 'rt-lglass', list: 'lensGlasses', value: matLabel(mat), 'aria-label': label, spellcheck: 'false' });
+  i.addEventListener('change', fromField(i, () => { if (i.value.trim()) set(i.value.trim()); }));
+  return i;
+}
+
+/* the solve and pickup chooser, beside a value */
+let pop = null;
+function closePop() { if (!pop) return false; pop.remove(); pop = null; return true; }
+function openPop(btn, P, D, key, q, i) {
+  closePop();
+  const kinds = Object.entries(SOLVE_KINDS).filter(([, K]) => K.on(key));
+  const cur = D.solves[key] ? D.solves[key].kind : D.pickups[key] ? 'pick' : 'none';
+  const sel = h('select', { 'aria-label': 'Kind' }, h('option', { value: 'none' }, 'None: typed in'), ...kinds.map(([k, K]) => h('option', { value: k }, 'Solve: ' + K.label)), h('option', { value: 'pick' }, 'Pick up from another surface'));
+  sel.value = cur;
+  const body = h('div', { class: 'rt-lpopb' });
+  const ok = h('button', { class: 'rt-btn primary', type: 'button' }, 'Apply');
+  const fill = () => {
+    body.replaceChildren();
+    const k = sel.value;
+    if (k === 'fno' || k === 'edge') {
+      const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(D.solves[key] && D.solves[key].kind === k ? D.solves[key].v : SOLVE_KINDS[k].v), 'aria-label': SOLVE_KINDS[k].label });
+      body.append(h('label', null, k === 'fno' ? 'F-number' : 'Edge thickness (mm)', v));
+      ok.onclick = () => { const x = parseNum(v.value); if (x === null) return; apply(dd => { delete dd.pickups[key]; dd.solves[key] = { kind: k, v: x }; dd.vars = dd.vars.filter(z => z !== key); }); };
+    } else if (k === 'pick') {
+      const srcs = h('select', { 'aria-label': 'From' });
+      for (let j = 0; j < P.surfaces.length; j++) {
+        if (j === i || !editable(P, q, j)) continue;
+        const kk = keyAt(P, q, j);
+        srcs.append(h('option', { value: kk }, (q === 't' && kk === 't:image' ? 'the image distance' : 'surface ' + (j + 1))));
+      }
+      if (!srcs.options.length) { body.append(h('p', null, 'No other surface has one to pick up.')); ok.onclick = null; return; }
+      const p = D.pickups[key] || { scale: q === 'R' ? -1 : 1, off: 0 };
+      if (p.from) srcs.value = p.from;
+      const sc = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(p.scale), 'aria-label': 'Scale' }), off = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(p.off), 'aria-label': 'Offset' });
+      body.append(h('label', null, 'From', srcs), h('label', null, 'Times', sc), h('label', null, 'Plus', off));
+      ok.onclick = () => { const s = parseNum(sc.value), o = parseNum(off.value); if (s === null || o === null) return; apply(dd => { delete dd.solves[key]; dd.pickups[key] = { from: srcs.value, scale: s, off: o }; dd.vars = dd.vars.filter(z => z !== key); }); };
+    } else {
+      body.append(h('p', null, k === 'focus' ? 'The image plane at the paraxial focus of the primary wavelength.' : 'The value as typed.'));
+      ok.onclick = () => apply(dd => { delete dd.pickups[key]; delete dd.solves[key]; if (k === 'focus') dd.solves[key] = { kind: 'focus' }; });
+    }
+  };
+  const apply = fn => { closePop(); edit((PP, asm) => { const dd = designOf(asm); fn(dd); }); };
+  sel.addEventListener('change', fill);
+  fill();
+  pop = h('div', { class: 'rt-lpop', role: 'dialog', 'aria-label': 'Solve or pickup' }, sel, body, h('div', { class: 'rt-lrow' }, ok, h('button', { class: 'rt-btn', type: 'button', onclick: closePop }, 'Cancel')));
+  document.getElementById('lensWs').append(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 120)) + 'px';
+  pop.style.top = (r.bottom + 6) + 'px';
+  sel.focus();
+  setTimeout(() => document.addEventListener('pointerdown', function out(e) { if (pop && !pop.contains(e.target)) { closePop(); } if (!pop) document.removeEventListener('pointerdown', out); }), 0);
+}
+
+/* ---------- Analyses: the Seidel sums, surface by surface ---------- */
+function analysesCard(asm, P, F) {
+  const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
+  const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
+  card.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
+  card.append(h('p', { class: 'rt-lsub' }, 'At ' + wsFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + wsFmt(F.fmax, 3) + '°, the colour terms from ' + wsFmt(F.lo, 5) + ' to ' + wsFmt(F.hi, 5) + ' nm. ' +
+    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
+  const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
+  tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
+  const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
+  sd.rows.forEach((r, i) => tb.append(h('tr', null, h('td', null, (sps[i].kind === 'stop' ? 'STO ' : (i + 1) + ' ') + ''), ...cols.map(c => h('td', { class: 'mono' }, f(r[c]))))));
+  tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  return card;
+}
+
+/* ---------- Placing a new design: light for it on the bench ---------- */
+function placeOnBench(asm) {
+  const P = designPrescription(asm), F = designFigures(asm, P), c = asm.cond;
+  const d = P.dir, a0 = Math.atan2(d[1], d[0]), ep = [P.origin[0] + d[0] * F.epz, P.origin[1] + d[1] * F.epz];
+  const back = Math.max(20, 0.5 * F.track), nms = c.waves.map(w => w.nm), pr = primaryNm(c);
+  const ref = asmMembers(asm)[0];
+  const made = [];
+  c.fields.forEach((f, i) => {
+    // aimed through the entrance pupil's centre, as wide as the pupil
+    const a = a0 + f.deg * deg, x = ep[0] - back * Math.cos(a), y = ep[1] - back * Math.sin(a);
+    const src = normElement({ type: 'source', name: 'Field ' + wsFmt(f.deg, 4) + '°', x, y, angle: a / deg, wavelength: pr, lines: nms.filter(n => n !== pr), width: F.epd, rays: 9, divergence: 0, bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+    made.push(src);
+  });
+  const zi = F.S.imageZ, ip = [P.origin[0] + d[0] * zi, P.origin[1] + d[1] * zi];
+  const scr = normElement({ type: 'screen', name: 'Image of ' + asm.name, x: ip[0], y: ip[1], angle: a0 / deg + 180, length: Math.max(4, Math.ceil(2.4 * Math.abs(F.imgH) + 2)), bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+  made.push(scr);
+  for (const e of made) project.elements.push(e);
+  toast('Placed ' + asm.name + ' with ' + c.fields.length + ' source' + (c.fields.length === 1 ? '' : 's') + ' and a screen at its image');
+  return made;
 }
 /* ---------- Zooming a panel plot ----------
    Each plot of each element keeps its own window: a zoom factor and a centre for each
@@ -28453,6 +29081,22 @@ function rayAt(S, th, px, py, R) {
   return R;
 }
 
+/* a ray's path through the system, for drawing: [y, z] where it starts (on the launch plane), at
+   each surface and on the image plane; lost: the surface it was stopped at, or -1 */
+function rayPath(S, th, px, py) {
+  const ab = aimRay(S, th, px, py);
+  if (!ab) return null;
+  const R = launch(S, th, ab[0], ab[1], new Float64Array(8)), pts = [[R[1], R[2]]];
+  for (let i = 0; i < S.N; i++) {
+    traceRay(S, R, i, i);
+    pts.push([R[1], R[2]]);
+    if (R[7] !== 0) return { pts, lost: i };
+  }
+  toPlane(S, R, S.imageZ);
+  pts.push([R[1], R[2]]);
+  return { pts, lost: -1 };
+}
+
 /* ---------- A field ----------
    Its chief ray, and each pupil point's ray: where it lands on the image plane, and its wavefront
    error in waves (positive where its path to the reference sphere is longer than the chief ray's). */
@@ -28523,6 +29167,393 @@ function spotOf(S, fieldDeg, pts) {
   F.rays.forEach((r, i) => { if (r.lost) return; const w = pts[i][2] || 1; s2 += w * ((r.x - mx) ** 2 + (r.y - my) ** 2); c2 += w * ((r.x - F.chief[0]) ** 2 + (r.y - F.chief[1]) ** 2); });
   const om = so / W;
   return { field: fieldDeg, chief: F.chief, centroid: [mx, my], rms: Math.sqrt(s2 / W), rmsChief: Math.sqrt(c2 / W), wfeRms: Math.sqrt(Math.max(0, so2 / W - om * om)), lost, F };
+}
+
+/* ---------- Third order: the Seidel sums ----------
+   From two paraxial rays: the marginal ray (height the entrance pupil's radius, parallel to the
+   axis) and the chief ray (through the entrance pupil's centre at the largest field's angle, its
+   paraxial slope the tangent of that angle). At each surface, A = n i and Ā = n ī are the two rays'
+   refraction invariants, Δ(u/n) the change in u/n across the surface, H the Lagrange invariant:
+     SI = -A² y Δ(u/n), SII = -A Ā y Δ(u/n), SIII = -Ā² y Δ(u/n), SIV = -H² c Δ(1/n),
+     SV = (Ā/A)(SIII + SIV), written -Ā³ y Δ(1/n²) + c Δ(1/n) Ā ȳ (Ā y + H) so it holds where A is 0,
+     CL = A y Δ(δn/n), CT = Ā y Δ(δn/n), δn the index at the shortest wavelength less that at the longest.
+   An aspheric surface adds 8 (n' - n) G y⁴ to SI, G its fourth-order sag beyond the sphere of its
+   paraxial curvature, and the same times ȳ/y, (ȳ/y)², (ȳ/y)³ to SII, SIII and SV. The sums are
+   wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has
+   SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
+   wavelength, Sshort and Slong at the shortest and longest (or null). */
+function seidel(S, fieldDeg, Sshort, Slong) {
+  const N = S.N, ub0 = Math.tan(Math.abs(fieldDeg || 0) * Math.PI / 180);
+  let y = S.epr, u = 0, yb = -ub0 * S.par.epz, ub = ub0;
+  const H = S.n[0] * (ub * y - u * yb), rows = [], sum = { SI: 0, SII: 0, SIII: 0, SIV: 0, SV: 0, CL: 0, CT: 0 };
+  for (let i = 0; i < N; i++) {
+    if (i) { const t = S.z[i] - S.z[i - 1]; y += t * u; yb += t * ub; }
+    const n = S.n[i], n1 = S.n[i + 1], c = S.c[i] + 2 * S.a2[i];
+    const A = n * (u + y * c), Ab = n * (ub + yb * c);
+    const u1 = (n * u - (n1 - n) * c * y) / n1, ub1 = (n * ub - (n1 - n) * c * yb) / n1;
+    const d = u1 / n1 - u / n;
+    const r = { SI: -A * A * y * d, SII: -A * Ab * y * d, SIII: -Ab * Ab * y * d, SIV: -H * H * c * (1 / n1 - 1 / n),
+      SV: -Ab * Ab * Ab * y * (1 / (n1 * n1) - 1 / (n * n)) + c * (1 / n1 - 1 / n) * Ab * yb * (Ab * y + H), CL: 0, CT: 0 };
+    // the aspheric part: fourth-order sag beyond the paraxial sphere
+    const c0 = S.c[i], A4 = S.A[i] ? S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    if (G) {
+      const a = 8 * (n1 - n) * G * y * y * y * y, q = Math.abs(y) > 1e-14 ? yb / y : 0;
+      r.SI += a; r.SII += a * q; r.SIII += a * q * q; r.SV += a * q * q * q;
+    }
+    if (Sshort && Slong) {
+      const dn = Sshort.n[i] - Slong.n[i], dn1 = Sshort.n[i + 1] - Slong.n[i + 1], dd = dn1 / n1 - dn / n;
+      r.CL = A * y * dd; r.CT = Ab * y * dd;
+    }
+    for (const k in sum) sum[k] += r[k];
+    rows.push(r);
+    u = u1; ub = ub1;
+  }
+  return { rows, sum, H, u: u, nImg: S.n[N] };
+}
+/* ==========================================================================
+   Lens design: an assembly worked on as a lens designer works on it
+   The prescription (core/assembly.js) is the parts read along their axis; the design adds what a
+   designer sets around it, kept on the assembly's record as "design":
+     image: the distance from the last surface to the image plane (mm);
+     vars: what an optimiser may change, each a key (below);
+     solves: values worked out from others: the image distance at the paraxial focus ("focus"), a
+       radius that gives the system an F-number ("fno", v), a thickness that gives an edge
+       thickness ("edge", v);
+     pickups: a value that follows another, times a scale plus an offset.
+   A key names one value of one surface by where it came from, so it survives surfaces inserted
+   or taken out around it: "R:<part id>.<surface>", "k:..." (its conic), "t:..." (the gap after it),
+   and "t:image". Solves and pickups are worked out after every change, and the result is written
+   back to the parts: the bench is always the design.
+   ========================================================================== */
+const designOf = asm => (asm.design = asm.design && asm.design.solves ? asm.design : normDesign(asm.design));
+/* ---------- Where a key is in the prescription ---------- */
+const sidOf = s => s.from.id + '.' + s.from.i;
+function keyAt(P, q, i) { return q === 't' && i === P.surfaces.length - 1 ? 't:image' : q + ':' + sidOf(P.surfaces[i]); }
+function posOf(P, key) {
+  const N = P.surfaces.length;
+  if (key === 't:image') return { q: 't', i: N - 1, image: true };
+  const m = DESIGN_KEY.exec(key);
+  if (!m) return null;
+  const i = P.surfaces.findIndex(s => sidOf(s) === m[2]);
+  if (i < 0) return null;
+  return { q: m[1], i, image: m[1] === 't' && i === N - 1 };
+}
+/* which part each surface is on: its index in P.parts, its kind, its place among the part's surfaces */
+function surfaceParts(P) {
+  const out = [];
+  P.parts.forEach((p, pi) => { for (let j = 0; j < p.n; j++) out.push({ pi, kind: p.kind, id: p.id, j, n: p.n }); });
+  return out;
+}
+/* what can be changed: a lens's radii and conics; any gap; a lens's glass (the gaps inside it) */
+function editable(P, q, i) {
+  const sp = surfaceParts(P)[i];
+  if (!sp) return false;
+  if (q === 'R' || q === 'k') return sp.kind === 'lens';
+  if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
+  return true;
+}
+function getV(P, at) {
+  if (at.q === 'R') return P.surfaces[at.i].R;
+  if (at.q === 'k') return P.surfaces[at.i].k;
+  return at.image ? P.image : P.gaps[at.i];
+}
+function setV(P, at, v) {
+  if (!editable(P, at.q, at.i)) return;
+  if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
+  else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
+  else if (at.image) P.image = isFinite(v) ? v : P.image;
+  else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
+}
+/* a surface's sag at height h (NaN beyond a sphere's edge) */
+function surfSag(s, h) {
+  const c = s.R ? 1 / s.R : 0, r2 = h * h;
+  let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
+  v += (s.a2 || 0) * r2;
+  let p = r2 * r2;
+  for (const a of s.A || []) { v += a * p; p *= r2; }
+  let q = h;
+  for (const o of s.odd || []) { v += o * q; q *= h; }
+  return v;
+}
+
+/* ---------- Conditions and first order ---------- */
+const primaryNm = c => c.waves[c.primary].nm;
+/* the entrance pupil's diameter the conditions give: as set, or the focal length over the F-number */
+function designEpd(c, efl) {
+  if (c.aperture.kind === 'epd') return c.aperture.v;
+  return isFinite(efl) && efl ? Math.abs(efl) / c.aperture.v : 10;
+}
+function designPrescription(asm) {
+  const P = asmPrescription(asm), D = designOf(asm);
+  P.image = D.image;
+  // the image distance is the design's alone: kept at focus whatever changed the parts on the bench
+  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond)).par.bfl; if (isFinite(b)) P.image = D.image = b; }
+  return P;
+}
+function designSystem(asm, P, nm) {
+  const c = asm.cond, S0 = lensSystem(P, primaryNm(c));
+  return lensSystem(P, nm || primaryNm(c), { epd: designEpd(c, S0.par.efl), image: P.image });
+}
+
+/* ---------- Solves and pickups ----------
+   Pickups first, then each solve, then the pickups again (a solved value may be picked up), twice
+   over so a chain settles; then the image distance; then the stop opened to the entrance pupil the
+   conditions set. Returns notes on any solve that could not be met. */
+function pickupAll(D, P) {
+  for (const [k, p] of Object.entries(D.pickups)) {
+    const at = posOf(P, k), src = posOf(P, p.from);
+    if (!at || !src) continue;
+    const v = getV(P, src);
+    setV(P, at, v === null ? (at.q === 'R' ? null : 0) : p.scale * v + p.off);
+  }
+}
+function solveDesign(asm, P) {
+  const D = designOf(asm), c = asm.cond, nm = primaryNm(c), notes = [];
+  const efl = () => lensSystem(P, nm).par.efl;
+  for (let pass = 0; pass < 2; pass++) {
+    pickupAll(D, P);
+    for (const [k, s] of Object.entries(D.solves)) {
+      const at = posOf(P, k);
+      if (!at || s.kind === 'focus') continue;
+      if (s.kind === 'edge') {
+        const a = P.surfaces[at.i], b = P.surfaces[at.i + 1];
+        const hs = [a.semi, b.semi].filter(v => v > 0 && isFinite(v)), hh = hs.length ? Math.min(...hs) : 0;
+        const t = s.v - surfSag(b, hh) + surfSag(a, hh);
+        if (isFinite(t) && t >= 0) P.gaps[at.i] = t;
+        else if (pass) notes.push('The edge thickness ' + s.v + ' mm can’t be met on surface ' + (at.i + 1) + '.');
+      } else if (s.kind === 'fno') {
+        if (c.aperture.kind !== 'epd') { if (pass) notes.push('The F-number solve on surface ' + (at.i + 1) + ' needs the aperture given as an entrance pupil diameter.'); continue; }
+        // the system's power is affine in this surface's curvature: two traces give it
+        const sf = P.surfaces[at.i], c0 = sf.R ? 1 / sf.R : 0, d = 1e-3;
+        const p0 = 1 / efl();
+        sf.R = 1 / (c0 + d);
+        const p1 = 1 / efl(), want = 1 / (s.v * c.aperture.v);
+        const c1 = Math.abs(p1 - p0) > 1e-15 ? c0 + (want - p0) * d / (p1 - p0) : c0;
+        sf.R = Math.abs(c1) < 1e-12 ? null : 1 / c1;
+        if (!isFinite(c1) && pass) notes.push('The F-number solve on surface ' + (at.i + 1) + ' has no answer.');
+      }
+    }
+    pickupAll(D, P);
+  }
+  if (D.solves['t:image']) {
+    const b = lensSystem(P, nm).par.bfl;
+    if (isFinite(b)) P.image = b; else notes.push('The system is afocal: it has no paraxial focus.');
+  }
+  // the stop opens to suit the entrance pupil the conditions set
+  if (P.stopIndex >= 0) {
+    const S = designSystem(asm, P);
+    if (isFinite(S.stopR) && S.stopR > 0) P.surfaces[P.stopIndex].semi = S.stopR;
+  }
+  D.image = P.image;
+  return notes;
+}
+/* a change made: solved, written to the parts */
+function commitDesign(asm, P) {
+  const notes = solveDesign(asm, P);
+  asmApply(asm, P);
+  return notes;
+}
+
+/* ---------- Surfaces and lenses in and out ----------
+   Each edit keeps every other surface where it was along the axis (an inserted lens pushes those
+   after it back, by its thickness and a gap), and the design's keys follow their surfaces. */
+function reKey(asm, P, edit) {
+  const D = designOf(asm), N0 = P.surfaces.length;
+  const pos = k => { const at = posOf(P, k); return at ? { q: at.q, i: at.image ? -1 : at.i } : null; };
+  const vars = D.vars.map(k => [pos(k)]), solves = Object.entries(D.solves).map(([k, s]) => [pos(k), s]);
+  const picks = Object.entries(D.pickups).map(([k, p]) => [pos(k), pos(p.from), p]);
+  const map = edit();
+  if (!map) return false;
+  asmApply(asm, P);
+  const P2 = asmPrescription(asm);
+  P2.image = P.image;
+  const back = a => { if (!a) return null; if (a.i === -1) return 't:image'; const j = map(a.i); return j < 0 || j >= P2.surfaces.length ? null : keyAt(P2, a.q, j); };
+  const nd = { image: P.image, vars: vars.map(([a]) => back(a)).filter(Boolean), solves: {}, pickups: {} };
+  for (const [a, s] of solves) { const k = back(a); if (k) nd.solves[k] = s; }
+  for (const [a, f, p] of picks) { const k = back(a), kf = back(f); if (k && kf) nd.pickups[k] = Object.assign({}, p, { from: kf }); }
+  void N0;
+  asm.design = normDesign(nd);
+  commitDesign(asm, P2);
+  return true;
+}
+const zsOf = P => { const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1] + g); return z; };
+const gapsFrom = (P, z) => { P.gaps = z.slice(1).map((v, i) => Math.max(0, v - z[i])); };
+/* a flat surface after surface i: inside a lens, splitting the glass after it in two (a cemented
+   doublet); after a lens's last surface, a new glass 2 mm thick behind it, the rest pushed back */
+function insertSurface(asm, P, i) {
+  const sps = surfaceParts(P), sp = sps[i];
+  if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert a singlet instead.';
+  return reKey(asm, P, () => {
+    const z = zsOf(P), last = sp.j === sp.n - 1, glass = last ? Object.assign({}, P.materials[i - 1] || { glass: 'N-BK7' }) : null;
+    const s = { R: null, k: 0, a2: 0, A: [], odd: null, semi: P.surfaces[i].semi, from: { id: sp.id, i: -1 } };
+    if (!last) {
+      z.splice(i + 1, 0, (z[i] + z[i + 1]) / 2);
+      P.materials.splice(i, 0, Object.assign({}, P.materials[i]));
+    } else {
+      for (let j = i + 1; j < z.length; j++) z[j] += 2;
+      z.splice(i + 1, 0, z[i] + 2);
+      P.materials.splice(i, 0, glass);
+    }
+    P.surfaces.splice(i + 1, 0, s);
+    gapsFrom(P, z);
+    P.parts[sp.pi].n++;
+    return j => j <= i ? j : j + 1;
+  }) || 'Nothing was inserted.';
+}
+/* a new flat singlet (N-BK7, 2 mm) after the part surface i is on, in the gap after it, the rest
+   pushed back if the gap is short of room; i 'front': before the first surface */
+function insertSinglet(asm, P, i) {
+  const sps = surfaceParts(P), front = i === 'front';
+  i = front ? 0 : i === undefined || i < 0 ? P.surfaces.length - 1 : i;
+  const sp = sps[i], after = front ? -1 : i + (sp.n - 1 - sp.j);        // the part's last surface (or before them all)
+  let el = null;
+  const ok = reKey(asm, P, () => {
+    const z = zsOf(P), T = 2;
+    if (front) {
+      // before the first surface, 2 mm clear of it: the first vertex moves back, nothing else does
+      const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
+      el = newSinglet(asm, P, semi);
+      z.unshift(-T - 2, -2);
+      P.surfaces.unshift(sing(el, 0, semi), sing(el, 1, semi));
+      P.materials.unshift({ glass: 'N-BK7' }, { glass: 'AIR' });
+      P.origin = [P.origin[0] - P.dir[0] * (T + 2), P.origin[1] - P.dir[1] * (T + 2)];
+      gapsFrom(P, z.map(v => v - z[0]));
+      P.parts.unshift({ id: el.id, kind: 'lens', flip: false, n: 2 });
+      return j => j + 2;
+    }
+    const room = after < P.surfaces.length - 1 ? P.gaps[after] : P.image;
+    const lead = after < P.surfaces.length - 1 ? Math.max(1, (room - T) / 2) : Math.max(1, Math.min(5, room / 4));
+    const push = after < P.surfaces.length - 1 ? Math.max(0, lead + T + 1 - room) : 0;
+    for (let j = after + 1; j < z.length; j++) z[j] += push;
+    const za = z[after] + lead;
+    const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
+    el = newSinglet(asm, P, semi);
+    z.splice(after + 1, 0, za, za + T);
+    P.surfaces.splice(after + 1, 0, sing(el, 0, semi), sing(el, 1, semi));
+    P.materials.splice(after, 0, { glass: 'AIR' }, { glass: 'N-BK7' });
+    gapsFrom(P, z);
+    if (after === P.surfaces.length - 3) P.image = Math.max(1, P.image - lead - T);
+    P.parts.splice(sp.pi + 1, 0, { id: el.id, kind: 'lens', flip: false, n: 2 });
+    return j => j <= after ? j : j + 2;
+  });
+  return ok ? el : 'Nothing was inserted.';
+}
+function newSinglet(asm, P, semi) {
+  const ref = project.elements.find(e => e.id === asm.ref) || asmMembers(asm)[0];
+  const el = normElement({ type: 'lens', id: uid(), name: nextName('Singlet'), x: ref.x, y: ref.y, z: ref.z, angle: Math.atan2(P.dir[1], P.dir[0]) / deg, diameter: 2 * semi,
+    surfaces: [{ R: null }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }], group: asm.id, bench: asm.bench });
+  if (ref.z === undefined) delete el.z;
+  project.elements.push(el);
+  return el;
+}
+const sing = (el, j, semi) => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi, from: { id: el.id, i: j } });
+/* surface i taken out: a lens of two surfaces goes whole (the gaps either side and its glass
+   becoming one gap); a lens's extra surface goes, the glass either side becoming one */
+function removeSurface(asm, P, i) {
+  const sps = surfaceParts(P), sp = sps[i];
+  if (!sp || sp.kind === 'stop') return 'The stop stays: it sets the aperture. Split the assembly to take it out.';
+  if (sp.kind === 'window' || sp.n <= 2) {
+    const lenses = P.parts.filter(p => p.kind !== 'stop').length;
+    if (lenses < 2) return 'An assembly keeps at least one lens.';
+    const a = i - sp.j, b = a + sp.n - 1, id = sp.id;
+    const ok = reKey(asm, P, () => {
+      const z = zsOf(P);
+      z.splice(a, b - a + 1);
+      P.surfaces.splice(a, b - a + 1);
+      // the glass and one of the airs either side
+      if (b < P.materials.length) P.materials.splice(a, b - a + 1); else P.materials.splice(a - 1, b - a + 1);
+      const z0 = z[0];
+      P.origin = [P.origin[0] + P.dir[0] * z0, P.origin[1] + P.dir[1] * z0];
+      gapsFrom(P, z.map(v => v - z0));
+      P.parts.splice(sp.pi, 1);
+      project.elements = project.elements.filter(e => e.id !== id);
+      return j => j < a ? j : j > b ? j - (b - a + 1) : -1;
+    });
+    return ok || 'Nothing was taken out.';
+  }
+  const ok = reKey(asm, P, () => {
+    const z = zsOf(P);
+    z.splice(i, 1);
+    P.surfaces.splice(i, 1);
+    if (sp.j === sp.n - 1) P.materials.splice(i - 1, 1); else P.materials.splice(i, 1);
+    const z0 = z[0];
+    P.origin = [P.origin[0] + P.dir[0] * z0, P.origin[1] + P.dir[1] * z0];
+    gapsFrom(P, z.map(v => v - z0));
+    P.parts[sp.pi].n--;
+    return j => j < i ? j : j > i ? j - 1 : -1;
+  });
+  return ok || 'Nothing was taken out.';
+}
+
+/* ---------- What the design gives ----------
+   First order at the primary wavelength and the Seidel sums over the largest field */
+function designFigures(asm, P) {
+  const c = asm.cond, nms = c.waves.map(w => w.nm), S = designSystem(asm, P);
+  const lo = Math.min(...nms), hi = Math.max(...nms), o = { epd: 2 * S.epr, image: P.image };
+  const Ss = hi > lo ? lensSystem(P, lo, o) : null, Sl = hi > lo ? lensSystem(P, hi, o) : null;
+  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  const efl = S.par.efl;
+  return { S, epd: 2 * S.epr, efl, bfl: S.par.bfl, fno: efl / (2 * S.epr), track: P.gaps.reduce((a, b) => a + b, 0) + P.image,
+    epz: S.par.epz, xpz: S.par.xpz - S.z[S.N - 1], imgH: efl * Math.tan(fmax * deg), fmax, seidel: seidel(S, fmax, Ss, Sl), lo, hi };
+}
+
+/* ---------- The light the bench sends it ----------
+   From the last trace's rays on its tab: each ray where it crosses a plane just before the first
+   surface, going forward and inside its clear radius. Each source gives a field (its rays' mean
+   angle to the axis) and its wavelengths; the widest beam, measured square to itself, the
+   entrance pupil. Null when no light reaches it. */
+function condFromRays(asm, P, rays, linesOf) {
+  const [ox, oy] = P.origin, [dx, dy] = P.dir, s0 = P.surfaces[0];
+  const h0 = isFinite(s0.semi) && s0.semi > 0 ? s0.semi : 12.7, sg = surfSag(s0, h0);
+  const zp = Math.min(0, isFinite(sg) ? sg : 0) - 0.5;
+  const by = new Map();
+  for (const r of rays) {
+    if (r.bench !== asm.bench) continue;
+    const p = r.pts;
+    for (let k = 0; k + 3 < p.length; k += 2) {
+      const z0 = (p[k] - ox) * dx + (p[k + 1] - oy) * dy, z1 = (p[k + 2] - ox) * dx + (p[k + 3] - oy) * dy;
+      if (!(z0 < zp && z1 >= zp)) continue;
+      const y0 = -(p[k] - ox) * dy + (p[k + 1] - oy) * dx, y1 = -(p[k + 2] - ox) * dy + (p[k + 3] - oy) * dx;
+      const f = (zp - z0) / (z1 - z0), y = y0 + f * (y1 - y0);
+      if (Math.abs(y) <= h0 * 1.001) {
+        const a = Math.atan2(y1 - y0, z1 - z0);
+        if (!by.has(r.src)) by.set(r.src, []);
+        by.get(r.src).push({ y, a });
+      }
+      break;
+    }
+  }
+  if (!by.size) return null;
+  const fields = new Set([0]), waves = new Set();
+  let epd = 0;
+  for (const [src, L] of by) {
+    const a = L.reduce((s, r) => s + r.a, 0) / L.length;
+    fields.add(Math.round(Math.abs(a / deg) * 100) / 100);
+    const across = L.map(r => r.y * Math.cos(a));
+    epd = Math.max(epd, Math.max(...across) - Math.min(...across));
+    for (const nm of linesOf(src)) waves.add(nm);
+  }
+  const W = [...waves].filter(nm => nm >= 100 && nm <= 1e7).sort((a, b) => a - b).slice(0, 12);
+  return { fields: [...fields].sort((a, b) => a - b).slice(0, 12), waves: W, epd, sources: by.size };
+}
+/* conditions to design for from that light: the bench's fields and wavelengths, its beam as the entrance pupil */
+function condFromBench(asm, B) {
+  const c = asm.cond;
+  return normCond({ aperture: B.epd > 1e-6 ? { kind: 'epd', v: +B.epd.toPrecision(6) } : c.aperture,
+    fields: B.fields.map(deg => ({ deg, w: 1 })), waves: (B.waves.length ? B.waves : c.waves.map(w => w.nm)).map(nm => ({ nm, w: 1 })),
+    primary: B.waves.length ? Math.floor((B.waves.length - 1) / 2) : c.primary });
+}
+/* how the bench uses it outside what it is designed for: a list of short sentences, empty when within */
+function condMismatch(asm, B, efl) {
+  const c = asm.cond, out = [];
+  const fmax = Math.max(...c.fields.map(f => Math.abs(f.deg))), bmax = Math.max(...B.fields);
+  if (bmax > fmax + 0.05) out.push('light arrives at ' + (+bmax.toFixed(2)) + '°, beyond its fields (to ' + (+fmax.toFixed(2)) + '°)');
+  const nms = c.waves.map(w => w.nm), lo = Math.min(...nms), hi = Math.max(...nms);
+  const off = B.waves.filter(nm => nm < lo - 0.5 || nm > hi + 0.5);
+  if (off.length) out.push(off.map(nm => +nm.toPrecision(5)).join(', ') + ' nm, outside its wavelengths (' + (lo === hi ? +lo.toPrecision(5) : +lo.toPrecision(5) + ' to ' + (+hi.toPrecision(5))) + ' nm)');
+  const epd = designEpd(c, efl);
+  if (B.epd > epd * 1.02 + 1e-3) out.push('a beam ' + (+B.epd.toPrecision(3)) + ' mm across, wider than its entrance pupil (' + (+epd.toPrecision(3)) + ' mm)');
+  return out;
 }
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
@@ -29459,7 +30490,7 @@ function pasteClip(clip, at) {
   // a whole assembly copied: its record with it, for the copy's own group
   for (const a of Array.isArray(clip.assemblies) ? clip.assemblies : []) {
     if (!groups.has(a.id) || !map.has(a.ref)) continue;
-    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy' })], made));
+    project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy', design: remapDesign(a.design, map) })], made));
   }
   project.fibres = project.fibres || [];
   for (const F of clip.fibres || []) {
@@ -29758,7 +30789,8 @@ function setStatus(t) {
 }
 let toastTimer = null;
 function toast(msg, bad) {
-  const t = document.getElementById(document.getElementById('home').hidden ? 'toast' : 'homeToast');
+  const ws = document.getElementById('lensWs');
+  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : document.getElementById('home').hidden ? 'toast' : 'homeToast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');
@@ -30547,7 +31579,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
+const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}; the tool adds \"design\" (its lens data\u2019s solves and variables) itself, so leave that out. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y, the lower \"tip\": 45 and the upper, at its own \"z\", \"tip\": -45, facing the way the beam is to leave. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u2192 Part packs\u2026** and then add from **+ Add part \u2192 Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed into the part of the address
@@ -31667,11 +32699,16 @@ function zmxAssembly(Z, el) {
     fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
   return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
 }
+/* the next lens file imported opens in the lens design workspace */
+let zmxAsDesign = false;
+function setZmxAsDesign(v) { return (zmxAsDesign = !!v); }
 async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
   const mode = dlg.open ? document.getElementById('zmxAs').value : 'auto';
   files = files instanceof File ? [files] : [...files];
+  const asDesign = zmxAsDesign;
+  zmxAsDesign = false;
   if (zmxToMine) { await zmxIntoMine(files, mode); return; }
   try {
     const { Z, el } = await zmxElement(files[0], mode);
@@ -31684,6 +32721,7 @@ async function importZmx(files) {
       changed(true);
       if (dlg.open) dlg.close();
       const w = [...Z.warnings];
+      if (asDesign) openLensDesign(A.asm);
       toast('Imported ' + A.asm.name + ' as an assembly of ' + A.els.length + ' parts' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
       return;
     }
@@ -34196,6 +35234,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The lens design workspace</b>, the third step of lens design: <b>Design\u2026</b> in an assembly\u2019s panel (or a double-click on it) opens it on a page of its own, with the conditions it is designed for, its layout traced from each field, its first-order figures, and its <b>lens data</b>: radius, thickness, glass, clear radius and conic for each surface, typed in, marked <b>V</b> for the optimiser, or set by a <b>solve</b> (the image at focus, a radius for an F-number, a thickness for an edge) or a <b>pickup</b>. Insert surfaces and singlets, or take them out; the Seidel sums surface by surface under Analyses. Every change is the bench\u2019s at once. <b>Take conditions from the bench</b> reads the light arriving at it, and its panel on the bench says when it is used outside its design conditions. A design started from nothing is <b>placed on a bench</b> with a source for each field and a screen at its image.',
     '<b>The lens engine</b>, the second step of lens design: an assembly traced as a lens designer traces it, exactly in three dimensions through its surfaces (conics and aspheres), with first-order figures, entrance and exit pupils, rays aimed through the stop and the wavefront error on the exit pupil\u2019s reference sphere. It lands the bench\u2019s own rays where the bench does, to a nanometre, and traces some 10\u2075 aimed rays a second. The design workspace is built on it.',
     '<b>Assemblies</b>, the first step of lens design: select lenses and stops on one axis and <b>Make an assembly</b>. It is picked and moved as one and read as one prescription (its focal length, back focus and stop in its panel), with the aperture, fields and wavelengths it is designed for; nothing the light does changes, and <b>Split into parts</b> gives the parts back. <b>File \u203a New lens design</b> starts one, a lens file of several lenses imports as one, and an assembly exports as a lens file with its stop and conditions.',
     '<b>Steering</b>: a horn moved off an RF lens\u2019s axis steers its beam, and the lens\u2019s readout gives where it points and the scan loss against the horn on the axis, the bench traced again with it there; <b>Work out the scan</b> moves the horn round the lens and plots the scan loss.',
@@ -34780,7 +35819,8 @@ function wireTours() {
 
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
-  document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
+  document.getElementById('btnImport').addEventListener('click', () => { setZmxAsDesign(false); openZmx(false); });
+  document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
@@ -34804,7 +35844,7 @@ function wireTours() {
 
   document.getElementById('fileZmx').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importZmx(fs); e.target.value = ''; });
 
-  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); });
+  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); setTimeout(() => setZmxAsDesign(false), 0); });
 
   {
     const dlg = document.getElementById('matDialog');
@@ -35987,6 +37027,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return { origin: P.origin, dir: P.dir, imageZ: S.imageZ, out: rays.map(r => { const R = Float64Array.from([...r, 0, 0]); traceRay(S, R, 0, S.N - 1); if (R[7] === 0) { const t = (S.imageZ - R[2]) / R[5]; R[0] += R[3] * t; R[1] += R[4] * t; R[2] = S.imageZ; R[6] += t; } return Array.from(R); }) };
     },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
+    openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
+    closeLensDesign() { closeLensDesign(); },
+    selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
+    lensDesignOpen() { return lensDesignOpen(); },
+    lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },

@@ -347,6 +347,8 @@ The **criterion** is the merit function's image term: the RMS spot (or RMS wavef
 
 Both run in the background worker, a batch at a time, and can be stopped. The tolerances, the compensator and Monte Carlo's settings are kept with the design; the results are kept while the workspace is open, and say so when the design has changed since.
 
+**Inverse sensitivity** turns the question round: for a worsening allowed (a share of the nominal criterion, 10% unless set, or an amount of it in µm or waves), it finds, for each tolerance alone, the limit at which the criterion is worse by that much, the worse of its two signs counted, each build refocused if the compensator is on. It starts from the limit set, doubles or halves it until the worsening allowed is bracketed, then halves the bracket in the limit's logarithm to a part in a hundred. A tolerance that does not worsen the criterion that much within a thousand times its limit is reported as at least that; a thickness or gap whose worse side has closed (its glass or air down to nothing) before reaching it, as closing first. Each kind's tightest item is set against the limit set now, and **Use these limits** sets each kind to it (to two figures, rounded down). Each limit is for its tolerance alone: together they add, as Sensitivity's estimate and Monte Carlo show, so a build with every tolerance at its allowed limit is worse than the worsening allowed.
+
 **Checked against.**
 - a decentred surface traced in its own frame against the centred one with the light moved across: the same rays, to 10⁻¹²;
 - a plate tilted 10°: a ray along the axis leaves parallel, shifted by $$t\sin\alpha\left(1 - \cos\alpha/\sqrt{n^2 - \sin^2\alpha}\right)$$;
@@ -355,6 +357,7 @@ Both run in the background worker, a batch at a time, and can be stopped. The to
 - a round system's decentres and tilts alike in x and y and at either limit;
 - Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors;
 - a plano-convex lens with its flat back wedged by α: the image of a point on the axis moves by $$(n-1)\,\alpha\,\mathrm{BFL}$$, a thin prism's deviation, across the plane of the tilt and not along it, to 1%;
+- inverse sensitivity: at each limit found, the worsening Sensitivity finds is the one allowed, to a part in a hundred; twice the worsening allows between √2 and 2 times the limit, as effects between linear and quadratic do; an amount allowed the same as that share; the triplet with each kind set to its tightest has no tolerance worsening it by more than allowed;
 - a triplet's wedges out of the plane of its fields worsen its image alike either way; in that plane (its fields on one side) one way is better and the other worse, as a linear term makes them.
 
 ### Drawings

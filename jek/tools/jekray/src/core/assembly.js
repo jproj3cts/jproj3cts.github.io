@@ -160,6 +160,9 @@ export function normTol(o) {
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
   out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
+  // the worsening inverse sensitivity allows: a share of the nominal criterion (%), or an amount of it (mm, or waves)
+  const iv = o.inv && typeof o.inv === 'object' ? o.inv : {};
+  out.inv = iv.by === 'abs' ? { by: 'abs', v: clamp(num(iv.v, 0.001), 1e-9, 1e3) } : { by: 'pct', v: clamp(num(iv.v, 10), 0.01, 1e4) };
   return out;
 }
 export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];

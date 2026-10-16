@@ -5387,6 +5387,9 @@ function normTol(o) {
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
   out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
+  // the worsening inverse sensitivity allows: a share of the nominal criterion (%), or an amount of it (mm, or waves)
+  const iv = o.inv && typeof o.inv === 'object' ? o.inv : {};
+  out.inv = iv.by === 'abs' ? { by: 'abs', v: clamp(num(iv.v, 0.001), 1e-9, 1e3) } : { by: 'pct', v: clamp(num(iv.v, 10), 0.01, 1e4) };
   return out;
 }
 const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
@@ -22759,7 +22762,7 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis']];
 const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 let TOL = null;
-const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
+const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
 function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
 const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
 
@@ -22775,6 +22778,7 @@ function tolStart(mode, ctx) {
   if (!ops.length) return false;
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
     sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
+    inv: mode === 'inv' ? { nominal: null, target: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.inv : null),
     mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
   ctx.redraw();
   if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
@@ -22784,12 +22788,15 @@ function tolStart(mode, ctx) {
 function tolBatch(ctx) {
   const O = TOL;
   if (!O || !O.running) return;
-  const prob = O.prob, S = O.sens, M = O.mc;
-  const run = O.mode === 'sens' ? { mode: 'sens', from: S.rows.length, to: S.rows.length + 4 } : { mode: 'mc', from: M.trials.length, to: Math.min(M.target, M.trials.length + 10) };
+  const prob = O.prob, S = O.sens, M = O.mc, I = O.inv;
+  const run = O.mode === 'sens' ? { mode: 'sens', from: S.rows.length, to: S.rows.length + 4 } : O.mode === 'inv' ? { mode: 'inv', from: I.rows.length, to: I.rows.length + 1 } : { mode: 'mc', from: M.trials.length, to: Math.min(M.target, M.trials.length + 10) };
   const take = out => {
     if (TOL !== O || !O.running) return;
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; ctx.redraw(); return; }
-    if (O.mode === 'sens') {
+    if (O.mode === 'inv') {
+      I.nominal = out.nominal; I.target = out.target; I.rows.push(...out.rows);
+      if (I.rows.length >= I.count) { O.running = false; O.note = 'Done: ' + I.count + ' tolerances.'; }
+    } else if (O.mode === 'sens') {
       S.nominal = out.nominal; S.rows.push(...out.rows);
       if (S.rows.length >= S.count) { O.running = false; O.note = 'Done: ' + S.count + ' tolerances.'; }
     } else {
@@ -22835,11 +22842,18 @@ function tolCard(ctx) {
     h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
+  const invV = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: T.inv.by === 'abs' ? tolFmt(wf ? T.inv.v : 1000 * T.inv.v, 6) : tolFmt(T.inv.v, 6), 'aria-label': 'Worsening allowed' });
+  const invBy = h('select', { 'aria-label': 'Worsening allowed as' }, h('option', { value: 'pct' }, '% of nominal'), h('option', { value: 'abs' }, wf ? 'waves' : 'µm'));
+  invBy.value = T.inv.by;
+  const invSet = () => { const x = parseFloat(invV.value); if (!(isFinite(x) && x > 0)) { invV.value = tolFmt(T.inv.v, 6); return; } set(t => { t.inv = { by: invBy.value, v: invBy.value === 'abs' && !wf ? x / 1000 : x }; }); };
+  invV.addEventListener('change', invSet); invBy.addEventListener('change', invSet);
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'Inverse sensitivity: the limit of each tolerance alone that worsens the criterion by ', invV, ' ', invBy)));
   card.append(h('div', { class: 'rt-lbar' }, ...(running
     ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
     : [h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'),
-      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo')])));
-  if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
+      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'),
+      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity')])));
+  if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : mine.mode === 'inv' ? 'Inverse sensitivity: ' + mine.inv.rows.length + ' of ' + mine.inv.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
   if (mine && !current && !running) card.append(h('div', { class: 'rt-lnote' }, 'These results are for the design as it was when they ran; run them again for it as it is now.'));
   // sensitivity
   const S = mine && mine.sens;
@@ -22864,6 +22878,9 @@ function tolCard(ctx) {
     if (rows.length > 12) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allSens = !ctx.state.allSens; ctx.redraw(); } }, ctx.state.allSens ? 'Show the 12 worst' : 'Show all ' + rows.length));
     card.append(h('p', { class: 'rt-lsub' }, 'Each tolerance alone at its limits, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the change in the criterion from nominal. Sorted worst first.'));
   }
+  // inverse sensitivity
+  const I = mine && mine.inv;
+  if (I && I.nominal !== null && I.rows.length) card.append(...invView(ctx, I, T, unit, set));
   // Monte Carlo
   const M = mine && mine.mc;
   if (M && M.trials.length) {
@@ -22884,6 +22901,28 @@ function tolCard(ctx) {
   return card;
 }
 
+const KIND_UNIT = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%', irr: 'fringes', wedge: 'arcmin' };
+/* a limit to set: two significant figures, rounded down (so it keeps within what was found) */
+const roundDown = v => { if (!(v > 0)) return v; const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.floor(v / p + 1e-9) * p; };
+/* inverse sensitivity's results: each kind's tightest item against its setting, with the means to take them, and every item */
+function invView(ctx, I, T, unit, set) {
+  const out = [h('h3', null, 'Inverse sensitivity')];
+  out.push(h('div', { class: 'rt-readout' }, h('dl', null, h('dt', null, 'Nominal'), h('dd', { class: 'mono' }, unit(I.nominal)), h('dt', null, 'Worsening allowed'), h('dd', { class: 'mono' }, unit(I.target) + (T.inv.by === 'pct' ? ' (' + tolFmt(T.inv.v, 4) + '%)' : '')))));
+  const kinds = KIND_ROWS.filter(([k]) => I.rows.some(r => r.kind === k)).map(([k, label]) => { const rs = I.rows.filter(r => r.kind === k), lim = rs.filter(r => !r.beyond), m = (lim.length ? lim : rs).reduce((a, r) => r.inv < a.inv ? r : a, (lim.length ? lim : rs)[0]); return { k, label, now: T[k].v, tight: m.inv, by: m.label, beyond: rs.every(r => r.beyond) }; });
+  const kt = h('tbody');
+  for (const q of kinds) kt.append(h('tr', { class: q.tight < q.now ? 'on' : '' }, h('td', null, q.label), h('td', { class: 'mono' }, tolFmt(q.now, 4) + ' ' + KIND_UNIT[q.k]),
+    h('td', { class: 'mono' }, (q.beyond ? '\u2265 ' : '') + tolFmt(q.tight, 3) + ' ' + KIND_UNIT[q.k]), h('td', { class: 'rt-lsub' }, q.beyond ? 'none of them worsens it that much' : q.by)));
+  out.push(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-ltolinv' }, h('thead', null, h('tr', null, ...['Tolerance', 'Set now', 'Allowed, the tightest', 'Set by'].map(t => h('th', { scope: 'col' }, t)))), kt)));
+  out.push(h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => set(t => { for (const q of kinds) if (!q.beyond) t[q.k].v = roundDown(q.tight); }) }, 'Use these limits'),
+    h('span', { class: 'rt-lsub' }, 'Each kind set to its tightest, to two figures, rounded down. Kinds tighter than now are marked.')));
+  const rows = I.rows.slice().sort((a, b) => a.inv / a.lim - b.inv / b.lim), show = ctx.state.allInv ? rows : rows.slice(0, 12), tb = h('tbody');
+  for (const r of show) tb.append(h('tr', null, h('td', null, r.label), h('td', { class: 'mono' }, tolFmt(r.lim, 4) + ' ' + KIND_UNIT[r.kind]),
+    h('td', { class: 'mono' }, (r.beyond ? '\u2265 ' : '') + tolFmt(r.inv, 3) + ' ' + KIND_UNIT[r.kind]), h('td', { class: 'rt-lsub' }, (r.beyond ? 'beyond a thousand times the limit' : '') + (r.closes ? (r.beyond ? '; ' : '') + 'the ' + (r.label.startsWith('Air') ? 'gap' : 'glass') + ' has closed on its \u2212 side' : ''))));
+  out.push(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-ltolsens' }, h('thead', null, h('tr', null, ...['Tolerance', 'Set now', 'Allowed', ''].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
+  out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
+  return out;
+}
 /* the builds' criterion, binned; the nominal and the 90% line marked */
 function histogram(parent, vals, k, u, nominal, p90) {
   const cv = h('canvas', { role: 'img', 'aria-label': 'The criterion over ' + vals.length + ' builds' });
@@ -24230,7 +24269,7 @@ function limitsCard(asm, prob, V, running) {
     h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
     h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
   if (WS.limsOpen || Object.keys(L).length) det.open = true;
-  det.addEventListener('toggle', () => { WS.limsOpen = det.open; });
+  det.addEventListener('toggle', () => { if (WS) WS.limsOpen = det.open; });
   return det;
 }
 /* why a radius's limits can't be kept (two of opposite signs), or null */
@@ -33532,6 +33571,34 @@ function rssEstimate(nominal, rows, dist) {
   return Math.sqrt(Math.max(0, nominal * nominal + add));
 }
 
+/* ---------- Inverse sensitivity ----------
+   For each tolerance alone, the limit at which the criterion (refocused, as set) is worse than nominal by the
+   worsening allowed (T.inv: a share of the nominal, by: 'pct', or an amount in the criterion's units, by: 'abs'),
+   the worse of its two signs counted. Found by doubling or halving from the limit set until the worsening is
+   bracketed, then by halving the bracket in the logarithm of the limit to a part in a hundred. A tolerance that
+   does not worsen the criterion that much within a thousand times its limit is reported as at least that. A thickness or
+   gap past its own size has closed on its − side (marked): only its + side changes the criterion beyond that. */
+const INV_MAX = 1000;
+const invTarget = (T, nominal) => (T.inv && T.inv.by === 'abs' ? T.inv.v : nominal * ((T.inv ? T.inv.v : 10) / 100));
+function tolInverse(prob, T, from, to) {
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), target = invTarget(T, nom.crit), rows = [];
+  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
+  for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
+    const o = ops[k];
+    // a thickness or gap can't go below nothing: past its own size its − side has closed and no longer changes (its + side still does)
+    const top = INV_MAX * o.lim, gap = o.kind === 'thk' ? prob.P.gaps[o.i] : Infinity;
+    let lo = 0, hi = null, v = o.lim, f = worse(k, v);
+    // bracket: lo worsens less than allowed, hi at least as much
+    if (f < target) { lo = v; while (v < top) { v = Math.min(2 * v, top); f = worse(k, v); if (f >= target) { hi = v; break; } lo = v; } }
+    else { hi = v; while (v > 1e-6 * o.lim) { v /= 2; f = worse(k, v); if (f < target) { lo = v; break; } hi = v; } }
+    if (hi === null) { rows.push(Object.assign({ k, label: o.label, kind: o.kind, lim: o.lim, inv: top, beyond: true }, top > gap ? { closes: true } : {})); continue; }
+    if (!(lo > 0)) { rows.push({ k, label: o.label, kind: o.kind, lim: o.lim, inv: hi, below: true }); continue; }
+    for (let it = 0; it < 12 && hi / lo > 1.01; it++) { const m = Math.sqrt(lo * hi); if (worse(k, m) >= target) hi = m; else lo = m; }
+    rows.push(Object.assign({ k, label: o.label, kind: o.kind, lim: o.lim, inv: lo }, lo > gap ? { closes: true } : {}));
+  }
+  return { nominal: nom.crit, target, count: ops.length, rows };
+}
+
 /* ---------- Monte Carlo ---------- */
 function tolRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 /* trials from..to-1: each its own seed, so the result does not depend on how the run is cut up */
@@ -33561,6 +33628,7 @@ function mcStats(crits) {
 function tolRun(prob, args) {
   const T = prob.design.tol;
   if (args.mode === 'sens') return tolSensitivity(prob, T, args.from, args.to);
+  if (args.mode === 'inv') return tolInverse(prob, T, args.from, args.to);
   return { trials: tolMonteCarlo(prob, T, args.from, args.to) };
 }
 /* ==========================================================================
@@ -39431,6 +39499,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Inverse sensitivity</b> in tolerancing: say how much worse the image may get (a share of nominal, or an amount), and it finds each tolerance\u2019s limit for that, each kind\u2019s tightest against what is set, with <b>Use these limits</b> to take them.',
     '<b>Surface wedge</b> in tolerancing: tick it in the Tolerance tab and each lens surface is tilted on its own about its vertex, about x and about y, in Sensitivity and in Monte Carlo, as a lens comes out wedged.',
     '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',
     '<b>Designs kept</b> in lens design: a global search keeps the ten best distinct designs it finds, not only the best, saved with the design; <b>Use</b> puts any of them back, and <b>Keep this design</b> adds the design as it is now, to come back to.',

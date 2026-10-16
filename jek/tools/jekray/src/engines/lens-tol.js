@@ -137,6 +137,34 @@ export function rssEstimate(nominal, rows, dist) {
   return Math.sqrt(Math.max(0, nominal * nominal + add));
 }
 
+/* ---------- Inverse sensitivity ----------
+   For each tolerance alone, the limit at which the criterion (refocused, as set) is worse than nominal by the
+   worsening allowed (T.inv: a share of the nominal, by: 'pct', or an amount in the criterion's units, by: 'abs'),
+   the worse of its two signs counted. Found by doubling or halving from the limit set until the worsening is
+   bracketed, then by halving the bracket in the logarithm of the limit to a part in a hundred. A tolerance that
+   does not worsen the criterion that much within a thousand times its limit is reported as at least that. A thickness or
+   gap past its own size has closed on its − side (marked): only its + side changes the criterion beyond that. */
+export const INV_MAX = 1000;
+export const invTarget = (T, nominal) => (T.inv && T.inv.by === 'abs' ? T.inv.v : nominal * ((T.inv ? T.inv.v : 10) / 100));
+export function tolInverse(prob, T, from, to) {
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), target = invTarget(T, nom.crit), rows = [];
+  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
+  for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
+    const o = ops[k];
+    // a thickness or gap can't go below nothing: past its own size its − side has closed and no longer changes (its + side still does)
+    const top = INV_MAX * o.lim, gap = o.kind === 'thk' ? prob.P.gaps[o.i] : Infinity;
+    let lo = 0, hi = null, v = o.lim, f = worse(k, v);
+    // bracket: lo worsens less than allowed, hi at least as much
+    if (f < target) { lo = v; while (v < top) { v = Math.min(2 * v, top); f = worse(k, v); if (f >= target) { hi = v; break; } lo = v; } }
+    else { hi = v; while (v > 1e-6 * o.lim) { v /= 2; f = worse(k, v); if (f < target) { lo = v; break; } hi = v; } }
+    if (hi === null) { rows.push(Object.assign({ k, label: o.label, kind: o.kind, lim: o.lim, inv: top, beyond: true }, top > gap ? { closes: true } : {})); continue; }
+    if (!(lo > 0)) { rows.push({ k, label: o.label, kind: o.kind, lim: o.lim, inv: hi, below: true }); continue; }
+    for (let it = 0; it < 12 && hi / lo > 1.01; it++) { const m = Math.sqrt(lo * hi); if (worse(k, m) >= target) hi = m; else lo = m; }
+    rows.push(Object.assign({ k, label: o.label, kind: o.kind, lim: o.lim, inv: lo }, lo > gap ? { closes: true } : {}));
+  }
+  return { nominal: nom.crit, target, count: ops.length, rows };
+}
+
 /* ---------- Monte Carlo ---------- */
 function tolRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 /* trials from..to-1: each its own seed, so the result does not depend on how the run is cut up */
@@ -166,5 +194,6 @@ export function mcStats(crits) {
 export function tolRun(prob, args) {
   const T = prob.design.tol;
   if (args.mode === 'sens') return tolSensitivity(prob, T, args.from, args.to);
+  if (args.mode === 'inv') return tolInverse(prob, T, args.from, args.to);
   return { trials: tolMonteCarlo(prob, T, args.from, args.to) };
 }

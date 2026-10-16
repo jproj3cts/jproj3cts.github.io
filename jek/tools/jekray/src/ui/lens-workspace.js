@@ -901,7 +901,7 @@ function limitsCard(asm, prob, V, running) {
     h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
     h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
   if (WS.limsOpen || Object.keys(L).length) det.open = true;
-  det.addEventListener('toggle', () => { WS.limsOpen = det.open; });
+  det.addEventListener('toggle', () => { if (WS) WS.limsOpen = det.open; });
   return det;
 }
 /* why a radius's limits can't be kept (two of opposite signs), or null */

@@ -8999,6 +8999,26 @@ const TESTS = [
     },
   },
   {
+    name: 'Inverse sensitivity: each tolerance’s limit for the worsening allowed, and Use these limits keeps every one within it',
+    why: 'the published Cooke triplet\u2019s Tolerance tab, 10% worsening allowed: Inverse sensitivity finds all 30 limits, each kind\u2019s tightest shown against its setting; Use these limits sets each kind to its tightest (two figures, rounded down); Sensitivity at the new limits then finds no tolerance worsening the criterion by more than the 10% (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Tolerance the design', null, 'tab');
+        const I = J.lensTolRun('inv').inv;
+        const summary = rigDoc().querySelectorAll('#lensWs .rt-ltolinv tbody tr').length === 6;
+        wsClick('Use these limits');
+        const T = J.lensFigures('Cooke triplet').design.tol;
+        const kept = ['rad', 'thk', 'dec', 'tilt', 'ind', 'abbe'].every(k => { const rs = I.rows.filter(r => r.kind === k && !r.beyond); return !rs.length || T[k].v <= Math.min(...rs.map(r => r.inv)) + 1e-12; });
+        const S = J.lensTolRun('sens').sens;
+        const within = S.rows.every(r => Math.max(r.minus, r.plus) <= I.target * 1.0001);
+        return I.rows.length === 30 && summary && kept && within ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
     why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
     want: 1, tol: 0, unit: '',

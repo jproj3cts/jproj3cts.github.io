@@ -26,6 +26,12 @@ export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode,
 export function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
 const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
 
+/* the last runs' results, if they were made on the design as it now is: { sens (when complete), mc, est } */
+export function tolResultsFor(asm, P) {
+  if (!TOL || TOL.id !== asm.id || TOL.key !== keyOf(optProblem(asm, P))) return null;
+  const T = TOL.prob.design.tol, S = TOL.sens && TOL.sens.rows.length >= TOL.sens.count ? TOL.sens : null, M = TOL.mc && TOL.mc.trials.length ? TOL.mc : null;
+  return { sens: S, est: S ? rssEstimate(S.nominal, S.rows, T.dist) : null, mc: M && { n: M.trials.length, nominal: M.nominal, stats: mcStats(M.trials.map(t => t.crit)) }, crit: TOL.prob.design.merit.crit };
+}
 /* a run: ctx { asm, P, redraw, sync } */
 export function tolStart(mode, ctx) {
   const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);

@@ -8946,6 +8946,28 @@ const TESTS = [
     },
   },
   {
+    name: 'A design’s report is a PDF of its summary, prescription, analyses, tolerances and drawings, folded or not',
+    why: 'the Cooke triplet’s report: four portrait pages (summary, prescription with its Seidel sums, analyses, tolerances, saying no run has been made) then its three lens drawings, landscape; the folded assembly’s: its layout folded as on the bench, its mirror in the prescription, and two drawings (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const pdf = await J.lensReportPdf('Cooke triplet');
+      const pages = pdf.match(/\/MediaBox\[0 0 [\d.]+ [\d.]+\]/g) || [];
+      const portrait = pages.filter(m => /0 0 595 842/.test(m)).length, landscape = pages.filter(m => /0 0 842 595/.test(m)).length;
+      const has = t => pdf.includes('(' + t);
+      const tripOk = /^%PDF-1\.4/.test(pdf) && portrait === 4 && landscape === 3 && has('Prescription)') && has('Seidel sums') && has('Tolerances)') && has('Neither run has been made') && has('Spot diagrams');
+      const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
+      J.load({ format: 'jekray', version: 1, elements: [
+        L('Front', 0, 0, 0, 40, -200, 4, 'N-BK7'), { type: 'mirror', name: 'Fold', x: 22, y: 0, angle: 135, length: 30 },
+        L('Back', 22.3, 25, 92, 60, -60, 3, 'F2')] });
+      J.makeAssembly(['Front', 'Fold', 'Back']);
+      const fp = await J.lensReportPdf(J.assemblies()[0].name), fpages = (fp.match(/\/MediaBox/g) || []).length;
+      const foldOk = fpages === 6 && fp.includes('folded as on the bench') && fp.includes('(Mirror)');
+      if (!(tripOk && foldOk)) console.log('report', portrait, landscape, tripOk, fpages, foldOk);
+      return tripOk && foldOk ? 1 : 0;
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

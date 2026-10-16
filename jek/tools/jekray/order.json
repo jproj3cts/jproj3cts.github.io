@@ -116,6 +116,7 @@
  "ui/lens-analyses.js",
  "ui/lens-tolerance.js",
  "ui/lens-drawing.js",
+ "ui/lens-report.js",
  "ui/lens-workspace.js",
  "ui/plots.js",
  "ui/panel-cavity.js",

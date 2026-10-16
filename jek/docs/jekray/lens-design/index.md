@@ -2,22 +2,25 @@
 layout: docs
 title: Lens design
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies and lens design in JEKray. Lenses and stops on one axis are made one assembly, designed together in the lens design workspace (conditions, layout, lens data, solves, pickups, Seidel sums), then used on the bench as the parts they are.
+description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on one axis are made one assembly, designed together in the lens design workspace (conditions, layout, lens data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
 ---
 
-<p class="dx-lead">An assembly is a set of lenses and stops on one axis that are designed together: a doublet, a triplet, an objective. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
+<p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
 ## Making an assembly
 
-Select the lenses and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or from the right-click menu. They must be:
+Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or from the right-click menu. They must be:
 
-- lenses round about their axes (not cylindrical), round irises, or windows;
-- on one axis: facing along it (a lens either way round), on it to within a micrometre, at one height and upright;
+- lenses round about their axes (not cylindrical), round irises, windows, or mirrors (flat or curved, whole: not off-axis segments or film beam splitters);
+- on one axis, which each mirror folds: each part the next one along it, within its own half-width of it, at one height and upright;
+- facing along it, a lens either way round, tilted from it by up to 30°; a mirror facing the light it reflects, at any angle;
 - not overlapping.
+
+A lens off the axis by less than its half-width is *decentred*, one turned from it *tilted*: both are part of the design, traced as they stand (below).
 
 If they are not, the panel says which part is in the way and why. The light is taken to run away from a source on the axis; with none on it, the way most of the lenses face.
 
-An assembly is picked and moved as one, drawn with a dashed outline and its name. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
+An assembly is picked and moved as one, drawn with a dashed outline (one round each straight run of a folded one) and its name. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
 
 **File › New lens design…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
 
@@ -35,6 +38,25 @@ Along the light, from the first surface's vertex, an assembly reads as:
 The stop is a flat surface in air with the iris's radius. A lens turned against the light is read face for face the other way round, each sag of the other sign. Changes to the prescription are written back to the parts: each shape to the surface it came from, each gap to a lens's thickness or to the parts' places along the axis (the first surface stays where it is). A prescription written back unchanged moves nothing.
 
 Its panel gives its paraxial focal length and back focal distance at its primary wavelength (the y-nu trace through the prescription), its number of surfaces and where the stop is, and its length from first to last surface.
+
+## Folds, tilts and decentres
+
+A mirror is one reflecting surface in the prescription, its glass **Mirror**. Its radius is read as the light meets it (positive with its centre beyond it along the light, so a mirror concave to the light has a negative radius), and the axis turns where it meets the mirror, about its normal. The gaps run on along the folded axis; the lens data still counts them from surface to surface, as if unfolded.
+
+A tilted or decentred lens carries its tilt (degrees, in the plane of the fields) and decentre (mm, across the axis) on its first surface, about its first vertex; its other surfaces turn with it. A mirror's tilt is half the angle it turns the light through: 45° for a right-angle fold. The lens data shows a **Tilt, decentre** column whenever an assembly has either. They are set on the bench, by turning or moving the part; the design keeps them as they are.
+
+The lens engine walks the axis from the first vertex, each surface in its own frame: its vertex, and its axes turned by its tilt from the axis there, which a mirror reflects for all after it. A ray is taken into each surface's frame, met and refracted (or reflected) there, and taken back. The image plane is square to the axis after the last surface, and every analysis is read in its frame. First-order figures and Seidel sums are those of the system unfolded: a mirror reflects a paraxial ray as $$u' = u + 2cy$$, and after each mirror the sense of the index, the curvatures and the gaps turns over, so the sums keep their usual signs.
+
+A folded or tilted assembly is drawn folded in the layout, as on the bench. Its parts are written back to the bench along the folded axis, each mirror turned to keep the fold. A mirror cannot be removed in the lens data (split the assembly to take it out); its radius and conic can be set, varied, solved and picked up as a lens surface's can.
+
+In tolerancing, a mirror's radius is toleranced as a lens surface's, and its tilt turns its face alone: the axis after it stays where it was designed, as the parts after a fold mirror stay put when the mirror is made a little out, so the image moves on the image plane by twice the tilt times the distance.
+
+**Checked against.**
+- a singlet with a flat mirror at 45° after it: the same focal length, spots and wavefronts as unfolded, its image across the bench;
+- a concave sphere: its focus at half its radius; a paraboloid, and a Newtonian (the paraboloid with a flat at 45° before its focus): a star imaged with no spot at all;
+- a spherical mirror's spherical aberration, $$S_I = 2y^4/|R|^3$$, from the Seidel sum and from the real rays;
+- a lens, a fold mirror and a second lens tilted 2° and moved 0.3 mm across, made an assembly: each of the bench's own rays, in the bench plane and out of it, met where the lens engine's ray meets the sensor, with the same optical path, to 10⁻⁹ mm;
+- a fold mirror made a minute of arc out: the image plane where it was, the image moved by twice the tilt times the throw.
 
 ## The lens engine
 
@@ -180,6 +202,29 @@ Both run in the background worker, a batch at a time, and can be stopped. The to
 - a round system's decentres and tilts alike in x and y and at either limit;
 - Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors.
 
+### Drawings
+
+The **Drawings** tab gives each lens (and window) of the design a drawing on an A4 sheet, landscape, in the manner of ISO 10110: on the left the lens in section, to a standard scale, the light from the left, with its diameter, the centre thickness of each glass (with its tolerance) and its edge thickness at the full diameter (in brackets: a reference dimension), each surface's clear aperture marked where it is less than the diameter; on the right a table of its surfaces and its glass:
+
+| row | from |
+|---|---|
+| Radius R | the surface's radius, CX or CC as the glass sees it (convex or concave) |
+| tolerance | the radius's own, from the surface form: the spheres whose sags at the clear radius differ by the fringes' $$N\lambda/2$$, the larger change (about $$N\lambda R^2/h^2$$) |
+| Clear aperture | the surface's clear diameter |
+| Conic, Aspheric | where the surface has them; the aspheric terms in the notes |
+| 3/ Surface form | $$3/N(-)$$: $$N$$ fringes of power at 632.8 nm over the clear aperture, from Radius in the tolerance settings |
+| 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over the surface's radius |
+| Material, Index nd, Abbe number Vd | the glass, with the index and Abbe number tolerances |
+| Centre and edge thickness | the glass's, the edge thickness from the two surfaces' sags at the full diameter |
+
+A lens whose glass is less than half a millimetre thick at its edge, or a surface whose sphere does not reach the full diameter, is noted. A title block gives the lens's name and its assembly, the scale, the date and the bench. **Save as SVG** and **Save as PDF** save the drawing shown; **All as one PDF** saves every lens of the design, a sheet each. Both are vector: lines stay lines at any zoom, and the text is text.
+
+**Checked against.** A biconvex lens's edge thickness against its sags worked by hand; each face's CX or CC for biconvex, plano-concave and cemented lenses; the radius tolerance against the tolerancing's own change of radius for the same fringes.
+
+### The design report
+
+**Report (PDF)**, at the top of the workspace, writes the whole design as one PDF to hand on: A4 pages of its design conditions and first-order figures, its layout (folded as on the bench) with the spot sizes at each field; its prescription, solves and variables, aspheric terms and Seidel sums surface by surface; its spot diagrams, field curvature, distortion and MTF; its tolerance settings, with the last Sensitivity and Monte Carlo runs if they were made on the design as it now is; and, last, each lens's drawing. Everything in it is drawn as vectors in the standard PDF fonts.
+
 ### The bench's own tools
 
 **Optimise the bench** and **Tolerance the bench** (the Sweeps menu) work on the whole bench, its positions, alignment and coupling, over the swept values. A lens design is optimised in its workspace, against its own conditions.
@@ -225,7 +270,7 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## Lens files
 
-**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions. Coatings, tilts and decentres are not written.
+**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions. A folded assembly, or one with a part tilted or decentred, is not written (it would need coordinate breaks): the export says so. Coatings are not written.
 
 ## In a .jekray file
 

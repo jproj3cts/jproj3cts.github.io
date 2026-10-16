@@ -14,6 +14,7 @@ import { h } from './panel.js';
 import { analysesPanel } from './lens-analyses.js';
 import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
 import { drawingsCard } from './lens-drawing.js';
+import { saveReport } from './lens-report.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
@@ -130,6 +131,7 @@ function drawWs() {
     h('span', { class: 'rt-hmark' }, 'JEKray'),
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
+    h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },

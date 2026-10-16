@@ -116,6 +116,7 @@ import './ui/assembly.js';
 import './ui/lens-analyses.js';
 import './ui/lens-tolerance.js';
 import './ui/lens-drawing.js';
+import './ui/lens-report.js';
 import './ui/lens-workspace.js';
 import './ui/plots.js';
 import './ui/panel-cavity.js';

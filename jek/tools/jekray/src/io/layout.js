@@ -194,8 +194,9 @@ function pdfText(t) {
   }
   return s;
 }
-/* pages, each a VecCtx's record, as one PDF (the first page's title in its information) */
-export async function pdfDoc(recs, title) {
+/* pages, each a VecCtx's record, as one PDF (the title in its information); opts.raw: its page contents
+   left uncompressed, so their text can be read */
+export async function pdfDoc(recs, title, opts) {
   const n = v => +v.toFixed(3);
   const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
   const gsList = [], gsKey = new Map();
@@ -225,7 +226,8 @@ export async function pdfDoc(recs, title) {
       } else if (o.k === 'text') {
         const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
         // the standard font's own width differs from the browser's: squeeze it to fit
-        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = clamp(100 * o.w / (est || 1), 70, 130);
+        // (a page drawn for print, in the standard fonts themselves, keeps their own widths)
+        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = rec.plain ? 100 : clamp(100 * o.w / (est || 1), 70, 130);
         C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
           [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
       } else if (o.k === 'layer') {
@@ -250,7 +252,7 @@ export async function pdfDoc(recs, title) {
   const gsIds = gsList.map(() => next++);
   const pages = [];
   for (let i = 0; i < recs.length; i++) {
-    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: await deflateBytes(streams[i]) };
+    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: opts && opts.raw ? null : await deflateBytes(streams[i]) };
     if (rec.layer) {
       const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
       const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);

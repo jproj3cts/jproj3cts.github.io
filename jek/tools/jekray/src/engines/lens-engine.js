@@ -211,7 +211,7 @@ function meetT(S, i, x, y, z, L, M, Nn) {
   }
   return null;
 }
-export function traceRay(S, R, i0, i1, noClip) {
+export function traceRay(S, R, i0, i1, noClip, rec) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
   // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
   // its vertex at the origin, and taken back after
@@ -275,6 +275,7 @@ export function traceRay(S, R, i0, i1, noClip) {
     const ci = L * ux + M * uy + Nn * uz;
     // either side a graded glass: its index where the ray meets the face
     const nIn = GM ? ni + grDelta(GM.G, r2) : ni, nOut = S.GR && S.GR[i] ? S.n[i + 1] + grDelta(S.GR[i].G, r2) : S.n[i + 1];
+    const kIn = rec ? [L, M, Nn] : null;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
     else if (S.PH && S.PH[i]) {
       // a diffractive face: Snell's law with its phase's slope along the face, and its path
@@ -286,6 +287,13 @@ export function traceRay(S, R, i0, i1, noClip) {
       if (kk < 0) return stop(-(1 + i));
       const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
       L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    }
+    // what a polarisation trace needs at each face, in the global frame: the ray's direction either side, the face's normal
+    // (towards +z of the face), the indices either side, where it met the face
+    if (rec) {
+      const Q = F ? F.R : null, g = v => Q ? [Q[0] * v[0] + Q[1] * v[1] + Q[2] * v[2], Q[3] * v[0] + Q[4] * v[1] + Q[5] * v[2], Q[6] * v[0] + Q[7] * v[1] + Q[8] * v[2]] : v;
+      const at = F ? [F.o[0] + Q[0] * x + Q[1] * y + Q[2] * z, F.o[1] + Q[3] * x + Q[4] * y + Q[5] * z, F.o[2] + Q[6] * x + Q[7] * y + Q[8] * z] : [x, y, z];
+      rec[i] = { kIn: g(kIn), kOut: g([L, M, Nn]), n: g([ux, uy, uz]), nIn, nOut, mirror: !!(S.mir && S.mir[i]), at };
     }
     if (F) { global(); F = null; }
   }

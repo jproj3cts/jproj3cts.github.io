@@ -412,6 +412,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **Footprints:** where the beam crosses each surface against its clear radius, below.
 - **Seidel:** the third-order sums, below.
 - **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
+- **Polarisation:** each ray's polarisation through every face and the glass, and each face's coating, below.
 - **Image simulation:** a picture as the design forms it, below.
 
 **Checked against.**
@@ -488,6 +489,38 @@ The fullest surface is drawn first, each field's rays at the primary wavelength 
 - the same at 15°: the footprint centred where the real chief ray crosses, to 0.02 mm;
 - the singlet narrowed so it clips at 20°: the rays it stops all outside its clear radius, the rest inside, and none of those it stops reaching the next surface;
 - a surface decentred by (0.3, 0.2) mm: the axial beam's footprint centred at (−0.3, −0.2) in its frame; a flat fold mirror at 45°: a round beam 10 mm across lands 10 mm wide and $$10\sqrt2$$ mm long along its tilt.
+
+#### Polarisation and coatings
+
+Each ray of a 25 × 25 grid across the pupil is traced with its polarisation: a 3 × 3 complex matrix built up face by face. At each face, with $$\hat k$$ and $$\hat k'$$ the ray's directions either side, $$\hat s$$ square to the plane of incidence and $$\hat p = \hat k \times \hat s$$, $$\hat p' = \hat k' \times \hat s$$:
+
+$$P = \tau_s\,\hat s\hat s^{\mathsf T} + \tau_p\,\hat p'\hat p^{\mathsf T} + \hat k'\hat k^{\mathsf T}.$$
+
+Each $$\tau$$ is the face's amplitude transmission, scaled by $$\sqrt{n'\cos\theta'/(n\cos\theta)}$$ so that $$|\tau|^2$$ is the share of the power it passes.
+
+- **Bare face:** Fresnel's.
+- **Thin-film stack:** by its characteristic matrix (the same as the bench's): $$t = 2\eta_0/(\eta_0 B + C)$$ in the tilted admittances, times $$\cos\theta_0/\cos\theta'$$ for p. This gives its phase, so it gives retardance as well as diattenuation.
+- **Coating known only by its reflectance:** passes $$1 - R$$, s and p alike.
+- **Mirror:** reflects all of it, changing no polarisation of its own.
+- **The glass between faces:** takes $$e^{-\alpha L}$$ of the power, $$\alpha$$ its absorption.
+
+The product is read as a Jones matrix in x and y on each side, the axis's x turned along the great circle to each ray (the double-pole basis). For each ray it gives:
+
+- **transmission:** for the polarisation chosen to go in, or unpolarised;
+- **diattenuation:** from the eigenvalues of $$J^\dagger J$$;
+- **retardance:** from the unitary part of its polar decomposition;
+- **polarisation out:** the ellipse leaving each part of the pupil.
+
+Skew rays come out turned a little even through faces that change no polarisation (skew aberration): this shows as retardance off the meridians.
+
+A table gives each face's mean share passed (s and p), reflected, and taken by the glass after it. A lens face's coating can be chosen right there (bare, AR 0.5%, MgF₂ λ/4 or a V-coat, quarter-waves at the primary wavelength); the part's own panel sets any other. Undo takes the choice back.
+
+**Checked against.**
+- a bare face square on: $$1 - ((n-1)/(n+1))^2$$, with no diattenuation or retardance; at Brewster's angle, p passed whole, s as $$1 - R_s$$, and the diattenuation $$R_s/(2 - R_s)$$, to 10⁻⁹;
+- a quarter-wave MgF₂ layer on glass: $$1 - ((n_s - n_c^2)/(n_s + n_c^2))^2$$; every face, bare or coated (MgF₂, V-coat, a 50/50 splitter, a mirror stack), either way, square on and at 20° and 40°: what it passes and what it reflects add to 1, s and p, to 10⁻⁹;
+- an absorbing plate: Fresnel's two faces times $$e^{-\alpha t}$$, to 10⁻¹²;
+- a 50/50 stack at 35°: the ray's diattenuation and retardance those of the stack's own s and p amplitudes;
+- a singlet on the axis, unpolarised: each pupil point the same as its turn by 90°, to 10⁻⁹; faces that reflect nothing: a meridional ray's matrix the identity, a skew ray's a pure rotation, passing it all.
 
 #### Image simulation
 

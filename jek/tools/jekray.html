@@ -1334,6 +1334,9 @@
   .rt-lfootwrap { max-width: 380px; margin-top: 0.8rem; }
   .rt-limsim { display: block; width: 100%; height: auto; image-rendering: auto; border: 1px solid var(--jek-line-2); }
   .rt-limpitch input { width: 5rem; margin: 0 0.2rem; }
+  .rt-lpolmaps { display: flex; flex-wrap: wrap; gap: 0.8rem; margin: 0.4rem 0 0.8rem; }
+  .rt-lpol select { font: inherit; font-size: 0.8rem; max-width: 15rem; }
+  .rt-lpol td:nth-child(2), .rt-lpol th:nth-child(2) { text-align: left; }
   .rt-lfootwrap canvas { display: block; max-width: 100%; }
   .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
   .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
@@ -22458,7 +22461,7 @@ function makeAssemblyRow(list) {
 const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['imsim', 'Image simulation']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['imsim', 'Image simulation']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -22485,13 +22488,13 @@ function analysesPanel(asm, P, F, st, redraw) {
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
-  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
+  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost', 'pol'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'PSF method' }, h('span', { class: 'rt-lsub' }, 'Method'),
     chip(!huy, 'FFT', () => { st.psfm = 'fft'; redraw(); }, { title: 'The Fourier transform of the pupil function: quick; the image square to the chief ray' }),
     chip(huy, 'Huygens', () => { st.psfm = 'huy'; redraw(); }, { title: 'Huygens wavelets from the reference sphere summed on the image plane itself: slower; right for a beam meeting the image slantwise, and over all the wavelengths' })));
-  if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
+  if (st.view === 'wave' || st.view === 'psf' || st.view === 'pol') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
     ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) })),
     ...(huy && c.waves.length > 1 ? [chip(st.wave === -1, 'All, weighted', () => { st.wave = -1; redraw(); })] : [])));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
@@ -22512,6 +22515,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
+  else if (view === 'pol') polView(body, A, P, st, cached(key + '|pol|' + deg + '|' + st.wave + '|' + (st.polIn || 'none') + '|' + coatKey(P), () => polAnalysis(A, coatsOf(P), deg, st.wave, st.polIn || 'none', 25)), redraw);
   else if (view === 'imsim') imsimView(body, A, P, st, key, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
@@ -22811,6 +22815,88 @@ function footView(body, A, P, F, st, redraw) {
     x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
 }
+/* ---------- Polarisation ---------- */
+const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
+// the coatings that can be chosen here for a lens face; any other the face has is kept as it is
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)']];
+const coatChoice = c => {
+  if (!c || c.mode === 'bare') return 'bare';
+  if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
+  if (c.mode === 'stack' && c.layers && c.layers.length === 1 && Math.abs(c.layers[0].n - 1.38) < 1e-9) return 'mgf2';
+  if (c.mode === 'stack' && c.layers && c.layers.length === 2 && Math.abs(c.layers[0].n - 1.38) < 1e-9 && Math.abs(c.layers[1].n - 1.70) < 1e-9) return 'vcoat';
+  return 'other';
+};
+const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'stack' ? 'Thin-film stack, ' + (c.layers || []).length + ' layer' + ((c.layers || []).length === 1 ? '' : 's') : c.mode === 'band' ? 'Coated ' + c.lo + '–' + c.hi + ' nm, ' + c.R + '%' : 'Reflects ' + (c.R || 0) + '%';
+function setCoat(P, i, kind, nm, redraw) {
+  const s = P.surfaces[i], e = s.from && getEl(s.from.id);
+  if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
+  checkpoint();
+  const design = Math.round(nm);
+  e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });
+  changed(false);
+  redraw();
+}
+const polMap = (M, n, key) => { const out = new Float64Array(n * n).fill(NaN); M.grid.forEach((g, k) => { if (g) out[k] = g[key]; }); return out; };
+function polView(body, A, P, st, R, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), coats = coatsOf(P), nm = R.nm;
+  body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Polarisation in' }, h('span', { class: 'rt-lsub' }, 'In'),
+    ...POL_CHOICES.map(([k, t]) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String((st.polIn || 'none') === k), onclick: () => { st.polIn = k; redraw(); } }, t))));
+  const pin = R.pin, deg = d => anFmt(d * 180 / Math.PI, 3) + '°';
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
+    anFmt(100 * R.T, 4) + '% of it reaches the image, over the rays that get there (' + anFmt(100 * R.reach, 3) + '% of the pupil); mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '. ' +
+    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'));
+  const row = h('div', { class: 'rt-lpolmaps' });
+  body.append(row);
+  const n = R.n, size = 170;
+  const mapCell = (title, vals, lo, hi, fmt, ramp) => {
+    const cell = h('div', { class: 'rt-lspot' }), fin = Array.from(vals).filter(isFinite), a = lo === null ? Math.min(...fin) : lo, b = hi === null ? Math.max(...fin) : hi;
+    const cv = heat(cell, n, (i, j) => { const v = vals[j * n + i]; return isFinite(v) ? (b > a ? (v - a) / (b - a) : 0.5) : null; }, ramp, title + ': ' + fmt(a) + ' to ' + fmt(b), size);
+    cell.append(h('div', { class: 'rt-lsub' }, h('b', null, title), ' ' + fmt(a) + ' to ' + fmt(b)));
+    row.append(cell);
+    return cv;
+  };
+  const pct = v => Math.abs(v) < 1e-12 ? '0' : anFmt(100 * v, 4) + '%';
+  mapCell('Transmission', polMap(R, n, 'T'), null, null, pct, v => magma(v));
+  mapCell('Diattenuation', polMap(R, n, 'D'), 0, null, v => anFmt(v, 3), v => magma(v));
+  mapCell('Retardance', polMap(R, n, 'ret'), 0, null, deg, v => magma(v));
+  if (pin !== 'none') {
+    // the polarisation out across the pupil: an ellipse at every other ray
+    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'The polarisation leaving each part of the pupil' });
+    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Polarisation out'), ' across the pupil'));
+    row.append(cell);
+    requestAnimationFrame(() => {
+      const dpr = window.devicePixelRatio || 1, S = size;
+      cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+      g.strokeStyle = 'rgba(0,0,0,0.15)'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
+      g.strokeStyle = WAVE_COLOURS[0]; g.lineWidth = 1.2;
+      const step = 2, cellPx = (S - 4) / n;
+      R.grid.forEach((q, k) => {
+        if (!q || !q.out) return;
+        const i = k % n, j = Math.floor(k / n);
+        if (i % step || j % step) return;
+        const cx = 2 + (i + 0.5) * cellPx, cy = S - 2 - (j + 0.5) * cellPx, a = cellPx * step * 0.45, b = a * Math.abs(Math.tan(q.out.chi));
+        g.save(); g.translate(cx, cy); g.rotate(-q.out.psi); g.beginPath(); g.ellipse(0, 0, a, Math.max(b, 0.01), 0, 0, 2 * Math.PI); g.stroke(); g.restore();
+      });
+    });
+  }
+  // the faces: each one's coating (to choose here), what it passes and reflects, and what the glass after it absorbs
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lpol' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Surface', ''], ['Coating', 'A lens face’s coating can be chosen here (λ/4 at the primary wavelength); others are set on the part'], ['Passes', 'The mean over the rays of the share it passes, s and p averaged'], ['s / p', 'The share it passes of each, the mean over the rays'], ['Reflects', 'The mean share it sends back'], ['Glass after absorbs', 'The mean share the glass after it takes']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody'), primary = A.Sp.nm;
+  R.faces.forEach((F, i) => {
+    const s = P.surfaces[i], e = s.from && getEl(s.from.id), lensFace = !!(e && e.type === 'lens' && e.surfaces && e.surfaces[s.from.i]) && !s.mirror;
+    const cur = coatChoice(coats[i]);
+    const coatCell = lensFace ? h('select', { 'aria-label': 'Coating of surface ' + name(i), onchange: ev => setCoat(P, i, ev.target.value, primary, redraw) },
+      ...COAT_CHOICES.map(([k, t]) => h('option', { value: k, selected: cur === k }, t)), ...(cur === 'other' ? [h('option', { value: 'other', selected: true, disabled: true }, coatName(coats[i]))] : []))
+      : h('span', null, s.mirror ? 'Mirror (all of it)' : coats[i] ? coatName(coats[i]) : sps[i].kind === 'stop' ? 'Stop (no face)' : 'Bare');
+    tb.append(h('tr', null, h('td', null, name(i)), h('td', null, coatCell), h('td', { class: 'mono' }, pct(F.T)), h('td', { class: 'mono' }, pct(F.Ts) + ' / ' + pct(F.Tp)),
+      h('td', { class: 'mono' }, s.mirror ? '—' : pct(F.R)), h('td', { class: 'mono' }, F.absorbed > 0 ? pct(F.absorbed) : '0')));
+  });
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+}
+
 /* ---------- Image simulation ----------
    The picture: a test chart drawn here, or one of the user's own (kept in this tab only, never saved or sent) */
 const IM_W = 256, IM_H = 192;
@@ -31933,7 +32019,7 @@ function meetT(S, i, x, y, z, L, M, Nn) {
   }
   return null;
 }
-function traceRay(S, R, i0, i1, noClip) {
+function traceRay(S, R, i0, i1, noClip, rec) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
   // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
   // its vertex at the origin, and taken back after
@@ -31997,6 +32083,7 @@ function traceRay(S, R, i0, i1, noClip) {
     const ci = L * ux + M * uy + Nn * uz;
     // either side a graded glass: its index where the ray meets the face
     const nIn = GM ? ni + grDelta(GM.G, r2) : ni, nOut = S.GR && S.GR[i] ? S.n[i + 1] + grDelta(S.GR[i].G, r2) : S.n[i + 1];
+    const kIn = rec ? [L, M, Nn] : null;
     if (S.mir && S.mir[i]) { L -= 2 * ci * ux; M -= 2 * ci * uy; Nn -= 2 * ci * uz; }
     else if (S.PH && S.PH[i]) {
       // a diffractive face: Snell's law with its phase's slope along the face, and its path
@@ -32008,6 +32095,13 @@ function traceRay(S, R, i0, i1, noClip) {
       if (kk < 0) return stop(-(1 + i));
       const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
       L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    }
+    // what a polarisation trace needs at each face, in the global frame: the ray's direction either side, the face's normal
+    // (towards +z of the face), the indices either side, where it met the face
+    if (rec) {
+      const Q = F ? F.R : null, g = v => Q ? [Q[0] * v[0] + Q[1] * v[1] + Q[2] * v[2], Q[3] * v[0] + Q[4] * v[1] + Q[5] * v[2], Q[6] * v[0] + Q[7] * v[1] + Q[8] * v[2]] : v;
+      const at = F ? [F.o[0] + Q[0] * x + Q[1] * y + Q[2] * z, F.o[1] + Q[3] * x + Q[4] * y + Q[5] * z, F.o[2] + Q[6] * x + Q[7] * y + Q[8] * z] : [x, y, z];
+      rec[i] = { kIn: g(kIn), kOut: g([L, M, Nn]), n: g([ux, uy, uz]), nIn, nOut, mirror: !!(S.mir && S.mir[i]), at };
     }
     if (F) { global(); F = null; }
   }
@@ -34182,6 +34276,169 @@ function imsimRun(A, src, o) {
   const plan = imsimPlan(A, src, o);
   while (!plan.next());
   return plan.result();
+}
+/* ==========================================================================
+   Polarisation through a lens design
+   Each ray carries a 3 x 3 complex matrix (a polarisation ray trace): at each face, with k the ray's direction either
+   side, s square to the plane of incidence and p = k x s on each side,
+       P_face = τs s sᵀ + τp p' pᵀ + k' kᵀ,
+   τ the amplitude transmission of that face for s and p, scaled by √(n' cos θ' / n cos θ) so that |τ|² is the share of
+   the power it passes. A face's τ: a bare face by Fresnel; a thin-film stack by its characteristic matrix (tilted
+   admittances; t = 2η₀ / (η₀B + C), and for p times cos θ₀ / cos θ'); a coating given only by its reflectance
+   passes 1 - R, s and p alike, with no change of phase. A mirror reflects all of it, s with -1 and p with +1 (no
+   change of polarisation from its own). The glass between faces takes exp(-α L / 2) of the amplitude, α its absorption.
+   The product over the faces, between the ray's directions in object and image space, is read as a Jones matrix
+   in the bases x and y each side (the double-pole basis: the axis's x turned along the great circle to the ray): its transmission for any polarisation in, its
+   diattenuation (from the eigenvalues of J†J) and its retardance (from the unitary part of its polar decomposition).
+   ========================================================================== */
+const plCmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+const plAbs2 = a => a[0] * a[0] + a[1] * a[1];
+const plDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const plCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const plUnit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+/* a thin-film stack's complex amplitude transmission (the whole E field), for s or p, from n0 into ns at cosine c0 */
+function stackT(layers, n0, ns, c0, nm, pol) {
+  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
+  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
+  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
+  let m11 = [1, 0], m12 = [0, 0], m21 = [0, 0], m22 = [1, 0];
+  for (const L of layers) {
+    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
+    const a11 = [c, 0], a12 = [0, sn / e], a21 = [0, e * sn], a22 = [c, 0];
+    const add = (p, q) => [p[0] + q[0], p[1] + q[1]];
+    [m11, m12, m21, m22] = [add(plCmul(m11, a11), plCmul(m12, a21)), add(plCmul(m11, a12), plCmul(m12, a22)), add(plCmul(m21, a11), plCmul(m22, a21)), add(plCmul(m21, a12), plCmul(m22, a22))];
+  }
+  const es = eta(ns), e0 = eta(n0), B = [m11[0] + m12[0] * es, m11[1] + m12[1] * es], C = [m21[0] + m22[0] * es, m21[1] + m22[1] * es];
+  const den = [e0 * B[0] + C[0], e0 * B[1] + C[1]], dd = plAbs2(den);
+  const t = [2 * e0 * den[0] / dd, -2 * e0 * den[1] / dd];
+  if (pol === 's') return t;
+  const k = c0 / cosIn(ns);
+  return [t[0] * k, t[1] * k];
+}
+/* a face's power-normalised amplitude transmissions [τs, τp] (complex), and its reflectances [Rs, Rp], light from
+   index n1 into n2 meeting it at cosine c1 (> 0) */
+function faceAmps(coat, n1, n2, c1, nm) {
+  const s1 = Math.sqrt(Math.max(0, 1 - c1 * c1)), s2 = n1 / n2 * s1, c2 = Math.sqrt(Math.max(0, 1 - s2 * s2)), norm = Math.sqrt(n2 * c2 / (n1 * c1));
+  const bare = () => {
+    const ts = 2 * n1 * c1 / (n1 * c1 + n2 * c2), tp = 2 * n1 * c1 / (n2 * c1 + n1 * c2);
+    const rs = (n1 * c1 - n2 * c2) / (n1 * c1 + n2 * c2), rp = (n2 * c1 - n1 * c2) / (n2 * c1 + n1 * c2);
+    return { ts: [ts * norm, 0], tp: [tp * norm, 0], Rs: rs * rs, Rp: rp * rp };
+  };
+  if (!coat || coat.mode === 'bare') return bare();
+  if (coat.mode === 'band' && !(nm >= coat.lo && nm <= coat.hi)) return bare();
+  if (coat.mode === 'stack') {
+    if (!coat.layers || !coat.layers.length) return bare();
+    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
+    const ts = stackT(L, n1, n2, c1, nm, 's'), tp = stackT(L, n1, n2, c1, nm, 'p'), rs = stackAmp(L, n1, n2, c1, nm, 's'), rp = stackAmp(L, n1, n2, c1, nm, 'p');
+    return { ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], Rs: plAbs2(rs), Rp: plAbs2(rp) };
+  }
+  // a coating known by its reflectance alone: 1 - R through, s and p alike
+  const R = Math.max(0, Math.min(1, (coat.R || 0) / 100)), t = Math.sqrt(1 - R);
+  return { ts: [t, 0], tp: [t, 0], Rs: R, Rp: R };
+}
+
+/* 3 x 3 complex matrices, row-major, [re, im] pairs */
+const plEye = () => Array.from({ length: 9 }, (_, k) => [k % 4 === 0 ? 1 : 0, 0]);
+const plMul = (A, B) => { const C = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { let re = 0, im = 0; for (let k = 0; k < 3; k++) { const a = A[i * 3 + k], b = B[k * 3 + j]; re += a[0] * b[0] - a[1] * b[1]; im += a[0] * b[1] + a[1] * b[0]; } C.push([re, im]); } return C; };
+const plMv = (A, v) => [0, 1, 2].map(i => { let re = 0, im = 0; for (let k = 0; k < 3; k++) { const a = A[i * 3 + k], b = v[k]; re += a[0] * b[0] - a[1] * b[1]; im += a[0] * b[1] + a[1] * b[0]; } return [re, im]; });
+// the face's matrix: τs s sᵀ + τp p' pᵀ + k' kᵀ
+function faceMatrix(kIn, kOut, nrm, ts, tp) {
+  let s = plCross(kIn, nrm);
+  if (Math.hypot(s[0], s[1], s[2]) < 1e-9) s = plCross(kIn, Math.abs(kIn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+  s = plUnit(s);
+  const p = plCross(kIn, s), q = plCross(kOut, s), P = [];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) P.push([ts[0] * s[i] * s[j] + tp[0] * q[i] * p[j] + kOut[i] * kIn[j], ts[1] * s[i] * s[j] + tp[1] * q[i] * p[j]]);
+  return P;
+}
+/* the polarisation trace of one ray, field th (radians), pupil point (px, py): its Jones matrix and each face's share */
+function polRay(S, P, coats, th, px, py) {
+  const ab = aimRay(S, th, px, py);
+  if (!ab) return null;
+  const R = lensLaunch(S, th, ab[0], ab[1], new Float64Array(8)), k0 = [R[3], R[4], R[5]], rec = [];
+  traceRay(S, R, 0, S.N - 1, false, rec);
+  if (R[7] !== 0) return null;
+  let Mx = plEye();
+  const faces = [];
+  for (let i = 0; i < S.N; i++) {
+    const r = rec[i];
+    let ts, tp, Rs, Rp;
+    const c1 = Math.abs(plDot(r.kIn, r.n));
+    if (r.mirror) { ts = [-1, 0]; tp = [1, 0]; Rs = Rp = 1; }
+    else ({ ts, tp, Rs, Rp } = faceAmps(coats && coats[i], r.nIn, r.nOut, Math.min(1, c1), S.nm));
+    // the glass after this face, up to the next: its absorption over the ray's path in it
+    let a = 1;
+    if (i < S.N - 1 && P.materials[i]) { const al = absorbAt(P.materials[i], S.nm); if (al > 0) { const q = rec[i + 1].at, o = r.at; a = Math.exp(-al * Math.hypot(q[0] - o[0], q[1] - o[1], q[2] - o[2]) / 2); } }
+    Mx = plMul(faceMatrix(r.kIn, r.kOut, r.n, [ts[0] * a, ts[1] * a], [tp[0] * a, tp[1] * a]), Mx);
+    faces.push({ T: (plAbs2(ts) + plAbs2(tp)) / 2, Ts: plAbs2(ts), Tp: plAbs2(tp), Rs, Rp, absorbed: 1 - a * a, mirror: r.mirror });
+  }
+  // each side's x and y: the axis's own (the image's, after a fold) turned along the great circle from the axis to the
+  // ray (the double-pole basis: round about the axis, and an ideal lens's matrix the identity)
+  const kN = rec[S.N - 1].kOut, I = S.img || { e1: [1, 0, 0], d: [0, 0, 1] };
+  const basis = (k, ex, ez) => {
+    const w = plCross(ez, k), c = plDot(ez, k), wx = plCross(w, ex), wwx = plCross(w, wx), f = 1 / (1 + c);
+    const x = plUnit([ex[0] + wx[0] + wwx[0] * f, ex[1] + wx[1] + wwx[1] * f, ex[2] + wx[2] + wwx[2] * f]);
+    return [x, plCross(k, x)];
+  };
+  const [xi, yi] = basis(k0, [1, 0, 0], [0, 0, 1]), [xo, yo] = basis(kN, I.e1, I.d);
+  const cvec = v => v.map(c => [c, 0]), cdot = (u, w) => [u[0] * w[0][0] + u[1] * w[1][0] + u[2] * w[2][0], u[0] * w[0][1] + u[1] * w[1][1] + u[2] * w[2][1]];
+  const Px = plMv(Mx, cvec(xi)), Py = plMv(Mx, cvec(yi));
+  const J = [cdot(xo, Px), cdot(xo, Py), cdot(yo, Px), cdot(yo, Py)];
+  return { px, py, J, faces, x: R[0], y: R[1] };
+}
+
+/* what a Jones matrix does: transmission for a polarisation in (or unpolarised), diattenuation, retardance (radians) */
+function jonesFigures(J, E) {
+  const [a, b, c, d] = J;
+  // J†J: Hermitian [[p, q], [q*, r]]
+  const p = plAbs2(a) + plAbs2(c), r = plAbs2(b) + plAbs2(d);
+  const q = [a[0] * b[0] + a[1] * b[1] + c[0] * d[0] + c[1] * d[1], a[0] * b[1] - a[1] * b[0] + c[0] * d[1] - c[1] * d[0]];
+  const tr = p + r, det = p * r - plAbs2(q), disc = Math.sqrt(Math.max(0, tr * tr / 4 - det)), lmax = tr / 2 + disc, lmin = Math.max(0, tr / 2 - disc);
+  const D = lmax + lmin > 0 ? (lmax - lmin) / (lmax + lmin) : 0;
+  // the unitary part U = J H⁻¹, H = √(J†J) = (J†J + √det I) / √(tr + 2√det)
+  const sd = Math.sqrt(Math.max(0, det)), k = Math.sqrt(tr + 2 * sd);
+  let ret = 0;
+  if (sd > 1e-30 && k > 0) {
+    // H = [[h11, h12], [h12*, h22]]; H⁻¹ = [[h22, -h12], [-h12*, h11]] / det H, det H = sd (as √det(J†J))
+    const h11 = (p + sd) / k, h22 = (r + sd) / k, h12 = [q[0] / k, q[1] / k], dh = h11 * h22 - plAbs2(h12);
+    const i11 = [h22 / dh, 0], i12 = [-h12[0] / dh, -h12[1] / dh], i21 = [-h12[0] / dh, h12[1] / dh], i22 = [h11 / dh, 0];
+    const u11 = [plCmul(a, i11)[0] + plCmul(b, i21)[0], plCmul(a, i11)[1] + plCmul(b, i21)[1]], u22 = [plCmul(c, i12)[0] + plCmul(d, i22)[0], plCmul(c, i12)[1] + plCmul(d, i22)[1]];
+    const trU = Math.hypot(u11[0] + u22[0], u11[1] + u22[1]);
+    ret = 2 * Math.acos(Math.min(1, trU / 2));
+  }
+  let T = tr / 2, out = null;
+  if (E) {
+    const ex = [plCmul(a, E[0])[0] + plCmul(b, E[1])[0], plCmul(a, E[0])[1] + plCmul(b, E[1])[1]], ey = [plCmul(c, E[0])[0] + plCmul(d, E[1])[0], plCmul(c, E[0])[1] + plCmul(d, E[1])[1]];
+    T = plAbs2(ex) + plAbs2(ey);
+    // the polarisation out: its Stokes parameters, the ellipse's tilt and ellipticity
+    const S0 = T, S1 = plAbs2(ex) - plAbs2(ey), S2 = 2 * (ex[0] * ey[0] + ex[1] * ey[1]), S3 = 2 * (ex[0] * ey[1] - ex[1] * ey[0]);
+    out = { ex, ey, psi: 0.5 * Math.atan2(S2, S1), chi: S0 > 0 ? 0.5 * Math.asin(Math.max(-1, Math.min(1, S3 / S0))) : 0 };
+  }
+  return { T, D, ret, out, Tmax: lmax, Tmin: lmin };
+}
+const POL_IN = {
+  none: null, x: [[1, 0], [0, 0]], y: [[0, 0], [1, 0]], d45: [[Math.SQRT1_2, 0], [Math.SQRT1_2, 0]], rcp: [[Math.SQRT1_2, 0], [0, -Math.SQRT1_2]],
+};
+/* a field's polarisation over the pupil: an n x n grid of rays at wavelength wi, polarisation in pin (POL_IN's key);
+   each ray's figures, their means over the rays that reach the image, and each face's mean share */
+function polAnalysis(A, coats, deg, wi, pin, n) {
+  n = n || 21;
+  const S = A.S[wi === undefined ? A.c.primary : wi], E = POL_IN[pin || 'none'] || null, th = deg * Math.PI / 180, grid = [];
+  let sT = 0, sD = 0, sR = 0, cnt = 0, inside = 0;
+  const faces = Array.from({ length: S.N }, () => ({ T: 0, Ts: 0, Tp: 0, absorbed: 0, R: 0 }));
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const px = -1 + (2 * i + 1) / n, py = -1 + (2 * j + 1) / n;
+    if (px * px + py * py > 1) { grid.push(null); continue; }
+    inside++;
+    const r = polRay(S, A.P, coats, th, px, py);
+    if (!r) { grid.push(null); continue; }
+    const f = jonesFigures(r.J, E);
+    grid.push(Object.assign({ px, py }, f));
+    sT += f.T; sD += f.D; sR += f.ret; cnt++;
+    r.faces.forEach((q, k) => { const F = faces[k]; F.T += q.T; F.Ts += q.Ts; F.Tp += q.Tp; F.absorbed += q.absorbed; F.R += (q.Rs + q.Rp) / 2; });
+  }
+  faces.forEach(F => { for (const k in F) F[k] /= cnt || 1; });
+  return { deg, nm: S.nm, n, grid, pin: pin || 'none', T: cnt ? sT / cnt : NaN, D: cnt ? sD / cnt : NaN, ret: cnt ? sR / cnt : NaN, reach: inside ? cnt / inside : 0, faces };
 }
 /* ==========================================================================
    Tolerancing a lens design: how much worse it gets as it is made
@@ -40356,6 +40613,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Polarisation and coatings</b> in lens design: <b>Analyses \u203a Polarisation</b> traces each ray\u2019s polarisation through every face (its coating\u2019s s and p amplitudes, or Fresnel\u2019s) and the glass between, for unpolarised, linear or circular light in: transmission, diattenuation and retardance over the pupil, the polarisation out, and each face\u2019s share passed, reflected and absorbed. A lens face\u2019s coating can be chosen in the same table.',
     '<b>Image simulation</b> in lens design: <b>Analyses \u203a Image simulation</b> forms a test chart, or a picture of your own (kept in the tab, never saved or sent), as the design would: each colour at its wavelength, moved by the distortion and lateral colour, dimmed by the relative illumination, and blurred by the PSF across the field. Over the whole field or a patch about any field, the pixel size yours; it saves as PNG or CSV.',
     '<b>Huygens PSF</b> in lens design: <b>Analyses \u203a PSF \u203a Huygens</b> sums the wavelets from the reference sphere on the image plane itself, so a beam meeting the image slantwise and the pupil\u2019s own distortion count, at one wavelength or all of them weighted, with the Strehl ratio and sections through the peak. It is summed a few rows at a time, the page kept live.',
     '<b>Footprints</b> in lens design: <b>Analyses \u203a Footprints</b> gives, for each surface, the beam\u2019s radius over every field and wavelength against the clear radius, the margin left and the share of rays it stops, and draws where each field\u2019s rays cross the surface chosen (in its own frame, tilted or not), those it stops marked.',

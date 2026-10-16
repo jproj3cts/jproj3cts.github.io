@@ -2,6 +2,11 @@ import { primaryNm, surfaceParts } from '../engines/lens-design.js';
 import { ZERNIKE_NAMES, anaSystems, fieldCurves, paraxHeight, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { imsimPlan, imsimTraceable } from '../engines/lens-imsim.js';
+import { polAnalysis } from '../engines/lens-pol.js';
+import { coatPreset } from '../core/coatings.js';
+import { normCoat } from '../state/project.js';
+import { changed } from './actions.js';
+import { checkpoint } from './tabs.js';
 import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
@@ -15,7 +20,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['imsim', 'Image simulation']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['imsim', 'Image simulation']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -42,13 +47,13 @@ export function analysesPanel(asm, P, F, st, redraw) {
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
-  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
+  const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost', 'pol'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
   if (st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'PSF method' }, h('span', { class: 'rt-lsub' }, 'Method'),
     chip(!huy, 'FFT', () => { st.psfm = 'fft'; redraw(); }, { title: 'The Fourier transform of the pupil function: quick; the image square to the chief ray' }),
     chip(huy, 'Huygens', () => { st.psfm = 'huy'; redraw(); }, { title: 'Huygens wavelets from the reference sphere summed on the image plane itself: slower; right for a beam meeting the image slantwise, and over all the wavelengths' })));
-  if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
+  if (st.view === 'wave' || st.view === 'psf' || st.view === 'pol') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
     ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) })),
     ...(huy && c.waves.length > 1 ? [chip(st.wave === -1, 'All, weighted', () => { st.wave = -1; redraw(); })] : [])));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
@@ -69,6 +74,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
+  else if (view === 'pol') polView(body, A, P, st, cached(key + '|pol|' + deg + '|' + st.wave + '|' + (st.polIn || 'none') + '|' + coatKey(P), () => polAnalysis(A, coatsOf(P), deg, st.wave, st.polIn || 'none', 25)), redraw);
   else if (view === 'imsim') imsimView(body, A, P, st, key, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
@@ -368,6 +374,88 @@ function footView(body, A, P, F, st, redraw) {
     x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
 }
+/* ---------- Polarisation ---------- */
+const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
+// the coatings that can be chosen here for a lens face; any other the face has is kept as it is
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)']];
+const coatChoice = c => {
+  if (!c || c.mode === 'bare') return 'bare';
+  if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
+  if (c.mode === 'stack' && c.layers && c.layers.length === 1 && Math.abs(c.layers[0].n - 1.38) < 1e-9) return 'mgf2';
+  if (c.mode === 'stack' && c.layers && c.layers.length === 2 && Math.abs(c.layers[0].n - 1.38) < 1e-9 && Math.abs(c.layers[1].n - 1.70) < 1e-9) return 'vcoat';
+  return 'other';
+};
+const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'stack' ? 'Thin-film stack, ' + (c.layers || []).length + ' layer' + ((c.layers || []).length === 1 ? '' : 's') : c.mode === 'band' ? 'Coated ' + c.lo + '–' + c.hi + ' nm, ' + c.R + '%' : 'Reflects ' + (c.R || 0) + '%';
+function setCoat(P, i, kind, nm, redraw) {
+  const s = P.surfaces[i], e = s.from && getEl(s.from.id);
+  if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
+  checkpoint();
+  const design = Math.round(nm);
+  e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });
+  changed(false);
+  redraw();
+}
+const polMap = (M, n, key) => { const out = new Float64Array(n * n).fill(NaN); M.grid.forEach((g, k) => { if (g) out[k] = g[key]; }); return out; };
+function polView(body, A, P, st, R, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), coats = coatsOf(P), nm = R.nm;
+  body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Polarisation in' }, h('span', { class: 'rt-lsub' }, 'In'),
+    ...POL_CHOICES.map(([k, t]) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String((st.polIn || 'none') === k), onclick: () => { st.polIn = k; redraw(); } }, t))));
+  const pin = R.pin, deg = d => anFmt(d * 180 / Math.PI, 3) + '°';
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
+    anFmt(100 * R.T, 4) + '% of it reaches the image, over the rays that get there (' + anFmt(100 * R.reach, 3) + '% of the pupil); mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '. ' +
+    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'));
+  const row = h('div', { class: 'rt-lpolmaps' });
+  body.append(row);
+  const n = R.n, size = 170;
+  const mapCell = (title, vals, lo, hi, fmt, ramp) => {
+    const cell = h('div', { class: 'rt-lspot' }), fin = Array.from(vals).filter(isFinite), a = lo === null ? Math.min(...fin) : lo, b = hi === null ? Math.max(...fin) : hi;
+    const cv = heat(cell, n, (i, j) => { const v = vals[j * n + i]; return isFinite(v) ? (b > a ? (v - a) / (b - a) : 0.5) : null; }, ramp, title + ': ' + fmt(a) + ' to ' + fmt(b), size);
+    cell.append(h('div', { class: 'rt-lsub' }, h('b', null, title), ' ' + fmt(a) + ' to ' + fmt(b)));
+    row.append(cell);
+    return cv;
+  };
+  const pct = v => Math.abs(v) < 1e-12 ? '0' : anFmt(100 * v, 4) + '%';
+  mapCell('Transmission', polMap(R, n, 'T'), null, null, pct, v => magma(v));
+  mapCell('Diattenuation', polMap(R, n, 'D'), 0, null, v => anFmt(v, 3), v => magma(v));
+  mapCell('Retardance', polMap(R, n, 'ret'), 0, null, deg, v => magma(v));
+  if (pin !== 'none') {
+    // the polarisation out across the pupil: an ellipse at every other ray
+    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'The polarisation leaving each part of the pupil' });
+    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Polarisation out'), ' across the pupil'));
+    row.append(cell);
+    requestAnimationFrame(() => {
+      const dpr = window.devicePixelRatio || 1, S = size;
+      cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+      g.strokeStyle = 'rgba(0,0,0,0.15)'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
+      g.strokeStyle = WAVE_COLOURS[0]; g.lineWidth = 1.2;
+      const step = 2, cellPx = (S - 4) / n;
+      R.grid.forEach((q, k) => {
+        if (!q || !q.out) return;
+        const i = k % n, j = Math.floor(k / n);
+        if (i % step || j % step) return;
+        const cx = 2 + (i + 0.5) * cellPx, cy = S - 2 - (j + 0.5) * cellPx, a = cellPx * step * 0.45, b = a * Math.abs(Math.tan(q.out.chi));
+        g.save(); g.translate(cx, cy); g.rotate(-q.out.psi); g.beginPath(); g.ellipse(0, 0, a, Math.max(b, 0.01), 0, 0, 2 * Math.PI); g.stroke(); g.restore();
+      });
+    });
+  }
+  // the faces: each one's coating (to choose here), what it passes and reflects, and what the glass after it absorbs
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lpol' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Surface', ''], ['Coating', 'A lens face’s coating can be chosen here (λ/4 at the primary wavelength); others are set on the part'], ['Passes', 'The mean over the rays of the share it passes, s and p averaged'], ['s / p', 'The share it passes of each, the mean over the rays'], ['Reflects', 'The mean share it sends back'], ['Glass after absorbs', 'The mean share the glass after it takes']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody'), primary = A.Sp.nm;
+  R.faces.forEach((F, i) => {
+    const s = P.surfaces[i], e = s.from && getEl(s.from.id), lensFace = !!(e && e.type === 'lens' && e.surfaces && e.surfaces[s.from.i]) && !s.mirror;
+    const cur = coatChoice(coats[i]);
+    const coatCell = lensFace ? h('select', { 'aria-label': 'Coating of surface ' + name(i), onchange: ev => setCoat(P, i, ev.target.value, primary, redraw) },
+      ...COAT_CHOICES.map(([k, t]) => h('option', { value: k, selected: cur === k }, t)), ...(cur === 'other' ? [h('option', { value: 'other', selected: true, disabled: true }, coatName(coats[i]))] : []))
+      : h('span', null, s.mirror ? 'Mirror (all of it)' : coats[i] ? coatName(coats[i]) : sps[i].kind === 'stop' ? 'Stop (no face)' : 'Bare');
+    tb.append(h('tr', null, h('td', null, name(i)), h('td', null, coatCell), h('td', { class: 'mono' }, pct(F.T)), h('td', { class: 'mono' }, pct(F.Ts) + ' / ' + pct(F.Tp)),
+      h('td', { class: 'mono' }, s.mirror ? '—' : pct(F.R)), h('td', { class: 'mono' }, F.absorbed > 0 ? pct(F.absorbed) : '0')));
+  });
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+}
+
 /* ---------- Image simulation ----------
    The picture: a test chart drawn here, or one of the user's own (kept in this tab only, never saved or sent) */
 const IM_W = 256, IM_H = 192;

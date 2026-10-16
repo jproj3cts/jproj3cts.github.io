@@ -142,6 +142,7 @@ import './engines/lens-opt.js';
 import './engines/lens-analysis.js';
 import './engines/lens-ghost.js';
 import './engines/lens-imsim.js';
+import './engines/lens-pol.js';
 import './engines/lens-tol.js';
 import './engines/lens-drawing.js';
 import './engines/pd-cavity.js';

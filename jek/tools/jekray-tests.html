@@ -8970,6 +8970,36 @@ const TESTS = [
     },
   },
   {
+    name: 'Polarisation: the triplet\u2019s faces pass what Fresnel says, a coating chosen here raises it, and Undo takes it back',
+    why: 'the published Cooke triplet\u2019s Analyses \u203a Polarisation on the axis: its six glass faces, bare, each pass 1 - R of Fresnel (to 0.1%, the rays near square on), the stop all of it; transmission, diattenuation and retardance maps drawn, and with x polarised light in the polarisation out; choosing MgF\u2082 for the first face makes it pass 98.7% or more and the whole more, and the part\u2019s face holds that coating; Undo brings back the bare face (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        const chip = t => [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === t);
+        const body = () => rigDoc().querySelector('#lensWs .rt-lanabody');
+        wsClick('Analyses', null, 'tab'); chip('Polarisation').click(); chip('0\u00b0').click(); chip('x').click();
+        const rows = () => [...body().querySelectorAll('.rt-lpol tbody tr')], passes = r => parseFloat(r.children[2].textContent);
+        const R = rows(), fres = n => 100 * (1 - ((n - 1) / (n + 1)) ** 2);
+        const nSK = 1.62041, nF2 = 1.62004, want = [nSK, nSK, nF2, nF2, null, nSK, nSK];
+        const fresOk = R.length === 7 && R.every((r, i) => want[i] === null ? r.children[2].textContent === '100%' : Math.abs(passes(r) - fres(want[i])) < 0.15);
+        const maps = body().querySelectorAll('.rt-lpolmaps .rt-lspot').length === 4;
+        const total0 = parseFloat(body().textContent.match(/light in: ([\d.]+)%/)[1]);
+        const sel = rows()[0].querySelector('select'); sel.value = 'mgf2'; sel.dispatchEvent(new (rigWin().Event)('change'));
+        const after = rows(), total1 = parseFloat(body().textContent.match(/light in: ([\d.]+)%/)[1]);
+        const coat = J.serialize().elements.find(e => e.id === 'Front').surfaces[0].coat;
+        const mg = passes(after[0]) >= 98.7 && total1 > total0 && coat && coat.mode === 'stack' && coat.layers.length === 1;
+        wsClick('Undo');
+        const back = rows()[0].querySelector('select').value === 'bare' && Math.abs(passes(rows()[0]) - fres(nSK)) < 0.15;
+        return fresOk && maps && mg && back ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
     want: 1, tol: 0, unit: '',

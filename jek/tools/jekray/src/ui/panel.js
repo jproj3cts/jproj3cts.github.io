@@ -1,6 +1,6 @@
 import { BEAM_Z, TEST_MODE } from '../core/constants.js';
 import { asmOfSelection } from '../core/assembly.js';
-import { assemblyPanel } from './assembly.js';
+import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
@@ -557,6 +557,9 @@ function renderPanelBody(el) {
   if (el.mod) modPanel(el);                                                                   // a mod's part
   // the part's own sections (a horn's stand in for a source's or a detector's; a mod's for its part's)
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
+  // a lens, mirror or window on its own: straight into lens design
+  const dz = panel === mainPanel ? designOneRow(el) : null;
+  if (dz) panel.append(h('h3', null, 'Lens design'), h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, dz));
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },

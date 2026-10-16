@@ -199,7 +199,7 @@ function walkAxis(q, d, pool) {
 export function asmCheck(els, opts) {
   opts = opts || {};
   const name = e => e.name || e.type;
-  if (els.length < (opts.min || 2)) return { ok: false, why: 'Select at least two parts: lenses, mirrors and stops on one axis.' };
+  if (els.length < (opts.min || 1)) return { ok: false, why: 'Select a part to design: a lens, a mirror or a window, with any others on its axis.' };
   const bad = els.find(e => !asmKind(e));
   if (bad) return { ok: false, why: name(bad) + ' can’t be in an assembly: only lenses, mirrors, stops and windows on one axis can (leave out sources, screens and the rest).' };
   if (els.some(e => e.bench !== els[0].bench)) return { ok: false, why: 'The parts are on different tabs.' };

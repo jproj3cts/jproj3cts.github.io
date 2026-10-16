@@ -9,6 +9,9 @@ description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on 
 
 ## Making an assembly
 
+**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel (and its right-click menu): it is made an assembly of one and opened in the design workspace at once, to design, optimise and add to (Insert a singlet, Insert a surface) there.
+
+**Several parts.**
 Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or from the right-click menu. They must be:
 
 - lenses round about their axes (not cylindrical), round irises, windows, or mirrors (flat or curved, whole: not off-axis segments or film beam splitters);

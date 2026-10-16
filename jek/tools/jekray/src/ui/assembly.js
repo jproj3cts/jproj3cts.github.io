@@ -1,5 +1,5 @@
 import { fmtLen } from '../core/format.js';
-import { asmCheck, asmMembers, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
+import { asmCheck, asmKind, asmMembers, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
 import { V, deg, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
@@ -33,7 +33,7 @@ export function makeAssembly(list) {
   const asm = { id, name: nextAsmName(), bench: list[0].bench, ref: C.ref, rev: C.rev, cond: startCond(list) };
   project.assemblies = (project.assemblies || []).concat([asm]);
   setSelection(list);
-  toast('Made ' + asm.name + ' from ' + list.length + ' parts');
+  toast('Made ' + asm.name + ' from ' + (list.length === 1 ? list[0].name : list.length + ' parts'));
   changed(true);
   return asm;
 }
@@ -135,6 +135,20 @@ export function assemblyPanel(asm) {
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 
+/* a single lens, mirror or window made an assembly of its own and opened to design at once */
+export function designOne(el) {
+  const asm = makeAssembly([el]);
+  if (asm) openLensDesign(asm);
+  return asm;
+}
+/* in a part's own panel: the way into lens design for it alone */
+export function designOneRow(el) {
+  const k = asmKind(el);
+  if (!k || k === 'stop' || el.group) return null;
+  const C = asmCheck([el], {});
+  if (!C.ok) return null;
+  return h('button', { class: 'rt-btn', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, lens data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
+}
 /* in a selection's panel: the button that makes these parts one, or why it can't */
 export function makeAssemblyRow(list) {
   const C = asmCheck(list, { sources: sources() });

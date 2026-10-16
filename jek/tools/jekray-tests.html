@@ -9145,6 +9145,29 @@ const TESTS = [
     },
   },
   {
+    name: 'A single lens goes straight into lens design from its own panel',
+    why: 'a lone singlet selected: its panel’s Design as a lens… makes it an assembly of one and opens the workspace on it (two surfaces in the lens data, its focal length the lens’s own); Insert a singlet there adds a second lens to it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Beam', x: -40, y: 0, angle: 0, wavelength: 587.56, rays: 7, width: 8, divergence: 0 },
+        { type: 'lens', name: 'Solo', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }] });
+      const f0 = J.lensParaxial('Solo', 587.56).efl;
+      J.select('Solo');
+      const b = [...rigDoc().querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…');
+      if (!b) return 0;
+      b.click();
+      try {
+        const name = J.assemblies().length === 1 ? J.assemblies()[0].name : null, open = J.lensDesignOpen();
+        const F = name && J.lensFigures(name), oneOk = !!name && open && F.surfaces === 2 && Math.abs(F.efl - f0) < 1e-9;
+        wsClick('Insert a singlet');
+        const twoOk = J.lensFigures(name).surfaces === 4 && J.byName('Solo').group === J.assemblies()[0].id;
+        if (!(oneOk && twoOk)) console.log('solo', oneOk, twoOk, open, F && F.surfaces);
+        return oneOk && twoOk ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

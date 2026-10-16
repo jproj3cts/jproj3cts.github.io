@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Design as a lens\u2026</b> on any lone lens, mirror or window (its panel or right-click menu) makes it an assembly of its own and opens the lens design workspace on it straight away.',
     '<b>MTF in the merit function</b>: add the diffraction MTF at a field and frequency, tangential, sagittal or their mean, and the optimiser raises it. Worked out from the pupil function at just the frequency asked for, so it is quick enough to optimise on.',
     '<b>An assembly\u2019s place on the bench</b>: its panel gives its X and Y (its first vertex), its Angle (the way its axis runs) and its Height, to type; every part moves or turns with it, about its first vertex, the design unchanged.',
     '<b>More merit terms</b>: back focal length, image distance, magnification, image-space NA and the exit pupil\u2019s distance; and from real rays at a field you pick, the chief ray\u2019s height and angle at the image (hold the angle at 0 for an image-space telecentric design) and the landing height of any ray across the pupil.',

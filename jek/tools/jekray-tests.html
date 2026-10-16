@@ -8900,6 +8900,32 @@ const TESTS = [
     },
   },
   {
+    name: 'Substitute glasses: a model glass becomes the catalogue glass that best takes out a doublet’s colour, and Undo takes it back',
+    why: 'an air-spaced doublet (N-BK7, then a model glass at nd 1.62, Vd 36.4) aimed at f 100 mm and no axial colour, its second glass and two radii marked V: Optimise \u203a Substitute glasses, from Schott, ten candidates a glass, puts in a real flint (Vd under 45), the merit at least ten times lower; the table of what changed is shown; Undo brings back the model glass (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 60 }, { R: -60 }], gaps: [5], materials: [{ glass: 'N-BK7' }], group: 'g' },
+        { type: 'lens', id: 'M', name: 'M', x: 5, y: 0, angle: 0, diameter: 25, surfaces: [{ R: -58 }, { R: -400 }], gaps: [2.5], materials: [{ glass: 'Model', nd: 1.62, vd: 36.4 }], group: 'g' }],
+        assemblies: [{ id: 'g', name: 'Doublet', ref: 'L', cond: { aperture: { kind: 'epd', v: 12 }, fields: [{ deg: 0 }], waves: [{ nm: 486.13 }, { nm: 587.56 }, { nm: 656.27 }], primary: 1 },
+          design: { solves: { 't:image': { kind: 'focus' } }, vars: ['g:M.0', 'R:L.0', 'R:M.1'], merit: { ops: [{ op: 'EFL', target: 100, weight: 1 }, { op: 'CL', target: 0, weight: 1e4 }] } } }] });
+      J.openLensDesign('Doublet');
+      try {
+        wsClick('Optimise the design', null, 'tab');
+        wsClick('Substitute glasses', null, 'radio');
+        const boxes = [...rigDoc().querySelectorAll('#lensWs .rt-lsubst input[type=checkbox]')].length;
+        const st = J.lensOptimise('subst', { makers: ['Schott'], n: 10 });
+        const g = J.byName('M').materials[0], I = J.glassInfo(g.glass);
+        const flint = g.glass !== 'Model' && !('nd' in g) && st.subs.length >= 1 && st.subs[0].to === st.subs.find(x => x.to).to;
+        const lower = st.now < st.start / 10;
+        const table = !!rigDoc().querySelector('#lensWs .rt-lsublog tbody tr');
+        J.undo();
+        const back = J.byName('M').materials[0].glass === 'Model';
+        return boxes === 5 && flint && lower && table && back && I && I.vd < 45 ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
     why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
     want: 1, tol: 0, unit: '',

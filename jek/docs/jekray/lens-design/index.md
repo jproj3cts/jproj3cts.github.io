@@ -307,7 +307,15 @@ The bench's rays, the lens engine's and the diffracted field all take the gradie
 
 ### Model glass
 
-Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.
+Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them. **Substitute glasses**, below, does better: it tries the real glasses round each one, optimising with each.
+
+### Substitute glasses
+
+A model glass says what glass would suit; **Substitute glasses**, the third method in **Optimise the design**, finds the real one. Each glass marked **V** is tried as the catalogue glasses nearest it on the glass map (0.01 in nd counting as much as 1 in Vd), from the makers ticked (Schott, Ohara, Hoya, CDGM, Sumita), as many as asked (12 unless set), each one that transmits at every wavelength of the design. With each candidate in its place, the rest of the design's variables are optimised again from where they are (twelve cycles of damped least squares), and its merit taken. When every candidate has been tried, the best goes in if it is better than the glass already there; a model glass is always replaced. The glasses are taken one after another, and the passes repeat (three at most) until one changes nothing, so a glass can walk across the map toward the glass that suits the design best. A table says what each glass was, what it is now, the merit and the best few tried. It runs in the background, and Undo takes the design back to where it started.
+
+**Checked against.**
+- an air-spaced doublet whose second glass is a model near F2, aimed at f 100 mm and no axial colour: the glass put in is the one that, tried on its own from the same start, optimises to the lowest merit, and it is a flint; the merit falls more than tenfold;
+- a glass none of its candidates betters is kept.
 
 ### Tolerance the design
 

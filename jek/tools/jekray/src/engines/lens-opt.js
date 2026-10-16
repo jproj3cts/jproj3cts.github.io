@@ -409,3 +409,63 @@ export function nearestGlass(nd, vd, withDistance) {
   for (const [k, n, v] of realGlasses) { const d = ((n - nd) / 0.01) ** 2 + (v - vd) ** 2; if (d < bd) { bd = d; best = k; } }
   return withDistance ? { k: best, d: Math.sqrt(bd) } : best;
 }
+
+/* ---------- Glass substitution ----------
+   Each glass marked V is tried as real glasses from the makers' catalogues in turn: those nearest it on
+   the glass map (as above), from the makers chosen, that transmit at every wavelength of the design.
+   With each, the other variables are optimised again (damped least squares, from where they are) and
+   its merit taken; the best is kept, if it is better than the glass already there (a model glass is
+   always replaced). The glasses are taken one after another, and passes made over them all until one
+   changes nothing. */
+export const GLASS_MAKERS = ['Schott', 'Ohara', 'Hoya', 'CDGM', 'Sumita'];
+/* the materials marked V, by index */
+export function substIndices(prob) {
+  const { P, design: D } = prob, out = [];
+  for (const k of D.vars) { const at = posOf(P, k); if (at && at.q === 'g' && editable(P, at.q, at.i) && !out.includes(at.i)) out.push(at.i); }
+  return out.sort((a, b) => a - b);
+}
+/* the glasses to try in place of material gi: the n nearest on the glass map, from the makers given, that
+   cover the design's wavelengths; its own glass not among them */
+export function glassCandidates(prob, gi, makers, n) {
+  const m = prob.P.materials[gi], I = isModel(m) ? m : m && glassInfo(m.glass);
+  const nd = I && isFinite(I.nd) && I.nd > 0 ? I.nd : 1.5168, vd = I && isFinite(I.vd) && I.vd > 0 ? I.vd : 64.17;
+  const nms = prob.cond.waves.map(w => w.nm), lo = Math.min(...nms) / 1000, hi = Math.max(...nms) / 1000;
+  const ok = new Set(makers && makers.length ? makers : GLASS_MAKERS);
+  const L = [];
+  for (const [k, maker] of glassSearch('')) {
+    if (!ok.has(maker) || (m && k === m.glass)) continue;
+    const g = glassInfo(k);
+    if (!g || !(g.nd > 0) || !(g.vd > 0) || (g.lo > 0 && g.lo > lo) || (g.hi > 0 && g.hi < hi)) continue;
+    L.push([k, ((g.nd - nd) / 0.01) ** 2 + (g.vd - vd) ** 2]);
+  }
+  L.sort((a, b) => a[1] - b[1]);
+  return L.slice(0, n || 12).map(([k]) => k);
+}
+/* the problem with material gi made glass key */
+export function withGlass(prob, gi, key) {
+  const p = JSON.parse(JSON.stringify(prob)), m = p.P.materials[gi];
+  p.P.materials[gi] = Object.assign({}, m, { glass: key });
+  delete p.P.materials[gi].nd; delete p.P.materials[gi].vd;
+  return p;
+}
+/* the whole substitution at once (on the page or in the checks): returns each glass's changes and the problem as it ends */
+export function substituteRun(prob, opts) {
+  opts = opts || {};
+  const iters = opts.iters || 12, log = [];
+  let cur = JSON.parse(JSON.stringify(prob));
+  const settle = p => { const out = optRun(p, { mode: 'dls', iters }), q = JSON.parse(JSON.stringify(p)); optApply(q.P, q, out, q.design); return { p: q, merit: out.merit }; };
+  for (let pass = 0; pass < (opts.passes || 3); pass++) {
+    let changed = false;
+    for (const gi of substIndices(cur)) {
+      const from = cur.P.materials[gi].glass === 'Model' ? 'Model' : cur.P.materials[gi].glass;
+      const base = isModel(cur.P.materials[gi]) ? null : settle(cur);
+      const tried = glassCandidates(cur, gi, opts.makers, opts.n).map(k => Object.assign({ k }, settle(withGlass(cur, gi, k))));
+      tried.sort((a, b) => a.merit - b.merit);
+      const best = tried[0];
+      if (best && (!base || best.merit < base.merit * (1 - 1e-6))) { cur = best.p; changed = true; log.push({ gi, from, to: best.k, merit: best.merit, before: base ? base.merit : null, tried: tried.map(t => [t.k, t.merit]) }); }
+      else if (base) cur = base.p;
+    }
+    if (!changed) break;
+  }
+  return { prob: cur, log, merit: meritReport(cur).merit };
+}

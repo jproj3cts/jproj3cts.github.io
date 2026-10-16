@@ -8,7 +8,7 @@ import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
-import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
+import { GLASS_MAKERS, glassCandidates, isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
@@ -790,16 +790,21 @@ function meritCard(asm, P) {
    result written to the design and shown before the next; Stop ends it, Undo takes it all back. */
 let OPT = null;
 export function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS.asm, P: designPrescription(WS.asm), redraw: renderWs, sync: sync !== false, state: WS.tolState || (WS.tolState = {}) }); return lensTolState(); }
-export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note };
+export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 export function optStart(mode, opts) {
   if (!WS) return false;
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
-  if (!V.length) { toast('Nothing to vary: mark values V in the lens data first.', true); return false; }
+  if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the lens data first.', true); return false; }
+  if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the lens data first.', true); return false; }
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
     maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync) };
+  if (mode === 'subst') {
+    const S = WS.subst || (WS.subst = { makers: GLASS_MAKERS.slice(), n: 12 });
+    OPT.sub = { list: substIndices(prob), li: 0, pass: 0, moved: false, cands: null, ci: 0, tried: [], base: null, log: [], makers: (opts && opts.makers) || S.makers, n: (opts && opts.n) || S.n };
+  }
   renderWs();
   if (OPT.sync) { while (OPT.running) optBatch(); return true; }
   setTimeout(optBatch, 0);
@@ -809,6 +814,7 @@ function optBatch() {
   const O = OPT;
   if (!O || !O.running || !WS || WS.asm.id !== O.id) return;
   const asm = WS.asm, prob = optProblem(asm, designPrescription(asm));
+  if (O.mode === 'subst') { substBatch(O, asm, prob); return; }
   const run = O.mode === 'global' ? { mode: 'global', trials: 2, seed: O.seed++ } : { mode: 'dls', iters: 4, lambda: O.lambda };
   const take = out => {
     if (OPT !== O || !O.running || !WS) return;
@@ -828,6 +834,48 @@ function optBatch() {
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(prob, run));
   else hooks.fwRequest('lensopt', 'lensopt', { prob, run }).then(o => take(o && o.out)).catch(() => take(null));
 }
+/* One step of glass substitution (lens-opt.js): the glass at hand settled as it is, or one candidate tried in its
+   place, the rest of the design optimised again from where it is; once every candidate has been, the best is
+   put in (if better than the glass there; a model glass always goes), and the next glass taken */
+const SUBST_ITERS = 12;
+function substBatch(O, asm, prob) {
+  const S = O.sub, gi = S.list[S.li];
+  if (!S.cands) { S.cands = glassCandidates(prob, gi, S.makers, S.n); S.ci = isModel(prob.P.materials[gi]) ? 0 : -1; S.tried = []; S.base = null; }
+  const k = S.ci < 0 ? null : S.cands[S.ci], p = k ? withGlass(prob, gi, k) : prob;
+  O.trying = k ? 'Trying ' + k + ' (' + (S.ci + 1) + ' of ' + S.cands.length + ') for the glass after surface ' + (gi + 1) : 'Settling the glass after surface ' + (gi + 1) + ' as it is';
+  const take = out => {
+    if (OPT !== O || !O.running || !WS) return;
+    if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
+    O.cycles += out.iters;
+    if (k) S.tried.push({ k, merit: out.merit, out, p }); else S.base = { merit: out.merit, out, p };
+    S.ci++;
+    if (S.ci >= S.cands.length) {
+      S.tried.sort((a, b) => a.merit - b.merit);
+      const best = S.tried[0], from = isModel(prob.P.materials[gi]) ? 'model glass' : prob.P.materials[gi].glass;
+      const pick = best && (!S.base || best.merit < S.base.merit * (1 - 1e-6)) ? best : S.base;
+      if (pick) {
+        const P2 = designPrescription(asm);
+        if (pick !== S.base) { P2.materials[gi] = Object.assign({}, P2.materials[gi], { glass: best.k }); delete P2.materials[gi].nd; delete P2.materials[gi].vd; }
+        optApply(P2, pick.p, pick.out, designOf(asm));
+        commitDesign(asm, P2); changed(false);
+        O.now = pick.merit;
+      }
+      S.log.push({ gi, from, to: pick === S.base ? null : best && best.k, merit: pick ? pick.merit : NaN, tried: S.tried.map(t => [t.k, t.merit]) });
+      if (pick && pick !== S.base) S.moved = true;
+      S.cands = null; S.li++;
+      if (S.li >= S.list.length) {
+        S.pass++; S.li = 0;
+        if (!S.moved || S.pass >= 3) { O.running = false; O.trying = ''; O.note = 'Done: ' + S.pass + (S.pass === 1 ? ' pass' : ' passes') + ' over ' + S.list.length + (S.list.length === 1 ? ' glass' : ' glasses') + (S.moved ? '.' : '; no glass did better than the ones there.'); }
+        S.moved = false;
+      }
+    }
+    renderWs();
+    if (O.running && !O.sync) setTimeout(optBatch, 0);
+  };
+  const run = { mode: 'dls', iters: SUBST_ITERS };
+  if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(p, run));
+  else hooks.fwRequest('lensopt', 'lensopt', { prob: p, run }).then(o => take(o && o.out)).catch(() => take(null));
+}
 function optCard(asm, P) {
   const prob = optProblem(asm, P), V = optVars(prob), O = OPT && OPT.id === asm.id ? OPT : null, running = !!(O && O.running);
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
@@ -837,15 +885,31 @@ function optCard(asm, P) {
   const radio = (k, label, t) => h('button', { type: 'button', role: 'radio', class: 'rt-ltab', 'aria-checked': String(WS.method === k), 'aria-selected': String(WS.method === k), title: t, disabled: running ? '' : null, onclick: () => { WS.method = k; renderWs(); } }, label);
   card.append(h('div', { class: 'rt-ltabs', role: 'radiogroup', 'aria-label': 'Method' },
     radio('dls', 'Damped least squares', 'Downhill from where the design is, to the nearest minimum'),
-    radio('global', 'Global search', 'Again and again from the best design yet, shaken, keeping what is better: for a better minimum than the nearest')));
+    radio('global', 'Global search', 'Again and again from the best design yet, shaken, keeping what is better: for a better minimum than the nearest'),
+    radio('subst', 'Substitute glasses', 'Each glass marked V tried as the catalogue glasses nearest it, the rest optimised again with each, the best kept')));
+  if (WS.method === 'subst') {
+    const S = WS.subst || (WS.subst = { makers: GLASS_MAKERS.slice(), n: 12 }), nG = substIndices(prob).length;
+    const box = mk => { const c = h('input', { type: 'checkbox', disabled: running ? '' : null }); c.checked = S.makers.includes(mk); c.addEventListener('change', () => { S.makers = c.checked ? S.makers.concat([mk]) : S.makers.filter(x => x !== mk); if (!S.makers.length) S.makers = [mk]; renderWs(); }); return h('label', { class: 'rt-check' }, c, mk); };
+    const num = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(S.n), 'aria-label': 'Candidates for each glass', disabled: running ? '' : null });
+    num.addEventListener('change', () => { const v = Math.round(+num.value); S.n = isFinite(v) ? Math.max(1, Math.min(200, v)) : 12; renderWs(); });
+    card.append(h('div', { class: 'rt-lsubst' }, h('div', { class: 'rt-lrow', role: 'group', 'aria-label': 'Makers' }, h('span', { class: 'rt-lsub' }, 'From'), ...GLASS_MAKERS.map(box)),
+      h('label', { class: 'rt-lrow' }, h('span', { class: 'rt-lsub' }, 'Candidates for each glass, nearest on the glass map'), num),
+      h('p', { class: 'rt-lsub' }, nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.')));
+  }
   card.append(h('div', { class: 'rt-lbar' }, running
     ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
-    : h('button', { class: 'rt-btn primary', type: 'button', disabled: V.length ? null : '', onclick: () => optStart(WS.method) }, 'Optimise the design')));
+    : h('button', { class: 'rt-btn primary', type: 'button', disabled: (WS.method === 'subst' ? substIndices(prob).length : V.length) ? null : '', onclick: () => optStart(WS.method) }, WS.method === 'subst' ? 'Substitute the glasses' : 'Optimise the design')));
   const R = O ? null : meritReport(prob);
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
-    [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
+    O.mode === 'subst' ? ['Glasses tried', String(O.sub.log.reduce((a, l) => a + l.tried.length, 0) + (O.sub.cands ? O.sub.tried.length : 0))] : [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
   card.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
-  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : 'Optimising…') : O.note));
+  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note));
+  if (O && O.mode === 'subst' && O.sub.log.length) {
+    const tb = h('tbody');
+    for (const L of O.sub.log) tb.append(h('tr', null, h('td', null, 'After surface ' + (L.gi + 1)), h('td', null, L.from), h('td', null, L.to || 'kept'), h('td', { class: 'mono' }, wsFmt(L.merit, 5)),
+      h('td', { class: 'rt-lsub' }, L.tried.slice(0, 3).map(([k, m]) => k + ' ' + wsFmt(m, 4)).join(', '))));
+    card.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-lsublog' }, h('thead', null, h('tr', null, ...['Glass', 'Was', 'Now', 'Merit', 'Best tried'].map(t => h('th', { scope: 'col' }, t)))), tb)));
+  }
   const models = P.materials.map((m, i) => isModel(m) ? i : -1).filter(i => i >= 0);
   if (models.length) card.append(h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn', type: 'button', disabled: running ? '' : null,
     title: 'Each model glass replaced by the catalogue glass nearest it in nd and Vd; optimise again after', onclick: () => {

@@ -1,6 +1,6 @@
 import { EMBED, STORE_KEY, TEST_MODE } from '../core/constants.js';
 import { installHooks } from '../core/hooks.js';
-import { refIndex } from '../core/glass.js';
+import { glassInfo, refIndex } from '../core/glass.js';
 import { atomLines, gasDamping, sphereAlpha, trapAlpha, trapPhysics, waterViscosity } from '../core/traps.js';
 import { zeemanLines, zeemanStates } from '../core/zeeman.js';
 import { NLC, bkBest, bkH, cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, faddeeva, nlcPeriod } from '../core/nlc.js';
@@ -371,6 +371,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
+    glassInfo(k) { return glassInfo(k); },
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },

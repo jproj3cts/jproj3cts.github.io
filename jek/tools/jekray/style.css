@@ -1310,6 +1310,9 @@
   .rt-lseidel { min-width: 40rem; }
   .rt-lseidel td, .rt-lseidel th { text-align: right; }
   .rt-lseidel td:first-child, .rt-lseidel th:first-child { text-align: left; }
+  .rt-lsubst { display: grid; gap: 0.45rem; margin: 0.6rem 0 0.2rem; }
+  .rt-lsubst .rt-lrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
+  .rt-lsubst p { margin: 0; }
   .rt-lghost { min-width: 44rem; }
   .rt-lghost td, .rt-lghost th { text-align: right; }
   .rt-lghost td:first-child, .rt-lghost th:first-child, .rt-lghost td:last-child, .rt-lghost th:last-child { text-align: left; }

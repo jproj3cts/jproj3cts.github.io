@@ -1,5 +1,5 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
-import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, footprints, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ZERNIKE_NAMES, anaSystems, fieldCurves, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
@@ -36,15 +36,20 @@ export function analysesPanel(asm, P, F, st, redraw) {
   const c = asm.cond, fin = !!(c.object && c.object.kind === 'finite');
   FU = fin ? ' mm' : '°'; FU_WORD = fin ? 'object height, mm' : 'degrees'; FU_CSV = fin ? 'mm' : 'deg';
   if (!(st.field >= 0 && st.field < c.fields.length)) st.field = c.fields.length - 1;
-  if (!(st.wave >= 0 && st.wave < c.waves.length)) st.wave = c.primary;
+  const huy = st.view === 'psf' && st.psfm === 'huy';
+  if (!(st.wave >= 0 && st.wave < c.waves.length) && !(huy && st.wave === -1)) st.wave = c.primary;
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
   const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
+  if (st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'PSF method' }, h('span', { class: 'rt-lsub' }, 'Method'),
+    chip(!huy, 'FFT', () => { st.psfm = 'fft'; redraw(); }, { title: 'The Fourier transform of the pupil function: quick; the image square to the chief ray' }),
+    chip(huy, 'Huygens', () => { st.psfm = 'huy'; redraw(); }, { title: 'Huygens wavelets from the reference sphere summed on the image plane itself: slower; right for a beam meeting the image slantwise, and over all the wavelengths' })));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
-    ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) }))));
+    ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) })),
+    ...(huy && c.waves.length > 1 ? [chip(st.wave === -1, 'All, weighted', () => { st.wave = -1; redraw(); })] : [])));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
   const body = h('div', { class: 'rt-lanabody' });
   card.append(body);
@@ -55,6 +60,11 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'field') fieldView(body, A, cached(key + '|field', () => fieldCurves(A, 21)));
   else if (view === 'long') longView(body, A, cached(key + '|long', () => longitudinal(A, 21)));
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
+  else if (view === 'psf' && huy) {
+    const hk = key + '|huy|' + deg + '|' + st.wave;
+    if (anaCache.has(hk)) huyView(body, A, anaCache.get(hk));
+    else huyPending(body, hk, () => huygensPlan(A, deg, st.wave), redraw);
+  }
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
@@ -243,6 +253,55 @@ function psfView(body, A, F, spot) {
     series: [{ label: 'design', colour: WAVE_COLOURS[0], xs: F.r.slice(0, n), ys: F.ee.slice(0, n) }, { label: 'diffraction limit', colour: '#666', dash: true, xs: F.r.slice(0, n), ys: F.ee0.slice(0, n) }], xName: 'radius (mm)', H: 240,
     csv: { name: 'encircled energy', cols: ['radius (mm)', 'design', 'diffraction limit'], rows: () => F.r.map((r, k) => [r, F.ee[k], F.ee0[k]]) } });
   right.append(legend([['design', WAVE_COLOURS[0]], ['diffraction limit', '#666', true]]));
+}
+/* the Huygens PSF is summed a few rows at a time, the page kept live, and drawn when done; one at a time */
+let huyJob = null;
+function huyPending(body, key, plan, redraw) {
+  const el = h('p', { class: 'rt-lsub', role: 'status' }, 'Summing the wavelets…');
+  body.append(el);
+  if (huyJob && huyJob.key === key) { huyJob.el = el; return; }
+  if (huyJob) huyJob.cancelled = true;
+  const job = huyJob = { key, el, cancelled: false };
+  const finish = v => {
+    if (job.cancelled) return;
+    anaCache.set(key, v);
+    if (anaCache.size > 40) anaCache.delete(anaCache.keys().next().value);
+    huyJob = null;
+    if (job.el.isConnected) redraw();
+  };
+  setTimeout(() => {
+    if (job.cancelled) return;
+    const P = plan();
+    if (!P) { finish(null); return; }
+    const step = () => {
+      if (job.cancelled) return;
+      const t = performance.now();
+      let done = false;
+      while (!done && performance.now() - t < 30) done = huygensRows(P, 1);
+      if (done) { finish(huygensFinish(P)); return; }
+      job.el.textContent = 'Summing the wavelets… ' + Math.floor(100 * P.next / P.rows) + '% (' + P.N + ' rays across, ' + P.per.length + (P.per.length > 1 ? ' wavelengths)' : ' wavelength)');
+      setTimeout(step, 0);
+    };
+    step();
+  }, 0);
+}
+function huyView(body, A, H) {
+  if (!H) { body.append(h('p', { class: 'rt-lsub' }, 'The chief ray of this field does not reach the image.')); return; }
+  const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+  row.append(left, right); body.append(row);
+  const M = H.M, c = (M - 1) / 2, wl = H.nm ? anFmt(H.nm, 5) + ' nm' : 'all the wavelengths, weighted';
+  const cv = heat(left, M, (i, j) => H.I[j * M + i] / H.peak, v => magma(Math.sqrt(v)), 'The Huygens point spread function: Strehl ratio ' + anFmt(H.strehl, 3), 240);
+  left.append(h('p', { class: 'rt-lsub' }, 'At ' + wl + ', ' + um(H.window) + ' across on the image plane, brightness as the square root of the irradiance. Strehl ratio ' + anFmt(H.strehl, 3) + '; ' + H.across + ' rays across the pupil (' + H.rays + ' in all).'));
+  if (H.clipped || H.aliased) left.append(h('div', { class: 'rt-lnote' }, 'The spot (RMS radius ' + um(H.rms) + ') is wider than this window, ' + anFmt(H.M, 3) + ' points at λF/4: it shows the middle of it, where the peak is. See the spot diagram for the whole of it.'));
+  plotCsv(cv, 'huygens psf', ['x (mm)', 'y (mm)', 'irradiance (peak 1)'], () => { const out = []; for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) out.push([H.centre[0] + (i - c) * H.dx, H.centre[1] + (j - c) * H.dx, H.I[j * M + i] / H.peak]); return out; });
+  left.append(plotSaveRow(cv));
+  // sections through the peak, across (x) and along the plane of the fields (y)
+  const pi = Math.round(H.peakAt[0] / H.dx + c), pj = Math.round(H.peakAt[1] / H.dx + c), xs = Array.from({ length: M }, (_, i) => (i - c) * H.dx);
+  linePlot(right, { label: 'Sections through the peak', x: { kind: 'len', title: 'From the middle of the window' }, y: { kind: 'plain', title: 'Irradiance, peak 1' }, xr: [xs[0], xs[M - 1]], yr: [0, 1.02],
+    series: [{ label: 'x (sagittal)', colour: WAVE_COLOURS[1], dash: true, xs, ys: xs.map((_, i) => H.I[pj * M + i] / H.peak) }, { label: 'y (tangential)', colour: WAVE_COLOURS[0], xs, ys: xs.map((_, j) => H.I[j * M + pi] / H.peak) }], xName: 'mm', H: 240,
+    csv: { name: 'huygens psf sections', cols: ['position (mm)', 'x section', 'y section'], rows: () => xs.map((v, k) => [v, H.I[pj * M + k] / H.peak, H.I[k * M + pi] / H.peak]) } });
+  right.append(legend([['y (tangential)', WAVE_COLOURS[0]], ['x (sagittal)', WAVE_COLOURS[1], true]]));
+  right.append(h('p', { class: 'rt-lsub' }, 'Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'));
 }
 function mtfView(body, A, M) {
   const v = M.freqs;

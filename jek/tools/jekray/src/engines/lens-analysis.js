@@ -335,6 +335,161 @@ export function psfAnalysis(A, deg, wi, N, pad) {
   return { deg, nm: S.nm, M, dx, I, peak: pk, strehl: pk0 ? pk / pk0 : NaN, ee: ee(I, cx, cy), ee0: ee(I0, c0x / t0, c0y / t0), r: Array.from({ length: M / 2 }, (_, i) => (i + 1) * dx), airy: 1.22 * S.lam * A.fw, window: M * dx };
 }
 
+/* ---------- Huygens PSF ----------
+   The PSF as the sum of Huygens wavelets on the image plane itself, not as a Fourier transform. A grid
+   of rays across the pupil is traced to the reference sphere (about the chief ray's image point,
+   through the exit pupil; for an image space telecentric design, through where the chief ray leaves
+   the last surface); each ray's crossing is a source, its phase its optical path there, its amplitude
+   from its share of the light (each ray the same share of the entrance pupil) over the area of sphere
+   it covers (from its neighbours), so the pupil's own distortion counts. Each image point sums
+       U(P) = (n'/iλ) Σ a_k e^{i k (L_k + n' r)} cos χ / r,
+   r from the source to P, χ between the ray and r (Rayleigh-Sommerfeld). The image plane is the
+   design's, square to the axis, so a beam meeting it slantwise spreads over it as it does there.
+   Over several wavelengths the irradiances add, each with its weight. The Strehl ratio: the peak
+   against that of the same rays with no aberration (all their phases alike), at its centre.
+   Its rays are N across, so the pattern repeats N λ F away: the window is kept well inside that. Where the exit
+   pupil lies beyond the image (the sphere virtual), the wavelets are run back from it, e^{-ikr}. */
+export function huygensSum(src, P0, ex, ey, dx, M, kn, sgn, j0, j1, out) {
+  // src: sources [x, y, z, L, M, N (the ray's direction), phase, amplitude]; P0 the grid's middle; ex, ey its axes;
+  // rows j0 to j1 - 1 only, if given, into out
+  sgn = sgn || 1; j0 = j0 || 0; j1 = j1 === undefined ? M : j1;
+  const re = out ? out.re : new Float64Array(M * M), im = out ? out.im : new Float64Array(M * M), h = (M - 1) / 2, n = src.length / 8;
+  for (let j = j0; j < j1; j++) for (let i = 0; i < M; i++) {
+    const u = (i - h) * dx, v = (j - h) * dx, px = P0[0] + ex[0] * u + ey[0] * v, py = P0[1] + ex[1] * u + ey[1] * v, pz = P0[2] + ex[2] * u + ey[2] * v;
+    let a = 0, b = 0;
+    for (let k = 0, o = 0; k < n; k++, o += 8) {
+      const X = px - src[o], Y = py - src[o + 1], Z = pz - src[o + 2], r = Math.sqrt(X * X + Y * Y + Z * Z);
+      const ob = sgn * (X * src[o + 3] + Y * src[o + 4] + Z * src[o + 5]) / r, w = src[o + 7] * ob / r, ph = src[o + 6] + sgn * kn * r;
+      a += w * Math.cos(ph); b += w * Math.sin(ph);
+    }
+    re[j * M + i] = a; im[j * M + i] = b;
+  }
+  return { re, im };
+}
+/* the same sum, one row (j) at a time and quick: along the row each wavelet's phase k r is a quadratic in u to within
+   k Δ³/r² (a thousandth of a radian over a window of a few hundred λF), so from its exact value and slope at the row's
+   start it is stepped pixel to pixel by multiplying phasors, no trigonometry inside; its strength (cos χ / r) is
+   taken at the row's start (it changes by Δ/r across, a part in a thousand) */
+export function huygensRow(src, P0, ex, ey, dx, M, kn, sgn, j, re, im) {
+  const h = (M - 1) / 2, n = src.length / 8, v = (j - h) * dx, u0 = -h * dx;
+  const sx = P0[0] + ex[0] * u0 + ey[0] * v, sy = P0[1] + ex[1] * u0 + ey[1] * v, sz = P0[2] + ex[2] * u0 + ey[2] * v;
+  const ar = new Float64Array(M), ai = new Float64Array(M);
+  for (let k = 0, o = 0; k < n; k++, o += 8) {
+    const X = sx - src[o], Y = sy - src[o + 1], Z = sz - src[o + 2], r = Math.sqrt(X * X + Y * Y + Z * Z);
+    const e = (X * ex[0] + Y * ex[1] + Z * ex[2]) / r;                  // the slope of r along the row, dr/du
+    const ob = sgn * (X * src[o + 3] + Y * src[o + 4] + Z * src[o + 5]) / r, w = src[o + 7] * ob / r;
+    // k r(u) = k r + k e u + k (1 - e²) u² / (2 r): the first step's phase and the step's own change
+    const q = sgn * kn, ph = src[o + 6] + q * r, d1 = q * (e * dx + (1 - e * e) * dx * dx / (2 * r)), d2 = q * (1 - e * e) * dx * dx / r;
+    let pr = w * Math.cos(ph), pi = w * Math.sin(ph), sr = Math.cos(d1), si = Math.sin(d1);
+    const cr = Math.cos(d2), ci = Math.sin(d2);
+    for (let i = 0; i < M; i++) {
+      ar[i] += pr; ai[i] += pi;
+      const t = pr * sr - pi * si; pi = pr * si + pi * sr; pr = t;
+      const t2 = sr * cr - si * ci; si = sr * ci + si * cr; sr = t2;
+    }
+  }
+  for (let i = 0; i < M; i++) { re[j * M + i] = ar[i]; im[j * M + i] = ai[i]; }
+}
+/* one wavelength's sources: the rays of field th through an N × N grid at the stop, on the reference sphere */
+function huygensSources(S, th, N, power) {
+  const C = rayAt(S, th, 0, 0, new Float64Array(8));
+  if (!C || C[7] !== 0) return null;
+  const nI = S.n[S.N], xpz = S.par.xpz, cx = C[0], cy = C[1], cz = C[2];
+  let Rref;
+  if (isFinite(xpz) && Math.abs(cz - xpz) > 1e-9) { const t = (xpz - cz) / C[5]; Rref = Math.hypot(C[3] * t, C[4] * t, C[5] * t) * Math.sign(cz - xpz); }
+  else Rref = Math.abs(S.imageZ - S.z[S.N - 1]) / Math.abs(C[5]) || 1;
+  const toSphere = R => {
+    const dx = R[0] - cx, dy = R[1] - cy, dz = R[2] - cz, bq = dx * R[3] + dy * R[4] + dz * R[5], cq = dx * dx + dy * dy + dz * dz - Rref * Rref, disc = bq * bq - cq;
+    if (disc < 0) return null;
+    return Rref > 0 ? bq + Math.sqrt(disc) : bq - Math.sqrt(disc);
+  };
+  const tc = toSphere(C), L0 = C[6] - nI * tc, G = new Array(N * N).fill(null), R = new Float64Array(8);
+  let inside = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const px = -1 + (2 * i + 1) / N, py = -1 + (2 * j + 1) / N;
+    if (px * px + py * py > 1) continue;
+    inside++;
+    const r = rayAt(S, th, px, py, R);
+    if (!r || r[7] !== 0) continue;
+    const t = toSphere(r);
+    if (t === null) continue;
+    G[j * N + i] = [r[0] - r[3] * t, r[1] - r[4] * t, r[2] - r[5] * t, r[3], r[4], r[5], r[6] - nI * t - L0];
+  }
+  // each source's patch of the sphere: from its neighbours either way along the grid (one way at an edge)
+  const at = (k, di, dj) => { const i = k % N + di, j = Math.floor(k / N) + dj; return i >= 0 && i < N && j >= 0 && j < N ? G[j * N + i] : null; };
+  const der = (k, di, dj) => {
+    const a = at(k, di, dj), b = at(k, -di, -dj), c = G[k];
+    if (a && b) return [(a[0] - b[0]) / 2, (a[1] - b[1]) / 2, (a[2] - b[2]) / 2];
+    if (a) return [a[0] - c[0], a[1] - c[1], a[2] - c[2]];
+    if (b) return [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+    return null;
+  };
+  const areas = G.map((g, k) => {
+    if (!g) return null;
+    const u = der(k, 1, 0), v = der(k, 0, 1);
+    if (!u || !v) return null;
+    return Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+  });
+  const known = areas.filter(a => a !== null).sort((a, b) => a - b), med = known.length ? known[known.length >> 1] : 0;
+  const lam = S.lam, k0 = 2 * Math.PI / lam, p = power / inside, out = [];
+  let amp0 = 0;
+  G.forEach((g, k) => {
+    if (!g) return;
+    const a = Math.sqrt(p * (areas[k] === null ? med : areas[k])) * nI / lam;
+    out.push(g[0], g[1], g[2], g[3], g[4], g[5], k0 * g[6], a);
+    amp0 += a / Math.abs(Rref);                       // the perfect wave at the sphere's centre: every source in phase, square on, Rref away
+  });
+  return { src: Float64Array.from(out), centre: [cx, cy, cz], Rref, k: k0 * nI, peak0: amp0 * amp0, n: out.length / 8, inside };
+}
+/* the Huygens PSF of field deg: wi, a wavelength's index, or -1 for all of them weighted; o.dx the spacing on the image (mm,
+   by default λF/4), o.M the most points across (129; with both given, exactly that); o.N the rays across the pupil (by
+   default enough for the pattern to repeat twice the window away, at least 64). Planned, summed a row at a time
+   (huygensRows, so a page can keep live) and finished; or all at once (huygensPsf). */
+export function huygensPlan(A, deg, wi, o) {
+  o = o || {};
+  const th = deg * D2R, all = wi < 0;
+  const list = all ? A.S.map((S, i) => [S, A.c.waves[i].w / A.W]) : [[A.S[wi === undefined ? A.c.primary : wi], 1]];
+  // the window: about the spot's centroid, as the image's own axes run, sampled at λF/4 (as the FFT PSF is), wide enough
+  // for 8 Airy radii or 10 RMS radii of the spot but no wider than M points (32 λF at 129)
+  const sp = spotDiagram(A, deg, 15), lamF = Math.max(...list.map(([S]) => S.lam)) * A.fw, lamMin = Math.min(...list.map(([S]) => S.lam)) * A.fw;
+  const rms = isFinite(sp.rms) ? sp.rms : 0, dx = o.dx || lamMin / 4, Mmax = (o.M || 129) | 1;
+  const want = Math.max(8 * 1.22 * lamF, 10 * rms), M = o.dx && o.M ? Mmax : Math.min(Mmax, (Math.ceil(want / dx) + 1) | 1), window = dx * (M - 1);
+  // rays enough across that the pattern repeats twice the window away
+  const N = o.N || Math.max(64, Math.ceil(2 * window / lamMin / 8) * 8);
+  const per = list.map(([S, w]) => ({ S, w, H: huygensSources(S, th, N, w) })).filter(q => q.H);
+  if (!per.length) return null;
+  const ref = (per.find(q => q.S === A.Sp) || per[0]).H;
+  const centre = [ref.centre[0] + (isFinite(sp.centroid[0]) ? sp.centroid[0] : 0), ref.centre[1] + (isFinite(sp.centroid[1]) ? sp.centroid[1] : 0), ref.centre[2]];
+  return { deg, wi: all ? -1 : wi, nm: all ? null : per[0].S.nm, M, dx, N, per, centre, window, alias: N * lamMin, lamF, geo: isFinite(sp.geo) ? sp.geo : 0, rms,
+    clipped: want > window * 1.001, I: new Float64Array(M * M), F: per.map(() => ({ re: new Float64Array(M * M), im: new Float64Array(M * M) })), next: 0, rows: M * per.length };
+}
+/* sum the plan's next rows (count of them, over all its wavelengths in turn); true once every row is done */
+export function huygensRows(plan, count) {
+  const M = plan.M;
+  while (count-- > 0 && plan.next < plan.rows) {
+    const w = Math.floor(plan.next / M), j = plan.next % M, q = plan.per[w], F = plan.F[w];
+    huygensRow(q.H.src, plan.centre, [1, 0, 0], [0, 1, 0], plan.dx, M, q.H.k, Math.sign(q.H.Rref) || 1, j, F.re, F.im);
+    for (let i = j * M; i < (j + 1) * M; i++) plan.I[i] += F.re[i] * F.re[i] + F.im[i] * F.im[i];
+    plan.next++;
+  }
+  return plan.next >= plan.rows;
+}
+export function huygensFinish(plan) {
+  const { M, dx, I } = plan, h = (M - 1) / 2, peak0 = plan.per.reduce((a, q) => a + q.H.peak0, 0);
+  let pk = 0, at = 0, tot = 0, cx = 0, cy = 0;
+  for (let k = 0; k < M * M; k++) { if (I[k] > pk) { pk = I[k]; at = k; } tot += I[k]; cx += I[k] * (k % M); cy += I[k] * Math.floor(k / M); }
+  cx /= tot || 1; cy /= tot || 1;
+  return { deg: plan.deg, wi: plan.wi, nm: plan.nm, M, dx, I, peak: pk, strehl: peak0 ? pk / peak0 : NaN, centre: [plan.centre[0], plan.centre[1]],
+    peakAt: [((at % M) - h) * dx, (Math.floor(at / M) - h) * dx], centroid: [(cx - h) * dx, (cy - h) * dx], window: plan.window, alias: plan.alias, aliased: plan.window > 0.5 * plan.alias,
+    airy: 1.22 * plan.lamF, rays: plan.per.reduce((a, q) => a + q.H.n, 0), across: plan.N, geo: plan.geo, rms: plan.rms, clipped: plan.clipped };
+}
+export function huygensPsf(A, deg, wi, o) {
+  const plan = huygensPlan(A, deg, wi, o);
+  if (!plan) return null;
+  huygensRows(plan, plan.rows);
+  return huygensFinish(plan);
+}
+
 /* ---------- MTF ----------
    The OTF at a shift of the pupil function against itself, k pixels along x (sagittal) or y
    (tangential): Σ U(p) U*(p - k) / Σ |U|². A shift of the whole diameter (N pixels) is the cutoff

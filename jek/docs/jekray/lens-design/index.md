@@ -406,7 +406,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **Field curvature and distortion:** for fields from the axis to the largest, where the tangential and sagittal foci lie along the axis, from the image plane, each found where rays a thousandth of the pupil either side of the chief ray cross it; and the distortion, the real chief ray's height against the paraxial chief ray's, $$100\,(y - y_p)/y_p$$ per cent.
 - **Longitudinal and colour:** where a ray from each height in the pupil, on the axis, crosses the axis, from the primary wavelength's paraxial focus; and the paraxial focus over the wavelengths (10% below the shortest to 10% above the longest).
 - **Wavefront:** the wavefront error over the pupil, on a 48 × 48 grid, its piston taken out, with its RMS and peak to valley, and its first 16 fringe Zernike terms fitted by least squares.
-- **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so.
+- **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so. **Method › Huygens** works it out the other way, below.
 - **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
 - **Relative illumination:** the image's brightness across the field against its centre, below.
 - **Footprints:** where the beam crosses each surface against its clear radius, below.
@@ -433,6 +433,33 @@ the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$.
 - a published Cooke triplet (f 50 mm, f/5, fields to 20°), typed into the lens data cell by cell: its focal length and Seidel sums agree with an independent program's to 10⁻¹⁰;
 - the real rays in the third-order limit: $$S_I/8$$ is the edge ray's wavefront error at a small pupil, and $$S_V$$ the chief ray's distortion at a small field;
 - the ellipsoid that images perfectly, whose $$S_I$$ is 0.
+
+#### Huygens PSF
+
+The FFT PSF takes the image square to the chief ray and the pupil function as it is in the exit pupil. The **Huygens** PSF instead sums the light's wavelets on the design's own image plane. A 64 × 64 grid of rays across the pupil is traced to the reference sphere (about the chief ray's image point, through the exit pupil). Each ray's crossing $$Q_k$$ is a source with:
+
+- **phase:** its optical path there, $$L_k$$;
+- **strength:** its share of the light over the patch of sphere it covers (found from its neighbours on the grid), so the pupil's own distortion counts.
+
+Each point $$P$$ of the image plane sums
+
+$$U(P) = \frac{n'}{i\lambda}\sum_k a_k\, e^{i k_0 (L_k + n' r_k)} \frac{\cos\chi_k}{r_k},$$
+
+$$r_k = |P - Q_k|$$, $$\chi_k$$ between the ray and $$P - Q_k$$ (Rayleigh-Sommerfeld). Since the plane is the design's, square to the axis, a beam meeting it slantwise spreads over it as it does there. Where the exit pupil lies beyond the image, the wavelets are run back from it.
+
+- **Sampling:** the image is sampled at $$\lambda F/4$$, up to 129 points across (32 $$\lambda F$$), and 64 rays across the pupil keep the pattern's repeat twice the window away. Along each row each wavelet's phase is stepped as a quadratic from its exact value at the row's start, to within a thousandth of a radian.
+- **Several wavelengths:** over **All, weighted**, their irradiances add, each with its weight.
+- **Strehl ratio:** the peak against that of the same rays all in phase.
+
+It is summed a few rows at a time, so the page stays live.
+
+**Checked against.**
+- the perfect lens at f/10 and f/2.6 into glass: the Airy pattern $$(2J_1(v)/v)^2$$ along both axes within 0.003 and 0.012 of its peak, and a Strehl ratio of 1;
+- that lens out of focus by a twentieth and a tenth of a wave RMS: the Strehl ratio within 0.002 of the FFT PSF's and 0.004 of the closed form, $$\mathrm{sinc}^2(\pi W_{020})$$;
+- a perfect wave meeting a plane at 30°, summed exactly: its half-width across the slant that of the Airy pattern, $$0.514\,\lambda/\mathrm{NA}$$, within 1%, and along the slant $$1/\cos 30°$$ wider, within 1%;
+- the row-by-row sum against every wavelet summed exactly, off the axis and out of focus: within 0.2% of the peak;
+- three wavelengths together: each one's irradiance, weighted, added, to 10⁻⁹;
+- a singlet at 3°, out of focus: the Strehl ratio within 0.01 of the FFT PSF's; the published Cooke triplet on the axis and at 14°, within 1% of it; at 20°, where its chief ray meets the image at 19°, 6% under the same sum on the plane square to the chief ray, as the slant spreads it.
 
 #### Relative illumination
 

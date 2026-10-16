@@ -22478,15 +22478,20 @@ function analysesPanel(asm, P, F, st, redraw) {
   const c = asm.cond, fin = !!(c.object && c.object.kind === 'finite');
   FU = fin ? ' mm' : '°'; FU_WORD = fin ? 'object height, mm' : 'degrees'; FU_CSV = fin ? 'mm' : 'deg';
   if (!(st.field >= 0 && st.field < c.fields.length)) st.field = c.fields.length - 1;
-  if (!(st.wave >= 0 && st.wave < c.waves.length)) st.wave = c.primary;
+  const huy = st.view === 'psf' && st.psfm === 'huy';
+  if (!(st.wave >= 0 && st.wave < c.waves.length) && !(huy && st.wave === -1)) st.wave = c.primary;
   const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
   const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
   const perField = ['fans', 'opd', 'wave', 'psf', 'mtf', 'ghost'].includes(st.view);
   if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
     ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + FU, () => { st.field = i; redraw(); }))));
+  if (st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'PSF method' }, h('span', { class: 'rt-lsub' }, 'Method'),
+    chip(!huy, 'FFT', () => { st.psfm = 'fft'; redraw(); }, { title: 'The Fourier transform of the pupil function: quick; the image square to the chief ray' }),
+    chip(huy, 'Huygens', () => { st.psfm = 'huy'; redraw(); }, { title: 'Huygens wavelets from the reference sphere summed on the image plane itself: slower; right for a beam meeting the image slantwise, and over all the wavelengths' })));
   if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
-    ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) }))));
+    ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) })),
+    ...(huy && c.waves.length > 1 ? [chip(st.wave === -1, 'All, weighted', () => { st.wave = -1; redraw(); })] : [])));
   const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
   const body = h('div', { class: 'rt-lanabody' });
   card.append(body);
@@ -22497,6 +22502,11 @@ function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'field') fieldView(body, A, cached(key + '|field', () => fieldCurves(A, 21)));
   else if (view === 'long') longView(body, A, cached(key + '|long', () => longitudinal(A, 21)));
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
+  else if (view === 'psf' && huy) {
+    const hk = key + '|huy|' + deg + '|' + st.wave;
+    if (anaCache.has(hk)) huyView(body, A, anaCache.get(hk));
+    else huyPending(body, hk, () => huygensPlan(A, deg, st.wave), redraw);
+  }
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
@@ -22685,6 +22695,55 @@ function psfView(body, A, F, spot) {
     series: [{ label: 'design', colour: WAVE_COLOURS[0], xs: F.r.slice(0, n), ys: F.ee.slice(0, n) }, { label: 'diffraction limit', colour: '#666', dash: true, xs: F.r.slice(0, n), ys: F.ee0.slice(0, n) }], xName: 'radius (mm)', H: 240,
     csv: { name: 'encircled energy', cols: ['radius (mm)', 'design', 'diffraction limit'], rows: () => F.r.map((r, k) => [r, F.ee[k], F.ee0[k]]) } });
   right.append(legend([['design', WAVE_COLOURS[0]], ['diffraction limit', '#666', true]]));
+}
+/* the Huygens PSF is summed a few rows at a time, the page kept live, and drawn when done; one at a time */
+let huyJob = null;
+function huyPending(body, key, plan, redraw) {
+  const el = h('p', { class: 'rt-lsub', role: 'status' }, 'Summing the wavelets…');
+  body.append(el);
+  if (huyJob && huyJob.key === key) { huyJob.el = el; return; }
+  if (huyJob) huyJob.cancelled = true;
+  const job = huyJob = { key, el, cancelled: false };
+  const finish = v => {
+    if (job.cancelled) return;
+    anaCache.set(key, v);
+    if (anaCache.size > 40) anaCache.delete(anaCache.keys().next().value);
+    huyJob = null;
+    if (job.el.isConnected) redraw();
+  };
+  setTimeout(() => {
+    if (job.cancelled) return;
+    const P = plan();
+    if (!P) { finish(null); return; }
+    const step = () => {
+      if (job.cancelled) return;
+      const t = performance.now();
+      let done = false;
+      while (!done && performance.now() - t < 30) done = huygensRows(P, 1);
+      if (done) { finish(huygensFinish(P)); return; }
+      job.el.textContent = 'Summing the wavelets… ' + Math.floor(100 * P.next / P.rows) + '% (' + P.N + ' rays across, ' + P.per.length + (P.per.length > 1 ? ' wavelengths)' : ' wavelength)');
+      setTimeout(step, 0);
+    };
+    step();
+  }, 0);
+}
+function huyView(body, A, H) {
+  if (!H) { body.append(h('p', { class: 'rt-lsub' }, 'The chief ray of this field does not reach the image.')); return; }
+  const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+  row.append(left, right); body.append(row);
+  const M = H.M, c = (M - 1) / 2, wl = H.nm ? anFmt(H.nm, 5) + ' nm' : 'all the wavelengths, weighted';
+  const cv = heat(left, M, (i, j) => H.I[j * M + i] / H.peak, v => magma(Math.sqrt(v)), 'The Huygens point spread function: Strehl ratio ' + anFmt(H.strehl, 3), 240);
+  left.append(h('p', { class: 'rt-lsub' }, 'At ' + wl + ', ' + um(H.window) + ' across on the image plane, brightness as the square root of the irradiance. Strehl ratio ' + anFmt(H.strehl, 3) + '; ' + H.across + ' rays across the pupil (' + H.rays + ' in all).'));
+  if (H.clipped || H.aliased) left.append(h('div', { class: 'rt-lnote' }, 'The spot (RMS radius ' + um(H.rms) + ') is wider than this window, ' + anFmt(H.M, 3) + ' points at λF/4: it shows the middle of it, where the peak is. See the spot diagram for the whole of it.'));
+  plotCsv(cv, 'huygens psf', ['x (mm)', 'y (mm)', 'irradiance (peak 1)'], () => { const out = []; for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) out.push([H.centre[0] + (i - c) * H.dx, H.centre[1] + (j - c) * H.dx, H.I[j * M + i] / H.peak]); return out; });
+  left.append(plotSaveRow(cv));
+  // sections through the peak, across (x) and along the plane of the fields (y)
+  const pi = Math.round(H.peakAt[0] / H.dx + c), pj = Math.round(H.peakAt[1] / H.dx + c), xs = Array.from({ length: M }, (_, i) => (i - c) * H.dx);
+  linePlot(right, { label: 'Sections through the peak', x: { kind: 'len', title: 'From the middle of the window' }, y: { kind: 'plain', title: 'Irradiance, peak 1' }, xr: [xs[0], xs[M - 1]], yr: [0, 1.02],
+    series: [{ label: 'x (sagittal)', colour: WAVE_COLOURS[1], dash: true, xs, ys: xs.map((_, i) => H.I[pj * M + i] / H.peak) }, { label: 'y (tangential)', colour: WAVE_COLOURS[0], xs, ys: xs.map((_, j) => H.I[j * M + pi] / H.peak) }], xName: 'mm', H: 240,
+    csv: { name: 'huygens psf sections', cols: ['position (mm)', 'x section', 'y section'], rows: () => xs.map((v, k) => [v, H.I[pj * M + k] / H.peak, H.I[k * M + pi] / H.peak]) } });
+  right.append(legend([['y (tangential)', WAVE_COLOURS[0]], ['x (sagittal)', WAVE_COLOURS[1], true]]));
+  right.append(h('p', { class: 'rt-lsub' }, 'Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'));
 }
 function mtfView(body, A, M) {
   const v = M.freqs;
@@ -33503,6 +33562,161 @@ function psfAnalysis(A, deg, wi, N, pad) {
   return { deg, nm: S.nm, M, dx, I, peak: pk, strehl: pk0 ? pk / pk0 : NaN, ee: ee(I, cx, cy), ee0: ee(I0, c0x / t0, c0y / t0), r: Array.from({ length: M / 2 }, (_, i) => (i + 1) * dx), airy: 1.22 * S.lam * A.fw, window: M * dx };
 }
 
+/* ---------- Huygens PSF ----------
+   The PSF as the sum of Huygens wavelets on the image plane itself, not as a Fourier transform. A grid
+   of rays across the pupil is traced to the reference sphere (about the chief ray's image point,
+   through the exit pupil; for an image space telecentric design, through where the chief ray leaves
+   the last surface); each ray's crossing is a source, its phase its optical path there, its amplitude
+   from its share of the light (each ray the same share of the entrance pupil) over the area of sphere
+   it covers (from its neighbours), so the pupil's own distortion counts. Each image point sums
+       U(P) = (n'/iλ) Σ a_k e^{i k (L_k + n' r)} cos χ / r,
+   r from the source to P, χ between the ray and r (Rayleigh-Sommerfeld). The image plane is the
+   design's, square to the axis, so a beam meeting it slantwise spreads over it as it does there.
+   Over several wavelengths the irradiances add, each with its weight. The Strehl ratio: the peak
+   against that of the same rays with no aberration (all their phases alike), at its centre.
+   Its rays are N across, so the pattern repeats N λ F away: the window is kept well inside that. Where the exit
+   pupil lies beyond the image (the sphere virtual), the wavelets are run back from it, e^{-ikr}. */
+function huygensSum(src, P0, ex, ey, dx, M, kn, sgn, j0, j1, out) {
+  // src: sources [x, y, z, L, M, N (the ray's direction), phase, amplitude]; P0 the grid's middle; ex, ey its axes;
+  // rows j0 to j1 - 1 only, if given, into out
+  sgn = sgn || 1; j0 = j0 || 0; j1 = j1 === undefined ? M : j1;
+  const re = out ? out.re : new Float64Array(M * M), im = out ? out.im : new Float64Array(M * M), h = (M - 1) / 2, n = src.length / 8;
+  for (let j = j0; j < j1; j++) for (let i = 0; i < M; i++) {
+    const u = (i - h) * dx, v = (j - h) * dx, px = P0[0] + ex[0] * u + ey[0] * v, py = P0[1] + ex[1] * u + ey[1] * v, pz = P0[2] + ex[2] * u + ey[2] * v;
+    let a = 0, b = 0;
+    for (let k = 0, o = 0; k < n; k++, o += 8) {
+      const X = px - src[o], Y = py - src[o + 1], Z = pz - src[o + 2], r = Math.sqrt(X * X + Y * Y + Z * Z);
+      const ob = sgn * (X * src[o + 3] + Y * src[o + 4] + Z * src[o + 5]) / r, w = src[o + 7] * ob / r, ph = src[o + 6] + sgn * kn * r;
+      a += w * Math.cos(ph); b += w * Math.sin(ph);
+    }
+    re[j * M + i] = a; im[j * M + i] = b;
+  }
+  return { re, im };
+}
+/* the same sum, one row (j) at a time and quick: along the row each wavelet's phase k r is a quadratic in u to within
+   k Δ³/r² (a thousandth of a radian over a window of a few hundred λF), so from its exact value and slope at the row's
+   start it is stepped pixel to pixel by multiplying phasors, no trigonometry inside; its strength (cos χ / r) is
+   taken at the row's start (it changes by Δ/r across, a part in a thousand) */
+function huygensRow(src, P0, ex, ey, dx, M, kn, sgn, j, re, im) {
+  const h = (M - 1) / 2, n = src.length / 8, v = (j - h) * dx, u0 = -h * dx;
+  const sx = P0[0] + ex[0] * u0 + ey[0] * v, sy = P0[1] + ex[1] * u0 + ey[1] * v, sz = P0[2] + ex[2] * u0 + ey[2] * v;
+  const ar = new Float64Array(M), ai = new Float64Array(M);
+  for (let k = 0, o = 0; k < n; k++, o += 8) {
+    const X = sx - src[o], Y = sy - src[o + 1], Z = sz - src[o + 2], r = Math.sqrt(X * X + Y * Y + Z * Z);
+    const e = (X * ex[0] + Y * ex[1] + Z * ex[2]) / r;                  // the slope of r along the row, dr/du
+    const ob = sgn * (X * src[o + 3] + Y * src[o + 4] + Z * src[o + 5]) / r, w = src[o + 7] * ob / r;
+    // k r(u) = k r + k e u + k (1 - e²) u² / (2 r): the first step's phase and the step's own change
+    const q = sgn * kn, ph = src[o + 6] + q * r, d1 = q * (e * dx + (1 - e * e) * dx * dx / (2 * r)), d2 = q * (1 - e * e) * dx * dx / r;
+    let pr = w * Math.cos(ph), pi = w * Math.sin(ph), sr = Math.cos(d1), si = Math.sin(d1);
+    const cr = Math.cos(d2), ci = Math.sin(d2);
+    for (let i = 0; i < M; i++) {
+      ar[i] += pr; ai[i] += pi;
+      const t = pr * sr - pi * si; pi = pr * si + pi * sr; pr = t;
+      const t2 = sr * cr - si * ci; si = sr * ci + si * cr; sr = t2;
+    }
+  }
+  for (let i = 0; i < M; i++) { re[j * M + i] = ar[i]; im[j * M + i] = ai[i]; }
+}
+/* one wavelength's sources: the rays of field th through an N × N grid at the stop, on the reference sphere */
+function huygensSources(S, th, N, power) {
+  const C = rayAt(S, th, 0, 0, new Float64Array(8));
+  if (!C || C[7] !== 0) return null;
+  const nI = S.n[S.N], xpz = S.par.xpz, cx = C[0], cy = C[1], cz = C[2];
+  let Rref;
+  if (isFinite(xpz) && Math.abs(cz - xpz) > 1e-9) { const t = (xpz - cz) / C[5]; Rref = Math.hypot(C[3] * t, C[4] * t, C[5] * t) * Math.sign(cz - xpz); }
+  else Rref = Math.abs(S.imageZ - S.z[S.N - 1]) / Math.abs(C[5]) || 1;
+  const toSphere = R => {
+    const dx = R[0] - cx, dy = R[1] - cy, dz = R[2] - cz, bq = dx * R[3] + dy * R[4] + dz * R[5], cq = dx * dx + dy * dy + dz * dz - Rref * Rref, disc = bq * bq - cq;
+    if (disc < 0) return null;
+    return Rref > 0 ? bq + Math.sqrt(disc) : bq - Math.sqrt(disc);
+  };
+  const tc = toSphere(C), L0 = C[6] - nI * tc, G = new Array(N * N).fill(null), R = new Float64Array(8);
+  let inside = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const px = -1 + (2 * i + 1) / N, py = -1 + (2 * j + 1) / N;
+    if (px * px + py * py > 1) continue;
+    inside++;
+    const r = rayAt(S, th, px, py, R);
+    if (!r || r[7] !== 0) continue;
+    const t = toSphere(r);
+    if (t === null) continue;
+    G[j * N + i] = [r[0] - r[3] * t, r[1] - r[4] * t, r[2] - r[5] * t, r[3], r[4], r[5], r[6] - nI * t - L0];
+  }
+  // each source's patch of the sphere: from its neighbours either way along the grid (one way at an edge)
+  const at = (k, di, dj) => { const i = k % N + di, j = Math.floor(k / N) + dj; return i >= 0 && i < N && j >= 0 && j < N ? G[j * N + i] : null; };
+  const der = (k, di, dj) => {
+    const a = at(k, di, dj), b = at(k, -di, -dj), c = G[k];
+    if (a && b) return [(a[0] - b[0]) / 2, (a[1] - b[1]) / 2, (a[2] - b[2]) / 2];
+    if (a) return [a[0] - c[0], a[1] - c[1], a[2] - c[2]];
+    if (b) return [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+    return null;
+  };
+  const areas = G.map((g, k) => {
+    if (!g) return null;
+    const u = der(k, 1, 0), v = der(k, 0, 1);
+    if (!u || !v) return null;
+    return Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+  });
+  const known = areas.filter(a => a !== null).sort((a, b) => a - b), med = known.length ? known[known.length >> 1] : 0;
+  const lam = S.lam, k0 = 2 * Math.PI / lam, p = power / inside, out = [];
+  let amp0 = 0;
+  G.forEach((g, k) => {
+    if (!g) return;
+    const a = Math.sqrt(p * (areas[k] === null ? med : areas[k])) * nI / lam;
+    out.push(g[0], g[1], g[2], g[3], g[4], g[5], k0 * g[6], a);
+    amp0 += a / Math.abs(Rref);                       // the perfect wave at the sphere's centre: every source in phase, square on, Rref away
+  });
+  return { src: Float64Array.from(out), centre: [cx, cy, cz], Rref, k: k0 * nI, peak0: amp0 * amp0, n: out.length / 8, inside };
+}
+/* the Huygens PSF of field deg: wi, a wavelength's index, or -1 for all of them weighted; o.dx the spacing on the image (mm,
+   by default λF/4), o.M the most points across (129; with both given, exactly that); o.N the rays across the pupil (by
+   default enough for the pattern to repeat twice the window away, at least 64). Planned, summed a row at a time
+   (huygensRows, so a page can keep live) and finished; or all at once (huygensPsf). */
+function huygensPlan(A, deg, wi, o) {
+  o = o || {};
+  const th = deg * D2R, all = wi < 0;
+  const list = all ? A.S.map((S, i) => [S, A.c.waves[i].w / A.W]) : [[A.S[wi === undefined ? A.c.primary : wi], 1]];
+  // the window: about the spot's centroid, as the image's own axes run, sampled at λF/4 (as the FFT PSF is), wide enough
+  // for 8 Airy radii or 10 RMS radii of the spot but no wider than M points (32 λF at 129)
+  const sp = spotDiagram(A, deg, 15), lamF = Math.max(...list.map(([S]) => S.lam)) * A.fw, lamMin = Math.min(...list.map(([S]) => S.lam)) * A.fw;
+  const rms = isFinite(sp.rms) ? sp.rms : 0, dx = o.dx || lamMin / 4, Mmax = (o.M || 129) | 1;
+  const want = Math.max(8 * 1.22 * lamF, 10 * rms), M = o.dx && o.M ? Mmax : Math.min(Mmax, (Math.ceil(want / dx) + 1) | 1), window = dx * (M - 1);
+  // rays enough across that the pattern repeats twice the window away
+  const N = o.N || Math.max(64, Math.ceil(2 * window / lamMin / 8) * 8);
+  const per = list.map(([S, w]) => ({ S, w, H: huygensSources(S, th, N, w) })).filter(q => q.H);
+  if (!per.length) return null;
+  const ref = (per.find(q => q.S === A.Sp) || per[0]).H;
+  const centre = [ref.centre[0] + (isFinite(sp.centroid[0]) ? sp.centroid[0] : 0), ref.centre[1] + (isFinite(sp.centroid[1]) ? sp.centroid[1] : 0), ref.centre[2]];
+  return { deg, wi: all ? -1 : wi, nm: all ? null : per[0].S.nm, M, dx, N, per, centre, window, alias: N * lamMin, lamF, geo: isFinite(sp.geo) ? sp.geo : 0, rms,
+    clipped: want > window * 1.001, I: new Float64Array(M * M), F: per.map(() => ({ re: new Float64Array(M * M), im: new Float64Array(M * M) })), next: 0, rows: M * per.length };
+}
+/* sum the plan's next rows (count of them, over all its wavelengths in turn); true once every row is done */
+function huygensRows(plan, count) {
+  const M = plan.M;
+  while (count-- > 0 && plan.next < plan.rows) {
+    const w = Math.floor(plan.next / M), j = plan.next % M, q = plan.per[w], F = plan.F[w];
+    huygensRow(q.H.src, plan.centre, [1, 0, 0], [0, 1, 0], plan.dx, M, q.H.k, Math.sign(q.H.Rref) || 1, j, F.re, F.im);
+    for (let i = j * M; i < (j + 1) * M; i++) plan.I[i] += F.re[i] * F.re[i] + F.im[i] * F.im[i];
+    plan.next++;
+  }
+  return plan.next >= plan.rows;
+}
+function huygensFinish(plan) {
+  const { M, dx, I } = plan, h = (M - 1) / 2, peak0 = plan.per.reduce((a, q) => a + q.H.peak0, 0);
+  let pk = 0, at = 0, tot = 0, cx = 0, cy = 0;
+  for (let k = 0; k < M * M; k++) { if (I[k] > pk) { pk = I[k]; at = k; } tot += I[k]; cx += I[k] * (k % M); cy += I[k] * Math.floor(k / M); }
+  cx /= tot || 1; cy /= tot || 1;
+  return { deg: plan.deg, wi: plan.wi, nm: plan.nm, M, dx, I, peak: pk, strehl: peak0 ? pk / peak0 : NaN, centre: [plan.centre[0], plan.centre[1]],
+    peakAt: [((at % M) - h) * dx, (Math.floor(at / M) - h) * dx], centroid: [(cx - h) * dx, (cy - h) * dx], window: plan.window, alias: plan.alias, aliased: plan.window > 0.5 * plan.alias,
+    airy: 1.22 * plan.lamF, rays: plan.per.reduce((a, q) => a + q.H.n, 0), across: plan.N, geo: plan.geo, rms: plan.rms, clipped: plan.clipped };
+}
+function huygensPsf(A, deg, wi, o) {
+  const plan = huygensPlan(A, deg, wi, o);
+  if (!plan) return null;
+  huygensRows(plan, plan.rows);
+  return huygensFinish(plan);
+}
+
 /* ---------- MTF ----------
    The OTF at a shift of the pupil function against itself, k pixels along x (sagittal) or y
    (tangential): Σ U(p) U*(p - k) / Σ |U|². A shift of the whole diameter (N pixels) is the cutoff
@@ -39855,6 +40069,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Huygens PSF</b> in lens design: <b>Analyses \u203a PSF \u203a Huygens</b> sums the wavelets from the reference sphere on the image plane itself, so a beam meeting the image slantwise and the pupil\u2019s own distortion count, at one wavelength or all of them weighted, with the Strehl ratio and sections through the peak. It is summed a few rows at a time, the page kept live.',
     '<b>Footprints</b> in lens design: <b>Analyses \u203a Footprints</b> gives, for each surface, the beam\u2019s radius over every field and wavelength against the clear radius, the margin left and the share of rays it stops, and draws where each field\u2019s rays cross the surface chosen (in its own frame, tilted or not), those it stops marked.',
     '<b>Relative illumination</b> in lens design: <b>Analyses \u203a Relative illumination</b> plots how bright the image is across the field against its centre, from the solid angle the exit pupil fills seen from each image point, with the vignetted rays left out; beside it, the share of the pupil getting through and cos\u2074 of the chief ray, and its numbers as CSV.',
     '<b>Yield</b> in tolerancing: set a specification (the criterion at most a figure, and any merit operand within limits) and Monte Carlo gives the share of its builds that meet it, with its range at 95% confidence and each part\u2019s own share; change the specification and it is worked out again from the same builds.',
@@ -41710,6 +41925,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'huy') { const f = huygensPsf(A, deg, wi); return f && { strehl: f.strehl, peak: f.peak, dx: f.dx, M: f.M, window: f.window, aliased: f.aliased, rays: f.rays, I: Array.from(f.I) }; }
       if (kind === 'foot') { const f = footprints(A, 15); return f.surfaces.map(u => ({ semi: u.semi, beam: u.beam, stopped: u.stopped, reach: u.reach })); }
       if (kind === 'ri') { const r = relIllum(A, 21, 64); return { degs: r.degs, ri: r.ri, vig: r.vig, cos4: r.cos4 }; }
       if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }

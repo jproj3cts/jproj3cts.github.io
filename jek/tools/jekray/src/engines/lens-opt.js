@@ -1,7 +1,7 @@
 import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine.js';
 import { asphGet, asphSet, designEpd, designOf, objOpts, editable, getV, posOf, setV, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
-import { paraxHeight } from './lens-analysis.js';
+import { mtfAt, paraxHeight } from './lens-analysis.js';
 
 /* ==========================================================================
    Optimising a lens design: its merit function, damped least squares and a global search
@@ -148,13 +148,19 @@ export function meritTerms(prob, P, detail) {
       const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)], th = f.deg * Math.PI / 180;
       const Q = rayAt(Sp, th, 0, o.op === 'RAYY' ? o.p : 0, R, true);
       v = !Q || Q[7] !== 0 ? NaN : o.op === 'CRA' ? Math.atan2(Q[4], Q[5]) * 180 / Math.PI : Q[1];
+    } else if (o.op === 'MTFT' || o.op === 'MTFS' || o.op === 'MTFA') {
+      // the diffraction MTF at a frequency and field: tangential, sagittal, or their mean
+      const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)];
+      const ws = c.waves.map(w => w.w), na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp), fw = na > 0 ? 1 / (2 * na) : Infinity;
+      const t = o.op !== 'MTFS' ? mtfAt(Sw, ws, fw, f.deg, o.v, 'T', 32) : 0, sg = o.op !== 'MTFT' ? mtfAt(Sw, ws, fw, f.deg, o.v, 'S', 32) : 0;
+      v = o.op === 'MTFT' ? t : o.op === 'MTFS' ? sg : (t + sg) / 2;
     } else {
       if (!sd) { const nms = c.waves.map(w => w.nm), lo = nms.indexOf(Math.min(...nms)), hi = nms.indexOf(Math.max(...nms)); sd = seidel(Sp, Math.max(...c.fields.map(f => Math.abs(f.deg))), lo !== hi ? Sw[lo] : null, lo !== hi ? Sw[hi] : null).sum; }
       v = sd[o.op];
     }
     const e = isFinite(v) ? v - o.target : 1e3;
     r.push(Math.sqrt(o.weight) * e);
-    ops.push({ op: o.op, value: v, target: o.target, weight: o.weight, part: o.weight * e * e, f: o.f, p: o.p });
+    ops.push({ op: o.op, value: v, target: o.target, weight: o.weight, part: o.weight * e * e, f: o.f, p: o.p, v: o.v });
   }
   // the boundaries, counted only where broken
   const B = M.bounds, sps = surfaceParts(P), N = P.surfaces.length;
@@ -207,7 +213,7 @@ export function meritReport(prob) {
   solveDesign(prob, P);
   const broken = [], T = meritTerms(prob, P, broken), tot = T.ss || 1;
   return { merit: T.merit, crit: prob.design.merit.crit, fields: T.fields.map(f => ({ deg: f.deg, rms: f.rms, share: f.part / tot })),
-    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p })), bounds: { share: T.bounds / tot, broken } };
+    ops: T.ops.map(o => ({ op: o.op, value: o.value, target: o.target, weight: o.weight, share: o.part / tot, f: o.f, p: o.p, v: o.v })), bounds: { share: T.bounds / tot, broken } };
 }
 
 /* ---------- Damped least squares ---------- */

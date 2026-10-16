@@ -272,5 +272,39 @@ export function mtfAnalysis(A, deg, nu, N) {
   const curve = key => freqs.map(nu2 => { let re = 0, im = 0, W = 0; for (const p of per) { const v = interp(p[key], nu2 / p.nuc * N); re += p.w * v[0]; im += p.w * v[1]; W += p.w; } return Math.hypot(re, im) / W; });
   return { deg, freqs, tan: curve('T'), sag: curve('Sg'), limT: curve('T0'), limS: curve('S0'), cutoff: 1 / (A.Sp.lam * A.fw) };
 }
+/* the OTF at one whole shift s of a sampled pupil function, along x or y: [re, im] */
+function otfShift(W, N, axis, s) {
+  let re = 0, im = 0, norm = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = W[j * N + i];
+    if (!isFinite(a)) continue;
+    norm++;
+    const i2 = axis === 'x' ? i - s : i, j2 = axis === 'x' ? j : j - s;
+    if (i2 < 0 || j2 < 0) continue;
+    const b = W[j2 * N + i2];
+    if (!isFinite(b)) continue;
+    const pa = 2 * Math.PI * a, pb = 2 * Math.PI * b;
+    re += Math.cos(pa - pb); im += Math.sin(pa - pb);
+  }
+  return norm ? [re / norm, im / norm] : [0, 0];
+}
+/* the diffraction MTF at one frequency nu (cycles/mm), tangential ('T', across y) or sagittal ('S', across x),
+   weighted over the wavelengths as the MTF view weights it: Sw the systems at each wavelength, ws their weights,
+   fw the working F-number; N points across the pupil. Cheap enough for the merit function: two shifts only */
+export function mtfAt(Sw, ws, fw, deg, nu, dir, N) {
+  N = N || 32;
+  let re = 0, im = 0, Wt = 0;
+  Sw.forEach((S, wi) => {
+    const { W } = pupilWave(S, deg, N), s = nu * S.lam * fw * N;
+    const add = axis => {
+      if (s >= N) return [0, 0];
+      const k = Math.floor(s), f = s - k, a = otfShift(W, N, axis, k), b = otfShift(W, N, axis, k + 1);
+      return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])];
+    };
+    const v = dir === 'S' ? add('x') : add('y');
+    re += ws[wi] * v[0]; im += ws[wi] * v[1]; Wt += ws[wi];
+  });
+  return Wt ? Math.hypot(re, im) / Wt : 0;
+}
 /* the diffraction-limited MTF of a round pupil, ν over its cutoff */
 export const mtfPerfect = v => v >= 1 ? 0 : (2 / Math.PI) * (Math.acos(v) - v * Math.sqrt(1 - v * v));

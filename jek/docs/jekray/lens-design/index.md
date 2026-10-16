@@ -156,6 +156,26 @@ Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its in
 
 ### Analyses
 
+The **Analyses** tab shows the design from each side a lens designer looks at it, chosen by a row of chips, each for a field (and a wavelength) picked beside it. Every view comes from the lens engine's real rays, aimed through the stop and stopped by the clear radii (so vignetting shows), and is worked out when shown. Every plot keeps one colour for each wavelength, in the order the conditions list them, draws tangential solid and sagittal dashed, carries a legend, reads out its values under the pointer, and saves its numbers as CSV.
+
+- **Spot diagram:** where a square grid of rays across the pupil lands on the image plane, each wavelength in its colour, every field in a box of one scale, about the centroid of all the wavelengths; with the RMS radius and the largest radius about that centroid, and the Airy disc (radius $$1.22\,\lambda F$$, $$F = 1/(2\,\mathrm{NA})$$ the working F-number in image space).
+- **Ray fans:** each ray's miss on the image plane from the primary wavelength's chief ray, along the pupil's y diameter (tangential, in the plane of the fields) and its x diameter (sagittal).
+- **OPD fans:** the wavefront error along the same diameters, in waves, each wavelength about its own chief ray.
+- **Field curvature and distortion:** for fields from the axis to the largest, where the tangential and sagittal foci lie along the axis, from the image plane, each found where rays a thousandth of the pupil either side of the chief ray cross it; and the distortion, the real chief ray's height against the paraxial chief ray's, $$100\,(y - y_p)/y_p$$ per cent.
+- **Longitudinal and colour:** where a ray from each height in the pupil, on the axis, crosses the axis, from the primary wavelength's paraxial focus; and the paraxial focus over the wavelengths (10% below the shortest to 10% above the longest).
+- **Wavefront:** the wavefront error over the pupil, on a 48 × 48 grid, its piston taken out, with its RMS and peak to valley, and its first 16 fringe Zernike terms fitted by least squares.
+- **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so.
+- **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
+- **Seidel:** the third-order sums, below.
+
+**Checked against.**
+- a perfect lens (the ellipsoid that images into glass without aberration): no spot; its MTF the round pupil's $$\tfrac{2}{\pi}\left(\arccos v - v\sqrt{1-v^2}\right)$$ to within 0.003; a Strehl ratio of 1; 83.8% of the energy within the first dark ring;
+- that lens out of focus by a twentieth of a wave RMS: the defocus Zernike term $$\delta\,\mathrm{NA}^2/(4n'\lambda)$$, every other term but piston and spherical nil, and a Strehl ratio within 0.001 of Maréchal's $$e^{-(2\pi\sigma)^2}$$;
+- a sphere with its stop at its centre: its tangential and sagittal foci together on a sphere about the centre, $$(s' - R)(\cos\theta - 1)$$ from the image plane, and no distortion;
+- a singlet: its longitudinal aberration four times as large at twice the pupil height, as third order has it, and its fans and spots as symmetric as a round system's are.
+
+#### Third-order (Seidel) sums
+
 The third-order (Seidel) aberrations, surface by surface and summed, from two paraxial rays: the marginal ray (height the entrance pupil's radius, parallel to the axis) and the chief ray (through the entrance pupil's centre at the largest field). At each surface, with $$A = n i$$ and $$\bar A = n \bar\imath$$ the two rays' refraction invariants, $$\Delta(u/n)$$ the change in $$u/n$$ across it and $$H$$ the Lagrange invariant:
 
 $$S_I = -A^2 y\,\Delta(u/n), \quad S_{II} = -A\bar A y\,\Delta(u/n), \quad S_{III} = -\bar A^2 y\,\Delta(u/n), \quad S_{IV} = -H^2 c\,\Delta(1/n),$$

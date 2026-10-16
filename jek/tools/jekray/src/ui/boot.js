@@ -90,6 +90,7 @@ import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, openLensDesign, optStart } from './lens-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
+import { anaSystems, mtfAnalysis, psfAnalysis, spotDiagram } from '../engines/lens-analysis.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
@@ -361,6 +362,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
+    lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
+      if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
+      if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }
+      return null; },
     lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },

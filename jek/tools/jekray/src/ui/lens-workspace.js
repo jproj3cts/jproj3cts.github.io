@@ -11,6 +11,7 @@ import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optR
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
+import { analysesPanel } from './lens-analyses.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
@@ -130,7 +131,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesCard(asm, P, F)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -599,23 +600,6 @@ function openPop(btn, P, D, key, q, i) {
   pop.style.top = (r.bottom + 6) + 'px';
   sel.focus();
   setTimeout(() => document.addEventListener('pointerdown', function out(e) { if (pop && !pop.contains(e.target)) { closePop(); } if (!pop) document.removeEventListener('pointerdown', out); }), 0);
-}
-
-/* ---------- Analyses: the Seidel sums, surface by surface ---------- */
-function analysesCard(asm, P, F) {
-  const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
-  const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
-  card.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  card.append(h('p', { class: 'rt-lsub' }, 'At ' + wsFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + wsFmt(F.fmax, 3) + '°, the colour terms from ' + wsFmt(F.lo, 5) + ' to ' + wsFmt(F.hi, 5) + ' nm. ' +
-    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
-  const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
-  tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
-  const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
-  sd.rows.forEach((r, i) => tb.append(h('tr', null, h('td', null, (sps[i].kind === 'stop' ? 'STO ' : (i + 1) + ' ') + ''), ...cols.map(c => h('td', { class: 'mono' }, f(r[c]))))));
-  tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
-  tbl.append(tb);
-  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  return card;
 }
 
 /* ---------- Placing a new design: light for it on the bench ---------- */

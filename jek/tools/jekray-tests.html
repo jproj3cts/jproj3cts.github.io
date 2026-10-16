@@ -8808,6 +8808,32 @@ const TESTS = [
     },
   },
   {
+    name: 'The design’s analyses: every view draws, and the spot diagram says what the engine works out',
+    why: 'the published Cooke triplet’s Analyses tab: spot diagram, ray fans, OPD fans, field curvature and distortion, longitudinal and colour, wavefront, PSF, MTF and Seidel each drawn with a plot or table and a CSV of its numbers; the spot diagram’s RMS radius at 20° as the lens engine gives it; the MTF never above the diffraction limit (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Analyses', null, 'tab');
+        let drawn = 0;
+        for (const v of ['Spot diagram', 'Ray fans', 'OPD fans', 'Field curvature and distortion', 'Longitudinal and colour', 'Wavefront', 'PSF', 'MTF', 'Seidel']) {
+          const chip = [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === v); chip.click();
+          const body = rigDoc().querySelector('#lensWs .rt-lanabody');
+          if (body && (body.querySelector('canvas') || body.querySelector('table'))) drawn++;
+        }
+        [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === 'Spot diagram').click();
+        const txt = rigDoc().querySelector('#lensWs .rt-lspots').textContent, s = J.lensAnalysis('Cooke triplet', 'spot', 20);
+        const shown = new RegExp('20° RMS ' + (+(1000 * s.rms).toPrecision(4)) + ' µm').test(txt);
+        const M = J.lensAnalysis('Cooke triplet', 'mtf', 20), under = M.tan.every((v, i) => v <= M.limT[i] + 1e-9);
+        return drawn === 9 && shown && under ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

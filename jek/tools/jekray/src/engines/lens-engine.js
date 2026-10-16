@@ -76,7 +76,7 @@ export function paraxialOf(S) {
   const xpz = Math.abs(uc) < 1e-14 ? Infinity : S.z[L] - yc / uc;      // the exit pupil's place
   // the exit pupil's radius: the marginal ray's height there, for an entrance pupil of radius 1
   const xpr = Math.abs(yL + (xpz - S.z[L]) * uL);
-  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N] };
+  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc };
 }
 
 /* ---------- One surface ---------- */

@@ -1323,6 +1323,28 @@
   .rt-lbnd { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; }
   .rt-lopt > p { margin: 0 0 0.6rem; }
   .rt-lopt .rt-readout { margin-top: 0.7rem; max-width: 28rem; }
+  .rt-lchips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-bottom: 0.5rem; }
+  .rt-lchips .rt-lsub { margin-right: 0.3rem; }
+  .rt-lchip { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 999px; background: #fff; color: var(--jek-ink); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .rt-lchip[style]::before { content: ''; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sw); }
+  .rt-lchip[aria-pressed="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-lanabody { margin-top: 0.4rem; }
+  .rt-lplot { position: relative; min-width: 0; }
+  .rt-lplot canvas { display: block; width: 100%; }
+  .rt-lread { font-size: 0.75rem; color: var(--jek-ink-soft); min-height: 1.1rem; margin-top: 0.2rem; overflow-wrap: anywhere; }
+  .rt-lpair { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; align-items: start; }
+  .rt-llegend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.8rem; color: var(--jek-ink); margin: 0.4rem 0; }
+  .rt-llegend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .rt-llegend i { width: 1.2rem; height: 0; border-top: 2px solid var(--sw); }
+  .rt-llegend i.dash { border-top-style: dashed; }
+  .rt-lspots { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.8rem; }
+  .rt-lspot { min-width: 0; }
+  .rt-lspot canvas { display: block; max-width: 100%; }
+  .rt-lheat { display: block; image-rendering: pixelated; border: 1px solid var(--jek-line); max-width: 100%; height: auto; aspect-ratio: 1; }
+  .rt-lkeybar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; margin: 0.4rem 0; max-width: 240px; }
+  .rt-lkeybar i { flex: 1; height: 0.6rem; border-radius: 2px; background: linear-gradient(90deg, #2a78d6, #f0efec, #e34948); }
+  .rt-lzern { min-width: 0; }
+  .rt-lzern td:last-child { text-align: right; }
   .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
   .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
   .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }
@@ -21572,6 +21594,261 @@ function makeAssemblyRow(list) {
   return list.some(e => e.type === 'lens') ? h('p', { class: 'note' }, 'Not an assembly: ' + C.why) : null;
 }
 /* ==========================================================================
+   The workspace's Analyses: each view of the design, chosen by a row of chips, with the field
+   (and wavelength) it is for. Worked out when shown and kept until the design changes.
+   Wavelengths keep one colour each, in the order the conditions list them; tangential is drawn
+   solid and sagittal dashed. Every plot carries a legend and saves its numbers as CSV.
+   ========================================================================== */
+const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
+const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['seidel', 'Seidel']];
+const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+const um = v => anFmt(1000 * v, 4) + ' µm';
+
+const anaCache = new Map();
+function cached(key, fn) {
+  if (anaCache.has(key)) return anaCache.get(key);
+  const v = fn();
+  anaCache.set(key, v);
+  if (anaCache.size > 40) anaCache.delete(anaCache.keys().next().value);
+  return v;
+}
+const designKey = (asm, P) => JSON.stringify([P.surfaces.map(s => [s.R, s.k, s.a2, s.A, s.odd, s.semi]), P.gaps, P.materials, P.image, asm.cond]);
+
+/* st: the view's state ({ view, field, wave }), kept by the workspace; redraw: draws the workspace again */
+function analysesPanel(asm, P, F, st, redraw) {
+  st.view = st.view || 'spot';
+  const c = asm.cond;
+  if (!(st.field >= 0 && st.field < c.fields.length)) st.field = c.fields.length - 1;
+  if (!(st.wave >= 0 && st.wave < c.waves.length)) st.wave = c.primary;
+  const card = h('div', { class: 'rt-lcard rt-lana', role: 'tabpanel' });
+  const chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
+  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, ...VIEWS.map(([k, t]) => chip(st.view === k, t, () => { st.view = k; redraw(); }))));
+  const perField = ['spot', 'fans', 'opd', 'wave', 'psf', 'mtf'].includes(st.view) && st.view !== 'spot';
+  if (perField) card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Field' }, h('span', { class: 'rt-lsub' }, 'Field'),
+    ...c.fields.map((f, i) => chip(st.field === i, anFmt(f.deg, 4) + '°', () => { st.field = i; redraw(); }))));
+  if (st.view === 'wave' || st.view === 'psf') card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Wavelength' }, h('span', { class: 'rt-lsub' }, 'Wavelength'),
+    ...c.waves.map((w, i) => chip(st.wave === i, anFmt(w.nm, 5) + ' nm', () => { st.wave = i; redraw(); }, { style: '--sw:' + waveColour(i) }))));
+  const key = designKey(asm, P), A = cached(key + '|sys', () => anaSystems(asm, P)), deg = c.fields[st.field].deg;
+  const body = h('div', { class: 'rt-lanabody' });
+  card.append(body);
+  const view = st.view;
+  if (view === 'spot') spotView(body, A, cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21))));
+  else if (view === 'fans') fanView(body, A, cached(key + '|fans|' + deg, () => rayFans(A, deg, 41)), false);
+  else if (view === 'opd') fanView(body, A, cached(key + '|opd|' + deg, () => opdFans(A, deg, 41)), true);
+  else if (view === 'field') fieldView(body, A, cached(key + '|field', () => fieldCurves(A, 21)));
+  else if (view === 'long') longView(body, A, cached(key + '|long', () => longitudinal(A, 21)));
+  else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
+  else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
+  else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
+  else seidelView(body, asm, P, F);
+  return card;
+}
+
+/* ---------- Drawing ---------- */
+function canvasIn(parent, H, label) {
+  const cv = h('canvas', { role: 'img', 'aria-label': label });
+  const wrap = h('div', { class: 'rt-lplot' }, cv);
+  parent.append(wrap);
+  return { cv, wrap, H };
+}
+function legend(items) {
+  return h('div', { class: 'rt-llegend' }, ...items.map(([t, col, dash]) => h('span', null, h('i', { class: dash ? 'dash' : '', style: '--sw:' + col, 'aria-hidden': 'true' }), t)));
+}
+/* a line plot: series of { label, colour, dash, xs, ys } (null for no value); xs across, ys up; x/y specs as drawAxes takes them */
+function linePlot(parent, o) {
+  const { cv, wrap } = canvasIn(parent, o.H || 260, o.label);
+  const read = h('div', { class: 'rt-lread mono', 'aria-live': 'off' }, ' ');
+  wrap.append(read);
+  let xr = o.xr, yr = o.yr;
+  if (!xr || !yr) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const s of o.series) s.xs.forEach((x, i) => { const y = s.ys[i]; if (x === null || y === null || !isFinite(x) || !isFinite(y)) return; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    if (!isFinite(x0)) { x0 = 0; x1 = 1; y0 = 0; y1 = 1; }
+    const pad = (a, b, sym) => { if (sym) { const m = Math.max(Math.abs(a), Math.abs(b), 1e-12) * 1.08; return [-m, m]; } const d = (b - a) || Math.abs(a) || 1; return [a - 0.04 * d, b + 0.04 * d]; };
+    xr = xr || pad(x0, x1, o.symX); yr = yr || pad(y0, y1, o.symY);
+  }
+  const draw = (hover) => {
+    const dpr = window.devicePixelRatio || 1, W = Math.max(200, wrap.clientWidth || 400), H = o.H || 260;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const Ar = plotArea(g, W, H, yr, o.y);
+    drawAxes(g, Ar, xr, yr, o.x, o.y);
+    const X = v => Ar.l + (v - xr[0]) / (xr[1] - xr[0]) * Ar.w, Y = v => Ar.t + Ar.h - (v - yr[0]) / (yr[1] - yr[0]) * Ar.h;
+    g.save(); g.beginPath(); g.rect(Ar.l, Ar.t, Ar.w, Ar.h); g.clip();
+    // the zero lines, recessive
+    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1;
+    if (xr[0] < 0 && xr[1] > 0) { g.beginPath(); g.moveTo(Math.round(X(0)) + 0.5, Ar.t); g.lineTo(Math.round(X(0)) + 0.5, Ar.t + Ar.h); g.stroke(); }
+    if (yr[0] < 0 && yr[1] > 0) { g.beginPath(); g.moveTo(Ar.l, Math.round(Y(0)) + 0.5); g.lineTo(Ar.l + Ar.w, Math.round(Y(0)) + 0.5); g.stroke(); }
+    for (const s of o.series) {
+      g.strokeStyle = s.colour; g.lineWidth = 2; g.setLineDash(s.dash ? [6, 4] : []); g.lineJoin = 'round';
+      g.beginPath(); let on = false;
+      s.xs.forEach((x, i) => { const y = s.ys[i]; if (x === null || y === null || !isFinite(x) || !isFinite(y)) { on = false; return; } if (on) g.lineTo(X(x), Y(y)); else { g.moveTo(X(x), Y(y)); on = true; } });
+      g.stroke();
+    }
+    g.setLineDash([]);
+    if (hover) { g.strokeStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); if (o.hoverY) { g.moveTo(Ar.l, Y(hover.v) + 0.5); g.lineTo(Ar.l + Ar.w, Y(hover.v) + 0.5); } else { g.moveTo(X(hover.v) + 0.5, Ar.t); g.lineTo(X(hover.v) + 0.5, Ar.t + Ar.h); } g.stroke(); }
+    g.restore();
+    cv._area = Ar; cv._X = X; cv._Y = Y;
+  };
+  // the readout under the plot: each series' value at the sample nearest the pointer
+  cv.addEventListener('pointermove', e => {
+    const Ar = cv._area; if (!Ar) return;
+    const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    const v = o.hoverY ? yr[0] + (Ar.t + Ar.h - py) / Ar.h * (yr[1] - yr[0]) : xr[0] + (px - Ar.l) / Ar.w * (xr[1] - xr[0]);
+    const ref = o.hoverY ? o.series[0].ys : o.series[0].xs;
+    let k = 0; ref.forEach((t, i) => { if (t !== null && Math.abs(t - v) < Math.abs(ref[k] - v)) k = i; });
+    const at = ref[k];
+    read.textContent = (o.hoverY ? o.yName : o.xName) + ' ' + anFmt(at, 4) + ': ' + o.series.map(s => s.label + ' ' + anFmt(o.hoverY ? s.xs[k] : s.ys[k], 4)).join(' · ');
+    draw({ v: at });
+  });
+  cv.addEventListener('pointerleave', () => { read.textContent = ' '; draw(); });
+  requestAnimationFrame(() => draw());
+  if (o.csv) { plotCsv(cv, o.csv.name, o.csv.cols, o.csv.rows); wrap.append(plotSaveRow(cv)); }
+  return cv;
+}
+const pair = parent => { const row = h('div', { class: 'rt-lpair' }); parent.append(row); const a = h('div'), b = h('div'); row.append(a, b); return [a, b]; };
+
+/* ---------- The views ---------- */
+function spotView(body, A, spots) {
+  const c = A.c;
+  // one scale for every field: the largest spot or Airy disc, about the chief ray
+  let ext = 0;
+  for (const s of spots) { ext = Math.max(ext, s.airy * 1.2); for (const w of s.waves) for (const [x, y] of w.pts) ext = Math.max(ext, Math.abs(x - s.centroid[0]), Math.abs(y - s.centroid[1])); }
+  ext = ext * 1.1 || 1e-3;
+  const row = h('div', { class: 'rt-lspots' });
+  body.append(row);
+  spots.forEach((s, fi) => {
+    const cell = h('div', { class: 'rt-lspot' }), cv = h('canvas', { role: 'img', 'aria-label': 'Spot diagram at ' + anFmt(s.deg, 4) + '°: RMS radius ' + um(s.rms) });
+    cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, anFmt(s.deg, 4) + '°'), ' RMS ' + um(s.rms) + ' · largest ' + um(s.geo)));
+    row.append(cell);
+    requestAnimationFrame(() => {
+      const dpr = window.devicePixelRatio || 1, S = Math.max(140, Math.min(260, cell.clientWidth || 200));
+      cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(0,0,0,0.15)'; g.strokeRect(0.5, 0.5, S - 1, S - 1);
+      const k = (S / 2 - 6) / ext, X = x => S / 2 + (x - s.centroid[0]) * k, Y = y => S / 2 - (y - s.centroid[1]) * k;
+      // the Airy disc, about the centroid
+      g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
+      s.waves.forEach((w, wi) => { g.fillStyle = waveColour(wi); for (const [x, y] of w.pts) { g.beginPath(); g.arc(X(x), Y(y), 1.6, 0, 2 * Math.PI); g.fill(); } });
+    });
+    if (!fi) plotCsv(cv, 'spot diagram', ['field (deg)', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
+    if (!fi) cell.append(plotSaveRow(cv));
+  });
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', '#555']])));
+  body.append(h('p', { class: 'rt-lsub' }, 'Each box ' + um(2 * ext) + ' across, about the centroid; ' + spots[0].rays + ' rays a wavelength across the pupil. RMS and largest radius about the centroid of all the wavelengths, weighted.'));
+}
+function fanView(body, A, F, opd) {
+  const [a, b] = pair(body), c = A.c, xs = F.p;
+  const ser = key => F.waves.map((w, i) => ({ label: anFmt(w.nm, 5) + ' nm', colour: waveColour(i), xs, ys: w[key] }));
+  const y = opd ? { kind: 'plain', title: 'OPD, waves' } : { kind: 'len', title: 'Ray error' };
+  const rows = () => xs.map((p, k) => [p, ...F.waves.flatMap(w => [w.tan[k], w.sag[k]])]);
+  const cols = ['pupil'].concat(F.waves.flatMap(w => [w.nm + ' nm tangential', w.nm + ' nm sagittal']));
+  let m = 0;
+  for (const w of F.waves) for (const v of w.tan.concat(w.sag)) if (v !== null && isFinite(v)) m = Math.max(m, Math.abs(v));
+  const yr = [-(m * 1.08 || 1e-6), m * 1.08 || 1e-6];
+  linePlot(a, { label: 'Tangential ' + (opd ? 'OPD' : 'ray') + ' fan', x: { kind: 'plain', title: 'Pupil y' }, y, xr: [-1, 1], yr, series: ser('tan'), xName: 'pupil', H: 240, csv: { name: (opd ? 'OPD' : 'ray') + ' fans ' + F.deg + ' deg', cols, rows } });
+  linePlot(b, { label: 'Sagittal ' + (opd ? 'OPD' : 'ray') + ' fan', x: { kind: 'plain', title: 'Pupil x' }, y, xr: [-1, 1], yr, series: ser('sag'), xName: 'pupil', H: 240 });
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)])));
+  body.append(h('p', { class: 'rt-lsub' }, opd ? 'The wavefront error along the pupil’s diameters, tangential (in the plane of the fields) and sagittal, each wavelength about its own chief ray.'
+    : 'Where each ray lands on the image plane, from the primary wavelength’s chief ray: its error across the field (tangential, against the pupil’s y) and out of it (sagittal, against its x).'));
+}
+function fieldView(body, A, C) {
+  const [a, b] = pair(body), c = A.c, ys = C.degs;
+  const series = [];
+  C.waves.forEach((w, i) => { series.push({ label: anFmt(w.nm, 5) + ' T', colour: waveColour(i), xs: w.tan, ys }); series.push({ label: anFmt(w.nm, 5) + ' S', colour: waveColour(i), dash: true, xs: w.sag, ys }); });
+  linePlot(a, { label: 'Field curvature', x: { kind: 'len', title: 'Focus from the image plane' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true, series, hoverY: true, yName: 'field', H: 260,
+    csv: { name: 'field curvature', cols: ['field (deg)'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
+  linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, degrees' }, yr: [0, Math.max(...ys) || 1], symX: true,
+    series: [{ label: 'Distortion %', colour: waveColour(c.primary), xs: C.dist, ys }], hoverY: true, yName: 'field', H: 260 });
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  const k = ys.length - 1;
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + '°: tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
+}
+function longView(body, A, L) {
+  const [a, b] = pair(body), c = A.c;
+  linePlot(a, { label: 'Longitudinal aberration', x: { kind: 'len', title: 'Focus from the paraxial focus' }, y: { kind: 'plain', title: 'Pupil height' }, yr: [0, 1], symX: true,
+    series: L.waves.map((w, i) => ({ label: anFmt(w.nm, 5) + ' nm', colour: waveColour(i), xs: w.dz, ys: L.rho })), hoverY: true, yName: 'pupil', H: 260,
+    csv: { name: 'longitudinal aberration', cols: ['pupil height'].concat(L.waves.map(w => w.nm + ' nm (mm)')), rows: () => L.rho.map((p, k) => [p, ...L.waves.map(w => w.dz[k])]) } });
+  linePlot(b, { label: 'Chromatic focal shift', x: { kind: 'len', title: 'Paraxial focus shift' }, y: { kind: 'plain', title: 'Wavelength, nm' }, symX: true,
+    series: [{ label: 'shift', colour: '#444', xs: L.shift, ys: L.lam }], hoverY: true, yName: 'nm', H: 260 });
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)])));
+  const lo = Math.min(...L.shift), hi = Math.max(...L.shift);
+  body.append(h('p', { class: 'rt-lsub' }, 'Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'));
+}
+const DIV = [[0x2a, 0x78, 0xd6], [0xf0, 0xef, 0xec], [0xe3, 0x49, 0x48]];
+const diverge = t => { t = Math.max(-1, Math.min(1, t)); const [a, b] = t < 0 ? [DIV[1], DIV[0]] : [DIV[1], DIV[2]], u = Math.abs(t); return a.map((v, i) => Math.round(v + (b[i] - v) * u)); };
+function heat(parent, N, val, colour, label, size) {
+  const cv = h('canvas', { role: 'img', 'aria-label': label, class: 'rt-lheat' });
+  parent.append(cv);
+  const img = new ImageData(N, N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const v = val(i, j), o = ((N - 1 - j) * N + i) * 4;
+    if (v === null) { img.data.set([255, 255, 255, 0], o); continue; }
+    const col = colour(v); img.data.set([col[0], col[1], col[2], 255], o);
+  }
+  cv.width = N; cv.height = N; cv.style.width = size + 'px'; cv.style.height = size + 'px';
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+}
+function waveView(body, A, M) {
+  const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+  row.append(left, right); body.append(row);
+  const m = Math.max(1e-6, ...Array.from(M.W).filter(isFinite).map(v => Math.abs(v - M.mean)));
+  const cv = heat(left, M.N, (i, j) => { const v = M.W[j * M.N + i]; return isFinite(v) ? v - M.mean : null; }, v => diverge(v / m), 'The wavefront over the pupil: RMS ' + anFmt(M.rms, 3) + ' waves', 240);
+  left.append(h('div', { class: 'rt-lkeybar' }, h('span', { class: 'mono' }, '−' + anFmt(m, 3)), h('i', { 'aria-hidden': 'true' }), h('span', { class: 'mono' }, '+' + anFmt(m, 3) + ' waves')));
+  left.append(h('p', { class: 'rt-lsub' }, 'RMS ' + anFmt(M.rms, 3) + ' waves · peak to valley ' + anFmt(M.pv, 3) + ' waves at ' + anFmt(M.nm, 5) + ' nm, piston taken out. Pupil x across, y up.'));
+  plotCsv(cv, 'wavefront', ['pupil x', 'pupil y', 'OPD (waves)'], () => { const out = []; for (let j = 0; j < M.N; j++) for (let i = 0; i < M.N; i++) { const v = M.W[j * M.N + i]; if (isFinite(v)) out.push([-1 + (2 * i + 1) / M.N, -1 + (2 * j + 1) / M.N, v - M.mean]); } return out; });
+  left.append(plotSaveRow(cv));
+  const tbl = h('table', { class: 'rt-ltable rt-lzern' });
+  tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Z'), h('th', { scope: 'col' }, 'Term'), h('th', { scope: 'col' }, 'Waves'))));
+  const tb = h('tbody');
+  (M.coef || []).forEach((v, i) => tb.append(h('tr', null, h('td', { class: 'mono' }, String(i + 1)), h('td', null, ZERNIKE_NAMES[i]), h('td', { class: 'mono' }, Math.abs(v) < 5e-7 ? '0' : v.toFixed(5)))));
+  tbl.append(tb);
+  right.append(h('h3', null, 'Fringe Zernike terms'), tbl);
+}
+function psfView(body, A, F, spot) {
+  const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+  row.append(left, right); body.append(row);
+  // the middle of the PSF, about 8 Airy radii across (or the spot, if larger)
+  const half = Math.min(F.M / 2 - 1, Math.max(12, Math.ceil(Math.max(4 * F.airy, 1.2 * (spot ? spot.geo : 0)) / F.dx))), N = 2 * half, o = F.M / 2 - half;
+  let pk = 0; for (const v of F.I) pk = Math.max(pk, v);
+  const cv = heat(left, N, (i, j) => F.I[(j + o) * F.M + i + o] / pk, v => magma(Math.sqrt(v)), 'The point spread function: Strehl ratio ' + anFmt(F.strehl, 3), 240);
+  left.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(F.nm, 5) + ' nm, ' + um(N * F.dx) + ' across, brightness as the square root of the irradiance. Strehl ratio ' + anFmt(F.strehl, 3) + '.'));
+  if (spot && spot.geo > 0.35 * F.window) left.append(h('div', { class: 'rt-lnote' }, 'The spot is large against this PSF’s window (' + um(F.window) + '): the aberrations are too large for it to hold. See the spot diagram.'));
+  plotCsv(cv, 'psf', ['x (mm)', 'y (mm)', 'irradiance (peak 1)'], () => { const out = []; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) out.push([(i - half) * F.dx, (j - half) * F.dx, F.I[(j + o) * F.M + i + o] / pk]); return out; });
+  left.append(plotSaveRow(cv));
+  const n = Math.min(F.r.length, Math.ceil(Math.max(6 * F.airy, 1.5 * (spot ? spot.geo : 0)) / F.dx));
+  linePlot(right, { label: 'Encircled energy', x: { kind: 'len', title: 'Radius' }, y: { kind: 'plain', title: 'Encircled energy' }, xr: [0, F.r[n - 1]], yr: [0, 1.02],
+    series: [{ label: 'design', colour: WAVE_COLOURS[0], xs: F.r.slice(0, n), ys: F.ee.slice(0, n) }, { label: 'diffraction limit', colour: '#666', dash: true, xs: F.r.slice(0, n), ys: F.ee0.slice(0, n) }], xName: 'radius (mm)', H: 240,
+    csv: { name: 'encircled energy', cols: ['radius (mm)', 'design', 'diffraction limit'], rows: () => F.r.map((r, k) => [r, F.ee[k], F.ee0[k]]) } });
+  right.append(legend([['design', WAVE_COLOURS[0]], ['diffraction limit', '#666', true]]));
+}
+function mtfView(body, A, M) {
+  const v = M.freqs;
+  linePlot(body, { label: 'MTF', x: { kind: 'plain', title: 'Spatial frequency, cycles/mm' }, y: { kind: 'plain', title: 'Modulation' }, xr: [0, v[v.length - 1]], yr: [0, 1.02],
+    series: [{ label: 'tangential', colour: WAVE_COLOURS[0], xs: v, ys: M.tan }, { label: 'sagittal', colour: WAVE_COLOURS[1], dash: true, xs: v, ys: M.sag }, { label: 'diffraction limit', colour: '#666', xs: v, ys: M.limT }],
+    xName: 'cycles/mm', H: 280, csv: { name: 'MTF ' + M.deg + ' deg', cols: ['cycles/mm', 'tangential', 'sagittal', 'diffraction limit (T)', 'diffraction limit (S)'], rows: () => v.map((f, k) => [f, M.tan[k], M.sag[k], M.limT[k], M.limS[k]]) } });
+  body.append(legend([['tangential', WAVE_COLOURS[0]], ['sagittal', WAVE_COLOURS[1], true], ['diffraction limit', '#666']]));
+  const at = f => { const k = Math.min(v.length - 1, Math.round(f / v[v.length - 1] * (v.length - 1))); return anFmt(M.tan[k], 3) + ' / ' + anFmt(M.sag[k], 3); };
+  body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF over the wavelengths, weighted, from the pupil’s autocorrelation; cutoff ' + anFmt(M.cutoff, 4) + ' cycles/mm at the primary wavelength. Tangential / sagittal at 10, 30 and 50 cycles/mm: ' + at(10) + ', ' + at(30) + ', ' + at(50) + '.'));
+}
+function seidelView(body, asm, P, F) {
+  const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
+  body.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
+  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + '°, the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
+    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
+  const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
+  tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
+  const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
+  sd.rows.forEach((r, i) => tb.append(h('tr', null, h('td', null, sps[i].kind === 'stop' ? 'STO' : String(i + 1)), ...cols.map(c => h('td', { class: 'mono' }, f(r[c]))))));
+  tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+}
+/* ==========================================================================
    The lens design workspace
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
    by the lens engine, and its lens data, surface by surface, to edit as a lens designer does.
@@ -21686,7 +21963,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesCard(asm, P, F)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -22155,23 +22432,6 @@ function openPop(btn, P, D, key, q, i) {
   pop.style.top = (r.bottom + 6) + 'px';
   sel.focus();
   setTimeout(() => document.addEventListener('pointerdown', function out(e) { if (pop && !pop.contains(e.target)) { closePop(); } if (!pop) document.removeEventListener('pointerdown', out); }), 0);
-}
-
-/* ---------- Analyses: the Seidel sums, surface by surface ---------- */
-function analysesCard(asm, P, F) {
-  const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
-  const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
-  card.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  card.append(h('p', { class: 'rt-lsub' }, 'At ' + wsFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + wsFmt(F.fmax, 3) + '°, the colour terms from ' + wsFmt(F.lo, 5) + ' to ' + wsFmt(F.hi, 5) + ' nm. ' +
-    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
-  const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
-  tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
-  const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
-  sd.rows.forEach((r, i) => tb.append(h('tr', null, h('td', null, (sps[i].kind === 'stop' ? 'STO ' : (i + 1) + ' ') + ''), ...cols.map(c => h('td', { class: 'mono' }, f(r[c]))))));
-  tb.append(h('tr', { class: 'sum' }, h('td', null, 'Sum'), ...cols.map(c => h('td', { class: 'mono' }, f(sd.sum[c])))));
-  tbl.append(tb);
-  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  return card;
 }
 
 /* ---------- Placing a new design: light for it on the bench ---------- */
@@ -29136,7 +29396,7 @@ function paraxialOf(S) {
   const xpz = Math.abs(uc) < 1e-14 ? Infinity : S.z[L] - yc / uc;      // the exit pupil's place
   // the exit pupil's radius: the marginal ray's height there, for an entrance pupil of radius 1
   const xpr = Math.abs(yL + (xpz - S.z[L]) * uL);
-  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N] };
+  return { efl, bfl, epz, xpz, stopMag: Math.abs(ya), xpr, nImg: S.n[S.N], yMarg: yL, uMarg: uL, yChief: yc, uChief: uc };
 }
 
 /* ---------- One surface ---------- */
@@ -30026,6 +30286,278 @@ function nearestGlass(nd, vd, withDistance) {
   for (const [k, n, v] of realGlasses) { const d = ((n - nd) / 0.01) ** 2 + (v - vd) ** 2; if (d < bd) { bd = d; best = k; } }
   return withDistance ? { k: best, d: Math.sqrt(bd) } : best;
 }
+/* ==========================================================================
+   Analyses of a lens design
+   Each from the lens engine's rays, aimed through the stop and stopped by the clear radii as they
+   are (vignetting counts here, unlike in optimising):
+     the spot diagram: where a grid of rays across the pupil lands, each wavelength, about the
+       primary wavelength's chief ray, with the RMS and largest radius about the centroid and the
+       Airy disc's radius;
+     ray fans: the transverse miss on the image plane, from the primary chief ray, along the
+       pupil's y (tangential) and x (sagittal) diameters;
+     OPD fans: the wavefront error along the same diameters, each wavelength about its own chief ray;
+     field curvature: where the tangential and sagittal foci of each field lie along the axis,
+       from the image plane, found from rays a little either side of the chief ray; distortion:
+       the real chief ray's height against the paraxial chief ray's, in per cent;
+     longitudinal aberration: where a ray from each height in the pupil crosses the axis, each
+       wavelength, from the primary paraxial focus; chromatic focal shift: the paraxial focus
+       over the wavelengths;
+     the wavefront over the pupil and its fringe Zernike terms;
+     the point spread function by FFT of the pupil function, its Strehl ratio and encircled energy;
+     the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation,
+       weighted over the wavelengths, with the diffraction limit.
+   ========================================================================== */
+const D2R = Math.PI / 180;
+/* the design's systems, one per wavelength, at its entrance pupil and image plane */
+function anaSystems(asm, P) {
+  const c = asm.cond, nm0 = primaryNm(c), S0 = lensSystem(P, nm0), epd = designEpd(c, S0.par.efl), o = { epd, image: P.image };
+  const S = c.waves.map(w => lensSystem(P, w.nm, o));
+  const Sp = S[c.primary];
+  // image-space NA and working F-number from the primary marginal ray
+  const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uMarg), fw = na > 0 ? 1 / (2 * na) : Infinity;
+  return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1 };
+}
+const chiefAt = (S, deg) => { const C = rayAt(S, deg * D2R, 0, 0); return C && C[7] === 0 ? [C[0], C[1]] : null; };
+/* the paraxial chief ray's height on the image plane at field deg */
+const paraxHeight = (S, deg) => Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
+
+/* ---------- Spot diagram ---------- */
+function spotDiagram(A, deg, n) {
+  const pts = pupilGrid(n || 21), ref = chiefAt(A.Sp, deg) || [0, 0], R = new Float64Array(8);
+  let sx = 0, sy = 0, sw = 0;
+  const waves = A.S.map((S, wi) => {
+    const out = [];
+    let lost = 0;
+    for (const [px, py] of pts) {
+      const r = rayAt(S, deg * D2R, px, py, R);
+      if (!r || r[7] !== 0) { lost++; continue; }
+      out.push([r[0] - ref[0], r[1] - ref[1]]);
+      const w = A.c.waves[wi].w; sx += w * (r[0] - ref[0]); sy += w * (r[1] - ref[1]); sw += w;
+    }
+    return { nm: S.nm, pts: out, lost };
+  });
+  const cx = sw ? sx / sw : 0, cy = sw ? sy / sw : 0;
+  let s2 = 0, geo = 0;
+  waves.forEach((w, wi) => { for (const [x, y] of w.pts) { const d2 = (x - cx) ** 2 + (y - cy) ** 2; s2 += A.c.waves[wi].w * d2; geo = Math.max(geo, Math.sqrt(d2)); } });
+  return { deg, waves, centroid: [cx, cy], rms: sw ? Math.sqrt(s2 / sw) : NaN, geo, airy: 1.22 * A.nm0 * 1e-6 * A.fw, chief: ref, rays: pts.length };
+}
+
+/* ---------- Ray fans and OPD fans ---------- */
+function rayFans(A, deg, n) {
+  n = n || 41;
+  const ref = chiefAt(A.Sp, deg) || [0, 0], R = new Float64Array(8), p = Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
+  return { deg, p, waves: A.S.map(S => ({
+    nm: S.nm,
+    tan: p.map(v => { const r = rayAt(S, deg * D2R, 0, v, R); return r && r[7] === 0 ? r[1] - ref[1] : null; }),
+    sag: p.map(v => { const r = rayAt(S, deg * D2R, v, 0, R); return r && r[7] === 0 ? r[0] - ref[0] : null; }),
+  })) };
+}
+function opdFans(A, deg, n) {
+  n = n || 41;
+  const p = Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
+  return { deg, p, waves: A.S.map(S => {
+    const T = traceField(S, deg, p.map(v => [0, v])), Sg = traceField(S, deg, p.map(v => [v, 0]));
+    const val = F => F ? F.rays.map(r => r.lost || !isFinite(r.opd) ? null : r.opd) : p.map(() => null);
+    return { nm: S.nm, tan: val(T), sag: val(Sg) };
+  }) };
+}
+
+/* ---------- Field curvature and distortion ----------
+   The tangential focus of a field: where rays at ±d of the pupil in y cross the chief ray, in the
+   y-z plane; the sagittal focus: where rays at ±d in x cross it, in the x-z plane. Each as a
+   distance along the axis from the image plane (positive beyond it). */
+function fieldCurves(A, n) {
+  n = n || 21;
+  const fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))), d = 1e-3, R = new Float64Array(8), Q = new Float64Array(8);
+  const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
+  const focus = (S, th, px, py, axis) => {
+    const C = rayAt(S, th, 0, 0, R);
+    if (!C || C[7] !== 0) return null;
+    const ca = C[axis], cs = C[axis + 3] / C[5];
+    let sum = 0;
+    for (const s of [1, -1]) {
+      const r = rayAt(S, th, s * px, s * py, Q);
+      if (!r || r[7] !== 0) return null;
+      const rs = r[axis + 3] / r[5];
+      if (Math.abs(rs - cs) < 1e-15) return null;
+      sum += -(r[axis] - ca) / (rs - cs);
+    }
+    return sum / 2;
+  };
+  const waves = A.S.map(S => ({ nm: S.nm, tan: degs.map(g => focus(S, g * D2R, 0, d, 1)), sag: degs.map(g => focus(S, g * D2R, d, 0, 0)) }));
+  const dist = degs.map(g => {
+    if (!g) return 0;
+    const C = chiefAt(A.Sp, g), yp = paraxHeight(A.Sp, g);
+    return C && yp ? 100 * (C[1] - yp) / yp : null;
+  });
+  return { degs, waves, dist };
+}
+
+/* ---------- Longitudinal aberration and chromatic focal shift ---------- */
+function longitudinal(A, n) {
+  n = n || 21;
+  const zp = A.Sp.z[A.Sp.N - 1] + A.Sp.par.bfl, R = new Float64Array(8);
+  const rho = Array.from({ length: n }, (_, i) => (i + 1) / n);
+  const waves = A.S.map(S => ({ nm: S.nm, dz: rho.map(p => { const r = rayAt(S, 0, 0, p, R); return r && r[7] === 0 && Math.abs(r[4]) > 1e-15 ? r[2] - r[1] * r[5] / r[4] - zp : null; }) }));
+  // the paraxial focus over the wavelengths, from 10% below the shortest to 10% above the longest
+  const nms = A.c.waves.map(w => w.nm), lo = Math.min(...nms) * 0.9, hi = Math.max(...nms) * 1.1, P = A.P;
+  const lam = Array.from({ length: 41 }, (_, i) => lo + (hi - lo) * i / 40);
+  const shift = lam.map(nm => { const S = lensSystem(P, nm); return S.z[S.N - 1] + S.par.bfl - zp; });
+  return { rho, waves, lam, shift };
+}
+
+/* ---------- The pupil sampled: the wavefront on a grid ----------
+   N points across the pupil's diameter (in the stop's normalised coordinates), each ray's OPD in
+   waves about its chief ray, or lost */
+function pupilWave(S, deg, N) {
+  const pts = [], idx = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = -1 + (2 * i + 1) / N, y = -1 + (2 * j + 1) / N;
+    if (x * x + y * y <= 1) { pts.push([x, y]); idx.push(j * N + i); }
+  }
+  const F = traceField(S, deg, pts), W = new Float64Array(N * N).fill(NaN);
+  if (F) F.rays.forEach((r, k) => { if (!r.lost && isFinite(r.opd)) W[idx[k]] = r.opd; });
+  return { N, W };
+}
+/* fringe Zernike polynomials Z1..Z16, ρ and θ from the x axis */
+const ZERNIKE_NAMES = ['Piston', 'Tilt x', 'Tilt y', 'Defocus', 'Astigmatism 0°', 'Astigmatism 45°', 'Coma x', 'Coma y', 'Spherical',
+  'Trefoil x', 'Trefoil y', 'Secondary astigmatism 0°', 'Secondary astigmatism 45°', 'Secondary coma x', 'Secondary coma y', 'Secondary spherical'];
+function zernike(j, r, t) {
+  const r2 = r * r, c = Math.cos, s = Math.sin;
+  switch (j) {
+    case 1: return 1; case 2: return r * c(t); case 3: return r * s(t); case 4: return 2 * r2 - 1;
+    case 5: return r2 * c(2 * t); case 6: return r2 * s(2 * t);
+    case 7: return (3 * r2 - 2) * r * c(t); case 8: return (3 * r2 - 2) * r * s(t);
+    case 9: return 6 * r2 * r2 - 6 * r2 + 1;
+    case 10: return r2 * r * c(3 * t); case 11: return r2 * r * s(3 * t);
+    case 12: return (4 * r2 - 3) * r2 * c(2 * t); case 13: return (4 * r2 - 3) * r2 * s(2 * t);
+    case 14: return (10 * r2 * r2 - 12 * r2 + 3) * r * c(t); case 15: return (10 * r2 * r2 - 12 * r2 + 3) * r * s(t);
+    case 16: return 20 * r2 * r2 * r2 - 30 * r2 * r2 + 12 * r2 - 1;
+  }
+  return 0;
+}
+function solveDense(A, b, n) {
+  // Gaussian elimination with partial pivoting
+  const M = A.map((row, i) => row.concat([b[i]]));
+  for (let k = 0; k < n; k++) {
+    let p = k; for (let i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i;
+    [M[k], M[p]] = [M[p], M[k]];
+    if (Math.abs(M[k][k]) < 1e-300) return null;
+    for (let i = k + 1; i < n; i++) { const f = M[i][k] / M[k][k]; for (let j = k; j <= n; j++) M[i][j] -= f * M[k][j]; }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
+  return x;
+}
+/* the wavefront's statistics and its Zernike fit by least squares over the points that came through */
+function wavefrontMap(A, deg, wi, N) {
+  N = N || 48;
+  const S = A.S[wi === undefined ? A.c.primary : wi], { W } = pupilWave(S, deg, N), J = 16;
+  const rows = [];
+  let sum = 0, cnt = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const v = W[j * N + i]; if (!isFinite(v)) continue;
+    const x = -1 + (2 * i + 1) / N, y = -1 + (2 * j + 1) / N;
+    rows.push([Math.hypot(x, y), Math.atan2(y, x), v]); sum += v; cnt++;
+  }
+  const mean = cnt ? sum / cnt : 0;
+  let s2 = 0, mn = Infinity, mx = -Infinity;
+  for (const [, , v] of rows) { s2 += (v - mean) ** 2; mn = Math.min(mn, v - mean); mx = Math.max(mx, v - mean); }
+  const AtA = Array.from({ length: J }, () => new Array(J).fill(0)), Atb = new Array(J).fill(0);
+  for (const [r, t, v] of rows) {
+    const z = []; for (let k = 1; k <= J; k++) z.push(zernike(k, r, t));
+    for (let a = 0; a < J; a++) { Atb[a] += z[a] * v; for (let b = 0; b < J; b++) AtA[a][b] += z[a] * z[b]; }
+  }
+  const coef = cnt > J ? solveDense(AtA, Atb, J) : null;
+  return { deg, nm: S.nm, N, W, mean, rms: cnt ? Math.sqrt(s2 / cnt) : NaN, pv: cnt ? mx - mn : NaN, coef, lost: 0 };
+}
+
+/* ---------- The FFT ---------- */
+function fft1(re, im, inv) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const a = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ur = re[i + k], ui = im[i + k], vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci, vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+        re[i + k] = ur + vr; im[i + k] = ui + vi; re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+function fft2(re, im, M) {
+  const r = new Float64Array(M), i = new Float64Array(M);
+  for (let y = 0; y < M; y++) { for (let x = 0; x < M; x++) { r[x] = re[y * M + x]; i[x] = im[y * M + x]; } fft1(r, i); for (let x = 0; x < M; x++) { re[y * M + x] = r[x]; im[y * M + x] = i[x]; } }
+  for (let x = 0; x < M; x++) { for (let y = 0; y < M; y++) { r[y] = re[y * M + x]; i[y] = im[y * M + x]; } fft1(r, i); for (let y = 0; y < M; y++) { re[y * M + x] = r[y]; im[y * M + x] = i[y]; } }
+}
+/* |FFT|² of a pupil function (N across, padded to M), centred */
+function psfOf(W, N, M, perfect) {
+  const re = new Float64Array(M * M), im = new Float64Array(M * M), o = (M - N) >> 1;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const v = W[j * N + i]; if (!isFinite(v)) continue;
+    const ph = perfect ? 0 : 2 * Math.PI * v;
+    re[(j + o) * M + i + o] = Math.cos(ph); im[(j + o) * M + i + o] = Math.sin(ph);
+  }
+  fft2(re, im, M);
+  const I = new Float64Array(M * M), h = M >> 1;
+  for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) { const k = y * M + x, yy = (y + h) % M, xx = (x + h) % M; I[yy * M + xx] = re[k] * re[k] + im[k] * im[k]; }
+  return I;
+}
+/* the PSF at one wavelength: its image (pixel dx mm), its Strehl ratio (peak against the same pupil
+   without aberration) and its encircled energy about its centroid, with the diffraction limit's */
+function psfAnalysis(A, deg, wi, N, pad) {
+  N = N || 64; pad = pad || 4;
+  const S = A.S[wi === undefined ? A.c.primary : wi], { W } = pupilWave(S, deg, N), M = N * pad;
+  const I = psfOf(W, N, M, false), I0 = psfOf(W, N, M, true);
+  let pk = 0, pk0 = 0, tot = 0, cx = 0, cy = 0;
+  for (let k = 0; k < M * M; k++) { pk = Math.max(pk, I[k]); pk0 = Math.max(pk0, I0[k]); tot += I[k]; cx += I[k] * (k % M); cy += I[k] * Math.floor(k / M); }
+  cx /= tot; cy /= tot;
+  const dx = S.lam * A.fw * N / M;                  // mm per pixel in the image
+  const ee = (Im, x0, y0) => {
+    const nb = M / 2, bins = new Float64Array(nb); let T = 0;
+    for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) { const r = Math.hypot(x - x0, y - y0), b = Math.min(nb - 1, Math.floor(r)); bins[b] += Im[y * M + x]; T += Im[y * M + x]; }
+    let c = 0; return Array.from(bins, v => (c += v) / T);
+  };
+  let c0x = 0, c0y = 0, t0 = 0;
+  for (let k = 0; k < M * M; k++) { t0 += I0[k]; c0x += I0[k] * (k % M); c0y += I0[k] * Math.floor(k / M); }
+  return { deg, nm: S.nm, M, dx, I, peak: pk, strehl: pk0 ? pk / pk0 : NaN, ee: ee(I, cx, cy), ee0: ee(I0, c0x / t0, c0y / t0), r: Array.from({ length: M / 2 }, (_, i) => (i + 1) * dx), airy: 1.22 * S.lam * A.fw, window: M * dx };
+}
+
+/* ---------- MTF ----------
+   The OTF at a shift of the pupil function against itself, k pixels along x (sagittal) or y
+   (tangential): Σ U(p) U*(p - k) / Σ |U|². A shift of the whole diameter (N pixels) is the cutoff
+   frequency 1/(λ F), F the working F-number. Over the wavelengths, each one's OTF at the same
+   frequency in cycles per mm, weighted. */
+function otf(W, N, axis, perfect) {
+  const out = [], U = [];
+  let norm = 0;
+  for (let k = 0; k < N * N; k++) { const v = W[k]; if (isFinite(v)) { const ph = perfect ? 0 : 2 * Math.PI * v; U.push([k, Math.cos(ph), Math.sin(ph)]); norm++; } else U.push(null); }
+  const at = (i, j) => (i < 0 || j < 0 || i >= N || j >= N) ? null : U[j * N + i];
+  for (let s = 0; s <= N; s++) {
+    let re = 0, im = 0;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = at(i, j), b = axis === 'x' ? at(i - s, j) : at(i, j - s);
+      if (!a || !b) continue;
+      re += a[1] * b[1] + a[2] * b[2]; im += a[2] * b[1] - a[1] * b[2];
+    }
+    out.push([norm ? re / norm : 0, norm ? im / norm : 0]);
+  }
+  return out;
+}
+function mtfAnalysis(A, deg, nu, N) {
+  N = N || 48;
+  const nmax = nu || 1 / (Math.min(...A.S.map(S => S.lam)) * A.fw);     // the cutoff at the shortest wavelength
+  const freqs = Array.from({ length: 61 }, (_, i) => nmax * i / 60);
+  const per = A.S.map((S, wi) => { const { W } = pupilWave(S, deg, N); return { w: A.c.waves[wi].w, nuc: 1 / (S.lam * A.fw), T: otf(W, N, 'y'), Sg: otf(W, N, 'x'), T0: otf(W, N, 'y', true), S0: otf(W, N, 'x', true) }; });
+  const interp = (arr, s) => { if (s >= N) return [0, 0]; const k = Math.floor(s), f = s - k, a = arr[k], b = arr[Math.min(N, k + 1)]; return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])]; };
+  const curve = key => freqs.map(nu2 => { let re = 0, im = 0, W = 0; for (const p of per) { const v = interp(p[key], nu2 / p.nuc * N); re += p.w * v[0]; im += p.w * v[1]; W += p.w; } return Math.hypot(re, im) / W; });
+  return { deg, freqs, tan: curve('T'), sag: curve('Sg'), limT: curve('T0'), limS: curve('S0'), cutoff: 1 / (A.Sp.lam * A.fw) };
+}
+/* the diffraction-limited MTF of a round pupil, ν over its cutoff */
+const mtfPerfect = v => v >= 1 ? 0 : (2 / Math.PI) * (Math.acos(v) - v * Math.sqrt(1 - v * v));
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
    allows, which for a good cavity is far short of its steady state. A diode that light
@@ -35705,6 +36237,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Analyses</b>, the fifth step of lens design: in the workspace\u2019s Analyses tab, the <b>spot diagram</b> (every field, each wavelength, with its RMS radius and the Airy disc), <b>ray fans</b> and <b>OPD fans</b>, <b>field curvature and distortion</b>, <b>longitudinal aberration and chromatic focal shift</b>, the <b>wavefront</b> with its Zernike terms, the <b>PSF</b> by FFT with its Strehl ratio and encircled energy, and the diffraction <b>MTF</b> beside its limit, each from real rays, each saving its numbers as CSV.',
     '<b>Optimise the design</b>, the fourth step of lens design: the <b>Merit</b> tab sets what is made small, the RMS spot (about the centroid or the chief ray) or the RMS wavefront error over every field and wavelength, sampled by Gaussian quadrature over the pupil, with terms added for the focal length, F-number, total track, distortion or a Seidel sum, and boundaries on glass and air thicknesses, each term\u2019s share shown. <b>Optimise the design</b> runs damped least squares downhill, or a <b>global search</b> for a better minimum, in the background, on the values marked V. A glass marked V becomes a <b>model glass</b> (its nd and Vd) that the optimiser moves over the glass map, then is replaced by the nearest real glass. The Sweeps menu\u2019s tools are now <b>Optimise the bench</b> and <b>Tolerance the bench</b>.',
     '<b>The lens design workspace</b>, the third step of lens design: <b>Design\u2026</b> in an assembly\u2019s panel (or a double-click on it) opens it on a page of its own, with the conditions it is designed for, its layout traced from each field, its first-order figures, and its <b>lens data</b>: radius, thickness, glass, clear radius and conic for each surface, typed in, marked <b>V</b> for the optimiser, or set by a <b>solve</b> (the image at focus, a radius for an F-number, a thickness for an edge) or a <b>pickup</b>. Insert surfaces and singlets, or take them out; the Seidel sums surface by surface under Analyses. Every change is the bench\u2019s at once. <b>Take conditions from the bench</b> reads the light arriving at it, and its panel on the bench says when it is used outside its design conditions. A design started from nothing is <b>placed on a bench</b> with a source for each field and a screen at its image.',
     '<b>The lens engine</b>, the second step of lens design: an assembly traced as a lens designer traces it, exactly in three dimensions through its surfaces (conics and aspheres), with first-order figures, entrance and exit pupils, rays aimed through the stop and the wavefront error on the exit pupil\u2019s reference sphere. It lands the bench\u2019s own rays where the bench does, to a nanometre, and traces some 10\u2075 aimed rays a second. The design workspace is built on it.',
@@ -37508,6 +38041,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
+    lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
+      if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
+      if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }
+      return null; },
     lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },

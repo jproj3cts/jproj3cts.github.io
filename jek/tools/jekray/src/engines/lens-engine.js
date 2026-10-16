@@ -180,12 +180,12 @@ export function aimRay(S, th, px, py) {
   return null;
 }
 /* the ray of field th through pupil point (px, py), traced to the image plane; null where it can't be aimed */
-export function rayAt(S, th, px, py, R) {
+export function rayAt(S, th, px, py, R, noClip) {
   const ab = aimRay(S, th, px, py);
   if (!ab) return null;
   R = R || new Float64Array(8);
   launch(S, th, ab[0], ab[1], R);
-  traceRay(S, R, 0, S.N - 1);
+  traceRay(S, R, 0, S.N - 1, noClip);
   if (R[7] === 0) toPlane(S, R, S.imageZ);
   return R;
 }
@@ -209,8 +209,8 @@ export function rayPath(S, th, px, py) {
 /* ---------- A field ----------
    Its chief ray, and each pupil point's ray: where it lands on the image plane, and its wavefront
    error in waves (positive where its path to the reference sphere is longer than the chief ray's). */
-export function traceField(S, fieldDeg, pts) {
-  const th = fieldDeg * Math.PI / 180, C = rayAt(S, th, 0, 0);
+export function traceField(S, fieldDeg, pts, noClip) {
+  const th = fieldDeg * Math.PI / 180, C = rayAt(S, th, 0, 0, null, noClip);
   if (!C || C[7] !== 0) return null;
   // the reference sphere: about the chief ray's image point, through where it crosses the exit pupil's plane
   const cx = C[0], cy = C[1], cz = C[2], xpz = S.par.xpz;
@@ -235,7 +235,7 @@ export function traceField(S, fieldDeg, pts) {
   refOpl = toSphere(C);
   const out = { field: fieldDeg, chief: [cx, cy], rays: [] }, R = new Float64Array(8);
   for (const [px, py] of pts) {
-    const r = rayAt(S, th, px, py, R);
+    const r = rayAt(S, th, px, py, R, noClip);
     if (!r) { out.rays.push({ px, py, lost: 'aim' }); continue; }
     if (r[7] !== 0) { out.rays.push({ px, py, lost: r[7] > 0 ? 'clipped' : 'missed', at: Math.abs(r[7]) - 1 }); continue; }
     out.rays.push({ px, py, x: r[0], y: r[1], opd: (toSphere(r) - refOpl) / S.lam });

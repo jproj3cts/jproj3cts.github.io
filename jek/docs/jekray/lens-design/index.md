@@ -105,13 +105,13 @@ One row a surface, as a lens designer lists them, from the object (at infinity) 
 |---|---|
 | Radius | in mm; type Flat (or leave it empty) for a plane surface |
 | Thickness | the gap to the next surface: a lens's centre thickness inside it, the air between parts; on the last surface, the image distance |
-| Glass | inside a lens, any glass in the catalogue by name; air between parts |
+| Glass | inside a lens, any glass in the catalogue by name, or a model glass as nd/Vd; air between parts |
 | Clear radius | a lens surface's own; set larger than its lens, the lens is made larger. The stop's is set by the aperture |
 | Conic | the conic constant k |
 
 Beside each radius, thickness and conic:
 
-- **V** marks it a variable: what an optimiser may change. It is kept with the design; the optimiser comes with the next stage.
+- **V** marks it a variable: what the optimiser may change (below). A glass has a V too, which makes it a model glass.
 - **…** sets a **solve** or a **pickup**, shown as **S** or **P**, its value then worked out and shown in grey:
   - *Paraxial focus* (the image distance): the image plane where the marginal ray of the primary wavelength crosses the axis, the back focal distance. A new design has it.
   - *F-number* (a radius): the curvature that gives the system the working F-number asked for, with the entrance pupil as set. The system's power is affine in one surface's curvature, so two paraxial traces give it exactly.
@@ -121,6 +121,38 @@ Beside each radius, thickness and conic:
   Pickups are worked out, then the solves, then the pickups again, twice over so a chain settles, then the image distance.
 
 Click a row to select it. **Insert a surface** puts a flat surface after it: inside a lens it splits the glass in two (a cemented doublet); after a lens's back it adds 2 mm of the same glass behind. **Insert a singlet** puts a flat N-BK7 singlet 2 mm thick in the air after the selected part (with the Object row selected, in front of the first surface; with nothing selected, at the end), pushing the rest back only if there is no room. **Remove** takes a surface out, or a lens of two surfaces whole. Every other surface keeps its place along the axis, and marks, solves and pickups stay with the surfaces they belong to.
+
+### Merit
+
+The **Merit** tab sets what the optimiser makes small: the merit function, a sum of squared terms.
+
+- **The image.** For every field, wavelength and pupil point, each weighted by its field's and wavelength's weights and the point's quadrature weight, either the ray's miss on the image plane from the field's centroid over all the wavelengths (*RMS spot about the centroid*), its miss from the primary wavelength's chief ray (*about the chief ray*), or its wavefront error less the mean (*RMS wavefront error*, in waves). The pupil is sampled by 1 to 4 rings at Gauss–Legendre radii, each with 4 to 12 arms, so few rays stand in for the whole pupil. Together these terms weigh 1, so their part of the merit is the RMS spot radius in mm (or the RMS wavefront error in waves).
+- **Terms added to it:** the focal length, the working F-number, the total track, the distortion at the largest field (from the real chief ray, %), or any Seidel sum, each with a target and a weight: the term is $$\sqrt{w}\,(v - t)$$.
+- **Boundaries** every design keeps to: glass at least (and, if set, at most) so thick at its centre and so thick at its edge, and air between lenses at least so wide at the centre and the edge. Each counts only while it is broken, as ten times its overshoot in mm, so it overrides the rest. A stop may sit against a lens.
+
+The merit is $$\sqrt{\sum r_i^2 / W}$$, $$W$$ one for the image plus the added terms' weights. The table gives each term's value now and its share of the merit. Rays are traced through every surface whatever its clear radius, as the lenses are sized to the light afterwards.
+
+### Optimise the design
+
+Mark the values the optimiser may change with **V** in the lens data: radii, thicknesses, conics and glasses. Solves and pickups are worked out again at every step, so a radius solved for an F-number keeps the focal length while the others change.
+
+- **Damped least squares** goes downhill from where the design is to the nearest minimum. Each cycle finds how every term changes with every variable (by finite differences), and takes the step $$(J^\mathsf{T}J + \lambda\,\mathrm{diag}\,J^\mathsf{T}J)\,\delta = -J^\mathsf{T}r$$, a radius worked in its curvature so it can pass through flat. A step is shortened if it would take any variable further than its reach (a sixth of a radius's curvature, 30% of a thickness, 0.5 of a conic, 0.02 in a glass's nd or 3 in its Vd), and that reach and $$\lambda$$ shrink while steps fail and grow back when they help. It stops when no step makes the merit smaller.
+- **Global search** looks for a better minimum than the nearest: it starts again and again from the best design so far, each variable shaken (radii by about 30% of their curvature, thicknesses by about 30%, conics by 0.3, glasses along nd and Vd), takes each start downhill, and keeps what is better. It carries on until stopped.
+
+Both run in the page's background worker, a few cycles or trials at a time, and the design (and its parts on the bench) changes as they go. **Undo** takes it all back. Changing the design by hand stops a run.
+
+**Checked against.**
+- a singlet bent for least spherical aberration: the shape the third-order closed form gives, $$(R_2+R_1)/(R_2-R_1) = 2(n^2-1)/(n+2)$$, and the bottom of a fine scan of its merit;
+- a Cooke triplet with its radii spoilt by up to 30%: optimised back to at least as good as the published design, its focal length kept;
+- a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint.
+
+### Model glass
+
+Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.
+
+### The bench's own tools
+
+**Optimise the bench** and **Tolerance the bench** (the Sweeps menu) work on the whole bench, its positions, alignment and coupling, over the swept values. A lens design is optimised in its workspace, against its own conditions.
 
 ### Analyses
 
@@ -147,4 +179,4 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`) and the pickups (`"pickups"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface) or `"t:image"`.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`) and the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it) or `"t:image"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.

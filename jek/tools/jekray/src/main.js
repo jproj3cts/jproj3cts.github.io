@@ -131,6 +131,7 @@ import './engines/diffraction.js';
 import './engines/antenna-field.js';
 import './engines/lens-engine.js';
 import './engines/lens-design.js';
+import './engines/lens-opt.js';
 import './engines/pd-cavity.js';
 import './engines/pulse.js';
 import './engines/screen-stats.js';

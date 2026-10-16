@@ -1,10 +1,13 @@
-import { asmCheck, asmMembers, normCond, ASM_FIELDS_MAX, ASM_WAVES_MAX, SOLVE_KINDS } from '../core/assembly.js';
+import { asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
+import { TEST_MODE } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
 import { deg, project } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
+import { isModel, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optVars } from '../engines/lens-opt.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
@@ -48,6 +51,7 @@ export function openLensDesign(asm, opts) {
 }
 export function closeLensDesign() {
   if (!WS) return;
+  optStop('Stopped: the workspace was closed.');
   const asm = WS.asm;
   WS = null;
   document.getElementById('lensWs').hidden = true;
@@ -74,6 +78,7 @@ function shell() {
 }
 function afterUndo() {
   if (!WS) return;
+  optStop('Stopped: undone.');
   // the record is replaced by an undo: find it again by its id
   const a = (project.assemblies || []).find(x => x.id === WS.asm.id);
   if (!a || !asmMembers(a).length) { WS = null; document.getElementById('lensWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
@@ -125,13 +130,14 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : analysesCard(asm, P, F)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesCard(asm, P, F)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
 
 /* a change: undoable, solved, written to the parts, shown */
 function edit(fn) {
+  optStop('Stopped: the design was changed by hand.');
   checkpoint();
   const asm = WS.asm, P = designPrescription(asm);
   const r = fn(P, asm);
@@ -318,7 +324,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('analyses', 'Analyses'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'));
 }
 
 /* ---------- Lens data ---------- */
@@ -346,7 +352,12 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
     const gtd = h('td');
-    if (editable(P, 'g', i)) gtd.append(glassInput(P.materials[i], 'Glass after surface ' + (i + 1), name => edit(PP => { const k = glassKey(name); if (!k) return 'No glass called ' + name + '.'; PP.materials[i] = { glass: k }; })));
+    if (editable(P, 'g', i)) {
+      const gk = keyAt(P, 'g', i), gv = D.vars.includes(gk), lab = 'glass after surface ' + (i + 1);
+      gtd.append(h('div', { class: 'rt-lcell' }, glassInput(P.materials[i], 'Glass after surface ' + (i + 1), name => edit(PP => { const m = parseGlass(name); if (!m) return 'No glass called ' + name + '. Type a catalogue name, or a model glass as nd/Vd (1.62/60).'; PP.materials[i] = m; })),
+        h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(gv), 'aria-label': (gv ? 'Fix ' : 'Vary ') + lab, title: gv ? 'A variable: the optimiser may change this model glass’s nd and Vd. Click to fix it.' : 'Click to let the optimiser change it: it becomes a model glass (its nd and Vd), to be replaced by the nearest real glass afterwards',
+          onclick: () => edit((PP, a) => { const dd = designOf(a); if (gv) dd.vars = dd.vars.filter(k => k !== gk); else { PP.materials[i] = modelOf(PP.materials[i]); dd.vars = dd.vars.concat([gk]); } }) }, 'V')));
+    }
     else if (sp.kind === 'window' && sp.j === 0) gtd.append(h('span', { class: 'mono' }, matLabel(P.materials[i])));
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
@@ -404,9 +415,142 @@ const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replac
 function glassInput(mat, label, set) {
   let dl = document.getElementById('lensGlasses');
   if (!dl) { dl = h('datalist', { id: 'lensGlasses' }); for (const [k] of glassSearch('')) dl.append(h('option', { value: k })); document.body.append(dl); }
-  const i = h('input', { type: 'text', class: 'rt-lglass', list: 'lensGlasses', value: matLabel(mat), 'aria-label': label, spellcheck: 'false' });
+  const i = h('input', { type: 'text', class: 'rt-lglass', list: 'lensGlasses', value: isModel(mat) ? 'Model ' + (+mat.nd.toFixed(4)) + '/' + (+mat.vd.toFixed(2)) : matLabel(mat), 'aria-label': label, spellcheck: 'false',
+    title: isModel(mat) ? 'A model glass: its nd and Vd alone. Type a glass’s name to use a real one.' : 'A glass by name, or a model glass as nd/Vd' });
   i.addEventListener('change', fromField(i, () => { if (i.value.trim()) set(i.value.trim()); }));
   return i;
+}
+
+/* a glass typed in: a catalogue name, or a model glass as "nd/Vd" ("1.62/60", "Model 1.62 60") */
+function parseGlass(t) {
+  const m = /^(?:model\s*)?(\d\.\d+)\s*[\/,\s]\s*(\d+(?:\.\d+)?)$/i.exec(t.trim());
+  if (m) { const nd = +m[1], vd = +m[2]; if (nd >= 1.3 && nd <= 2.3 && vd >= 10 && vd <= 110) return { glass: 'Model', nd, vd }; return null; }
+  const k = glassKey(t);
+  return k ? { glass: k } : null;
+}
+
+/* ---------- The merit function ---------- */
+const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Total track (mm)', DIST: 'Distortion at the largest field (%)',
+  SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)' };
+const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
+function meritEdit(fn) {
+  optStop('Stopped: the merit function was changed.');
+  checkpoint();
+  const D = designOf(WS.asm), m = JSON.parse(JSON.stringify(D.merit));
+  fn(m);
+  D.merit = normMerit(m);
+  changed(false);
+  renderWs();
+}
+const share = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
+function meritCard(asm, P) {
+  const D = designOf(asm), M = D.merit, R = meritReport(optProblem(asm, P)), wf = M.crit === 'wfe';
+  const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
+  const sel = (label, opts, v, set) => { const x = h('select', { 'aria-label': label }, ...opts.map(([k, t]) => h('option', { value: String(k) }, t))); x.value = String(v); x.addEventListener('change', fromField(x, () => set(x.value))); return x; };
+  card.append(h('div', { class: 'rt-lmerit' }, h('span', null, 'Merit'), h('b', { class: 'mono' }, wsFmt(R.merit, 5)), h('span', { class: 'rt-lsub' }, wf ? 'waves' : 'mm')));
+  card.append(h('div', { class: 'rt-lrow rt-lmrow' }, h('span', null, 'Image:'),
+    sel('Image quality', CRIT, M.crit, v => meritEdit(m => { m.crit = v; })),
+    h('span', null, 'over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' ×'),
+    sel('Pupil rings', [1, 2, 3, 4].map(n => [n, n + ' ring' + (n === 1 ? '' : 's')]), M.rings, v => meritEdit(m => { m.rings = +v; })),
+    h('span', null, 'of'), sel('Arms', [4, 6, 8, 12].map(n => [n, n + ' arms']), M.arms, v => meritEdit(m => { m.arms = +v; })),
+    h('span', { class: 'rt-lsub' }, '(Gaussian quadrature)')));
+  const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
+  tbl.append(h('thead', null, h('tr', null, ...['Term', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + '°'), h('td', { class: 'mono ro' }, '0'),
+    h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i].w, 4)),
+    h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
+  R.ops.forEach((o, i) => tb.append(h('tr', null, h('td', null, OP_LABEL[o.op]),
+    h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
+    h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
+    h('td', { class: 'mono' }, wsFmt(o.value, 6)), h('td', null, share(o.share)),
+    h('td', null, h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + OP_LABEL[o.op], onclick: () => meritEdit(m => { m.ops.splice(i, 1); }) }, '×')))));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, share(R.bounds.share)), h('td')));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});
+  card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
+    const F = designFigures(asm, P), now = { EFL: F.efl, FNO: Math.abs(F.fno), TTL: F.track }[add.value];
+    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1 }); });
+  } }, 'Add a term')));
+  if (R.bounds.broken.length) card.append(h('div', { class: 'rt-lnote' }, 'Broken: ' + R.bounds.broken.map(b => b.what).join('; ') + '.'));
+  const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));
+  card.append(h('h3', null, 'Boundaries every design keeps to (mm)'), h('div', { class: 'rt-lbnds' },
+    bnum('Glass at the centre, at least', 'glassMin'), bnum('Glass at the centre, at most', 'glassMax', '0 for no limit'),
+    bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge')));
+  card.append(h('p', { class: 'rt-lsub' }, 'The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'));
+  return card;
+}
+
+/* ---------- Optimising ----------
+   A few cycles (or trials) at a time, in the background worker where there is one, each batch's
+   result written to the design and shown before the next; Stop ends it, Undo takes it all back. */
+let OPT = null;
+export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note };
+function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
+export function optStart(mode, opts) {
+  if (!WS) return false;
+  const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
+  if (!V.length) { toast('Nothing to vary: mark values V in the lens data first.', true); return false; }
+  checkpoint();
+  const R = meritReport(prob);
+  OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
+    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync) };
+  renderWs();
+  if (OPT.sync) { while (OPT.running) optBatch(); return true; }
+  setTimeout(optBatch, 0);
+  return true;
+}
+function optBatch() {
+  const O = OPT;
+  if (!O || !O.running || !WS || WS.asm.id !== O.id) return;
+  const asm = WS.asm, prob = optProblem(asm, designPrescription(asm));
+  const run = O.mode === 'global' ? { mode: 'global', trials: 2, seed: O.seed++ } : { mode: 'dls', iters: 4, lambda: O.lambda };
+  const take = out => {
+    if (OPT !== O || !O.running || !WS) return;
+    if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
+    if (out.merit < O.now || O.mode === 'dls') {
+      const P2 = designPrescription(asm);
+      optApply(P2, prob, out);
+      commitDesign(asm, P2);
+      changed(false);
+    }
+    O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
+    if (O.mode === 'global' && O.trials >= O.maxTrials) { O.running = false; O.note = 'Done: ' + O.trials + ' trials.'; }
+    renderWs();
+    if (O.running && !O.sync) setTimeout(optBatch, 0);
+  };
+  if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(prob, run));
+  else hooks.fwRequest('lensopt', 'lensopt', { prob, run }).then(o => take(o && o.out)).catch(() => take(null));
+}
+function optCard(asm, P) {
+  const prob = optProblem(asm, P), V = optVars(prob), O = OPT && OPT.id === asm.id ? OPT : null, running = !!(O && O.running);
+  const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
+  const count = q => V.filter(v => v.at.q === q && v.part !== 'vd').length;
+  card.append(h('p', null, 'Variables: ', h('b', null, String(V.length)), V.length ? ' (radii ' + count('R') + ', thicknesses ' + count('t') + ', conics ' + count('k') + (count('g') ? ', model glasses ' + count('g') + ', each its nd and Vd' : '') + ')' : ' — mark values V in the lens data.'));
+  WS.method = WS.method || 'dls';
+  const radio = (k, label, t) => h('button', { type: 'button', role: 'radio', class: 'rt-ltab', 'aria-checked': String(WS.method === k), 'aria-selected': String(WS.method === k), title: t, disabled: running ? '' : null, onclick: () => { WS.method = k; renderWs(); } }, label);
+  card.append(h('div', { class: 'rt-ltabs', role: 'radiogroup', 'aria-label': 'Method' },
+    radio('dls', 'Damped least squares', 'Downhill from where the design is, to the nearest minimum'),
+    radio('global', 'Global search', 'Again and again from the best design yet, shaken, keeping what is better: for a better minimum than the nearest')));
+  card.append(h('div', { class: 'rt-lbar' }, running
+    ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
+    : h('button', { class: 'rt-btn primary', type: 'button', disabled: V.length ? null : '', onclick: () => optStart(WS.method) }, 'Optimise the design')));
+  const R = O ? null : meritReport(prob);
+  const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
+    [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
+  card.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
+  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : 'Optimising…') : O.note));
+  const models = P.materials.map((m, i) => isModel(m) ? i : -1).filter(i => i >= 0);
+  if (models.length) card.append(h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn', type: 'button', disabled: running ? '' : null,
+    title: 'Each model glass replaced by the catalogue glass nearest it in nd and Vd; optimise again after', onclick: () => {
+      const names = [];
+      edit((PP, a) => { const dd = designOf(a); for (const i of models) { const m = PP.materials[i], k = nearestGlass(m.nd, m.vd); if (k) { PP.materials[i] = { glass: k }; names.push(k); dd.vars = dd.vars.filter(v => v !== keyAt(PP, 'g', i)); } } });
+      toast('Model glasses replaced by ' + names.join(', ') + '. Optimise again to settle the design on them.');
+    } }, 'Replace model glasses with the nearest real ones'), h('span', { class: 'rt-lsub' }, models.length + ' model glass' + (models.length === 1 ? '' : 'es'))));
+  card.append(h('p', { class: 'rt-lsub' }, 'Runs in the background; the design, and its parts on the bench, change as it goes. Undo takes it back to where it started.'));
+  return card;
 }
 
 /* the solve and pickup chooser, beside a value */

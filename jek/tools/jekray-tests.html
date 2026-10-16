@@ -8735,6 +8735,79 @@ const TESTS = [
     },
   },
   {
+    name: 'Optimise the design: damped least squares takes a spoilt Cooke triplet down, keeping its focal length, and Undo takes it back',
+    why: 'the published triplet with its radii spoilt by up to 30%, five radii and an air gap marked V, its last radius solved for f/5: Optimise the design pressed in its workspace runs until no step helps; its merit (RMS spot over 3 fields × 3 wavelengths) falls by more than 70%, its focal length stays 50 mm, no boundary is broken; one Undo restores the spoilt design (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Optimise the design', null, 'tab');
+        const before = J.lensFigures('Cooke triplet');
+        rigDoc().querySelector('.rt-lopt button.primary').click();
+        for (let k = 0; k < 600 && (!J.lensOptState() || J.lensOptState().running); k++) await new Promise(r => setTimeout(r, 50));
+        const S = J.lensOptState(), F = J.lensFigures('Cooke triplet');
+        const down = S && !S.running && S.now < 0.3 * S.start, efl = Math.abs(F.efl - 50) < 1e-6;
+        const kept = /Done/.test(rigDoc().getElementById('lensWs').textContent) && !/broken/.test(rigDoc().getElementById('lensWs').textContent);
+        wsClick('Undo');
+        const back = Math.abs(J.byName('Front').surfaces[0].R - 23.8) < 1e-9 && Math.abs(J.lensFigures('Cooke triplet').bfl - before.bfl) < 1e-9;
+        return down && efl && kept && back ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The global search finds a design at least as good, and repeats with its seed',
+    why: 'the spoilt triplet searched globally for 4 trials (each a shaken start taken downhill): the merit is no worse than where it started and is the same twice over from the same seed (the merit’s fall, as a fraction, when both hold)',
+    want: 0.5, tol: 0.5, unit: '',
+    run: J => {
+      const go = () => { J.load(optTriplet()); J.openLensDesign('Cooke triplet'); try { return J.lensOptimise('global', { trials: 4, seed: 3 }); } finally { J.closeLensDesign(); } };
+      const a = go(), b = go();
+      return a.trials === 4 && Math.abs(a.now - b.now) < 1e-15 && a.now <= a.start ? 1 - a.now / a.start : -1;
+    },
+  },
+  {
+    name: 'A glass marked V becomes a model glass the optimiser changes, then the nearest real glass',
+    why: 'a cemented doublet of one glass (no colour correction) with both glasses and two radii marked V in the lens data: optimised, its axial colour (CL) falls tenfold and its second glass is a flint; Replace model glasses with the nearest real ones puts catalogue glasses in their place (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'stop', id: 'S', name: 'Stop', x: 0, y: 0, angle: 0, aperture: 20, group: 'g' },
+        { type: 'lens', id: 'L', name: 'Doublet', x: 4, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 60 }, { R: -45 }, { R: -200 }], gaps: [5, 3], materials: [{ glass: 'N-BK7' }, { glass: 'N-BK7' }], group: 'g' }],
+        assemblies: [{ id: 'g', name: 'Doublet', ref: 'L', cond: { aperture: { kind: 'epd', v: 20 }, fields: [{ deg: 0 }], waves: [{ nm: 486.13 }, { nm: 587.56 }, { nm: 656.27 }], primary: 1 },
+          design: { solves: { 't:image': { kind: 'focus' }, 'R:L.2': { kind: 'fno', v: 5 } }, vars: ['R:L.0', 'R:L.1'] } }] });
+      J.openLensDesign('Doublet');
+      try {
+        wsClick('V', 'Vary glass after surface 2'); wsClick('V', 'Vary glass after surface 3');
+        const m0 = J.lensFigures('Doublet'), cl0 = m0.seidel.CL;
+        const modelled = J.byName('Doublet').materials.every(m => m.glass === 'Model');
+        for (let k = 0; k < 3; k++) J.lensOptimise('dls');
+        const F = J.lensFigures('Doublet'), mats = J.byName('Doublet').materials;
+        const achromat = Math.abs(F.seidel.CL) < 0.1 * Math.abs(cl0) && mats[1].vd < mats[0].vd - 10;
+        wsClick('Optimise the design', null, 'tab');
+        wsClick('Replace model glasses with the nearest real ones');
+        const real = J.byName('Doublet').materials.every(m => m.glass !== 'Model' && !('nd' in m));
+        return modelled && achromat && real ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The merit function takes added terms: a focal length asked for is reached',
+    why: 'the spoilt triplet without its F-number solve, a focal-length term with target 48 mm and weight 1 added in the Merit tab, then optimised: its focal length comes within 0.05 mm of 48 (the difference, mm)',
+    want: 0, tol: 0.05, unit: ' mm',
+    run: J => {
+      const B = optTriplet(); delete B.assemblies[0].design.solves['R:Back.1']; B.assemblies[0].design.vars.push('R:Back.1');
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Merit', null, 'tab');
+        const sel = rigDoc().querySelector('#lensWs select[aria-label="Term to add"]'); sel.value = 'EFL';
+        wsClick('Add a term');
+        wsSet('Target of Focal length (mm)', 48);
+        for (let k = 0; k < 4; k++) J.lensOptimise('dls');
+        return J.lensFigures('Cooke triplet').efl - 48;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',
@@ -8899,7 +8972,7 @@ const rigWin = () => document.getElementById('rig').contentWindow, rigDoc = () =
 /* the lens design workspace, driven as a person would: a value typed into the field of that label, a button by its text (and label) */
 const wsInputs = () => [...rigDoc().querySelectorAll('#lensWs input, #lensWs select')];
 const wsSet = (label, v) => { const i = wsInputs().find(x => x.getAttribute('aria-label') === label); if (!i) throw new Error('no field ' + label); i.value = String(v); i.dispatchEvent(new (rigWin().Event)('change')); };
-const wsClick = (text, label) => { const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => x.textContent.trim() === text && (!label || x.getAttribute('aria-label') === label)); if (!b) throw new Error('no button ' + text); b.click(); };
+const wsClick = (text, label, role) => { const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => x.textContent.trim() === text && (!label || x.getAttribute('aria-label') === label) && (!role || x.getAttribute('role') === role) && (role || x.getAttribute('role') !== 'tab')); if (!b) throw new Error('no button ' + text); b.click(); };
 const wsPick = n => { const td = [...rigDoc().querySelectorAll('#lensWs td.n')].find(x => x.textContent === n); td.parentNode.dispatchEvent(new (rigWin().MouseEvent)('click', { bubbles: true })); };
 /* a solve or pickup set with the button beside a value: its kind chosen, its fields filled, applied */
 const wsPop = (what, kind, vals) => {
@@ -8914,6 +8987,15 @@ const wsPop = (what, kind, vals) => {
     if (f.tagName === 'SELECT') f.value = [...f.options].find(o => o.textContent === v).value; else f.value = String(v);
   }
   [...pop.querySelectorAll('button')].find(x => x.textContent === 'Apply').click();
+};
+/* the published Cooke triplet with its radii spoilt, five radii and an air gap free, its last radius solved for f/5 */
+const optTriplet = () => {
+  const T = [3.25896, 6.00755, 0.99997, 4.75041, 2.95208], v2 = T[0] + T[1], v3 = v2 + T[2] + T[3];
+  const L = (id, x, R1, R2, t, glass, d) => ({ type: 'lens', id, name: id, x, y: 0, angle: 0, diameter: d, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }], group: 'g' });
+  return { format: 'jekray', version: 1, elements: [L('Front', T[0] / 2, 23.8, -305, T[0], 'N-SK16', 18), L('Middle', v2 + T[2] / 2, -20.6, 22.3, T[2], 'F2', 14),
+    { type: 'stop', id: 'S', name: 'Stop', x: v2 + T[2], y: 0, angle: 0, aperture: 10, group: 'g' }, L('Back', v3 + T[4] / 2, 67.7, -18.4, T[4], 'N-SK16', 15)],
+    assemblies: [{ id: 'g', name: 'Cooke triplet', ref: 'Front', cond: { aperture: { kind: 'epd', v: 10 }, fields: [{ deg: 0 }, { deg: 14 }, { deg: 20 }], waves: [{ nm: 486.13 }, { nm: 587.56 }, { nm: 656.27 }], primary: 1 },
+      design: { solves: { 't:image': { kind: 'focus' }, 'R:Back.1': { kind: 'fno', v: 5 } }, vars: ['R:Front.0', 'R:Front.1', 'R:Middle.0', 'R:Middle.1', 'R:Back.0', 't:S.0'], merit: { bounds: { glassMin: 0.9, edgeMin: 0.3 } } } }] };
 };
 const asmTriplet = () => {
   const L = (name, x, R1, R2, t, glass) => ({ type: 'lens', name, x, y: 0, angle: 0, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });

@@ -1286,7 +1286,7 @@
   .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
   .rt-lv:disabled { opacity: 0.35; cursor: default; }
   .rt-ls.on { background: #e8f1f8; border-color: #a9cde0; color: #0b5f7a; }
-  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
+  .rt-lglass { width: 11rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
   .rt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.7rem; }
   .rt-lkey { font-size: 0.8rem; color: var(--jek-ink-soft); margin-left: 0.3rem; }
   .rt-lkey b { font-family: var(--jek-mono); }
@@ -1296,6 +1296,20 @@
   .rt-lpopb label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .rt-lpopb p { margin: 0; color: var(--jek-ink-soft); line-height: 1.4; }
   .rt-lens .rt-toast { position: fixed; top: 4rem; z-index: 80; }
+  .rt-lmerit { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .rt-lmerit b { font-size: 1.4rem; font-weight: 600; }
+  .rt-lmrow { font-size: 0.85rem; margin-bottom: 0.6rem; }
+  .rt-lmrow select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lmtable { min-width: 40rem; }
+  .rt-lshare { display: flex; align-items: center; gap: 0.5rem; }
+  .rt-lshare .bar { width: 7rem; height: 0.5rem; background: var(--jek-well); border-radius: 4px; overflow: hidden; flex: none; }
+  .rt-lshare .bar span { display: block; height: 100%; background: var(--jek-orange); }
+  .rt-lshare .mono { font-size: 0.8rem; }
+  .rt-lbar select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lbnds { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.4rem 1rem; margin-bottom: 0.6rem; }
+  .rt-lbnd { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; }
+  .rt-lopt > p { margin: 0 0 0.6rem; }
+  .rt-lopt .rt-readout { margin-top: 0.7rem; max-width: 28rem; }
   .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
   .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
   .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }

@@ -47,7 +47,7 @@ export function normAssemblies(list, els) {
    (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
-export const DESIGN_KEY = /^([Rtk]):(.{1,120}\.\d+)$/;
+export const DESIGN_KEY = /^([Rtkg]):(.{1,120}\.\d+)$/;
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
   focus: { on: k => k === 't:image', label: 'Paraxial focus' },
@@ -75,7 +75,21 @@ export function normDesign(d) {
     if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups };
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit) };
+}
+/* the merit function: the image term (what is measured, over how many pupil rings and arms), the
+   boundaries every design keeps to, and the operands added to it, each with a target and a weight */
+export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
+export function normMerit(m) {
+  m = m && typeof m === 'object' ? m : {};
+  const b = m.bounds && typeof m.bounds === 'object' ? m.bounds : {};
+  return {
+    crit: ['spot', 'chief', 'wfe'].includes(m.crit) ? m.crit : 'spot',
+    rings: Math.round(clamp(num(m.rings, 3), 1, 4)), arms: [4, 6, 8, 12].includes(+m.arms) ? +m.arms : 6,
+    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3) },
+    ops: (Array.isArray(m.ops) ? m.ops : []).filter(o => o && MERIT_OPS.includes(o.op)).slice(0, 50)
+      .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6) })),
+  };
 }
 /* a design's keys with part ids changed (an assembly pasted as a copy) */
 export function remapDesign(d, map) {

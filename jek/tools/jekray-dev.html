@@ -93,8 +93,8 @@
             <button type="button" role="menuitem" id="btnPauseAll" data-icon="pause" disabled><span class="lbl">Pause all</span></button>
             <button type="button" role="menuitem" id="btnSync" data-icon="sync" disabled title="Set every sweep to phase 0 and restart the shared clock">Sync phases</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnOptimise" data-icon="target" disabled title="Search the swept ranges of one or more values for the best result on one or more goals">Optimise…</button>
-            <button type="button" role="menuitem" id="btnTol" data-icon="dice" disabled title="Monte Carlo over the swept ranges">Tolerances…</button>
+            <button type="button" role="menuitem" id="btnOptimise" data-icon="target" disabled title="The whole bench: search the swept ranges of one or more values for the best result on one or more goals (a lens design is optimised in its own workspace)">Optimise the bench…</button>
+            <button type="button" role="menuitem" id="btnTol" data-icon="dice" disabled title="The whole bench: Monte Carlo over the swept ranges">Tolerance the bench…</button>
             <div class="sep"></div>
             <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
           </div>
@@ -198,7 +198,7 @@
   </dialog>
 
   <dialog class="rt-dialog" id="tolDialog">
-    <h2>Tolerance study</h2>
+    <h2>Tolerance the bench</h2>
     <p>Perturbs the swept parameters at random and traces the bench many times, to see how much the result moves. Each sweep’s From–To range is its tolerance range.</p>
     <div id="tolVars" class="rt-tol-vars"></div>
     <div class="rt-rows">
@@ -222,7 +222,7 @@
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="optDialog">
-    <h2>Optimise</h2>
+    <h2>Optimise the bench</h2>
     <p>Varies the swept parameters you tick, each within its From–To range, for the best result on the goals below. Give a value a sweep first; its range is where it is searched. With several goals, each counts against its size at the start, times its weight.</p>
     <h3 class="rt-opt-h">Vary</h3>
     <div id="optVars" class="rt-tol-vars"></div>

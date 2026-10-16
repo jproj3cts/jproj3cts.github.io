@@ -100,8 +100,34 @@ function criterion(prob, P) {
   for (let q = 0; q < T.nImage; q++) s += T.r[q] * T.r[q];
   return Math.sqrt(s);
 }
-/* the criterion with the image refocused (or not): { crit, dz } */
-export function compensated(prob, P, comp) {
+/* the criterion's terms (the image term's residuals), as criterion() sums them */
+function residuals(prob, P) {
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
+  return T.r.slice(0, T.nImage);
+}
+/* the compensators this prescription has (settings naming a gap, lens or axis it lacks are passed over) */
+export function compsFor(P, comps) {
+  if (!comps || !comps.length) return [];
+  const sps = surfaceParts(P);
+  return comps.filter(c => c.kind === 'gap' ? c.i >= 0 && c.i < P.gaps.length && sps[c.i] && sps[c.i + 1] && sps[c.i].pi !== sps[c.i + 1].pi
+    : P.parts[c.i] && P.parts[c.i].kind !== 'stop');
+}
+/* the prescription with the compensators moved by c (gaps in mm, decentres in mm, tilts in arcminutes) and the image by dz */
+function withComps(P, comps, c, dz) {
+  let Q = cloneP(P);
+  const ops = [], vals = [];
+  comps.forEach((m, j) => { if (m.kind === 'gap') Q.gaps[m.i] = Math.max(0, Q.gaps[m.i] + c[j]); else { ops.push({ kind: m.kind, i: m.i, axis: m.axis }); vals.push(c[j]); } });
+  if (ops.length) Q = perturb(Q, ops, vals);
+  Q.image = P.image + dz;
+  return Q;
+}
+/* The criterion with the compensators set as well as they can be: the image refocused (if comp), and each
+   compensator in comps moved within its range. With none but the focus, the focus alone (below); with others,
+   damped least squares on the criterion's own terms, from where the build is, a few steps, each compensator held
+   within its range: { crit, dz, cv (the compensators' settings) } */
+export function compensated(prob, P, comp, comps) {
+  const C = compsFor(P, comps);
+  if (C.length) return compensatedMany(prob, P, comp, C);
   if (!comp) return { crit: criterion(prob, P), dz: 0 };
   const img = P.image, at = dz => { P.image = img + dz; return criterion(prob, P); };
   // the spot's square is a parabola in the focus: through three points, then once more about its bottom
@@ -117,15 +143,58 @@ export function compensated(prob, P, comp) {
   return best;
 }
 
+const COMP_STEP = { gap: 1e-4, dec: 1e-4, tilt: 0.01 };
+function compensatedMany(prob, P, comp, C) {
+  const n = C.length + (comp ? 1 : 0), lo = [], hi = [], step = [];
+  if (comp) { lo.push(-Infinity); hi.push(Infinity); step.push(1e-4); }
+  for (const m of C) { lo.push(-m.range); hi.push(m.range); step.push(COMP_STEP[m.kind]); }
+  const split = x => ({ dz: comp ? x[0] : 0, c: comp ? x.slice(1) : x });
+  const res = x => { const { dz, c } = split(x); return residuals(prob, withComps(P, C, c, dz)); };
+  const ss = r => r.reduce((a, v) => a + (isFinite(v) ? v * v : 1e6), 0);
+  let x = new Array(n).fill(0), r = res(x), f = ss(r), lambda = 1e-3;
+  for (let it = 0; it < 12; it++) {
+    const J = [];
+    for (let j = 0; j < n; j++) { const xh = x.slice(); xh[j] += step[j]; const rh = res(xh); J.push(rh.map((v, q) => (v - r[q]) / step[j])); }
+    const A = new Float64Array(n * n), g = new Float64Array(n);
+    for (let a = 0; a < n; a++) { for (let b = 0; b < n; b++) { let t = 0; for (let q = 0; q < r.length; q++) t += J[a][q] * J[b][q]; A[a * n + b] = t; } let t = 0; for (let q = 0; q < r.length; q++) t += J[a][q] * r[q]; g[a] = -t; }
+    let took = false;
+    for (let tries = 0; tries < 8 && !took; tries++) {
+      const M = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => A[a * n + b] + (a === b ? lambda * (A[a * n + a] || 1e-12) + 1e-18 : 0)));
+      const d = gaussSolve(M, Array.from(g));
+      if (d) {
+        const xn = x.map((v, j) => Math.min(hi[j], Math.max(lo[j], v + d[j]))), rn = res(xn), fn = ss(rn);
+        if (fn < f) { took = (f - fn) > 1e-12 * f; x = xn; r = rn; f = fn; lambda = Math.max(1e-9, lambda / 3); break; }
+      }
+      lambda *= 4;
+    }
+    if (!took) break;
+  }
+  const { dz, c } = split(x);
+  P.image = P.image + dz;
+  return { crit: Math.sqrt(f), dz, cv: c };
+}
+function gaussSolve(M, b) {
+  const n = b.length;
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
+    if (Math.abs(M[p][i]) < 1e-300) return null;
+    [M[i], M[p]] = [M[p], M[i]]; [b[i], b[p]] = [b[p], b[i]];
+    for (let k = i + 1; k < n; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < n; j++) M[k][j] -= f * M[i][j]; b[k] -= f * b[i]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < n; j++) t -= M[i][j] * x[j]; x[i] = t / M[i][i]; }
+  return x;
+}
+
 /* ---------- Sensitivity ---------- */
 export function tolSensitivity(prob, T, from, to) {
-  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), rows = [];
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), rows = [];
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const r = [];
-    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp)); }
+    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps)); }
     rows.push({ k, label: ops[k].label, kind: ops[k].kind, lim: ops[k].lim, minus: r[0].crit - nom.crit, plus: r[1].crit - nom.crit, dzMinus: r[0].dz, dzPlus: r[1].dz });
   }
-  return { nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows };
+  return Object.assign({ nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows }, nom.cv ? { nominalCv: nom.cv } : {});
 }
 /* the criterion expected over the builds from the sensitivities, each tolerance's effect on the
    criterion's square added (a uniform tolerance's mean square is a third of its limit's, a normal
@@ -147,8 +216,8 @@ export function rssEstimate(nominal, rows, dist) {
 export const INV_MAX = 1000;
 export const invTarget = (T, nominal) => (T.inv && T.inv.by === 'abs' ? T.inv.v : nominal * ((T.inv ? T.inv.v : 10) / 100));
 export function tolInverse(prob, T, from, to) {
-  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), target = invTarget(T, nom.crit), rows = [];
-  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), target = invTarget(T, nom.crit), rows = [];
+  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const o = ops[k];
     // a thickness or gap can't go below nothing: past its own size its − side has closed and no longer changes (its + side still does)
@@ -176,8 +245,8 @@ export function tolMonteCarlo(prob, T, from, to) {
       if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
       return (2 * R() - 1) * o.lim;
     });
-    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp);
-    out.push({ j, crit: c.crit, dz: c.dz });
+    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps);
+    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}));
   }
   return out;
 }

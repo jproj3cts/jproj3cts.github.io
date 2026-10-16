@@ -4,12 +4,13 @@ import { getEl } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { cfgSolved, designFigures, designOf, designPrescription, mcOf, mcValue, posOf, primaryNm, surfaceParts } from '../engines/lens-design.js';
 import { anaSystems, fieldCurves, mtfAnalysis, spotDiagram } from '../engines/lens-analysis.js';
+import { compsFor } from '../engines/lens-tol.js';
 import { VecCtx, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { WAVE_COLOURS } from './lens-analyses.js';
 import { drawSheet, lensDrawings } from './lens-drawing.js';
 import { layoutData } from './lens-workspace.js';
-import { tolResultsFor } from './lens-tolerance.js';
+import { compLabel, tolResultsFor } from './lens-tolerance.js';
 
 /* ==========================================================================
    The design report: the design as a PDF to hand on
@@ -228,7 +229,7 @@ export function reportRecs(asm) {
   const T = D.tol, R = tolResultsFor(asm, P);
   const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm'], ['wedge', 'Surface wedge', '± arcmin, each surface about x and y']];
   rpTable(pg, [{ label: 'Tolerance', w: 180 }, { label: 'Limit', w: 90, mono: true }, { label: 'Unit', w: 229 }], kinds.map(([k, l, u]) => [l, T[k].on ? rf(T[k].v, 4) : 'off', u]));
-  rpPara(pg, 'Compensator: ' + (T.comp ? 'the image plane refocused for each build.' : 'none.') + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
+  rpPara(pg, 'Compensators: ' + ([T.comp ? 'the image plane, refocused' : null].concat(compsFor(P, T.comps).map(c => compLabel(P, c).toLowerCase() + ' within ±' + rf(c.range, 3) + (c.kind === 'tilt' ? ' arcmin' : ' mm'))).filter(Boolean).join('; ') || 'none') + ', set for each build.' + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
   const crit = { spot: 'RMS spot about the centroid (mm)', chief: 'RMS spot about the chief ray (mm)', wfe: 'RMS wavefront error (waves)' }[(R && R.crit) || D.merit.crit];
   rpPara(pg, 'Criterion: the merit function’s image term, ' + crit + ', over every field and wavelength.', { ink: RP_SOFT });
   if (!R || (!R.sens && !R.mc)) rpPara(pg, 'Neither run has been made on the design as it is now. Run Sensitivity and Monte Carlo in the Tolerance the design tab and make the report again to include them.');

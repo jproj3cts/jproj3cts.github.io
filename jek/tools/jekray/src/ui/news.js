@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Compensators</b> in tolerancing: besides the refocus, add any air gap, or a lens\u2019s decentre or tilt, each with a range; for each build they are set, with the focus, to make it as good as it can be, as an assembler would adjust them. Sensitivity, Monte Carlo and inverse sensitivity all use them, and Monte Carlo reports how far each had to move.',
     '<b>Inverse sensitivity</b> in tolerancing: say how much worse the image may get (a share of nominal, or an amount), and it finds each tolerance\u2019s limit for that, each kind\u2019s tightest against what is set, with <b>Use these limits</b> to take them.',
     '<b>Surface wedge</b> in tolerancing: tick it in the Tolerance tab and each lens surface is tilted on its own about its vertex, about x and about y, in Sensitivity and in Monte Carlo, as a lens comes out wedged.',
     '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',

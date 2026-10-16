@@ -5390,6 +5390,15 @@ function normTol(o) {
   // the worsening inverse sensitivity allows: a share of the nominal criterion (%), or an amount of it (mm, or waves)
   const iv = o.inv && typeof o.inv === 'object' ? o.inv : {};
   out.inv = iv.by === 'abs' ? { by: 'abs', v: clamp(num(iv.v, 0.001), 1e-9, 1e3) } : { by: 'pct', v: clamp(num(iv.v, 10), 0.01, 1e4) };
+  // compensators beyond the focus: an air gap (i, the gap's index), a lens's decentre or tilt (i, the part's index; axis x or y), each within ± range
+  const cs = Array.isArray(o.comps) ? o.comps : [], comps = [];
+  for (const c of cs.slice(0, 20)) {
+    if (!c || !['gap', 'dec', 'tilt'].includes(c.kind) || !Number.isInteger(c.i) || c.i < 0 || c.i > 500) continue;
+    if (c.kind !== 'gap' && c.axis !== 'x' && c.axis !== 'y') continue;
+    const m = { kind: c.kind, i: c.i, ...(c.kind !== 'gap' ? { axis: c.axis } : {}), range: clamp(num(c.range, c.kind === 'tilt' ? 10 : 0.5), 1e-6, 1e4) };
+    if (!comps.some(q => q.kind === m.kind && q.i === m.i && q.axis === m.axis)) comps.push(m);
+  }
+  if (comps.length) out.comps = comps;
   return out;
 }
 const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
@@ -22779,7 +22788,7 @@ function tolStart(mode, ctx) {
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
     sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
     inv: mode === 'inv' ? { nominal: null, target: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.inv : null),
-    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
   ctx.redraw();
   if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
   setTimeout(() => tolBatch(ctx), 0);
@@ -22838,8 +22847,9 @@ function tolCard(ctx) {
   trials.addEventListener('change', () => { const x = parseInt(trials.value, 10); if (x >= 10) set(t => { t.trials = x; }); else trials.value = String(T.trials); });
   const seed = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.seed), 'aria-label': 'Seed' });
   seed.addEventListener('change', () => { const x = parseInt(seed.value, 10); if (x >= 1) set(t => { t.seed = x; }); else seed.value = String(T.seed); });
-  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is the compensator)'),
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is a compensator)'),
     h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
+  card.append(compsCard(P, T, set));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
   const invV = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: T.inv.by === 'abs' ? tolFmt(wf ? T.inv.v : 1000 * T.inv.v, 6) : tolFmt(T.inv.v, 6), 'aria-label': 'Worsening allowed' });
@@ -22862,7 +22872,8 @@ function tolCard(ctx) {
     const est = rssEstimate(S.nominal, S.rows, T.dist);
     card.append(h('h3', null, 'Sensitivity'), h('div', { class: 'rt-readout' }, h('dl', null,
       h('dt', null, 'Nominal'), h('dd', { class: 'mono' }, unit(S.nominal)),
-      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')))));
+      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')),
+      ...(S.nominalCv ? compsFor(mine.prob.P, T.comps).flatMap((c, j) => [h('dt', null, compLabel(mine.prob.P, c) + ', on the nominal'), h('dd', { class: 'mono' }, tolFmt(S.nominalCv[j], 4) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + (Math.abs(S.nominalCv[j]) >= c.range * (1 - 1e-9) ? ' (at its range: the nominal itself would move it further, leaving it nothing for the tolerances on that side)' : ''))]) : []))));
     const st = h('table', { class: 'rt-ltable rt-ltolsens' });
     st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
     const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
@@ -22895,6 +22906,13 @@ function tolCard(ctx) {
     const rr = [['Builds', String(st.n)], ['Nominal', unit(M.nominal)], ['Mean', unit(st.mean)], ['Standard deviation', unit(st.sd)], ['Best', unit(st.best)],
       ['50% of builds at least as good as', unit(st.p50)], ['80%', unit(st.p80)], ['90%', unit(st.p90)], ['98%', unit(st.p98)], ['Worst', unit(st.worst)]];
     if (T.comp) rr.push(['Refocus from the nominal’s best focus', tolFmt(1000 * dzm, 4) + ' ± ' + tolFmt(1000 * dzs, 4) + ' µm']);
+    const live = compsFor(mine.prob.P, T.comps);
+    live.forEach((c, j) => {
+      const v = M.trials.filter(t => t.cv).map(t => t.cv[j]);
+      if (!v.length) return;
+      const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, v.length - 1)), big = Math.max(...v.map(Math.abs));
+      rr.push([compLabel(mine.prob.P, c), tolFmt(m, 3) + ' \u00b1 ' + tolFmt(sd, 3) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + ', at most ' + tolFmt(big, 3) + (big >= c.range * (1 - 1e-9) ? ' (at its range)' : '')]);
+    });
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
   card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
@@ -22922,6 +22940,38 @@ function invView(ctx, I, T, unit, set) {
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
   out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
   return out;
+}
+/* a compensator's name, in this prescription */
+function compLabel(P, c) {
+  const sps = surfaceParts(P);
+  if (c.kind === 'gap') return 'Air gap after surface ' + (c.i + 1);
+  const first = sps.findIndex(s => s.pi === c.i), p = P.parts[c.i], name = p && p.kind === 'mirror' ? 'mirror, surface ' + (first + 1) : 'lens on surfaces ' + (first + 1) + '\u2013' + (first + (p ? p.n : 1));
+  return (c.kind === 'dec' ? 'Decentre in ' : 'Tilt about ') + c.axis + ' of the ' + name;
+}
+/* the compensators beyond the focus: each moved, within its range, to make each build as good as it can be */
+function compsCard(P, T, set) {
+  const sps = surfaceParts(P), have = T.comps || [], live = compsFor(P, have), unit = c => c.kind === 'tilt' ? 'arcmin' : 'mm';
+  const wrap = h('div', { class: 'rt-lcomps' });
+  const rows = h('tbody');
+  have.forEach((c, j) => {
+    const ok = live.includes(c);
+    const r = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: tolFmt(c.range, 6), 'aria-label': 'Range of ' + (ok ? compLabel(P, c) : 'compensator ' + (j + 1)) + ' (' + unit(c) + ')' });
+    r.addEventListener('change', () => { const x = parseFloat(r.value); if (isFinite(x) && x > 0) set(t => { t.comps[j].range = x; }); else r.value = tolFmt(c.range, 6); });
+    rows.append(h('tr', null, h('td', null, ok ? compLabel(P, c) : h('span', { class: 'rt-lsub' }, 'not in the design as it now is')), h('td', null, '\u00b1 ', r, ' ', unit(c)),
+      h('td', null, h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Remove ' + (ok ? compLabel(P, c) : 'compensator ' + (j + 1)), onclick: () => set(t => { t.comps.splice(j, 1); }) }, 'Remove'))));
+  });
+  // what can be added: each air gap between parts, each lens's decentre and tilt
+  const opts = [];
+  for (let i = 0; i + 1 < sps.length; i++) if (sps[i].pi !== sps[i + 1].pi) opts.push({ kind: 'gap', i });
+  P.parts.forEach((p, pi) => { if (p.kind !== 'stop') for (const kind of ['dec', 'tilt']) for (const axis of ['x', 'y']) opts.push({ kind, i: pi, axis }); });
+  const free = opts.filter(o => !have.some(c => c.kind === o.kind && c.i === o.i && c.axis === o.axis));
+  const sel = h('select', { 'aria-label': 'Add a compensator' }, h('option', { value: '' }, 'Add a compensator\u2026'), ...free.map((o, k) => h('option', { value: String(k) }, compLabel(P, o))));
+  sel.addEventListener('change', () => { const o = free[+sel.value]; if (!o) return; set(t => { t.comps = (t.comps || []).concat([Object.assign({}, o, { range: o.kind === 'tilt' ? 10 : 0.5 })]); }); });
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Compensators'), sel));
+  if (have.length) wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, rows)));
+  wrap.append(h('p', { class: 'rt-lsub' }, have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
+    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'));
+  return wrap;
 }
 /* the builds' criterion, binned; the nominal and the 90% line marked */
 function histogram(parent, vals, k, u, nominal, p90) {
@@ -23360,7 +23410,7 @@ function reportRecs(asm) {
   const T = D.tol, R = tolResultsFor(asm, P);
   const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm'], ['wedge', 'Surface wedge', '± arcmin, each surface about x and y']];
   rpTable(pg, [{ label: 'Tolerance', w: 180 }, { label: 'Limit', w: 90, mono: true }, { label: 'Unit', w: 229 }], kinds.map(([k, l, u]) => [l, T[k].on ? rf(T[k].v, 4) : 'off', u]));
-  rpPara(pg, 'Compensator: ' + (T.comp ? 'the image plane refocused for each build.' : 'none.') + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
+  rpPara(pg, 'Compensators: ' + ([T.comp ? 'the image plane, refocused' : null].concat(compsFor(P, T.comps).map(c => compLabel(P, c).toLowerCase() + ' within ±' + rf(c.range, 3) + (c.kind === 'tilt' ? ' arcmin' : ' mm'))).filter(Boolean).join('; ') || 'none') + ', set for each build.' + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
   const crit = { spot: 'RMS spot about the centroid (mm)', chief: 'RMS spot about the chief ray (mm)', wfe: 'RMS wavefront error (waves)' }[(R && R.crit) || D.merit.crit];
   rpPara(pg, 'Criterion: the merit function’s image term, ' + crit + ', over every field and wavelength.', { ink: RP_SOFT });
   if (!R || (!R.sens && !R.mc)) rpPara(pg, 'Neither run has been made on the design as it is now. Run Sensitivity and Monte Carlo in the Tolerance the design tab and make the report again to include them.');
@@ -33534,8 +33584,34 @@ function criterion(prob, P) {
   for (let q = 0; q < T.nImage; q++) s += T.r[q] * T.r[q];
   return Math.sqrt(s);
 }
-/* the criterion with the image refocused (or not): { crit, dz } */
-function compensated(prob, P, comp) {
+/* the criterion's terms (the image term's residuals), as criterion() sums them */
+function residuals(prob, P) {
+  const T = meritTerms(prob.design.mc ? Object.assign({}, prob, { design: Object.assign({}, prob.design, { mc: null }) }) : prob, P);
+  return T.r.slice(0, T.nImage);
+}
+/* the compensators this prescription has (settings naming a gap, lens or axis it lacks are passed over) */
+function compsFor(P, comps) {
+  if (!comps || !comps.length) return [];
+  const sps = surfaceParts(P);
+  return comps.filter(c => c.kind === 'gap' ? c.i >= 0 && c.i < P.gaps.length && sps[c.i] && sps[c.i + 1] && sps[c.i].pi !== sps[c.i + 1].pi
+    : P.parts[c.i] && P.parts[c.i].kind !== 'stop');
+}
+/* the prescription with the compensators moved by c (gaps in mm, decentres in mm, tilts in arcminutes) and the image by dz */
+function withComps(P, comps, c, dz) {
+  let Q = cloneP(P);
+  const ops = [], vals = [];
+  comps.forEach((m, j) => { if (m.kind === 'gap') Q.gaps[m.i] = Math.max(0, Q.gaps[m.i] + c[j]); else { ops.push({ kind: m.kind, i: m.i, axis: m.axis }); vals.push(c[j]); } });
+  if (ops.length) Q = perturb(Q, ops, vals);
+  Q.image = P.image + dz;
+  return Q;
+}
+/* The criterion with the compensators set as well as they can be: the image refocused (if comp), and each
+   compensator in comps moved within its range. With none but the focus, the focus alone (below); with others,
+   damped least squares on the criterion's own terms, from where the build is, a few steps, each compensator held
+   within its range: { crit, dz, cv (the compensators' settings) } */
+function compensated(prob, P, comp, comps) {
+  const C = compsFor(P, comps);
+  if (C.length) return compensatedMany(prob, P, comp, C);
   if (!comp) return { crit: criterion(prob, P), dz: 0 };
   const img = P.image, at = dz => { P.image = img + dz; return criterion(prob, P); };
   // the spot's square is a parabola in the focus: through three points, then once more about its bottom
@@ -33551,15 +33627,58 @@ function compensated(prob, P, comp) {
   return best;
 }
 
+const COMP_STEP = { gap: 1e-4, dec: 1e-4, tilt: 0.01 };
+function compensatedMany(prob, P, comp, C) {
+  const n = C.length + (comp ? 1 : 0), lo = [], hi = [], step = [];
+  if (comp) { lo.push(-Infinity); hi.push(Infinity); step.push(1e-4); }
+  for (const m of C) { lo.push(-m.range); hi.push(m.range); step.push(COMP_STEP[m.kind]); }
+  const split = x => ({ dz: comp ? x[0] : 0, c: comp ? x.slice(1) : x });
+  const res = x => { const { dz, c } = split(x); return residuals(prob, withComps(P, C, c, dz)); };
+  const ss = r => r.reduce((a, v) => a + (isFinite(v) ? v * v : 1e6), 0);
+  let x = new Array(n).fill(0), r = res(x), f = ss(r), lambda = 1e-3;
+  for (let it = 0; it < 12; it++) {
+    const J = [];
+    for (let j = 0; j < n; j++) { const xh = x.slice(); xh[j] += step[j]; const rh = res(xh); J.push(rh.map((v, q) => (v - r[q]) / step[j])); }
+    const A = new Float64Array(n * n), g = new Float64Array(n);
+    for (let a = 0; a < n; a++) { for (let b = 0; b < n; b++) { let t = 0; for (let q = 0; q < r.length; q++) t += J[a][q] * J[b][q]; A[a * n + b] = t; } let t = 0; for (let q = 0; q < r.length; q++) t += J[a][q] * r[q]; g[a] = -t; }
+    let took = false;
+    for (let tries = 0; tries < 8 && !took; tries++) {
+      const M = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => A[a * n + b] + (a === b ? lambda * (A[a * n + a] || 1e-12) + 1e-18 : 0)));
+      const d = gaussSolve(M, Array.from(g));
+      if (d) {
+        const xn = x.map((v, j) => Math.min(hi[j], Math.max(lo[j], v + d[j]))), rn = res(xn), fn = ss(rn);
+        if (fn < f) { took = (f - fn) > 1e-12 * f; x = xn; r = rn; f = fn; lambda = Math.max(1e-9, lambda / 3); break; }
+      }
+      lambda *= 4;
+    }
+    if (!took) break;
+  }
+  const { dz, c } = split(x);
+  P.image = P.image + dz;
+  return { crit: Math.sqrt(f), dz, cv: c };
+}
+function gaussSolve(M, b) {
+  const n = b.length;
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
+    if (Math.abs(M[p][i]) < 1e-300) return null;
+    [M[i], M[p]] = [M[p], M[i]]; [b[i], b[p]] = [b[p], b[i]];
+    for (let k = i + 1; k < n; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < n; j++) M[k][j] -= f * M[i][j]; b[k] -= f * b[i]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < n; j++) t -= M[i][j] * x[j]; x[i] = t / M[i][i]; }
+  return x;
+}
+
 /* ---------- Sensitivity ---------- */
 function tolSensitivity(prob, T, from, to) {
-  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), rows = [];
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), rows = [];
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const r = [];
-    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp)); }
+    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps)); }
     rows.push({ k, label: ops[k].label, kind: ops[k].kind, lim: ops[k].lim, minus: r[0].crit - nom.crit, plus: r[1].crit - nom.crit, dzMinus: r[0].dz, dzPlus: r[1].dz });
   }
-  return { nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows };
+  return Object.assign({ nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows }, nom.cv ? { nominalCv: nom.cv } : {});
 }
 /* the criterion expected over the builds from the sensitivities, each tolerance's effect on the
    criterion's square added (a uniform tolerance's mean square is a third of its limit's, a normal
@@ -33581,8 +33700,8 @@ function rssEstimate(nominal, rows, dist) {
 const INV_MAX = 1000;
 const invTarget = (T, nominal) => (T.inv && T.inv.by === 'abs' ? T.inv.v : nominal * ((T.inv ? T.inv.v : 10) / 100));
 function tolInverse(prob, T, from, to) {
-  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), target = invTarget(T, nom.crit), rows = [];
-  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp, T.comps), target = invTarget(T, nom.crit), rows = [];
+  const worse = (k, v) => { let w = -Infinity; for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * v : 0), c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps).crit; w = Math.max(w, isFinite(c) ? c - nom.crit : Infinity); } return w; };
   for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
     const o = ops[k];
     // a thickness or gap can't go below nothing: past its own size its − side has closed and no longer changes (its + side still does)
@@ -33610,8 +33729,8 @@ function tolMonteCarlo(prob, T, from, to) {
       if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
       return (2 * R() - 1) * o.lim;
     });
-    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp);
-    out.push({ j, crit: c.crit, dz: c.dz });
+    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp, T.comps);
+    out.push(Object.assign({ j, crit: c.crit, dz: c.dz }, c.cv ? { cv: c.cv } : {}));
   }
   return out;
 }
@@ -39499,6 +39618,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Compensators</b> in tolerancing: besides the refocus, add any air gap, or a lens\u2019s decentre or tilt, each with a range; for each build they are set, with the focus, to make it as good as it can be, as an assembler would adjust them. Sensitivity, Monte Carlo and inverse sensitivity all use them, and Monte Carlo reports how far each had to move.',
     '<b>Inverse sensitivity</b> in tolerancing: say how much worse the image may get (a share of nominal, or an amount), and it finds each tolerance\u2019s limit for that, each kind\u2019s tightest against what is set, with <b>Use these limits</b> to take them.',
     '<b>Surface wedge</b> in tolerancing: tick it in the Tolerance tab and each lens surface is tilted on its own about its vertex, about x and about y, in Sensitivity and in Monte Carlo, as a lens comes out wedged.',
     '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',

@@ -3,7 +3,8 @@ import { hooks } from '../core/hooks.js';
 import { normTol } from '../core/assembly.js';
 import { designOf } from '../engines/lens-design.js';
 import { cloneP, optProblem } from '../engines/lens-opt.js';
-import { compensated, mcStats, rssEstimate, tolOps, tolRun } from '../engines/lens-tol.js';
+import { compensated, compsFor, mcStats, rssEstimate, tolOps, tolRun } from '../engines/lens-tol.js';
+import { surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
 
@@ -41,7 +42,7 @@ export function tolStart(mode, ctx) {
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
     sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
     inv: mode === 'inv' ? { nominal: null, target: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.inv : null),
-    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp, T.comps); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
   ctx.redraw();
   if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
   setTimeout(() => tolBatch(ctx), 0);
@@ -100,8 +101,9 @@ export function tolCard(ctx) {
   trials.addEventListener('change', () => { const x = parseInt(trials.value, 10); if (x >= 10) set(t => { t.trials = x; }); else trials.value = String(T.trials); });
   const seed = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.seed), 'aria-label': 'Seed' });
   seed.addEventListener('change', () => { const x = parseInt(seed.value, 10); if (x >= 1) set(t => { t.seed = x; }); else seed.value = String(T.seed); });
-  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is the compensator)'),
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is a compensator)'),
     h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
+  card.append(compsCard(P, T, set));
   card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
     ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
   const invV = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: T.inv.by === 'abs' ? tolFmt(wf ? T.inv.v : 1000 * T.inv.v, 6) : tolFmt(T.inv.v, 6), 'aria-label': 'Worsening allowed' });
@@ -124,7 +126,8 @@ export function tolCard(ctx) {
     const est = rssEstimate(S.nominal, S.rows, T.dist);
     card.append(h('h3', null, 'Sensitivity'), h('div', { class: 'rt-readout' }, h('dl', null,
       h('dt', null, 'Nominal'), h('dd', { class: 'mono' }, unit(S.nominal)),
-      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')))));
+      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')),
+      ...(S.nominalCv ? compsFor(mine.prob.P, T.comps).flatMap((c, j) => [h('dt', null, compLabel(mine.prob.P, c) + ', on the nominal'), h('dd', { class: 'mono' }, tolFmt(S.nominalCv[j], 4) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + (Math.abs(S.nominalCv[j]) >= c.range * (1 - 1e-9) ? ' (at its range: the nominal itself would move it further, leaving it nothing for the tolerances on that side)' : ''))]) : []))));
     const st = h('table', { class: 'rt-ltable rt-ltolsens' });
     st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
     const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
@@ -157,6 +160,13 @@ export function tolCard(ctx) {
     const rr = [['Builds', String(st.n)], ['Nominal', unit(M.nominal)], ['Mean', unit(st.mean)], ['Standard deviation', unit(st.sd)], ['Best', unit(st.best)],
       ['50% of builds at least as good as', unit(st.p50)], ['80%', unit(st.p80)], ['90%', unit(st.p90)], ['98%', unit(st.p98)], ['Worst', unit(st.worst)]];
     if (T.comp) rr.push(['Refocus from the nominal’s best focus', tolFmt(1000 * dzm, 4) + ' ± ' + tolFmt(1000 * dzs, 4) + ' µm']);
+    const live = compsFor(mine.prob.P, T.comps);
+    live.forEach((c, j) => {
+      const v = M.trials.filter(t => t.cv).map(t => t.cv[j]);
+      if (!v.length) return;
+      const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, v.length - 1)), big = Math.max(...v.map(Math.abs));
+      rr.push([compLabel(mine.prob.P, c), tolFmt(m, 3) + ' \u00b1 ' + tolFmt(sd, 3) + ' ' + (c.kind === 'tilt' ? 'arcmin' : 'mm') + ', at most ' + tolFmt(big, 3) + (big >= c.range * (1 - 1e-9) ? ' (at its range)' : '')]);
+    });
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
   card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
@@ -184,6 +194,38 @@ function invView(ctx, I, T, unit, set) {
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
   out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
   return out;
+}
+/* a compensator's name, in this prescription */
+export function compLabel(P, c) {
+  const sps = surfaceParts(P);
+  if (c.kind === 'gap') return 'Air gap after surface ' + (c.i + 1);
+  const first = sps.findIndex(s => s.pi === c.i), p = P.parts[c.i], name = p && p.kind === 'mirror' ? 'mirror, surface ' + (first + 1) : 'lens on surfaces ' + (first + 1) + '\u2013' + (first + (p ? p.n : 1));
+  return (c.kind === 'dec' ? 'Decentre in ' : 'Tilt about ') + c.axis + ' of the ' + name;
+}
+/* the compensators beyond the focus: each moved, within its range, to make each build as good as it can be */
+function compsCard(P, T, set) {
+  const sps = surfaceParts(P), have = T.comps || [], live = compsFor(P, have), unit = c => c.kind === 'tilt' ? 'arcmin' : 'mm';
+  const wrap = h('div', { class: 'rt-lcomps' });
+  const rows = h('tbody');
+  have.forEach((c, j) => {
+    const ok = live.includes(c);
+    const r = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: tolFmt(c.range, 6), 'aria-label': 'Range of ' + (ok ? compLabel(P, c) : 'compensator ' + (j + 1)) + ' (' + unit(c) + ')' });
+    r.addEventListener('change', () => { const x = parseFloat(r.value); if (isFinite(x) && x > 0) set(t => { t.comps[j].range = x; }); else r.value = tolFmt(c.range, 6); });
+    rows.append(h('tr', null, h('td', null, ok ? compLabel(P, c) : h('span', { class: 'rt-lsub' }, 'not in the design as it now is')), h('td', null, '\u00b1 ', r, ' ', unit(c)),
+      h('td', null, h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Remove ' + (ok ? compLabel(P, c) : 'compensator ' + (j + 1)), onclick: () => set(t => { t.comps.splice(j, 1); }) }, 'Remove'))));
+  });
+  // what can be added: each air gap between parts, each lens's decentre and tilt
+  const opts = [];
+  for (let i = 0; i + 1 < sps.length; i++) if (sps[i].pi !== sps[i + 1].pi) opts.push({ kind: 'gap', i });
+  P.parts.forEach((p, pi) => { if (p.kind !== 'stop') for (const kind of ['dec', 'tilt']) for (const axis of ['x', 'y']) opts.push({ kind, i: pi, axis }); });
+  const free = opts.filter(o => !have.some(c => c.kind === o.kind && c.i === o.i && c.axis === o.axis));
+  const sel = h('select', { 'aria-label': 'Add a compensator' }, h('option', { value: '' }, 'Add a compensator\u2026'), ...free.map((o, k) => h('option', { value: String(k) }, compLabel(P, o))));
+  sel.addEventListener('change', () => { const o = free[+sel.value]; if (!o) return; set(t => { t.comps = (t.comps || []).concat([Object.assign({}, o, { range: o.kind === 'tilt' ? 10 : 0.5 })]); }); });
+  wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Compensators'), sel));
+  if (have.length) wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, rows)));
+  wrap.append(h('p', { class: 'rt-lsub' }, have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
+    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'));
+  return wrap;
 }
 /* the builds' criterion, binned; the nominal and the 90% line marked */
 function histogram(parent, vals, k, u, nominal, p90) {

@@ -9019,6 +9019,31 @@ const TESTS = [
     },
   },
   {
+    name: 'Compensators: an air gap added in the Tolerance tab takes up its own tolerance, and makes the builds better',
+    why: 'the published Cooke triplet: the air gap after surface 5 added as a compensator (\u00b15 mm, with the refocus): Sensitivity finds that gap\u2019s own \u00b10.05 mm tolerance doing next to nothing (under a tenth of what it does with the refocus alone), Monte Carlo\u2019s 90% of 60 builds no worse than with the refocus alone, and its readout giving the gap\u2019s settings; removed, the design\u2019s tolerances have none again (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Tolerance the design', null, 'tab');
+        wsSet('Builds', 60);
+        const gapRow = S => S.rows.find(r => r.label === 'Air gap after surface 5'), eff = r => Math.max(Math.abs(r.minus), Math.abs(r.plus));
+        const s0 = gapRow(J.lensTolRun('sens').sens), m0 = J.lensTolRun('mc').mc.stats.p90;
+        const sel = [...rigDoc().querySelectorAll('#lensWs select')].find(x => x.getAttribute('aria-label') === 'Add a compensator');
+        sel.value = [...sel.options].find(o => o.textContent === 'Air gap after surface 5').value; sel.dispatchEvent(new (rigWin().Event)('change'));
+        // room to move: a compensator pinned at its range (as one the nominal itself would move past it is) has none left for its own gap
+        wsSet('Range of Air gap after surface 5 (mm)', 5);
+        const T = J.lensFigures('Cooke triplet').design.tol;
+        const s1 = gapRow(J.lensTolRun('sens').sens), m1 = J.lensTolRun('mc').mc.stats.p90;
+        const shown = /Air gap after surface 5[^]*at most/.test(rigDoc().querySelector('#lensWs .rt-ltol').textContent);
+        wsClick('Remove', 'Remove Air gap after surface 5');
+        const gone = !J.lensFigures('Cooke triplet').design.tol.comps;
+        return T.comps && T.comps.length === 1 && T.comps[0].range === 5 && eff(s1) < 0.1 * eff(s0) && m1 <= m0 * (1 + 1e-9) && shown && gone ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
     why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
     want: 1, tol: 0, unit: '',

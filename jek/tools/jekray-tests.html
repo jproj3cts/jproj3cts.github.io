@@ -8918,6 +8918,30 @@ const TESTS = [
     },
   },
   {
+    name: 'Footprints: each surface’s beam against its clear radius, and the one chosen drawn',
+    why: 'the published Cooke triplet’s Analyses › Footprints: a row for each of its seven surfaces, the stop’s beam inside its opening (it is aimed through it) and stopping nothing; each row’s beam and margin those the engine gives; a surface whose beam overfills it stops rays, one whose beam fits stops none; the fullest surface is drawn first, and choosing the stop draws it instead (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Analyses', null, 'tab');
+        [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === 'Footprints').click();
+        const rows = () => [...rigDoc().querySelectorAll('#lensWs .rt-lfoot tbody tr')], F = J.lensAnalysis('Cooke triplet', 'foot');
+        const R = rows(), sto = R.findIndex(r => r.children[0].textContent === 'STO');
+        const fmt = v => String(+(+v).toPrecision(4)) + ' mm';
+        const shown = R.every((r, i) => r.children[2].textContent === fmt(F[i].beam));
+        const consistent = F.every(u => (u.beam > u.semi * (1 + 1e-9)) === (u.stopped > 0));
+        const stopOk = sto >= 0 && F[sto].beam <= F[sto].semi && F[sto].stopped === 0;
+        const full = F.reduce((b, u, i) => u.beam / u.semi > F[b].beam / F[b].semi ? i : b, 0), first = R[full].classList.contains('on');
+        const cv0 = rigDoc().querySelector('#lensWs .rt-lfootwrap canvas');
+        R[sto].querySelector('button').click();
+        const now = rows()[sto], cv1 = rigDoc().querySelector('#lensWs .rt-lfootwrap canvas');
+        return R.length === 7 && shown && consistent && stopOk && first && now.classList.contains('on') && cv1 && cv1 !== cv0 && /STO/.test(cv1.getAttribute('aria-label')) ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Substitute glasses: a model glass becomes the catalogue glass that best takes out a doublet’s colour, and Undo takes it back',
     why: 'an air-spaced doublet (N-BK7, then a model glass at nd 1.62, Vd 36.4) aimed at f 100 mm and no axial colour, its second glass and two radii marked V: Optimise \u203a Substitute glasses, from Schott, ten candidates a glass, puts in a real flint (Vd under 45), the merit at least ten times lower; the table of what changed is shown; Undo brings back the model glass (1 when all hold)',
     want: 1, tol: 0, unit: '',

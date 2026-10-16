@@ -1331,6 +1331,8 @@
   .rt-lghost td:first-child, .rt-lghost th:first-child, .rt-lghost td:last-child, .rt-lghost th:last-child { text-align: left; }
   .rt-lghost tr.on td { background: color-mix(in srgb, #ff5fd2 14%, transparent); }
   .rt-lghost td.warn { color: #c2410c; font-weight: 600; }
+  .rt-lfootwrap { max-width: 380px; margin-top: 0.8rem; }
+  .rt-lfootwrap canvas { display: block; max-width: 100%; }
   .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
   .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
@@ -22454,7 +22456,7 @@ function makeAssemblyRow(list) {
 const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -22497,6 +22499,7 @@ function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
+  else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
@@ -22700,6 +22703,51 @@ function riView(body, A, I) {
   body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
   body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
     'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
+}
+function footView(body, A, P, F, st, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), L = F.surfaces, fin = v => isFinite(v) && v > 0;
+  if (!(st.surf >= 0 && st.surf < L.length)) st.surf = L.reduce((b, u, i) => fin(u.semi) && (!fin(L[b].semi) || u.beam / u.semi > L[b].beam / L[b].semi) ? i : b, 0);
+  body.append(h('h3', null, 'Footprints: where the beam crosses each surface'));
+  body.append(h('p', { class: 'rt-lsub' }, 'Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
+    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'));
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lfoot' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Surface', 'Choose one to draw its footprint'], ['Clear radius', 'The surface’s clear (semi-) diameter'], ['Beam', 'The farthest any ray lands from its vertex'], ['Margin', 'The clear radius less the beam; below 0 it stops rays'], ['Used', 'The beam over the clear radius'], ['Rays stopped', 'Of those reaching it, over every field and wavelength']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody');
+  L.forEach((u, i) => {
+    const on = st.surf === i, m = fin(u.semi) ? u.semi - u.beam : Infinity;
+    tb.append(h('tr', { class: on ? 'on' : '' },
+      h('td', null, h('button', { type: 'button', class: 'rt-link', 'aria-pressed': String(on), 'aria-label': 'Show the footprint on surface ' + name(i), onclick: () => { st.surf = i; redraw(); } }, name(i))),
+      h('td', { class: 'mono' }, fin(u.semi) ? anFmt(u.semi, 4) + ' mm' : '—'), h('td', { class: 'mono' }, u.reach ? anFmt(u.beam, 4) + ' mm' : '—'),
+      h('td', { class: 'mono' + (m < 0 ? ' warn' : '') }, isFinite(m) ? anFmt(m, 3) + ' mm' : '—'), h('td', { class: 'mono' }, fin(u.semi) && u.reach ? anFmt(100 * u.beam / u.semi, 3) + '%' : '—'),
+      h('td', { class: 'mono' + (u.stopped ? ' warn' : '') }, u.reach ? (u.stopped ? anFmt(100 * u.stopped / u.reach, 3) + '%' : '0') : '—')));
+  });
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const u = L[st.surf], col = fi => WAVE_COLOURS[fi % WAVE_COLOURS.length];
+  const cell = h('div', { class: 'rt-lspot rt-lfootcell' }), cv = h('canvas', { role: 'img', 'aria-label': 'The footprint on surface ' + name(st.surf) + ': beam radius ' + anFmt(u.beam, 4) + ' mm' + (fin(u.semi) ? ', clear radius ' + anFmt(u.semi, 4) + ' mm' : '') });
+  cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Surface ' + name(st.surf)), fin(u.semi) ? ', its clear radius dashed' : '', '; x across, y up, from its vertex'));
+  body.append(h('div', { class: 'rt-lfootwrap' }, cell));
+  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', '#888']] : [])));
+  plotCsv(cv, 'footprint surface ' + name(st.surf), ['field (' + FU_CSV + ')', 'x (mm)', 'y (mm)', 'stopped'], () => u.fields.flatMap(f => f.pts.map(p => [f.deg, p[0], p[1], 0]).concat(f.cut.map(p => [f.deg, p[0], p[1], 1]))));
+  cell.append(plotSaveRow(cv));
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, S = Math.max(220, Math.min(380, cell.clientWidth || 340));
+    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+    const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    let ext = Math.max(fin(u.semi) ? u.semi : 0, u.beam, 1e-6) * 1.08;
+    const k = (S / 2 - 8) / ext, X = v => S / 2 + v * k, Y = v => S / 2 - v * k;
+    // the axes through the vertex, recessive
+    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
+    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = '#555'; x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
+    u.fields.forEach((f, fi) => {
+      x.fillStyle = col(fi);
+      for (const p of f.pts) { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 1.6, 0, 2 * Math.PI); x.fill(); }
+      x.strokeStyle = '#888'; x.lineWidth = 1;
+      for (const p of f.cut) { const a = X(p[0]), b = Y(p[1]); x.beginPath(); x.moveTo(a - 2.5, b - 2.5); x.lineTo(a + 2.5, b + 2.5); x.moveTo(a + 2.5, b - 2.5); x.lineTo(a - 2.5, b + 2.5); x.stroke(); }
+    });
+    x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
+  });
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
@@ -33140,7 +33188,9 @@ function atLimits(prob, V, x) {
      the wavefront over the pupil and its fringe Zernike terms;
      the point spread function by FFT of the pupil function, its Strehl ratio and encircled energy;
      the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation,
-       weighted over the wavelengths, with the diffraction limit.
+       weighted over the wavelengths, with the diffraction limit;
+     relative illumination: the exit pupil's projected solid angle seen from each image point;
+     footprints: where each field's rays cross each surface, against its clear radius.
    ========================================================================== */
 const D2R = Math.PI / 180;
 /* the design's systems, one per wavelength, at its entrance pupil and image plane */
@@ -33276,6 +33326,48 @@ function relIllum(A, n, N) {
   };
   const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
   return { degs, ri: pts.map(p => p.area / a0), vig: pts.map(p => p.vig / v0), cos4: pts.map(p => p.cos4) };
+}
+
+/* ---------- Footprints ----------
+   Where the rays of every field cross each surface, in the surface's own frame (from its vertex; a
+   tilted or decentred surface's axes as it is turned), against its clear radius. A grid across the
+   pupil and a ring at its edge, every wavelength. For each surface: the beam's radius there (the
+   farthest any ray that reaches it lands from its vertex, the rays it stops counted), the rays it
+   stops, and each field's points at the primary wavelength for drawing (those it stops apart). */
+function footprints(A, n, ring) {
+  const S0 = A.Sp, N = S0.N, pts = pupilGrid(n || 15).map(p => [p[0], p[1]]);
+  ring = ring || 48;
+  for (let k = 0; k < ring; k++) { const a = 2 * Math.PI * k / ring; pts.push([Math.cos(a), Math.sin(a)]); }
+  const surf = Array.from({ length: N }, (_, i) => ({ i, semi: S0.semi[i], beam: 0, stopped: 0, reach: 0, fields: A.c.fields.map(f => ({ deg: f.deg, pts: [], cut: [] })) }));
+  const R = new Float64Array(8);
+  const at = (S, i) => {
+    const F = S.fr ? S.fr[i] : null;
+    if (!F) return [R[0], R[1]];
+    const Q = F.R, dx = R[0] - F.o[0], dy = R[1] - F.o[1], dz = R[2] - F.o[2];
+    return [Q[0] * dx + Q[3] * dy + Q[6] * dz, Q[1] * dx + Q[4] * dy + Q[7] * dz];
+  };
+  A.S.forEach((S, wi) => {
+    const prim = wi === A.c.primary;
+    A.c.fields.forEach((f, fi) => {
+      const th = f.deg * D2R;
+      for (const [px, py] of pts) {
+        const ab = aimRay(S, th, px, py);
+        if (!ab) continue;
+        lensLaunch(S, th, ab[0], ab[1], R);
+        for (let i = 0; i < N; i++) {
+          traceRay(S, R, i, i);
+          const lost = R[7] !== 0;
+          if (lost && R[7] !== 1 + i) break;           // it could not meet or refract at this surface: nothing to show
+          const p = at(S, i), r = Math.hypot(p[0], p[1]), u = surf[i];
+          u.reach++; u.beam = Math.max(u.beam, r);
+          if (lost) u.stopped++;
+          if (prim) (lost ? u.fields[fi].cut : u.fields[fi].pts).push(p);
+          if (lost) break;
+        }
+      }
+    });
+  });
+  return { surfaces: surf, rays: pts.length, nm: S0.nm };
 }
 
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */
@@ -39763,6 +39855,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Footprints</b> in lens design: <b>Analyses \u203a Footprints</b> gives, for each surface, the beam\u2019s radius over every field and wavelength against the clear radius, the margin left and the share of rays it stops, and draws where each field\u2019s rays cross the surface chosen (in its own frame, tilted or not), those it stops marked.',
     '<b>Relative illumination</b> in lens design: <b>Analyses \u203a Relative illumination</b> plots how bright the image is across the field against its centre, from the solid angle the exit pupil fills seen from each image point, with the vignetted rays left out; beside it, the share of the pupil getting through and cos\u2074 of the chief ray, and its numbers as CSV.',
     '<b>Yield</b> in tolerancing: set a specification (the criterion at most a figure, and any merit operand within limits) and Monte Carlo gives the share of its builds that meet it, with its range at 95% confidence and each part\u2019s own share; change the specification and it is worked out again from the same builds.',
     '<b>A lens\u2019s mechanical reference</b> in tolerancing: each lens tilts about its first vertex, its centre or its last vertex, where its cell holds it. And <b>surface decentre</b>: each surface moved on its own, as a cemented lens\u2019s parts glued off one another\u2019s axis; with surface wedge, a cemented interface is toleranced like any other face.',
@@ -41617,6 +41710,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'foot') { const f = footprints(A, 15); return f.surfaces.map(u => ({ semi: u.semi, beam: u.beam, stopped: u.stopped, reach: u.reach })); }
       if (kind === 'ri') { const r = relIllum(A, 21, 64); return { degs: r.degs, ri: r.ri, vig: r.vig, cos4: r.cos4 }; }
       if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }
       return null; },

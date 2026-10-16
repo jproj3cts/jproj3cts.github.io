@@ -1,4 +1,4 @@
-import { lensSystem, pupilGrid, rayAt, traceField } from './lens-engine.js';
+import { aimRay, lensLaunch, lensSystem, pupilGrid, rayAt, traceField, traceRay } from './lens-engine.js';
 import { designEpd, objOpts, primaryNm } from './lens-design.js';
 
 /* ==========================================================================
@@ -20,7 +20,9 @@ import { designEpd, objOpts, primaryNm } from './lens-design.js';
      the wavefront over the pupil and its fringe Zernike terms;
      the point spread function by FFT of the pupil function, its Strehl ratio and encircled energy;
      the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation,
-       weighted over the wavelengths, with the diffraction limit.
+       weighted over the wavelengths, with the diffraction limit;
+     relative illumination: the exit pupil's projected solid angle seen from each image point;
+     footprints: where each field's rays cross each surface, against its clear radius.
    ========================================================================== */
 const D2R = Math.PI / 180;
 /* the design's systems, one per wavelength, at its entrance pupil and image plane */
@@ -156,6 +158,48 @@ export function relIllum(A, n, N) {
   };
   const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
   return { degs, ri: pts.map(p => p.area / a0), vig: pts.map(p => p.vig / v0), cos4: pts.map(p => p.cos4) };
+}
+
+/* ---------- Footprints ----------
+   Where the rays of every field cross each surface, in the surface's own frame (from its vertex; a
+   tilted or decentred surface's axes as it is turned), against its clear radius. A grid across the
+   pupil and a ring at its edge, every wavelength. For each surface: the beam's radius there (the
+   farthest any ray that reaches it lands from its vertex, the rays it stops counted), the rays it
+   stops, and each field's points at the primary wavelength for drawing (those it stops apart). */
+export function footprints(A, n, ring) {
+  const S0 = A.Sp, N = S0.N, pts = pupilGrid(n || 15).map(p => [p[0], p[1]]);
+  ring = ring || 48;
+  for (let k = 0; k < ring; k++) { const a = 2 * Math.PI * k / ring; pts.push([Math.cos(a), Math.sin(a)]); }
+  const surf = Array.from({ length: N }, (_, i) => ({ i, semi: S0.semi[i], beam: 0, stopped: 0, reach: 0, fields: A.c.fields.map(f => ({ deg: f.deg, pts: [], cut: [] })) }));
+  const R = new Float64Array(8);
+  const at = (S, i) => {
+    const F = S.fr ? S.fr[i] : null;
+    if (!F) return [R[0], R[1]];
+    const Q = F.R, dx = R[0] - F.o[0], dy = R[1] - F.o[1], dz = R[2] - F.o[2];
+    return [Q[0] * dx + Q[3] * dy + Q[6] * dz, Q[1] * dx + Q[4] * dy + Q[7] * dz];
+  };
+  A.S.forEach((S, wi) => {
+    const prim = wi === A.c.primary;
+    A.c.fields.forEach((f, fi) => {
+      const th = f.deg * D2R;
+      for (const [px, py] of pts) {
+        const ab = aimRay(S, th, px, py);
+        if (!ab) continue;
+        lensLaunch(S, th, ab[0], ab[1], R);
+        for (let i = 0; i < N; i++) {
+          traceRay(S, R, i, i);
+          const lost = R[7] !== 0;
+          if (lost && R[7] !== 1 + i) break;           // it could not meet or refract at this surface: nothing to show
+          const p = at(S, i), r = Math.hypot(p[0], p[1]), u = surf[i];
+          u.reach++; u.beam = Math.max(u.beam, r);
+          if (lost) u.stopped++;
+          if (prim) (lost ? u.fields[fi].cut : u.fields[fi].pts).push(p);
+          if (lost) break;
+        }
+      }
+    });
+  });
+  return { surfaces: surf, rays: pts.length, nm: S0.nm };
 }
 
 /* ---------- Longitudinal aberration and chromatic focal shift ---------- */

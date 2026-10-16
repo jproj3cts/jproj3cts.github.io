@@ -1,5 +1,5 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
-import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ZERNIKE_NAMES, anaSystems, fieldCurves, longitudinal, footprints, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { getEl } from '../state/elements.js';
 import { h } from './panel.js';
@@ -14,7 +14,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -57,6 +57,7 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'wave') waveView(body, A, cached(key + '|wave|' + deg + '|' + st.wave, () => wavefrontMap(A, deg, st.wave, 48)));
   else if (view === 'psf') psfView(body, A, cached(key + '|psf|' + deg + '|' + st.wave, () => psfAnalysis(A, deg, st.wave, 64, 4)), cached(key + '|spot', () => c.fields.map(f => spotDiagram(A, f.deg, 21)))[st.field]);
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
+  else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
   else seidelView(body, asm, P, F);
@@ -260,6 +261,51 @@ function riView(body, A, I) {
   body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
   body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
     'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
+}
+function footView(body, A, P, F, st, redraw) {
+  const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), L = F.surfaces, fin = v => isFinite(v) && v > 0;
+  if (!(st.surf >= 0 && st.surf < L.length)) st.surf = L.reduce((b, u, i) => fin(u.semi) && (!fin(L[b].semi) || u.beam / u.semi > L[b].beam / L[b].semi) ? i : b, 0);
+  body.append(h('h3', null, 'Footprints: where the beam crosses each surface'));
+  body.append(h('p', { class: 'rt-lsub' }, 'Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
+    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'));
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lfoot' });
+  tbl.append(h('thead', null, h('tr', null, ...[['Surface', 'Choose one to draw its footprint'], ['Clear radius', 'The surface’s clear (semi-) diameter'], ['Beam', 'The farthest any ray lands from its vertex'], ['Margin', 'The clear radius less the beam; below 0 it stops rays'], ['Used', 'The beam over the clear radius'], ['Rays stopped', 'Of those reaching it, over every field and wavelength']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
+  const tb = h('tbody');
+  L.forEach((u, i) => {
+    const on = st.surf === i, m = fin(u.semi) ? u.semi - u.beam : Infinity;
+    tb.append(h('tr', { class: on ? 'on' : '' },
+      h('td', null, h('button', { type: 'button', class: 'rt-link', 'aria-pressed': String(on), 'aria-label': 'Show the footprint on surface ' + name(i), onclick: () => { st.surf = i; redraw(); } }, name(i))),
+      h('td', { class: 'mono' }, fin(u.semi) ? anFmt(u.semi, 4) + ' mm' : '—'), h('td', { class: 'mono' }, u.reach ? anFmt(u.beam, 4) + ' mm' : '—'),
+      h('td', { class: 'mono' + (m < 0 ? ' warn' : '') }, isFinite(m) ? anFmt(m, 3) + ' mm' : '—'), h('td', { class: 'mono' }, fin(u.semi) && u.reach ? anFmt(100 * u.beam / u.semi, 3) + '%' : '—'),
+      h('td', { class: 'mono' + (u.stopped ? ' warn' : '') }, u.reach ? (u.stopped ? anFmt(100 * u.stopped / u.reach, 3) + '%' : '0') : '—')));
+  });
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const u = L[st.surf], col = fi => WAVE_COLOURS[fi % WAVE_COLOURS.length];
+  const cell = h('div', { class: 'rt-lspot rt-lfootcell' }), cv = h('canvas', { role: 'img', 'aria-label': 'The footprint on surface ' + name(st.surf) + ': beam radius ' + anFmt(u.beam, 4) + ' mm' + (fin(u.semi) ? ', clear radius ' + anFmt(u.semi, 4) + ' mm' : '') });
+  cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Surface ' + name(st.surf)), fin(u.semi) ? ', its clear radius dashed' : '', '; x across, y up, from its vertex'));
+  body.append(h('div', { class: 'rt-lfootwrap' }, cell));
+  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', '#888']] : [])));
+  plotCsv(cv, 'footprint surface ' + name(st.surf), ['field (' + FU_CSV + ')', 'x (mm)', 'y (mm)', 'stopped'], () => u.fields.flatMap(f => f.pts.map(p => [f.deg, p[0], p[1], 0]).concat(f.cut.map(p => [f.deg, p[0], p[1], 1]))));
+  cell.append(plotSaveRow(cv));
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, S = Math.max(220, Math.min(380, cell.clientWidth || 340));
+    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
+    const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    let ext = Math.max(fin(u.semi) ? u.semi : 0, u.beam, 1e-6) * 1.08;
+    const k = (S / 2 - 8) / ext, X = v => S / 2 + v * k, Y = v => S / 2 - v * k;
+    // the axes through the vertex, recessive
+    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
+    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = '#555'; x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
+    u.fields.forEach((f, fi) => {
+      x.fillStyle = col(fi);
+      for (const p of f.pts) { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 1.6, 0, 2 * Math.PI); x.fill(); }
+      x.strokeStyle = '#888'; x.lineWidth = 1;
+      for (const p of f.cut) { const a = X(p[0]), b = Y(p[1]); x.beginPath(); x.moveTo(a - 2.5, b - 2.5); x.lineTo(a + 2.5, b + 2.5); x.moveTo(a + 2.5, b - 2.5); x.lineTo(a - 2.5, b + 2.5); x.stroke(); }
+    });
+    x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
+  });
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];

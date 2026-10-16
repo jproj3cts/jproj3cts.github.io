@@ -409,6 +409,7 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so.
 - **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
 - **Relative illumination:** the image's brightness across the field against its centre, below.
+- **Footprints:** where the beam crosses each surface against its clear radius, below.
 - **Seidel:** the third-order sums, below.
 - **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
 
@@ -442,6 +443,23 @@ $$E \propto \int \cos	heta\,d\Omega = \iint dL\,dM,$$
 $$L$$ and $$M$$ the direction cosines across the image plane. For each field, from the axis to the largest, a 65 × 65 grid of rays across the entrance pupil is traced to the image; the direction from where the chief ray lands to where each ray crosses the plane of the exit pupil gives its $$(L, M)$$ (the ray's own direction when the design is telecentric), and the area these cover, over the triangles of the grid whose corners all get through, is the projected solid angle. The view shows that against the axis's, beside the share of the pupil that gets through (the vignetting) and $$\cos^4$$ of the chief ray's angle in image space, the usual rule of thumb, which it can fall below (vignetting) or rise above (the exit pupil seen from the edge of the image is not only the axial one tipped).
 
 **Checked against.** A stop and a singlet 15 mm behind it, at 20°, against each ray's own share of the image found the other way: a grid of rays across a plane wave, each ray's patch of the wave over the area it lands on (from how its landing point moves as the direction of the wave is tipped either way), summed. They agree within 1%, with the singlet wide enough to pass the whole pupil (when both are within 10% of $$\cos^4$$) and narrowed so that its edge cuts off over 40% of the pupil at the edge of the field.
+
+#### Footprints
+
+Where the rays of every field cross each surface: a 15 × 15 grid across the entrance pupil and a ring of 48 at its edge, each aimed through the stop, every field and every wavelength. Each crossing is taken in the surface's own frame, from its vertex (a tilted or decentred surface's axes turned and moved with it). A table gives, for each surface:
+
+- **Beam:** the farthest any ray lands from its vertex, the rays it stops counted;
+- **Margin:** its clear radius less the beam (below 0 the beam overfills it);
+- **Used:** the beam over the clear radius;
+- **Rays stopped:** the share of the rays reaching it that it stops.
+
+The fullest surface is drawn first, each field's rays at the primary wavelength in its colour, those the surface stops as crosses, and its clear radius dashed; choose any other surface to draw it instead. The points save as CSV.
+
+**Checked against.**
+- a singlet behind its stop, on the axis with a 2 mm pupil (about f/45): each surface's beam the paraxial marginal ray's height there, to 0.1%;
+- the same at 15°: the footprint centred where the real chief ray crosses, to 0.02 mm;
+- the singlet narrowed so it clips at 20°: the rays it stops all outside its clear radius, the rest inside, and none of those it stops reaching the next surface;
+- a surface decentred by (0.3, 0.2) mm: the axial beam's footprint centred at (−0.3, −0.2) in its frame; a flat fold mirror at 45°: a round beam 10 mm across lands 10 mm wide and $$10\sqrt2$$ mm long along its tilt.
 
 #### Ghosts
 

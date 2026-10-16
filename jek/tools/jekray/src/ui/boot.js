@@ -94,7 +94,7 @@ import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js
 import { reportPdfBlob } from './lens-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
-import { anaSystems, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
+import { anaSystems, footprints, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
@@ -383,6 +383,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }
+      if (kind === 'foot') { const f = footprints(A, 15); return f.surfaces.map(u => ({ semi: u.semi, beam: u.beam, stopped: u.stopped, reach: u.reach })); }
       if (kind === 'ri') { const r = relIllum(A, 21, 64); return { degs: r.degs, ri: r.ri, vig: r.vig, cos4: r.cos4 }; }
       if (kind === 'mtf') { const m = mtfAnalysis(A, deg); return { freqs: m.freqs, tan: m.tan, sag: m.sag, limT: m.limT, cutoff: m.cutoff }; }
       return null; },

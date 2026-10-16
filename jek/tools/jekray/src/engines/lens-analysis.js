@@ -520,6 +520,57 @@ export function mtfAnalysis(A, deg, nu, N) {
   const curve = key => freqs.map(nu2 => { let re = 0, im = 0, W = 0; for (const p of per) { const v = interp(p[key], nu2 / p.nuc * N); re += p.w * v[0]; im += p.w * v[1]; W += p.w; } return Math.hypot(re, im) / W; });
   return { deg, freqs, tan: curve('T'), sag: curve('Sg'), limT: curve('T0'), limS: curve('S0'), cutoff: 1 / (A.Sp.lam * A.fw) };
 }
+/* ---------- Through-focus MTF ----------
+   The diffraction MTF at one frequency nu (cycles/mm), tangential and sagittal, each field, as the image plane is moved
+   along the axis by dz from where the design has it, n steps over ±span (mm); over the wavelengths, weighted, as
+   mtfAnalysis gives it. The best focus: where the mean over the fields of the tangential and sagittal MTF peaks; the
+   depth of focus: how far either side that mean stays above 80% of its peak. */
+export function throughFocusPlan(asm, P, nu, span, n, N) {
+  n = n || 31; N = N || 32;
+  const A0 = anaSystems(asm, P), S0 = A0.Sp, base = S0.imageZ - S0.z[S0.N - 1], fields = A0.c.fields;
+  const dz = Array.from({ length: n }, (_, i) => -span + 2 * span * i / (n - 1));
+  const per = fields.map(() => ({ tan: [], sag: [] }));
+  let at = 0;
+  return {
+    steps: n,
+    get done() { return at; },
+    next() {
+      if (at < n) {
+        const A = anaSystems(asm, Object.assign({}, P, { image: base + dz[at] }));
+        fields.forEach((f, k) => { const M = mtfAnalysis(A, f.deg, nu, N); per[k].tan.push(M.tan[M.tan.length - 1]); per[k].sag.push(M.sag[M.sag.length - 1]); });
+        at++;
+      }
+      return at >= n;
+    },
+    result() {
+      const mean = dz.map((_, i) => per.reduce((a, q) => a + q.tan[i] + q.sag[i], 0) / (2 * per.length));
+      // the peak, by a parabola through the best step and its neighbours
+      const peakOf = ys => {
+        let b = 0; ys.forEach((v, i) => { if (v > ys[b]) b = i; });
+        if (b > 0 && b < ys.length - 1) { const a = ys[b - 1], c = ys[b + 1], den = a - 2 * ys[b] + c; if (den < 0) { const t = 0.5 * (a - c) / den; return { at: dz[b] + t * (dz[1] - dz[0]), v: ys[b] - 0.25 * (a - c) * t }; } }
+        return { at: dz[b], v: ys[b] };
+      };
+      const best = peakOf(mean);
+      // the depth of focus: where the mean falls to 80% of its peak either side (interpolated)
+      const cross = dir => {
+        let i = Math.round((best.at + span) / (2 * span) * (n - 1));
+        for (; i + dir >= 0 && i + dir < n; i += dir) {
+          const a = mean[i], b = mean[i + dir], lim = 0.8 * best.v;
+          if (a >= lim && b < lim) return dz[i] + (dz[i + dir] - dz[i]) * (a - lim) / (a - b);
+        }
+        return null;
+      };
+      const lo = cross(-1), hi = cross(1);
+      return { nu, span, dz, fields: fields.map((f, k) => ({ deg: f.deg, tan: per[k].tan, sag: per[k].sag, best: peakOf(per[k].tan.map((v, i) => (v + per[k].sag[i]) / 2)) })), mean, best, dof: lo !== null && hi !== null ? [lo, hi] : null, base, cutoff: 1 / (S0.lam * A0.fw), lamF2: S0.lam * A0.fw * A0.fw };
+    },
+  };
+}
+export function throughFocus(asm, P, nu, span, n, N) {
+  const plan = throughFocusPlan(asm, P, nu, span, n, N);
+  while (!plan.next());
+  return plan.result();
+}
+
 /* the OTF at one whole shift s of a sampled pupil function, along x or y: [re, im] */
 function otfShift(W, N, axis, s) {
   let re = 0, im = 0, norm = 0;

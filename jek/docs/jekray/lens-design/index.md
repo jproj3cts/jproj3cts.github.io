@@ -408,11 +408,13 @@ The **Analyses** tab shows the design from each side a lens designer looks at it
 - **Wavefront:** the wavefront error over the pupil, on a 48 × 48 grid, its piston taken out, with its RMS and peak to valley, and its first 16 fringe Zernike terms fitted by least squares.
 - **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so. **Method › Huygens** works it out the other way, below.
 - **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
+- **Through-focus MTF:** the MTF at one frequency as the image plane is moved along the axis, below.
 - **Relative illumination:** the image's brightness across the field against its centre, below.
 - **Footprints:** where the beam crosses each surface against its clear radius, below.
 - **Seidel:** the third-order sums, below.
 - **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
 - **Polarisation:** each ray's polarisation through every face and the glass, and each face's coating, below.
+- **Thermal:** the design from one temperature and pressure to another, below.
 - **Image simulation:** a picture as the design forms it, below.
 
 **Checked against.**
@@ -489,6 +491,38 @@ The fullest surface is drawn first, each field's rays at the primary wavelength 
 - the same at 15°: the footprint centred where the real chief ray crosses, to 0.02 mm;
 - the singlet narrowed so it clips at 20°: the rays it stops all outside its clear radius, the rest inside, and none of those it stops reaching the next surface;
 - a surface decentred by (0.3, 0.2) mm: the axial beam's footprint centred at (−0.3, −0.2) in its frame; a flat fold mirror at 45°: a round beam 10 mm across lands 10 mm wide and $$10\sqrt2$$ mm long along its tilt.
+
+#### Through-focus MTF
+
+The diffraction MTF at a frequency you choose (by default a quarter of the cutoff), tangential and sagittal, each field, over the wavelengths, weighted, as the image plane is moved along the axis over a range you choose. By default the range is eight $$\lambda F^2$$ either way, or wide enough for the largest spot's own blur to change by a few times its size. 31 steps, each the MTF view's own calculation (32 rays across the pupil), traced a step at a time so the page stays live.
+
+- **Best focus:** where the mean over the fields of the tangential and sagittal MTF peaks (a parabola through the best step and its neighbours), and each field's own best.
+- **Depth of focus:** how far either side the mean stays above 80% of its peak. A best focus at an end of the range is pointed out: it may lie beyond.
+
+**Checked against.**
+- a paraboloid mirror (a perfect focus on the axis): at its focus the round pupil's MTF; either side, the same within 0.006;
+- that mirror out of focus by $$W_{020} = 1.5$$ waves: the MTF of pure defocus, $$\frac{1}{\pi}\int e^{\,i 8\pi W_{020} s x}\,dA$$ over the overlap of the pupil and its copy shifted by $$2s$$, worked out by quadrature, within 0.01, from 5% to 35% of the cutoff, either side of the focus;
+- a singlet with a little spherical aberration: its best focus where its wavefront's Zernike defocus term is nil, $$\delta = 4\lambda Z_4/\mathrm{NA}^2$$, within 10 µm.
+
+#### Thermal
+
+The design from one temperature to another (by default −20 to 60 °C), at a pressure you choose, in a housing you choose: aluminium, stainless steel, brass, titanium or Invar. The design is taken to be at 20 °C and one atmosphere, and every change is against the same model there. The catalogue indices are relative to air at each glass's own reference temperature (20 °C, or 25 °C for some makers) and one atmosphere.
+
+- **The glass's index:** its absolute index changes by its maker's formula, using the makers' own coefficients for 1,106 of the catalogue's glasses:
+  $$\Delta n_{\mathrm{abs}} = \frac{n^2-1}{2n}\left(D_0\,\Delta T + D_1\,\Delta T^2 + D_2\,\Delta T^3 + \frac{E_0\,\Delta T + E_1\,\Delta T^2}{\lambda^2 - \lambda_{tk}^2}\right),$$
+  - a few crystals and plastics change by a single dn/dT: fused silica, CaF₂, sapphire, ZnSe, silicon, germanium, PMMA and polystyrene;
+  - a glass with neither keeps its index against the air, and is listed.
+- **The air's index:** $$n_{\mathrm{air}} = 1 + (n_{\mathrm{ref}} - 1)\,p/(1 + 3.4785\times10^{-3}(T - 15))$$, with standard air's $$n_{\mathrm{ref}} - 1 = [6432.8 + 2949810\lambda^2/(146\lambda^2 - 1) + 25540\lambda^2/(41\lambda^2 - 1)]\times10^{-8}$$. Each glass's index in the design is its absolute index over the air's.
+- **What grows with each glass:** each lens grows with its glass's expansion (from −30 to +70 °C): its radii, aspheric terms (each by its power), thicknesses and clear radii.
+- **What grows with the housing:** the air gaps (the spacers), the stop, the image distance (the detector's mount) and any decentre.
+
+It gives, at nine temperatures across the range: the focal length; where the paraxial focus lies against the detector; and the RMS spot of each field on the detector. It also gives how fast the focus drifts against the detector, per kelvin: near zero, the design is athermal in that housing.
+
+**Checked against.**
+- the air: standard air (15 °C, one atmosphere, 589.3 nm) $$n - 1 = 2.7717\times10^{-4}$$ within 10⁻⁷, and $$n - 1$$ in proportion to the pressure;
+- N-BK7's absolute index: 1.6 × 10⁻⁶ per kelvin at 546 nm from 20 to 40 °C, as its data sheet gives it, within 0.06 × 10⁻⁶;
+- a lens whose glass and housing grow alike and whose index does not change, with its aperture an f-number: from −20 to 60 °C the design scales as a whole (its focal length and spots by $$1 + \alpha\Delta T$$, to 10⁻⁹), its focus staying on the detector;
+- a thin N-BK7 singlet: its focal length changing at its thermo-optic rate, $$(\alpha - (dn/dT)/(n - 1))\,f$$, within 1%; in aluminium, its focus drifting against the detector by that less the housing's growth over the image distance, within 2%.
 
 #### Polarisation and coatings
 
@@ -567,7 +601,14 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## Lens files
 
-**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions (an object at a finite distance as the object surface's thickness, its fields as object heights, its aperture as the entrance pupil it gives); a file with a finite object reads back the same way. A folded assembly, or one with a part tilted or decentred, is not written (it would need coordinate breaks): the export says so. Coatings are not written.
+**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions (an object at a finite distance as the object surface's thickness, its fields as object heights, its aperture as the entrance pupil it gives); a file with a finite object reads back the same way. A folded assembly, or one with a part tilted or decentred, is written with coordinate breaks. Each surface is placed in its own frame, as the design has it (its vertex and axes, turned and moved by its part's tilt and decentre, and folded at each mirror). From one frame to the next:
+
+- the step along the current z is the previous surface's thickness;
+- a coordinate break then decentres along the current x and y, and tilts about x, then the new y, then the new z, each right-handed, in degrees.
+
+After an odd number of mirrors the light runs along each frame's −z, as the format has it: there the thicknesses are negative and each surface's sag takes the other sign. Coatings are not written.
+
+**Checked against.** A lens, a 45° fold mirror and a second lens tilted 3° and decentred 0.4 mm, in the plane and out of it: the file read back by a sequential tracer of its own, which builds each frame from the file's coordinate breaks and thicknesses and traces through the file's surfaces. Ten rays over two fields land on the image within 10⁻⁷ mm of where the lens engine lands them, and the thicknesses after the mirror are negative.
 
 ## In a .jekray file
 

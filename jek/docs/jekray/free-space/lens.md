@@ -97,7 +97,7 @@ Several lenses and [windows](/jek/docs/jekray/free-space/prism/) on one axis are
 
 A catalogue glass is written by its catalogue name. Any other material, such as a fixed index, a measured table or an RF dielectric, is written as a model glass, by its index and Abbe number at the d line. A lens designer may want to replace those with the real glass.
 
-Coatings, tilts and decentres are not written. Cylindrical lenses, lenses that are not on one axis, and other parts are refused, with the reason.
+Coatings, tilts and decentres are not written. Cylindrical lenses, lenses that are not on one axis, and other parts are refused, with the reason. An assembly that folds or has a part tilted or decentred is exported from its panel with coordinate breaks: see [Lens design](/jek/docs/jekray/lens-design/).
 
 The .zmx format is plain text. Reading or writing it needs no licence. Zemax and OpticStudio are trademarks of Ansys, Inc. JEKray is not affiliated with or endorsed by Ansys.
 

@@ -8,6 +8,7 @@ import { changed, clipOf, downloadFile, safeFileName, toast } from '../ui/action
 import { checkpoint } from '../ui/tabs.js';
 import { asmOfSelection, asmPrescription, normCond } from '../core/assembly.js';
 import { designFigures, designPrescription, objectOf } from '../engines/lens-design.js';
+import { lensSystem } from '../engines/lens-engine.js';
 import { parseZmx, readZmxFile, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
@@ -19,7 +20,8 @@ import { openLensDesign } from '../ui/lens-workspace.js';
    A lens, a run of lenses and windows on one axis, or a mirror, written as a sequential
    prescription that lens-design programs read: object at infinity, the stop on the first
    face, each face's curvature, conic and aspheric terms, its glass and its semi-diameter,
-   then the image at the paraxial focus. Coatings, tilts and decentres are not written.
+   then the image at the paraxial focus. An assembly that folds at a mirror, or has a part tilted or
+   decentred, is written with coordinate breaks (below). Coatings are not written.
    ========================================================================== */
 
 // the name a lens-design catalogue knows our glasses by; the rest go as model glasses
@@ -114,7 +116,6 @@ function zmxAssemblySystem(asm) {
   const P = asmPrescription(asm), warnings = new Set();
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
   if (P.surfaces.some(s => s.cyl)) throw new Error(asm.name + ' has a cylindrical lens: export its parts from the bench instead (select them, then Export a lens), where a cylinder is written as one.');
-  if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
   if (P.surfaces.some(s => s.ph && s.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
@@ -125,8 +126,44 @@ function zmxAssemblySystem(asm) {
   const d = objectOf(asm.cond);
   let fin = null;
   if (d) { const F = designFigures(asm, designPrescription(asm)); fin = { d, epd: F.epd, image: F.S.imageZ - F.S.z[F.S.N - 1] }; }
-  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings, fin };
+  // a fold, a tilt or a decentre: written with coordinate breaks, from the design's own geometry
+  const broken = P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || (s.dec && s.dec.some(v => v)));
+  const DP = designPrescription(asm);
+  return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings, fin, broken, asm, DP };
 }
+
+/* ---------- Coordinate breaks ----------
+   Each surface is placed in its own frame, as the lens engine has it (its vertex and axes, turned and moved by the
+   part's tilt and decentre, and folded at each mirror). The file's frames are right-handed, and after an odd number
+   of mirrors the light runs along their -z: so there each frame's z is the engine's turned round (x and y kept), the
+   thicknesses come out negative, and each surface's sag is of the other sign. From one frame to the next: the step
+   along the current z is the previous surface's thickness, then a coordinate break decentres along the current x and
+   y and tilts about x, then the new y, then the new z (each right-handed, in degrees). */
+const v3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+const d3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function zmxFrames(S) {
+  const out = [];
+  let odd = false;
+  for (let i = 0; i < S.N; i++) {
+    const F = S.fr ? S.fr[i] : null, R = F ? F.R : [1, 0, 0, 0, 1, 0, 0, 0, 1], o = F ? F.o : [0, 0, S.z[i]];
+    const X = [R[0], R[3], R[6]], Y = [R[1], R[4], R[7]], Z = [R[2], R[5], R[8]];
+    out.push({ o, X, Y, Z: odd ? Z.map(v => -v) : Z, flip: odd });
+    if (S.mir && S.mir[i]) odd = !odd;
+  }
+  const I = S.img || { p: [0, 0, S.imageZ], e1: [1, 0, 0], e2: [0, 1, 0], d: [0, 0, 1] };
+  out.push({ o: I.p, X: I.e1, Y: I.e2, Z: odd ? I.d.map(v => -v) : I.d, flip: odd });
+  return out;
+}
+// the move from frame C to frame T: the step along C's z, the decentre along its x and y, the tilts (degrees)
+function zmxMove(C, T) {
+  const d = [T.o[0] - C.o[0], T.o[1] - C.o[1], T.o[2] - C.o[2]];
+  // T's axes in C's: R = Rx(a) Ry(b) Rz(c), its columns T's axes
+  const r = (u, w) => d3(u, w), R02 = r(C.X, T.Z), R12 = r(C.Y, T.Z), R22 = r(C.Z, T.Z), R01 = r(C.X, T.Y), R00 = r(C.X, T.X);
+  const b = Math.asin(Math.max(-1, Math.min(1, R02))), a = Math.atan2(-R12, R22), c = Math.atan2(-R01, R00);
+  const deg = v => { const x = v * 180 / Math.PI; return Math.abs(x) < 1e-12 ? 0 : x; };
+  return { dz: d3(d, C.Z), dx: d3(d, C.X), dy: d3(d, C.Y), a: deg(a), b: deg(b), c: deg(c) };
+}
+
 export function zmxExport(els, nms) {
   const asm = asmOfSelection(els);
   const S = asm ? zmxAssemblySystem(asm) : zmxSystem(els);
@@ -136,7 +173,7 @@ export function zmxExport(els, nms) {
   const semiFirst = S.mirror ? S.mirror.length / 2 : S.surfaces[0].semi;
   const aperture = S.fin ? 'ENPD ' + zmxNum(S.fin.epd) : C && C.aperture.kind === 'fno' ? 'FNUM ' + zmxNum(C.aperture.v) + ' 0' : 'ENPD ' + zmxNum(C ? C.aperture.v : 2 * semiFirst);
   L.push('VERS 190000 0 0', 'MODE SEQ', 'NAME ' + S.name.replace(/[\r\n"]+/g, ' '),
-    'NOTE 0 Exported from JEKray. Coatings, tilts and decentres are not included.',
+    'NOTE 0 Exported from JEKray. Coatings are not included' + (S.broken ? '; folds, tilts and decentres are coordinate breaks.' : '.'),
     'UNIT MM X W X CM MR CPMM', aperture, 'GCAT SCHOTT OHARA MISC',
     'FTYP ' + (S.fin ? 1 : 0) + ' 0 ' + fields.length + ' ' + waves.length + ' 0 0 0', 'XFLN ' + fields.map(() => '0').join(' '), 'YFLN ' + fields.map(f => zmxNum(f.deg)).join(' '), 'FWGN ' + fields.map(f => zmxNum(f.w)).join(' '));
   waves.forEach((v, i) => L.push('WAVM ' + (i + 1) + ' ' + zmxNum(v.nm / 1000) + ' ' + zmxNum(v.w)));
@@ -159,6 +196,7 @@ export function zmxExport(els, nms) {
     surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(m.length / 2)]);
     return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings };
   }
+  if (S.broken) return zmxBroken(S, L, n, nms[0], diam);
   const p = paraxial({ surfaces: S.surfaces, gaps: S.gaps, materials: S.materials }, nms[0]);
   if (!isFinite(p.bfl)) S.warnings.add('it is afocal, so the image is placed at the last face');
   const stopAt = S.stopIndex >= 0 ? S.stopIndex : 0;
@@ -190,6 +228,45 @@ export function zmxExport(els, nms) {
   });
   surf(['TYPE STANDARD', 'CURV 0', 'DISZ 0', diam(S.surfaces[S.surfaces.length - 1].semi)]);
   return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: p.efl, bfl: p.bfl };
+}
+/* the surfaces of a folded, tilted or decentred assembly, after the object surface (n, the next surface's number) */
+function zmxBroken(S, L, n, nm, diam) {
+  const DP = S.DP, Sy = lensSystem(DP, nm, { image: DP.image }), frames = zmxFrames(Sy), recs = [];
+  const push = (lines) => { const r = { lines, disz: 0 }; recs.push(r); return r; };
+  let cur = { o: [0, 0, 0], X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1] }, prev = null;
+  const moveTo = T => {
+    const m = zmxMove(cur, T);
+    if (Math.abs(m.dz) > 1e-12) { if (prev) prev.disz = m.dz; else prev = push(['TYPE STANDARD', 'CURV 0']), prev.disz = m.dz; }
+    if (Math.abs(m.dx) > 1e-12 || Math.abs(m.dy) > 1e-12 || m.a || m.b || m.c)
+      prev = push(['TYPE COORDBRK', 'PARM 1 ' + zmxNum(m.dx), 'PARM 2 ' + zmxNum(m.dy), 'PARM 3 ' + zmxNum(m.a), 'PARM 4 ' + zmxNum(m.b), 'PARM 5 ' + zmxNum(m.c), 'PARM 6 0']);
+    cur = T;
+  };
+  const stopAt = S.stopIndex >= 0 ? S.stopIndex : 0;
+  DP.surfaces.forEach((s, i) => {
+    const T = frames[i], g = T.flip ? -1 : 1;
+    moveTo(T);
+    const lines = i === stopAt ? ['STOP'] : [];
+    const A = (s.A || []).slice();
+    if (s.odd) {
+      const b = Array.from({ length: 8 }, (_, q) => s.odd[q] || 0);
+      b[1] += s.a2 || 0; [3, 5, 7].forEach((q, j) => { b[q] += A[j] || 0; });
+      lines.push('TYPE ODDASPH', 'CURV ' + zmxNum(s.R === null ? 0 : g / s.R), 'CONI ' + zmxNum(s.k || 0));
+      b.forEach((v, q) => lines.push('PARM ' + (q + 1) + ' ' + zmxNum(g * v)));
+    } else if (s.a2 || A.some(v => v)) {
+      lines.push('TYPE EVENASPH', 'CURV ' + zmxNum(s.R === null ? 0 : g / s.R), 'CONI ' + zmxNum(s.k || 0), 'PARM 1 ' + zmxNum(g * (s.a2 || 0)));
+      for (let q = 0; q < 7; q++) lines.push('PARM ' + (q + 2) + ' ' + zmxNum(g * (A[q] || 0)));
+    } else lines.push('TYPE STANDARD', 'CURV ' + zmxNum(s.R === null ? 0 : g / s.R), 'CONI ' + zmxNum(s.k || 0));
+    const m = i < DP.surfaces.length - 1 ? DP.materials[i] : null;
+    if (s.mirror) lines.push('GLAS MIRROR 0 0 0 0 0 0 0 0 0 0');
+    else if (m && m.glass !== 'AIR') lines.push(zmxGlass(m));
+    lines.push(diam(isFinite(s.semi) && s.semi > 0 ? s.semi : 10));
+    prev = push(lines);
+  });
+  moveTo(frames[frames.length - 1]);
+  push(['TYPE STANDARD', 'CURV 0']);
+  for (const r of recs) { L.push('SURF ' + n++); for (const l of r.lines) L.push('  ' + l); L.push('  DISZ ' + zmxNum(r.disz)); }
+  S.warnings.add('folds, tilts and decentres are written as coordinate breaks');
+  return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: Sy.par.efl, bfl: Sy.par.bfl };
 }
 export function exportZmx() {
   try {

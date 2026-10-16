@@ -9000,6 +9000,51 @@ const TESTS = [
     },
   },
   {
+    name: 'Thermal: the triplet\u2019s focus drifts against the detector as its aluminium housing grows, much less in Invar',
+    why: 'the published Cooke triplet\u2019s Analyses \u203a Thermal, -20 to 60 \u00b0C: nine rows, the 20 \u00b0C one unchanged; in aluminium the focus falls short of the detector as it warms, by about the housing\u2019s growth over the image distance (its glasses barely change its focal length); in Invar it drifts less than a fifth as much (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        const chip = t => [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === t);
+        const body = () => rigDoc().querySelector('#lensWs .rt-lanabody');
+        wsClick('Analyses', null, 'tab'); chip('Thermal').click();
+        const rows = [...body().querySelectorAll('.rt-ltherm tbody tr')], drift = () => parseFloat(body().textContent.match(/focus moves (-?[\d.]+) \u00b5m per kelvin/)[1]);
+        const nom = rows.find(r => r.classList.contains('on')), al = drift();
+        const sel = body().querySelector('select[aria-label="Housing"]'); sel.value = 'invar'; sel.dispatchEvent(new (rigWin().Event)('change'));
+        const inv = drift();
+        return rows.length === 9 && nom && /^0/.test(nom.children[3].textContent) && al < -0.7 && al > -1.5 && Math.abs(inv) < Math.abs(al) / 5 ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'Through-focus MTF: traced without holding up the page, the best focus found inside the range, and the frequency changeable',
+    why: 'the published Cooke triplet\u2019s Analyses \u203a Through-focus MTF: the page says it is tracing, then draws the curves with a best focus and a depth of focus inside the range; set to 30 cycles/mm it traces again, its peak higher (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        const chip = t => [...rigDoc().querySelectorAll('#lensWs .rt-lchip')].find(x => x.textContent === t);
+        const body = () => rigDoc().querySelector('#lensWs .rt-lanabody');
+        const ready = async () => { for (let k = 0; k < 600; k++) { const b = body(); if (b && b.querySelector('canvas') && !b.querySelector('[role=status]')) return true; await new Promise(r => setTimeout(r, 50)); } return false; };
+        wsClick('Analyses', null, 'tab'); chip('Through-focus MTF').click();
+        const busy = /Tracing through focus/.test(body().textContent), ok1 = await ready();
+        const peak = () => parseFloat(body().textContent.match(/at its peak \(([\d.]+)\)/)[1]), p85 = peak(), dof = /stays above 80% of that from/.test(body().textContent), edge = !!body().querySelector('.rt-lnote');
+        const inp = body().querySelector('input[aria-label="Frequency, cycles/mm"]'); inp.value = '30'; inp.dispatchEvent(new (rigWin().Event)('change'));
+        const ok2 = await ready(), p30 = peak();
+        return busy && ok1 && dof && !edge && ok2 && p30 > p85 ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -9613,7 +9658,7 @@ const TESTS = [
   },
   {
     name: 'A folded assembly opens in the design workspace with its mirror in the lens data',
-    why: 'a lens, a fold mirror at 45° and a second lens tilted and moved across, made an assembly and opened with Design…: the mirror is surface 3, its glass Mirror and its tilt a 45° fold; the tilted lens shows its tilt and decentre; the mirror’s radius set to -400 in the lens data makes the mirror on the bench concave with radius 400; the mirror can’t be removed; the layout is drawn; and the lens file export says it can’t write a fold (1 when all hold)',
+    why: 'a lens, a fold mirror at 45° and a second lens tilted and moved across, made an assembly and opened with Design…: the mirror is surface 3, its glass Mirror and its tilt a 45° fold; the tilted lens shows its tilt and decentre; the mirror’s radius set to -400 in the lens data makes the mirror on the bench concave with radius 400; the mirror can’t be removed; the layout is drawn; and its lens file writes the fold and the tilted lens as coordinate breaks (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
@@ -9635,7 +9680,8 @@ const TESTS = [
         const keptOk = !!J.byName('Fold') && J.asmPrescription(name).folded;
         const cv = rigDoc().querySelector('#lensWs .rt-llayout canvas'), drawn = !!cv && cv.height > 100;
         let zmxOk = false;
-        try { J.exportZmx(['Front', 'Fold', 'Back']); } catch (e) { zmxOk = /folds at a mirror/.test(e.message); }
+        // a lens file of it: the fold and the tilted lens as coordinate breaks
+        try { const z = J.exportZmx(['Front', 'Fold', 'Back']); zmxOk = /TYPE COORDBRK/.test(z.text) && /GLAS MIRROR/.test(z.text); } catch (e) { zmxOk = false; }
         if (!(mirOk && tiltOk && rOk && keptOk && drawn && zmxOk)) console.log('folded ws', mirOk, tiltOk, rOk, keptOk, drawn, zmxOk, row('3'), row('4'));
         return mirOk && tiltOk && rOk && keptOk && drawn && zmxOk ? 1 : 0;
       } finally { J.closeLensDesign(); }

@@ -1,8 +1,9 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
-import { ZERNIKE_NAMES, anaSystems, fieldCurves, paraxHeight, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
+import { ZERNIKE_NAMES, anaSystems, fieldCurves, paraxHeight, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, throughFocusPlan, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { imsimPlan, imsimTraceable } from '../engines/lens-imsim.js';
 import { polAnalysis } from '../engines/lens-pol.js';
+import { HOUSINGS, T_NOMINAL, thermalAnalysis } from '../engines/lens-thermal.js';
 import { coatPreset } from '../core/coatings.js';
 import { normCoat } from '../state/project.js';
 import { changed } from './actions.js';
@@ -20,7 +21,7 @@ import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
-  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['imsim', 'Image simulation']];
+  ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['tfm', 'Through-focus MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['therm', 'Thermal'], ['imsim', 'Image simulation']];
 const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
@@ -75,6 +76,8 @@ export function analysesPanel(asm, P, F, st, redraw) {
   else if (view === 'ri') riView(body, A, cached(key + '|ri', () => relIllum(A, 21, 64)));
   else if (view === 'foot') footView(body, A, P, cached(key + '|foot', () => footprints(A, 15)), st, redraw);
   else if (view === 'pol') polView(body, A, P, st, cached(key + '|pol|' + deg + '|' + st.wave + '|' + (st.polIn || 'none') + '|' + coatKey(P), () => polAnalysis(A, coatsOf(P), deg, st.wave, st.polIn || 'none', 25)), redraw);
+  else if (view === 'tfm') tfmView(body, A, asm, P, key, st, redraw);
+  else if (view === 'therm') thermView(body, A, asm, P, key, st, redraw);
   else if (view === 'imsim') imsimView(body, A, P, st, key, redraw);
   else if (view === 'mtf') mtfView(body, A, cached(key + '|mtf|' + deg, () => mtfAnalysis(A, deg)));
   else if (view === 'ghost') ghostView(body, A, P, cached(key + '|ghost|' + deg + '|' + coatKey(P), () => ghostAnalysis(A, coatsOf(P), deg, 15)), st, redraw);
@@ -374,6 +377,61 @@ function footView(body, A, P, F, st, redraw) {
     x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
 }
+/* ---------- Through-focus MTF ---------- */
+const numIn = (label, value, set, attrs) => h('label', { class: 'rt-lsub rt-limpitch' }, label + ' ', h('input', Object.assign({ type: 'number', step: 'any', value: String(value), 'aria-label': label, onchange: e => { const v = +e.target.value; if (isFinite(v)) set(v); } }, attrs || {})));
+function tfmView(body, A, asm, P, key, st, redraw) {
+  const lamF = A.Sp.lam * A.fw, cut = 1 / lamF;
+  if (!(st.tfNu > 0)) st.tfNu = +(cut / 4).toPrecision(2);
+  // the range: eight λF² either way, or wide enough that the largest spot's own blur changes by a few times its size
+  if (!(st.tfSpan > 0)) { const rms = Math.max(0, ...A.c.fields.map(f => { const v = spotDiagram(A, f.deg, 11).rms; return isFinite(v) ? v : 0; })); st.tfSpan = +Math.max(8 * lamF * A.fw, 6 * A.fw * rms).toPrecision(2); }
+  body.append(h('div', { class: 'rt-lchips' }, numIn('Frequency, cycles/mm', st.tfNu, v => { if (v > 0) { st.tfNu = v; redraw(); } }, { min: '0' }),
+    numIn('Focus over ± mm', st.tfSpan, v => { if (v > 0) { st.tfSpan = v; redraw(); } }, { min: '0' })));
+  const k = key + '|tfm|' + st.tfNu + '|' + st.tfSpan;
+  if (!anaCache.has(k)) { imPending(body, k, () => throughFocusPlan(asm, P, st.tfNu, st.tfSpan, 31, 32), redraw, 'Tracing through focus'); return; }
+  const T = anaCache.get(k), xs = T.dz, series = [];
+  T.fields.forEach((f, i) => { series.push({ label: anFmt(f.deg, 4) + FU + ' T', colour: waveColour(i), xs, ys: f.tan }); series.push({ label: anFmt(f.deg, 4) + FU + ' S', colour: waveColour(i), dash: true, xs, ys: f.sag }); });
+  linePlot(body, { label: 'Through-focus MTF', x: { kind: 'len', title: 'Image plane moved from where the design has it' }, y: { kind: 'plain', title: 'Modulation at ' + anFmt(T.nu, 4) + ' cycles/mm' }, xr: [-T.span, T.span], yr: [0, 1.02],
+    series, xName: 'focus', H: 280, csv: { name: 'through-focus MTF', cols: ['focus shift (mm)'].concat(T.fields.flatMap(f => [f.deg + ' ' + FU_CSV + ' T', f.deg + ' ' + FU_CSV + ' S'])), rows: () => xs.map((d, i) => [d, ...T.fields.flatMap(f => [f.tan[i], f.sag[i]])]) } });
+  body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  const fb = T.fields.map(f => anFmt(f.deg, 4) + FU + ' ' + ghLen(f.best.at)).join(', ');
+  body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
+    'Best focus, the mean over the fields of tangential and sagittal at its peak (' + anFmt(T.best.v, 3) + '): ' + ghLen(T.best.at) + ' from the design’s image plane' +
+    (T.dof ? '; it stays above 80% of that from ' + ghLen(T.dof[0]) + ' to ' + ghLen(T.dof[1]) + ' (' + ghLen(T.dof[1] - T.dof[0]) + ' deep)' : '') + '. Each field’s own best: ' + fb + '.'));
+  if (T.fields.some(f => Math.abs(Math.abs(f.best.at) - T.span) < 1e-9 * T.span) || Math.abs(Math.abs(T.best.at) - T.span) < 1e-9 * T.span) body.append(h('div', { class: 'rt-lnote' }, 'A best focus is at an end of the range: it may lie beyond it. Widen the range to find it.'));
+}
+
+/* ---------- Thermal ---------- */
+function thermView(body, A, asm, P, key, st, redraw) {
+  if (!HOUSINGS.some(x => x[0] === st.thH)) st.thH = 'al';
+  if (!(st.thP >= 0)) st.thP = 1;
+  if (!isFinite(st.thLo)) st.thLo = -20;
+  if (!isFinite(st.thHi)) st.thHi = 60;
+  const H = HOUSINGS.find(x => x[0] === st.thH);
+  body.append(h('div', { class: 'rt-lchips' },
+    h('label', { class: 'rt-lsub rt-limpitch' }, 'Housing ', h('select', { 'aria-label': 'Housing', onchange: e => { st.thH = e.target.value; redraw(); } }, ...HOUSINGS.map(([k, t, a]) => h('option', { value: k, selected: k === st.thH }, t + ' (' + anFmt(a * 1e6, 3) + ' ppm/K)')))),
+    numIn('From °C', st.thLo, v => { st.thLo = Math.max(-200, Math.min(v, st.thHi - 1)); redraw(); }),
+    numIn('To °C', st.thHi, v => { st.thHi = Math.min(400, Math.max(v, st.thLo + 1)); redraw(); }),
+    numIn('Pressure, atm', st.thP, v => { if (v >= 0) { st.thP = v; redraw(); } }, { min: '0' })));
+  const temps = Array.from({ length: 9 }, (_, i) => st.thLo + (st.thHi - st.thLo) * i / 8);
+  const R = cached(key + '|therm|' + st.thH + '|' + st.thP + '|' + st.thLo + '|' + st.thHi, () => thermalAnalysis(asm, P, temps, st.thP, H[2]));
+  const xs = R.rows.map(r => r.T), [a, b] = pair(body);
+  linePlot(a, { label: 'Focus against the detector', x: { kind: 'plain', title: 'Temperature, °C' }, y: { kind: 'len', title: 'Focus beyond the detector' }, symY: true,
+    series: [{ label: 'focus', colour: WAVE_COLOURS[0], xs, ys: R.rows.map(r => r.defocus) }], xName: '°C', H: 240,
+    csv: { name: 'thermal', cols: ['temperature (C)', 'EFL (mm)', 'focus beyond the detector (mm)'].concat(asm.cond.fields.map(f => 'RMS spot ' + f.deg + ' ' + FU_CSV + ' (mm)')), rows: () => R.rows.map(r => [r.T, r.efl, r.defocus, ...r.rms]) } });
+  linePlot(b, { label: 'RMS spot on the detector', x: { kind: 'plain', title: 'Temperature, °C' }, y: { kind: 'len', title: 'RMS spot radius' },
+    series: asm.cond.fields.map((f, i) => ({ label: anFmt(f.deg, 4) + FU, colour: waveColour(i), xs, ys: R.rows.map(r => r.rms[i]) })), xName: '°C', H: 240 });
+  b.append(legend(asm.cond.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)])));
+  const tbl = h('table', { class: 'rt-ltable rt-lghost rt-ltherm' });
+  tbl.append(h('thead', null, h('tr', null, ...['Temperature', 'Focal length', 'Change', 'Focus beyond the detector', ...asm.cond.fields.map(f => 'RMS spot ' + anFmt(f.deg, 4) + FU)].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  for (const r of R.rows) tb.append(h('tr', { class: Math.abs(r.T - T_NOMINAL) < 1e-9 ? 'on' : '' }, h('td', null, anFmt(r.T, 4) + ' °C'), h('td', { class: 'mono' }, anFmt(r.efl, 6) + ' mm'), h('td', { class: 'mono' }, ghLen(r.defl)), h('td', { class: 'mono' }, ghLen(r.defocus)), ...r.rms.map(v => h('td', { class: 'mono' }, um(v)))));
+  tbl.append(tb);
+  body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  body.append(h('p', { class: 'rt-lsub' }, 'Against the design at ' + T_NOMINAL + ' °C and one atmosphere, here at ' + anFmt(R.p, 3) + ' atm in ' + H[1].toLowerCase() + ': the focus moves ' + ghLen(R.drift) + ' per kelvin against the detector (' + (Math.abs(R.drift) < 1e-4 ? 'near athermal' : R.drift > 0 ? 'beyond it as it warms' : 'short of it as it warms') + '), the focal length ' + ghLen(R.eflDrift) + ' per kelvin. ' +
+    'Each glass’s index by its maker’s formula and the air’s at that temperature and pressure; the lenses grow with their glasses, the spacers, the stop and the detector’s distance with the housing.' +
+    (R.missing.length ? ' No data for ' + R.missing.join(', ') + ': taken as not changing.' : '')));
+}
+
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
@@ -501,8 +559,9 @@ function drawPicture(parent, pic, label) {
   return cv;
 }
 let imJob = null;
-function imPending(body, key, start, redraw) {
-  const el = h('p', { class: 'rt-lsub', role: 'status' }, 'Forming the image…');
+function imPending(body, key, start, redraw, label) {
+  label = label || 'Forming the image';
+  const el = h('p', { class: 'rt-lsub', role: 'status' }, label + '…');
   body.append(el);
   if (imJob && imJob.key === key) { imJob.el = el; return; }
   if (imJob) imJob.cancelled = true;
@@ -522,7 +581,7 @@ function imPending(body, key, start, redraw) {
         if (job.el.isConnected) redraw();
         return;
       }
-      job.el.textContent = 'Forming the image… ' + Math.floor(100 * plan.done / plan.steps) + '%';
+      job.el.textContent = label + '… ' + Math.floor(100 * plan.done / plan.steps) + '%';
       setTimeout(step, 0);
     };
     step();

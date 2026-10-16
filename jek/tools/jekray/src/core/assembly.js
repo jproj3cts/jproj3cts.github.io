@@ -51,7 +51,7 @@ export function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
   }
   return out;
 }
@@ -340,7 +340,7 @@ export function asmPrescription(asm, els) {
     });
     gaps.push(...G2); materials.push(...M2);
     lastAx = along + tv + T;
-    parts.push({ id: e.id, kind, flip, n: S2.length });
+    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}) });
     if (kind === 'mirror') {
       // the axis turns where it meets the mirror's plane; on from there
       const n = v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
@@ -403,7 +403,7 @@ export function asmApply(asm, P, els) {
     if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'mirror') {
-      e.R = S[0].R === null ? null : -S[0].R; e.k = S[0].k;
+      e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
       const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
     } else {
@@ -414,7 +414,7 @@ export function asmApply(asm, P, els) {
         // a surface added in the prescription is a new, bare one on the part; one taken out goes from it
         e.surfaces = ss.map((s, i) => {
           const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
-          t.R = s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
+          t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
           // a clear radius that is the lens's own stays unset
           if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
           else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;

@@ -20,7 +20,7 @@ function load(elements, asm) { loadProject({ format: 'jekray', version: 1, eleme
 function run(asm, args) { const P = D.designPrescription(asm), prob = O.optProblem(asm, P), out = O.optRun(prob, args); O.optApply(P, prob, out); D.commitDesign(asm, P); return out; }
 // a plano-convex N-BK7 lens, 50 mm, at f/2: its curved side to the light
 const pcx = (bounds, vars) => load([{ type: 'stop', id: 'S', name: 'S', x: -1, y: 0, angle: 0, aperture: 25, group: 'g' },
-  { type: 'lens', id: 'L', name: 'L', x: 3, y: 0, angle: 0, diameter: 26, surfaces: [{ R: 25.8 }, { R: null }], gaps: [6], materials: [{ glass: 'N-BK7' }], group: 'g' }],
+  { type: 'lens', id: 'L', name: 'L', asphere: true, x: 3, y: 0, angle: 0, diameter: 26, surfaces: [{ R: 25.8 }, { R: null }], gaps: [6], materials: [{ glass: 'N-BK7' }], group: 'g' }],
   { id: 'g', name: 'Asphere', ref: 'L', cond: { aperture: { kind: 'epd', v: 25 }, fields: [{ deg: 0 }], waves: [{ nm: 587.56 }] },
     design: { solves: { 't:image': { kind: 'focus' } }, vars, merit: { rings: 4, bounds: Object.assign({ glassMin: 0, glassMax: 0, edgeMin: 0, airMin: 0 }, bounds) } } });
 const spot = asm => { const P = D.designPrescription(asm); return AN.spotDiagram(AN.anaSystems(asm, P), 0, 21); };

@@ -214,7 +214,7 @@ Both run in the page's background worker, a few cycles or trials at a time, and 
 
 ### Aspheric surfaces
 
-A lens surface may carry even aspheric terms on top of its conic, its sag
+An **asphere**'s surface may carry even aspheric terms on top of its conic (a plain lens's surfaces are spheres: only an asphere, from the parts as **Asphere**, has a conic and aspheric terms, in its panel and in the lens data; a lens from an older file that has them is an asphere), its sag
 
 $$z(r) = \frac{c r^2}{1 + \sqrt{1 - (1 + k) c^2 r^2}} + A_4 r^4 + A_6 r^6 + \dots + A_{16} r^{16}.$$
 
@@ -328,6 +328,8 @@ the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$.
 - the ellipsoid that images perfectly, whose $$S_I$$ is 0.
 
 ### On the bench
+
+**Locked as designed.** Leaving the design workspace locks its parts: their panels show their fields but don't take changes, so a careful design isn't changed by a stray click or keystroke. The padlock beside the part's name opens it (and closes it again); **Open lens design…** in the panel, or in the right-click menu, goes back to the design, where everything can be changed as before. Moving the assembly as a whole, from its own panel, is not locked.
 
 An assembly's panel compares the light the bench sends it with its design conditions. Used outside them (a field beyond its largest, a wavelength outside its range, or a beam wider than its entrance pupil), it says so and how; within them, it says that too.
 

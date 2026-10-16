@@ -60,6 +60,8 @@ export function closeLensDesign() {
   tolStop('Stopped: the workspace was closed.');
   const asm = WS.asm;
   WS = null;
+  // designed: its parts' fields on the bench are locked against a stray edit (the padlock in their panel opens them)
+  asm.lock = true;
   document.getElementById('lensWs').hidden = true;
   document.body.classList.remove('rt-lens-open');
   setSelection(asmMembers(asm));
@@ -427,9 +429,9 @@ function dataCard(asm, P) {
     const tr = h('tr', { class: i === WS.sel ? 'sel' : '', 'aria-selected': String(i === WS.sel) });
     tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; WS.sel = WS.sel === i ? -1 : i; renderWs(); });
     // a lens surface's aspheric terms: shown under it once it has any, or once asked for
-    const sid = s.from ? s.from.id + '.' + s.from.i : '', nA = sp.kind === 'lens' ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
+    const sid = s.from ? s.from.id + '.' + s.from.i : '', asph = sp.kind === 'lens' && !!P.parts[sp.pi].asph, nA = asph ? Math.max((s.A || []).length, (WS.asp && WS.asp[sid]) || 0) : 0;
     const nmTd = h('td', { class: 'nm' }, surfaceName(P, sps, i));
-    if (sp.kind === 'lens' && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
+    if (asph && !nA) nmTd.append(h('button', { type: 'button', class: 'rt-lasp', title: 'Give this surface aspheric terms (A4 r⁴, A6 r⁶ …), to type or to vary', 'aria-label': 'Aspheric terms for surface ' + (i + 1),
       onclick: () => { (WS.asp || (WS.asp = {}))[sid] = 1; renderWs(); } }, '+ A'));
     tr.append(h('td', { class: 'n' }, sp.kind === 'stop' ? 'STO' : String(i + 1)), nmTd);
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
@@ -498,7 +500,7 @@ function valueCell(P, D, q, i) {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,

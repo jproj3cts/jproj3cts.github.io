@@ -52,10 +52,9 @@ function lensPanel(el) {
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
-    const rows = h('div', { class: 'rt-rows' },
-      param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
-      param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }),
-    );
+    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }));
+    // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
+    if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
     if (s.odd && s.odd[0]) {
       // an axicon's cone, given as its base angle; stored as the odd r^1 sag term
@@ -63,8 +62,8 @@ function lensPanel(el) {
       const cone = numInput(cid, () => +(Math.atan(s.odd[0]) / deg).toPrecision(6), v => { if (Math.abs(v) < 80) s.odd[0] = Math.tan(v * deg); });
       rows.append(h('div', { class: 'rt-f wide' }, h('label', { for: cid }, 'Cone angle (°)'), cone));
     }
-    s.A.forEach((_, j) => rows.append(param('A' + (4 + 2 * j), el, `surfaces.${i}.A.${j}`, { blank: 0 })));
-    rows.append(h('div', { class: 'rt-inline wide' },
+    if (el.asphere) s.A.forEach((_, j) => rows.append(param('A' + (4 + 2 * j), el, `surfaces.${i}.A.${j}`, { blank: 0 })));
+    if (el.asphere) rows.append(h('div', { class: 'rt-inline wide' },
       h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); s.A.push(0); changed(true); } },
         s.A.length ? 'Add A' + (4 + 2 * s.A.length) + ' term' : 'Add aspheric terms'),
       s.A.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {

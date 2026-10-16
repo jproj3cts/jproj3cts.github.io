@@ -1,6 +1,7 @@
 import { LOCKED, clamp } from '../core/constants.js';
-import { asmCheck, asmKind, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
+import { asmCheck, asmKind, asmOf, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
+import { openLensDesign } from './lens-workspace.js';
 import { fmtLen } from '../core/format.js';
 import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
@@ -202,6 +203,7 @@ export function benchMenu(X, Y, hit, at, in3d) {
       { label: 'Raise to top', key: 'Home', fn: () => restack(list, 'top') }, { label: 'Lower to bottom', key: 'End', fn: () => restack(list, 'bottom') }] : []), '-',
     ...(n > 1 && !grouped ? [{ label: 'Group', key: 'Ctrl+G', fn: () => groupEls(list) }] : []),
     ...(n > 1 && !asmOfSelection(list) && asmCheck(list).ok ? [{ label: 'Make an assembly', fn: () => makeAssembly(list) }] : []),
+    ...(n === 1 && asmOf(list[0]) && !asmOfSelection(list) ? [{ label: 'Open lens design\u2026', fn: () => openLensDesign(asmOf(list[0])) }] : []),
     ...(n === 1 && !list[0].group && asmKind(list[0]) && asmKind(list[0]) !== 'stop' && asmCheck(list).ok ? [{ label: 'Design as a lens\u2026', fn: () => designOne(list[0]) }] : []),
     ...(asmOfSelection(list) ? [{ label: 'Split the assembly into parts', fn: () => splitAssembly(asmOfSelection(list)) }] : []),
     ...(list.some(x => x.group) ? [{ label: 'Ungroup', key: 'Ctrl+Shift+G', fn: () => ungroupEls(list) }] : []),

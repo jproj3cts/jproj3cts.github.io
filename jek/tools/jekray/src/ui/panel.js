@@ -1,5 +1,5 @@
 import { BEAM_Z, TEST_MODE } from '../core/constants.js';
-import { asmOfSelection } from '../core/assembly.js';
+import { asmOf, asmOfSelection } from '../core/assembly.js';
 import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
@@ -273,6 +273,8 @@ export function syncPanel() {
     for (const r of box._refs || []) if (document.activeElement !== r.node || r.node.tagName === 'BUTTON') r.sync();
 }
 
+const PADLOCK_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.2" fill="currentColor"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const UNPADLOCK_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.5-.7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 const PIN_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M10.2 1.6 14.4 5.8 12.6 6.4 9.9 9.1 10.3 12.1 9.1 13.3 6.3 10.5 2.6 14.2 1.8 13.4 5.5 9.7 2.7 6.9 3.9 5.7 6.9 6.1 9.6 3.4Z" fill="currentColor"/></svg>';
 // the Bench panel pins as an element does, under an id no element can have
 export const BENCH_PIN = '#bench';
@@ -515,8 +517,19 @@ function renderPanelBody(el) {
   if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
+  // a part of a designed assembly: locked against a stray edit, the padlock beside the title opening it
+  const des = asmOf(el), designed = !!(des && des.design), locked = designed && des.lock === true;
+  if (designed) {
+    const lk = h('button', { class: 'rt-pin rt-padlock' + (locked ? ' on' : ''), type: 'button', 'data-keep': '', 'aria-pressed': locked ? 'true' : 'false',
+      'aria-label': locked ? 'Unlock ' + des.name + '’s parts' : 'Lock ' + des.name + '’s parts',
+      title: locked ? 'Locked: these parts are as ' + des.name + '’s lens design has them. Click to unlock their fields here (the design workspace can always change them).' : 'Unlocked: these parts’ fields can be changed here. Click to lock them again.',
+      onclick: () => { checkpoint(); des.lock = !locked; changed(false); renderPanel(); } });
+    lk.innerHTML = locked ? PADLOCK_SVG : UNPADLOCK_SVG;
+    title.append(lk);
+  }
   pinTitle(title, el.id, () => selectEl(el));
   panel.append(title);
+  if (locked) panel.append(h('div', { class: 'rt-locknote' }, 'Locked as designed in ' + des.name + '. Open the padlock to edit here, or open its lens design.'));
   const asm = assumedBox(el);
   if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
@@ -569,9 +582,15 @@ function renderPanelBody(el) {
 
   sectionise(panel, el.type);
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => duplicate(el) }, 'Duplicate'),
+    h('button', { class: 'rt-btn', 'data-keep': '', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));
+  // locked: every field, sweep and button that would change the part is shown but can't be used
+  if (locked) for (const n of panel.querySelectorAll('input, select, textarea, button')) {
+    // kept: the title's buttons, folding sections, tabs between views, and what opens the design or copies the part
+    if (n.hasAttribute('data-keep') || n.closest('h2') || n.classList.contains('rt-secbtn') || n.getAttribute('role') === 'tab') continue;
+    n.disabled = true;
+  }
   holdScroll(panel, panel._hold != null ? panel._hold : scroll);
 }
 

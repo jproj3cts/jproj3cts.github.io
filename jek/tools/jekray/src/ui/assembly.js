@@ -1,5 +1,5 @@
 import { fmtLen } from '../core/format.js';
-import { asmCheck, asmKind, asmMembers, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
+import { asmCheck, asmKind, asmMembers, asmOf, asmParaxial, asmPrescription, condSummary, normCond } from '../core/assembly.js';
 import { V, deg, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
@@ -143,7 +143,9 @@ export function designOne(el) {
 }
 /* in a part's own panel: the way into lens design for it alone */
 export function designOneRow(el) {
-  const k = asmKind(el);
+  const k = asmKind(el), A = asmOf(el);
+  // a part of an assembly: its design opened again
+  if (A) return h('button', { class: 'rt-btn', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
   if (!k || k === 'stop' || el.group) return null;
   const C = asmCheck([el], {});
   if (!C.ok) return null;

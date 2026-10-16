@@ -9168,6 +9168,39 @@ const TESTS = [
     },
   },
   {
+    name: 'A lens back from lens design is locked, opens its design again, and stays a plain lens',
+    why: 'a plain singlet (no conic or aspheric fields in its panel) designed on its own, a radius of 0 typed for its flat back: back on the bench that surface is flat (not a radius of 0) and the focal length the paraxial one; its panel has Open lens design… and a closed padlock, its fields shown but not editable until the padlock is opened; an asphere’s panel has its conic (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'lens', name: 'Solo', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] },
+        { type: 'lens', name: 'Asph', asphere: true, x: 80, y: 0, angle: 0, diameter: 12.7, surfaces: [{ R: 8.2, k: -0.9 }, { R: null }], gaps: [5], materials: [{ glass: 'S-LAH64' }] }] });
+      const D = rigDoc(), labels = () => [...D.querySelectorAll('#panel label')].map(l => l.textContent.trim());
+      J.select('Solo');
+      const plainOk = !labels().includes('Conic k') && !/aspheric/i.test(D.querySelector('#panel').textContent);
+      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…').click();
+      const inp = D.querySelector('#lensWs input[aria-label="Radius of surface 2"]');
+      inp.value = '0'; inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
+      const noA = !D.querySelector('#lensWs button[aria-label="Aspheric terms for surface 1"]');
+      J.closeLensDesign();
+      J.select('Solo');
+      const flatOk = J.byName('Solo').surfaces[1].R === null && Math.abs(J.lensParaxial('Solo', 587.56).efl - 99.3) < 1;
+      const lock = D.querySelector('#panel button.rt-padlock'), radius = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));
+      const lockedOk = !!lock && lock.getAttribute('aria-pressed') === 'true' && radius.querySelector('input').disabled;
+      const reopen = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Open lens design…');
+      const reopenOk = !!reopen && !reopen.disabled;
+      lock.click();
+      const radius2 = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));
+      const unlockedOk = !radius2.querySelector('input').disabled && D.querySelector('#panel button.rt-padlock').getAttribute('aria-pressed') === 'false';
+      if (reopenOk) { reopen.click(); const open = J.lensDesignOpen(); J.closeLensDesign(); if (!open) console.log('did not reopen'); }
+      J.select('Asph');
+      const asphOk = labels().includes('Conic k');
+      const ok = plainOk && noA && flatOk && lockedOk && reopenOk && unlockedOk && asphOk;
+      if (!ok) console.log('lock', plainOk, noA, flatOk, lockedOk, reopenOk, unlockedOk, asphOk, J.byName('Solo').surfaces[1].R, J.lensParaxial('Solo', 587.56).efl);
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A two-position zoom is designed with configurations, each optimised to its own focal length',
     why: 'two singlets behind a stop: Configurations makes two, the spacing between the lenses made to differ and marked V, a focal length of 60 mm set for the first and 75 mm for the second in the Merit tab; one optimisation reaches both (each within 0.05 mm, read after showing each configuration, which moves the rear lens on the bench), and the radii stay shared (1 when all hold)',
     want: 1, tol: 0, unit: '',

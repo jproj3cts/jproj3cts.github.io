@@ -13,7 +13,7 @@ export const LENS = {
         return { type: 'lens', name: nextName('Lens'), x, y, diameter: 25.4,
           surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] };
       case 'asphere':
-        return { type: 'lens', name: nextName('Asphere'), x, y, diameter: 12.7,
+        return { type: 'lens', name: nextName('Asphere'), asphere: true, x, y, diameter: 12.7,
           surfaces: [{ R: 8.2, k: -0.9 }, { R: null }], gaps: [5], materials: [{ glass: 'S-LAH64' }] };
       case 'cylinder':
         return { type: 'lens', name: nextName('Cylindrical lens'), x, y, diameter: 25.4, cyl: 'plane',
@@ -34,6 +34,9 @@ export const LENS = {
       source: typeof e.source === 'string' ? e.source : undefined,
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
+      // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
+      // before the two were told apart is an asphere if any surface has them
+      asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a))) ? true : undefined,
     });
   },
   guide: {
@@ -41,6 +44,7 @@ export const LENS = {
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
     fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
+    asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k") and aspheric terms ("A"); a plain lens\u2019s are spheres.',
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.' },

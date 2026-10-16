@@ -254,6 +254,12 @@
   }
   .rt-pin:hover { color: var(--jek-ink); border-color: var(--jek-ink-soft); }
   .rt-pin.on { color: #fff; background: var(--jek-bar); border-color: var(--jek-bar); }
+  .rt-pin.rt-padlock { color: var(--jek-ink-soft); }
+  .rt-pin.rt-padlock.on { color: #fff; background: #a2501a; border-color: #a2501a; }
+  .rt-locknote { margin: 0.2rem 0 0.6rem; padding: 0.45rem 0.6rem; border-radius: 4px; background: #fdf1e6; color: #7a3c13; font-size: 0.82rem; line-height: 1.4; }
+  /* a locked part's fields: shown, plainly not to be typed in */
+  #panel input:disabled, #panel select:disabled, .rt-pinned input:disabled, .rt-pinned select:disabled { opacity: 0.55 !important; background: var(--jek-well) !important; cursor: not-allowed !important; }
+  #panel button:disabled, .rt-pinned button:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
   .rt-close { margin-left: 0.3rem; font-size: 1.15rem; line-height: 1; }
   .rt-close:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-pin:focus-visible { outline: none; box-shadow: var(--jek-focus); }

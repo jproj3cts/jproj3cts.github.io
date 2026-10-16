@@ -43,8 +43,10 @@ export function surfaceParts(P) {
 export function editable(P, q, i) {
   const sp = surfaceParts(P)[i];
   if (!sp) return false;
-  if (q === 'R' || q === 'k') return sp.kind === 'lens' || sp.kind === 'mirror';
-  if (q[0] === 'a') return sp.kind === 'lens';
+  if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
+  // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
+  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q[0] === 'a') return sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;

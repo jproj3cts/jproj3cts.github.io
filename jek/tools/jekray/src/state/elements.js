@@ -210,7 +210,7 @@ export function benchNms() {
 }
 
 export function lensKind(el) {
-  if (el.surfaces.some(s => s.k !== 0 || s.a2 !== 0 || s.A.some(a => a !== 0))) return 'Aspheric lens';
+  if (el.asphere) return 'Asphere';
   return 'Lens';
 }
 

@@ -150,6 +150,36 @@ Both run in the page's background worker, a few cycles or trials at a time, and 
 
 Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the lens data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them.
 
+### Tolerance the design
+
+The **Tolerance the design** tab asks how good the design will be as it is made. The design as solved is the nominal lens; each tolerance changes it as a maker might, nothing re-solved but the compensator:
+
+| tolerance | ± | what it changes |
+|---|---|---|
+| Radius | fringes | each lens surface's sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each): the sphere with that sag, more or less curved |
+| Thickness and air gaps | mm | every lens's thickness and every gap between parts |
+| Lens decentre | mm | each lens moved across the axis, in x and in y |
+| Lens tilt | arcmin | each lens tilted about its first vertex, about x and about y |
+| Glass index | Δn | each glass's index at every wavelength |
+| Abbe number | % | each glass's dispersion about the d line, divided by $$1 + \delta$$ |
+
+A decentred or tilted lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
+
+The **criterion** is the merit function's image term: the RMS spot (or RMS wavefront error) over every field and wavelength, as set in Merit. The **compensator**, unless turned off, refocuses the image plane for each build: the spot's square is exactly a parabola in the focus, so three trials find the best focus, and once more about it settles it.
+
+- **Sensitivity** sets each tolerance alone at its two limits and gives the change in the criterion from nominal, worst first, and the criterion expected over the builds, the tolerances' effects on its square added: $$c^2 \approx c_0^2 + \sum_i k\,\tfrac12\left[(c_i^{+})^2 + (c_i^{-})^2 - 2c_0^2\right]$$, $$k = 1/3$$ for tolerances uniform within their limits, $$1/4$$ for normal ones with the limit at two deviations.
+- **Monte Carlo** builds the lens again and again, every tolerance at random (uniform within its limits, or normal with the limit at two standard deviations, cut there), each build from its own seed so a run repeats however it is cut up; and gives the spread of the criterion: its mean and deviation, its best and worst, the criterion 50%, 80%, 90% and 98% of builds are at least as good as, a histogram, and how far each build had to be refocused.
+
+Both run in the background worker, a batch at a time, and can be stopped. The tolerances, the compensator and Monte Carlo's settings are kept with the design; the results are kept while the workspace is open, and say so when the design has changed since.
+
+**Checked against.**
+- a decentred surface traced in its own frame against the centred one with the light moved across: the same rays, to 10⁻¹²;
+- a plate tilted 10°: a ray along the axis leaves parallel, shifted by $$t\sin\alpha\left(1 - \cos\alpha/\sqrt{n^2 - \sin^2\alpha}\right)$$;
+- a radius's fringes against the sag they make, and an index change against the lensmaker's equation;
+- the compensator against a fine scan of the focus;
+- a round system's decentres and tilts alike in x and y and at either limit;
+- Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors.
+
 ### The bench's own tools
 
 **Optimise the bench** and **Tolerance the bench** (the Sweeps menu) work on the whole bench, its positions, alignment and coupling, over the swept values. A lens design is optimised in its workspace, against its own conditions.
@@ -199,4 +229,4 @@ An assembly's panel compares the light the bench sends it with its design condit
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`) and the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it) or `"t:image"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it) or `"t:image"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`.

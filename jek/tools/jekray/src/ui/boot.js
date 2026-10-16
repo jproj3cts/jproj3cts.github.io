@@ -88,7 +88,7 @@ import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './new
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
-import { closeLensDesign, lensDesignOpen, lensOptState, openLensDesign, optStart } from './lens-workspace.js';
+import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, mtfAnalysis, psfAnalysis, spotDiagram } from '../engines/lens-analysis.js';
 
@@ -362,6 +362,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
+    lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }

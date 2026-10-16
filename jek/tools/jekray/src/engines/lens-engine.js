@@ -22,6 +22,13 @@ import { refIndex } from '../core/glass.js';
    sphere centred where the chief ray meets the image plane, through where it crosses the exit pupil.
    ========================================================================== */
 
+/* a glass's index, offset as a tolerance has it: dn added, its dispersion about the d line divided by (1 + dv) */
+function indexOf(m, nm) {
+  const n = refIndex(m, nm);
+  if (!m || (!m.dn && !m.dv)) return n;
+  const nd = m.dv ? refIndex(m, 587.56) : n;
+  return (m.dv ? nd + (n - nd) / (1 + m.dv) : n) + (m.dn || 0);
+}
 /* the system at wavelength nm: P a prescription ({surfaces, gaps, materials, stopIndex}), opts:
    epd (the entrance pupil's diameter, mm; else the stop's own opening sets it), image (the image
    plane's distance after the last surface; else the paraxial focus), imageMaterial (the medium after
@@ -38,9 +45,11 @@ export function lensSystem(P, nm, opts) {
     k[i] = s.k || 0; a2[i] = s.a2 || 0; semi[i] = s.semi > 0 ? s.semi : Infinity;
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
-    n[i + 1] = i < N - 1 ? refIndex(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
+    n[i + 1] = i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
   const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
+  // surfaces moved off the axis: each its vertex o and its rotation R (local to global, row by row)
+  if (P.surfaces.some(s => s.frame)) S.fr = P.surfaces.map(s => s.frame || null);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
@@ -110,8 +119,26 @@ function dsagOverR(S, i, r2) {
    failing: 1 + the surface it was vignetted at, or -(1 + the surface) where it missed or turned back. */
 export function traceRay(S, R, i0, i1, noClip) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
+  // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
+  // its vertex at the origin, and taken back after
+  let F = null;
+  const local = () => {
+    const o = F.o, Q = F.R, dx = x - o[0], dy = y - o[1], dz = z - o[2];
+    x = Q[0] * dx + Q[3] * dy + Q[6] * dz; y = Q[1] * dx + Q[4] * dy + Q[7] * dz; z = Q[2] * dx + Q[5] * dy + Q[8] * dz;
+    const l = Q[0] * L + Q[3] * M + Q[6] * Nn, m = Q[1] * L + Q[4] * M + Q[7] * Nn, nn = Q[2] * L + Q[5] * M + Q[8] * Nn;
+    L = l; M = m; Nn = nn;
+  };
+  const global = () => {
+    const o = F.o, Q = F.R, lx = x, ly = y, lz = z;
+    x = o[0] + Q[0] * lx + Q[1] * ly + Q[2] * lz; y = o[1] + Q[3] * lx + Q[4] * ly + Q[5] * lz; z = o[2] + Q[6] * lx + Q[7] * ly + Q[8] * lz;
+    const l = Q[0] * L + Q[1] * M + Q[2] * Nn, m = Q[3] * L + Q[4] * M + Q[5] * Nn, nn = Q[6] * L + Q[7] * M + Q[8] * Nn;
+    L = l; M = m; Nn = nn;
+  };
+  const stop = flag => { if (F) global(); R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = flag; return R; };
   for (let i = i0; i <= i1; i++) {
-    const ni = S.n[i], zi = S.z[i];
+    F = S.fr ? S.fr[i] : null;
+    if (F) local();
+    const ni = S.n[i], zi = F ? 0 : S.z[i];
     // to the vertex plane, then Newton along the ray onto the surface
     let t = (zi - z) / Nn, ok = false;
     for (let it = 0; it < 40; it++) {
@@ -122,20 +149,20 @@ export function traceRay(S, R, i0, i1, noClip) {
       t -= dt;
       if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
     }
-    if (!ok) { R[7] = -(1 + i); return R; }
+    if (!ok) return stop(-(1 + i));
     x += L * t; y += M * t; z += Nn * t; opl += ni * t;
     const r2 = x * x + y * y;
-    if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) { R[0] = x; R[1] = y; R[2] = z; R[6] = opl; R[7] = 1 + i; return R; }
+    if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
     const g = dsagOverR(S, i, r2), nx = -g * x, ny = -g * y, nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const mu = ni / S.n[i + 1], ci = L * ux + M * uy + Nn * uz, kk = 1 - mu * mu * (1 - ci * ci);
-    if (kk < 0) { R[0] = x; R[1] = y; R[2] = z; R[6] = opl; R[7] = -(1 + i); return R; }
+    if (kk < 0) return stop(-(1 + i));
     const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
     L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    if (F) { global(); F = null; }
   }
-  R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = 0;
-  return R;
+  return stop(0);
 }
 /* on to the plane z = zp, in the last medium */
 function toPlane(S, R, zp) {

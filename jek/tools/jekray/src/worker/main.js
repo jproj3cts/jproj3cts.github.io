@@ -13,6 +13,7 @@ import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
 import { antennaJob } from '../engines/antenna-field.js';
 import { optRun } from '../engines/lens-opt.js';
+import { tolRun } from '../engines/lens-tol.js';
 
 /* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
 function volOut(R, key, vol, transfer) {
@@ -59,6 +60,9 @@ export function workerMain() {
       } else if (kind === 'lensopt') {
         // a lens design's optimisation, a few cycles (or trials) at a time: all it needs comes with it
         out = { out: optRun(args.prob, args.run) };
+      } else if (kind === 'lenstol') {
+        // a lens design's tolerancing, a batch of tolerances (or trials) at a time
+        out = { out: tolRun(args.prob, args.run) };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
       } else if (kind === 'trace') {

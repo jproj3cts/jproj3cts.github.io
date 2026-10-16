@@ -1,0 +1,168 @@
+import { TEST_MODE } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
+import { normTol } from '../core/assembly.js';
+import { designOf } from '../engines/lens-design.js';
+import { cloneP, optProblem } from '../engines/lens-opt.js';
+import { compensated, mcStats, rssEstimate, tolOps, tolRun } from '../engines/lens-tol.js';
+import { h } from './panel.js';
+import { plotCsv, plotSaveRow } from './plots.js';
+
+/* ==========================================================================
+   Tolerance the design: the workspace's tab for how the design holds up as it is made
+   The tolerances by kind, the compensator and Monte Carlo's settings (kept with the design), and
+   the two runs: Sensitivity, each tolerance alone at its limits, and Monte Carlo, all of them at
+   random, build after build. Both run a batch at a time, in the background worker where there is
+   one, and show as they go; their results are kept for the design as it was when they ran.
+   ========================================================================== */
+const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each)'],
+  ['thk', 'Thickness and air gaps', 'mm', 'Every lens’s thickness and every gap between parts'],
+  ['dec', 'Lens decentre', 'mm', 'Each lens moved across the axis, in x and in y'],
+  ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
+  ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
+  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion']];
+const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+let TOL = null;
+export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
+export function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
+const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
+
+/* a run: ctx { asm, P, redraw, sync } */
+export function tolStart(mode, ctx) {
+  const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
+  if (!ops.length) return false;
+  TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
+    sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+  ctx.redraw();
+  if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
+  setTimeout(() => tolBatch(ctx), 0);
+  return true;
+}
+function tolBatch(ctx) {
+  const O = TOL;
+  if (!O || !O.running) return;
+  const prob = O.prob, S = O.sens, M = O.mc;
+  const run = O.mode === 'sens' ? { mode: 'sens', from: S.rows.length, to: S.rows.length + 4 } : { mode: 'mc', from: M.trials.length, to: Math.min(M.target, M.trials.length + 10) };
+  const take = out => {
+    if (TOL !== O || !O.running) return;
+    if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; ctx.redraw(); return; }
+    if (O.mode === 'sens') {
+      S.nominal = out.nominal; S.rows.push(...out.rows);
+      if (S.rows.length >= S.count) { O.running = false; O.note = 'Done: ' + S.count + ' tolerances.'; }
+    } else {
+      M.trials.push(...out.trials);
+      if (M.trials.length >= M.target) { O.running = false; O.note = 'Done: ' + M.trials.length + ' builds.'; }
+    }
+    ctx.redraw();
+    if (O.running && !ctx.sync) setTimeout(() => tolBatch(ctx), 0);
+  };
+  if (ctx.sync || TEST_MODE || !hooks.fieldWorker()) take(tolRun(prob, run));
+  else hooks.fwRequest('lenstol', 'lenstol', { prob, run }).then(o => take(o && o.out)).catch(() => take(null));
+}
+
+/* the tab: ctx { asm, P, redraw, edit(fn): a change to the tolerance settings, undoable } */
+export function tolCard(ctx) {
+  const { asm, P } = ctx, D = designOf(asm), T = D.tol, prob = optProblem(asm, P), ops = tolOps(prob.P, T);
+  const mine = TOL && TOL.id === asm.id ? TOL : null, running = !!(mine && mine.running), current = mine && mine.key === keyOf(prob);
+  const wf = D.merit.crit === 'wfe', unit = v => wf ? tolFmt(v, 4) + ' waves' : tolFmt(1000 * v, 4) + ' µm';
+  const card = h('div', { class: 'rt-lcard rt-ltol', role: 'tabpanel' });
+  const set = (fn) => { tolStop('Stopped: the tolerances were changed.'); ctx.edit(dd => { const t = JSON.parse(JSON.stringify(dd.tol)); fn(t); dd.tol = normTol(t); }); };
+  // the tolerances by kind
+  const tbl = h('table', { class: 'rt-ltable rt-ltolset' });
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Tolerance', '±', '', 'What it moves'].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  for (const [k, label, u, what] of KIND_ROWS) {
+    const cb = h('input', { type: 'checkbox', 'aria-label': 'Apply the ' + label.toLowerCase() + ' tolerance' }); cb.checked = T[k].on;
+    cb.addEventListener('change', () => set(t => { t[k].on = cb.checked; }));
+    const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: tolFmt(T[k].v, 6), 'aria-label': label + ' tolerance (' + u + ')' });
+    v.addEventListener('change', () => { const x = parseFloat(v.value); if (isFinite(x) && x >= 0) set(t => { t[k].v = x; }); else v.value = tolFmt(T[k].v, 6); });
+    tb.append(h('tr', null, h('td', null, cb), h('td', null, label), h('td', null, v), h('td', { class: 'ro' }, u), h('td', { class: 'rt-lsub' }, what)));
+  }
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const comp = h('input', { type: 'checkbox', 'aria-label': 'Refocus each build' }); comp.checked = T.comp;
+  comp.addEventListener('change', () => set(t => { t.comp = comp.checked; }));
+  const dist = h('select', { 'aria-label': 'Distribution' }, h('option', { value: 'uniform' }, 'uniform within the limits'), h('option', { value: 'normal' }, 'normal, the limits at two deviations'));
+  dist.value = T.dist; dist.addEventListener('change', () => set(t => { t.dist = dist.value; }));
+  const trials = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.trials), 'aria-label': 'Builds' });
+  trials.addEventListener('change', () => { const x = parseInt(trials.value, 10); if (x >= 10) set(t => { t.trials = x; }); else trials.value = String(T.trials); });
+  const seed = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.seed), 'aria-label': 'Seed' });
+  seed.addEventListener('change', () => { const x = parseInt(seed.value, 10); if (x >= 1) set(t => { t.seed = x; }); else seed.value = String(T.seed); });
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is the compensator)'),
+    h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
+  card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
+    ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
+  card.append(h('div', { class: 'rt-lbar' }, ...(running
+    ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
+    : [h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'),
+      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo')])));
+  if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
+  if (mine && !current && !running) card.append(h('div', { class: 'rt-lnote' }, 'These results are for the design as it was when they ran; run them again for it as it is now.'));
+  // sensitivity
+  const S = mine && mine.sens;
+  if (S && S.nominal !== null && S.rows.length) {
+    const rows = S.rows.slice().sort((a, b) => Math.max(b.minus, b.plus) - Math.max(a.minus, a.plus)), worst = Math.max(1e-30, ...rows.map(r => Math.max(r.minus, r.plus)));
+    const est = rssEstimate(S.nominal, S.rows, T.dist);
+    card.append(h('h3', null, 'Sensitivity'), h('div', { class: 'rt-readout' }, h('dl', null,
+      h('dt', null, 'Nominal'), h('dd', { class: 'mono' }, unit(S.nominal)),
+      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')))));
+    const st = h('table', { class: 'rt-ltable rt-ltolsens' });
+    st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
+    const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
+    const kindUnit = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%' };
+    for (const r of show) {
+      const w = Math.max(r.minus, r.plus) / worst;
+      sb.append(h('tr', null, h('td', null, r.label), h('td', { class: 'mono' }, tolFmt(r.lim, 4) + ' ' + kindUnit[r.kind]),
+        h('td', { class: 'mono' }, (r.minus >= 0 ? '+' : '') + unit(r.minus)), h('td', { class: 'mono' }, (r.plus >= 0 ? '+' : '') + unit(r.plus)),
+        h('td', null, h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.max(0, 100 * w).toFixed(1) + '%' }))))));
+    }
+    st.append(sb);
+    card.append(h('div', { class: 'rt-ltwrap' }, st));
+    if (rows.length > 12) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allSens = !ctx.state.allSens; ctx.redraw(); } }, ctx.state.allSens ? 'Show the 12 worst' : 'Show all ' + rows.length));
+    card.append(h('p', { class: 'rt-lsub' }, 'Each tolerance alone at its limits, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the change in the criterion from nominal. Sorted worst first.'));
+  }
+  // Monte Carlo
+  const M = mine && mine.mc;
+  if (M && M.trials.length) {
+    const st = mcStats(M.trials.map(t => t.crit));
+    card.append(h('h3', null, 'Monte Carlo'));
+    const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+    row.append(left, right); card.append(row);
+    const cv = histogram(left, M.trials.map(t => t.crit), wf ? 1 : 1000, wf ? 'waves' : 'µm', M.nominal, st.p90);
+    plotCsv(cv, 'monte carlo', ['build', 'criterion', 'refocus (mm)'], () => M.trials.map(t => [t.j + 1, t.crit, t.dz]));
+    left.append(plotSaveRow(cv));
+    const dz = M.trials.map(t => t.dz - (M.nominalDz || 0)), dzm = dz.reduce((a, b) => a + b, 0) / dz.length, dzs = Math.sqrt(dz.reduce((a, b) => a + (b - dzm) ** 2, 0) / Math.max(1, dz.length - 1));
+    const rr = [['Builds', String(st.n)], ['Nominal', unit(M.nominal)], ['Mean', unit(st.mean)], ['Standard deviation', unit(st.sd)], ['Best', unit(st.best)],
+      ['50% of builds at least as good as', unit(st.p50)], ['80%', unit(st.p80)], ['90%', unit(st.p90)], ['98%', unit(st.p98)], ['Worst', unit(st.worst)]];
+    if (T.comp) rr.push(['Refocus from the nominal’s best focus', tolFmt(1000 * dzm, 4) + ' ± ' + tolFmt(1000 * dzs, 4) + ' µm']);
+    right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
+  }
+  card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
+  return card;
+}
+
+/* the builds' criterion, binned; the nominal and the 90% line marked */
+function histogram(parent, vals, k, u, nominal, p90) {
+  const cv = h('canvas', { role: 'img', 'aria-label': 'The criterion over ' + vals.length + ' builds' });
+  const wrap = h('div', { class: 'rt-lplot' }, cv);
+  parent.append(wrap);
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, W = Math.max(220, wrap.clientWidth || 360), H = 200;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const lo = Math.min(...vals, nominal !== null ? nominal : Infinity), hi = Math.max(...vals), nb = 20, span = (hi - lo) || 1e-12, bins = new Array(nb).fill(0);
+    for (const v of vals) bins[Math.min(nb - 1, Math.floor((v - lo) / span * nb))]++;
+    const top = Math.max(...bins), l = 8, r = W - 8, t = 10, b = H - 34, bw = (r - l) / nb;
+    g.fillStyle = '#2a78d6';
+    bins.forEach((n, i) => { const hgt = (b - t) * n / top; if (n) { g.beginPath(); g.roundRect ? g.roundRect(l + i * bw + 1, b - hgt, bw - 2, hgt, [3, 3, 0, 0]) : g.rect(l + i * bw + 1, b - hgt, bw - 2, hgt); g.fill(); } });
+    g.strokeStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
+    const X = v => l + (v - lo) / span * (r - l);
+    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = '#555'; g.textAlign = 'left';
+    g.fillText(tolFmt(k * lo, 4) + ' ' + u, l, b + 14); g.textAlign = 'right'; g.fillText(tolFmt(k * hi, 4) + ' ' + u, r, b + 14);
+    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = '#222'; g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
+    if (nominal !== null) mark(nominal, 'nominal', false);
+    mark(p90, '90%', true);
+    g.fillStyle = '#555'; g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
+  });
+  return cv;
+}

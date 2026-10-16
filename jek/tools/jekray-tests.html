@@ -8834,6 +8834,34 @@ const TESTS = [
     },
   },
   {
+    name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
+    why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      const B = J.serialize(); B.assemblies[0].design.vars = [];
+      B.elements.find(e => e.id === 'Front').surfaces = [{ R: 22.01359 }, { R: -435.76044 }];
+      Object.assign(B.elements.find(e => e.id === 'Middle'), { surfaces: [{ R: -22.21328 }, { R: 20.29192 }] });
+      Object.assign(B.elements.find(e => e.id === 'Back'), { surfaces: [{ R: 79.68360 }, { R: -18.39533 }] });
+      J.load(B); J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Tolerance the design', null, 'tab');
+        wsSet('Builds', 200);
+        const S = J.lensTolRun('sens'), M = J.lensTolRun('mc');
+        const rows = S.sens.rows, nom = S.sens.nominal, f = 1 / 3;
+        let add = 0; for (const r of rows) add += f * (((nom + r.minus) ** 2 - nom * nom) + ((nom + r.plus) ** 2 - nom * nom)) / 2;
+        const est2 = nom * nom + add, st = M.mc.stats;
+        const ms = st.sd * st.sd * (st.n - 1) / st.n + st.mean * st.mean, se = 2 * st.mean * st.sd / Math.sqrt(st.n);
+        const agree = rows.length === 30 && Math.abs(ms - est2) < 4 * se;
+        const txt = rigDoc().querySelector('#lensWs .rt-ltol').textContent, shown = /Sensitivity/.test(txt) && /90%/.test(txt) && /Decentre in y/.test(txt);
+        wsSet('Lens decentre tolerance (mm)', 0.05);
+        J.closeLensDesign(); J.load(J.serialize());
+        const kept = J.lensFigures('Cooke triplet').design.tol.dec.v === 0.05;
+        return agree && shown && kept ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'The lens engine’s first-order figures are the makers’ for their lens files',
     why: 'each of Edmund’s twelve files read in, its focal length and back focus from the lens engine’s paraxial trace against those its product page states, to the larger of 0.05 mm and 0.1% (how many of the 12 agree)',
     want: 12, tol: 0, unit: ' of 12',

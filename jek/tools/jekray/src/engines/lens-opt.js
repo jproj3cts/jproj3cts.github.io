@@ -37,7 +37,7 @@ export function optProblem(asm, P) {
   return JSON.parse(JSON.stringify({ P: { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, parts: P.parts, image: P.image, origin: P.origin, dir: P.dir },
     cond: asm.cond, design: asm.design }));
 }
-const cloneP = P => ({ surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)),
+export const cloneP = P => ({ surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)),
   stopIndex: P.stopIndex, parts: P.parts, image: P.image, origin: P.origin, dir: P.dir });
 
 /* the variables: each key marked V that is free (not solved, not picked up); a model glass is two */

@@ -1345,6 +1345,13 @@
   .rt-lkeybar i { flex: 1; height: 0.6rem; border-radius: 2px; background: linear-gradient(90deg, #2a78d6, #f0efec, #e34948); }
   .rt-lzern { min-width: 0; }
   .rt-lzern td:last-child { text-align: right; }
+  .rt-ltolset { min-width: 36rem; }
+  .rt-ltolset td:first-child { width: 1.5rem; }
+  .rt-ltolopts { gap: 0.5rem 1.5rem; font-size: 0.85rem; margin: 0.6rem 0; }
+  .rt-ltolopts select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-ltolopts .rt-lnum { width: 4.5rem; }
+  .rt-ltolsens { min-width: 36rem; }
+  .rt-ltol .rt-readout { max-width: 30rem; margin: 0.4rem 0; }
   .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
   .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
   .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }
@@ -5112,10 +5119,25 @@ function normDesign(d) {
     if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit) };
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol) };
 }
 /* the merit function: the image term (what is measured, over how many pupil rings and arms), the
    boundaries every design keeps to, and the operands added to it, each with a target and a weight */
+/* tolerances: for each kind, whether it is applied and how large (radius in fringes at 632.8 nm over
+   the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
+   index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
+   statistics, trials and seed */
+const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5 };
+function normTol(o) {
+  o = o && typeof o === 'object' ? o : {};
+  const out = {};
+  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
+  out.comp = o.comp !== false;
+  out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
+  out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
+  out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
+  return out;
+}
 const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
 function normMerit(m) {
   m = m && typeof m === 'object' ? m : {};
@@ -21849,6 +21871,165 @@ function seidelView(body, asm, P, F) {
   body.append(h('div', { class: 'rt-ltwrap' }, tbl));
 }
 /* ==========================================================================
+   Tolerance the design: the workspace's tab for how the design holds up as it is made
+   The tolerances by kind, the compensator and Monte Carlo's settings (kept with the design), and
+   the two runs: Sensitivity, each tolerance alone at its limits, and Monte Carlo, all of them at
+   random, build after build. Both run a batch at a time, in the background worker where there is
+   one, and show as they go; their results are kept for the design as it was when they ran.
+   ========================================================================== */
+const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each)'],
+  ['thk', 'Thickness and air gaps', 'mm', 'Every lens’s thickness and every gap between parts'],
+  ['dec', 'Lens decentre', 'mm', 'Each lens moved across the axis, in x and in y'],
+  ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
+  ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
+  ['abbe', 'Abbe number', '%', 'Each glass’s dispersion']];
+const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+let TOL = null;
+const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
+function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
+const keyOf = prob => JSON.stringify([prob.P.surfaces.map(s => [s.R, s.k, s.semi]), prob.P.gaps, prob.P.materials, prob.P.image, prob.cond, prob.design.merit, prob.design.tol]);
+
+/* a run: ctx { asm, P, redraw, sync } */
+function tolStart(mode, ctx) {
+  const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
+  if (!ops.length) return false;
+  TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
+    sens: mode === 'sens' ? { nominal: null, rows: [], count: ops.length } : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.sens : null),
+    mc: mode === 'mc' ? (() => { const n = compensated(prob, cloneP(prob.P), T.comp); return { trials: [], target: T.trials, nominal: n.crit, nominalDz: n.dz }; })() : (TOL && TOL.id === ctx.asm.id && TOL.key === keyOf(prob) ? TOL.mc : null) };
+  ctx.redraw();
+  if (ctx.sync) { while (TOL.running) tolBatch(ctx); return true; }
+  setTimeout(() => tolBatch(ctx), 0);
+  return true;
+}
+function tolBatch(ctx) {
+  const O = TOL;
+  if (!O || !O.running) return;
+  const prob = O.prob, S = O.sens, M = O.mc;
+  const run = O.mode === 'sens' ? { mode: 'sens', from: S.rows.length, to: S.rows.length + 4 } : { mode: 'mc', from: M.trials.length, to: Math.min(M.target, M.trials.length + 10) };
+  const take = out => {
+    if (TOL !== O || !O.running) return;
+    if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; ctx.redraw(); return; }
+    if (O.mode === 'sens') {
+      S.nominal = out.nominal; S.rows.push(...out.rows);
+      if (S.rows.length >= S.count) { O.running = false; O.note = 'Done: ' + S.count + ' tolerances.'; }
+    } else {
+      M.trials.push(...out.trials);
+      if (M.trials.length >= M.target) { O.running = false; O.note = 'Done: ' + M.trials.length + ' builds.'; }
+    }
+    ctx.redraw();
+    if (O.running && !ctx.sync) setTimeout(() => tolBatch(ctx), 0);
+  };
+  if (ctx.sync || TEST_MODE || !hooks.fieldWorker()) take(tolRun(prob, run));
+  else hooks.fwRequest('lenstol', 'lenstol', { prob, run }).then(o => take(o && o.out)).catch(() => take(null));
+}
+
+/* the tab: ctx { asm, P, redraw, edit(fn): a change to the tolerance settings, undoable } */
+function tolCard(ctx) {
+  const { asm, P } = ctx, D = designOf(asm), T = D.tol, prob = optProblem(asm, P), ops = tolOps(prob.P, T);
+  const mine = TOL && TOL.id === asm.id ? TOL : null, running = !!(mine && mine.running), current = mine && mine.key === keyOf(prob);
+  const wf = D.merit.crit === 'wfe', unit = v => wf ? tolFmt(v, 4) + ' waves' : tolFmt(1000 * v, 4) + ' µm';
+  const card = h('div', { class: 'rt-lcard rt-ltol', role: 'tabpanel' });
+  const set = (fn) => { tolStop('Stopped: the tolerances were changed.'); ctx.edit(dd => { const t = JSON.parse(JSON.stringify(dd.tol)); fn(t); dd.tol = normTol(t); }); };
+  // the tolerances by kind
+  const tbl = h('table', { class: 'rt-ltable rt-ltolset' });
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Tolerance', '±', '', 'What it moves'].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  for (const [k, label, u, what] of KIND_ROWS) {
+    const cb = h('input', { type: 'checkbox', 'aria-label': 'Apply the ' + label.toLowerCase() + ' tolerance' }); cb.checked = T[k].on;
+    cb.addEventListener('change', () => set(t => { t[k].on = cb.checked; }));
+    const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: tolFmt(T[k].v, 6), 'aria-label': label + ' tolerance (' + u + ')' });
+    v.addEventListener('change', () => { const x = parseFloat(v.value); if (isFinite(x) && x >= 0) set(t => { t[k].v = x; }); else v.value = tolFmt(T[k].v, 6); });
+    tb.append(h('tr', null, h('td', null, cb), h('td', null, label), h('td', null, v), h('td', { class: 'ro' }, u), h('td', { class: 'rt-lsub' }, what)));
+  }
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const comp = h('input', { type: 'checkbox', 'aria-label': 'Refocus each build' }); comp.checked = T.comp;
+  comp.addEventListener('change', () => set(t => { t.comp = comp.checked; }));
+  const dist = h('select', { 'aria-label': 'Distribution' }, h('option', { value: 'uniform' }, 'uniform within the limits'), h('option', { value: 'normal' }, 'normal, the limits at two deviations'));
+  dist.value = T.dist; dist.addEventListener('change', () => set(t => { t.dist = dist.value; }));
+  const trials = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.trials), 'aria-label': 'Builds' });
+  trials.addEventListener('change', () => { const x = parseInt(trials.value, 10); if (x >= 10) set(t => { t.trials = x; }); else trials.value = String(T.trials); });
+  const seed = h('input', { type: 'text', inputmode: 'numeric', class: 'rt-lnum', value: String(T.seed), 'aria-label': 'Seed' });
+  seed.addEventListener('change', () => { const x = parseInt(seed.value, 10); if (x >= 1) set(t => { t.seed = x; }); else seed.value = String(T.seed); });
+  card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, comp, ' Refocus each build (the image plane is the compensator)'),
+    h('label', null, 'Monte Carlo: ', trials, ' builds, ', dist, ', seed ', seed)));
+  card.append(h('p', { class: 'rt-lsub' }, 'The criterion is the merit’s image term: the ' + (wf ? 'RMS wavefront error' : D.merit.crit === 'chief' ? 'RMS spot about the chief ray' : 'RMS spot about the centroid') +
+    ' over ' + asm.cond.fields.length + ' field' + (asm.cond.fields.length === 1 ? '' : 's') + ' × ' + asm.cond.waves.length + ' wavelength' + (asm.cond.waves.length === 1 ? '' : 's') + ' (set in Merit). ' + ops.length + ' tolerances.'));
+  card.append(h('div', { class: 'rt-lbar' }, ...(running
+    ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
+    : [h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'),
+      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo')])));
+  if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
+  if (mine && !current && !running) card.append(h('div', { class: 'rt-lnote' }, 'These results are for the design as it was when they ran; run them again for it as it is now.'));
+  // sensitivity
+  const S = mine && mine.sens;
+  if (S && S.nominal !== null && S.rows.length) {
+    const rows = S.rows.slice().sort((a, b) => Math.max(b.minus, b.plus) - Math.max(a.minus, a.plus)), worst = Math.max(1e-30, ...rows.map(r => Math.max(r.minus, r.plus)));
+    const est = rssEstimate(S.nominal, S.rows, T.dist);
+    card.append(h('h3', null, 'Sensitivity'), h('div', { class: 'rt-readout' }, h('dl', null,
+      h('dt', null, 'Nominal'), h('dd', { class: 'mono' }, unit(S.nominal)),
+      h('dt', null, 'Expected over the builds'), h('dd', { class: 'mono' }, unit(est) + (S.rows.length < S.count ? ' (so far)' : ''), h('span', { class: 'rt-lsub' }, ' the tolerances’ effects added in quadrature')))));
+    const st = h('table', { class: 'rt-ltable rt-ltolsens' });
+    st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
+    const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
+    const kindUnit = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%' };
+    for (const r of show) {
+      const w = Math.max(r.minus, r.plus) / worst;
+      sb.append(h('tr', null, h('td', null, r.label), h('td', { class: 'mono' }, tolFmt(r.lim, 4) + ' ' + kindUnit[r.kind]),
+        h('td', { class: 'mono' }, (r.minus >= 0 ? '+' : '') + unit(r.minus)), h('td', { class: 'mono' }, (r.plus >= 0 ? '+' : '') + unit(r.plus)),
+        h('td', null, h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.max(0, 100 * w).toFixed(1) + '%' }))))));
+    }
+    st.append(sb);
+    card.append(h('div', { class: 'rt-ltwrap' }, st));
+    if (rows.length > 12) card.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allSens = !ctx.state.allSens; ctx.redraw(); } }, ctx.state.allSens ? 'Show the 12 worst' : 'Show all ' + rows.length));
+    card.append(h('p', { class: 'rt-lsub' }, 'Each tolerance alone at its limits, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the change in the criterion from nominal. Sorted worst first.'));
+  }
+  // Monte Carlo
+  const M = mine && mine.mc;
+  if (M && M.trials.length) {
+    const st = mcStats(M.trials.map(t => t.crit));
+    card.append(h('h3', null, 'Monte Carlo'));
+    const row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div');
+    row.append(left, right); card.append(row);
+    const cv = histogram(left, M.trials.map(t => t.crit), wf ? 1 : 1000, wf ? 'waves' : 'µm', M.nominal, st.p90);
+    plotCsv(cv, 'monte carlo', ['build', 'criterion', 'refocus (mm)'], () => M.trials.map(t => [t.j + 1, t.crit, t.dz]));
+    left.append(plotSaveRow(cv));
+    const dz = M.trials.map(t => t.dz - (M.nominalDz || 0)), dzm = dz.reduce((a, b) => a + b, 0) / dz.length, dzs = Math.sqrt(dz.reduce((a, b) => a + (b - dzm) ** 2, 0) / Math.max(1, dz.length - 1));
+    const rr = [['Builds', String(st.n)], ['Nominal', unit(M.nominal)], ['Mean', unit(st.mean)], ['Standard deviation', unit(st.sd)], ['Best', unit(st.best)],
+      ['50% of builds at least as good as', unit(st.p50)], ['80%', unit(st.p80)], ['90%', unit(st.p90)], ['98%', unit(st.p98)], ['Worst', unit(st.worst)]];
+    if (T.comp) rr.push(['Refocus from the nominal’s best focus', tolFmt(1000 * dzm, 4) + ' ± ' + tolFmt(1000 * dzs, 4) + ' µm']);
+    right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
+  }
+  card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
+  return card;
+}
+
+/* the builds' criterion, binned; the nominal and the 90% line marked */
+function histogram(parent, vals, k, u, nominal, p90) {
+  const cv = h('canvas', { role: 'img', 'aria-label': 'The criterion over ' + vals.length + ' builds' });
+  const wrap = h('div', { class: 'rt-lplot' }, cv);
+  parent.append(wrap);
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, W = Math.max(220, wrap.clientWidth || 360), H = 200;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const lo = Math.min(...vals, nominal !== null ? nominal : Infinity), hi = Math.max(...vals), nb = 20, span = (hi - lo) || 1e-12, bins = new Array(nb).fill(0);
+    for (const v of vals) bins[Math.min(nb - 1, Math.floor((v - lo) / span * nb))]++;
+    const top = Math.max(...bins), l = 8, r = W - 8, t = 10, b = H - 34, bw = (r - l) / nb;
+    g.fillStyle = '#2a78d6';
+    bins.forEach((n, i) => { const hgt = (b - t) * n / top; if (n) { g.beginPath(); g.roundRect ? g.roundRect(l + i * bw + 1, b - hgt, bw - 2, hgt, [3, 3, 0, 0]) : g.rect(l + i * bw + 1, b - hgt, bw - 2, hgt); g.fill(); } });
+    g.strokeStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
+    const X = v => l + (v - lo) / span * (r - l);
+    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = '#555'; g.textAlign = 'left';
+    g.fillText(tolFmt(k * lo, 4) + ' ' + u, l, b + 14); g.textAlign = 'right'; g.fillText(tolFmt(k * hi, 4) + ' ' + u, r, b + 14);
+    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = '#222'; g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
+    if (nominal !== null) mark(nominal, 'nominal', false);
+    mark(p90, '90%', true);
+    g.fillStyle = '#555'; g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
+  });
+  return cv;
+}
+/* ==========================================================================
    The lens design workspace
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
    by the lens engine, and its lens data, surface by surface, to edit as a lens designer does.
@@ -21885,6 +22066,7 @@ function openLensDesign(asm, opts) {
 function closeLensDesign() {
   if (!WS) return;
   optStop('Stopped: the workspace was closed.');
+  tolStop('Stopped: the workspace was closed.');
   const asm = WS.asm;
   WS = null;
   document.getElementById('lensWs').hidden = true;
@@ -21912,6 +22094,7 @@ function shell() {
 function afterUndo() {
   if (!WS) return;
   optStop('Stopped: undone.');
+  tolStop('Stopped: undone.');
   // the record is replaced by an undo: find it again by its id
   const a = (project.assemblies || []).find(x => x.id === WS.asm.id);
   if (!a || !asmMembers(a).length) { WS = null; document.getElementById('lensWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
@@ -21963,14 +22146,21 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
 
 /* a change: undoable, solved, written to the parts, shown */
+function tolEdit(fn) {
+  checkpoint();
+  fn(designOf(WS.asm));
+  changed(false);
+  renderWs();
+}
 function edit(fn) {
   optStop('Stopped: the design was changed by hand.');
+  tolStop('Stopped: the design was changed.');
   checkpoint();
   const asm = WS.asm, P = designPrescription(asm);
   const r = fn(P, asm);
@@ -22157,7 +22347,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'));
 }
 
 /* ---------- Lens data ---------- */
@@ -22319,6 +22509,7 @@ function meritCard(asm, P) {
    A few cycles (or trials) at a time, in the background worker where there is one, each batch's
    result written to the design and shown before the next; Stop ends it, Undo takes it all back. */
 let OPT = null;
+function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS.asm, P: designPrescription(WS.asm), redraw: renderWs, sync: sync !== false, state: WS.tolState || (WS.tolState = {}) }); return lensTolState(); }
 const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note };
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 function optStart(mode, opts) {
@@ -29342,6 +29533,13 @@ function antennaHeld(el, what) {
    sphere centred where the chief ray meets the image plane, through where it crosses the exit pupil.
    ========================================================================== */
 
+/* a glass's index, offset as a tolerance has it: dn added, its dispersion about the d line divided by (1 + dv) */
+function indexOf(m, nm) {
+  const n = refIndex(m, nm);
+  if (!m || (!m.dn && !m.dv)) return n;
+  const nd = m.dv ? refIndex(m, 587.56) : n;
+  return (m.dv ? nd + (n - nd) / (1 + m.dv) : n) + (m.dn || 0);
+}
 /* the system at wavelength nm: P a prescription ({surfaces, gaps, materials, stopIndex}), opts:
    epd (the entrance pupil's diameter, mm; else the stop's own opening sets it), image (the image
    plane's distance after the last surface; else the paraxial focus), imageMaterial (the medium after
@@ -29358,9 +29556,11 @@ function lensSystem(P, nm, opts) {
     k[i] = s.k || 0; a2[i] = s.a2 || 0; semi[i] = s.semi > 0 ? s.semi : Infinity;
     A.push(s.A && s.A.length ? Float64Array.from(s.A) : null);
     odd.push(s.odd && s.odd.length ? Float64Array.from(s.odd) : null);
-    n[i + 1] = i < N - 1 ? refIndex(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
+    n[i + 1] = i < N - 1 ? indexOf(P.materials[i], nm) : opts.imageMaterial ? refIndex(opts.imageMaterial, nm) : 1;
   }
   const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
+  // surfaces moved off the axis: each its vertex o and its rotation R (local to global, row by row)
+  if (P.surfaces.some(s => s.frame)) S.fr = P.surfaces.map(s => s.frame || null);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
@@ -29430,8 +29630,26 @@ function dsagOverR(S, i, r2) {
    failing: 1 + the surface it was vignetted at, or -(1 + the surface) where it missed or turned back. */
 function traceRay(S, R, i0, i1, noClip) {
   let x = R[0], y = R[1], z = R[2], L = R[3], M = R[4], Nn = R[5], opl = R[6];
+  // a surface moved off the axis (decentred or tilted, as in tolerancing): traced in its own frame,
+  // its vertex at the origin, and taken back after
+  let F = null;
+  const local = () => {
+    const o = F.o, Q = F.R, dx = x - o[0], dy = y - o[1], dz = z - o[2];
+    x = Q[0] * dx + Q[3] * dy + Q[6] * dz; y = Q[1] * dx + Q[4] * dy + Q[7] * dz; z = Q[2] * dx + Q[5] * dy + Q[8] * dz;
+    const l = Q[0] * L + Q[3] * M + Q[6] * Nn, m = Q[1] * L + Q[4] * M + Q[7] * Nn, nn = Q[2] * L + Q[5] * M + Q[8] * Nn;
+    L = l; M = m; Nn = nn;
+  };
+  const global = () => {
+    const o = F.o, Q = F.R, lx = x, ly = y, lz = z;
+    x = o[0] + Q[0] * lx + Q[1] * ly + Q[2] * lz; y = o[1] + Q[3] * lx + Q[4] * ly + Q[5] * lz; z = o[2] + Q[6] * lx + Q[7] * ly + Q[8] * lz;
+    const l = Q[0] * L + Q[1] * M + Q[2] * Nn, m = Q[3] * L + Q[4] * M + Q[5] * Nn, nn = Q[6] * L + Q[7] * M + Q[8] * Nn;
+    L = l; M = m; Nn = nn;
+  };
+  const stop = flag => { if (F) global(); R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = flag; return R; };
   for (let i = i0; i <= i1; i++) {
-    const ni = S.n[i], zi = S.z[i];
+    F = S.fr ? S.fr[i] : null;
+    if (F) local();
+    const ni = S.n[i], zi = F ? 0 : S.z[i];
     // to the vertex plane, then Newton along the ray onto the surface
     let t = (zi - z) / Nn, ok = false;
     for (let it = 0; it < 40; it++) {
@@ -29442,20 +29660,20 @@ function traceRay(S, R, i0, i1, noClip) {
       t -= dt;
       if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
     }
-    if (!ok) { R[7] = -(1 + i); return R; }
+    if (!ok) return stop(-(1 + i));
     x += L * t; y += M * t; z += Nn * t; opl += ni * t;
     const r2 = x * x + y * y;
-    if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) { R[0] = x; R[1] = y; R[2] = z; R[6] = opl; R[7] = 1 + i; return R; }
+    if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
     const g = dsagOverR(S, i, r2), nx = -g * x, ny = -g * y, nn = Math.sqrt(nx * nx + ny * ny + 1);
     const ux = nx / nn, uy = ny / nn, uz = 1 / nn;
     const mu = ni / S.n[i + 1], ci = L * ux + M * uy + Nn * uz, kk = 1 - mu * mu * (1 - ci * ci);
-    if (kk < 0) { R[0] = x; R[1] = y; R[2] = z; R[6] = opl; R[7] = -(1 + i); return R; }
+    if (kk < 0) return stop(-(1 + i));
     const sgn = ci >= 0 ? 1 : -1, b = sgn * Math.sqrt(kk) - mu * ci;
     L = mu * L + b * ux; M = mu * M + b * uy; Nn = mu * Nn + b * uz;
+    if (F) { global(); F = null; }
   }
-  R[0] = x; R[1] = y; R[2] = z; R[3] = L; R[4] = M; R[5] = Nn; R[6] = opl; R[7] = 0;
-  return R;
+  return stop(0);
 }
 /* on to the plane z = zp, in the last medium */
 function toPlane(S, R, zp) {
@@ -30558,6 +30776,157 @@ function mtfAnalysis(A, deg, nu, N) {
 }
 /* the diffraction-limited MTF of a round pupil, ν over its cutoff */
 const mtfPerfect = v => v >= 1 ? 0 : (2 / Math.PI) * (Math.acos(v) - v * Math.sqrt(1 - v * v));
+/* ==========================================================================
+   Tolerancing a lens design: how much worse it gets as it is made
+   The design as solved is the nominal lens; each tolerance is a change made to it as a maker
+   might make it, with nothing re-solved but the compensator:
+     a surface's radius, by N fringes at 632.8 nm over its clear aperture: its sag at its clear
+       radius changes by N λ / 2 (more curved for N > 0);
+     a thickness or air gap, by ± mm;
+     a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
+       and about y) by ± arcminutes: its surfaces traced in their own moved frames;
+     a glass's index by ± Δn, and its Abbe number by ± per cent (its dispersion about the d line
+       divided by 1 + δ).
+   The criterion is the merit function's image term (the RMS spot, or the RMS wavefront error, over
+   every field and wavelength); the compensator, unless turned off, refocuses the image plane to the
+   best criterion (the spot's square is exactly quadratic in the focus, so three trials find it).
+   Sensitivity takes each tolerance alone at its two limits; Monte Carlo sets them all at random
+   (uniform within the limits, or normal with the limit at two standard deviations, cut there),
+   seeded, trial by trial, and gives the spread of the criterion over the builds.
+   ========================================================================== */
+const LAMBDA_TEST = 632.8e-6, ARCMIN = Math.PI / 180 / 60;
+
+/* the tolerances the settings give for this prescription: each { kind, i (surface or gap or part), axis, lim, label } */
+function tolOps(P, T) {
+  const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
+  if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
+  if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
+  P.parts.forEach((p, pi) => {
+    if (p.kind === 'stop') return;
+    const first = sps.findIndex(s => s.pi === pi), name = 'lens on surfaces ' + (first + 1) + '–' + (first + p.n);
+    if (T.dec.on && T.dec.v > 0) for (const axis of ['x', 'y']) ops.push({ kind: 'dec', i: pi, axis, lim: T.dec.v, label: 'Decentre in ' + axis + ' of the ' + name });
+    if (T.tilt.on && T.tilt.v > 0) for (const axis of ['x', 'y']) ops.push({ kind: 'tilt', i: pi, axis, lim: T.tilt.v, label: 'Tilt about ' + axis + ' of the ' + name });
+  });
+  for (let i = 0; i < N - 1; i++) {
+    if (sps[i].pi !== sps[i + 1].pi || sps[i].kind === 'stop') continue;
+    if (T.ind.on && T.ind.v > 0) ops.push({ kind: 'ind', i, lim: T.ind.v, label: 'Index of the glass after surface ' + (i + 1) });
+    if (T.abbe.on && T.abbe.v > 0) ops.push({ kind: 'abbe', i, lim: T.abbe.v, label: 'Abbe number of the glass after surface ' + (i + 1) });
+  }
+  return ops;
+}
+
+/* the prescription as built: each tolerance at its value (vals[k] for ops[k], 0 for none) */
+function perturb(P0, ops, vals) {
+  const P = cloneP(P0), sps = surfaceParts(P0), moves = new Map();
+  ops.forEach((o, k) => {
+    const v = vals[k];
+    if (!v) return;
+    if (o.kind === 'rad') {
+      // the sphere whose sag at the clear radius is N λ / 2 more: a sphere of sag s at h has c = 2s / (s² + h²)
+      const s = P.surfaces[o.i], h = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, c0 = s.R ? 1 / s.R : 0;
+      const s0 = c0 ? c0 * h * h / (1 + Math.sqrt(Math.max(0, 1 - c0 * c0 * h * h))) : 0, s1 = s0 + Math.sign(c0 || 1) * v * LAMBDA_TEST / 2, c = 2 * s1 / (s1 * s1 + h * h);
+      s.R = Math.abs(c) < 1e-14 ? null : 1 / c;
+    } else if (o.kind === 'thk') P.gaps[o.i] = Math.max(0, P.gaps[o.i] + v);
+    else if (o.kind === 'ind') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dn: (P.materials[o.i].dn || 0) + v });
+    else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
+    else {
+      const m = moves.get(o.i) || { dx: 0, dy: 0, ax: 0, ay: 0 };
+      if (o.kind === 'dec') m[o.axis === 'x' ? 'dx' : 'dy'] += v; else m[o.axis === 'x' ? 'ax' : 'ay'] += v * ARCMIN;
+      moves.set(o.i, m);
+    }
+  });
+  if (moves.size) {
+    // each moved lens: its surfaces in frames turned about its first vertex, then shifted across
+    const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1] + g);
+    for (const [pi, m] of moves) {
+      const idx = sps.map((s, i) => s.pi === pi ? i : -1).filter(i => i >= 0), z0 = z[idx[0]];
+      const cx = Math.cos(m.ax), sx = Math.sin(m.ax), cy = Math.cos(m.ay), sy = Math.sin(m.ay);
+      // R = Ry(ay) Rx(ax), row by row
+      const R = [cy, sy * sx, sy * cx, 0, cx, -sx, -sy, cy * sx, cy * cx];
+      for (const i of idx) {
+        const d = z[i] - z0;
+        P.surfaces[i] = Object.assign({}, P.surfaces[i], { frame: { o: [m.dx + R[2] * d, m.dy + R[5] * d, z0 + R[8] * d], R } });
+      }
+    }
+  }
+  return P;
+}
+
+/* the criterion: the merit's image term, its square root */
+function criterion(prob, P) {
+  const T = meritTerms(prob, P);
+  let s = 0;
+  for (let q = 0; q < T.nImage; q++) s += T.r[q] * T.r[q];
+  return Math.sqrt(s);
+}
+/* the criterion with the image refocused (or not): { crit, dz } */
+function compensated(prob, P, comp) {
+  if (!comp) return { crit: criterion(prob, P), dz: 0 };
+  const img = P.image, at = dz => { P.image = img + dz; return criterion(prob, P); };
+  // the spot's square is a parabola in the focus: through three points, then once more about its bottom
+  let c0 = at(0), best = { crit: c0, dz: 0 }, centre = 0, h = 0.05;
+  for (let pass = 0; pass < 2; pass++) {
+    const fm = at(centre - h) ** 2, f0 = (pass ? at(centre) : c0) ** 2, fp = at(centre + h) ** 2, den = fm - 2 * f0 + fp;
+    if (!(den > 0)) break;
+    const dz = centre + h * (fm - fp) / (2 * den), c = at(dz);
+    if (isFinite(c) && c < best.crit) best = { crit: c, dz };
+    centre = best.dz; h = Math.max(h / 10, 1e-4);
+  }
+  P.image = img + best.dz;
+  return best;
+}
+
+/* ---------- Sensitivity ---------- */
+function tolSensitivity(prob, T, from, to) {
+  const ops = tolOps(prob.P, T), nom = compensated(prob, cloneP(prob.P), T.comp), rows = [];
+  for (let k = from || 0; k < Math.min(ops.length, to === undefined ? ops.length : to); k++) {
+    const r = [];
+    for (const s of [-1, 1]) { const vals = ops.map((_, j) => j === k ? s * ops[k].lim : 0); r.push(compensated(prob, perturb(prob.P, ops, vals), T.comp)); }
+    rows.push({ k, label: ops[k].label, kind: ops[k].kind, lim: ops[k].lim, minus: r[0].crit - nom.crit, plus: r[1].crit - nom.crit, dzMinus: r[0].dz, dzPlus: r[1].dz });
+  }
+  return { nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows };
+}
+/* the criterion expected over the builds from the sensitivities, each tolerance's effect on the
+   criterion's square added (a uniform tolerance's mean square is a third of its limit's, a normal
+   one cut at two deviations about a quarter) */
+function rssEstimate(nominal, rows, dist) {
+  const f = dist === 'normal' ? 0.25 : 1 / 3;
+  let add = 0;
+  for (const r of rows) add += f * (((nominal + r.minus) ** 2 - nominal ** 2) + ((nominal + r.plus) ** 2 - nominal ** 2)) / 2;
+  return Math.sqrt(Math.max(0, nominal * nominal + add));
+}
+
+/* ---------- Monte Carlo ---------- */
+function tolRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/* trials from..to-1: each its own seed, so the result does not depend on how the run is cut up */
+function tolMonteCarlo(prob, T, from, to) {
+  const ops = tolOps(prob.P, T), out = [];
+  for (let j = from; j < to; j++) {
+    const R = tolRng(T.seed * 1000003 + j * 7919 + 1);
+    const vals = ops.map(o => {
+      if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
+      return (2 * R() - 1) * o.lim;
+    });
+    const c = compensated(prob, perturb(prob.P, ops, vals), T.comp);
+    out.push({ j, crit: c.crit, dz: c.dz });
+  }
+  return out;
+}
+/* the spread over the builds: mean, deviation, and the criterion this share of them are at least as good as */
+function mcStats(crits) {
+  const s = crits.filter(isFinite).slice().sort((a, b) => a - b), n = s.length;
+  if (!n) return null;
+  const mean = s.reduce((a, b) => a + b, 0) / n, sd = Math.sqrt(s.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1));
+  const at = p => s[Math.min(n - 1, Math.max(0, Math.ceil(p * n) - 1))];
+  return { n, mean, sd, best: s[0], worst: s[n - 1], p50: at(0.5), p80: at(0.8), p90: at(0.9), p98: at(0.98) };
+}
+
+/* a batch, for the worker or the page */
+function tolRun(prob, args) {
+  const T = prob.design.tol;
+  if (args.mode === 'sens') return tolSensitivity(prob, T, args.from, args.to);
+  return { trials: tolMonteCarlo(prob, T, args.from, args.to) };
+}
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
    allows, which for a good cavity is far short of its steady state. A diode that light
@@ -36237,6 +36606,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Tolerance the design</b>, the sixth step of lens design: radius (in fringes), thickness and air gaps, lens decentre and tilt, glass index and Abbe number, each with its limit; the image refocused for each build. <b>Sensitivity</b> takes each tolerance alone at its limits, worst first, with the criterion expected over the builds; <b>Monte Carlo</b> builds the lens again and again at random and gives the spread: mean, deviation, the 50, 80, 90 and 98% builds and a histogram. Decentred and tilted lenses are traced exactly, each surface in its own frame. Runs in the background.',
     '<b>Analyses</b>, the fifth step of lens design: in the workspace\u2019s Analyses tab, the <b>spot diagram</b> (every field, each wavelength, with its RMS radius and the Airy disc), <b>ray fans</b> and <b>OPD fans</b>, <b>field curvature and distortion</b>, <b>longitudinal aberration and chromatic focal shift</b>, the <b>wavefront</b> with its Zernike terms, the <b>PSF</b> by FFT with its Strehl ratio and encircled energy, and the diffraction <b>MTF</b> beside its limit, each from real rays, each saving its numbers as CSV.',
     '<b>Optimise the design</b>, the fourth step of lens design: the <b>Merit</b> tab sets what is made small, the RMS spot (about the centroid or the chief ray) or the RMS wavefront error over every field and wavelength, sampled by Gaussian quadrature over the pupil, with terms added for the focal length, F-number, total track, distortion or a Seidel sum, and boundaries on glass and air thicknesses, each term\u2019s share shown. <b>Optimise the design</b> runs damped least squares downhill, or a <b>global search</b> for a better minimum, in the background, on the values marked V. A glass marked V becomes a <b>model glass</b> (its nd and Vd) that the optimiser moves over the glass map, then is replaced by the nearest real glass. The Sweeps menu\u2019s tools are now <b>Optimise the bench</b> and <b>Tolerance the bench</b>.',
     '<b>The lens design workspace</b>, the third step of lens design: <b>Design\u2026</b> in an assembly\u2019s panel (or a double-click on it) opens it on a page of its own, with the conditions it is designed for, its layout traced from each field, its first-order figures, and its <b>lens data</b>: radius, thickness, glass, clear radius and conic for each surface, typed in, marked <b>V</b> for the optimiser, or set by a <b>solve</b> (the image at focus, a radius for an F-number, a thickness for an edge) or a <b>pickup</b>. Insert surfaces and singlets, or take them out; the Seidel sums surface by surface under Analyses. Every change is the bench\u2019s at once. <b>Take conditions from the bench</b> reads the light arriving at it, and its panel on the bench says when it is used outside its design conditions. A design started from nothing is <b>placed on a bench</b> with a source for each field and a screen at its image.',
@@ -37694,6 +38064,9 @@ function workerMain() {
       } else if (kind === 'lensopt') {
         // a lens design's optimisation, a few cycles (or trials) at a time: all it needs comes with it
         out = { out: optRun(args.prob, args.run) };
+      } else if (kind === 'lenstol') {
+        // a lens design's tolerancing, a batch of tolerances (or trials) at a time
+        out = { out: tolRun(args.prob, args.run) };
       } else if (kind === 'spm') {
         out = fibreSPMLater(args.F, args.nm, args.len, args.P, args.Pavg, args.gdd, args.sp);
       } else if (kind === 'trace') {
@@ -38041,6 +38414,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
     lensOptState() { return lensOptState(); },
+    lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);
       if (kind === 'spot') { const s = spotDiagram(A, deg, 21); return { rms: s.rms, geo: s.geo, airy: s.airy }; }
       if (kind === 'psf') { const f = psfAnalysis(A, deg, wi, 64, 4); return { strehl: f.strehl, airy: f.airy }; }

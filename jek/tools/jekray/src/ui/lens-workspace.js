@@ -12,6 +12,7 @@ import { commitDesign, condFromBench, condFromRays, designFigures, designOf, des
   insertSurface, keyAt, posOf, primaryNm, removeSurface, surfaceParts } from '../engines/lens-design.js';
 import { h } from './panel.js';
 import { analysesPanel } from './lens-analyses.js';
+import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
@@ -53,6 +54,7 @@ export function openLensDesign(asm, opts) {
 export function closeLensDesign() {
   if (!WS) return;
   optStop('Stopped: the workspace was closed.');
+  tolStop('Stopped: the workspace was closed.');
   const asm = WS.asm;
   WS = null;
   document.getElementById('lensWs').hidden = true;
@@ -80,6 +82,7 @@ function shell() {
 function afterUndo() {
   if (!WS) return;
   optStop('Stopped: undone.');
+  tolStop('Stopped: undone.');
   // the record is replaced by an undo: find it again by its id
   const a = (project.assemblies || []).find(x => x.id === WS.asm.id);
   if (!a || !asmMembers(a).length) { WS = null; document.getElementById('lensWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
@@ -131,14 +134,21 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
 
 /* a change: undoable, solved, written to the parts, shown */
+function tolEdit(fn) {
+  checkpoint();
+  fn(designOf(WS.asm));
+  changed(false);
+  renderWs();
+}
 function edit(fn) {
   optStop('Stopped: the design was changed by hand.');
+  tolStop('Stopped: the design was changed.');
   checkpoint();
   const asm = WS.asm, P = designPrescription(asm);
   const r = fn(P, asm);
@@ -325,7 +335,7 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'));
 }
 
 /* ---------- Lens data ---------- */
@@ -487,6 +497,7 @@ function meritCard(asm, P) {
    A few cycles (or trials) at a time, in the background worker where there is one, each batch's
    result written to the design and shown before the next; Stop ends it, Undo takes it all back. */
 let OPT = null;
+export function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS.asm, P: designPrescription(WS.asm), redraw: renderWs, sync: sync !== false, state: WS.tolState || (WS.tolState = {}) }); return lensTolState(); }
 export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note };
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 export function optStart(mode, opts) {

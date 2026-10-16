@@ -75,10 +75,25 @@ export function normDesign(d) {
     if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
     pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
   }
-  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit) };
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol) };
 }
 /* the merit function: the image term (what is measured, over how many pupil rings and arms), the
    boundaries every design keeps to, and the operands added to it, each with a target and a weight */
+/* tolerances: for each kind, whether it is applied and how large (radius in fringes at 632.8 nm over
+   the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
+   index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
+   statistics, trials and seed */
+export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5 };
+export function normTol(o) {
+  o = o && typeof o === 'object' ? o : {};
+  const out = {};
+  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
+  out.comp = o.comp !== false;
+  out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
+  out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
+  out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
+  return out;
+}
 export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
 export function normMerit(m) {
   m = m && typeof m === 'object' ? m : {};

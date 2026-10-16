@@ -52,3 +52,12 @@ test('a spherical mirror’s spherical aberration: 2 y⁴ / |R|³ from the Seide
   const par = { surfaces: [surf(R, { mirror: true, stop: true, semi: 20, k: -1 })], gaps: [], materials: [], stopIndex: 0 };
   assert.ok(Math.abs(E.seidel(sys(par, 587.56, 10), 0).sum.SI) < 1e-15);
 });
+
+test('a fold mirror made tilted turns its face alone: the image plane stays, the image moves by twice the tilt times the throw', () => {
+  const R = -200, th = Math.PI / 180 / 60;
+  const newt = dt => ({ surfaces: [surf(R, { mirror: true, stop: true, semi: 20, k: -1 }), surf(null, { mirror: true, tilt: [Math.PI / 4, 0], semi: 15, ...(dt ? { dtilt: [dt, 0] } : {}) })], gaps: [70], materials: [{ glass: 'AIR' }], stopIndex: 0 });
+  const N0 = sys(newt(0), 587.56, 20), N1 = sys(newt(th), 587.56, 20);
+  for (let q = 0; q < 3; q++) assert.ok(Math.abs(N0.img.p[q] - N1.img.p[q]) < 1e-12 && Math.abs(N0.img.d[q] - N1.img.d[q]) < 1e-12);
+  const c = E.spotOf(N1, 0, E.pupilGrid(9)).chief, shift = Math.hypot(c[0], c[1]);
+  assert.ok(Math.abs(shift - 2 * th * 30) < 1e-6, 'moved ' + shift + ' against ' + 2 * th * 30);
+});

@@ -108,6 +108,8 @@ function zmxSystem(els) {
 /* an assembly's prescription as the exporter takes it: its stop where it is, its design conditions */
 function zmxAssemblySystem(asm) {
   const P = asmPrescription(asm), warnings = new Set();
+  // a fold or a part off the axis needs coordinate breaks, which this export does not write
+  if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) throw new Error(asm.name + (P.folded ? ' folds at a mirror' : ' has a part tilted or decentred') + ': a lens file is written for a straight, centred assembly only. Export its parts on one axis, or straighten it first.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   return { surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, cond: asm.cond, name: asm.name, warnings };
 }

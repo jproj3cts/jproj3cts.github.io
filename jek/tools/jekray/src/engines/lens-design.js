@@ -37,11 +37,11 @@ export function surfaceParts(P) {
   P.parts.forEach((p, pi) => { for (let j = 0; j < p.n; j++) out.push({ pi, kind: p.kind, id: p.id, j, n: p.n }); });
   return out;
 }
-/* what can be changed: a lens's radii and conics; any gap; a lens's glass (the gaps inside it) */
+/* what can be changed: a lens's or a mirror's radii and conics; any gap; a lens's glass (the gaps inside it) */
 export function editable(P, q, i) {
   const sp = surfaceParts(P)[i];
   if (!sp) return false;
-  if (q === 'R' || q === 'k') return sp.kind === 'lens';
+  if (q === 'R' || q === 'k') return sp.kind === 'lens' || sp.kind === 'mirror';
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
@@ -245,8 +245,9 @@ const sing = (el, j, semi) => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi, f
 export function removeSurface(asm, P, i) {
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind === 'stop') return 'The stop stays: it sets the aperture. Split the assembly to take it out.';
+  if (sp.kind === 'mirror') return 'The mirror stays: it folds the axis. Split the assembly to take it out.';
   if (sp.kind === 'window' || sp.n <= 2) {
-    const lenses = P.parts.filter(p => p.kind !== 'stop').length;
+    const lenses = P.parts.filter(p => p.kind === 'lens' || p.kind === 'window').length;
     if (lenses < 2) return 'An assembly keeps at least one lens.';
     const a = i - sp.j, b = a + sp.n - 1, id = sp.id;
     const ok = reKey(asm, P, () => {

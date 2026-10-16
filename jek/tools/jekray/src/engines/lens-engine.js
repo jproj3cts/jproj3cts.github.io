@@ -49,7 +49,7 @@ export function lensSystem(P, nm, opts) {
   }
   const S = { N, z, c, k, a2, A, odd, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
-  if (P.surfaces.some(s => s.mirror || s.tilt || s.dec)) geometry(S, P, opts);
+  if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
   S.epr = opts.epd > 0 ? opts.epd / 2 : P.stopIndex >= 0 && isFinite(semi[S.stop]) ? semi[S.stop] / S.par.stopMag : semi[0];
@@ -65,7 +65,8 @@ export function lensSystem(P, nm, opts) {
    The axis is walked from the first vertex, each gap along it; at a mirror it is reflected about the
    mirror's normal, and with it the axis's own x and y. Each surface then has its frame: its vertex o
    and its rotation R (local to global, row by row), which traceRay uses. The image plane is square
-   to the axis after the last surface, the image distance along it. */
+   to the axis after the last surface, the image distance along it. A surface's dtilt turns its face
+   alone, the axis folding as without it: a fold mirror made tilted, the parts after it where they were. */
 const ladd3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 const ldot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const lrefl3 = (v, m) => { const k = 2 * ldot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
@@ -74,15 +75,18 @@ function geometry(S, P) {
   S.fr = []; S.ax = [];
   for (let i = 0; i < S.N; i++) {
     if (i) p = ladd3(p, d, P.gaps[i - 1]);
-    const s = P.surfaces[i], t = s.tilt || [0, 0], dc = s.dec || [0, 0, 0];
-    const cx = Math.cos(t[0]), sx = Math.sin(t[0]), cy = Math.cos(t[1]), sy = Math.sin(t[1]);
-    // the local axes in the axis's own: Rx(tx) Ry(ty), Rx taking z toward +y
-    const lx = [cy, -sx * sy, -cx * sy], ly = [0, cx, -sx], lz = [sy, sx * cy, cx * cy];
+    const s = P.surfaces[i], t = s.tilt || [0, 0], dt = s.dtilt || [0, 0], dc = s.dec || [0, 0, 0];
     const toG = v => [e1[0] * v[0] + e2[0] * v[1] + d[0] * v[2], e1[1] * v[0] + e2[1] * v[1] + d[1] * v[2], e1[2] * v[0] + e2[2] * v[1] + d[2] * v[2]];
-    const gx = toG(lx), gy = toG(ly), gz = toG(lz);
+    // the local axes in the axis's own: Rx(tx) Ry(ty), Rx taking z toward +y
+    const axes = (ta, tb) => {
+      const cx = Math.cos(ta), sx = Math.sin(ta), cy = Math.cos(tb), sy = Math.sin(tb);
+      return [toG([cy, -sx * sy, -cx * sy]), toG([0, cx, -sx]), toG([sy, sx * cy, cx * cy])];
+    };
+    const [gx, gy, gz] = axes(t[0] + dt[0], t[1] + dt[1]);
     const o = ladd3(ladd3(ladd3(p, e1, dc[0]), e2, dc[1]), d, dc[2] || 0);
     S.fr.push({ o, R: [gx[0], gy[0], gz[0], gx[1], gy[1], gz[1], gx[2], gy[2], gz[2]] });
-    if (s.mirror) { e1 = lrefl3(e1, gz); e2 = lrefl3(e2, gz); d = lrefl3(d, gz); }
+    // a mirror folds the axis by its tilt as designed (dtilt, an error in making it, moves the face alone)
+    if (s.mirror) { const nz = dt[0] || dt[1] ? axes(t[0], t[1])[2] : gz; e1 = lrefl3(e1, nz); e2 = lrefl3(e2, nz); d = lrefl3(d, nz); }
     S.ax.push({ p, d, e1, e2 });
   }
 }

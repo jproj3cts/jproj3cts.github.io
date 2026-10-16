@@ -1273,6 +1273,7 @@
   .rt-ltable td { padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--jek-line); vertical-align: middle; }
   .rt-ltable td.n { font-family: var(--jek-mono); color: var(--jek-ink-soft); width: 2.4rem; }
   .rt-ltable td.nm { font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .rt-ltable td.tl { white-space: nowrap; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
   .rt-ltable tr.sel { background: rgba(0,146,178,0.1) !important; box-shadow: inset 3px 0 0 var(--jek-cyan); }

@@ -1,4 +1,4 @@
-import { asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
+import { asmAxisAt, asmCheck, asmMembers, normCond, normMerit, ASM_FIELDS_MAX, ASM_WAVES_MAX, MERIT_OPS, SOLVE_KINDS } from '../core/assembly.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -234,23 +234,56 @@ function layoutCard(asm, P, F) {
   requestAnimationFrame(() => drawLayout(cv, asm, P, F));
   return card;
 }
+/* the layout in the plane of the fields, in the engine's own frame (y across, z along the first
+   axis), each surface drawn in its own frame, so folds, tilts and decentres show as they are:
+   each lens an outline, each mirror its face, each stop its two blades, the rays from each field */
 export function layoutData(asm, P, F) {
-  const S = F.S, c = asm.cond, out = { lenses: [], stops: [], rays: [], imageZ: S.imageZ, zEnd: S.z[S.N - 1] };
+  const S = F.S, c = asm.cond, out = { lenses: [], mirrors: [], stops: [], rays: [], axis: [], image: null, imageZ: S.imageZ, zEnd: S.z[S.N - 1], folded: !!S.fr };
   const sps = surfaceParts(P);
-  // each lens: its surfaces' profiles across their clear radii
+  // a point (y across, z along) in surface i's own frame, to [y, z] in the drawing's
+  const at = (i, y, zl) => {
+    if (!S.fr) return [y, S.z[i] + zl];
+    const f = S.fr[i], Q = f.R;
+    return [f.o[1] + Q[4] * y + Q[5] * zl, f.o[2] + Q[7] * y + Q[8] * zl];
+  };
+  const prof = (k, hmax) => { const s = P.surfaces[k], pts = []; for (let q = 0; q <= 24; q++) { const y = -hmax + 2 * hmax * q / 24, zz = wsSag(s, y); pts.push([y, isFinite(zz) ? zz : 0]); } return pts; };
+  const semiOf = s => isFinite(s.semi) && s.semi > 0 ? s.semi : 10;
   let i = 0;
   while (i < P.surfaces.length) {
     const sp = sps[i];
-    if (sp.kind === 'stop') { out.stops.push({ z: S.z[i], r: P.surfaces[i].semi }); i++; continue; }
-    const prof = [];
-    for (let j = 0; j < sp.n; j++) {
-      const k = i + j, s = P.surfaces[k], hmax = isFinite(s.semi) && s.semi > 0 ? s.semi : 10, pts = [];
-      for (let q = 0; q <= 24; q++) { const y = -hmax + 2 * hmax * q / 24, zz = S.z[k] + wsSag(s, y); pts.push([y, isFinite(zz) ? zz : S.z[k]]); }
-      prof.push(pts);
+    if (sp.kind === 'stop') { const r = P.surfaces[i].semi, e = Math.max(r * 0.35, 1.5); out.stops.push([[at(i, r, 0), at(i, r + e, 0)], [at(i, -r, 0), at(i, -r - e, 0)]]); i++; continue; }
+    if (sp.kind === 'mirror') {
+      const pr = prof(i, semiOf(P.surfaces[i]));
+      // its face, and its back a little behind it (the side the light doesn't reach)
+      out.mirrors.push({ face: pr.map(([y, z]) => at(i, y, z)), back: pr.map(([y, z]) => at(i, y, z + Math.max(0.6, 0.04 * semiOf(P.surfaces[i])))) });
+      i++; continue;
     }
-    out.lenses.push(prof);
+    // a lens or window: an outline round its surfaces, each pair joined at the rim of the larger
+    const ps = [];
+    for (let j = 0; j < sp.n; j++) ps.push(prof(i + j, semiOf(P.surfaces[i + j])));
+    for (let j = 0; j + 1 < sp.n; j++) {
+      const a = ps[j], b = ps[j + 1], ka = i + j, kb = ka + 1, ha = a[a.length - 1][0], hb = b[b.length - 1][0], poly = [];
+      for (const [y, z] of a) poly.push(at(ka, y, z));
+      if (hb > ha) poly.push(at(ka, hb, a[a.length - 1][1]));
+      if (ha > hb) poly.push(at(kb, ha, b[b.length - 1][1]));
+      for (let q = b.length - 1; q >= 0; q--) poly.push(at(kb, b[q][0], b[q][1]));
+      if (ha > hb) poly.push(at(kb, -ha, b[0][1])); else if (hb > ha) poly.push(at(ka, -hb, a[0][1]));
+      out.lenses.push(poly);
+    }
     i += sp.n;
   }
+  // the axis, from before the first surface through each vertex it turns at, to the image
+  const lead = Math.max(5, 0.25 * S.imageZ);
+  if (S.ax) {
+    out.axis.push([-lead * S.ax[0].d[1], -lead * S.ax[0].d[2]]);
+    S.ax.forEach((a, k) => { if (k === 0 || P.surfaces[k].mirror) out.axis.push([a.p[1], a.p[2]]); });
+    out.axis.push([S.img.p[1] + S.img.d[1] * 0.05 * lead, S.img.p[2] + S.img.d[2] * 0.05 * lead]);
+    out.image = { p: [S.img.p[1], S.img.p[2]], e: [S.img.e2[1], S.img.e2[2]] };
+  } else {
+    out.axis.push([0, -lead], [0, S.imageZ + 0.05 * lead]);
+    out.image = { p: [0, S.imageZ], e: [1, 0] };
+  }
+  out.lead = lead;
   c.fields.forEach((f, fi) => {
     for (const py of [-1, -0.5, 0, 0.5, 1]) {
       const r = rayPath(S, f.deg * deg, 0, py);
@@ -268,59 +301,54 @@ function wsSag(s, y) {
   return v;
 }
 function drawLayout(cv, asm, P, F) {
-  const L = layoutData(asm, P, F), dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800, H = Math.max(180, Math.min(320, W * 0.32));
+  const L = layoutData(asm, P, F), dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800;
+  // the rays from the plane a lead before the first surface
+  const z0 = -L.lead, rays = L.rays.map(r => {
+    const p = r.pts.slice(), [ya, za] = p[0], [yb, zb] = p[1], t = (z0 - za) / (zb - za);
+    p[0] = [ya + t * (yb - ya), z0];
+    return Object.assign({}, r, { pts: p });
+  });
+  // the image plane, as tall as the rays that land on it and a little more
+  let hi = 1;
+  for (const pr of L.lenses) for (const [y] of pr) hi = Math.max(hi, 0.5 * Math.abs(y));
+  for (const r of rays) if (r.lost < 0) { const [y, z] = r.pts[r.pts.length - 1]; hi = Math.max(hi, 1.08 * Math.abs((y - L.image.p[0]) * L.image.e[0] + (z - L.image.p[1]) * L.image.e[1])); }
+  const img = [[L.image.p[0] + L.image.e[0] * hi, L.image.p[1] + L.image.e[1] * hi], [L.image.p[0] - L.image.e[0] * hi, L.image.p[1] - L.image.e[1] * hi]];
+  // the extent of it all
+  let y0 = Infinity, y1 = -Infinity, za = Infinity, zb = -Infinity;
+  const take = ([y, z]) => { if (!isFinite(y) || !isFinite(z)) return; y0 = Math.min(y0, y); y1 = Math.max(y1, y); za = Math.min(za, z); zb = Math.max(zb, z); };
+  for (const pr of L.lenses) pr.forEach(take);
+  for (const m of L.mirrors) { m.face.forEach(take); m.back.forEach(take); }
+  for (const s of L.stops) for (const seg of s) seg.forEach(take);
+  img.forEach(take); L.axis.forEach(take);
+  if (!L.folded) { const m = Math.max(Math.abs(y0), Math.abs(y1)); y0 = -m; y1 = m; }
+  const pad = Math.max(2, 0.03 * (zb - za));
+  za -= pad * (L.folded ? 1 : 0); zb += pad; y0 -= pad * 0.3; y1 += pad * 0.3;
+  const H = L.folded ? Math.max(200, Math.min(520, W * (y1 - y0) / (zb - za) + 24)) : Math.max(180, Math.min(320, W * 0.32));
   cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
   const g = cv.getContext('2d');
   g.scale(dpr, dpr);
   g.fillStyle = '#1e2227'; g.fillRect(0, 0, W, H);
-  let ymax = 1;
-  for (const pr of L.lenses) for (const s of pr) for (const [y] of s) ymax = Math.max(ymax, Math.abs(y));
-  for (const s of L.stops) ymax = Math.max(ymax, s.r * 1.3);
-  const lead = Math.max(5, 0.25 * (L.imageZ - 0));
-  const z0 = -lead, z1 = Math.max(L.imageZ, L.zEnd) + Math.max(2, 0.03 * (L.imageZ + lead));
-  for (const r of L.rays) for (const [y, z] of r.pts) if (z >= z0 && z <= z1) ymax = Math.max(ymax, Math.abs(y));
-  const k = Math.min((W - 24) / (z1 - z0), (H - 24) / (2 * ymax * 1.05)), X = z => 12 + (z - z0) * k + ((W - 24) - (z1 - z0) * k) / 2, Y = y => H / 2 - y * k;
+  const k = Math.min((W - 24) / (zb - za), (H - 24) / ((y1 - y0) * 1.05));
+  const X = z => 12 + (z - za) * k + ((W - 24) - (zb - za) * k) / 2, Y = y => H / 2 - (y - (y0 + y1) / 2) * k;
+  const path = pts => { g.beginPath(); pts.forEach(([y, z], q) => q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y))); };
   // the axis
-  g.strokeStyle = 'rgba(255,255,255,0.15)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(z0), Y(0)); g.lineTo(X(z1), Y(0)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = 'rgba(255,255,255,0.15)'; g.lineWidth = 1; g.setLineDash([4, 4]); path(L.axis); g.stroke(); g.setLineDash([]);
   // the lenses
-  for (const pr of L.lenses) {
-    g.beginPath();
-    for (let j = 0; j + 1 < pr.length; j++) {
-      const a = pr[j], b = pr[j + 1];
-      g.moveTo(X(a[0][1]), Y(a[0][0]));
-      for (const [y, z] of a) g.lineTo(X(z), Y(y));
-      const ha = a[a.length - 1][0], hb = b[b.length - 1][0];
-      // the rim: square across to the larger of the two
-      if (hb > ha) g.lineTo(X(a[a.length - 1][1]), Y(hb));
-      for (let q = b.length - 1; q >= 0; q--) { const [y, z] = b[q]; if (q === b.length - 1 && ha > hb) { g.lineTo(X(z), Y(ha)); } g.lineTo(X(z), Y(y)); }
-      if (ha > hb) g.lineTo(X(b[0][1]), Y(-ha)); else if (hb > ha) g.lineTo(X(a[0][1]), Y(-hb));
-      g.closePath();
-    }
-    g.fillStyle = 'rgba(115,185,202,0.28)'; g.fill();
-    g.strokeStyle = '#9ccfdc'; g.lineWidth = 1.2; g.stroke();
+  for (const pr of L.lenses) { path(pr); g.closePath(); g.fillStyle = 'rgba(115,185,202,0.28)'; g.fill(); g.strokeStyle = '#9ccfdc'; g.lineWidth = 1.2; g.stroke(); }
+  // the mirrors: the face bright, the back shaded
+  for (const m of L.mirrors) {
+    path(m.face.concat(m.back.slice().reverse())); g.closePath(); g.fillStyle = 'rgba(200,210,220,0.25)'; g.fill();
+    path(m.face); g.strokeStyle = '#e4ebf0'; g.lineWidth = 2; g.stroke();
   }
   // the stops
   g.strokeStyle = '#d8dee3'; g.lineWidth = 3;
-  for (const s of L.stops) { const e = Math.max(s.r * 0.35, 1.5); g.beginPath(); g.moveTo(X(s.z), Y(s.r)); g.lineTo(X(s.z), Y(s.r + e)); g.moveTo(X(s.z), Y(-s.r)); g.lineTo(X(s.z), Y(-s.r - e)); g.stroke(); }
-  // the rays, from the plane a lead before the first surface
-  g.lineWidth = 1;
-  for (const r of L.rays) {
-    g.strokeStyle = FIELD_COLOURS[r.field % FIELD_COLOURS.length]; g.globalAlpha = 0.9;
-    const p = r.pts.slice();
-    const [ya, za] = p[0], [yb, zb] = p[1], t = (z0 - za) / (zb - za);
-    p[0] = [ya + t * (yb - ya), z0];
-    g.beginPath(); g.moveTo(X(p[0][1]), Y(p[0][0]));
-    for (let q = 1; q < p.length; q++) g.lineTo(X(p[q][1]), Y(p[q][0]));
-    g.stroke();
-  }
+  for (const s of L.stops) for (const seg of s) { path(seg); g.stroke(); }
+  // the rays
+  g.lineWidth = 1; g.globalAlpha = 0.9;
+  for (const r of rays) { g.strokeStyle = FIELD_COLOURS[r.field % FIELD_COLOURS.length]; path(r.pts); g.stroke(); }
   g.globalAlpha = 1;
   // the image plane
-  g.strokeStyle = '#f2f2ec'; g.lineWidth = 2;
-  // the image plane, as tall as the rays that land on it and a little more
-  let hi = ymax * 0.5;
-  for (const r of L.rays) if (r.lost < 0) hi = Math.max(hi, Math.abs(r.pts[r.pts.length - 1][0]) * 1.08);
-  hi = Math.min(hi, ymax * 1.05);
-  g.beginPath(); g.moveTo(X(L.imageZ), Y(hi)); g.lineTo(X(L.imageZ), Y(-hi)); g.stroke();
+  g.strokeStyle = '#f2f2ec'; g.lineWidth = 2; path(img); g.stroke();
 }
 
 function figuresStrip(F) {
@@ -342,6 +370,7 @@ function tabsRow() {
 function surfaceName(P, sps, i) {
   const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
   if (sp.kind === 'stop') return /\bstop\b/i.test(nm) ? nm : nm + ' (stop)';
+  if (sp.n === 1) return nm;
   if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
   return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
 }
@@ -349,10 +378,12 @@ function dataCard(asm, P) {
   const D = designOf(asm), sps = surfaceParts(P), N = P.surfaces.length;
   const card = h('div', { class: 'rt-lcard rt-ldata', role: 'tabpanel' });
   const tbl = h('table', { class: 'rt-ltable' });
-  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].map(t => h('th', { scope: 'col' }, t)))));
+  // tilts and decentres, where a part has them (a fold mirror always)
+  const moved = P.surfaces.some(s => s.mirror || s.tilt || s.dec);
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Thickness (mm)', 'Glass', 'Clear radius (mm)', 'Conic'].concat(moved ? ['Tilt, decentre'] : []).map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
   const obj = h('tr', { class: 'obj' + (WS.sel === -2 ? ' sel' : ''), 'aria-selected': String(WS.sel === -2), title: 'Select it to insert a singlet in front of the first surface' },
-    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono' }, '∞'), h('td'), h('td'), h('td'));
+    h('td', { class: 'n' }, 'OBJ'), h('td', { class: 'nm' }, 'Object'), h('td', { class: 'mono' }, 'Flat'), h('td', { class: 'mono' }, '∞'), h('td'), h('td'), h('td'), ...(moved ? [h('td')] : []));
   obj.addEventListener('click', () => { WS.sel = WS.sel === -2 ? -1 : -2; renderWs(); });
   tb.append(obj);
   for (let i = 0; i < N; i++) {
@@ -370,17 +401,19 @@ function dataCard(asm, P) {
           onclick: () => edit((PP, a) => { const dd = designOf(a); if (gv) dd.vars = dd.vars.filter(k => k !== gk); else { PP.materials[i] = modelOf(PP.materials[i]); dd.vars = dd.vars.concat([gk]); } }) }, 'V')));
     }
     else if (sp.kind === 'window' && sp.j === 0) gtd.append(h('span', { class: 'mono' }, matLabel(P.materials[i])));
+    else if (sp.kind === 'mirror') gtd.append(h('span', { class: 'mono ro', title: 'A reflecting surface: the light turns back along the axis it folds' }, 'Mirror'));
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
     const ctd = h('td');
     if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
-    else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : 'The window’s own size' }, wsFmt(s.semi, 5)));
+    else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd);
     tr.append(valueCell(P, D, 'k', i));
+    if (moved) tr.append(h('td', { class: 'mono ro tl', title: 'Set on the bench: turn or move the part there. A tilt is about the part’s first vertex, in the plane of the fields; a decentre is across the axis.' }, sp.j === 0 ? tiltText(s) : ''));
     tb.append(tr);
   }
   const F = designFigures(asm, P);
-  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td')));
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'IMA'), h('td', null, 'Image'), h('td', { class: 'mono' }, 'Flat'), h('td'), h('td'), h('td', { class: 'mono ro', title: 'Paraxial image height at the largest field' }, wsFmt(Math.abs(F.imgH), 5)), h('td'), ...(moved ? [h('td')] : [])));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
@@ -398,6 +431,13 @@ function dataCard(asm, P) {
     h('span', { class: 'rt-lkey' }, h('b', null, 'V'), ' a variable for the optimiser (' + D.vars.length + ' now) · ', h('b', null, 'S'), ' a solve · ', h('b', null, 'P'), ' a pickup'));
   card.append(bar);
   return card;
+}
+/* a part's tilt (degrees) and decentre (mm), as the lens data shows them */
+function tiltText(s) {
+  const t = s.tilt ? s.tilt[0] / deg : 0, d = s.dec ? s.dec[1] : 0, out = [];
+  if (Math.abs(t) > 1e-9) out.push(wsFmt(t, 5) + '°' + (s.mirror ? ' fold' : ''));
+  if (Math.abs(d) > 1e-9) out.push(wsFmt(d, 5) + ' mm');
+  return out.join(', ') || '—';
 }
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
@@ -626,8 +666,9 @@ export function placeOnBench(asm) {
     const src = normElement({ type: 'source', name: 'Field ' + wsFmt(f.deg, 4) + '°', x, y, angle: a / deg, wavelength: pr, lines: nms.filter(n => n !== pr), width: F.epd, rays: 9, divergence: 0, bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
     made.push(src);
   });
-  const zi = F.S.imageZ, ip = [P.origin[0] + d[0] * zi, P.origin[1] + d[1] * zi];
-  const scr = normElement({ type: 'screen', name: 'Image of ' + asm.name, x: ip[0], y: ip[1], angle: a0 / deg + 180, length: Math.max(4, Math.ceil(2.4 * Math.abs(F.imgH) + 2)), bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
+  // the image along the axis, folded where the assembly folds it
+  const im = asmAxisAt(P, F.S.imageZ), ip = im.p;
+  const scr = normElement({ type: 'screen', name: 'Image of ' + asm.name, x: ip[0], y: ip[1], angle: Math.atan2(im.d[1], im.d[0]) / deg + 180, length: Math.max(4, Math.ceil(2.4 * Math.abs(F.imgH) + 2)), bench: asm.bench, ...(ref.z !== undefined ? { z: ref.z } : {}) });
   made.push(scr);
   for (const e of made) project.elements.push(e);
   toast('Placed ' + asm.name + ' with ' + c.fields.length + ' source' + (c.fields.length === 1 ? '' : 's') + ' and a screen at its image');

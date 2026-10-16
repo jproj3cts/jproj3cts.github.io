@@ -24,11 +24,11 @@ const LAMBDA_TEST = 632.8e-6, ARCMIN = Math.PI / 180 / 60;
 /* the tolerances the settings give for this prescription: each { kind, i (surface or gap or part), axis, lim, label } */
 export function tolOps(P, T) {
   const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
-  if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
+  if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
-    const first = sps.findIndex(s => s.pi === pi), name = 'lens on surfaces ' + (first + 1) + '–' + (first + p.n);
+    const first = sps.findIndex(s => s.pi === pi), name = p.kind === 'mirror' ? 'mirror, surface ' + (first + 1) : 'lens on surfaces ' + (first + 1) + '–' + (first + p.n);
     if (T.dec.on && T.dec.v > 0) for (const axis of ['x', 'y']) ops.push({ kind: 'dec', i: pi, axis, lim: T.dec.v, label: 'Decentre in ' + axis + ' of the ' + name });
     if (T.tilt.on && T.tilt.v > 0) for (const axis of ['x', 'y']) ops.push({ kind: 'tilt', i: pi, axis, lim: T.tilt.v, label: 'Tilt about ' + axis + ' of the ' + name });
   });
@@ -68,7 +68,9 @@ export function perturb(P0, ops, vals) {
       const cx = Math.cos(m.ax), sx = Math.sin(m.ax), cy = Math.cos(m.ay), sy = Math.sin(m.ay);
       for (const i of idx) {
         const s = P.surfaces[i], dd = z[i] - z0, t = s.tilt || [0, 0], dc = s.dec || [0, 0, 0];
-        P.surfaces[i] = Object.assign({}, s, { tilt: [t[0] + m.ax, t[1] + m.ay], dec: [dc[0] + m.dx + dd * sy, dc[1] + m.dy + dd * sx * cy, (dc[2] || 0) + dd * (cx * cy - 1)] });
+        // a mirror's face turned, its fold (and the parts after it) as designed
+        const tl = s.mirror ? { dtilt: [(s.dtilt || [0, 0])[0] + m.ax, (s.dtilt || [0, 0])[1] + m.ay] } : { tilt: [t[0] + m.ax, t[1] + m.ay] };
+        P.surfaces[i] = Object.assign({}, s, tl, { dec: [dc[0] + m.dx + dd * sy, dc[1] + m.dy + dd * sx * cy, (dc[2] || 0) + dd * (cx * cy - 1)] });
       }
     }
   }

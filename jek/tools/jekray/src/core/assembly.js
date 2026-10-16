@@ -226,7 +226,7 @@ export function asmCheck(els, opts) {
     if (span(c)[0] < span(p)[1] - 1e-6) return { ok: false, why: name(c.e) + ' overlaps ' + name(p.e) + '.' };
   }
   const folded = chain.some(c => asmKind(c.e) === 'mirror');
-  return { ok: true, ref: ref.id, rev, order: chain.map(c => c.e.id), folded };
+  return { ok: true, ref: ref.id, rev, order: chain.map(c => c.e.id), dirs: chain.map(c => c.d), folded };
 }
 
 /* ---------- The prescription: the parts as one sequence of surfaces ----------

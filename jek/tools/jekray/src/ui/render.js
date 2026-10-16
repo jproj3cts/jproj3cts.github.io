@@ -728,33 +728,52 @@ function drawSelection() {
   ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
-/* an assembly: a dashed box round its parts along its axis, its name above it (red, and saying so,
-   once its parts are no longer on one axis) */
+/* an assembly: a dashed box round its parts along its axis (one round each straight run of a folded
+   one, the mirror in both), its name above it (red, and saying so, once its parts are no longer on one axis) */
 function drawAssemblies() {
   const k = 1 / V().scale;
   for (const a of assemblies()) {
     const M = asmMembers(a).filter(onTab);
     if (!M.length) continue;
+    const chk = asmCheck(M, { ref: a.ref, rev: a.rev }), ok = chk.ok, ink = ok ? '#f07a35' : '#e5484d';
     const ref = M.find(e => e.id === a.ref) || M[0], ang = (ref.angle + (a.rev ? 180 : 0)) * deg;
-    const fA = { ox: ref.x, oy: ref.y, c: Math.cos(ang), s: Math.sin(ang) };
-    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-    for (const e of M) {
-      const f = frame(e);
-      for (const [p, q] of bodyOutline(e)) { const [x, y] = toWorld(f, p, q), [u, v] = toLocal(fA, x, y); u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    // the runs: the parts between mirrors, each along the light's way through it (the mirror ends one and starts the next)
+    let runs = [{ els: M, ang }];
+    if (ok && chk.folded) {
+      const byId = new Map(M.map(e => [e.id, e]));
+      runs = []; let cur = [];
+      chk.order.forEach((id, i) => {
+        const e = byId.get(id);
+        if (!e) return;
+        cur.push(e);
+        if (e.type === 'mirror') { runs.push({ els: cur, d: chk.dirs[i] }); cur = [e]; }
+        else if (i === chk.order.length - 1) runs.push({ els: cur, d: chk.dirs[i] });
+      });
+      runs = runs.filter(r => r.els.some(e => e.type !== 'mirror')).map(r => ({ els: r.els, ang: Math.atan2(r.d[1], r.d[0]) }));
+      if (!runs.length) runs = [{ els: M, ang }];
     }
-    const m = 3 * k + 0.04 * Math.max(u1 - u0, v1 - v0);
-    u0 -= m; u1 += m; v0 -= m; v1 += m;
-    const ok = asmCheck(M, { ref: a.ref, rev: a.rev }).ok, ink = ok ? '#f07a35' : '#e5484d';
+    let label = null;
     ctx.save();
-    pathLocal(fA, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], true);
-    ctx.fillStyle = ok ? 'rgba(240,122,53,0.06)' : 'rgba(229,72,77,0.07)'; ctx.fill();
-    ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
-    // its name over the box's top edge, whichever way the axis runs on the page
-    const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => toWorld(fA, u, v)).map(([x, y]) => [sx(x), sy(y)]);
-    const top = Math.min(...corners.map(c => c[1])), mid = corners.reduce((s2, c) => s2 + c[0], 0) / 4;
+    for (const run of runs) {
+      const o = run.els[0], fA = { ox: o.x, oy: o.y, c: Math.cos(run.ang), s: Math.sin(run.ang) };
+      let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+      for (const e of run.els) {
+        const f = frame(e);
+        for (const [p, q] of bodyOutline(e)) { const [x, y] = toWorld(f, p, q), [u, v] = toLocal(fA, x, y); u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+      }
+      const m = 3 * k + 0.04 * Math.max(u1 - u0, v1 - v0);
+      u0 -= m; u1 += m; v0 -= m; v1 += m;
+      pathLocal(fA, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], true);
+      ctx.fillStyle = ok ? 'rgba(240,122,53,0.06)' : 'rgba(229,72,77,0.07)'; ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+      // its name over the highest box's top edge, whichever way the axis runs on the page
+      const corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => toWorld(fA, u, v)).map(([x, y]) => [sx(x), sy(y)]);
+      const top = Math.min(...corners.map(c => c[1]));
+      if (!label || top < label[1]) label = [corners.reduce((s2, c) => s2 + c[0], 0) / 4, top];
+    }
     ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillStyle = ink;
-    ctx.fillText(a.name + (ok ? '' : ' (no longer on one axis)'), mid, top - 4);
+    if (label) ctx.fillText(a.name + (ok ? '' : ' (no longer on one axis)'), label[0], label[1] - 4);
     ctx.restore();
   }
 }

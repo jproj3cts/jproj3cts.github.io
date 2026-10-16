@@ -12,6 +12,8 @@ import { cloneP, meritTerms } from './lens-opt.js';
      a thickness or air gap, by ± mm;
      a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
        and about y) by ± arcminutes: its surfaces traced in their own moved frames;
+     a lens surface's wedge: the surface alone tilted about its own vertex, about x and about y, by ±
+       arcminutes (off unless turned on), so its lens's faces are no longer square to one axis;
      a glass's index by ± Δn, and its Abbe number by ± per cent (its dispersion about the d line
        divided by 1 + δ).
    The criterion is the merit function's image term (the RMS spot, or the RMS wavefront error, over
@@ -28,6 +30,7 @@ export function tolOps(P, T) {
   const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
   if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
   if (T.irr && T.irr.on && T.irr.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'irr', i, lim: T.irr.v, label: 'Irregularity of surface ' + (i + 1) }); });
+  if (T.wedge && T.wedge.on && T.wedge.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') for (const axis of ['x', 'y']) ops.push({ kind: 'wedge', i, axis, lim: T.wedge.v, label: 'Wedge about ' + axis + ' of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
@@ -61,7 +64,12 @@ export function perturb(P0, ops, vals) {
       A[0] += a; s.A = A; s.a2 = (s.a2 || 0) - a * h * h;
     } else if (o.kind === 'thk') P.gaps[o.i] = Math.max(0, P.gaps[o.i] + v);
     else if (o.kind === 'ind') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dn: (P.materials[o.i].dn || 0) + v });
-    else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
+    else if (o.kind === 'wedge') {
+      // the surface turned about its own vertex (its place on the axis as it was): before any move of its whole lens, which carries it round
+      const s = P.surfaces[o.i], t = (s.tilt || [0, 0]).slice();
+      t[o.axis === 'x' ? 0 : 1] += v * ARCMIN;
+      P.surfaces[o.i] = Object.assign({}, s, { tilt: t });
+    } else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
     else {
       const m = moves.get(o.i) || { dx: 0, dy: 0, ax: 0, ay: 0 };
       if (o.kind === 'dec') m[o.axis === 'x' ? 'dx' : 'dy'] += v; else m[o.axis === 'x' ? 'ax' : 'ay'] += v * ARCMIN;

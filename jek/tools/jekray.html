@@ -5377,8 +5377,8 @@ function normMc(m) {
    the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
    index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
    statistics, trials and seed */
-const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1 };
-const TOL_OFF = { irr: true };              // kinds off until turned on
+const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1, wedge: 1 };
+const TOL_OFF = { irr: true, wedge: true };              // kinds off until turned on
 function normTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
@@ -22755,7 +22755,8 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['tilt', 'Lens tilt', 'arcmin', 'Each lens tilted about its first vertex, about x and about y'],
   ['ind', 'Glass index', 'Δn', 'Each glass’s index at every wavelength'],
   ['abbe', 'Abbe number', '%', 'Each glass’s dispersion'],
-  ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius']];
+  ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius'],
+  ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis']];
 const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
 let TOL = null;
 const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
@@ -22851,7 +22852,7 @@ function tolCard(ctx) {
     const st = h('table', { class: 'rt-ltable rt-ltolsens' });
     st.append(h('thead', null, h('tr', null, ...['Tolerance', '±', 'At −', 'At +', ''].map(t => h('th', { scope: 'col' }, t)))));
     const sb = h('tbody'), show = ctx.state.allSens ? rows : rows.slice(0, 12);
-    const kindUnit = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%' };
+    const kindUnit = { rad: 'fringes', thk: 'mm', dec: 'mm', tilt: 'arcmin', ind: 'in n', abbe: '%', irr: 'fringes', wedge: 'arcmin' };
     for (const r of show) {
       const w = Math.max(r.minus, r.plus) / worst;
       sb.append(h('tr', null, h('td', null, r.label), h('td', { class: 'mono' }, tolFmt(r.lim, 4) + ' ' + kindUnit[r.kind]),
@@ -23318,7 +23319,7 @@ function reportRecs(asm) {
   // ---- 4: tolerances ----
   pg = rpPage(meta, 'Tolerances');
   const T = D.tol, R = tolResultsFor(asm, P);
-  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm']];
+  const kinds = [['rad', 'Radius (surface form)', 'fringes at 632.8 nm'], ['thk', 'Thickness and air gaps', '± mm'], ['dec', 'Lens decentre', '± mm, x and y'], ['tilt', 'Lens tilt', '± arcmin, about x and y'], ['ind', 'Glass index', '± in index'], ['abbe', 'Abbe number', '± %'], ['irr', 'Surface irregularity', 'fringes peak to valley at 632.8 nm'], ['wedge', 'Surface wedge', '± arcmin, each surface about x and y']];
   rpTable(pg, [{ label: 'Tolerance', w: 180 }, { label: 'Limit', w: 90, mono: true }, { label: 'Unit', w: 229 }], kinds.map(([k, l, u]) => [l, T[k].on ? rf(T[k].v, 4) : 'off', u]));
   rpPara(pg, 'Compensator: ' + (T.comp ? 'the image plane refocused for each build.' : 'none.') + ' Monte Carlo: ' + T.trials + ' builds, each tolerance ' + (T.dist === 'normal' ? 'normal, its limit at two standard deviations' : 'uniform within its limits') + ', seed ' + T.seed + '.');
   const crit = { spot: 'RMS spot about the centroid (mm)', chief: 'RMS spot about the chief ray (mm)', wfe: 'RMS wavefront error (waves)' }[(R && R.crit) || D.merit.crit];
@@ -33406,6 +33407,8 @@ function ghostPath(A, a, b, deg, px, py) {
      a thickness or air gap, by ± mm;
      a lens decentred across the axis (x and y) by ± mm, or tilted about its first vertex (about x
        and about y) by ± arcminutes: its surfaces traced in their own moved frames;
+     a lens surface's wedge: the surface alone tilted about its own vertex, about x and about y, by ±
+       arcminutes (off unless turned on), so its lens's faces are no longer square to one axis;
      a glass's index by ± Δn, and its Abbe number by ± per cent (its dispersion about the d line
        divided by 1 + δ).
    The criterion is the merit function's image term (the RMS spot, or the RMS wavefront error, over
@@ -33422,6 +33425,7 @@ function tolOps(P, T) {
   const sps = surfaceParts(P), ops = [], N = P.surfaces.length;
   if (T.rad.on && T.rad.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens' || sps[i].kind === 'mirror') ops.push({ kind: 'rad', i, lim: T.rad.v, label: 'Radius of surface ' + (i + 1) }); });
   if (T.irr && T.irr.on && T.irr.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') ops.push({ kind: 'irr', i, lim: T.irr.v, label: 'Irregularity of surface ' + (i + 1) }); });
+  if (T.wedge && T.wedge.on && T.wedge.v > 0) P.surfaces.forEach((s, i) => { if (sps[i].kind === 'lens') for (const axis of ['x', 'y']) ops.push({ kind: 'wedge', i, axis, lim: T.wedge.v, label: 'Wedge about ' + axis + ' of surface ' + (i + 1) }); });
   if (T.thk.on && T.thk.v > 0) for (let i = 0; i < N - 1; i++) ops.push({ kind: 'thk', i, lim: T.thk.v, label: (sps[i].pi === sps[i + 1].pi ? 'Thickness' : 'Air gap') + ' after surface ' + (i + 1) });
   P.parts.forEach((p, pi) => {
     if (p.kind === 'stop') return;
@@ -33455,7 +33459,12 @@ function perturb(P0, ops, vals) {
       A[0] += a; s.A = A; s.a2 = (s.a2 || 0) - a * h * h;
     } else if (o.kind === 'thk') P.gaps[o.i] = Math.max(0, P.gaps[o.i] + v);
     else if (o.kind === 'ind') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dn: (P.materials[o.i].dn || 0) + v });
-    else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
+    else if (o.kind === 'wedge') {
+      // the surface turned about its own vertex (its place on the axis as it was): before any move of its whole lens, which carries it round
+      const s = P.surfaces[o.i], t = (s.tilt || [0, 0]).slice();
+      t[o.axis === 'x' ? 0 : 1] += v * ARCMIN;
+      P.surfaces[o.i] = Object.assign({}, s, { tilt: t });
+    } else if (o.kind === 'abbe') P.materials[o.i] = Object.assign({}, P.materials[o.i], { dv: (P.materials[o.i].dv || 0) + v / 100 });
     else {
       const m = moves.get(o.i) || { dx: 0, dy: 0, ax: 0, ay: 0 };
       if (o.kind === 'dec') m[o.axis === 'x' ? 'dx' : 'dy'] += v; else m[o.axis === 'x' ? 'ax' : 'ay'] += v * ARCMIN;
@@ -39422,6 +39431,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Surface wedge</b> in tolerancing: tick it in the Tolerance tab and each lens surface is tilted on its own about its vertex, about x and about y, in Sensitivity and in Monte Carlo, as a lens comes out wedged.',
     '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',
     '<b>Designs kept</b> in lens design: a global search keeps the ten best distinct designs it finds, not only the best, saved with the design; <b>Use</b> puts any of them back, and <b>Keep this design</b> adds the design as it is now, to come back to.',
     '<b>Substitute glasses</b> in lens design: a third way to optimise, it tries each glass marked V as the real glasses nearest it on the glass map (from the makers you tick, each transmitting at every wavelength of the design), optimises the rest of the design again with each, and keeps the best, glass by glass, pass after pass, until nothing does better.',

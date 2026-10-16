@@ -150,8 +150,8 @@ export function normMc(m) {
    the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
    index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
    statistics, trials and seed */
-export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1 };
-const TOL_OFF = { irr: true };              // kinds off until turned on
+export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1, wedge: 1 };
+const TOL_OFF = { irr: true, wedge: true };              // kinds off until turned on
 export function normTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};

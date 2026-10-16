@@ -8978,6 +8978,27 @@ const TESTS = [
     },
   },
   {
+    name: 'Surface wedge in the tolerances: off until ticked, then two to each lens surface, out of the fields\u2019 plane worse either way, in it one way better',
+    why: 'the published Cooke triplet\u2019s Tolerance tab: Sensitivity lists 30 tolerances; with Surface wedge ticked (1 arcmin), 42, the 12 more a wedge about x and about y on each of its six lens surfaces; about y (out of the plane of its fields) each makes the refocused RMS spot worse the same either way, about x (in that plane, its fields on one side) better one way and worse the other by nearly as much, as a linear term does; listed by name in the table (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(optTriplet());
+      J.openLensDesign('Cooke triplet');
+      try {
+        wsClick('Tolerance the design', null, 'tab');
+        const n0 = J.lensTolRun('sens').sens.count;
+        const cb = [...rigDoc().querySelectorAll('#lensWs input[type=checkbox]')].find(x => x.getAttribute('aria-label') === 'Apply the surface wedge tolerance');
+        cb.click();
+        const S = J.lensTolRun('sens').sens, W = S.rows.filter(r => r.kind === 'wedge');
+        // about y (out of the plane of the fields): the same either way, and worse; about x: one way better, the other worse, by nearly as much
+        const worse = W.filter((_, i) => i % 2 === 1).every(r => r.minus > 0 && Math.abs(r.minus - r.plus) < 1e-9 * Math.max(1, r.plus))
+          && W.filter((_, i) => i % 2 === 0).every(r => r.minus * r.plus < 0 && Math.abs(r.minus + r.plus) < 0.25 * Math.max(Math.abs(r.minus), Math.abs(r.plus)));
+        const shown = /Wedge about x of surface/.test(rigDoc().querySelector('#lensWs .rt-ltol').textContent);
+        return n0 === 30 && S.count === 42 && W.length === 12 && worse && shown && J.lensFigures('Cooke triplet').design.tol.wedge.on === true ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Tolerance the design: sensitivity and Monte Carlo agree, and the tolerances are kept with the design',
     why: 'the published Cooke triplet with the default tolerances (3 fringes, 0.05 mm, 0.025 mm decentre, 1 arcmin tilt, 0.001 in n, 0.5% Abbe), each build refocused: Sensitivity lists all 30 tolerances; 200 Monte Carlo builds have a mean square criterion within four standard errors of the sensitivities’ estimate; the Sensitivity table and Monte Carlo’s statistics are shown; the tolerances changed in the tab survive a save and a load (1 when all hold)',
     want: 1, tol: 0, unit: '',

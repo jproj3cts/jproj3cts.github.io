@@ -336,8 +336,9 @@ The **Tolerance the design** tab asks how good the design will be as it is made.
 | Glass index | Δn | each glass's index at every wavelength |
 | Abbe number | % | each glass's dispersion about the d line, divided by $$1 + \delta$$ |
 | Surface irregularity | fringes | each lens surface's form error beyond its radius, off unless turned on: $$a(r^4 - h^2 r^2)$$, no sag at the clear radius $$h$$ or on the axis, its peak to valley $$a h^4/4$$ the fringes' $$N\lambda/2$$ |
+| Surface wedge | arcmin | each lens surface tilted on its own about its vertex, about x and about y, off unless turned on: its lens's two faces no longer square to one axis, as a lens comes out wedged. Unlike a lens tilt, the rest of the lens stays where it was |
 
-A decentred or tilted lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
+A decentred, tilted or wedged lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
 
 The **criterion** is the merit function's image term: the RMS spot (or RMS wavefront error) over every field and wavelength, as set in Merit. The **compensator**, unless turned off, refocuses the image plane for each build: the spot's square is exactly a parabola in the focus, so three trials find the best focus, and once more about it settles it.
 
@@ -352,7 +353,9 @@ Both run in the background worker, a batch at a time, and can be stopped. The to
 - a radius's fringes against the sag they make, and an index change against the lensmaker's equation;
 - the compensator against a fine scan of the focus;
 - a round system's decentres and tilts alike in x and y and at either limit;
-- Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors.
+- Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors;
+- a plano-convex lens with its flat back wedged by α: the image of a point on the axis moves by $$(n-1)\,\alpha\,\mathrm{BFL}$$, a thin prism's deviation, across the plane of the tilt and not along it, to 1%;
+- a triplet's wedges out of the plane of its fields worsen its image alike either way; in that plane (its fields on one side) one way is better and the other worse, as a linear term makes them.
 
 ### Drawings
 

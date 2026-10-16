@@ -14,6 +14,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Surface wedge</b> in tolerancing: tick it in the Tolerance tab and each lens surface is tilted on its own about its vertex, about x and about y, in Sensitivity and in Monte Carlo, as a lens comes out wedged.',
     '<b>Limits on the variables</b> in lens design: give any radius, thickness, gap, conic, tilt, decentre or model glass marked V a least and a greatest value, in the Optimise tab, and every way of optimising keeps to them; a value at its limit is marked.',
     '<b>Designs kept</b> in lens design: a global search keeps the ten best distinct designs it finds, not only the best, saved with the design; <b>Use</b> puts any of them back, and <b>Keep this design</b> adds the design as it is now, to come back to.',
     '<b>Substitute glasses</b> in lens design: a third way to optimise, it tries each glass marked V as the real glasses nearest it on the glass map (from the makers you tick, each transmitting at every wavelength of the design), optimises the rest of the design again with each, and keeps the best, glass by glass, pass after pass, until nothing does better.',

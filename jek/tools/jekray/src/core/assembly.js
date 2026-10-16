@@ -51,7 +51,7 @@ export function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
   }
   return out;
 }
@@ -61,8 +61,9 @@ export function normAssemblies(list, els) {
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
-   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) */
-export const DESIGN_KEY = /^([RtkgTD]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
+   U and X the same out of it */
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -233,10 +234,15 @@ export function asmCheck(els, opts) {
   if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
   const seg = els.find(e => e.type === 'mirror' && (e.offset || e.film));
   if (seg) return { ok: false, why: name(seg) + (seg.film ? ' is a film beam splitter' : ' is an off-axis segment') + ': an assembly’s mirrors are whole mirrors.' };
+  // out of the plane: a lens or a window may be tipped (within the same limit as a tilt across) and any part
+  // raised or lowered from the others by less than its own half-width; a mirror folds in the bench's plane only
+  const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
   for (const e of els) {
-    if (Math.abs((e.z === undefined ? 75 : e.z) - (els[0].z === undefined ? 75 : els[0].z)) > 1e-3) return { ok: false, why: name(e) + ' is at another height from ' + name(els[0]) + '.' };
-    if (e.tip) return { ok: false, why: name(e) + ' is tipped out of the plane.' };
+    if (e.tip && asmKind(e) !== 'lens' && asmKind(e) !== 'window') return { ok: false, why: name(e) + ' is tipped out of the plane: in an assembly only a lens or a window may be.' };
+    if (e.tip && Math.abs(e.tip) > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' is tipped ' + (+Math.abs(e.tip).toPrecision(3)) + '° out of the plane: an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
   }
+  const zMid = zOf(els.find(e => asmKind(e) !== 'stop') || els[0]);
+  for (const e of els) if (Math.abs(zOf(e) - zMid) >= halfOf(e)) return { ok: false, why: name(e) + ' is at another height from ' + name(els[0]) + ', by more than its own half-width.' };
   const refl = lenses.filter(e => asmKind(e) !== 'mirror');
   const ref = opts.ref ? els.find(e => e.id === opts.ref) || refl[0] || lenses[0] : refl[0] || lenses[0];
   // which way the light runs along the reference's axis: away from a source on it, else the way most lenses face
@@ -289,6 +295,15 @@ export function asmCheck(els, opts) {
    bench is reflected, so the sense of y (and of a tilt) turns over. A mirror's radius is read in the
    prescription's convention (positive: centre beyond it, away from the light), the other sign to the
    bench's. */
+/* the assembly's axis height above the bench: its own, or its reference part's (a part off it is decentred out of the plane) */
+export function asmAxisZ(asm, els) {
+  if (asm && isFinite(asm.z)) return asm.z;
+  els = els || (asm ? asmMembers(asm) : []);
+  const ref = asm && els.find(e => e.id === asm.ref) || els[0];
+  return ref && ref.z !== undefined ? ref.z : 75;
+}
+/* out of the plane: the engine's x is up (the bench's z), and a part tipped up turns its own axis up */
+const OUT_Z = 1, OUT_TIP = 1;
 const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null });
 export function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
@@ -303,6 +318,7 @@ export function asmPrescription(asm, els) {
   let q = [first.x, first.y], hand = 1, along = 0;
   const surfaces = [], gaps = [], materials = [], parts = [];
   let lastAx = null;                 // the unfolded distance of the axis point of the last surface so far
+  const zA = asmAxisZ(asm, els);
   order.forEach((e, idx) => {
     const kind = asmKind(e), r = [e.x - q[0], e.y - q[1]], t = dot2(r, d), off = hand * dot2(r, lperp(d));
     let S2, G2, M2, flip = false, tilt = 0, T = 0;
@@ -327,15 +343,19 @@ export function asmPrescription(asm, els) {
       if (flip) { S2 = S2.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from })); G2.reverse(); M2.reverse(); }
       T = G2.reduce((u, v) => u + v, 0);
     }
-    const tr = tilt * deg, ct = Math.cos(tr), st = Math.sin(tr);
-    // its first vertex: the centre less half its thickness along its own axis
-    const tv = t - (T / 2) * ct, ov = off - (T / 2) * st;
+    // out of the plane: tipped (a lens or a window; its own axis up, so the light's way up unless it faces back) and raised from the axis
+    const tb = (kind === 'lens' || kind === 'window') && e.tip ? OUT_TIP * (flip ? -1 : 1) * e.tip * deg : 0;
+    const xc = OUT_Z * ((e.z === undefined ? 75 : e.z) - zA);
+    const tr = tilt * deg, ct = Math.cos(tr), st = Math.sin(tr), cb = Math.cos(tb), sb = Math.sin(tb);
+    // its own axis in the engine's frame, and its first vertex: the centre less half its thickness along it
+    const g = [sb, st * cb, ct * cb];
+    const tv = t - (T / 2) * g[2], ov = off - (T / 2) * g[1], ox = xc - (T / 2) * g[0];
     if (idx) { gaps.push(Math.max(0, along + tv - lastAx)); materials.push({ glass: 'AIR' }); }
     let cum = 0;
     S2.forEach((s, k) => {
       if (k) cum += G2[k - 1];
-      const big = Math.abs(tr) > 1e-12 || Math.abs(ov + cum * st) > 1e-9 || kind === 'mirror' && Math.abs(tr) > 1e-12;
-      if (big) { s.tilt = [tr, 0]; s.dec = [0, ov + cum * st, cum * (ct - 1)]; }
+      const big = Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9;
+      if (big) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
       surfaces.push(s);
     });
     gaps.push(...G2); materials.push(...M2);
@@ -352,10 +372,10 @@ export function asmPrescription(asm, els) {
   const stopIndex = surfaces.findIndex(s => s.stop);
   // the first vertex, in the world, and the first run's axis: where the prescription sits on the bench
   const D1 = firstDir(order, ref, asm), firstT = G0sum(order[0]);
-  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].dec ? surfaces[0].dec[1] : 0;
-  // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis, less its decentre
-  const fv = [first.x - ax0[0] * firstT / 2, first.y - ax0[1] * firstT / 2], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
-  return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror') };
+  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, tb0 = surfaces[0].tilt ? surfaces[0].tilt[1] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].dec ? surfaces[0].dec[1] : 0;
+  // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis (as it shows on the bench), less its decentre
+  const h0 = firstT / 2 * Math.cos(tb0), fv = [first.x - ax0[0] * h0, first.y - ax0[1] * h0], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
+  return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror'), axisZ: zA };
 }
 const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : 0;
 function firstDir(order, ref, asm) {
@@ -390,17 +410,26 @@ export function asmApply(asm, P, els) {
   els = els || asmMembers(asm);
   const byId = new Map(els.map(e => [e.id, e]));
   const zs = [0]; for (const g of P.gaps) zs.push(zs[zs.length - 1] + g);
+  const zA = isFinite(P.axisZ) ? P.axisZ : asmAxisZ(asm, els);
+  // the axis's height kept on the assembly, so a part moved up or down off it (by the design) stays decentred from it
+  if (asm && !isFinite(asm.z)) asm.z = zA;
   let k = 0;
   P.parts.forEach(p => {
     const e = byId.get(p.id), S = P.surfaces.slice(k, k + p.n), G = P.gaps.slice(k, k + p.n - 1), M = P.materials.slice(k, k + p.n - 1);
     const s0 = S[0], A = asmAxisAt(P, zs[k] - 1e-12), d = A.d, hand = A.hand;
-    const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0;
+    const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0, tb = s0.tilt ? s0.tilt[1] || 0 : 0, decx = s0.dec ? s0.dec[0] || 0 : 0;
     // the first vertex on the bench: the axis point, then across by the decentre (in the bench's sense of y)
     const at = asmAxisAt(P, zs[k]), base = [at.p[0] + hand * lperp(d)[0] * dec, at.p[1] + hand * lperp(d)[1] * dec];
-    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0);
-    // centre: the first vertex on along the part's own axis by half its thickness
-    const nx = base[0] + ax[0] * T / 2, ny = base[1] + ax[1] * T / 2;
+    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
+    // centre: the first vertex on along the part's own axis by half its thickness (its part in the plane, and up)
+    const nx = base[0] + ax[0] * T / 2 * cb, ny = base[1] + ax[1] * T / 2 * cb;
     if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
+    const nz = zA + OUT_Z * (decx + T / 2 * Math.sin(tb));
+    if (Math.abs(nz - (e.z === undefined ? 75 : e.z)) > 1e-9) e.z = nz;
+    if (p.kind === 'lens' || p.kind === 'window') {
+      const tip = OUT_TIP * (p.flip ? -1 : 1) * tb / deg;
+      if (Math.abs(tip) < 1e-9) delete e.tip; else e.tip = tip;
+    }
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'mirror') {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;

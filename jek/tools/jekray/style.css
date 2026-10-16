@@ -1288,7 +1288,8 @@
   .rt-lnum.wide { width: 7.6rem; }
   .rt-lpose { display: flex; flex-direction: column; gap: 0.2rem; }
   .rt-lpose > div { display: flex; align-items: center; }
-  .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 1.4rem; }
+  .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 2.6rem; white-space: nowrap; }
+  .rt-lpose > div.out { padding-top: 0.15rem; border-top: 1px dashed var(--jek-line); }
   .rt-lpose td { border: 0; padding: 0; }
   .rt-lopw { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
   .rt-lopw select { font-size: 0.8rem; }

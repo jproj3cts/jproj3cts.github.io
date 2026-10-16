@@ -458,6 +458,9 @@ function dataCard(asm, P) {
       if (editable(P, 'T', i)) {
         const cells = h('div', { class: 'rt-lpose' }, h('div', null, valueCell(P, D, 'T', i), h('span', { class: 'u' }, '°')));
         if (editable(P, 'D', i)) cells.append(h('div', null, valueCell(P, D, 'D', i), h('span', { class: 'u' }, 'mm')));
+        // and out of the plane of the fields (up and down on the bench)
+        if (editable(P, 'U', i)) cells.append(h('div', { class: 'out' }, valueCell(P, D, 'U', i), h('span', { class: 'u', title: 'Out of the plane of the fields: tipped up' }, '° up')),
+          h('div', { class: 'out' }, valueCell(P, D, 'X', i), h('span', { class: 'u', title: 'Out of the plane of the fields: raised' }, 'mm up')));
         td.append(cells);
       }
       tr.append(td);
@@ -482,7 +485,7 @@ function dataCard(asm, P) {
       checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
     } }, 'Remove'),
     h('button', { class: 'rt-btn', type: 'button', 'aria-pressed': String(moved), disabled: P.surfaces.some(x => x.mirror || x.tilt || x.dec) ? '' : null,
-      title: 'Each part’s tilt (degrees, in the plane of the fields) and decentre (mm, across the axis), about its first vertex: to type, or to vary', onclick: () => { WS.poseOn = !WS.poseOn; renderWs(); } }, 'Tilts and decentres'),
+      title: 'Each part’s tilt (degrees) and decentre (mm) about its first vertex: in the plane of the fields (across the bench) and out of it (up and down): to type, or to vary', onclick: () => { WS.poseOn = !WS.poseOn; renderWs(); } }, 'Tilts and decentres'),
     h('span', { class: 'rt-lkey' }, h('b', null, 'V'), ' a variable for the optimiser (' + D.vars.length + ' now) · ', h('b', null, 'S'), ' a solve · ', h('b', null, 'P'), ' a pickup'));
   card.append(bar);
   return card;
@@ -492,7 +495,7 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : 'Conic') + ' of surface ' + (i + 1);
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
   const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
@@ -500,7 +503,7 @@ function valueCell(P, D, q, i) {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -511,7 +514,7 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 function asphRow(P, D, i, sid, nA, moved) {
   const cells = h('div', { class: 'rt-laspc' });
@@ -567,10 +570,10 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
-const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm' };
+const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
 function configsCard(asm, P) {
   const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
   const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
@@ -639,7 +642,7 @@ function configsCard(asm, P) {
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   // a value made to differ: any radius, thickness, conic, tilt or decentre not yet listed
   const opts = [];
-  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D']) {
+  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D', 'U', 'X']) {
     if (!editable(P, q, i)) continue;
     const k = keyAt(P, q, i);
     if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]);

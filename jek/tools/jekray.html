@@ -1301,7 +1301,8 @@
   .rt-lnum.wide { width: 7.6rem; }
   .rt-lpose { display: flex; flex-direction: column; gap: 0.2rem; }
   .rt-lpose > div { display: flex; align-items: center; }
-  .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 1.4rem; }
+  .rt-lpose .u { font-size: 0.72rem; color: var(--jek-ink-soft); margin-left: 0.3rem; width: 2.6rem; white-space: nowrap; }
+  .rt-lpose > div.out { padding-top: 0.15rem; border-top: 1px dashed var(--jek-line); }
   .rt-lpose td { border: 0; padding: 0; }
   .rt-lopw { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
   .rt-lopw select { font-size: 0.8rem; }
@@ -5128,7 +5129,7 @@ function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
   }
   return out;
 }
@@ -5138,8 +5139,9 @@ function normAssemblies(list, els) {
    the values an optimiser may change, solves and pickups, each value named by a key:
    "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
 /* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
-   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) */
-const DESIGN_KEY = /^([RtkgTD]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
+   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
+   U and X the same out of it */
+const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)):(.{1,120}\.\d+)$/;
 const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
@@ -5310,10 +5312,15 @@ function asmCheck(els, opts) {
   if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
   const seg = els.find(e => e.type === 'mirror' && (e.offset || e.film));
   if (seg) return { ok: false, why: name(seg) + (seg.film ? ' is a film beam splitter' : ' is an off-axis segment') + ': an assembly’s mirrors are whole mirrors.' };
+  // out of the plane: a lens or a window may be tipped (within the same limit as a tilt across) and any part
+  // raised or lowered from the others by less than its own half-width; a mirror folds in the bench's plane only
+  const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
   for (const e of els) {
-    if (Math.abs((e.z === undefined ? 75 : e.z) - (els[0].z === undefined ? 75 : els[0].z)) > 1e-3) return { ok: false, why: name(e) + ' is at another height from ' + name(els[0]) + '.' };
-    if (e.tip) return { ok: false, why: name(e) + ' is tipped out of the plane.' };
+    if (e.tip && asmKind(e) !== 'lens' && asmKind(e) !== 'window') return { ok: false, why: name(e) + ' is tipped out of the plane: in an assembly only a lens or a window may be.' };
+    if (e.tip && Math.abs(e.tip) > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' is tipped ' + (+Math.abs(e.tip).toPrecision(3)) + '° out of the plane: an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
   }
+  const zMid = zOf(els.find(e => asmKind(e) !== 'stop') || els[0]);
+  for (const e of els) if (Math.abs(zOf(e) - zMid) >= halfOf(e)) return { ok: false, why: name(e) + ' is at another height from ' + name(els[0]) + ', by more than its own half-width.' };
   const refl = lenses.filter(e => asmKind(e) !== 'mirror');
   const ref = opts.ref ? els.find(e => e.id === opts.ref) || refl[0] || lenses[0] : refl[0] || lenses[0];
   // which way the light runs along the reference's axis: away from a source on it, else the way most lenses face
@@ -5366,6 +5373,15 @@ function asmCheck(els, opts) {
    bench is reflected, so the sense of y (and of a tilt) turns over. A mirror's radius is read in the
    prescription's convention (positive: centre beyond it, away from the light), the other sign to the
    bench's. */
+/* the assembly's axis height above the bench: its own, or its reference part's (a part off it is decentred out of the plane) */
+function asmAxisZ(asm, els) {
+  if (asm && isFinite(asm.z)) return asm.z;
+  els = els || (asm ? asmMembers(asm) : []);
+  const ref = asm && els.find(e => e.id === asm.ref) || els[0];
+  return ref && ref.z !== undefined ? ref.z : 75;
+}
+/* out of the plane: the engine's x is up (the bench's z), and a part tipped up turns its own axis up */
+const OUT_Z = 1, OUT_TIP = 1;
 const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null });
 function asmPrescription(asm, els) {
   els = els || asmMembers(asm);
@@ -5380,6 +5396,7 @@ function asmPrescription(asm, els) {
   let q = [first.x, first.y], hand = 1, along = 0;
   const surfaces = [], gaps = [], materials = [], parts = [];
   let lastAx = null;                 // the unfolded distance of the axis point of the last surface so far
+  const zA = asmAxisZ(asm, els);
   order.forEach((e, idx) => {
     const kind = asmKind(e), r = [e.x - q[0], e.y - q[1]], t = dot2(r, d), off = hand * dot2(r, lperp(d));
     let S2, G2, M2, flip = false, tilt = 0, T = 0;
@@ -5404,15 +5421,19 @@ function asmPrescription(asm, els) {
       if (flip) { S2 = S2.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from })); G2.reverse(); M2.reverse(); }
       T = G2.reduce((u, v) => u + v, 0);
     }
-    const tr = tilt * deg, ct = Math.cos(tr), st = Math.sin(tr);
-    // its first vertex: the centre less half its thickness along its own axis
-    const tv = t - (T / 2) * ct, ov = off - (T / 2) * st;
+    // out of the plane: tipped (a lens or a window; its own axis up, so the light's way up unless it faces back) and raised from the axis
+    const tb = (kind === 'lens' || kind === 'window') && e.tip ? OUT_TIP * (flip ? -1 : 1) * e.tip * deg : 0;
+    const xc = OUT_Z * ((e.z === undefined ? 75 : e.z) - zA);
+    const tr = tilt * deg, ct = Math.cos(tr), st = Math.sin(tr), cb = Math.cos(tb), sb = Math.sin(tb);
+    // its own axis in the engine's frame, and its first vertex: the centre less half its thickness along it
+    const g = [sb, st * cb, ct * cb];
+    const tv = t - (T / 2) * g[2], ov = off - (T / 2) * g[1], ox = xc - (T / 2) * g[0];
     if (idx) { gaps.push(Math.max(0, along + tv - lastAx)); materials.push({ glass: 'AIR' }); }
     let cum = 0;
     S2.forEach((s, k) => {
       if (k) cum += G2[k - 1];
-      const big = Math.abs(tr) > 1e-12 || Math.abs(ov + cum * st) > 1e-9 || kind === 'mirror' && Math.abs(tr) > 1e-12;
-      if (big) { s.tilt = [tr, 0]; s.dec = [0, ov + cum * st, cum * (ct - 1)]; }
+      const big = Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9;
+      if (big) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
       surfaces.push(s);
     });
     gaps.push(...G2); materials.push(...M2);
@@ -5429,10 +5450,10 @@ function asmPrescription(asm, els) {
   const stopIndex = surfaces.findIndex(s => s.stop);
   // the first vertex, in the world, and the first run's axis: where the prescription sits on the bench
   const D1 = firstDir(order, ref, asm), firstT = G0sum(order[0]);
-  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].dec ? surfaces[0].dec[1] : 0;
-  // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis, less its decentre
-  const fv = [first.x - ax0[0] * firstT / 2, first.y - ax0[1] * firstT / 2], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
-  return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror') };
+  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, tb0 = surfaces[0].tilt ? surfaces[0].tilt[1] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].dec ? surfaces[0].dec[1] : 0;
+  // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis (as it shows on the bench), less its decentre
+  const h0 = firstT / 2 * Math.cos(tb0), fv = [first.x - ax0[0] * h0, first.y - ax0[1] * h0], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
+  return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror'), axisZ: zA };
 }
 const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : 0;
 function firstDir(order, ref, asm) {
@@ -5467,17 +5488,26 @@ function asmApply(asm, P, els) {
   els = els || asmMembers(asm);
   const byId = new Map(els.map(e => [e.id, e]));
   const zs = [0]; for (const g of P.gaps) zs.push(zs[zs.length - 1] + g);
+  const zA = isFinite(P.axisZ) ? P.axisZ : asmAxisZ(asm, els);
+  // the axis's height kept on the assembly, so a part moved up or down off it (by the design) stays decentred from it
+  if (asm && !isFinite(asm.z)) asm.z = zA;
   let k = 0;
   P.parts.forEach(p => {
     const e = byId.get(p.id), S = P.surfaces.slice(k, k + p.n), G = P.gaps.slice(k, k + p.n - 1), M = P.materials.slice(k, k + p.n - 1);
     const s0 = S[0], A = asmAxisAt(P, zs[k] - 1e-12), d = A.d, hand = A.hand;
-    const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0;
+    const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0, tb = s0.tilt ? s0.tilt[1] || 0 : 0, decx = s0.dec ? s0.dec[0] || 0 : 0;
     // the first vertex on the bench: the axis point, then across by the decentre (in the bench's sense of y)
     const at = asmAxisAt(P, zs[k]), base = [at.p[0] + hand * lperp(d)[0] * dec, at.p[1] + hand * lperp(d)[1] * dec];
-    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0);
-    // centre: the first vertex on along the part's own axis by half its thickness
-    const nx = base[0] + ax[0] * T / 2, ny = base[1] + ax[1] * T / 2;
+    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
+    // centre: the first vertex on along the part's own axis by half its thickness (its part in the plane, and up)
+    const nx = base[0] + ax[0] * T / 2 * cb, ny = base[1] + ax[1] * T / 2 * cb;
     if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
+    const nz = zA + OUT_Z * (decx + T / 2 * Math.sin(tb));
+    if (Math.abs(nz - (e.z === undefined ? 75 : e.z)) > 1e-9) e.z = nz;
+    if (p.kind === 'lens' || p.kind === 'window') {
+      const tip = OUT_TIP * (p.flip ? -1 : 1) * tb / deg;
+      if (Math.abs(tip) < 1e-9) delete e.tip; else e.tip = tip;
+    }
     if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
     else if (p.kind === 'mirror') {
       e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
@@ -21831,7 +21861,7 @@ function asmPlace(asm) {
   // (a panel's field read again after its assembly has gone: nothing to place)
   if (!M.length || !asmCheck(M, { ref: asm.ref, rev: asm.rev, min: 1 }).ok) return null;
   const P = asmPrescription(asm);
-  return { x: P.origin[0], y: P.origin[1], angle: Math.atan2(P.dir[1], P.dir[0]) / deg, z: M[0].z === undefined ? 75 : M[0].z };      // (a part with no height of its own is at the bench's 75 mm)
+  return { x: P.origin[0], y: P.origin[1], angle: Math.atan2(P.dir[1], P.dir[0]) / deg, z: asmAxisZ(asm, M) };      // its axis's height (a part with no height of its own is at the bench's 75 mm)
 }
 function asmMoveTo(asm, to) {
   const M = asmMembers(asm), at = asmPlace(asm);
@@ -21842,7 +21872,8 @@ function asmMoveTo(asm, to) {
   }
   const dx = isFinite(to.x) ? to.x - at.x : 0, dy = isFinite(to.y) ? to.y - at.y : 0;
   if (dx || dy) for (const e of M) { e.x += dx; e.y += dy; }
-  if (isFinite(to.z)) for (const e of M) e.z = to.z;
+  // up or down: every part with the axis, each keeping its height from it
+  if (isFinite(to.z) && Math.abs(to.z - at.z) > 1e-12) { for (const e of M) e.z = (e.z === undefined ? 75 : e.z) + to.z - at.z; asm.z = to.z; }
 }
 function asmPlaceFields(asm, M, P) {
   const f = (label, key, title) => {
@@ -21852,7 +21883,7 @@ function asmPlaceFields(asm, M, P) {
   };
   const out = [f('X (mm)', 'x', 'Its first vertex: where the axis meets its first surface'), f('Y (mm)', 'y', 'Its first vertex: where the axis meets its first surface'),
     f('Angle (°)', 'angle', 'The way its axis runs from its first vertex; turning it turns every part about that vertex')];
-  out.push(f('Height z (mm)', 'z', 'The height of all its parts above the bench'));
+  out.push(f('Height z (mm)', 'z', 'The height of its axis above the bench: every part moves up or down with it'));
   return out;
 }
 
@@ -22682,7 +22713,7 @@ function reportRecs(asm) {
     const last = i === P.surfaces.length - 1, t = last ? P.image : P.gaps[i], sp = sps[i];
     const glass = s.mirror ? 'Mirror' : last || P.materials[i].glass === 'AIR' ? '' : P.materials[i].glass === 'Model' ? rf(P.materials[i].nd, 5) + '/' + rf(P.materials[i].vd, 4) : matLabel(P.materials[i]);
     const r = [sp.kind === 'stop' ? 'STO' : String(i + 1), nameOf(i), s.R === null ? 'Flat' : rf(s.R, 7), rf(t, 7), glass, rf(s.semi, 5), s.k ? rf(s.k, 6) : '0'];
-    if (moved) { const tt = s.tilt ? s.tilt[0] / deg : 0, dd = s.dec ? s.dec[1] : 0; r.push(sp.j === 0 && (tt || dd) ? [tt ? rf(tt, 4) + '°' : '', dd ? rf(dd, 4) + ' mm' : ''].filter(Boolean).join(', ') : ''); }
+    if (moved) { const tt = s.tilt ? s.tilt[0] / deg : 0, dd = s.dec ? s.dec[1] : 0, tu = s.tilt ? (s.tilt[1] || 0) / deg : 0, du = s.dec ? s.dec[0] || 0 : 0; r.push(sp.j === 0 && (tt || dd || tu || du) ? [tt ? rf(tt, 4) + '°' : '', dd ? rf(dd, 4) + ' mm' : '', tu ? rf(tu, 4) + '° up' : '', Math.abs(du) > 1e-12 ? rf(du, 4) + ' mm up' : ''].filter(Boolean).join(', ') : ''); }
     rows.push(r);
   });
   rows.push(['IMA', 'Image', 'Flat', '', '', rf(Math.abs(F.imgH), 5), '']);
@@ -22699,7 +22730,7 @@ function reportRecs(asm) {
   if (MC) {
     rpHead(pg, 'Configurations (this report is of ' + MC.configs[MC.active].name + ')');
     const shown = MC.configs.slice(0, 6), cw = Math.floor((RP_W - 2 * RP_M - 160) / shown.length);
-    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
+    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : at.q === 'U' ? 'Tilt up (°)' : at.q === 'X' ? 'Decentre up' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
     const figs = shown.map((cf, ci) => ci === MC.active ? F : designFigures({ cond: cf.obj && fin ? Object.assign({}, c, { object: { kind: 'finite', d: cf.obj } }) : c, design: D }, cfgSolved(asm, P, ci)));
     const crow = [['Weight', ...shown.map(cf => rf(cf.w, 4))]];
     if (fin) crow.push(['Object distance', ...shown.map((cf, ci) => rf(ci === MC.active ? F.object : cf.obj || F.object, 6))]);
@@ -23225,6 +23256,9 @@ function dataCard(asm, P) {
       if (editable(P, 'T', i)) {
         const cells = h('div', { class: 'rt-lpose' }, h('div', null, valueCell(P, D, 'T', i), h('span', { class: 'u' }, '°')));
         if (editable(P, 'D', i)) cells.append(h('div', null, valueCell(P, D, 'D', i), h('span', { class: 'u' }, 'mm')));
+        // and out of the plane of the fields (up and down on the bench)
+        if (editable(P, 'U', i)) cells.append(h('div', { class: 'out' }, valueCell(P, D, 'U', i), h('span', { class: 'u', title: 'Out of the plane of the fields: tipped up' }, '° up')),
+          h('div', { class: 'out' }, valueCell(P, D, 'X', i), h('span', { class: 'u', title: 'Out of the plane of the fields: raised' }, 'mm up')));
         td.append(cells);
       }
       tr.append(td);
@@ -23249,7 +23283,7 @@ function dataCard(asm, P) {
       checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
     } }, 'Remove'),
     h('button', { class: 'rt-btn', type: 'button', 'aria-pressed': String(moved), disabled: P.surfaces.some(x => x.mirror || x.tilt || x.dec) ? '' : null,
-      title: 'Each part’s tilt (degrees, in the plane of the fields) and decentre (mm, across the axis), about its first vertex: to type, or to vary', onclick: () => { WS.poseOn = !WS.poseOn; renderWs(); } }, 'Tilts and decentres'),
+      title: 'Each part’s tilt (degrees) and decentre (mm) about its first vertex: in the plane of the fields (across the bench) and out of it (up and down): to type, or to vary', onclick: () => { WS.poseOn = !WS.poseOn; renderWs(); } }, 'Tilts and decentres'),
     h('span', { class: 'rt-lkey' }, h('b', null, 'V'), ' a variable for the optimiser (' + D.vars.length + ' now) · ', h('b', null, 'S'), ' a solve · ', h('b', null, 'P'), ' a pickup'));
   card.append(bar);
   return card;
@@ -23259,7 +23293,7 @@ function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
   if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
-  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : 'Conic') + ' of surface ' + (i + 1);
+  const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + ' of surface ' + (i + 1);
   const asp = q[0] === 'a', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
     title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
@@ -23267,7 +23301,7 @@ function valueCell(P, D, q, i) {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -23278,7 +23312,7 @@ function valueCell(P, D, q, i) {
   return td;
 }
 const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
-const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
+const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 function asphRow(P, D, i, sid, nA, moved) {
   const cells = h('div', { class: 'rt-laspc' });
@@ -23334,10 +23368,10 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
-const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm' };
+const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
 function configsCard(asm, P) {
   const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
   const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
@@ -23406,7 +23440,7 @@ function configsCard(asm, P) {
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   // a value made to differ: any radius, thickness, conic, tilt or decentre not yet listed
   const opts = [];
-  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D']) {
+  for (let i = 0; i < P.surfaces.length; i++) for (const q of ['R', 't', 'k', 'T', 'D', 'U', 'X']) {
     if (!editable(P, q, i)) continue;
     const k = keyAt(P, q, i);
     if (!M.keys.includes(k)) opts.push([k, keyLabel(P, sps, k)]);
@@ -30980,7 +31014,7 @@ function editable(P, q, i) {
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q[0] === 'a') return sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
-  if (q === 'D') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
+  if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
@@ -30990,17 +31024,22 @@ function getV(P, at) {
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
+  if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
+  if (at.q === 'X') { const d = P.surfaces[at.i].dec; return d ? d[0] || 0 : 0; }
   return at.image ? P.image : P.gaps[at.i];
 }
 /* a part posed about its first vertex (surface i): tilted t degrees in the plane of the fields and moved
-   ov mm across, each of its surfaces carried round with it as the prescription reads them off the bench */
-function partPose(P, i, t, ov) {
-  const sps = surfaceParts(P), pi = sps[i].pi, tr = t * deg, ct = Math.cos(tr), st = Math.sin(tr), mirror = sps[i].kind === 'mirror';
+   ov mm across, and tilted u degrees out of it and moved ox mm up (the engine's x), each of its surfaces
+   carried round with it as the prescription reads them off the bench */
+function partPose(P, i, t, ov, u, ox) {
+  const sps = surfaceParts(P), pi = sps[i].pi, tr = t * deg, tb = (u || 0) * deg, ct = Math.cos(tr), st = Math.sin(tr), cb = Math.cos(tb), sb = Math.sin(tb);
+  const g = [sb, st * cb, ct * cb];
+  ox = ox || 0;
   let cum = 0;
   for (let k = i; k < P.surfaces.length && sps[k].pi === pi; k++) {
     if (k > i) cum += P.gaps[k - 1];
     const s = P.surfaces[k] = Object.assign({}, P.surfaces[k]);
-    if (Math.abs(tr) > 1e-12 || Math.abs(ov + cum * st) > 1e-9 || mirror && Math.abs(tr) > 1e-12) { s.tilt = [tr, 0]; s.dec = [0, ov + cum * st, cum * (ct - 1)]; }
+    if (Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
     else { delete s.tilt; delete s.dec; }
   }
 }
@@ -31019,10 +31058,11 @@ function setV(P, at, v) {
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
-  else if (at.q === 'T' || at.q === 'D') {
-    const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, mir = !!s.mirror;
+  else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
+    const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
-    partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0);
+    const u = at.q === 'U' && isFinite(v) ? Math.max(-TILT_LIM, Math.min(TILT_LIM, v)) : u0;
+    partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0, u, at.q === 'X' && isFinite(v) ? v : x0);
   }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
@@ -31550,14 +31590,14 @@ function setX(P, v, x) {
   if (v.at.q === 'R') P.surfaces[i].R = Math.abs(x) < 1e-12 ? null : 1 / x;
   else if (v.at.q === 'k') P.surfaces[i].k = x;
   else if (v.at.q[0] === 'a') { const n = +v.at.q.slice(1); asphSet(P.surfaces[i], n, x / Math.pow(asphH(P, i), n)); }
-  else if (v.at.q === 'T' || v.at.q === 'D') setV(P, v.at, x);
+  else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, D: 1e-5 };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' ? 'a' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' ? 1 : q === 'D' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' ? Math.max(Math.abs(x) / 3, 0.01) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -31817,8 +31857,8 @@ function globalSearch(prob, V, best, trials, seed) {
       else if (q === 't') x[j] = Math.max(0, x[j] * Math.exp(0.3 * z));
       else if (q === 'k') x[j] += 0.3 * z;
       else if (q[0] === 'a') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.02);
-      else if (q === 'T') x[j] += 0.5 * z;
-      else if (q === 'D') x[j] += 0.1 * z;
+      else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
+      else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
     });
@@ -38123,6 +38163,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Tilts and decentres out of the plane</b> in lens design: a lens or window tipped up or down and raised or lowered from the assembly\u2019s axis, typed or varied in the lens data (<b>\u00b0 up</b>, <b>mm up</b>) and put on the bench as the part\u2019s Tip and height. Parts of an assembly may now sit at different heights and be tipped; the assembly\u2019s Height z moves them all together. The bench\u2019s rays and the lens engine\u2019s agree through them to 10\u207b\u00b9\u00b3 mm.',
     '<b>Designs locked on the bench</b>: back from lens design, its parts\u2019 fields are locked against a stray edit, a padlock beside the name to open them. <b>Open lens design\u2026</b> in a designed part\u2019s panel and right-click menu goes straight back to its design. A plain <b>Lens</b> now has spherical surfaces only; the conic and aspheric terms are the <b>Asphere</b>\u2019s.',
     '<b>Configurations</b> in lens design: one design in several states, such as a zoom at each focal length or a lens refocused for a nearer object. Each configuration has its own values for the spacings and radii you choose, and its own object distance. The merit function weighs them all, and one optimisation finds each configuration\u2019s own values and the shared ones together. Show any one on the bench.',
     '<b>Design as a lens\u2026</b> on any lone lens, mirror or window (its panel or right-click menu) makes it an assembly of its own and opens the lens design workspace on it straight away.',

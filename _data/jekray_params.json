@@ -259,6 +259,11 @@
      "k": "mount",
      "def": null,
      "meaning": "optional, a made-to-order RF lens only: {\"kind\": \"flange\", \"width\": mm out from the rim, \"thick\": mm along the axis, \"holes\": bolt holes (0 to 12), \"hole\": their diameter, mm}, on the circle through the flange’s middle. Outside the lens: not traced."
+    },
+    {
+     "k": "asphere",
+     "def": null,
+     "meaning": "true for an asphere: only an asphere’s surfaces take a conic (\"k\") and aspheric terms (\"A\"); a plain lens’s are spheres."
     }
    ]
   },

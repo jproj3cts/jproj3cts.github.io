@@ -72,3 +72,38 @@ test('a fold mirror’s tilt as a design value: the fold turns, and the parts af
   assert.ok(near(Math.abs(dir), 100, 1e-6) || near(Math.abs(dir), 80, 1e-6), 'axis after the fold at ' + dir + '°; mirror ' + m.angle);
   assert.ok(A.asmCheck(A.asmMembers(asm), { ref: asm.ref, rev: asm.rev }).ok);
 });
+
+test('a lens tilted and decentred out of the plane: its tip and height on the bench, read back the same; the assembly’s axis height kept', () => {
+  const asm = load([lens('L1', 0, 0, 0, 40, -40, 4), lens('L2', 20, 0, 0, 30, null, 3)], { solves: { 't:image': { kind: 'focus' } } });
+  const P = D.designPrescription(asm);
+  D.setV(P, D.posOf(P, 'U:L2.0'), 2.5); D.setV(P, D.posOf(P, 'X:L2.0'), 0.35); D.setV(P, D.posOf(P, 'T:L2.0'), -1);
+  assert.ok(near(D.getV(P, D.posOf(P, 'U:L2.0')), 2.5, 1e-12) && near(D.getV(P, D.posOf(P, 'X:L2.0')), 0.35, 1e-12) && near(D.getV(P, D.posOf(P, 'T:L2.0')), -1, 1e-12));
+  A.asmApply(asm, P);
+  const e = ST.project.elements.find(x => x.id === 'L2');
+  // tipped up 2.5° about its centre, which is half its thickness on from the first vertex: raised 0.35 + 1.5 sin 2.5°
+  assert.ok(near(e.tip, 2.5, 1e-9) && near(e.z, 75 + 0.35 + 1.5 * Math.sin(2.5 * Math.PI / 180), 1e-9), 'tip ' + e.tip + ', z ' + e.z);
+  assert.equal(asm.z, 75);
+  const Q = A.asmPrescription(asm);
+  for (let i = 0; i < P.surfaces.length; i++) {
+    const a = P.surfaces[i], b = Q.surfaces[i];
+    for (let j = 0; j < 3; j++) assert.ok(near((a.dec || [0, 0, 0])[j], (b.dec || [0, 0, 0])[j], 1e-9), 'dec ' + i + ' ' + j);
+    for (let j = 0; j < 2; j++) assert.ok(near((a.tilt || [0, 0])[j], (b.tilt || [0, 0])[j], 1e-12), 'tilt ' + i + ' ' + j);
+  }
+  P.gaps.forEach((g, i) => assert.ok(near(g, Q.gaps[i], 1e-9), 'gap ' + i));
+  // a mirror is not tipped out of the plane in a design; a lens may be, a stop not
+  assert.ok(D.editable(Q, 'U', 2) && D.editable(Q, 'X', 2) && !D.editable(Q, 'U', 1));
+});
+
+test('a lens knocked 0.25 mm up and 1.5° out of the plane, those varied: the optimiser puts it back', () => {
+  const mk = (z, tip) => load([lens('L1', 0, 0, 0, 40, -40, 4), Object.assign(lens('L2', 20, 0, 0, 30, -80, 4), { z: 75 + z, tip })], { image: 25, vars: ['U:L2.0', 'X:L2.0', 't:image'] }, [{ deg: 0 }]);
+  const spot = asm => { const P = D.designPrescription(asm), An = AN.anaSystems(asm, P); return AN.spotDiagram(An, 0, 15).rms; };
+  const c0 = mk(0, 0); { const P = D.designPrescription(c0), prob = O.optProblem(c0, P); prob.design = Object.assign({}, prob.design, { vars: ['t:image'] }); const o = O.optRun(prob, { mode: 'dls', iters: 40 }); O.optApply(P, prob, o); D.commitDesign(c0, P); }
+  const centred = spot(c0), asm = mk(0.25, 1.5), s0 = spot(asm);
+  const P = D.designPrescription(asm), prob = O.optProblem(asm, P), out = O.optRun(prob, { mode: 'dls', iters: 60 });
+  O.optApply(P, prob, out); D.commitDesign(asm, P);
+  const P1 = D.designPrescription(asm), u = D.getV(P1, D.posOf(P1, 'U:L2.0')), x = D.getV(P1, D.posOf(P1, 'X:L2.0'));
+  assert.ok(s0 > 2 * centred && spot(asm) < centred * (1 + 1e-4), spot(asm) + ' from ' + s0 + ', centred ' + centred);
+  assert.ok(Math.abs(u) < 0.3 && Math.abs(x) < 0.1, 'tip ' + u + ', decentre ' + x);
+  const e = ST.project.elements.find(q => q.id === 'L2');
+  assert.ok(Math.abs(e.z - 75) < 0.1 && Math.abs(e.tip || 0) < 0.3, 'on the bench: z ' + e.z + ', tip ' + e.tip);
+});

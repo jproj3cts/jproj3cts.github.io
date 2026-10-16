@@ -155,7 +155,7 @@ export function reportRecs(asm) {
     const last = i === P.surfaces.length - 1, t = last ? P.image : P.gaps[i], sp = sps[i];
     const glass = s.mirror ? 'Mirror' : last || P.materials[i].glass === 'AIR' ? '' : P.materials[i].glass === 'Model' ? rf(P.materials[i].nd, 5) + '/' + rf(P.materials[i].vd, 4) : matLabel(P.materials[i]);
     const r = [sp.kind === 'stop' ? 'STO' : String(i + 1), nameOf(i), s.R === null ? 'Flat' : rf(s.R, 7), rf(t, 7), glass, rf(s.semi, 5), s.k ? rf(s.k, 6) : '0'];
-    if (moved) { const tt = s.tilt ? s.tilt[0] / deg : 0, dd = s.dec ? s.dec[1] : 0; r.push(sp.j === 0 && (tt || dd) ? [tt ? rf(tt, 4) + '°' : '', dd ? rf(dd, 4) + ' mm' : ''].filter(Boolean).join(', ') : ''); }
+    if (moved) { const tt = s.tilt ? s.tilt[0] / deg : 0, dd = s.dec ? s.dec[1] : 0, tu = s.tilt ? (s.tilt[1] || 0) / deg : 0, du = s.dec ? s.dec[0] || 0 : 0; r.push(sp.j === 0 && (tt || dd || tu || du) ? [tt ? rf(tt, 4) + '°' : '', dd ? rf(dd, 4) + ' mm' : '', tu ? rf(tu, 4) + '° up' : '', Math.abs(du) > 1e-12 ? rf(du, 4) + ' mm up' : ''].filter(Boolean).join(', ') : ''); }
     rows.push(r);
   });
   rows.push(['IMA', 'Image', 'Flat', '', '', rf(Math.abs(F.imgH), 5), '']);
@@ -172,7 +172,7 @@ export function reportRecs(asm) {
   if (MC) {
     rpHead(pg, 'Configurations (this report is of ' + MC.configs[MC.active].name + ')');
     const shown = MC.configs.slice(0, 6), cw = Math.floor((RP_W - 2 * RP_M - 160) / shown.length);
-    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
+    const keyName = k => { const at = posOf(P, k); if (!at) return k; if (at.image) return 'Image distance'; const w = at.q === 'R' ? 'Radius' : at.q === 't' ? 'Thickness after' : at.q === 'k' ? 'Conic' : at.q === 'T' ? 'Tilt (°)' : at.q === 'D' ? 'Decentre' : at.q === 'U' ? 'Tilt up (°)' : at.q === 'X' ? 'Decentre up' : 'A' + at.q.slice(1); return w + ' ' + (at.i + 1) + ' (' + nameOf(at.i) + ')'; };
     const figs = shown.map((cf, ci) => ci === MC.active ? F : designFigures({ cond: cf.obj && fin ? Object.assign({}, c, { object: { kind: 'finite', d: cf.obj } }) : c, design: D }, cfgSolved(asm, P, ci)));
     const crow = [['Weight', ...shown.map(cf => rf(cf.w, 4))]];
     if (fin) crow.push(['Object distance', ...shown.map((cf, ci) => rf(ci === MC.active ? F.object : cf.obj || F.object, 6))]);

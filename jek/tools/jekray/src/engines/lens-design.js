@@ -48,7 +48,7 @@ export function editable(P, q, i) {
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q[0] === 'a') return sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
-  if (q === 'D') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
+  if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
   return true;
 }
@@ -58,17 +58,22 @@ export function getV(P, at) {
   if (at.q[0] === 'a') return asphGet(P.surfaces[at.i], +at.q.slice(1));
   if (at.q === 'T') { const t = P.surfaces[at.i].tilt; return t ? t[0] / deg : 0; }
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
+  if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
+  if (at.q === 'X') { const d = P.surfaces[at.i].dec; return d ? d[0] || 0 : 0; }
   return at.image ? P.image : P.gaps[at.i];
 }
 /* a part posed about its first vertex (surface i): tilted t degrees in the plane of the fields and moved
-   ov mm across, each of its surfaces carried round with it as the prescription reads them off the bench */
-export function partPose(P, i, t, ov) {
-  const sps = surfaceParts(P), pi = sps[i].pi, tr = t * deg, ct = Math.cos(tr), st = Math.sin(tr), mirror = sps[i].kind === 'mirror';
+   ov mm across, and tilted u degrees out of it and moved ox mm up (the engine's x), each of its surfaces
+   carried round with it as the prescription reads them off the bench */
+export function partPose(P, i, t, ov, u, ox) {
+  const sps = surfaceParts(P), pi = sps[i].pi, tr = t * deg, tb = (u || 0) * deg, ct = Math.cos(tr), st = Math.sin(tr), cb = Math.cos(tb), sb = Math.sin(tb);
+  const g = [sb, st * cb, ct * cb];
+  ox = ox || 0;
   let cum = 0;
   for (let k = i; k < P.surfaces.length && sps[k].pi === pi; k++) {
     if (k > i) cum += P.gaps[k - 1];
     const s = P.surfaces[k] = Object.assign({}, P.surfaces[k]);
-    if (Math.abs(tr) > 1e-12 || Math.abs(ov + cum * st) > 1e-9 || mirror && Math.abs(tr) > 1e-12) { s.tilt = [tr, 0]; s.dec = [0, ov + cum * st, cum * (ct - 1)]; }
+    if (Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
     else { delete s.tilt; delete s.dec; }
   }
 }
@@ -87,10 +92,11 @@ export function setV(P, at, v) {
   if (at.q === 'R') P.surfaces[at.i].R = v === null || !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v;
   else if (at.q === 'k') P.surfaces[at.i].k = isFinite(v) ? v : 0;
   else if (at.q[0] === 'a') asphSet(P.surfaces[at.i], +at.q.slice(1), v);
-  else if (at.q === 'T' || at.q === 'D') {
-    const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, mir = !!s.mirror;
+  else if (at.q === 'T' || at.q === 'D' || at.q === 'U' || at.q === 'X') {
+    const s = P.surfaces[at.i], t0 = s.tilt ? s.tilt[0] / deg : 0, d0 = s.dec ? s.dec[1] : 0, u0 = s.tilt ? (s.tilt[1] || 0) / deg : 0, x0 = s.dec ? s.dec[0] || 0 : 0, mir = !!s.mirror;
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
-    partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0);
+    const u = at.q === 'U' && isFinite(v) ? Math.max(-TILT_LIM, Math.min(TILT_LIM, v)) : u0;
+    partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0, u, at.q === 'X' && isFinite(v) ? v : x0);
   }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);

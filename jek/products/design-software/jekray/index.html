@@ -84,8 +84,8 @@
         <div>
           <div class="jek-eyebrow">Design software</div>
           <h1>JEKray</h1>
-          <p class="jek-tag">An optical bench simulator that shows the waves as well as the rays.</p>
-          <p class="jek-lede">Lay out sources, lenses, mirrors, fibre and detectors on a virtual breadboard and see the light traced as you move them: exact rays through real glass, diffracted Gaussian beams with interference and polarisation, in 2D and 3D.</p>
+          <p class="jek-tag">An optical bench simulator and lens-design workspace that shows the waves as well as the rays.</p>
+          <p class="jek-lede">Lay out sources, lenses, mirrors, fibre and detectors on a virtual breadboard and see the light traced as you move them: exact rays through real glass, diffracted Gaussian beams with interference and polarisation, in 2D and 3D. Then design the lenses themselves: optimise them, analyse them, tolerance them, draw them for the workshop and send them to CAD.</p>
           <div class="jek-acts">
             <a class="jek-btn primary" href="/jek/tools/jekray.html">Launch JEKray</a>
             <a class="jek-btn quiet" href="#examples">Try an example</a>
@@ -105,7 +105,7 @@
         <div class="lead">Checked against published results</div>
         <p><b>Makers&rsquo; lens files</b>Thorlabs and Edmund .zmx and .zar files import and focus to the makers&rsquo; stated focal lengths and back focal lengths.</p>
         <p><b>Published results</b>Fox and Li&rsquo;s resonator losses, Safronova&rsquo;s atomic polarisabilities, measured rubidium absorption and a levitated nanosphere&rsquo;s damping, reproduced from the papers.</p>
-        <p><b>Lens design</b>Real rays, Seidel aberrations and Strehl ratios of a singlet and a Cooke triplet against an independent ray tracer. <a href="/jek/tools/jekray-validation.html">The validation page</a>.</p>
+        <p><b>Lens design</b>Real rays, Seidel aberrations and Strehl ratios of a singlet and a Cooke triplet against an independent ray tracer; every analysis against closed-form results; CAD exports checked in an independent CAD kernel. Some 870 automated checks in all. <a href="/jek/tools/jekray-validation.html">The validation page</a>.</p>
       </div>
     </section>
 
@@ -114,8 +114,8 @@
         <h2>Who it is for</h2>
         <div class="jek-cards">
           <div class="jek-card"><h3>Research groups</h3><p>Plan a bench before cutting metal: mode-match a laser to a cavity, lay out an interferometer, check a lock error signal. Keep the group&rsquo;s benches in one team workspace with their history.</p><a class="jek-more" href="/jek/tools/jekray.html#demo=fox-li">A cavity finding its mode</a></div>
-          <div class="jek-card"><h3>Teaching</h3><p>Forty-two examples students can open and break: a Michelson, a Fabry&ndash;P&eacute;rot, a grating spectrometer, optical tweezers. One licence covers a whole university, with no seats to manage.</p><a class="jek-more" href="/jek/universities.html">For universities</a></div>
-          <div class="jek-card"><h3>Industry design review</h3><p>Import a maker&rsquo;s lens file, check the working distance, send a link to a colleague. Export a prescription back to your lens-design program.</p><a class="jek-more" href="/jek/docs/jekray/free-space/lens/#exporting-a-lens">Lens import and export</a></div>
+          <div class="jek-card"><h3>Teaching</h3><p>Forty-eight examples students can open and break: a Michelson, a Fabry&ndash;P&eacute;rot, a grating spectrometer, optical tweezers. One licence covers a whole university, with no seats to manage.</p><a class="jek-more" href="/jek/universities.html">For universities</a></div>
+          <div class="jek-card"><h3>Lens design in industry</h3><p>Take a lens from first idea to the workshop: optimise it, tolerance it for yield, match it to stock lenses, then hand over ISO 10110 drawings, a .zmx file and STEP solids for the mechanical design.</p><a class="jek-more" href="/jek/docs/jekray/lens-design/">Lens design</a></div>
         </div>
       </div>
     </section>
@@ -131,12 +131,24 @@
           <figure class="jek-shot"><img src="img/lens-aberrations.png" alt="Ray fans through a thick lens, showing its aberrations" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
+          <div><span class="jek-eyebrow">Lens design</span><h2>Design the lens, not just place it</h2><p>Open any group of lenses as a design: its prescription, solves and pickups, aspheres, freeforms, diffractive surfaces and graded glass, and zooms as configurations. Optimise for a merit function you build, search for new starting points, and substitute real glasses. Then look at it from every side: spots, fans, wavefront and Zernike terms, PSF and MTF (through focus too), relative illumination, footprints, ghosts, polarisation through the coatings, the design at another temperature, and a picture as the lens would form it.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <figure class="jek-shot"><img src="img/lens-design.png" alt="The lens-design workspace for a Cooke triplet: the analyses chips, and a test chart beside the same chart as the design forms it" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">To the workshop</span><h2>Tolerance it, draw it, build it</h2><p>Sensitivity, Monte Carlo and inverse sensitivity, with compensators and a yield against your specification. Each lens drawn on an A4 sheet in the manner of ISO 10110, every drawing in one PDF, and the whole design in a report. Export the design as a .zmx file, or as STEP solids and an STL mesh for the mechanical design. Bring your own stock lens files and it finds which could stand in for each lens, and how well.</p></div>
+          <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, its surfaces, glass and tolerances, and a title block" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
           <div><span class="jek-eyebrow">Three dimensions</span><h2>The diffracted field in 3D</h2><p>Raise, tip and roll any part and the light follows, periscopes and misaligned cavities included. The field glows along each beam in calibrated W/cm&sup2;, interference and all; point at it to read it. Bring mounts and housings in from CAD as STL files.</p></div>
           <figure class="jek-shot"><img src="img/field-3d.png" alt="The diffracted field drawn as a glowing volume in the 3D view" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">One bench</span><h2>Fibre, free space and the signals between</h2><p>Fibre subsystems, free-space optics and the electronics after the detector on one bench, across as many tabs as you like: photodiode signals, oscilloscopes, lock-ins and lock error signals. Spectra, ultrafast pulses, nonlinear optics, vapour cells and optical traps. And RF from 1 GHz to 3 THz: feed horns, RF lenses, mirrors, wire grids and mesh filters, with plastic lenses made to order that show their loss, how well the beam fits them, and whether they can be made.</p></div>
+          <div><span class="jek-eyebrow">One bench</span><h2>Fibre, free space and the signals between</h2><p>Fibre subsystems, free-space optics and the electronics after the detector on one bench, across as many tabs as you like: photodiode signals, oscilloscopes, lock-ins and lock error signals. Spectra, ultrafast pulses, nonlinear optics, vapour cells, optical traps and photonic chips.</p></div>
           <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">RF and millimetre waves</span><h2>Quasi-optics from 1 GHz to 3 THz</h2><p>Feed horns, RF lenses, mirrors, wire grids and mesh filters, with the beam&rsquo;s diffraction worked out properly at these wavelengths. Plastic lenses made to order, solid or graded in density, show their loss, how well the beam fits them, and whether they are manufacturable. Sweep a link across frequency for its S21 and link budget, steer the beam off axis, and take the signal on to a mixer and a spectrum analyser.</p><p><a href="/jek/docs/jekray/rf/">RF on the bench</a></p></div>
+          <figure class="jek-shot"><img src="img/rf-grin-lens.png" alt="A 24 GHz feed horn and a graded-index RF lens focusing its beam onto a target 400 mm away" loading="lazy"></figure>
         </div>
         <div class="jek-feature" id="pro">
           <div><span class="jek-eyebrow">JEKrayPro</span><h2>Your benches in the cloud, for you or a team</h2><p>Sign in with Google or Microsoft and benches save as you work, with their whole history. Fork one to try an idea and merge it back. Keep your own parts in My parts. A team shares one workspace with roles, invitations by email, one editor at a time and an activity record. Export everything at any time, and delete your account whenever you like.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
@@ -162,7 +174,7 @@
         <h2>Pricing</h2>
         <p class="jek-lede">The simulator is free, with or without an account, under the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>. JEKrayPro adds the cloud. Prices include VAT where it applies; payment is taken by Stripe and you can cancel any time. If a subscription ends, every bench can still be opened and exported.</p>
         <div class="jek-plans">
-          <div class="jek-plan"><div class="jek-eyebrow">Free</div><div class="price">&pound;0</div><ul><li>The whole simulator</li><li>42 examples and a guided tour</li><li>Save .jekray files and share links</li><li>Import .zmx and .zar lens files</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html">Launch</a></div>
+          <div class="jek-plan"><div class="jek-eyebrow">Free</div><div class="price">&pound;0</div><ul><li>The whole simulator</li><li>48 examples and a guided tour</li><li>Lens design, tolerancing and drawings</li><li>Save .jekray files and share links</li><li>Import .zmx and .zar lens files</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html">Launch</a></div>
           <div class="jek-plan featured"><div class="jek-eyebrow">Pro</div><div class="price">&pound;9.99 <small>a month, or &pound;99 a year</small></div><ul><li>Benches saved as you work</li><li>Version history, forks and merges</li><li>My parts on any bench</li><li>Any computer, any browser</li></ul><a class="jek-btn primary small" href="/jek/tools/jekray.html#pro">Subscribe</a></div>
           <div class="jek-plan"><div class="jek-eyebrow">Academic</div><div class="price">&pound;4.99 <small>a month, or &pound;49 a year</small></div><ul><li>Everything in Pro</li><li>For students and university staff</li><li>Confirmed by a university address</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Check I qualify</a></div>
           <div class="jek-plan"><div class="jek-eyebrow">Team</div><div class="price">&pound;9.99 <small>a seat a month, or &pound;99 a year; at least 3</small></div><ul><li>One shared workspace</li><li>Owner, admins and editors; viewers free</li><li>Invitations by email</li><li>One editor at a time, activity record</li><li>Pro on each member&rsquo;s own benches</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Create a team</a></div>
@@ -576,6 +588,80 @@
           <div class="rt-example-body">
             <h3>Lock-in absorption measurement</h3>
             <p>A sample’s transmission from two lock-in amplifiers, with the light square-wave modulated at 1 kHz.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">RF and millimetre waves</span><span class="rt-exdrop-count">7 examples</span></summary>
+        <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-10ghz-pla-lens">
+          <img src="/jek/tools/demos/thumbs/rf-10ghz-pla-lens.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>PLA lens, 10 GHz</h3>
+            <p>A horn’s beam collimated by a PLA lens: its loss, its edge taper, and whether it is manufacturable.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-grin-lens">
+          <img src="/jek/tools/demos/thumbs/rf-24ghz-grin-lens.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Graded-index lens, 24 GHz</h3>
+            <p>A flat disc whose density falls from its centre to its edge focuses a horn’s beam.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-abs-lens">
+          <img src="/jek/tools/demos/thumbs/rf-24ghz-abs-lens.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>ABS lens, 24 GHz radar</h3>
+            <p>A radar horn behind an ABS lens: the band where plastic RF lenses of this size work best.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-link">
+          <img src="/jek/tools/demos/thumbs/mm-wave-link.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Millimetre-wave link, 150 GHz</h3>
+            <p>Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-mesh-filter">
+          <img src="/jek/tools/demos/thumbs/mm-wave-mesh-filter.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Mesh filter, swept</h3>
+            <p>A band-pass mesh in a Gaussian beam telescope: the receiver’s S21 against frequency, and its link budget.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-grid-diplexer">
+          <img src="/jek/tools/demos/thumbs/mm-wave-grid-diplexer.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Wire-grid diplexer, 150 GHz</h3>
+            <p>A wire grid at 45° reflects the field along its wires and passes the other.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-heterodyne">
+          <img src="/jek/tools/demos/thumbs/mm-wave-heterodyne.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Heterodyne link, 150 GHz</h3>
+            <p>A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.</p>
+            <span class="rt-open">Open in JEKray →</span>
+          </div>
+        </a>
+        </div>
+      </details>
+      <details class="rt-exdrop">
+        <summary><span class="rt-exdrop-title">Photonic circuits</span><span class="rt-exdrop-count">1 example</span></summary>
+        <div class="rt-example-grid">
+        <a class="rt-example" href="/jek/tools/jekray.html#demo=ring-filter">
+          <img src="/jek/tools/demos/thumbs/ring-filter.webp" alt="" loading="lazy">
+          <div class="rt-example-body">
+            <h3>Ring filter on a chip</h3>
+            <p>A ring between two waveguides drops one line of a laser tuned across it.</p>
             <span class="rt-open">Open in JEKray →</span>
           </div>
         </a>

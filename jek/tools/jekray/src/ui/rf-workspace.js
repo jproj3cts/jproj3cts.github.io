@@ -2,6 +2,7 @@ import { asmAxisAt, asmCheck, asmMembers, normCond, normRfCond } from '../core/a
 import { C_NM_GHZ, PRINTER, RF_HORNS, RF_MAT, applyRf, hornGeom, mountVolume, mountedDia, normMount, printedMatch, rfBeam } from '../core/rf.js';
 import { lensThickness, lensVolume } from './readouts.js';
 import { orderRow } from '../io/order.js';
+import { lens3d } from './rf-lens3d.js';
 import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
@@ -643,9 +644,11 @@ function rwMakeCard(asm, P, T) {
     if (taper < 10) advice.push('Its edge taper is ' + taper.toFixed(1) + ' dB at worst across the band: the light past its rim is lost and its edge diffracts.');
     const ok = checks.every(c => c[0]);
     const list = h('ul', { class: 'rt-rfchecks' }, ...checks.map(([pass, what, why]) => h('li', { class: pass ? 'ok' : 'bad' }, h('span', { class: 'mark', 'aria-hidden': 'true' }, pass ? '✓' : '✗'), h('b', null, what), ' ', h('span', { class: 'rt-lsub' }, why))));
-    box.append(h('p', { class: 'rt-rfverdict ' + (ok ? 'ok' : 'bad') }, ok ? 'Manufacturable' : 'Not manufacturable as it is'), list);
-    box.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Material', M ? M.name : '—'], ['Centre thickness', rwFmt(geo.centre, 4) + ' mm'], ['Edge thickness', rwFmt(geo.edge, 4) + ' mm'],
-      ['Weight', isFinite(grams) ? 'about ' + Math.round(grams) + ' g' : '—'], ['Outside diameter', rwFmt(outside, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+    // the checks and figures on the left, the lens in 3D beside them: a look at what will be made
+    const left = h('div', null, h('p', { class: 'rt-rfverdict ' + (ok ? 'ok' : 'bad') }, ok ? 'Manufacturable' : 'Not manufacturable as it is'), list,
+      h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Material', M ? M.name : '—'], ['Centre thickness', rwFmt(geo.centre, 4) + ' mm'], ['Edge thickness', rwFmt(geo.edge, 4) + ' mm'],
+        ['Weight', isFinite(grams) ? 'about ' + Math.round(grams) + ' g' : '—'], ['Outside diameter', rwFmt(outside, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+    box.append(h('div', { class: 'rt-rftop' }, left, h('figure', { class: 'rt-rf3dfig' }, lens3d(el), h('figcaption', { class: 'rt-lsub' }, 'As it would be made' + (el.mount ? ', with its flange' : '') + ': drag to turn it.'))));
     for (const a of advice) box.append(h('p', { class: 'rt-lnote' }, a));
     // its mounting: a flange with bolt holes, or none
     const m = el.mount, mset = (k, v) => rwEdit(() => { el.mount = normMount(Object.assign({ kind: 'flange' }, el.mount || {}, { [k]: v })); return false; });
@@ -728,7 +731,7 @@ function rwHist(parent, xs, spec, unit) {
     if (hi - lo < 1e-6) { lo -= 0.05; hi += 0.05; }
     const nb = 24, bins = new Array(nb).fill(0); for (const x of xs) bins[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++;
     const top = Math.max(...bins), L = 36, B = 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 8), bw = (W - L - 8) / nb;
-    g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 10); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
+    g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 26); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
     g.strokeStyle = '#888'; g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
     g.fillStyle = '#555'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
     for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; g.fillText(v.toFixed(2), X(v), H - 6); }

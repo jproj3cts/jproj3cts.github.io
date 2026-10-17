@@ -289,7 +289,7 @@ Errors across the axis (a lens decentred or tilted, the feed moved sideways) are
 - nowhere thinner than 0.45 mm;
 - matching layers that can be printed, and that hold, by the design rule, to the top of the band.
 
-It gives the lens's centre and edge thickness, its weight and its outside diameter, and notes a lens only a few wavelengths across or one whose edge taper is low. Its **Mounting** can be a flange with bolt holes, as on the bench. A lens that passes has the orange **Request a quote for this lens** button, as in its panel: the request goes into the quote cart named for the design frequency, with the lens's figures and what the system does (its gain or coupling over the band), and a link to the design. See [Custom RF Lenses](/jek/products/signal-processing/custom-rf-lenses/).
+It gives the lens's centre and edge thickness, its weight and its outside diameter, and notes a lens only a few wavelengths across or one whose edge taper is low. Beside them the lens turns in 3D as it would be made, its flange and bolt holes with it; drag to turn it by hand. Its **Mounting** can be a flange with bolt holes, as on the bench. A lens that passes has the orange **Request a quote for this lens** button, as in its panel: the request goes into the quote cart named for the design frequency, with the lens's figures (each face's radius with its conic and any aspheric terms, so the shape is in the request itself), what the system does (its gain or coupling over the band), and a link that opens the whole system in the RF designer as it was left. See [Custom RF Lenses](/jek/products/signal-processing/custom-rf-lenses/).
 
 ### Design a lens
 

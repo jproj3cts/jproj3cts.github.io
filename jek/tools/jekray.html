@@ -1296,6 +1296,13 @@
   .rt-rfchecks .mark { font-weight: 700; width: 1rem; }
   .rt-rfchecks .ok .mark { color: #1f7a4c; } .rt-rfchecks .bad .mark { color: #b42318; }
   .rt-rftolk { min-width: 0; max-width: 32rem; }
+  .rt-rftop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem); gap: 1rem 1.5rem; align-items: start; }
+  .rt-rf3dfig { margin: 0; }
+  .rt-rf3d { width: 100%; aspect-ratio: 5 / 4; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, #3a4148, #1e2227 75%); border-radius: var(--jek-radius); overflow: hidden; }
+  .rt-rf3d canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; touch-action: none; }
+  .rt-rf3d .rt-lsub { color: #c9d1d8; }
+  .rt-rf3dfig figcaption { margin-top: 0.3rem; font-size: 0.78rem; }
+  @media (max-width: 760px) { .rt-rftop { grid-template-columns: 1fr; } }
   .rt-rftolk .rt-lnum { width: 5rem; }
   .rt-lswatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
   .rt-lx { width: 1.6rem; height: 1.6rem; flex: none; border: 0; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; cursor: pointer; border-radius: 2px; }
@@ -25157,6 +25164,97 @@ function stockCard({ asm, P, redraw, edit, toast }) {
   }
   return card;
 }
+/* ---------- A lens to be made, in 3D: a quick look before it is ordered ----------
+   The lens as it would be printed: its faces turned about its axis to their full diameter (the sags as the bench
+   has them, conics and aspheric terms included), its rim, and its flange with its bolt holes, centred on the rim as
+   the bench draws it. It turns slowly; drag to turn it by hand. three.js is the 3D view's own, fetched the first
+   time; one renderer is kept per lens and moved into the page each time it is drawn, so drawing again costs
+   nothing new. */
+let R3 = null, R3loading = null;
+const R3views = new Map();         // lens id -> { renderer, scene, camera, group, key, yaw, pitch, drag }
+function r3load() {
+  if (R3) return Promise.resolve(R3);
+  if (!R3loading) {
+    const base = new URL('../assets/vendor/three/', location.href).href;
+    R3loading = import(base + 'three.module.min.js').then(m => (R3 = m));
+    R3loading.catch(() => { R3loading = null; });
+  }
+  return R3loading;
+}
+const r3sag = (s, r) => (s.R === null || !isFinite(s.R) || !s.R) && !s.k && !(s.A && s.A.some(a => a)) ? 0 : surfSag({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: s.A || [], odd: s.odd || null }, r);
+/* the lens's outline in (r, z), front face to back, for a lathe */
+function r3profile(el) {
+  const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
+  for (let i = 0; i <= n; i++) { const r = a * i / n; pts.push([r, r3sag(f, r)]); }
+  for (let i = n; i >= 0; i--) { const r = a * i / n; pts.push([r, T + r3sag(b, r)]); }
+  return { pts, a, mid: (r3sag(f, a) + T + r3sag(b, a)) / 2, T };
+}
+const r3key = el => JSON.stringify([el.diameter, el.surfaces.map(s => [s.R, s.k, s.a2, s.A]), el.gaps, el.materials, el.mount]);
+function r3build(T, v, el) {
+  if (v.group) { v.scene.remove(v.group); v.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  const P = r3profile(el), M = RF_MAT[el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
+  const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0, side: T.DoubleSide });
+  const group = new T.Group();
+  group.add(new T.Mesh(new T.LatheGeometry(P.pts.map(([r, z]) => new T.Vector2(Math.max(r, 1e-6), z)), 96), mat));
+  // the flange: a ring with its holes, extruded along the axis, centred on the rim
+  const m = el.mount;
+  if (m && m.kind === 'flange') {
+    const shape = new T.Shape(), ro = P.a + m.width;
+    shape.absarc(0, 0, ro, 0, 2 * Math.PI, false);
+    const inner = new T.Path(); inner.absarc(0, 0, P.a, 0, 2 * Math.PI, true); shape.holes.push(inner);
+    for (let k = 0; k < m.holes; k++) { const t = 2 * Math.PI * k / m.holes, c = P.a + m.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(t), c * Math.sin(t), m.hole / 2, 0, 2 * Math.PI, true); shape.holes.push(hp); }
+    const g = new T.ExtrudeGeometry(shape, { depth: m.thick, bevelEnabled: false, curveSegments: 48 });
+    g.rotateX(-Math.PI / 2); g.translate(0, P.mid - m.thick / 2, 0);
+    group.add(new T.Mesh(g, mat));
+  }
+  // the axis along y: centred, and sized to the view
+  group.position.y = -P.T / 2;
+  v.scene.add(group); v.group = group;
+  const span = Math.max(P.a + (m ? m.width : 0), P.T);
+  v.camera.position.set(0, 0, span * 3.9); v.camera.near = span * 0.05; v.camera.far = span * 20; v.camera.updateProjectionMatrix();
+  v.key = r3key(el);
+}
+/* the 3D view of lens el: a box that fills itself once three.js is in */
+function lens3d(el) {
+  const box = h('div', { class: 'rt-rf3d', role: 'img', 'aria-label': 'The lens ' + el.name + ' in 3D, as it would be made: drag to turn it' }, h('span', { class: 'rt-lsub' }, 'Loading the 3D view…'));
+  const fail = () => box.replaceChildren(h('span', { class: 'rt-lsub' }, 'The 3D view could not load here.'));
+  r3load().then(T => { try { r3show(T, el, box); } catch (err) { fail(); } }, fail);
+  return box;
+}
+/* the lens drawn into box (its renderer made the first time; WebGL may be missing: the caller says so) */
+function r3show(T, el, box) {
+  if (!box.isConnected) return;
+  let v = R3views.get(el.id);
+  if (!v) {
+    const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+    const scene = new T.Scene(), camera = new T.PerspectiveCamera(32, 1, 1, 1000);
+    scene.add(new T.HemisphereLight(0xffffff, 0x445566, 1.6));
+    const d = new T.DirectionalLight(0xffffff, 1.8); d.position.set(2, 3, 4); scene.add(d);
+    const d2 = new T.DirectionalLight(0xffffff, 1.2); d2.position.set(-2, -3, 3); scene.add(d2);
+    v = { renderer, scene, camera, group: null, key: '', yaw: 0.6, pitch: -0.38, drag: null, idle: 0 };
+    const cv = renderer.domElement;
+    cv.addEventListener('pointerdown', e => { v.drag = [e.clientX, e.clientY]; v.idle = performance.now() + 4000; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => { if (!v.drag) return; v.yaw += (e.clientX - v.drag[0]) * 0.01; v.pitch = Math.max(-1.4, Math.min(1.4, v.pitch + (e.clientY - v.drag[1]) * 0.01)); v.drag = [e.clientX, e.clientY]; v.idle = performance.now() + 4000; });
+    cv.addEventListener('pointerup', () => { v.drag = null; });
+    R3views.set(el.id, v);
+  }
+  if (v.key !== r3key(el)) r3build(T, v, el);
+  const W = Math.max(160, box.clientWidth || 260), H = Math.round(W * 0.8);
+  v.renderer.setPixelRatio(window.devicePixelRatio || 1); v.renderer.setSize(W, H); v.camera.aspect = W / H; v.camera.updateProjectionMatrix();
+  box.replaceChildren(v.renderer.domElement);
+  // one loop at a time: a lens drawn again starts its own and the last one stops
+  const loop = v.loop = {};
+  let last = performance.now();
+  const frame = t => {
+    if (v.loop !== loop || !v.renderer.domElement.isConnected) return;
+    if (!v.drag && t > v.idle) v.yaw += (t - last) * 0.00035;
+    last = t;
+    v.group.rotation.set(v.pitch, v.yaw, 0, 'XYZ');
+    v.renderer.render(v.scene, v.camera);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
 /* ==========================================================================
    The RF designer
    An assembly of RF parts (lenses and mirrors for millimetre waves) opened as a quasi-optical system: a feed
@@ -25785,9 +25883,11 @@ function rwMakeCard(asm, P, T) {
     if (taper < 10) advice.push('Its edge taper is ' + taper.toFixed(1) + ' dB at worst across the band: the light past its rim is lost and its edge diffracts.');
     const ok = checks.every(c => c[0]);
     const list = h('ul', { class: 'rt-rfchecks' }, ...checks.map(([pass, what, why]) => h('li', { class: pass ? 'ok' : 'bad' }, h('span', { class: 'mark', 'aria-hidden': 'true' }, pass ? '✓' : '✗'), h('b', null, what), ' ', h('span', { class: 'rt-lsub' }, why))));
-    box.append(h('p', { class: 'rt-rfverdict ' + (ok ? 'ok' : 'bad') }, ok ? 'Manufacturable' : 'Not manufacturable as it is'), list);
-    box.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Material', M ? M.name : '—'], ['Centre thickness', rwFmt(geo.centre, 4) + ' mm'], ['Edge thickness', rwFmt(geo.edge, 4) + ' mm'],
-      ['Weight', isFinite(grams) ? 'about ' + Math.round(grams) + ' g' : '—'], ['Outside diameter', rwFmt(outside, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+    // the checks and figures on the left, the lens in 3D beside them: a look at what will be made
+    const left = h('div', null, h('p', { class: 'rt-rfverdict ' + (ok ? 'ok' : 'bad') }, ok ? 'Manufacturable' : 'Not manufacturable as it is'), list,
+      h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Material', M ? M.name : '—'], ['Centre thickness', rwFmt(geo.centre, 4) + ' mm'], ['Edge thickness', rwFmt(geo.edge, 4) + ' mm'],
+        ['Weight', isFinite(grams) ? 'about ' + Math.round(grams) + ' g' : '—'], ['Outside diameter', rwFmt(outside, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+    box.append(h('div', { class: 'rt-rftop' }, left, h('figure', { class: 'rt-rf3dfig' }, lens3d(el), h('figcaption', { class: 'rt-lsub' }, 'As it would be made' + (el.mount ? ', with its flange' : '') + ': drag to turn it.'))));
     for (const a of advice) box.append(h('p', { class: 'rt-lnote' }, a));
     // its mounting: a flange with bolt holes, or none
     const m = el.mount, mset = (k, v) => rwEdit(() => { el.mount = normMount(Object.assign({ kind: 'flange' }, el.mount || {}, { [k]: v })); return false; });
@@ -25870,7 +25970,7 @@ function rwHist(parent, xs, spec, unit) {
     if (hi - lo < 1e-6) { lo -= 0.05; hi += 0.05; }
     const nb = 24, bins = new Array(nb).fill(0); for (const x of xs) bins[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++;
     const top = Math.max(...bins), L = 36, B = 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 8), bw = (W - L - 8) / nb;
-    g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 10); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
+    g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 26); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
     g.strokeStyle = '#888'; g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
     g.fillStyle = '#555'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
     for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; g.fillText(v.toFixed(2), X(v), H - 6); }
@@ -39828,6 +39928,8 @@ function shareData() {
     return o;
   });
   if (d.measures.length) out.measures = d.measures;
+  // the assemblies the parts make, with their designs (a lens design, an RF system and its conditions)
+  if (d.assemblies && d.assemblies.length) out.assemblies = d.assemblies;
   const ui = uiState();
   // only what is set: nothing selected, pinned, scrolled or in 3D leaves it out
   const U = {};
@@ -39992,14 +40094,20 @@ function orderSpec(el, opts) {
     const skins = el.surfaces.map(s => printedMatch(M, s.coat));
     if (skins.some(k => k && !k.ok)) return null;
     const ghz = opts.ghz ? +(+opts.ghz).toPrecision(4) : ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
-    const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
-    const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
+    // each face as made: its radius (convex or concave as the plastic sees it), and its conic and aspheric terms, which a sphere's radius alone would not give
+    const face = (f, back) => {
+      if (f.R === null || !isFinite(f.R)) return 'flat';
+      const sh = mm(Math.abs(f.R)) + ((back ? f.R < 0 : f.R > 0) ? ' convex' : ' concave');
+      const A = (f.A || []).map((a, j) => a ? 'A' + (4 + 2 * j) + ' ' + (+a.toPrecision(6)) : null).filter(Boolean);
+      return sh + (f.k ? ', conic ' + (+f.k.toPrecision(6)) : '') + (f.a2 ? ', r² term ' + (+f.a2.toPrecision(6)) : '') + (A.length ? ', aspheric ' + A.join(', ') : '');
+    };
+    const faces = el.surfaces.map((f, i) => (el.surfaces.length > 1 ? (i === 0 ? 'front ' : i === el.surfaces.length - 1 ? 'back ' : 'face ' + (i + 1) + ' ') : '') + face(f, i > 0 && i === el.surfaces.length - 1));
     const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
-        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        'Faces: ' + faces.join('; '),
         skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
         mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),
@@ -40010,7 +40118,12 @@ function orderSpec(el, opts) {
 /* the link that reopens it: the lens and the horns and receivers on its tab */
 async function orderLink(el) {
   const d = shareData(), tab = el.bench;
-  d.elements = d.elements.filter(e => e.id === el.id || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  // the system it was designed in, whole: its assembly's other parts and the assembly's record (its RF conditions,
+  // tolerances and optimiser settings), so the link opens in the RF designer as the customer left it
+  const grp = el.group && (d.assemblies || []).some(a => a.id === el.group) ? el.group : null;
+  d.elements = d.elements.filter(e => e.id === el.id || (grp && e.group === grp) || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  d.assemblies = grp ? (d.assemblies || []).filter(a => a.id === grp) : [];
+  if (!d.assemblies.length) delete d.assemblies;
   for (const e of d.elements) if (e.grin) { delete e.amp; delete e.delay; delete e.preset; }
   delete d.notes; delete d.ui; d.name = el.name;
   if (d.benches && d.benches.length > 1) d.benches = d.benches.filter(b => b.id === tab);
@@ -43805,7 +43918,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, with its weight and flange, and quotes it. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
+    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, and quotes it: the request gives each face\u2019s conic and links to the whole system. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
     '<b>Stock lenses</b> in lens design: add lens files you have (.zmx or .zar, such as lens makers publish for their parts; kept in your browser only) and the <b>Stock lenses</b> tab finds, for each lens of the design, those with the right focal length, faces and room for the beam, tries each in the design either way round with the air about it optimised, and ranks them by the design\u2019s merit; <b>Use</b> puts one in.',
     '<b>Export for CAD</b>: an assembly\u2019s panel exports its lenses, windows, mirrors and stops as solids for mechanical design, placed as the design has them (folds and tilts too): <b>Export for CAD (.step)</b> writes exact spheres and planes and each asphere as its profile turned, and <b>Export as a mesh (.stl)</b> the same in triangles.',
     '<b>Thermal analysis</b> in lens design: <b>Analyses \u203a Thermal</b> takes the design from one temperature to another, at any pressure, in an aluminium, steel, brass, titanium or Invar housing: each glass\u2019s index by its maker\u2019s thermal data (over 1,100 glasses) and the air\u2019s, the lenses growing with their glasses and the spacers and detector with the housing. It gives the focal length, the focus against the detector, each field\u2019s spot and the focus drift per kelvin.',
@@ -45679,6 +45792,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     newRfDesign() { const a = newRfDesign(); traceScene(); return a.name; },
+    shareDecode(h) { return readShareHash(h); },
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },

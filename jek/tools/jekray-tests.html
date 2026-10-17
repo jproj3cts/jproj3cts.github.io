@@ -9185,6 +9185,10 @@ const TESTS = [
         let cart = [];
         for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
         const line = cart[0], quoted = !!line && /24 GHz/.test(line.name) && line.spec.some(x => /Design frequency: 24 GHz/.test(x)) && line.spec.some(x => /RF designer/.test(x) && /dBi/.test(x));
+        // the faces as made, the conic with them; the 3D view beside the checks; the link holding the whole system
+        const faces = !!line && line.spec.some(x => /^Faces: front [\d.]+ mm convex, conic -2\.\d+; back flat$/.test(x));
+        const has3d = !!ws().querySelector('.rt-rfmake .rt-rf3d');
+        const sys = !!line && /#p=/.test(line.url) && JSON.stringify(await rigWin().JEKray.shareDecode(line.url.split('#p=')[1])).includes('"kind":"rf"');
         tab('Lenses');
         set('RF lens diameter (mm)', '230');
         tab('Make it');
@@ -9199,8 +9203,8 @@ const TESTS = [
         [...ws().querySelectorAll('button')].find(b => b.textContent === 'Run Monte Carlo').click();
         for (let k = 0; k < 400 && !/40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent); k++) await new Promise(r => setTimeout(r, 50));
         const mcDone = /40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent), yieldOk = /Yield: 100\.0 %/.test(ws().querySelector('.rt-rftol').textContent);
-        const ok = ok1 && quoted && bad && sens && mcDone && yieldOk;
-        if (!ok) console.log('RF make/tol', { ok1, quoted, line, bad, rows, mcDone, yieldOk });
+        const ok = ok1 && quoted && faces && has3d && sys && bad && sens && mcDone && yieldOk;
+        if (!ok) console.log('RF make/tol', { ok1, quoted, faces, has3d, sys, line, bad, rows, mcDone, yieldOk });
         return ok ? 1 : 0;
       } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
     },

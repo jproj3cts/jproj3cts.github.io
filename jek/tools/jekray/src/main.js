@@ -122,6 +122,7 @@ import './ui/lens-tolerance.js';
 import './ui/lens-drawing.js';
 import './ui/lens-report.js';
 import './ui/lens-stock.js';
+import './ui/rf-lens3d.js';
 import './ui/rf-workspace.js';
 import './ui/lens-workspace.js';
 import './ui/plots.js';

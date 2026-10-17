@@ -70,7 +70,7 @@ import {
 import { addBench, renderBenchTabs, switchTab, undo, redo } from './tabs.js';
 import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
-import { b64u, embedMode, openShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
+import { b64u, embedMode, openShareHash, readShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
@@ -394,6 +394,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
     newRfDesign() { const a = newRfDesign(); traceScene(); return a.name; },
+    shareDecode(h) { return readShareHash(h); },
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },

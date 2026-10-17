@@ -122,6 +122,7 @@
  "ui/lens-drawing.js",
  "ui/lens-report.js",
  "ui/lens-stock.js",
+ "ui/rf-lens3d.js",
  "ui/rf-workspace.js",
  "ui/lens-workspace.js",
  "ui/plots.js",

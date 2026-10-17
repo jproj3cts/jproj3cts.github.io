@@ -43,14 +43,20 @@ export function orderSpec(el, opts) {
     const skins = el.surfaces.map(s => printedMatch(M, s.coat));
     if (skins.some(k => k && !k.ok)) return null;
     const ghz = opts.ghz ? +(+opts.ghz).toPrecision(4) : ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
-    const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
-    const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
+    // each face as made: its radius (convex or concave as the plastic sees it), and its conic and aspheric terms, which a sphere's radius alone would not give
+    const face = (f, back) => {
+      if (f.R === null || !isFinite(f.R)) return 'flat';
+      const sh = mm(Math.abs(f.R)) + ((back ? f.R < 0 : f.R > 0) ? ' convex' : ' concave');
+      const A = (f.A || []).map((a, j) => a ? 'A' + (4 + 2 * j) + ' ' + (+a.toPrecision(6)) : null).filter(Boolean);
+      return sh + (f.k ? ', conic ' + (+f.k.toPrecision(6)) : '') + (f.a2 ? ', r² term ' + (+f.a2.toPrecision(6)) : '') + (A.length ? ', aspheric ' + A.join(', ') : '');
+    };
+    const faces = el.surfaces.map((f, i) => (el.surfaces.length > 1 ? (i === 0 ? 'front ' : i === el.surfaces.length - 1 ? 'back ' : 'face ' + (i + 1) + ' ') : '') + face(f, i > 0 && i === el.surfaces.length - 1));
     const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
-        'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
+        'Faces: ' + faces.join('; '),
         skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
         mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),
@@ -61,7 +67,12 @@ export function orderSpec(el, opts) {
 /* the link that reopens it: the lens and the horns and receivers on its tab */
 export async function orderLink(el) {
   const d = shareData(), tab = el.bench;
-  d.elements = d.elements.filter(e => e.id === el.id || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  // the system it was designed in, whole: its assembly's other parts and the assembly's record (its RF conditions,
+  // tolerances and optimiser settings), so the link opens in the RF designer as the customer left it
+  const grp = el.group && (d.assemblies || []).some(a => a.id === el.group) ? el.group : null;
+  d.elements = d.elements.filter(e => e.id === el.id || (grp && e.group === grp) || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  d.assemblies = grp ? (d.assemblies || []).filter(a => a.id === grp) : [];
+  if (!d.assemblies.length) delete d.assemblies;
   for (const e of d.elements) if (e.grin) { delete e.amp; delete e.delay; delete e.preset; }
   delete d.notes; delete d.ui; d.name = el.name;
   if (d.benches && d.benches.length > 1) d.benches = d.benches.filter(b => b.id === tab);

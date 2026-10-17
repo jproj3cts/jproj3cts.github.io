@@ -94,6 +94,8 @@ export function shareData() {
     return o;
   });
   if (d.measures.length) out.measures = d.measures;
+  // the assemblies the parts make, with their designs (a lens design, an RF system and its conditions)
+  if (d.assemblies && d.assemblies.length) out.assemblies = d.assemblies;
   const ui = uiState();
   // only what is set: nothing selected, pinned, scrolled or in 3D leaves it out
   const U = {};
@@ -117,7 +119,7 @@ export async function shareHash(data) {
   }
   return 'j' + b64u(json);
 }
-async function readShareHash(h) {
+export async function readShareHash(h) {
   const kind = h[0], body = h.slice(1);
   let bytes;
   try { bytes = kind === 'q' ? unb32(body) : unb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }

@@ -79,11 +79,19 @@
   .rt-btn:active { transform: translateY(1px); }
   .rt-btn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-color: var(--jek-cyan); }
   .rt-btn:disabled { opacity: 0.45; cursor: default; transform: none; }
-  .rt-btn.primary { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  .rt-btn.primary:hover { background: var(--jek-cyan-dark); border-color: var(--jek-cyan-dark); }
+  /* three kinds of button: primary (solid ink, one per area), secondary (this, outlined), and quiet (words
+     or an icon, outlined only under the pointer); orange is kept for ordering (io/order.js) */
+  .rt-btn.primary { color: #fff; background: #111; border-color: #111; }
+  .rt-btn.primary:hover { background: #333; border-color: #333; }
+  .rt-btn.quiet { background: none; border-color: transparent; }
+  .rt-btn.quiet:hover, .rt-btn.quiet[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
+  .rt-btn.quiet:disabled:hover { background: none; border-color: transparent; }
+  /* Save: a cyan dot while there is something it has not saved */
+  .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
+  .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.15rem 0.5rem; border: 0; border-radius: 4px; background: var(--jek-orange); color: #fff; font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-red); }
+  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1097,6 +1105,26 @@
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
+  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
+     Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
+     menus under the bar's right end */
+  .rt-moremenu { display: none; }
+  @media (max-width: 600px) {
+    .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
+    .rt-bar { flex-wrap: nowrap; gap: 0.25rem; }
+    .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
+    .rt-file { flex: 1 1 auto; min-width: 0; }
+    .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
+    .rt-addlbl { display: none; }
+    #btnAddPart { min-width: 2.1rem; padding-left: 0.55rem; padding-right: 0.55rem; }
+    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
+    .rt-moremenu { display: block; }
+    .rt-bar .rt-phonegone { position: static; }
+    .rt-bar .rt-phonegone > .rt-btn { position: absolute; width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
+    .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
+    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: none; }
+  }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }
   .rt-imenu .rt-swatchrow { display: flex; align-items: center; gap: 0.55rem; padding: 0.3rem 0.9rem 0.3rem 0.6rem; font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); cursor: pointer; white-space: nowrap; }
@@ -1329,6 +1357,34 @@
   .rt-ltabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
   .rt-ltab { font: inherit; font-size: 0.875rem; font-weight: 600; padding: 0.45rem 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer; }
   .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-ltabs[role="tablist"] { gap: 0.15rem; border-bottom: 1px solid var(--jek-line-2); }
+  .rt-ltabs[role="tablist"] .rt-ltab { margin-bottom: -1px; padding: 0.55rem 0.85rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; }
+  .rt-ltabs[role="tablist"] .rt-ltab:hover { color: var(--jek-ink); }
+  .rt-ltabs[role="tablist"] .rt-ltab[aria-selected="true"] { color: var(--jek-ink); background: none; border-bottom-color: #111; }
+  /* the RF designer: the system down the left, the one chosen edited beside the beam */
+  .rt-rfsys { gap: 0.1rem; padding: 0.8rem 0; }
+  .rt-rfsys h2 { margin: 0 1rem 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-rfsi { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; align-items: center; width: 100%; padding: 0.5rem 1rem; font: inherit; text-align: left; color: var(--jek-ink);
+    background: none; border: 0; border-left: 3px solid transparent; cursor: pointer; }
+  .rt-rfsi:hover { background: var(--jek-well); }
+  .rt-rfsi.on { background: #fff; border-left-color: #111; }
+  .rt-rfsi .ic { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--jek-line-2); border-radius: 3px; background: #fff; color: var(--jek-ink-soft); font-weight: 700; font-size: 0.8rem; }
+  .rt-rfsi.on .ic { color: var(--jek-ink); border-color: #111; }
+  .rt-rfsi .tx { min-width: 0; }
+  .rt-rfsi b { display: block; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-rfsi small { display: block; font-size: 0.72rem; color: var(--jek-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-rfsi.add { color: var(--jek-ink-soft); }
+  .rt-rfsi.add .ic { border-style: dashed; }
+  .rt-rfsep { height: 1px; margin: 0.35rem 1rem; background: var(--jek-line); }
+  .rt-rfsys > .rt-btn { margin: 0.4rem 1rem 0; align-self: stretch; }
+  .rt-rfsys > .rt-lsub { margin: 0.4rem 1rem 0; }
+  .rt-lcard.rt-rfedit h3 { margin: 0 0 0.2rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--jek-ink); }
+  .rt-rfedit .rt-rfgrid { grid-template-columns: repeat(auto-fill, minmax(15rem, 19rem)); gap: 0.3rem 2.5rem; }
+  .rt-rfedit .rt-rfzone { margin: 0.2rem 0 0; }
+  .rt-rfedit .rt-rfro { padding: 0 0.4rem; }
+  .rt-rfacts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
+  .rt-rfacts .rt-rfrm { margin-left: auto; }
+  .rt-rfedhead { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .rt-ltwrap { overflow-x: auto; }
   .rt-ltable { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.85rem; }
   .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); }
@@ -1478,7 +1534,7 @@
         <div class="rt-more rt-file">
           <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+          <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
@@ -1518,12 +1574,12 @@
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
         </div>
-        <button class="rt-btn rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)">+ Add part</button>
+        <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
         <div class="rt-group rt-tight">
-          <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+          <button class="rt-btn rt-icon quiet" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+          <button class="rt-btn rt-icon quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
         </div>
-        <div class="rt-more">
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
@@ -1543,7 +1599,7 @@
             <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
           </div>
         </div>
-        <div class="rt-more">
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps</button>
           <div class="rt-menu rt-imenu" id="sweepsMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnPlayAll" data-icon="play" disabled>Play all</button>
@@ -1560,11 +1616,11 @@
           <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
-          <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
+          <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
           <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
-          <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
-          <div class="rt-more">
-            <button class="rt-btn rt-help" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
+          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
+          <div class="rt-more rt-phonegone">
+            <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
             <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
               <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
               <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
@@ -1589,10 +1645,30 @@
             </div>
             <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
           </div>
-          <a class="rt-btn rt-cartbtn" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
-          <div class="rt-more" id="acct" hidden>
-            <button class="rt-btn rt-acct" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
+          <a class="rt-btn rt-cartbtn quiet" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
+          <div class="rt-more rt-phonegone" id="acct" hidden>
+            <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
+          </div>
+          <!-- a phone: the bar on one row, the rest of it in here -->
+          <div class="rt-more rt-moremenu">
+            <button class="rt-btn rt-icon quiet" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" aria-label="More" title="More">⋯</button>
+            <div class="rt-menu rt-menu-right rt-imenu" id="moreMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="moreUndo">Undo</button>
+              <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="moreRedo">Redo</button>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnView" data-icon="eye">View…</button>
+              <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <div class="sep"></div>
+              <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
+              <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
+              <button type="button" role="menuitem" data-click="btnHelpMenu" data-icon="info">Help and shortcuts…</button>
+              <div class="sep"></div>
+              <span class="rt-menunote">JEKray is in open beta: if something looks wrong, Help › Report a bug.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -25467,10 +25543,12 @@ function r3show(T, el, box) {
    the feed horn and how far it stands from the first lens, and the goal (collimate, focus to a waist, or into a
    receiving horn). The layout draws the beam itself, its 1/e² radius along the axis at the design frequency and
    the band's edges, and each lens's edge taper; the figures are the ones an RF designer reads (engines/
-   rf-design.js). The horns on the bench the conditions were taken from follow them. The lenses are edited
-   in their own table, or made from a spec (Design a lens); the full lens data is the optical designer's.
+   rf-design.js). The horns on the bench the conditions were taken from follow them. The system is listed
+   down the left as the beam meets it (the frequency, the feed horn, each lens, the goal); the one chosen is
+   edited beside the beam, a lens by hand or made from a spec (Design this lens); the full lens data is the
+   optical designer's. The steps for the whole system (Optimise, Analyses, Tolerance, Make it) are tabs.
    ========================================================================== */
-let RW = null;                     // { asm, tab, draft, synth }
+let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
 const rfDesignOpen = () => !!RW;
 const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
 /* where a waist sits from the last vertex, in words rather than a signed distance */
@@ -25534,7 +25612,7 @@ function openRfDesign(asm, opts) {
     asm.kind = 'rf'; asm.rf = T.rf;
   }
   rfSyncCond(asm, P);
-  RW = { asm, tab: 'lenses', draft: !!(opts && opts.draft), synth: null };
+  RW = { asm, tab: 'opt', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
   const sec = rwShell();
   sec.hidden = false;
   document.body.classList.add('rt-lens-open');
@@ -25610,14 +25688,15 @@ function rwDraw() {
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design')),
     h('span', { class: 'rt-lgap' }),
     // (not for a system with a graded-index disc: the optical designer has no such part)
-    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); rwAfterUndo(); } }, 'Undo'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); rwAfterUndo(); } }, 'Redo'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
+    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(rwCondCard(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwTabs(),
-    RW.tab === 'synth' ? rwSynthCard(asm, P) : RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwLensCard(asm, P, T.mid)));
+  rwSelOk(P);
+  body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwOptCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -25660,32 +25739,91 @@ function rwSelect(options, value, set, label) {
   return s;
 }
 const rwRow = (label, ...kids) => h('label', { class: 'rt-lrow' }, h('span', null, label), ...kids);
-function rwCondCard(asm, P) {
-  const R = asm.rf, card = h('section', { class: 'rt-lcard rt-lcond rt-rfcond', 'aria-label': 'Design conditions' }, h('h2', null, 'Design conditions'));
-  card.append(h('p', { class: 'rt-lsub' }, 'The system it is designed for: a feed horn’s beam, through its lenses, to its goal.'));
-  card.append(h('h3', null, 'Frequency (GHz)'),
-    rwRow('Design', rwNum(R.ghz, v => rwCondEdit(r => { const k = v / r.ghz; r.ghz = v; r.lo *= k; r.hi *= k; }), 'Design frequency (GHz)')),
-    rwRow('Band from', rwNum(R.lo, v => rwCondEdit(r => { r.lo = v; }), 'Band from (GHz)')),
-    rwRow('Band to', rwNum(R.hi, v => rwCondEdit(r => { r.hi = v; }), 'Band to (GHz)')));
-  const fb = rfBeam(R.feed, R.ghz);
-  card.append(h('h3', null, 'Feed horn'),
-    rwRow('Kind', rwSelect(RW_HORN_NAMES, R.feed.kind, v => rwCondEdit(r => { r.feed.kind = v; }), 'Feed horn kind')),
-    rwRow('Aperture radius (mm)', rwNum(R.feed.a, v => rwCondEdit(r => { r.feed.a = v; }), 'Feed aperture radius (mm)')),
-    rwRow('Slant length (mm)', rwNum(R.feed.L, v => rwCondEdit(r => { r.feed.L = v; }), 'Feed slant length (mm)')),
-    rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)')),
+/* ---------- The system, down the left, as the beam meets it ---------- */
+const RW_HORN_SHORT = { corrugated: 'corrugated', smooth: 'smooth-wall', diagonal: 'diagonal', gauss: 'Gaussian' };
+const RW_GOAL_SHORT = { collimate: 'collimate', focus: 'focus', couple: 'into a horn' };
+/* the parts in the beam's order, each with its element and its first surface */
+function rwParts(P) {
+  let i0 = 0;
+  return P.parts.map((p, pi) => { const o = { p, pi, i0, el: getEl(p.id) }; i0 += p.n; return o; });
+}
+const rwIsLens = x => (x.p.kind === 'lens' || x.p.kind === 'grin') && x.p.n === 2;
+/* what is chosen still there (after an undo, a part taken out): else the first lens */
+function rwSelOk(P) {
+  const parts = rwParts(P);
+  if (['freq', 'feed', 'goal'].includes(RW.sel) || parts.some(x => x.p.id === RW.sel)) return;
+  const L = parts.find(rwIsLens) || parts[0];
+  RW.sel = L ? L.p.id : 'freq'; RW.design = false;
+}
+function rwSysList(asm, P) {
+  const R = asm.rf;
+  const item = (key, icon, name, sub, title) => h('button', { type: 'button', class: 'rt-rfsi' + (RW.sel === key ? ' on' : ''), 'aria-pressed': String(RW.sel === key), 'data-sel': key, title: title || null,
+    onclick: () => { RW.sel = key; RW.design = false; rwRender(); } },
+    h('span', { class: 'ic', 'aria-hidden': 'true' }, icon), h('span', { class: 'tx' }, h('b', null, name), h('small', { class: 'mono' }, sub)));
+  const card = h('nav', { class: 'rt-lcard rt-lcond rt-rfsys', 'aria-label': 'The system' }, h('h2', null, 'The system'));
+  card.append(item('freq', '≈', 'Frequency', rwFmt(R.ghz, 4) + ' GHz · ' + rwFmt(R.lo, 4) + '–' + rwFmt(R.hi, 4), 'The design frequency, and the band it is judged over'),
+    item('feed', '◁', 'Feed horn', (RW_HORN_SHORT[R.feed.kind] || R.feed.kind) + ' · a ' + rwFmt(R.feed.a, 3) + ' mm', 'The horn lighting the system, and how far it stands from the first lens'),
+    h('div', { class: 'rt-rfsep' }));
+  for (const x of rwParts(P)) {
+    const el = x.el;
+    if (!el) continue;
+    if (x.p.kind === 'grin') card.append(item(x.p.id, '▥', el.name, 'graded · Ø' + rwFmt(el.length, 4) + ' · f ' + rwFmt(el.grin.f, 4) + ' mm'));
+    else if (rwIsLens(x)) {
+      const g = P.materials[x.i0].glass;
+      card.append(item(x.p.id, '()', el.name, (RF_MAT[g] ? RF_MAT[g].name.replace(/ \(.*\)$/, '') : g) + ' · Ø' + rwFmt(el.diameter, 4) + ' · ' + rwFmt(P.gaps[x.i0], 3) + ' mm' + (el.zoned ? ' · zoned' : '')));
+    } else card.append(item(x.p.id, x.p.kind === 'mirror' ? '◟' : '·', el.name, x.p.kind === 'mirror' ? 'a mirror' : x.p.kind));
+  }
+  card.append(h('button', { type: 'button', class: 'rt-rfsi add', title: 'A lens after the last part, made to suit the beam that reaches it', onclick: rwAddLens },
+    h('span', { class: 'ic', 'aria-hidden': 'true' }, '+'), h('span', { class: 'tx' }, h('b', null, 'Add a lens'), h('small', null, 'or a graded-index disc'))),
+  h('div', { class: 'rt-rfsep' }),
+  item('goal', '→', 'Goal', (RW_GOAL_SHORT[R.goal.kind] || R.goal.kind) + ' · ' + rwFmt(R.goal.d, 4) + ' mm on', 'What the system is for, after its last part'),
+  h('div', { class: 'rt-rfsep' }),
+  h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
+  const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
+  if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' the system.'));
+  return card;
+}
+
+/* ---------- The one chosen, edited beside the beam ---------- */
+function rwEditor(asm, P) {
+  if (RW.sel === 'freq') return rwFreqCard(asm);
+  if (RW.sel === 'feed') return rwFeedCard(asm);
+  if (RW.sel === 'goal') return rwGoalCard(asm);
+  const x = rwParts(P).find(q => q.p.id === RW.sel);
+  if (x && RW.design && rwIsLens(x)) return rwSynthCard(asm, P, x);
+  return rwPartCard(asm, P, x);
+}
+const rwCard = (title, sub, ...kids) => h('section', { class: 'rt-lcard rt-rfedit' }, h('h3', null, title), sub, ...kids);
+const rwSub = t => h('p', { class: 'rt-lsub' }, t);
+function rwFreqCard(asm) {
+  const R = asm.rf;
+  return rwCard('Frequency', rwSub('The frequency it is designed at, and the band it is judged over (the band’s edges are dashed on the beam).'),
+    h('div', { class: 'rt-rfgrid' },
+      rwRow('Design (GHz)', rwNum(R.ghz, v => rwCondEdit(r => { const k = v / r.ghz; r.ghz = v; r.lo *= k; r.hi *= k; }), 'Design frequency (GHz)')),
+      rwRow('Band from (GHz)', rwNum(R.lo, v => rwCondEdit(r => { r.lo = v; }), 'Band from (GHz)')),
+      rwRow('Band to (GHz)', rwNum(R.hi, v => rwCondEdit(r => { r.hi = v; }), 'Band to (GHz)'))));
+}
+function rwFeedCard(asm) {
+  const R = asm.rf, fb = rfBeam(R.feed, R.ghz);
+  return rwCard('Feed horn', rwSub('The horn lighting the system, and how far its aperture stands from the first lens.'),
+    h('div', { class: 'rt-rfgrid' },
+      rwRow('Kind', rwSelect(RW_HORN_NAMES, R.feed.kind, v => rwCondEdit(r => { r.feed.kind = v; }), 'Feed horn kind')),
+      rwRow('Aperture radius (mm)', rwNum(R.feed.a, v => rwCondEdit(r => { r.feed.a = v; }), 'Feed aperture radius (mm)')),
+      rwRow('Slant length (mm)', rwNum(R.feed.L, v => rwCondEdit(r => { r.feed.L = v; }), 'Feed slant length (mm)')),
+      rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)'))),
     h('p', { class: 'rt-lsub mono' }, 'Its beam: waist ' + rwFmt(fb.w0, 4) + ' mm, ' + rwFmt(fb.dz, 3) + ' mm behind the aperture; ' + rwFmt((RF_HORNS[R.feed.kind] || RF_HORNS.corrugated).g * 100, 3) + ' % of its power Gaussian'));
-  card.append(h('h3', null, 'Goal'),
+}
+function rwGoalCard(asm) {
+  const R = asm.rf;
+  const grid = h('div', { class: 'rt-rfgrid' },
     rwRow('After the last lens', rwSelect(RW_GOAL_NAMES, R.goal.kind, v => rwCondEdit(r => { r.goal.kind = v; }), 'Goal')),
     rwRow(R.goal.kind === 'couple' ? 'To the horn’s aperture (mm)' : R.goal.kind === 'focus' ? 'Waist at (mm)' : 'Shown to (mm)', rwNum(R.goal.d, v => rwCondEdit(r => { r.goal.d = v; }), 'Goal distance (mm)')));
-  if (R.goal.kind === 'focus') card.append(rwRow('Waist radius (mm)', rwNum(R.goal.w, v => rwCondEdit(r => { r.goal.w = v; }), 'Target waist radius (mm)')));
-  if (R.goal.kind === 'couple') card.append(
+  if (R.goal.kind === 'focus') grid.append(rwRow('Waist radius (mm)', rwNum(R.goal.w, v => rwCondEdit(r => { r.goal.w = v; }), 'Target waist radius (mm)')));
+  if (R.goal.kind === 'couple') grid.append(
     rwRow('Receiver kind', rwSelect(RW_HORN_NAMES, R.goal.rx.kind, v => rwCondEdit(r => { r.goal.rx.kind = v; }), 'Receiving horn kind')),
     rwRow('Aperture radius (mm)', rwNum(R.goal.rx.a, v => rwCondEdit(r => { r.goal.rx.a = v; }), 'Receiver aperture radius (mm)')),
     rwRow('Slant length (mm)', rwNum(R.goal.rx.L, v => rwCondEdit(r => { r.goal.rx.L = v; }), 'Receiver slant length (mm)')));
-  const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
-  card.append(h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
-  if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' these conditions.'));
-  return card;
+  return rwCard('Goal', rwSub('What the beam is for after the last lens: sent on collimated, focused to a waist, or into a receiving horn.'), grid);
 }
 function rwTake() {
   const asm = RW.asm, P = designPrescription(asm), T = rfFromBench(asm, P);
@@ -25800,67 +25938,93 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
-/* ---------- The lenses: each its material, size and faces, and the air after it ---------- */
+/* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
 const RW_GRIN_MATS = () => Object.fromEntries(Object.entries(RF_MAT).filter(([, M]) => M.print).map(([k, M]) => [k, M.name]));
 const RW_MATS = () => Object.fromEntries(Object.entries(RF_MAT).sort((a, b) => (b[1].print ? 1 : 0) - (a[1].print ? 1 : 0)).map(([k, M]) => [k, M.name + (M.print ? ' (made to order)' : '')]));
-function rwLensCard(asm, P, Tm) {
-  const card = h('section', { class: 'rt-lcard', role: 'tabpanel', 'aria-label': 'Lenses' }, h('h3', null, 'Lenses'));
-  card.append(helpLine('The lenses, in the order the beam meets them.', ['In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'], 'rt-lsub'));
-  const tbl = h('table', { class: 'rt-ltable rt-rftable' });
-  tbl.append(h('thead', null, h('tr', null, ...['Part', 'Material', 'Diameter (mm)', 'Centre (mm)', 'Front R (mm)', 'Front conic', 'Back R (mm)', 'Back conic', 'Matched', 'Air after (mm)'].map(t => h('th', { scope: 'col' }, t)))));
-  const tb = h('tbody');
-  let i0 = 0;
-  P.parts.forEach((p, pi) => {
-    const el = getEl(p.id), i1 = i0 + p.n - 1, after = i1 < P.surfaces.length - 1 ? P.gaps[i1] : null, idx = i0, last = i1;
-    const airCell = after === null ? h('td', { class: 'mono' }, '—') : h('td', null, rwNum(after, v => rwEdit(Pd => { if (v < 0) return 'A gap can’t be negative.'; Pd.gaps[last] = v; }), el.name + ' air after (mm)'));
-    if (p.kind === 'lens' && p.n === 2) {
-      const s1 = P.surfaces[i0], s2 = P.surfaces[i0 + 1], mat = P.materials[i0].glass, matched = el.surfaces.every(s => s.coat && s.coat.label === 'Matching layer');
-      const rCell = (s, j, lab) => h('td', null, rwNum(s.R === null ? Infinity : s.R, v => rwEdit(Pd => { Pd.surfaces[idx + j].R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v; }), el.name + ' ' + lab + ' radius (mm)'));
-      const kCell = (s, j, lab) => h('td', null, rwNum(s.k || 0, v => rwEdit(Pd => { Pd.surfaces[idx + j].k = v; if (v) el.asphere = true; }), el.name + ' ' + lab + ' conic'));
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name),
-        h('td', null, rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[idx] = { glass: v }; }), el.name + ' material')),
-        h('td', null, rwNum(el.diameter, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; el.diameter = v; Pd.surfaces[idx].semi = Pd.surfaces[idx + 1].semi = v / 2; }), el.name + ' diameter (mm)')),
-        h('td', null, rwNum(P.gaps[i0], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
-        rCell(s1, 0, 'face to the feed'), kCell(s1, 0, 'face to the feed'), rCell(s2, 1, 'other face'), kCell(s2, 1, 'other face'),
-        h('td', null, h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
-        airCell));
-    } else if (p.kind === 'grin') {
-      // a graded-index disc: its design (its thickness and grading follow from it)
-      const g = el.grin, set = (k, v) => rwEdit(Pd => { const ng = normGrin(Object.assign({}, g, { [k]: v })); if (!rfGrinInto(Pd, idx, ng, el.length)) return 'A disc of that design can’t be graded: widen its density range, or lengthen its focal length.'; el.grin = ng; applyGrin(el); });
-      const G = grinSlab(g, el.length);
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name),
-        h('td', null, rwSelect(RW_GRIN_MATS(), g.mat, v => set('mat', v), el.name + ' material')),
-        h('td', null, rwNum(el.length, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; if (!rfGrinInto(Pd, idx, g, v)) return 'A disc that wide can’t be graded at this focal length.'; el.length = v; applyGrin(el); }), el.name + ' diameter (mm)')),
-        h('td', { class: 'mono', title: 'Its thickness follows from its focal length, diameter and density range' }, G ? rwFmt(G.T, 4) : '—'),
-        h('td', { colspan: '4' }, h('span', { class: 'rt-rfgrin' }, 'Graded: focal length ', rwNum(g.f, v => { if (!(v > 0)) return; set('f', v); }, el.name + ' focal length (mm)'), ' mm, density ',
-          rwNum(g.fillMax, v => set('fillMax', v), el.name + ' density at the centre (%)'), ' % to ', rwNum(g.fillMin, v => set('fillMin', v), el.name + ' lowest density (%)'), ' %')),
-        h('td', null, h('input', { type: 'checkbox', checked: g.match ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => set('match', e.target.checked ? true : undefined) })),
-        airCell));
-    } else {
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name), h('td', { colspan: '8', class: 'rt-lsub' }, p.kind === 'mirror' ? 'A mirror' + (P.surfaces[i0].R ? ', radius ' + rwFmt(P.surfaces[i0].R, 5) + ' mm' : ', flat') + ': its shape is in the optical designer.' : 'Edit it in the optical designer.'),
-        airCell));
-    }
-    i0 += p.n;
-  });
-  tbl.append(tb);
-  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  // each lens cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
-  const zl = P.parts.filter(p => p.kind === 'lens' && p.n === 2).map(p => getEl(p.id)).filter(Boolean);
-  if (zl.length) {
-    card.append(h('h3', null, 'Zones'));
-    card.append(helpLine('Cutting a lens in zones makes it thinner and lighter, and narrows its band.', ['A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'], 'rt-lsub'));
-    for (const el of zl) {
-      const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
-      card.append(h('div', { class: 'rt-lchips rt-rfzone' },
-        h('label', null, h('input', { type: 'checkbox', checked: el.zoned ? '' : null, 'aria-label': el.name + ' cut in zones', onchange: e => zs(e.target.checked, (el.zoned && el.zoned.ghz) || RW.asm.rf.ghz) }), ' ' + el.name + ': cut in zones'),
+function rwPartCard(asm, P, x) {
+  if (!x || !x.el) return rwCard('Nothing chosen', rwSub('Choose a part of the system on the left.'));
+  const el = x.el, p = x.p, idx = x.i0, last = x.i0 + p.n - 1, after = last < P.surfaces.length - 1 ? P.gaps[last] : null;
+  const air = after === null ? [] : [rwRow('Air after (mm)', rwNum(after, v => rwEdit(Pd => { if (v < 0) return 'A gap can’t be negative.'; Pd.gaps[last] = v; }), el.name + ' air after (mm)'))];
+  const lenses = rwParts(P).filter(rwIsLens).length;
+  const design = (type, label, cls, title) => h('button', { class: 'rt-btn' + (cls ? ' ' + cls : ''), type: 'button', title, onclick: () => { RW.design = true; RW.synth = Object.assign({}, RW.synth && RW.synth.pi === x.pi ? RW.synth : {}, { pi: x.pi }, type ? { type } : {}); rwRender(); } }, label);
+  const remove = h('button', { class: 'rt-btn quiet danger rt-rfrm', type: 'button', disabled: rwIsLens(x) && lenses < 2 ? '' : null,
+    title: rwIsLens(x) && lenses < 2 ? 'A system keeps at least one lens' : 'Take it out of the system (Undo brings it back)', onclick: () => rwRemovePart(x) }, 'Remove');
+  if (p.kind === 'lens' && p.n === 2) {
+    const s1 = P.surfaces[idx], s2 = P.surfaces[idx + 1], mat = P.materials[idx].glass, matched = el.surfaces.every(s => s.coat && s.coat.label === 'Matching layer');
+    const rNum = (s, j, lab) => rwNum(s.R === null ? Infinity : s.R, v => rwEdit(Pd => { Pd.surfaces[idx + j].R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v; }), el.name + ' ' + lab + ' radius (mm)');
+    const kNum = (s, j, lab) => rwNum(s.k || 0, v => rwEdit(Pd => { Pd.surfaces[idx + j].k = v; if (v) el.asphere = true; }), el.name + ' ' + lab + ' conic');
+    const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
+    return rwCard(el.name, helpLine('The front face is the one toward the feed.', ['A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer.'], 'rt-lsub'),
+      h('div', { class: 'rt-rfgrid' },
+        rwRow('Material', rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[idx] = { glass: v }; }), el.name + ' material')),
+        rwRow('Diameter (mm)', rwNum(el.diameter, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; el.diameter = v; Pd.surfaces[idx].semi = Pd.surfaces[idx + 1].semi = v / 2; }), el.name + ' diameter (mm)')),
+        rwRow('Centre (mm)', rwNum(P.gaps[idx], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
+        rwRow('Front radius (mm)', rNum(s1, 0, 'face to the feed')), rwRow('Front conic', kNum(s1, 0, 'face to the feed')),
+        rwRow('Back radius (mm)', rNum(s2, 1, 'other face')), rwRow('Back conic', kNum(s2, 1, 'other face')),
+        rwRow('Matching layers', h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
+        ...air),
+      // cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
+      h('div', { class: 'rt-lchips rt-rfzone' },
+        h('label', { title: 'Wherever it is thick, whole layers a wave deep at the zone frequency come out of its curved face: thinner and lighter, the same at that frequency, a narrower band' },
+          h('input', { type: 'checkbox', checked: el.zoned ? '' : null, 'aria-label': el.name + ' cut in zones', onchange: e => zs(e.target.checked, (el.zoned && el.zoned.ghz) || asm.rf.ghz) }), ' Cut in zones'),
         ...(el.zoned ? [h('span', null, 'at ', rwNum(el.zoned.ghz, v => { if (v > 0) zs(true, v); }, el.name + ' zone frequency (GHz)'), ' GHz')] : []),
-        h('span', { class: 'rt-lsub mono' }, Z ? (Z.steps.length ? Z.steps.length + ' step' + (Z.steps.length > 1 ? 's' : '') + ', each ' + rwFmt(Z.dz, 3) + ' mm deep, at ' + Z.steps.map(r => rwFmt(r, 3)).join(', ') + ' mm; ' + rwFmt(lensThickness(el).thickest, 3) + ' mm at its thickest' : 'thinner than one step (' + rwFmt(Z.dz, 3) + ' mm): nothing to cut') : '')));
-    }
+        h('span', { class: 'rt-lsub mono' }, Z ? (Z.steps.length ? Z.steps.length + ' step' + (Z.steps.length > 1 ? 's' : '') + ', each ' + rwFmt(Z.dz, 3) + ' mm deep, at ' + Z.steps.map(r => rwFmt(r, 3)).join(', ') + ' mm; ' + rwFmt(lensThickness(el).thickest, 3) + ' mm at its thickest' : 'thinner than one step (' + rwFmt(Z.dz, 3) + ' mm): nothing to cut') : '')),
+      h('div', { class: 'rt-rfacts' }, design(null, 'Design this lens…', '', 'A lens made to suit the beam that reaches it and the goal after it'),
+        design('grin', 'Make it a graded-index disc…', 'quiet', 'A flat disc graded in density instead, in the same place'), remove));
   }
-  return card;
+  if (p.kind === 'grin') {
+    // a graded-index disc: its design (its thickness and grading follow from it)
+    const g = el.grin, set = (k, v) => rwEdit(Pd => { const ng = normGrin(Object.assign({}, g, { [k]: v })); if (!rfGrinInto(Pd, idx, ng, el.length)) return 'A disc of that design can’t be graded: widen its density range, or lengthen its focal length.'; el.grin = ng; applyGrin(el); });
+    const G = grinSlab(g, el.length);
+    return rwCard(el.name, rwSub('A flat disc, solid at its centre and less dense toward its edge: its thickness follows from its focal length, its diameter and its density range.'),
+      h('div', { class: 'rt-rfgrid' },
+        rwRow('Material', rwSelect(RW_GRIN_MATS(), g.mat, v => set('mat', v), el.name + ' material')),
+        rwRow('Diameter (mm)', rwNum(el.length, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; if (!rfGrinInto(Pd, idx, g, v)) return 'A disc that wide can’t be graded at this focal length.'; el.length = v; applyGrin(el); }), el.name + ' diameter (mm)')),
+        rwRow('Focal length (mm)', rwNum(g.f, v => { if (!(v > 0)) return; set('f', v); }, el.name + ' focal length (mm)')),
+        rwRow('Thickness (mm)', h('span', { class: 'mono rt-rfro', title: 'It follows from its focal length, diameter and density range' }, G ? rwFmt(G.T, 4) : '—')),
+        rwRow('Density at the centre (%)', rwNum(g.fillMax, v => set('fillMax', v), el.name + ' density at the centre (%)')),
+        rwRow('Lowest density (%)', rwNum(g.fillMin, v => set('fillMin', v), el.name + ' lowest density (%)')),
+        rwRow('Matching layers', h('input', { type: 'checkbox', checked: g.match ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => set('match', e.target.checked ? true : undefined) })),
+        ...air),
+      h('div', { class: 'rt-rfacts' }, design(null, 'Design this disc…', '', 'A disc made to suit the beam that reaches it and the goal after it'),
+        design('hyperbolic', 'Make it a lens…', 'quiet', 'A lens with curved faces instead, in the same place'), remove));
+  }
+  return rwCard(el.name, rwSub(p.kind === 'mirror' ? 'A mirror' + (P.surfaces[idx].R ? ', radius ' + rwFmt(P.surfaces[idx].R, 5) + ' mm' : ', flat') + ': its shape is in the optical designer.' : 'Edit it in the optical designer.'),
+    h('div', { class: 'rt-rfgrid' }, ...air));
+}
+/* a lens added after the last part: a made-to-order plastic as wide as the lens before it, 100 mm on, then designed */
+function rwAddLens() {
+  checkpoint();
+  const asm = RW.asm, P = designPrescription(asm), prev = rwParts(P).filter(rwIsLens).pop();
+  if (!(P.image > 0)) P.image = 100;
+  const made = insertSinglet(asm, P, P.surfaces.length - 1);
+  if (typeof made === 'string') { toast(made, true); return; }
+  const D = prev && prev.el ? (prev.el.type === 'mask' ? prev.el.length : prev.el.diameter) : 120;
+  const P2 = designPrescription(asm), x = rwParts(P2).find(q => q.p.id === made.id);
+  if (!x) { toast('Nothing was added.', true); return; }
+  P2.materials[x.i0] = { glass: 'PLA' }; P2.gaps[x.i0] = 10; if (x.i0 > 0) P2.gaps[x.i0 - 1] = 100;
+  P2.surfaces[x.i0].semi = P2.surfaces[x.i0 + 1].semi = D / 2;
+  commitDesign(asm, P2);
+  const el = getEl(made.id), n = rwParts(designPrescription(asm)).filter(rwIsLens).length;
+  Object.assign(el, { name: 'RF lens ' + n, diameter: D, mmw: { part: true }, asphere: true });
+  const P3 = designPrescription(asm);
+  rfSyncCond(asm, P3); rwToBench(asm, P3);
+  changed(true);
+  RW.sel = el.id; RW.design = true; RW.synth = { pi: x.pi, type: 'hyperbolic', D };
+  rwRender();
+}
+function rwRemovePart(x) {
+  checkpoint();
+  const asm = RW.asm, r = removeSurface(asm, designPrescription(asm), x.i0);
+  if (r !== true) { toast(r, true); return; }
+  const P = designPrescription(asm);
+  rfSyncCond(asm, P); rwToBench(asm, P);
+  RW.sel = null; RW.design = false;
+  changed(true);
+  rwRender();
 }
 /* a lens's two faces matched, or not: a quarter-wave layer of index √n at the design frequency on each */
 function rwMatch(el, on) {
@@ -25872,19 +26036,17 @@ function rwMatch(el, on) {
 }
 
 /* ---------- Design a lens from a spec ---------- */
-function rwSynthCard(asm, P) {
-  const card = h('section', { class: 'rt-lcard rt-rfsynth', role: 'tabpanel', 'aria-label': 'Design a lens' }, h('h3', null, 'Design a lens'));
-  const lenses = P.parts.map((p, pi) => ({ p, pi })).filter(x => (x.p.kind === 'lens' || x.p.kind === 'grin') && x.p.n === 2);
-  if (!lenses.length) { card.append(h('p', { class: 'rt-lsub' }, 'This system has no lens of two faces, or graded-index disc, to design.')); return card; }
-  const first = lenses[0], el0 = getEl(first.p.id), dia0 = el0 ? (el0.type === 'mask' ? el0.length : el0.diameter) : 100;
-  const sp = RW.synth = Object.assign({ pi: first.pi, type: el0 && el0.grin ? 'grin' : 'hyperbolic', mat: RF_MAT[P.materials[0] && P.materials[0].glass] ? P.materials[0].glass : 'PLA', D: dia0, edge: 2, place: 'keep', taper: 11, match: true, fillMax: 100, fillMin: 15 }, RW.synth || {});
-  if (!lenses.some(x => x.pi === sp.pi)) sp.pi = first.pi;
+function rwSynthCard(asm, P, x) {
+  const el0 = x.el, dia0 = el0 ? (el0.type === 'mask' ? el0.length : el0.diameter) : 100;
+  const card = h('section', { class: 'rt-lcard rt-rfedit rt-rfsynth', 'aria-label': 'Design a lens' },
+    h('div', { class: 'rt-rfedhead' }, h('h3', null, 'Design ' + el0.name), h('button', { class: 'rt-btn quiet', type: 'button', onclick: () => { RW.design = false; rwRender(); } }, 'Back to ' + el0.name)));
+  const g0 = P.materials[x.i0] && P.materials[x.i0].glass;
+  const sp = RW.synth = Object.assign({ type: el0 && el0.grin ? 'grin' : 'hyperbolic', mat: RF_MAT[g0] ? g0 : 'PLA', D: dia0, edge: 2, place: 'keep', taper: 11, match: true, fillMax: 100, fillMin: 15 }, RW.synth && RW.synth.pi === x.pi ? RW.synth : {}, { pi: x.pi });
   const isG = sp.type === 'grin';
   if (isG && !(RF_MAT[sp.mat] && RF_MAT[sp.mat].print)) sp.mat = 'PLA';
   card.append(helpLine('A lens, or a graded-index disc, made to suit the beam and the goal.', ['A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'], 'rt-lsub'));
   const set = (k, v) => { sp[k] = v; rwRender(); };
   const grid = h('div', { class: 'rt-rfgrid' },
-    rwRow('Lens', rwSelect(Object.fromEntries(lenses.map(x => [String(x.pi), getEl(x.p.id).name])), String(sp.pi), v => set('pi', +v), 'Lens to design')),
     rwRow('Kind', rwSelect(RF_LENS_TYPES, sp.type, v => set('type', v), 'Lens kind')),
     rwRow('Material', rwSelect(isG ? RW_GRIN_MATS() : RW_MATS(), sp.mat, v => set('mat', v), 'Lens material')),
     rwRow('Diameter (mm)', rwNum(sp.D, v => set('D', Math.max(1, v)), 'Lens diameter (mm)')),
@@ -25934,6 +26096,7 @@ function rwSwapKind(asm, Pd, i, toGrin, sp, out) {
 }
 function rwApplySynth(out, sp) {
   const asm = RW.asm;
+  RW.design = false;
   if (out.kind === 'grin') {
     rwEdit(Pd => {
       const el = rwSwapKind(asm, Pd, out.i0, true, sp, out);
@@ -26425,10 +26588,10 @@ function drawWs() {
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
     ...cfgPicker(asm),
-    ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
+    ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -39539,10 +39702,16 @@ function downloadFile(filename, blob) {
 function safeFileName(name) {
   return (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'bench';
 }
+/* Save's dot: an edit since the bench was opened or saved (a cloud bench is saved as it goes) */
+function markUnsaved(on) {
+  const d = document.getElementById('saveDot');
+  if (d) d.hidden = !on;
+}
 function saveFile() {
   const name = safeFileName(project.name) + '.jekray';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
+  markUnsaved(false);
 }
 
 /* The bench as it stands, as a picture */
@@ -39787,6 +39956,7 @@ function checkpoint() {
   if (history.length > 150) history.shift();
   setFuture([]);
   updateUndoButtons();
+  markUnsaved(true);
 }
 
 function undo() {
@@ -40853,6 +41023,7 @@ function openProjectData(data, label) {
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
   // a link (or an example) may say which panels to show and how
   if (raw.ui) applyUi(raw.ui);
+  markUnsaved(false);
   return notes;
 }
 function showImportReport(notes) {
@@ -42616,6 +42787,9 @@ function packDialogFill() {
    program's menus have them; and a tick for an option that is on */
 const MENU_ICONS = {
   book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z',
+  undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', wave: 'M1.5 8Q4 2 6.5 8T11.5 8T14.5 5',
+  cart: 'M1.5 2.5H3.5L5 10.5H12.5L14 5H4 M6 13.5A0.8 0.8 0 1 0 6 13.4 M11.5 13.5A0.8 0.8 0 1 0 11.5 13.4',
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5',
   paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', history: 'M8 2.5A5.5 5.5 0 1 1 2.6 7 M2.5 3V7H6.5 M8 5V8.5L10.5 10',
   save: 'M2.5 2.5H11.5L13.5 4.5V13.5H2.5Z M5 2.5V6H10.5V2.5 M5 13.5V9.5H11V13.5', import: 'M8 1.5V10 M4.5 6.5L8 10L11.5 6.5 M2.5 10.5V14H13.5V10.5',
@@ -42685,7 +42859,15 @@ function wirePacks() {
     if (!TEST_MODE) packsLoad(); else PACKS.ready = true;
   }
 
-  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
+  // the phone's ⋯ menu, as the bar it stands for is: undo and redo as they can be, the cart's count, the account
+  document.getElementById('btnMore').addEventListener('click', () => {
+    for (const k of ['Undo', 'Redo']) document.getElementById('more' + k).disabled = document.getElementById('btn' + k).disabled;
+    const n = document.getElementById('cartCount');
+    document.getElementById('moreCart').textContent = n && !n.hidden ? n.textContent : '';
+    const acct = document.getElementById('acct'), ab = document.getElementById('btnAcct'), mi = document.getElementById('moreAcct');
+    mi.hidden = acct.hidden; mi.querySelector('.lbl').textContent = ab.classList.contains('in') ? 'Your account…' : 'Sign in…';
+  });
+  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
     const btn = document.getElementById(bId), menu = document.getElementById(mId);
     const show = on => {
       menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -42706,7 +42888,7 @@ function wirePacks() {
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
 
   // the menus' stand-ins for the bar's own buttons (a phone hides those)
-  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
 
   // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
   for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
@@ -43559,6 +43741,7 @@ async function cloudPush(opts = {}) {
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
     link.version = out.version; link.dirty = cloudAgain; link.name = out.name; delete link.label;
+    if (!link.dirty) markUnsaved(false);
     cloudKeep();
     cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (!opts.keepalive) cloudThumb(link, opts.checkpoint);
@@ -44428,6 +44611,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A tidier interface: <b>three kinds of button</b> (one solid button for the main action, outlined ones for the others, and plain words for menus and toggles), <b>Save</b> marked with a dot when the bench has changed since it was opened or saved, and the designers\u2019 tabs drawn as tabs. On a <b>phone</b> the top bar is one row: the bench\u2019s name, <b>+</b>, <b>Save</b> and <b>\u22ef</b>, a menu holding the rest. The <b>RF designer</b> lists its system down the left as the beam meets it (the frequency, the feed horn, each lens, the goal) and edits the one chosen beside the beam; <b>Add a lens</b> puts another after the last and designs it, and a lens can be taken out again.',
     '<b>Quote now</b>: an RF lens or disc that can be made has an orange <b>Quote now</b> button, which puts it in your quote cart and opens the cart in a new tab, ready to send; <b>Add to quote cart</b> gathers several first. <b>Cart</b>, at the top beside your account, opens the cart and shows how many are in it. Your JEKray account now works across the JEK Systems site: sign in from any page, see it on <b>Your account</b>, and the quote form fills in your name and email.',
     '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, saves its drawing (PDF or SVG, with its permittivity, profile tolerance and matching layers), and quotes it: the request gives each face\u2019s conic and links to the whole system. A lens can be a <b>graded-index disc</b>, flat, its focal length solved through its thickness, or <b>cut in zones</b>, thinner and lighter, the phase each step slips away from its zone frequency counted over the band. Two worked examples, a 24 GHz lens antenna and a 150 GHz Gaussian beam telescope, are in the gallery. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
     '<b>Stock lenses</b> in lens design: add lens files you have (.zmx or .zar, such as lens makers publish for their parts; kept in your browser only) and the <b>Stock lenses</b> tab finds, for each lens of the design, those with the right focal length, faces and room for the beam, tries each in the design either way round with the air about it optimised, and ranks them by the design\u2019s merit; <b>Use</b> puts one in.',

@@ -6,7 +6,7 @@ import { requestRender } from './render.js';
 import { pauseAll } from './sweeps.js';
 import { stopSweepsFor } from './optimise.js';
 import { h, renderPanel } from './panel.js';
-import { changed, updateUndoButtons } from './actions.js';
+import { changed, markUnsaved, updateUndoButtons } from './actions.js';
 import { scheduleSave } from '../io/autosave.js';
 
 /* ==========================================================================
@@ -146,6 +146,7 @@ export function checkpoint() {
   if (history.length > 150) history.shift();
   setFuture([]);
   updateUndoButtons();
+  markUnsaved(true);
 }
 
 export function undo() {

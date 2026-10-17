@@ -238,9 +238,9 @@ The **efficiency** is all of it together, at the design frequency and over the b
 
 The Gaussian beam follows the system to first order, so it can't see what a face's shape does beyond that: a sphere where a hyperbola is wanted. The **phase error** is found from real rays: traced exactly from the incoming beam's phase centre through every surface, their optical paths taken to the sphere about the outgoing beam's phase centre (or to a plane, for a beam that leaves flat), the piston and defocus taken out by a least-squares fit in $$h^2$$, and what is left measured as an RMS $$\sigma$$ over the beam's power, weighted by $$h\,e^{-2h^2/w^2}$$. Its loss is Ruze's, $$e^{-(2\pi\sigma/\lambda)^2}$$.
 
-### Its lenses
+### The system and its parts
 
-**Lenses** lists each lens in the order the beam meets it: its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, and the air after it. A change is made on the part on the bench, and can be undone.
+The system is listed down the left as the beam meets it: **Frequency**, **Feed horn**, each lens, **Add a lens** and **Goal**. The one chosen is edited beside the beam. A lens gives its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, whether it is cut in zones, and the air after it; **Remove** takes it out (a system keeps at least one lens). **Add a lens** puts a made-to-order lens after the last part and opens **Design this lens** on it. A change is made on the part on the bench, and can be undone. The steps for the whole system are tabs below: **Optimise**, **Analyses**, **Tolerance** and **Make it**.
 
 ### Analyses
 
@@ -295,9 +295,9 @@ Each lens's design drawing can be saved for your own records and mechanical desi
 
 The drawing describes the lens as designed. It is not a file to make it from: how it is made is ours to work out when you order it.
 
-### Design a lens
+### Design this lens
 
-**Design a lens** makes a lens to suit the beam that reaches it and the goal after it, as millimetre-wave lenses are designed. Each curved face is a hyperbola of eccentricity $$n$$ (conic $$-n^2$$, vertex radius $$(n-1)F$$), which turns a point at its focus $$F$$ into a plane wave in the plastic, or a plane wave in the plastic into a point in air. The point is the beam's phase centre: $$F$$ is the phase radius of the beam reaching the lens, and on the far side the phase radius the beam must leave with to make its waist where it is wanted,
+**Design this lens…**, on a lens's own page, makes a lens to suit the beam that reaches it and the goal after it, as millimetre-wave lenses are designed. Each curved face is a hyperbola of eccentricity $$n$$ (conic $$-n^2$$, vertex radius $$(n-1)F$$), which turns a point at its focus $$F$$ into a plane wave in the plastic, or a plane wave in the plastic into a point in air. The point is the beam's phase centre: $$F$$ is the phase radius of the beam reaching the lens, and on the far side the phase radius the beam must leave with to make its waist where it is wanted,
 
 $$
 F_2 = \frac{d_2^2 + z_R^2}{d_2}, \qquad z_R = \frac{\pi w_t^2}{\lambda},
@@ -325,7 +325,7 @@ $$
 
 for a disc $$T$$ thick of focal length $$f$$, fitted over the disc as $$n_0 + g_2 r^2 + g_4 r^4 + g_6 r^6$$. So the Gaussian beam takes its power from its $$r^2$$ term (the graded slab's own matrix), real rays bend through it, and the phase error counts what the fit leaves. Its losses are its own: at each radius the index and loss of the density there, through its core and its layers, and its faces' reflection at that index (or through its layers at the frequency), each weighted over the beam.
 
-**Design a lens** makes one to suit the beam: its focal length starts as the thin lens's between the beam's phase centre before it and the one wanted after it, $$1/f = 1/F_1 + 1/F_2$$, and is then solved through the disc's own thickness and grading, because a thick disc's focus is nearer than its focal length. The density runs from the centre's (100 % by default) to the lowest asked for, raised if need be so that its least dense structure stays fine against the wavelength at the top of the band. In the **Lenses** tab its plastic, diameter, focal length, density range and matching layers can be set; **Optimise** can vary its focal length; **Tolerance** varies its plastic's permittivity, which scales every density's (its grading with it), and its thickness. **Make it** checks that its density can be graded, that it fits, and that it holds to the top of the band; its drawing gives its permittivity at five radii.
+**Design this disc…** makes one to suit the beam: its focal length starts as the thin lens's between the beam's phase centre before it and the one wanted after it, $$1/f = 1/F_1 + 1/F_2$$, and is then solved through the disc's own thickness and grading, because a thick disc's focus is nearer than its focal length. The density runs from the centre's (100 % by default) to the lowest asked for, raised if need be so that its least dense structure stays fine against the wavelength at the top of the band. On its own page its plastic, diameter, focal length, density range and matching layers can be set; **Optimise** can vary its focal length; **Tolerance** varies its plastic's permittivity, which scales every density's (its grading with it), and its thickness. **Make it** checks that its density can be graded, that it fits, and that it holds to the top of the band; its drawing gives its permittivity at five radii.
 
 ### Zones
 
@@ -339,13 +339,13 @@ deep, a wave of path at its zone frequency $$\lambda_z$$. Its thickness at $$r$$
 
 At the zone frequency the zoned lens bends the wave exactly as the smooth one does, since each step delays it by a whole wave. Away from it, each step delays it by $$k\lambda_z$$, not $$k\lambda$$: the phase slips by $$k(\lambda_z - \lambda)$$, a whole wave less, across the zones. The RF designer counts this from real rays, each ray's $$k$$ where it meets the cut face, in the phase error. The more zones, the narrower the band: **Analyses › Over the band** shows the phase error falling away either side of the zone frequency, and the gain with it.
 
-The steps' walls also shadow a little of the beam, which is not counted. On the bench a zoned lens is traced as the smooth lens it is cut from (the same at its zone frequency). **Lenses** sets a lens zoned and its zone frequency, and gives its steps and its thickness as cut; **Design a lens** can cut the lens it makes; **Make it**, the 3D view, the drawing (the steps' depth and radii) and the quote all take the lens as cut.
+The steps' walls also shadow a little of the beam, which is not counted. On the bench a zoned lens is traced as the smooth lens it is cut from (the same at its zone frequency). A lens's own page sets it zoned and its zone frequency, and gives its steps and its thickness as cut; **Design this lens** can cut the lens it makes; **Make it**, the 3D view, the drawing (the steps' depth and radii) and the quote all take the lens as cut.
 
 ### Worked examples
 
 Two examples in the gallery's **RF and millimetre waves** group are designed in the RF designer; select a lens and press **Design the RF system…** to open each.
 
-- **Lens antenna, 24 GHz**: a 120 mm PLA lens on a corrugated horn, made with **Design a lens**: the feed 116 mm away for an 11 dB edge taper, its face to the feed a hyperbola, both faces matched. It gives 28.19 dBi at 24 GHz (27.3 to 28.9 dBi across 21.6 to 26.4 GHz) at 81.4 % aperture efficiency; PLA's loss takes about 0.5 dB. It has a flange, and a gain specification of 27 dBi set in **Tolerance** for the Monte Carlo.
+- **Lens antenna, 24 GHz**: a 120 mm PLA lens on a corrugated horn, made with **Design this lens**: the feed 116 mm away for an 11 dB edge taper, its face to the feed a hyperbola, both faces matched. It gives 28.19 dBi at 24 GHz (27.3 to 28.9 dBi across 21.6 to 26.4 GHz) at 81.4 % aperture efficiency; PLA's loss takes about 0.5 dB. It has a flange, and a gain specification of 27 dBi set in **Tolerance** for the Monte Carlo.
 - **Gaussian beam telescope, 150 GHz**: two plano-hyperbolic polypropylene lenses, 100 mm across, between two identical corrugated horns. Lens 1 is placed for a 20 dB edge taper (195 mm from the feed); lens 2 is its mirror image, 430 mm on, so the receiver sees the feed imaged on itself. It couples 94.9 % to 99.8 % of the beam across 135 to 165 GHz (98.3 % at 150 GHz), 75.8 % (−1.20 dB) all told: the four bare faces reflect 0.67 dB of it, since at 150 GHz a printed matching layer would be coarser than a quarter wave.
 
 **Checked against.**

@@ -9109,13 +9109,17 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       J.newRfDesign();
       const ws = () => rigDoc().querySelector('#rfWs');
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const pickLens = () => [...ws().querySelectorAll('.rt-rfsi[data-sel]')].find(b => !['freq', 'feed', 'goal'].includes(b.dataset.sel)).click();
+      const design = () => { pickLens(); [...ws().querySelectorAll('button')].find(b => /^Design this (lens|disc)…$/.test(b.textContent)).click(); };
       const fig = label => { const d = [...ws().querySelectorAll('.rt-lfig > div')].find(x => x.firstChild.textContent === label); return d ? d.lastChild.textContent : ''; };
       const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (rigWin().Event)('change')); };
       try {
         const open = ws() && !ws().hidden, gain = parseFloat(fig('Gain')), apEff = parseFloat(fig('Aperture efficiency'));
+        pick('goal');
         set('Goal', 'couple');
         set('Goal distance (mm)', '300');
-        [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === 'Design a lens').click();
+        design();
         set('Lens kind', 'biconvex');
         set('Where it stands', 'match');
         [...ws().querySelectorAll('button')].find(b => b.textContent === 'Use this lens').click();
@@ -9142,6 +9146,9 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       J.newRfDesign();
       const ws = () => rigDoc().querySelector('#rfWs');
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const pickLens = () => [...ws().querySelectorAll('.rt-rfsi[data-sel]')].find(b => !['freq', 'feed', 'goal'].includes(b.dataset.sel)).click();
+      const design = () => { pickLens(); [...ws().querySelectorAll('button')].find(b => /^Design this (lens|disc)…$/.test(b.textContent)).click(); };
       const fig = label => { const d = [...ws().querySelectorAll('.rt-lfig > div')].find(x => x.firstChild.textContent === label); return d ? d.lastChild.textContent : ''; };
       const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (rigWin().Event)('change')); };
       const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
@@ -9159,7 +9166,7 @@ const TESTS = [
         for (const v of ['Over the band', 'Far-field pattern', 'Apertures', 'Reflections', 'Loss budget']) { btn(v).click(); await new Promise(r => setTimeout(r, 30)); views.push(!!ws().querySelector('.rt-rfana canvas, .rt-rfana table')); }
         const total = ws().querySelector('.rt-rftotal td').textContent, eff = fig('Efficiency');
         const budget = parseFloat(total) === parseFloat(eff);
-        btn('Undo').click();
+        ws().querySelector('header [aria-label="Undo"]').click();
         const undone = parseFloat(fig('Phase error')) > 0.1;
         const ok = spoiled && opt && views.every(Boolean) && budget && undone;
         if (!ok) console.log('RF optimise', { gain0, spoiled, pe, gain1, views, total, eff, undone });
@@ -9177,8 +9184,11 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       J.newRfDesign();
       const ws = () => rigDoc().querySelector('#rfWs');
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const pickLens = () => [...ws().querySelectorAll('.rt-rfsi[data-sel]')].find(b => !['freq', 'feed', 'goal'].includes(b.dataset.sel)).click();
+      const design = () => { pickLens(); [...ws().querySelectorAll('button')].find(b => /^Design this (lens|disc)…$/.test(b.textContent)).click(); };
       const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
-      const tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const tab = t => t === 'Lenses' ? pickLens() : t === 'Design a lens' ? design() : [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
       try {
         tab('Make it');
         const ok1 = /Manufacturable/.test(ws().querySelector('.rt-rfverdict').textContent) && ws().querySelector('.rt-rfverdict').classList.contains('ok');
@@ -9225,8 +9235,11 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       J.newRfDesign();
       const ws = () => rigDoc().querySelector('#rfWs');
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const pickLens = () => [...ws().querySelectorAll('.rt-rfsi[data-sel]')].find(b => !['freq', 'feed', 'goal'].includes(b.dataset.sel)).click();
+      const design = () => { pickLens(); [...ws().querySelectorAll('button')].find(b => /^Design this (lens|disc)…$/.test(b.textContent)).click(); };
       const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
-      const tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const tab = t => t === 'Lenses' ? pickLens() : t === 'Design a lens' ? design() : [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
       const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
       const lensEl = () => J.serialize().elements.find(e => e.group);
       try {
@@ -9279,8 +9292,11 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       J.newRfDesign();
       const ws = () => rigDoc().querySelector('#rfWs');
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const pickLens = () => [...ws().querySelectorAll('.rt-rfsi[data-sel]')].find(b => !['freq', 'feed', 'goal'].includes(b.dataset.sel)).click();
+      const design = () => { pickLens(); [...ws().querySelectorAll('button')].find(b => /^Design this (lens|disc)…$/.test(b.textContent)).click(); };
       const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); if (i.type === 'checkbox') i.checked = v; else i.value = v; i.dispatchEvent(new (W.Event)('change')); };
-      const tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const tab = t => t === 'Lenses' ? pickLens() : t === 'Design a lens' ? design() : [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
       const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
       const lensEl = () => J.serialize().elements.find(e => e.group);
       try {
@@ -9309,6 +9325,38 @@ const TESTS = [
         if (!all) console.log('RF zones', { said, zoned, zt, steps, fig, flatAt, made, drawn, quoted, cart, whole });
         return all ? 1 : 0;
       } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
+    },
+  },
+  {
+    name: 'RF designer: the system listed down the left, the one chosen edited beside the beam; a lens added after the last, designed, and taken out',
+    why: 'the new design lists Frequency, Feed horn, its lens, Add a lens and Goal; choosing Frequency edits the design frequency, choosing the feed its distance; Add a lens puts a second made-to-order lens after the first and opens Design this lens on it, and Use this lens shapes it; Remove takes it out again, the first lens’s Remove is not offered while it is the only one, and Undo brings the second back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs');
+      const items = () => [...ws().querySelectorAll('.rt-rfsi')].map(b => b.querySelector('b').textContent);
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
+      const lenses = () => J.serialize().elements.filter(e => e.type === 'lens' && e.group).length;
+      try {
+        const listed = items().join('|') === 'Frequency|Feed horn|RF lens|Add a lens|Goal';
+        pick('freq');
+        const freq = !!ws().querySelector('[aria-label="Design frequency (GHz)"]') && !ws().querySelector('[aria-label="RF lens diameter (mm)"]');
+        pick('feed');
+        const feed = !!ws().querySelector('[aria-label="Feed to the first lens (mm)"]');
+        ws().querySelector('.rt-rfsi.add').click();
+        const added = lenses() === 2 && items().includes('RF lens 2') && /Design RF lens 2/.test(ws().querySelector('.rt-rfsynth h3').textContent);
+        btn('Use this lens').click();
+        const L2 = J.serialize().elements.find(e => e.name === 'RF lens 2'), shaped = !!L2 && L2.surfaces[0].k < -1 && L2.materials[0].glass === 'PLA';
+        btn('Remove').click();
+        const removed = lenses() === 1 && !items().includes('RF lens 2') && btn('Remove').disabled;
+        ws().querySelector('header [aria-label="Undo"]').click();
+        const back = lenses() === 2;
+        const ok = listed && freq && feed && added && shaped && removed && back;
+        if (!ok) console.log('RF system list', { items: items(), listed, freq, feed, added, shaped, L2, removed, back });
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
     },
   },
   {
@@ -10459,7 +10507,7 @@ const rigWin = () => document.getElementById('rig').contentWindow, rigDoc = () =
 /* the lens design workspace, driven as a person would: a value typed into the field of that label, a button by its text (and label) */
 const wsInputs = () => [...rigDoc().querySelectorAll('#lensWs input, #lensWs select')];
 const wsSet = (label, v) => { const i = wsInputs().find(x => x.getAttribute('aria-label') === label); if (!i) throw new Error('no field ' + label); i.value = String(v); i.dispatchEvent(new (rigWin().Event)('change')); };
-const wsClick = (text, label, role) => { const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => x.textContent.trim() === text && (!label || x.getAttribute('aria-label') === label) && (!role || x.getAttribute('role') === role) && (role || x.getAttribute('role') !== 'tab')); if (!b) throw new Error('no button ' + text); b.click(); };
+const wsClick = (text, label, role) => { const b = [...rigDoc().querySelectorAll('#lensWs button')].find(x => (x.textContent.trim() === text || x.getAttribute('aria-label') === text) && (!label || x.getAttribute('aria-label') === label) && (!role || x.getAttribute('role') === role) && (role || x.getAttribute('role') !== 'tab')); if (!b) throw new Error('no button ' + text); b.click(); };
 const wsPick = n => { const td = [...rigDoc().querySelectorAll('#lensWs td.n')].find(x => x.textContent === n); td.parentNode.dispatchEvent(new (rigWin().MouseEvent)('click', { bubbles: true })); };
 /* a solve or pickup set with the button beside a value: its kind chosen, its fields filled, applied */
 const wsPop = (what, kind, vals) => {

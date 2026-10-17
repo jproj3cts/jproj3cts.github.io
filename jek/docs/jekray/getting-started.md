@@ -35,7 +35,7 @@ The buttons below the palette open groups of parts.
 
 **The panel** on the right shows whatever is selected. With nothing selected, it shows the whole bench: its parts, notes and settings. With an element selected, it shows that element's settings and readouts.
 
-**The bar** along the top holds the File menu (under the bench's name), **+ Add part**, Undo and Redo, and the View, Sweeps and Help menus.
+**The bar** along the top holds the File menu (under the bench's name), **+ Add part**, Undo and Redo, and the View, Sweeps and Help menus. **Save** shows a dot when the bench has changed since it was opened or saved. On a phone the bar is one row: the name, **+**, **Save** and **⋯**, a menu holding the rest.
 
 ## The 3D view
 

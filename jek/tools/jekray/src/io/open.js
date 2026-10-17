@@ -12,7 +12,7 @@ import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';
 import { updateSweepButtons } from '../ui/optimise.js';
-import { changed, fitView, toast, updateUndoButtons } from '../ui/actions.js';
+import { changed, fitView, markUnsaved, toast, updateUndoButtons } from '../ui/actions.js';
 import { checkpoint, renderBenchTabs } from '../ui/tabs.js';
 import { applyUi } from './share.js';
 import { cloudLink } from './cloud.js';
@@ -204,6 +204,7 @@ export function openProjectData(data, label) {
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
   // a link (or an example) may say which panels to show and how
   if (raw.ui) applyUi(raw.ui);
+  markUnsaved(false);
   return notes;
 }
 function showImportReport(notes) {

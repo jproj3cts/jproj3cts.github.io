@@ -5,7 +5,7 @@ import { onTab } from '../state/tabs.js';
 import { setExporting } from '../engines/trace.js';
 import { H, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
 import { helpLine, h } from '../ui/panel.js';
-import { setStatus, toast } from '../ui/actions.js';
+import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
 import { PALETTE_NAMES } from '../ui/experimental.js';
@@ -126,6 +126,7 @@ export async function cloudPush(opts = {}) {
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
     link.version = out.version; link.dirty = cloudAgain; link.name = out.name; delete link.label;
+    if (!link.dirty) markUnsaved(false);
     cloudKeep();
     cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (!opts.keepalive) cloudThumb(link, opts.checkpoint);

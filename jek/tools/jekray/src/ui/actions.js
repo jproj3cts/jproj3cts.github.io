@@ -461,10 +461,16 @@ export function downloadFile(filename, blob) {
 export function safeFileName(name) {
   return (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'bench';
 }
+/* Save's dot: an edit since the bench was opened or saved (a cloud bench is saved as it goes) */
+export function markUnsaved(on) {
+  const d = document.getElementById('saveDot');
+  if (d) d.hidden = !on;
+}
 export function saveFile() {
   const name = safeFileName(project.name) + '.jekray';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
+  markUnsaved(false);
 }
 
 /* The bench as it stands, as a picture */

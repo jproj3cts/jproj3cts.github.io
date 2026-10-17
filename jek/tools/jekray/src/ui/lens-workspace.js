@@ -145,10 +145,10 @@ function drawWs() {
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
     ...cfgPicker(asm),
-    ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
+    ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });

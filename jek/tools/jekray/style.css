@@ -64,11 +64,19 @@
   .rt-btn:active { transform: translateY(1px); }
   .rt-btn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-color: var(--jek-cyan); }
   .rt-btn:disabled { opacity: 0.45; cursor: default; transform: none; }
-  .rt-btn.primary { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  .rt-btn.primary:hover { background: var(--jek-cyan-dark); border-color: var(--jek-cyan-dark); }
+  /* three kinds of button: primary (solid ink, one per area), secondary (this, outlined), and quiet (words
+     or an icon, outlined only under the pointer); orange is kept for ordering (io/order.js) */
+  .rt-btn.primary { color: #fff; background: #111; border-color: #111; }
+  .rt-btn.primary:hover { background: #333; border-color: #333; }
+  .rt-btn.quiet { background: none; border-color: transparent; }
+  .rt-btn.quiet:hover, .rt-btn.quiet[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
+  .rt-btn.quiet:disabled:hover { background: none; border-color: transparent; }
+  /* Save: a cyan dot while there is something it has not saved */
+  .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
+  .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.15rem 0.5rem; border: 0; border-radius: 4px; background: var(--jek-orange); color: #fff; font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-red); }
+  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1082,6 +1090,26 @@
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
+  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
+     Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
+     menus under the bar's right end */
+  .rt-moremenu { display: none; }
+  @media (max-width: 600px) {
+    .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
+    .rt-bar { flex-wrap: nowrap; gap: 0.25rem; }
+    .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
+    .rt-file { flex: 1 1 auto; min-width: 0; }
+    .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
+    .rt-addlbl { display: none; }
+    #btnAddPart { min-width: 2.1rem; padding-left: 0.55rem; padding-right: 0.55rem; }
+    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
+    .rt-moremenu { display: block; }
+    .rt-bar .rt-phonegone { position: static; }
+    .rt-bar .rt-phonegone > .rt-btn { position: absolute; width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
+    .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
+    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: none; }
+  }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }
   .rt-imenu .rt-swatchrow { display: flex; align-items: center; gap: 0.55rem; padding: 0.3rem 0.9rem 0.3rem 0.6rem; font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); cursor: pointer; white-space: nowrap; }
@@ -1314,6 +1342,34 @@
   .rt-ltabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
   .rt-ltab { font: inherit; font-size: 0.875rem; font-weight: 600; padding: 0.45rem 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer; }
   .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-ltabs[role="tablist"] { gap: 0.15rem; border-bottom: 1px solid var(--jek-line-2); }
+  .rt-ltabs[role="tablist"] .rt-ltab { margin-bottom: -1px; padding: 0.55rem 0.85rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; }
+  .rt-ltabs[role="tablist"] .rt-ltab:hover { color: var(--jek-ink); }
+  .rt-ltabs[role="tablist"] .rt-ltab[aria-selected="true"] { color: var(--jek-ink); background: none; border-bottom-color: #111; }
+  /* the RF designer: the system down the left, the one chosen edited beside the beam */
+  .rt-rfsys { gap: 0.1rem; padding: 0.8rem 0; }
+  .rt-rfsys h2 { margin: 0 1rem 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-rfsi { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; align-items: center; width: 100%; padding: 0.5rem 1rem; font: inherit; text-align: left; color: var(--jek-ink);
+    background: none; border: 0; border-left: 3px solid transparent; cursor: pointer; }
+  .rt-rfsi:hover { background: var(--jek-well); }
+  .rt-rfsi.on { background: #fff; border-left-color: #111; }
+  .rt-rfsi .ic { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--jek-line-2); border-radius: 3px; background: #fff; color: var(--jek-ink-soft); font-weight: 700; font-size: 0.8rem; }
+  .rt-rfsi.on .ic { color: var(--jek-ink); border-color: #111; }
+  .rt-rfsi .tx { min-width: 0; }
+  .rt-rfsi b { display: block; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-rfsi small { display: block; font-size: 0.72rem; color: var(--jek-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-rfsi.add { color: var(--jek-ink-soft); }
+  .rt-rfsi.add .ic { border-style: dashed; }
+  .rt-rfsep { height: 1px; margin: 0.35rem 1rem; background: var(--jek-line); }
+  .rt-rfsys > .rt-btn { margin: 0.4rem 1rem 0; align-self: stretch; }
+  .rt-rfsys > .rt-lsub { margin: 0.4rem 1rem 0; }
+  .rt-lcard.rt-rfedit h3 { margin: 0 0 0.2rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--jek-ink); }
+  .rt-rfedit .rt-rfgrid { grid-template-columns: repeat(auto-fill, minmax(15rem, 19rem)); gap: 0.3rem 2.5rem; }
+  .rt-rfedit .rt-rfzone { margin: 0.2rem 0 0; }
+  .rt-rfedit .rt-rfro { padding: 0 0.4rem; }
+  .rt-rfacts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
+  .rt-rfacts .rt-rfrm { margin-left: auto; }
+  .rt-rfedhead { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .rt-ltwrap { overflow-x: auto; }
   .rt-ltable { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.85rem; }
   .rt-ltable th { text-align: left; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-ink-soft); padding: 0.4rem; border-bottom: 1px solid var(--jek-line-2); }

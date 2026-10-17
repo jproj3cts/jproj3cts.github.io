@@ -237,6 +237,9 @@ function packDialogFill() {
    program's menus have them; and a tick for an option that is on */
 export const MENU_ICONS = {
   book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z',
+  undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', wave: 'M1.5 8Q4 2 6.5 8T11.5 8T14.5 5',
+  cart: 'M1.5 2.5H3.5L5 10.5H12.5L14 5H4 M6 13.5A0.8 0.8 0 1 0 6 13.4 M11.5 13.5A0.8 0.8 0 1 0 11.5 13.4',
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5',
   paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', history: 'M8 2.5A5.5 5.5 0 1 1 2.6 7 M2.5 3V7H6.5 M8 5V8.5L10.5 10',
   save: 'M2.5 2.5H11.5L13.5 4.5V13.5H2.5Z M5 2.5V6H10.5V2.5 M5 13.5V9.5H11V13.5', import: 'M8 1.5V10 M4.5 6.5L8 10L11.5 6.5 M2.5 10.5V14H13.5V10.5',
@@ -306,7 +309,15 @@ export function wirePacks() {
     if (!TEST_MODE) packsLoad(); else PACKS.ready = true;
   }
 
-  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu']]) {
+  // the phone's ⋯ menu, as the bar it stands for is: undo and redo as they can be, the cart's count, the account
+  document.getElementById('btnMore').addEventListener('click', () => {
+    for (const k of ['Undo', 'Redo']) document.getElementById('more' + k).disabled = document.getElementById('btn' + k).disabled;
+    const n = document.getElementById('cartCount');
+    document.getElementById('moreCart').textContent = n && !n.hidden ? n.textContent : '';
+    const acct = document.getElementById('acct'), ab = document.getElementById('btnAcct'), mi = document.getElementById('moreAcct');
+    mi.hidden = acct.hidden; mi.querySelector('.lbl').textContent = ab.classList.contains('in') ? 'Your account…' : 'Sign in…';
+  });
+  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
     const btn = document.getElementById(bId), menu = document.getElementById(mId);
     const show = on => {
       menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -327,7 +338,7 @@ export function wirePacks() {
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
 
   // the menus' stand-ins for the bar's own buttons (a phone hides those)
-  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
 
   // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
   for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });

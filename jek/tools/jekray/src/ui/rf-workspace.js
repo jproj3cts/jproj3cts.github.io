@@ -9,7 +9,7 @@ import { rfDrawableParts } from '../engines/lens-drawing.js';
 import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
-import { commitDesign, designOf, designPrescription, surfSag, surfaceParts } from '../engines/lens-design.js';
+import { commitDesign, designOf, designPrescription, insertSinglet, removeSurface, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { RF_LENS_TYPES, RF_TOL_KINDS, rfGrinInto, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfSynth, rfSyncCond } from '../engines/rf-design.js';
 import { linePlot } from './lens-analyses.js';
 import { helpLine, h } from './panel.js';
@@ -26,10 +26,12 @@ import { openLensDesign } from './lens-workspace.js';
    the feed horn and how far it stands from the first lens, and the goal (collimate, focus to a waist, or into a
    receiving horn). The layout draws the beam itself, its 1/e² radius along the axis at the design frequency and
    the band's edges, and each lens's edge taper; the figures are the ones an RF designer reads (engines/
-   rf-design.js). The horns on the bench the conditions were taken from follow them. The lenses are edited
-   in their own table, or made from a spec (Design a lens); the full lens data is the optical designer's.
+   rf-design.js). The horns on the bench the conditions were taken from follow them. The system is listed
+   down the left as the beam meets it (the frequency, the feed horn, each lens, the goal); the one chosen is
+   edited beside the beam, a lens by hand or made from a spec (Design this lens); the full lens data is the
+   optical designer's. The steps for the whole system (Optimise, Analyses, Tolerance, Make it) are tabs.
    ========================================================================== */
-let RW = null;                     // { asm, tab, draft, synth }
+let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
 export const rfDesignOpen = () => !!RW;
 const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
 /* where a waist sits from the last vertex, in words rather than a signed distance */
@@ -93,7 +95,7 @@ export function openRfDesign(asm, opts) {
     asm.kind = 'rf'; asm.rf = T.rf;
   }
   rfSyncCond(asm, P);
-  RW = { asm, tab: 'lenses', draft: !!(opts && opts.draft), synth: null };
+  RW = { asm, tab: 'opt', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
   const sec = rwShell();
   sec.hidden = false;
   document.body.classList.add('rt-lens-open');
@@ -169,14 +171,15 @@ function rwDraw() {
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design')),
     h('span', { class: 'rt-lgap' }),
     // (not for a system with a graded-index disc: the optical designer has no such part)
-    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); rwAfterUndo(); } }, 'Undo'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); rwAfterUndo(); } }, 'Redo'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
+    h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
+    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(rwCondCard(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwTabs(),
-    RW.tab === 'synth' ? rwSynthCard(asm, P) : RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwLensCard(asm, P, T.mid)));
+  rwSelOk(P);
+  body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwOptCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -219,32 +222,91 @@ function rwSelect(options, value, set, label) {
   return s;
 }
 const rwRow = (label, ...kids) => h('label', { class: 'rt-lrow' }, h('span', null, label), ...kids);
-function rwCondCard(asm, P) {
-  const R = asm.rf, card = h('section', { class: 'rt-lcard rt-lcond rt-rfcond', 'aria-label': 'Design conditions' }, h('h2', null, 'Design conditions'));
-  card.append(h('p', { class: 'rt-lsub' }, 'The system it is designed for: a feed horn’s beam, through its lenses, to its goal.'));
-  card.append(h('h3', null, 'Frequency (GHz)'),
-    rwRow('Design', rwNum(R.ghz, v => rwCondEdit(r => { const k = v / r.ghz; r.ghz = v; r.lo *= k; r.hi *= k; }), 'Design frequency (GHz)')),
-    rwRow('Band from', rwNum(R.lo, v => rwCondEdit(r => { r.lo = v; }), 'Band from (GHz)')),
-    rwRow('Band to', rwNum(R.hi, v => rwCondEdit(r => { r.hi = v; }), 'Band to (GHz)')));
-  const fb = rfBeam(R.feed, R.ghz);
-  card.append(h('h3', null, 'Feed horn'),
-    rwRow('Kind', rwSelect(RW_HORN_NAMES, R.feed.kind, v => rwCondEdit(r => { r.feed.kind = v; }), 'Feed horn kind')),
-    rwRow('Aperture radius (mm)', rwNum(R.feed.a, v => rwCondEdit(r => { r.feed.a = v; }), 'Feed aperture radius (mm)')),
-    rwRow('Slant length (mm)', rwNum(R.feed.L, v => rwCondEdit(r => { r.feed.L = v; }), 'Feed slant length (mm)')),
-    rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)')),
+/* ---------- The system, down the left, as the beam meets it ---------- */
+const RW_HORN_SHORT = { corrugated: 'corrugated', smooth: 'smooth-wall', diagonal: 'diagonal', gauss: 'Gaussian' };
+const RW_GOAL_SHORT = { collimate: 'collimate', focus: 'focus', couple: 'into a horn' };
+/* the parts in the beam's order, each with its element and its first surface */
+function rwParts(P) {
+  let i0 = 0;
+  return P.parts.map((p, pi) => { const o = { p, pi, i0, el: getEl(p.id) }; i0 += p.n; return o; });
+}
+const rwIsLens = x => (x.p.kind === 'lens' || x.p.kind === 'grin') && x.p.n === 2;
+/* what is chosen still there (after an undo, a part taken out): else the first lens */
+function rwSelOk(P) {
+  const parts = rwParts(P);
+  if (['freq', 'feed', 'goal'].includes(RW.sel) || parts.some(x => x.p.id === RW.sel)) return;
+  const L = parts.find(rwIsLens) || parts[0];
+  RW.sel = L ? L.p.id : 'freq'; RW.design = false;
+}
+function rwSysList(asm, P) {
+  const R = asm.rf;
+  const item = (key, icon, name, sub, title) => h('button', { type: 'button', class: 'rt-rfsi' + (RW.sel === key ? ' on' : ''), 'aria-pressed': String(RW.sel === key), 'data-sel': key, title: title || null,
+    onclick: () => { RW.sel = key; RW.design = false; rwRender(); } },
+    h('span', { class: 'ic', 'aria-hidden': 'true' }, icon), h('span', { class: 'tx' }, h('b', null, name), h('small', { class: 'mono' }, sub)));
+  const card = h('nav', { class: 'rt-lcard rt-lcond rt-rfsys', 'aria-label': 'The system' }, h('h2', null, 'The system'));
+  card.append(item('freq', '≈', 'Frequency', rwFmt(R.ghz, 4) + ' GHz · ' + rwFmt(R.lo, 4) + '–' + rwFmt(R.hi, 4), 'The design frequency, and the band it is judged over'),
+    item('feed', '◁', 'Feed horn', (RW_HORN_SHORT[R.feed.kind] || R.feed.kind) + ' · a ' + rwFmt(R.feed.a, 3) + ' mm', 'The horn lighting the system, and how far it stands from the first lens'),
+    h('div', { class: 'rt-rfsep' }));
+  for (const x of rwParts(P)) {
+    const el = x.el;
+    if (!el) continue;
+    if (x.p.kind === 'grin') card.append(item(x.p.id, '▥', el.name, 'graded · Ø' + rwFmt(el.length, 4) + ' · f ' + rwFmt(el.grin.f, 4) + ' mm'));
+    else if (rwIsLens(x)) {
+      const g = P.materials[x.i0].glass;
+      card.append(item(x.p.id, '()', el.name, (RF_MAT[g] ? RF_MAT[g].name.replace(/ \(.*\)$/, '') : g) + ' · Ø' + rwFmt(el.diameter, 4) + ' · ' + rwFmt(P.gaps[x.i0], 3) + ' mm' + (el.zoned ? ' · zoned' : '')));
+    } else card.append(item(x.p.id, x.p.kind === 'mirror' ? '◟' : '·', el.name, x.p.kind === 'mirror' ? 'a mirror' : x.p.kind));
+  }
+  card.append(h('button', { type: 'button', class: 'rt-rfsi add', title: 'A lens after the last part, made to suit the beam that reaches it', onclick: rwAddLens },
+    h('span', { class: 'ic', 'aria-hidden': 'true' }, '+'), h('span', { class: 'tx' }, h('b', null, 'Add a lens'), h('small', null, 'or a graded-index disc'))),
+  h('div', { class: 'rt-rfsep' }),
+  item('goal', '→', 'Goal', (RW_GOAL_SHORT[R.goal.kind] || R.goal.kind) + ' · ' + rwFmt(R.goal.d, 4) + ' mm on', 'What the system is for, after its last part'),
+  h('div', { class: 'rt-rfsep' }),
+  h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
+  const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
+  if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' the system.'));
+  return card;
+}
+
+/* ---------- The one chosen, edited beside the beam ---------- */
+function rwEditor(asm, P) {
+  if (RW.sel === 'freq') return rwFreqCard(asm);
+  if (RW.sel === 'feed') return rwFeedCard(asm);
+  if (RW.sel === 'goal') return rwGoalCard(asm);
+  const x = rwParts(P).find(q => q.p.id === RW.sel);
+  if (x && RW.design && rwIsLens(x)) return rwSynthCard(asm, P, x);
+  return rwPartCard(asm, P, x);
+}
+const rwCard = (title, sub, ...kids) => h('section', { class: 'rt-lcard rt-rfedit' }, h('h3', null, title), sub, ...kids);
+const rwSub = t => h('p', { class: 'rt-lsub' }, t);
+function rwFreqCard(asm) {
+  const R = asm.rf;
+  return rwCard('Frequency', rwSub('The frequency it is designed at, and the band it is judged over (the band’s edges are dashed on the beam).'),
+    h('div', { class: 'rt-rfgrid' },
+      rwRow('Design (GHz)', rwNum(R.ghz, v => rwCondEdit(r => { const k = v / r.ghz; r.ghz = v; r.lo *= k; r.hi *= k; }), 'Design frequency (GHz)')),
+      rwRow('Band from (GHz)', rwNum(R.lo, v => rwCondEdit(r => { r.lo = v; }), 'Band from (GHz)')),
+      rwRow('Band to (GHz)', rwNum(R.hi, v => rwCondEdit(r => { r.hi = v; }), 'Band to (GHz)'))));
+}
+function rwFeedCard(asm) {
+  const R = asm.rf, fb = rfBeam(R.feed, R.ghz);
+  return rwCard('Feed horn', rwSub('The horn lighting the system, and how far its aperture stands from the first lens.'),
+    h('div', { class: 'rt-rfgrid' },
+      rwRow('Kind', rwSelect(RW_HORN_NAMES, R.feed.kind, v => rwCondEdit(r => { r.feed.kind = v; }), 'Feed horn kind')),
+      rwRow('Aperture radius (mm)', rwNum(R.feed.a, v => rwCondEdit(r => { r.feed.a = v; }), 'Feed aperture radius (mm)')),
+      rwRow('Slant length (mm)', rwNum(R.feed.L, v => rwCondEdit(r => { r.feed.L = v; }), 'Feed slant length (mm)')),
+      rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)'))),
     h('p', { class: 'rt-lsub mono' }, 'Its beam: waist ' + rwFmt(fb.w0, 4) + ' mm, ' + rwFmt(fb.dz, 3) + ' mm behind the aperture; ' + rwFmt((RF_HORNS[R.feed.kind] || RF_HORNS.corrugated).g * 100, 3) + ' % of its power Gaussian'));
-  card.append(h('h3', null, 'Goal'),
+}
+function rwGoalCard(asm) {
+  const R = asm.rf;
+  const grid = h('div', { class: 'rt-rfgrid' },
     rwRow('After the last lens', rwSelect(RW_GOAL_NAMES, R.goal.kind, v => rwCondEdit(r => { r.goal.kind = v; }), 'Goal')),
     rwRow(R.goal.kind === 'couple' ? 'To the horn’s aperture (mm)' : R.goal.kind === 'focus' ? 'Waist at (mm)' : 'Shown to (mm)', rwNum(R.goal.d, v => rwCondEdit(r => { r.goal.d = v; }), 'Goal distance (mm)')));
-  if (R.goal.kind === 'focus') card.append(rwRow('Waist radius (mm)', rwNum(R.goal.w, v => rwCondEdit(r => { r.goal.w = v; }), 'Target waist radius (mm)')));
-  if (R.goal.kind === 'couple') card.append(
+  if (R.goal.kind === 'focus') grid.append(rwRow('Waist radius (mm)', rwNum(R.goal.w, v => rwCondEdit(r => { r.goal.w = v; }), 'Target waist radius (mm)')));
+  if (R.goal.kind === 'couple') grid.append(
     rwRow('Receiver kind', rwSelect(RW_HORN_NAMES, R.goal.rx.kind, v => rwCondEdit(r => { r.goal.rx.kind = v; }), 'Receiving horn kind')),
     rwRow('Aperture radius (mm)', rwNum(R.goal.rx.a, v => rwCondEdit(r => { r.goal.rx.a = v; }), 'Receiver aperture radius (mm)')),
     rwRow('Slant length (mm)', rwNum(R.goal.rx.L, v => rwCondEdit(r => { r.goal.rx.L = v; }), 'Receiver slant length (mm)')));
-  const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
-  card.append(h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
-  if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' these conditions.'));
-  return card;
+  return rwCard('Goal', rwSub('What the beam is for after the last lens: sent on collimated, focused to a waist, or into a receiving horn.'), grid);
 }
 function rwTake() {
   const asm = RW.asm, P = designPrescription(asm), T = rfFromBench(asm, P);
@@ -359,67 +421,93 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
-/* ---------- The lenses: each its material, size and faces, and the air after it ---------- */
+/* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
 const RW_GRIN_MATS = () => Object.fromEntries(Object.entries(RF_MAT).filter(([, M]) => M.print).map(([k, M]) => [k, M.name]));
 const RW_MATS = () => Object.fromEntries(Object.entries(RF_MAT).sort((a, b) => (b[1].print ? 1 : 0) - (a[1].print ? 1 : 0)).map(([k, M]) => [k, M.name + (M.print ? ' (made to order)' : '')]));
-function rwLensCard(asm, P, Tm) {
-  const card = h('section', { class: 'rt-lcard', role: 'tabpanel', 'aria-label': 'Lenses' }, h('h3', null, 'Lenses'));
-  card.append(helpLine('The lenses, in the order the beam meets them.', ['In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'], 'rt-lsub'));
-  const tbl = h('table', { class: 'rt-ltable rt-rftable' });
-  tbl.append(h('thead', null, h('tr', null, ...['Part', 'Material', 'Diameter (mm)', 'Centre (mm)', 'Front R (mm)', 'Front conic', 'Back R (mm)', 'Back conic', 'Matched', 'Air after (mm)'].map(t => h('th', { scope: 'col' }, t)))));
-  const tb = h('tbody');
-  let i0 = 0;
-  P.parts.forEach((p, pi) => {
-    const el = getEl(p.id), i1 = i0 + p.n - 1, after = i1 < P.surfaces.length - 1 ? P.gaps[i1] : null, idx = i0, last = i1;
-    const airCell = after === null ? h('td', { class: 'mono' }, '—') : h('td', null, rwNum(after, v => rwEdit(Pd => { if (v < 0) return 'A gap can’t be negative.'; Pd.gaps[last] = v; }), el.name + ' air after (mm)'));
-    if (p.kind === 'lens' && p.n === 2) {
-      const s1 = P.surfaces[i0], s2 = P.surfaces[i0 + 1], mat = P.materials[i0].glass, matched = el.surfaces.every(s => s.coat && s.coat.label === 'Matching layer');
-      const rCell = (s, j, lab) => h('td', null, rwNum(s.R === null ? Infinity : s.R, v => rwEdit(Pd => { Pd.surfaces[idx + j].R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v; }), el.name + ' ' + lab + ' radius (mm)'));
-      const kCell = (s, j, lab) => h('td', null, rwNum(s.k || 0, v => rwEdit(Pd => { Pd.surfaces[idx + j].k = v; if (v) el.asphere = true; }), el.name + ' ' + lab + ' conic'));
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name),
-        h('td', null, rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[idx] = { glass: v }; }), el.name + ' material')),
-        h('td', null, rwNum(el.diameter, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; el.diameter = v; Pd.surfaces[idx].semi = Pd.surfaces[idx + 1].semi = v / 2; }), el.name + ' diameter (mm)')),
-        h('td', null, rwNum(P.gaps[i0], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
-        rCell(s1, 0, 'face to the feed'), kCell(s1, 0, 'face to the feed'), rCell(s2, 1, 'other face'), kCell(s2, 1, 'other face'),
-        h('td', null, h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
-        airCell));
-    } else if (p.kind === 'grin') {
-      // a graded-index disc: its design (its thickness and grading follow from it)
-      const g = el.grin, set = (k, v) => rwEdit(Pd => { const ng = normGrin(Object.assign({}, g, { [k]: v })); if (!rfGrinInto(Pd, idx, ng, el.length)) return 'A disc of that design can’t be graded: widen its density range, or lengthen its focal length.'; el.grin = ng; applyGrin(el); });
-      const G = grinSlab(g, el.length);
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name),
-        h('td', null, rwSelect(RW_GRIN_MATS(), g.mat, v => set('mat', v), el.name + ' material')),
-        h('td', null, rwNum(el.length, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; if (!rfGrinInto(Pd, idx, g, v)) return 'A disc that wide can’t be graded at this focal length.'; el.length = v; applyGrin(el); }), el.name + ' diameter (mm)')),
-        h('td', { class: 'mono', title: 'Its thickness follows from its focal length, diameter and density range' }, G ? rwFmt(G.T, 4) : '—'),
-        h('td', { colspan: '4' }, h('span', { class: 'rt-rfgrin' }, 'Graded: focal length ', rwNum(g.f, v => { if (!(v > 0)) return; set('f', v); }, el.name + ' focal length (mm)'), ' mm, density ',
-          rwNum(g.fillMax, v => set('fillMax', v), el.name + ' density at the centre (%)'), ' % to ', rwNum(g.fillMin, v => set('fillMin', v), el.name + ' lowest density (%)'), ' %')),
-        h('td', null, h('input', { type: 'checkbox', checked: g.match ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => set('match', e.target.checked ? true : undefined) })),
-        airCell));
-    } else {
-      tb.append(h('tr', null, h('th', { scope: 'row' }, el.name), h('td', { colspan: '8', class: 'rt-lsub' }, p.kind === 'mirror' ? 'A mirror' + (P.surfaces[i0].R ? ', radius ' + rwFmt(P.surfaces[i0].R, 5) + ' mm' : ', flat') + ': its shape is in the optical designer.' : 'Edit it in the optical designer.'),
-        airCell));
-    }
-    i0 += p.n;
-  });
-  tbl.append(tb);
-  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  // each lens cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
-  const zl = P.parts.filter(p => p.kind === 'lens' && p.n === 2).map(p => getEl(p.id)).filter(Boolean);
-  if (zl.length) {
-    card.append(h('h3', null, 'Zones'));
-    card.append(helpLine('Cutting a lens in zones makes it thinner and lighter, and narrows its band.', ['A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'], 'rt-lsub'));
-    for (const el of zl) {
-      const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
-      card.append(h('div', { class: 'rt-lchips rt-rfzone' },
-        h('label', null, h('input', { type: 'checkbox', checked: el.zoned ? '' : null, 'aria-label': el.name + ' cut in zones', onchange: e => zs(e.target.checked, (el.zoned && el.zoned.ghz) || RW.asm.rf.ghz) }), ' ' + el.name + ': cut in zones'),
+function rwPartCard(asm, P, x) {
+  if (!x || !x.el) return rwCard('Nothing chosen', rwSub('Choose a part of the system on the left.'));
+  const el = x.el, p = x.p, idx = x.i0, last = x.i0 + p.n - 1, after = last < P.surfaces.length - 1 ? P.gaps[last] : null;
+  const air = after === null ? [] : [rwRow('Air after (mm)', rwNum(after, v => rwEdit(Pd => { if (v < 0) return 'A gap can’t be negative.'; Pd.gaps[last] = v; }), el.name + ' air after (mm)'))];
+  const lenses = rwParts(P).filter(rwIsLens).length;
+  const design = (type, label, cls, title) => h('button', { class: 'rt-btn' + (cls ? ' ' + cls : ''), type: 'button', title, onclick: () => { RW.design = true; RW.synth = Object.assign({}, RW.synth && RW.synth.pi === x.pi ? RW.synth : {}, { pi: x.pi }, type ? { type } : {}); rwRender(); } }, label);
+  const remove = h('button', { class: 'rt-btn quiet danger rt-rfrm', type: 'button', disabled: rwIsLens(x) && lenses < 2 ? '' : null,
+    title: rwIsLens(x) && lenses < 2 ? 'A system keeps at least one lens' : 'Take it out of the system (Undo brings it back)', onclick: () => rwRemovePart(x) }, 'Remove');
+  if (p.kind === 'lens' && p.n === 2) {
+    const s1 = P.surfaces[idx], s2 = P.surfaces[idx + 1], mat = P.materials[idx].glass, matched = el.surfaces.every(s => s.coat && s.coat.label === 'Matching layer');
+    const rNum = (s, j, lab) => rwNum(s.R === null ? Infinity : s.R, v => rwEdit(Pd => { Pd.surfaces[idx + j].R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v; }), el.name + ' ' + lab + ' radius (mm)');
+    const kNum = (s, j, lab) => rwNum(s.k || 0, v => rwEdit(Pd => { Pd.surfaces[idx + j].k = v; if (v) el.asphere = true; }), el.name + ' ' + lab + ' conic');
+    const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
+    return rwCard(el.name, helpLine('The front face is the one toward the feed.', ['A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer.'], 'rt-lsub'),
+      h('div', { class: 'rt-rfgrid' },
+        rwRow('Material', rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[idx] = { glass: v }; }), el.name + ' material')),
+        rwRow('Diameter (mm)', rwNum(el.diameter, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; el.diameter = v; Pd.surfaces[idx].semi = Pd.surfaces[idx + 1].semi = v / 2; }), el.name + ' diameter (mm)')),
+        rwRow('Centre (mm)', rwNum(P.gaps[idx], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
+        rwRow('Front radius (mm)', rNum(s1, 0, 'face to the feed')), rwRow('Front conic', kNum(s1, 0, 'face to the feed')),
+        rwRow('Back radius (mm)', rNum(s2, 1, 'other face')), rwRow('Back conic', kNum(s2, 1, 'other face')),
+        rwRow('Matching layers', h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
+        ...air),
+      // cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
+      h('div', { class: 'rt-lchips rt-rfzone' },
+        h('label', { title: 'Wherever it is thick, whole layers a wave deep at the zone frequency come out of its curved face: thinner and lighter, the same at that frequency, a narrower band' },
+          h('input', { type: 'checkbox', checked: el.zoned ? '' : null, 'aria-label': el.name + ' cut in zones', onchange: e => zs(e.target.checked, (el.zoned && el.zoned.ghz) || asm.rf.ghz) }), ' Cut in zones'),
         ...(el.zoned ? [h('span', null, 'at ', rwNum(el.zoned.ghz, v => { if (v > 0) zs(true, v); }, el.name + ' zone frequency (GHz)'), ' GHz')] : []),
-        h('span', { class: 'rt-lsub mono' }, Z ? (Z.steps.length ? Z.steps.length + ' step' + (Z.steps.length > 1 ? 's' : '') + ', each ' + rwFmt(Z.dz, 3) + ' mm deep, at ' + Z.steps.map(r => rwFmt(r, 3)).join(', ') + ' mm; ' + rwFmt(lensThickness(el).thickest, 3) + ' mm at its thickest' : 'thinner than one step (' + rwFmt(Z.dz, 3) + ' mm): nothing to cut') : '')));
-    }
+        h('span', { class: 'rt-lsub mono' }, Z ? (Z.steps.length ? Z.steps.length + ' step' + (Z.steps.length > 1 ? 's' : '') + ', each ' + rwFmt(Z.dz, 3) + ' mm deep, at ' + Z.steps.map(r => rwFmt(r, 3)).join(', ') + ' mm; ' + rwFmt(lensThickness(el).thickest, 3) + ' mm at its thickest' : 'thinner than one step (' + rwFmt(Z.dz, 3) + ' mm): nothing to cut') : '')),
+      h('div', { class: 'rt-rfacts' }, design(null, 'Design this lens…', '', 'A lens made to suit the beam that reaches it and the goal after it'),
+        design('grin', 'Make it a graded-index disc…', 'quiet', 'A flat disc graded in density instead, in the same place'), remove));
   }
-  return card;
+  if (p.kind === 'grin') {
+    // a graded-index disc: its design (its thickness and grading follow from it)
+    const g = el.grin, set = (k, v) => rwEdit(Pd => { const ng = normGrin(Object.assign({}, g, { [k]: v })); if (!rfGrinInto(Pd, idx, ng, el.length)) return 'A disc of that design can’t be graded: widen its density range, or lengthen its focal length.'; el.grin = ng; applyGrin(el); });
+    const G = grinSlab(g, el.length);
+    return rwCard(el.name, rwSub('A flat disc, solid at its centre and less dense toward its edge: its thickness follows from its focal length, its diameter and its density range.'),
+      h('div', { class: 'rt-rfgrid' },
+        rwRow('Material', rwSelect(RW_GRIN_MATS(), g.mat, v => set('mat', v), el.name + ' material')),
+        rwRow('Diameter (mm)', rwNum(el.length, v => rwEdit(Pd => { if (!(v > 0)) return 'A diameter must be more than 0.'; if (!rfGrinInto(Pd, idx, g, v)) return 'A disc that wide can’t be graded at this focal length.'; el.length = v; applyGrin(el); }), el.name + ' diameter (mm)')),
+        rwRow('Focal length (mm)', rwNum(g.f, v => { if (!(v > 0)) return; set('f', v); }, el.name + ' focal length (mm)')),
+        rwRow('Thickness (mm)', h('span', { class: 'mono rt-rfro', title: 'It follows from its focal length, diameter and density range' }, G ? rwFmt(G.T, 4) : '—')),
+        rwRow('Density at the centre (%)', rwNum(g.fillMax, v => set('fillMax', v), el.name + ' density at the centre (%)')),
+        rwRow('Lowest density (%)', rwNum(g.fillMin, v => set('fillMin', v), el.name + ' lowest density (%)')),
+        rwRow('Matching layers', h('input', { type: 'checkbox', checked: g.match ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => set('match', e.target.checked ? true : undefined) })),
+        ...air),
+      h('div', { class: 'rt-rfacts' }, design(null, 'Design this disc…', '', 'A disc made to suit the beam that reaches it and the goal after it'),
+        design('hyperbolic', 'Make it a lens…', 'quiet', 'A lens with curved faces instead, in the same place'), remove));
+  }
+  return rwCard(el.name, rwSub(p.kind === 'mirror' ? 'A mirror' + (P.surfaces[idx].R ? ', radius ' + rwFmt(P.surfaces[idx].R, 5) + ' mm' : ', flat') + ': its shape is in the optical designer.' : 'Edit it in the optical designer.'),
+    h('div', { class: 'rt-rfgrid' }, ...air));
+}
+/* a lens added after the last part: a made-to-order plastic as wide as the lens before it, 100 mm on, then designed */
+function rwAddLens() {
+  checkpoint();
+  const asm = RW.asm, P = designPrescription(asm), prev = rwParts(P).filter(rwIsLens).pop();
+  if (!(P.image > 0)) P.image = 100;
+  const made = insertSinglet(asm, P, P.surfaces.length - 1);
+  if (typeof made === 'string') { toast(made, true); return; }
+  const D = prev && prev.el ? (prev.el.type === 'mask' ? prev.el.length : prev.el.diameter) : 120;
+  const P2 = designPrescription(asm), x = rwParts(P2).find(q => q.p.id === made.id);
+  if (!x) { toast('Nothing was added.', true); return; }
+  P2.materials[x.i0] = { glass: 'PLA' }; P2.gaps[x.i0] = 10; if (x.i0 > 0) P2.gaps[x.i0 - 1] = 100;
+  P2.surfaces[x.i0].semi = P2.surfaces[x.i0 + 1].semi = D / 2;
+  commitDesign(asm, P2);
+  const el = getEl(made.id), n = rwParts(designPrescription(asm)).filter(rwIsLens).length;
+  Object.assign(el, { name: 'RF lens ' + n, diameter: D, mmw: { part: true }, asphere: true });
+  const P3 = designPrescription(asm);
+  rfSyncCond(asm, P3); rwToBench(asm, P3);
+  changed(true);
+  RW.sel = el.id; RW.design = true; RW.synth = { pi: x.pi, type: 'hyperbolic', D };
+  rwRender();
+}
+function rwRemovePart(x) {
+  checkpoint();
+  const asm = RW.asm, r = removeSurface(asm, designPrescription(asm), x.i0);
+  if (r !== true) { toast(r, true); return; }
+  const P = designPrescription(asm);
+  rfSyncCond(asm, P); rwToBench(asm, P);
+  RW.sel = null; RW.design = false;
+  changed(true);
+  rwRender();
 }
 /* a lens's two faces matched, or not: a quarter-wave layer of index √n at the design frequency on each */
 function rwMatch(el, on) {
@@ -431,19 +519,17 @@ function rwMatch(el, on) {
 }
 
 /* ---------- Design a lens from a spec ---------- */
-function rwSynthCard(asm, P) {
-  const card = h('section', { class: 'rt-lcard rt-rfsynth', role: 'tabpanel', 'aria-label': 'Design a lens' }, h('h3', null, 'Design a lens'));
-  const lenses = P.parts.map((p, pi) => ({ p, pi })).filter(x => (x.p.kind === 'lens' || x.p.kind === 'grin') && x.p.n === 2);
-  if (!lenses.length) { card.append(h('p', { class: 'rt-lsub' }, 'This system has no lens of two faces, or graded-index disc, to design.')); return card; }
-  const first = lenses[0], el0 = getEl(first.p.id), dia0 = el0 ? (el0.type === 'mask' ? el0.length : el0.diameter) : 100;
-  const sp = RW.synth = Object.assign({ pi: first.pi, type: el0 && el0.grin ? 'grin' : 'hyperbolic', mat: RF_MAT[P.materials[0] && P.materials[0].glass] ? P.materials[0].glass : 'PLA', D: dia0, edge: 2, place: 'keep', taper: 11, match: true, fillMax: 100, fillMin: 15 }, RW.synth || {});
-  if (!lenses.some(x => x.pi === sp.pi)) sp.pi = first.pi;
+function rwSynthCard(asm, P, x) {
+  const el0 = x.el, dia0 = el0 ? (el0.type === 'mask' ? el0.length : el0.diameter) : 100;
+  const card = h('section', { class: 'rt-lcard rt-rfedit rt-rfsynth', 'aria-label': 'Design a lens' },
+    h('div', { class: 'rt-rfedhead' }, h('h3', null, 'Design ' + el0.name), h('button', { class: 'rt-btn quiet', type: 'button', onclick: () => { RW.design = false; rwRender(); } }, 'Back to ' + el0.name)));
+  const g0 = P.materials[x.i0] && P.materials[x.i0].glass;
+  const sp = RW.synth = Object.assign({ type: el0 && el0.grin ? 'grin' : 'hyperbolic', mat: RF_MAT[g0] ? g0 : 'PLA', D: dia0, edge: 2, place: 'keep', taper: 11, match: true, fillMax: 100, fillMin: 15 }, RW.synth && RW.synth.pi === x.pi ? RW.synth : {}, { pi: x.pi });
   const isG = sp.type === 'grin';
   if (isG && !(RF_MAT[sp.mat] && RF_MAT[sp.mat].print)) sp.mat = 'PLA';
   card.append(helpLine('A lens, or a graded-index disc, made to suit the beam and the goal.', ['A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'], 'rt-lsub'));
   const set = (k, v) => { sp[k] = v; rwRender(); };
   const grid = h('div', { class: 'rt-rfgrid' },
-    rwRow('Lens', rwSelect(Object.fromEntries(lenses.map(x => [String(x.pi), getEl(x.p.id).name])), String(sp.pi), v => set('pi', +v), 'Lens to design')),
     rwRow('Kind', rwSelect(RF_LENS_TYPES, sp.type, v => set('type', v), 'Lens kind')),
     rwRow('Material', rwSelect(isG ? RW_GRIN_MATS() : RW_MATS(), sp.mat, v => set('mat', v), 'Lens material')),
     rwRow('Diameter (mm)', rwNum(sp.D, v => set('D', Math.max(1, v)), 'Lens diameter (mm)')),
@@ -493,6 +579,7 @@ function rwSwapKind(asm, Pd, i, toGrin, sp, out) {
 }
 function rwApplySynth(out, sp) {
   const asm = RW.asm;
+  RW.design = false;
   if (out.kind === 'grin') {
     rwEdit(Pd => {
       const el = rwSwapKind(asm, Pd, out.i0, true, sp, out);

@@ -25,7 +25,7 @@
         <div class="rt-more rt-file">
           <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+          <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
@@ -65,12 +65,12 @@
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
         </div>
-        <button class="rt-btn rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)">+ Add part</button>
+        <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
         <div class="rt-group rt-tight">
-          <button class="rt-btn rt-icon" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button class="rt-btn rt-icon" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+          <button class="rt-btn rt-icon quiet" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+          <button class="rt-btn rt-icon quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
         </div>
-        <div class="rt-more">
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
@@ -90,7 +90,7 @@
             <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
           </div>
         </div>
-        <div class="rt-more">
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnSweeps" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="sweepsMenu">Sweeps</button>
           <div class="rt-menu rt-imenu" id="sweepsMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnPlayAll" data-icon="play" disabled>Play all</button>
@@ -107,11 +107,11 @@
           <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
-          <button class="rt-btn" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
+          <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
           <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
-          <button class="rt-btn primary" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)">Save<span class="rt-wide"> .jekray</span></button>
-          <div class="rt-more">
-            <button class="rt-btn rt-help" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
+          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
+          <div class="rt-more rt-phonegone">
+            <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
             <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
               <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
               <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
@@ -136,10 +136,30 @@
             </div>
             <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
           </div>
-          <a class="rt-btn rt-cartbtn" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
-          <div class="rt-more" id="acct" hidden>
-            <button class="rt-btn rt-acct" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
+          <a class="rt-btn rt-cartbtn quiet" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
+          <div class="rt-more rt-phonegone" id="acct" hidden>
+            <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
+          </div>
+          <!-- a phone: the bar on one row, the rest of it in here -->
+          <div class="rt-more rt-moremenu">
+            <button class="rt-btn rt-icon quiet" id="btnMore" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" aria-label="More" title="More">⋯</button>
+            <div class="rt-menu rt-menu-right rt-imenu" id="moreMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="moreUndo">Undo</button>
+              <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="moreRedo">Redo</button>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnView" data-icon="eye">View…</button>
+              <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
+              <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <div class="sep"></div>
+              <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
+              <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
+              <button type="button" role="menuitem" data-click="btnHelpMenu" data-icon="info">Help and shortcuts…</button>
+              <div class="sep"></div>
+              <span class="rt-menunote">JEKray is in open beta: if something looks wrong, Help › Report a bug.</span>
+            </div>
           </div>
         </div>
       </div>

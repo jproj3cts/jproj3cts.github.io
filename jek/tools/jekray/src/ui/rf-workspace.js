@@ -2,7 +2,7 @@ import { asmAxisAt, asmCheck, asmMembers, normCond, normRfCond } from '../core/a
 import { C_NM_GHZ, PRINTER, RF_HORNS, RF_MAT, applyRf, hornGeom, mountVolume, mountedDia, normMount, printedMatch, rfBeam } from '../core/rf.js';
 import { lensThickness, lensVolume } from './readouts.js';
 import { orderRow } from '../io/order.js';
-import { lens3d, saveLensStl } from './rf-lens3d.js';
+import { lens3d } from './rf-lens3d.js';
 import { saveDrawingSvg, saveDrawingsPdf } from './lens-drawing.js';
 import { drawableParts } from '../engines/lens-drawing.js';
 import { V, normCoat, project, uid } from '../state/project.js';
@@ -658,12 +658,11 @@ function rwMakeCard(asm, P, T) {
       rwRow('Mounting', rwSelect({ none: 'None', flange: 'Flange with bolt holes' }, m ? 'flange' : 'none', v => rwEdit(() => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; return false; }), el.name + ' mounting')),
       ...(m ? [rwRow('Flange width (mm)', rwNum(m.width, v => mset('width', v), el.name + ' flange width (mm)')), rwRow('Flange thickness (mm)', rwNum(m.thick, v => mset('thick', v), el.name + ' flange thickness (mm)')),
         rwRow('Bolt holes', rwNum(m.holes, v => mset('holes', v), el.name + ' bolt holes')), rwRow('Hole diameter (mm)', rwNum(m.hole, v => mset('hole', v), el.name + ' hole diameter (mm)'))] : [])));
-    // its drawing and its shape, for the customer's own records and mechanical design: not files to print from
+    // its drawing, for the customer's own records and mechanical design: not a file to make it from
     const di = drawableParts(P).indexOf(pi);
-    box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Files of its design:'),
+    box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Its design drawing:'),
       h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)'),
-      h('button', { type: 'button', class: 'rt-btn', title: 'Its shape as a mesh, flange included, in mm, its axis along z: for your mechanical design (not a file to print from)', onclick: () => saveLensStl(el) }, 'Shape (STL)')));
+      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)')));
     if (ok) {
       const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
       if (row) box.append(row);

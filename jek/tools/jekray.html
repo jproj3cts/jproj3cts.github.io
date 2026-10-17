@@ -25234,36 +25234,6 @@ function r3geoms(T, el, seg) {
   }
   return out;
 }
-/* the lens as an STL mesh (the shape it is to have, not a file to print from: no density, layers or supports), in
-   mm, its axis along z, the front vertex at the origin: every triangle of its solids, as binary STL */
-async function lensStl(el) {
-  const T = await r3load(), tris = [];
-  for (const g0 of r3geoms(T, el, 128)) {
-    const g = g0.index ? g0.toNonIndexed() : g0, p = g.attributes.position.array;
-    for (let i = 0; i < p.length; i += 9) {
-      // y (the axis) to z: (x, y, z) -> (x, -z, y), a right-handed turn, so the faces still face out
-      const v = [0, 3, 6].map(k => [p[i + k], -p[i + k + 2], p[i + k + 1]]);
-      const u = [v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]], w = [v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]];
-      const nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], l = Math.hypot(...nrm);
-      if (!(l > 1e-12)) continue;
-      tris.push([nrm.map(x => x / l), ...v]);
-    }
-    g.dispose(); if (g !== g0) g0.dispose();
-  }
-  const buf = new ArrayBuffer(84 + 50 * tris.length), dv = new DataView(buf), head = ('JEKray RF lens ' + (el.name || '')).slice(0, 80);
-  for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i) & 0x7f);
-  dv.setUint32(80, tris.length, true);
-  tris.forEach((t, k) => { let o = 84 + 50 * k; for (const q of t) for (const x of q) { dv.setFloat32(o, x, true); o += 4; } });
-  return { bytes: buf, tris: tris.length };
-}
-async function saveLensStl(el) {
-  try {
-    const out = await lensStl(el), name = safeFileName(el.name || 'RF lens') + '.stl';
-    downloadFile(name, new Blob([out.bytes], { type: 'model/stl' }));
-    toast('Saved ' + name + ': the lens' + (el.mount ? ' and its flange' : '') + ', ' + out.tris + ' triangles, in mm.');
-    return out;
-  } catch (err) { toast('Could not make the STL: ' + err.message, true); return null; }
-}
 /* the lens's outline in (r, z), front face to back, for a lathe */
 function r3profile(el) {
   const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
@@ -25967,12 +25937,11 @@ function rwMakeCard(asm, P, T) {
       rwRow('Mounting', rwSelect({ none: 'None', flange: 'Flange with bolt holes' }, m ? 'flange' : 'none', v => rwEdit(() => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; return false; }), el.name + ' mounting')),
       ...(m ? [rwRow('Flange width (mm)', rwNum(m.width, v => mset('width', v), el.name + ' flange width (mm)')), rwRow('Flange thickness (mm)', rwNum(m.thick, v => mset('thick', v), el.name + ' flange thickness (mm)')),
         rwRow('Bolt holes', rwNum(m.holes, v => mset('holes', v), el.name + ' bolt holes')), rwRow('Hole diameter (mm)', rwNum(m.hole, v => mset('hole', v), el.name + ' hole diameter (mm)'))] : [])));
-    // its drawing and its shape, for the customer's own records and mechanical design: not files to print from
+    // its drawing, for the customer's own records and mechanical design: not a file to make it from
     const di = drawableParts(P).indexOf(pi);
-    box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Files of its design:'),
+    box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Its design drawing:'),
       h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)'),
-      h('button', { type: 'button', class: 'rt-btn', title: 'Its shape as a mesh, flange included, in mm, its axis along z: for your mechanical design (not a file to print from)', onclick: () => saveLensStl(el) }, 'Shape (STL)')));
+      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)')));
     if (ok) {
       const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
       if (row) box.append(row);
@@ -44029,7 +43998,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, saves its drawing (PDF or SVG, with its permittivity, profile tolerance and matching layers) and its shape as STL, and quotes it: the request gives each face\u2019s conic and links to the whole system. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
+    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, saves its drawing (PDF or SVG, with its permittivity, profile tolerance and matching layers), and quotes it: the request gives each face\u2019s conic and links to the whole system. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
     '<b>Stock lenses</b> in lens design: add lens files you have (.zmx or .zar, such as lens makers publish for their parts; kept in your browser only) and the <b>Stock lenses</b> tab finds, for each lens of the design, those with the right focal length, faces and room for the beam, tries each in the design either way round with the air about it optimised, and ranks them by the design\u2019s merit; <b>Use</b> puts one in.',
     '<b>Export for CAD</b>: an assembly\u2019s panel exports its lenses, windows, mirrors and stops as solids for mechanical design, placed as the design has them (folds and tilts too): <b>Export for CAD (.step)</b> writes exact spheres and planes and each asphere as its profile turned, and <b>Export as a mesh (.stl)</b> the same in triangles.',
     '<b>Thermal analysis</b> in lens design: <b>Analyses \u203a Thermal</b> takes the design from one temperature to another, at any pressure, in an aluminium, steel, brass, titanium or Invar housing: each glass\u2019s index by its maker\u2019s thermal data (over 1,100 glasses) and the air\u2019s, the lenses growing with their glasses and the spacers and detector with the housing. It gives the focal length, the focus against the detector, each field\u2019s spot and the focus drift per kelvin.',
@@ -45888,7 +45857,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
-    async lensStl(id) { const e = getEl(id); if (!e) return null; const o = await lensStl(e); return { bytes: o.bytes.byteLength, tris: o.tris, count: new DataView(o.bytes).getUint32(80, true) }; },
     lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
     async lensReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await reportPdfBlob(a, { raw: true })).text() : null; },
     async lensDrawingsPdf(name, i) { const a = assemblies().find(x => x.name === name); return a ? await (await drawingsPdfBlob(a, i)).text() : null; },

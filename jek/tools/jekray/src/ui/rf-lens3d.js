@@ -1,7 +1,6 @@
 import { surfSag } from '../engines/lens-design.js';
 import { RF_MAT } from '../core/rf.js';
 import { h } from './panel.js';
-import { downloadFile, safeFileName, toast } from './actions.js';
 
 /* ---------- A lens to be made, in 3D: a quick look before it is ordered ----------
    The lens as it would be printed: its faces turned about its axis to their full diameter (the sags as the bench
@@ -36,36 +35,6 @@ function r3geoms(T, el, seg) {
     out.push(g);
   }
   return out;
-}
-/* the lens as an STL mesh (the shape it is to have, not a file to print from: no density, layers or supports), in
-   mm, its axis along z, the front vertex at the origin: every triangle of its solids, as binary STL */
-export async function lensStl(el) {
-  const T = await r3load(), tris = [];
-  for (const g0 of r3geoms(T, el, 128)) {
-    const g = g0.index ? g0.toNonIndexed() : g0, p = g.attributes.position.array;
-    for (let i = 0; i < p.length; i += 9) {
-      // y (the axis) to z: (x, y, z) -> (x, -z, y), a right-handed turn, so the faces still face out
-      const v = [0, 3, 6].map(k => [p[i + k], -p[i + k + 2], p[i + k + 1]]);
-      const u = [v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]], w = [v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]];
-      const nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], l = Math.hypot(...nrm);
-      if (!(l > 1e-12)) continue;
-      tris.push([nrm.map(x => x / l), ...v]);
-    }
-    g.dispose(); if (g !== g0) g0.dispose();
-  }
-  const buf = new ArrayBuffer(84 + 50 * tris.length), dv = new DataView(buf), head = ('JEKray RF lens ' + (el.name || '')).slice(0, 80);
-  for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i) & 0x7f);
-  dv.setUint32(80, tris.length, true);
-  tris.forEach((t, k) => { let o = 84 + 50 * k; for (const q of t) for (const x of q) { dv.setFloat32(o, x, true); o += 4; } });
-  return { bytes: buf, tris: tris.length };
-}
-export async function saveLensStl(el) {
-  try {
-    const out = await lensStl(el), name = safeFileName(el.name || 'RF lens') + '.stl';
-    downloadFile(name, new Blob([out.bytes], { type: 'model/stl' }));
-    toast('Saved ' + name + ': the lens' + (el.mount ? ' and its flange' : '') + ', ' + out.tris + ' triangles, in mm.');
-    return out;
-  } catch (err) { toast('Could not make the STL: ' + err.message, true); return null; }
 }
 /* the lens's outline in (r, z), front face to back, for a lathe */
 function r3profile(el) {

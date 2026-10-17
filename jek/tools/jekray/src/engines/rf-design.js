@@ -4,10 +4,11 @@ import { normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
 import { lensSystem, traceRay } from './lens-engine.js';
-import { besselJ01 } from './field.js';
 import { surfSag, surfaceParts } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
+import { besselJ01 } from '../core/special.js';
+import { cdiv, randn, seededRng } from '../core/numeric.js';
 
 /* ==========================================================================
    An RF system as its designer sees it: a feed horn's Gaussian beam through the lenses and mirrors
@@ -31,13 +32,12 @@ import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
    the beam's profile), and the power past each aperture (spillover, exp(-2 a²/w²)).
    ========================================================================== */
 export const rfNm = ghz => C_NM_GHZ / ghz;
-const rfCdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 /* the reduced beam parameter across a gap g of index n: straight, or through a graded glass (a graded-index disc's)
    by its r² term's matrix, on (y, n u): [[A, B/n], [n C, D]] */
 function rfGap(q, g, n, GR) {
   if (!GR || !GR.G || !GR.G[0]) return [q[0] + g / n, q[1]];
   const m = grMatrix(GR.G[0], n, g), A = m[0], B = m[1] / n, C = m[2] * n, D = m[3];
-  return rfCdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
+  return cdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
 }
 const rfGR = (S, i) => S.GR ? S.GR[i] : null;
 /* a beam parameter's radius and phase radius (mm; R Infinity at a waist) */
@@ -126,7 +126,7 @@ export function rfTrace(asm, P, ghz, opts) {
     const pc = S.c[i] + 2 * S.a2[i];
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     // 1/q' = 1/q - phi, in reduced form
-    const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
+    const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     if (i < N - 1) {
       const g = P.gaps[i], n = S.n[i + 1], n2 = 12, GR = rfGR(S, i);
       for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR)); }
@@ -212,7 +212,6 @@ export function rfBand(asm, P) {
   return { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
 }
 /* the indices the trace used at nm for a material (exported for the lens table) */
-export const rfIndex = (m, ghz) => refIndex(m, rfNm(ghz));
 
 /* ---------- Design from a spec ----------
    A lens of the system made to suit the beam that reaches it and what it is for, as a millimetre-wave lens is
@@ -234,7 +233,7 @@ export function rfQBefore(asm, P, ghz, idx, feedD) {
   let q = [(feedD === undefined ? R.feed.d : feedD) + B.dz, B.zR];
   for (let i = 0; i < idx; i++) {
     const pc = S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
-    const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
+    const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }
   return q;
@@ -295,9 +294,9 @@ export function rfSynth(asm, P, spec) {
     const want = -d2 / (d2 * d2 + zRt * zRt);
     const miss = c => {
       const sc = { R: 1 / c, k: s1.k }, t = Math.max(0, spec.edge) + sag(sc);
-      let iq = rfCdiv([1, 0], q); let qq = rfCdiv([1, 0], [iq[0] - (n - 1) * c, iq[1]]);
+      let iq = cdiv([1, 0], q); let qq = cdiv([1, 0], [iq[0] - (n - 1) * c, iq[1]]);
       qq = [qq[0] + t / n, qq[1]];
-      iq = rfCdiv([1, 0], qq);
+      iq = cdiv([1, 0], qq);
       // the flat back: 1/q̂ unchanged in reduced form
       return isFinite(t) ? iq[0] - want : NaN;
     };
@@ -332,7 +331,7 @@ function rfSynthGrin(spec, M, q, i0, o) {
     const G = grinSlab(grin(f), spec.D);
     if (!G) return NaN;
     const n = G.n0, qq = rfGap(q, G.T, n, { G: G.grad });
-    return rfCdiv([1, 0], qq)[0] - want;
+    return cdiv([1, 0], qq)[0] - want;
   };
   let f0 = 1 / (1 / F1 + (isFinite(F2) ? 1 / F2 : 0));
   if (!(f0 > 0) || !isFinite(f0)) return { error: 'The beam reaching it and the goal after it need no focusing a disc can give.' };
@@ -417,7 +416,7 @@ function rfSlabR(layers, nm) {
 }
 
 /* ---------- Optimise ----------
-   Damped least squares on the system's own figures: at five frequencies across the band, the efficiency short of
+   Quasi-Newton (BFGS, below) on the system's own figures: at five frequencies across the band, the efficiency short of
    1 (for a collimated beam that is the gain at its diameter; for the others the coupling and the losses), and, if
    asked, how far each is from their mean (flatness). Each lens keeps its centre no thicker than a limit (if set),
    its edge no thinner than one, and the air between parts open. The variables: each face's curvature (so a face
@@ -601,9 +600,8 @@ export function rfSensitivity(asm, P, T) {
 /* Monte Carlo, a batch of builds at a time: plan (its state), run(n) to go on, the builds so far */
 export function rfMcPlan(asm, P, T) {
   const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
-  let s = tol.seed >>> 0 || 1;
-  const rnd = () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; s ^= s >>> 13; return ((s >>> 0) + 0.5) / 4294967296; };
-  const draw = v => tol.dist === 'normal' ? (v / 2) * Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd()) : v * (2 * rnd() - 1);
+  const rnd = seededRng(tol.seed >>> 0 || 1);
+  const draw = v => tol.dist === 'normal' ? (v / 2) * randn(rnd) : v * (2 * rnd() - 1);
   const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 })), done: false };
   plan.run = n => {
     for (let k = 0; k < n && plan.builds.length < tol.trials; k++) {

@@ -7,13 +7,11 @@ import { allSources, getEl } from '../state/elements.js';
 import { frame, toLocal } from '../core/mask.js';
 import { lastTrace } from './trace.js';
 import { arrival3 } from './fibre-face.js';
-import {
-  besselJ01, field2LineAt, halfWidthOf, ihankel, interpL, popAxis, popFieldSeries, popGuard, popInside,
-  popIntensityAt, popInvR, popPower, popRadii, popResidual, popStats, popW, qdht
-} from './field.js';
+import { field2LineAt, halfWidthOf, ihankel, interpL, popAxis, popFieldSeries, popGuard, popInside, popIntensityAt, popInvR, popPower, popRadii, popResidual, popStats, popW, qdht } from './field.js';
 import { VF_NA, polMaps, vfApply, vfAt, vfPupil } from './vector-focus.js';
 import { cdft, cmulPhase, field2I, fieldComps, interp2, popStats2 } from './field2d.js';
 import { popJ, popKeyOf, popRun, segW } from './beam-tree.js';
+import { besselJ01 } from '../core/special.js';
 
 /* ---------- Diffraction ----------
    The rays arriving at a screen sample the converging wavefront: each one carries a
@@ -27,20 +25,6 @@ import { popJ, popKeyOf, popRun, segW } from './beam-tree.js';
    and the tangential MTF, which is what the 1D kernel gives. */
 
 /* Bessel J0, Abramowitz and Stegun 9.4.1 and 9.4.3 */
-function besselJ0(x) {
-  x = Math.abs(x);
-  if (x < 3) {
-    const y = (x / 3) ** 2;
-    return 1 - 2.2499997 * y + 1.2656208 * y * y - 0.3163866 * y ** 3
-      + 0.0444479 * y ** 4 - 0.0039444 * y ** 5 + 0.00021 * y ** 6;
-  }
-  const y = 3 / x;
-  const f = 0.79788456 - 0.00000077 * y - 0.0055274 * y * y - 0.00009512 * y ** 3
-    + 0.00137237 * y ** 4 - 0.00072805 * y ** 5 + 0.00014476 * y ** 6;
-  const t = x - 0.78539816 - 0.04166397 * y - 0.00003954 * y * y + 0.00262573 * y ** 3
-    - 0.00054125 * y ** 4 - 0.00029333 * y ** 5 + 0.00013558 * y ** 6;
-  return f * Math.cos(t) / Math.sqrt(x);
-}
 
 export const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 

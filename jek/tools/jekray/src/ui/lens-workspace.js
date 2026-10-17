@@ -25,6 +25,7 @@ import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
 import { isRfAsm, openRfDesign } from './rf-workspace.js';
+import { fmtWs } from '../core/format.js';
 
 /* ==========================================================================
    The lens design workspace
@@ -38,7 +39,7 @@ import { isRfAsm, openRfDesign } from './rf-workspace.js';
 let WS = null;                     // { asm, tab, sel, draft, took }
 const FIELD_COLOURS = ['#5aa9ff', '#5fd38a', '#ff7a6b', '#f2c14e', '#c38bff', '#4fd6d6', '#ff9cd0', '#b0b8c0'];
 export const lensDesignOpen = () => !!WS;
-const wsFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : String(+(+v).toPrecision(p || 6));
+const wsFmt = (v, p) => fmtWs(v, p || 6);
 const fmtR = v => v === null || v === undefined ? 'Flat' : wsFmt(v, 7);
 
 /* the light the bench sends the assembly, as conditions: null when none reaches it */

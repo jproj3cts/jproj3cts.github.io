@@ -1,4 +1,5 @@
 import { stackAmp } from './coatings.js';
+import { cabs2 } from './numeric.js';
 
 /* ==========================================================================
    One face: what it does to light's two polarisations
@@ -11,7 +12,6 @@ import { stackAmp } from './coatings.js';
    absorbed. Each amplitude is [re, im].
    ========================================================================== */
 
-const cAbs2 = a => a[0] * a[0] + a[1] * a[1];
 
 /* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
    n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
@@ -81,4 +81,4 @@ export function mirrorAmps(R, back) {
 }
 
 /* a face's power reflection square on (s and p alike there), as the RF designer and a graded disc count it */
-export const faceRNormal = (n1, n2, nm, coat) => cAbs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
+export const faceRNormal = (n1, n2, nm, coat) => cabs2(faceAmps({ coat }, n1, n2, 1, nm).rs);

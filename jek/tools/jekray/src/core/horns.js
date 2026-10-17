@@ -1,4 +1,5 @@
 import { hermite } from './pulses.js';
+import { besselJn } from './special.js';
 
 /* ---------- Feed horns: the field across the aperture ----------
    A horn launches the field its waveguide mode leaves across its aperture, on a spherical
@@ -16,20 +17,14 @@ import { hermite } from './pulses.js';
    fundamental's share is the horn's Gaussicity; the sum stops at order 12 and what it leaves
    out (the sharp edge of the field at the wall) is lost with the cross-polar field, both
    reported. The far-field pattern is the Fourier transform of the aperture field itself. */
-function hornBessel(n, x) {
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
-}
 const CHI = 1.8411837813, J0Z = 2.4048255577;
 /* the field at (x, y) in units of the aperture's radius a (half its side for a diagonal horn), as
    [along the polarisation, across it]; k is the fitted Gaussian's radius over a */
 export const HORN_FIELDS = {
-  corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [hornBessel(0, J0Z * r), 0]; } },
+  corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [besselJn(0, J0Z * r), 0]; } },
   smooth: { k: 0.765, field: (x, y) => {
     const r = Math.hypot(x, y); if (r > 1) return [0, 0];
-    const rho = CHI * r, j0 = hornBessel(0, rho), j2 = hornBessel(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
+    const rho = CHI * r, j0 = besselJn(0, rho), j2 = besselJn(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
     return [j0 - j2 * c2, j2 * s2];                      // the field along y: phi from the H-plane (x)
   } },
   diagonal: { k: 0.86, field: (x, y) => {

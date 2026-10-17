@@ -2,6 +2,7 @@ import { DESIGN_KEY, MC_MAX, asmApply, asmMembers, asmPrescription, normCond, no
 import { deg, nextName, project, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { lensSystem, seidel } from './lens-engine.js';
+import { sagInPlane } from '../core/sag.js';
 
 /* ==========================================================================
    Lens design: an assembly worked on as a lens designer works on it
@@ -119,21 +120,8 @@ export function setV(P, at, v) {
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
 }
-/* a surface's sag at height h (NaN beyond a sphere's edge) */
-export function surfSag(s, h) {
-  // (in the plane of the fields: a cylinder curved out of it is flat there)
-  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = h * h;
-  if (s.cyl === 'x') { let v = 0; if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]); return v; }
-  let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
-  v += (s.a2 || 0) * r2;
-  let p = r2 * r2;
-  for (const a of s.A || []) { v += a * p; p *= r2; }
-  let q = h;
-  for (const o of s.odd || []) { v += o * q; q *= h; }
-  // a freeform's terms in the plane of the fields (x = 0)
-  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
-  return v;
-}
+/* a surface's sag at height h in the plane of the fields (core/sag.js; NaN beyond a sphere's edge) */
+export const surfSag = sagInPlane;
 
 /* ---------- Conditions and first order ---------- */
 export const primaryNm = c => c.waves[c.primary].nm;

@@ -3,6 +3,7 @@ import { surfaceParts } from './lens-design.js';
 import { dpPhase, dpSlopeOverR } from '../core/diffractive.js';
 import { C_NM_GHZ, RF_MAT, lensZones, mountedDia, normMount, printedMatch } from '../core/rf.js';
 import { grinDesign } from '../core/grin.js';
+import { sagInPlane } from '../core/sag.js';
 
 /* ==========================================================================
    A lens drawn to be made: what its drawing says
@@ -22,20 +23,7 @@ import { grinDesign } from '../core/grin.js';
    ========================================================================== */
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
 
-export function drawSag(s, y) {
-  // (the section drawn is in the plane of the fields: a cylinder curved out of it is flat there)
-  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = y * y;
-  const q = 1 - (1 + (s.k || 0)) * c * c * r2;
-  if (q < 0) return NaN;
-  let v = c ? c * r2 / (1 + Math.sqrt(q)) : 0;
-  v += (s.a2 || 0) * r2;
-  let p = r2 * r2;
-  for (const a of s.A || []) { v += a * p; p *= r2; }
-  if (s.odd) { let r = Math.abs(y); for (const a of s.odd) { v += a * r; r *= Math.abs(y); } }
-  // a freeform's terms along the section drawn (the plane of the fields)
-  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(y, +k[1]);
-  return v;
-}
+export const drawSag = sagInPlane;      // the section drawn is in the plane of the fields (core/sag.js)
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
 
 /* the parts of P a drawing can be made of: its lenses and windows, by index into P.parts */

@@ -17,6 +17,7 @@ import { pdNetMw, pdSignal } from './detector.js';
 import { diffCache } from './diffraction.js';
 import { detFieldGen, detectorFieldResult, statsCache } from './pd-cavity.js';
 import { binCache } from './screen-stats.js';
+import { cdiv, cmul } from '../core/numeric.js';
 
 export const ELEC_YELLOW = '#f2c14e';
 export const DARK = '#2b2617';
@@ -165,14 +166,12 @@ function through(S, H, unit, n2) {
   return tidy(out);
 }
 /* complex helpers for the transfer functions */
-const elecCmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
-const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 /* a Butterworth low-pass of order n, at s (normalised: s = i f / fc), as prod (-p_k) / (s - p_k) */
 function butterLP(n, s) {
   let h = [1, 0];
   for (let k = 1; k <= n; k++) {
     const a = Math.PI * (2 * k + n - 1) / (2 * n), pk = [Math.cos(a), Math.sin(a)];
-    h = elecCmul(h, cdiv([-pk[0], -pk[1]], [s[0] - pk[0], s[1] - pk[1]]));
+    h = cmul(h, cdiv([-pk[0], -pk[1]], [s[0] - pk[0], s[1] - pk[1]]));
   }
   return h;
 }
@@ -216,7 +215,7 @@ function mixer(A, B, k) {
   for (const b of B.tones) addTone(out.tones, b.f, k * b.re * A.dc, k * b.im * A.dc);
   // Re(a e^{i w1 t}) Re(b e^{i w2 t}) = (1/2) Re(a b e^{i (w1 + w2) t}) + (1/2) Re(a conj(b) e^{i (w1 - w2) t})
   for (const a of A.tones) for (const b of B.tones) {
-    const ab = elecCmul([a.re, a.im], [b.re, b.im]), ac = elecCmul([a.re, a.im], [b.re, -b.im]);
+    const ab = cmul([a.re, a.im], [b.re, b.im]), ac = cmul([a.re, a.im], [b.re, -b.im]);
     addTone(out.tones, a.f + b.f, 0.5 * k * ab[0], 0.5 * k * ab[1]);
     const d = a.f - b.f;
     if (Math.abs(d) <= 1e-9 * Math.max(a.f, b.f)) out.dc += 0.5 * k * ac[0];

@@ -20,7 +20,6 @@ export function normGrad(G) {
   while (out.length && !out[out.length - 1]) out.pop();
   return out.length ? out : undefined;
 }
-export const grOn = G => !!G && G.some(v => v);
 /* the index added at r² = r2, and dn/dr over r */
 export function grDelta(G, r2) { let v = 0, p = r2; for (let j = 0; j < G.length; j++) { v += G[j] * p; p *= r2; } return v; }
 export function grSlopeOverR(G, r2) { let v = 0, p = 1; for (let j = 0; j < G.length; j++) { v += 2 * (j + 1) * G[j] * p; p *= r2; } return v; }

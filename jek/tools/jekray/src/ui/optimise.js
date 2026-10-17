@@ -17,6 +17,7 @@ import { blockedPct, diffraction } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
 import { screenStats } from '../engines/screen-stats.js';
 import { changed } from './actions.js';
+import { randn, seededRng } from '../core/numeric.js';
 
 /* ---------- One-parameter search over a swept range ---------- */
 
@@ -374,12 +375,8 @@ export function sensitivity(vars, target, key) {
   return { base, rows, rss };
 }
 
-function randn() {
-  let u = 0, v = 0;
-  while (!u) u = Math.random();
-  while (!v) v = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+// seeded by the number of trials asked for, so a study repeats
+let mcRnd = seededRng(1);
 
 /* Runs in slices so the page keeps painting; `onDone` gets the sorted samples. */
 export let mcJob = null;                       // { i, n } while a tolerance study runs
@@ -388,6 +385,7 @@ export function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, 
   const job = mcJob = { i: 0, n: trials };
   const start = vars.map(([el, path]) => getPath(el, path));
   const samples = [];
+  mcRnd = seededRng(trials);
   const nominal = (traceScene(), metricRaw(target, key));
   let i = 0;
   const step = () => {
@@ -398,8 +396,8 @@ export function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, 
         const sw = el.sweeps[path];
         const lo = Math.min(sw.min, sw.max), hi = Math.max(sw.min, sw.max);
         let v;
-        if (dist === 'uniform') v = lo + Math.random() * (hi - lo);
-        else v = clamp(start[k] + randn() * (hi - lo) / 6, lo, hi);
+        if (dist === 'uniform') v = lo + mcRnd() * (hi - lo);
+        else v = clamp(start[k] + randn(mcRnd) * (hi - lo) / 6, lo, hi);
         setParam(el, path, v);
       });
       traceScene();

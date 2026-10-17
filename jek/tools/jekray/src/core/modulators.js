@@ -1,6 +1,8 @@
 import { clamp } from './constants.js';
 import { deg, num } from '../state/project.js';
 import { jonesOf } from '../engines/polarisation.js';
+import { besselJn } from './special.js';
+import { cmul } from './numeric.js';
 
 /* ---------- Modulators: light shifted in frequency ----------
    Light carries a frequency offset f (Hz) from its laser's own line. Light at different
@@ -14,14 +16,6 @@ import { jonesOf } from '../engines/polarisation.js';
    at phi_0: E cos(phi_0 / 2 + (beta / 2) sin(Omega t)). */
 export const C_MM = 299792458e3;               // light, mm/s
 export const famAt = (fam, f) => String(fam).replace(/@[^#]*$/, '') + (f ? '@' + (+f.toPrecision(12)) : '');
-/* the Bessel function J_n(x), by its series (good for the modulation depths in use here) */
-function besselJ(n, x) {
-  if (n < 0) return (n % 2 ? -1 : 1) * besselJ(-n, x);
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 200; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
-}
 /* an EOM's sidebands: [n, complex amplitude], those with more than 1e-5 of the power */
 export function eomSidebands(el) {
   // ELEC hook: a slow drive _v (volts, set only while the electronics trace it) adds to the bias, or in phase mode a phase pi v / V_pi
@@ -29,8 +23,8 @@ export function eomSidebands(el) {
   const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180 + dv * Math.PI;
   for (let n = -40; n <= 40; n++) {
     let c;
-    if (el.emode === 'amplitude') { const j = besselJ(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
-    else c = [besselJ(n, b) * Math.cos(dv * Math.PI), besselJ(n, b) * Math.sin(dv * Math.PI)];
+    if (el.emode === 'amplitude') { const j = besselJn(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
+    else c = [besselJn(n, b) * Math.cos(dv * Math.PI), besselJn(n, b) * Math.sin(dv * Math.PI)];
     c = [c[0] * a, c[1] * a];
     if (c[0] * c[0] + c[1] * c[1] > 1e-20) out.push([n, c]);
   }
@@ -48,7 +42,6 @@ export function aomOrders(el, nm, ldy, n) {
 }
 
 /* Jones matrices in the tracer's (p, s) basis, [[pp, ps], [sp, ss]] with entries [re, im] */
-export const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 function jmul(A, B) {
   const e = (i, j) => { const x = cmul(A[i][0], B[0][j]), y = cmul(A[i][1], B[1][j]); return [x[0] + y[0], x[1] + y[1]]; };
   return [[e(0, 0), e(0, 1)], [e(1, 0), e(1, 1)]];

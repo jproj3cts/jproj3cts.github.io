@@ -2094,6 +2094,158 @@ function fwhmOf(xs, ys) {
    but with a phase that wanders and a line as wide as both of theirs: those are listed as
    such. The amplifier passes each tone through its bandwidth, a single pole. */
 const cdotc = (A, B) => [A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3], A[1] * B[0] - A[0] * B[1] + A[3] * B[2] - A[2] * B[3]];   // A . conj(B)
+/* ==========================================================================
+   Small numerics the engines share, written once: complex numbers as [re, im], 3-vectors, small linear
+   systems, and a seeded random source. The bench's trace, the lens designer, the RF designer, the
+   electronics and the chip solver all draw on these, so none keeps a copy of its own.
+   ========================================================================== */
+
+/* ---------- complex numbers, [re, im] ---------- */
+const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+const cabs2 = a => a[0] * a[0] + a[1] * a[1];
+/* a / b; a denominator of nought is taken as the least there is, so a division never gives NaN */
+const cdiv = (a, b) => { const d = cabs2(b) || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+
+/* ---------- 3-vectors ---------- */
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit3 = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+/* ---------- small linear systems ---------- */
+/* A x = b for a small real A (rows of arrays), by elimination with partial pivoting on a copy; null when a pivot
+   falls below tol (singular) */
+function solveLinear(A0, b0, tol = 1e-300) {
+  const n = b0.length, M = A0.map((r, i) => Array.from(r).concat([b0[i]]));
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let i = c + 1; i < n; i++) if (Math.abs(M[i][c]) > Math.abs(M[p][c])) p = i;
+    if (!(Math.abs(M[p][c]) >= tol) || !(Math.abs(M[p][c]) > 0)) return null;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let i = c + 1; i < n; i++) { const f = M[i][c] / M[c][c]; if (f) for (let j = c; j <= n; j++) M[i][j] -= f * M[c][j]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
+  return x;
+}
+/* A x = b for a symmetric positive-definite A, flat and row-major (n x n), by Cholesky; null if it is not */
+function solveCholesky(A, b, n) {
+  const L = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) {
+    let s = A[i * n + j];
+    for (let k = 0; k < j; k++) s -= L[i * n + k] * L[j * n + k];
+    if (i === j) { if (!(s > 0)) return null; L[i * n + i] = Math.sqrt(s); } else L[i * n + j] = s / L[j * n + j];
+  }
+  const y = new Float64Array(n), x = new Float64Array(n);
+  for (let i = 0; i < n; i++) { let s = b[i]; for (let k = 0; k < i; k++) s -= L[i * n + k] * y[k]; y[i] = s / L[i * n + i]; }
+  for (let i = n - 1; i >= 0; i--) { let s = y[i]; for (let k = i + 1; k < n; k++) s -= L[k * n + i] * x[k]; x[i] = s / L[i * n + i]; }
+  return x;
+}
+
+/* ---------- random numbers ---------- */
+/* a seeded source of uniform numbers in [0, 1) (mulberry32), so a Monte Carlo run or a search repeats exactly */
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+/* a standard normal from a uniform source (Box-Muller) */
+const randn = rnd => Math.sqrt(-2 * Math.log(rnd() || 1e-300)) * Math.cos(2 * Math.PI * rnd());
+/* ==========================================================================
+   Special functions, written once: Bessel functions of the first kind. The diffracted field, the horns, the
+   modulators' sidebands and the antenna patterns all take them from here.
+   ========================================================================== */
+
+/* J0 and J1 to about 1e-12: power series below 12, Hankel asymptotics above */
+function besselJ01(x) {
+  const ax = Math.abs(x);
+  if (ax < 12) {
+    const q = -0.25 * ax * ax;
+    let t0 = 1, s0 = 1, t1 = 0.5 * ax, s1 = t1;
+    for (let k = 1; k < 60; k++) {
+      t0 *= q / (k * k); s0 += t0;
+      t1 *= q / (k * (k + 1)); s1 += t1;
+      if (Math.abs(t0) < 1e-17 * Math.abs(s0) && Math.abs(t1) < 1e-17 * (Math.abs(s1) + 1e-300)) break;
+    }
+    return [s0, x < 0 ? -s1 : s1];
+  }
+  // P and Q for orders 0 and 1, summed until the terms stop shrinking
+  const z8 = 8 * ax;
+  const pq = mu => {
+    let P = 1, Q = 0, term = 1, k = 1;
+    for (; k < 40; k++) {
+      term *= (mu - (2 * k - 1) ** 2) / (k * z8);
+      const next = Math.abs(term);
+      if (k % 2) Q += term * (k % 4 === 1 ? 1 : -1);
+      else P += term * (k % 4 === 2 ? -1 : 1);
+      if (next < 1e-17) break;
+      if (k > 2 && next > Math.abs(term / ((mu - (2 * k - 1) ** 2) / (k * z8)))) break;
+    }
+    return [P, Q];
+  };
+  const [P0, Q0] = pq(0), [P1, Q1] = pq(4);
+  const a = Math.sqrt(2 / (Math.PI * ax));
+  const c0 = ax - Math.PI / 4, c1 = ax - 3 * Math.PI / 4;
+  const J0 = a * (P0 * Math.cos(c0) - Q0 * Math.sin(c0));
+  const J1 = a * (P1 * Math.cos(c1) - Q1 * Math.sin(c1));
+  return [J0, x < 0 ? -J1 : J1];
+}
+
+/* The first n positive zeros of J0: McMahon's expansion polished by Newton */
+function besselZerosJ0(n) {
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const b = (i + 0.75) * Math.PI, b8 = 8 * b;
+    let x = b + 1 / b8 - 124 / (3 * b8 ** 3) + 120928 / (15 * b8 ** 5);
+    for (let it = 0; it < 6; it++) {
+      const [j0, j1] = besselJ01(x);
+      const dx = j0 / j1;                  // J0' = -J1, so Newton adds J0/J1
+      x += dx;
+      if (Math.abs(dx) < 1e-14 * x) break;
+    }
+    out[i] = x;
+  }
+  return out;
+}
+
+
+/* J_n(x) for integer n by its power series, summed until the terms stop mattering (fine for the arguments the
+   horns' aperture fields and a modulator's sidebands need: a few tens at most) */
+function besselJn(n, x) {
+  if (n < 0) return (n % 2 ? -1 : 1) * besselJn(-n, x);
+  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
+  let sum = term;
+  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
+  return sum;
+}
+/* ==========================================================================
+   A surface's sag, written once
+   A rotationally symmetric surface: a conic of curvature c and constant k, an r² term a2, even aspheric
+   terms A (r⁴, r⁶, ...) and odd ones (r, r², r³, ...). The bench's tracer, the lens engine, the lens data,
+   the drawings and the CAD export all take it from here, so a surface term added later is added in one place.
+   ========================================================================== */
+
+/* the sag at r² = r2. Beyond the edge of the conic's own sphere: clamped to the edge (clampEdge, as a tracer
+   feeling for a surface needs), or NaN (as a drawing or a thickness wants) */
+function sagR2(c, k, a2, A, odd, r2, clampEdge) {
+  let v = 0;
+  if (c) {
+    const arg = 1 - (1 + k) * c * c * r2;
+    if (arg < 0 && !clampEdge) return NaN;
+    v = c * r2 / (1 + Math.sqrt(Math.max(0, arg)));
+  }
+  if (a2) v += a2 * r2;
+  if (A) { let p = r2 * r2; for (let j = 0; j < A.length; j++) { v += A[j] * p; p *= r2; } }
+  if (odd) { const r = Math.sqrt(r2); let q = r; for (let j = 0; j < odd.length; j++) { v += odd[j] * q; q *= r; } }
+  return v;
+}
+
+/* a prescription surface's sag at height h in the plane of the fields: a cylinder curved out of that plane is flat
+   in it (its aspheric terms along its curved axis too), and a freeform's terms along the section count; NaN beyond
+   a sphere's edge */
+function sagInPlane(s, h) {
+  let v = 0;
+  if (s.cyl !== 'x') v = sagR2(s.R ? 1 / s.R : 0, s.k || 0, s.a2 || 0, s.A || null, s.odd || null, h * h, false);
+  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
+  return v;
+}
 
 
 const fmtGHz = nm => { const f = C_NM_GHZ / nm; return f >= 1000 ? +(f / 1000).toPrecision(4) + ' THz' : +f.toPrecision(4) + ' GHz'; };
@@ -2104,6 +2256,11 @@ const fmtWl = nm => nm > 1e5 ? fmtGHz(nm) : nm + ' nm';
 const fmtDbm = mw => mw > 0 ? (10 * Math.log10(mw)).toFixed(2) + ' dBm' : '\u2212\u221e dBm';
 
 const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
+
+/* a figure to p significant figures, a dash where there is none (the analyses' tables) */
+const fmtSig = (v, p = 4) => v === null || v === undefined || !isFinite(v) ? '\u2014' : String(+(+v).toPrecision(p));
+/* the same for a workspace's fields: blank where there is none, ∞ for an infinite one, and 0 under a floor */
+const fmtWs = (v, p = 6, zero = 0) => v === null || v === undefined ? '' : !isFinite(v) ? '\u221e' : Math.abs(v) < zero ? '0' : String(+(+v).toPrecision(p));
 
 function fmtNum(v) {
   if (v === null || v === undefined || !isFinite(v)) return '';
@@ -5333,14 +5490,6 @@ function gratingOrders(el, nm, ldy, n) {
    at phi_0: E cos(phi_0 / 2 + (beta / 2) sin(Omega t)). */
 const C_MM = 299792458e3;               // light, mm/s
 const famAt = (fam, f) => String(fam).replace(/@[^#]*$/, '') + (f ? '@' + (+f.toPrecision(12)) : '');
-/* the Bessel function J_n(x), by its series (good for the modulation depths in use here) */
-function besselJ(n, x) {
-  if (n < 0) return (n % 2 ? -1 : 1) * besselJ(-n, x);
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 200; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
-}
 /* an EOM's sidebands: [n, complex amplitude], those with more than 1e-5 of the power */
 function eomSidebands(el) {
   // ELEC hook: a slow drive _v (volts, set only while the electronics trace it) adds to the bias, or in phase mode a phase pi v / V_pi
@@ -5348,8 +5497,8 @@ function eomSidebands(el) {
   const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180 + dv * Math.PI;
   for (let n = -40; n <= 40; n++) {
     let c;
-    if (el.emode === 'amplitude') { const j = besselJ(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
-    else c = [besselJ(n, b) * Math.cos(dv * Math.PI), besselJ(n, b) * Math.sin(dv * Math.PI)];
+    if (el.emode === 'amplitude') { const j = besselJn(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
+    else c = [besselJn(n, b) * Math.cos(dv * Math.PI), besselJn(n, b) * Math.sin(dv * Math.PI)];
     c = [c[0] * a, c[1] * a];
     if (c[0] * c[0] + c[1] * c[1] > 1e-20) out.push([n, c]);
   }
@@ -5367,7 +5516,6 @@ function aomOrders(el, nm, ldy, n) {
 }
 
 /* Jones matrices in the tracer's (p, s) basis, [[pp, ps], [sp, ss]] with entries [re, im] */
-const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 function jmul(A, B) {
   const e = (i, j) => { const x = cmul(A[i][0], B[0][j]), y = cmul(A[i][1], B[1][j]); return [x[0] + y[0], x[1] + y[1]]; };
   return [[e(0, 0), e(0, 1)], [e(1, 0), e(1, 1)]];
@@ -5851,19 +5999,8 @@ function grinSlab(g, dia) {
     const u = (k + 0.5) / K, r = u * a, w = u, y = -opd(r) / T, ph = [u * u, u ** 4, u ** 6];
     for (let i = 0; i < 3; i++) { b[i] += w * ph[i] * y; for (let j = 0; j < 3; j++) A[i][j] += w * ph[i] * ph[j]; }
   }
-  const c = gSolve3(A, b), grad = [c[0] / a ** 2, c[1] / a ** 4, c[2] / a ** 6];
+  const c = solveLinear(A, b) || [NaN, NaN, NaN], grad = [c[0] / a ** 2, c[1] / a ** 4, c[2] / a ** 6];
   return { D, T, n0, dn: n0 - D.M.n, grad, a };
-}
-function gSolve3(A, b) {
-  const M = A.map((r, i) => r.concat([b[i]]));
-  for (let i = 0; i < 3; i++) {
-    let p = i; for (let k = i + 1; k < 3; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
-    [M[i], M[p]] = [M[p], M[i]];
-    for (let k = i + 1; k < 3; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < 4; j++) M[k][j] -= f * M[i][j]; }
-  }
-  const x = [0, 0, 0];
-  for (let i = 2; i >= 0; i--) { let s = M[i][3]; for (let j = i + 1; j < 3; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
-  return x;
 }
 /* the disc's losses at ghz over a beam of radius w (power weighted): its two faces' reflection (bare, or through its
    layers at that frequency) and its absorption, core and layers, as the share of power each lets through */
@@ -6220,20 +6357,14 @@ function laguerre(p, a, x) {
    fundamental's share is the horn's Gaussicity; the sum stops at order 12 and what it leaves
    out (the sharp edge of the field at the wall) is lost with the cross-polar field, both
    reported. The far-field pattern is the Fourier transform of the aperture field itself. */
-function hornBessel(n, x) {
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
-}
 const CHI = 1.8411837813, J0Z = 2.4048255577;
 /* the field at (x, y) in units of the aperture's radius a (half its side for a diagonal horn), as
    [along the polarisation, across it]; k is the fitted Gaussian's radius over a */
 const HORN_FIELDS = {
-  corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [hornBessel(0, J0Z * r), 0]; } },
+  corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [besselJn(0, J0Z * r), 0]; } },
   smooth: { k: 0.765, field: (x, y) => {
     const r = Math.hypot(x, y); if (r > 1) return [0, 0];
-    const rho = CHI * r, j0 = hornBessel(0, rho), j2 = hornBessel(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
+    const rho = CHI * r, j0 = besselJn(0, rho), j2 = besselJn(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
     return [j0 - j2 * c2, j2 * s2];                      // the field along y: phi from the H-plane (x)
   } },
   diagonal: { k: 0.86, field: (x, y) => {
@@ -6531,7 +6662,6 @@ function normGrad(G) {
   while (out.length && !out[out.length - 1]) out.pop();
   return out.length ? out : undefined;
 }
-const grOn = G => !!G && G.some(v => v);
 /* the index added at r² = r2, and dn/dr over r */
 function grDelta(G, r2) { let v = 0, p = r2; for (let j = 0; j < G.length; j++) { v += G[j] * p; p *= r2; } return v; }
 function grSlopeOverR(G, r2) { let v = 0, p = 1; for (let j = 0; j < G.length; j++) { v += 2 * (j + 1) * G[j] * p; p *= r2; } return v; }
@@ -8329,7 +8459,6 @@ function coatR(coat, n1, n2, nm) {
    absorbed. Each amplitude is [re, im].
    ========================================================================== */
 
-const cAbs2 = a => a[0] * a[0] + a[1] * a[1];
 
 /* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
    n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
@@ -8399,7 +8528,7 @@ function mirrorAmps(R, back) {
 }
 
 /* a face's power reflection square on (s and p alike there), as the RF designer and a graded disc count it */
-const faceRNormal = (n1, n2, nm, coat) => cAbs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
+const faceRNormal = (n1, n2, nm, coat) => cabs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
 function normSurface(s) {
   s = s || {};
   const R = (s.R === null || s.R === undefined || s.R === '' || !isFinite(s.R) || s.R === 0) ? null : +s.R;
@@ -8699,19 +8828,7 @@ function sagFn(s, y) {
 }
 function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
-function rawSag(s, y) {
-  const y2 = y * y;
-  let v = 0;
-  if (s.c !== 0) {
-    const arg = 1 - (1 + s.k) * s.c * s.c * y2;
-    v = s.c * y2 / (1 + Math.sqrt(Math.max(0, arg)));
-  }
-  v += s.a2 * y2;
-  let p = y2 * y2;
-  for (let j = 0; j < s.A.length; j++) { v += s.A[j] * p; p *= y2; }
-  if (s.odd) { const r = Math.abs(y); let q = r; for (let j = 0; j < s.odd.length; j++) { v += s.odd[j] * q; q *= r; } }
-  return v;
-}
+const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true);
 function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;
@@ -15353,10 +15470,8 @@ const PIC_WG = {
 /* ---------- complex numbers, [re, im] ---------- */
 const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 const cadd = (a, b) => [a[0] + b[0], a[1] + b[1]];
-const cabs2 = a => a[0] * a[0] + a[1] * a[1];
 const cexp = ph => [Math.cos(ph), Math.sin(ph)];
 const csc = (a, s) => [a[0] * s, a[1] * s];
-const picCdiv = (a, b) => { const d = cabs2(b) || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 const Z = [0, 0];
 /* matrices: n x n complex as one Float64Array, row by row, re and im side by side; entry
    (r, c) at 2 (r n + c) */
@@ -16016,14 +16131,12 @@ function through(S, H, unit, n2) {
   return tidy(out);
 }
 /* complex helpers for the transfer functions */
-const elecCmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
-const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 /* a Butterworth low-pass of order n, at s (normalised: s = i f / fc), as prod (-p_k) / (s - p_k) */
 function butterLP(n, s) {
   let h = [1, 0];
   for (let k = 1; k <= n; k++) {
     const a = Math.PI * (2 * k + n - 1) / (2 * n), pk = [Math.cos(a), Math.sin(a)];
-    h = elecCmul(h, cdiv([-pk[0], -pk[1]], [s[0] - pk[0], s[1] - pk[1]]));
+    h = cmul(h, cdiv([-pk[0], -pk[1]], [s[0] - pk[0], s[1] - pk[1]]));
   }
   return h;
 }
@@ -16067,7 +16180,7 @@ function mixer(A, B, k) {
   for (const b of B.tones) addTone(out.tones, b.f, k * b.re * A.dc, k * b.im * A.dc);
   // Re(a e^{i w1 t}) Re(b e^{i w2 t}) = (1/2) Re(a b e^{i (w1 + w2) t}) + (1/2) Re(a conj(b) e^{i (w1 - w2) t})
   for (const a of A.tones) for (const b of B.tones) {
-    const ab = elecCmul([a.re, a.im], [b.re, b.im]), ac = elecCmul([a.re, a.im], [b.re, -b.im]);
+    const ab = cmul([a.re, a.im], [b.re, b.im]), ac = cmul([a.re, a.im], [b.re, -b.im]);
     addTone(out.tones, a.f + b.f, 0.5 * k * ab[0], 0.5 * k * ab[1]);
     const d = a.f - b.f;
     if (Math.abs(d) <= 1e-9 * Math.max(a.f, b.f)) out.dc += 0.5 * k * ac[0];
@@ -22042,12 +22155,8 @@ function sensitivity(vars, target, key) {
   return { base, rows, rss };
 }
 
-function randn() {
-  let u = 0, v = 0;
-  while (!u) u = Math.random();
-  while (!v) v = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+// seeded by the number of trials asked for, so a study repeats
+let mcRnd = seededRng(1);
 
 /* Runs in slices so the page keeps painting; `onDone` gets the sorted samples. */
 let mcJob = null;                       // { i, n } while a tolerance study runs
@@ -22056,6 +22165,7 @@ function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) 
   const job = mcJob = { i: 0, n: trials };
   const start = vars.map(([el, path]) => getPath(el, path));
   const samples = [];
+  mcRnd = seededRng(trials);
   const nominal = (traceScene(), metricRaw(target, key));
   let i = 0;
   const step = () => {
@@ -22066,8 +22176,8 @@ function monteCarlo(vars, target, key, trials, dist, onProgress, onDone, alive) 
         const sw = el.sweeps[path];
         const lo = Math.min(sw.min, sw.max), hi = Math.max(sw.min, sw.max);
         let v;
-        if (dist === 'uniform') v = lo + Math.random() * (hi - lo);
-        else v = clamp(start[k] + randn() * (hi - lo) / 6, lo, hi);
+        if (dist === 'uniform') v = lo + mcRnd() * (hi - lo);
+        else v = clamp(start[k] + randn(mcRnd) * (hi - lo) / 6, lo, hi);
         setParam(el, path, v);
       });
       traceScene();
@@ -23911,7 +24021,7 @@ const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#0
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
   ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['tfm', 'Through-focus MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['therm', 'Thermal'], ['imsim', 'Image simulation']];
-const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+const anFmt = (v, p) => fmtSig(v, p || 4);
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
 const anaCache = new Map();
@@ -24618,7 +24728,7 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius'],
   ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis (at a cemented interface, the cement wedged)'],
   ['sdec', 'Surface decentre', 'mm', 'Each lens surface moved across the axis on its own, in x and in y: in a cemented lens, its parts glued off one another\u2019s axis']];
-const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+const tolFmt = (v, p) => fmtSig(v, p || 4);
 let TOL = null;
 const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
 function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }
@@ -25402,7 +25512,7 @@ async function stockAdd(files) {
 function stockClear() { LIB = []; keep(); }
 const stockLibrary = () => lib();
 
-const stFmt = (v, p) => (isFinite(v) ? String(+(+v).toPrecision(p || 4)) : '—');
+const stFmt = (v, p) => fmtSig(v, p || 4);
 let RUN = null;
 /* the card: the stock kept, and for each lens of the design its matches, tried in the design */
 function stockCard({ asm, P, redraw, edit, toast }) {
@@ -25603,7 +25713,7 @@ function r3show(T, el, box) {
    ========================================================================== */
 let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
 const rfDesignOpen = () => !!RW;
-const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
+const rwFmt = (v, p) => fmtWs(v, p || 5, 1e-9);
 /* where a waist sits from the last vertex, in words rather than a signed distance */
 const rwAt = v => Math.abs(v) < 1e-6 ? 'at the last face' : v < 0 ? rwFmt(-v, 4) + ' mm before the last face' : rwFmt(v, 4) + ' mm after the last face';
 const rwPct = v => isFinite(v) ? (100 * v).toFixed(1) + ' %' : '—';
@@ -26534,7 +26644,7 @@ function rwMcStop() { if (RW_MC) RW_MC.running = false; rwRender(); }
 let WS = null;                     // { asm, tab, sel, draft, took }
 const FIELD_COLOURS = ['#5aa9ff', '#5fd38a', '#ff7a6b', '#f2c14e', '#c38bff', '#4fd6d6', '#ff9cd0', '#b0b8c0'];
 const lensDesignOpen = () => !!WS;
-const wsFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : String(+(+v).toPrecision(p || 6));
+const wsFmt = (v, p) => fmtWs(v, p || 6);
 const fmtR = v => v === null || v === undefined ? 'Flat' : wsFmt(v, 7);
 
 /* the light the bench sends the assembly, as conditions: null when none reaches it */
@@ -28572,58 +28682,6 @@ function renderOverview() {
    exp(-ik r^2 / 2q) with q = z + i zR, and a diverging reference is
    exp(-ik r^2 / 2z). Lengths are in mm. */
 
-/* J0 and J1 to about 1e-12: power series below 12, Hankel asymptotics above */
-function besselJ01(x) {
-  const ax = Math.abs(x);
-  if (ax < 12) {
-    const q = -0.25 * ax * ax;
-    let t0 = 1, s0 = 1, t1 = 0.5 * ax, s1 = t1;
-    for (let k = 1; k < 60; k++) {
-      t0 *= q / (k * k); s0 += t0;
-      t1 *= q / (k * (k + 1)); s1 += t1;
-      if (Math.abs(t0) < 1e-17 * Math.abs(s0) && Math.abs(t1) < 1e-17 * (Math.abs(s1) + 1e-300)) break;
-    }
-    return [s0, x < 0 ? -s1 : s1];
-  }
-  // P and Q for orders 0 and 1, summed until the terms stop shrinking
-  const z8 = 8 * ax;
-  const pq = mu => {
-    let P = 1, Q = 0, term = 1, k = 1;
-    for (; k < 40; k++) {
-      term *= (mu - (2 * k - 1) ** 2) / (k * z8);
-      const next = Math.abs(term);
-      if (k % 2) Q += term * (k % 4 === 1 ? 1 : -1);
-      else P += term * (k % 4 === 2 ? -1 : 1);
-      if (next < 1e-17) break;
-      if (k > 2 && next > Math.abs(term / ((mu - (2 * k - 1) ** 2) / (k * z8)))) break;
-    }
-    return [P, Q];
-  };
-  const [P0, Q0] = pq(0), [P1, Q1] = pq(4);
-  const a = Math.sqrt(2 / (Math.PI * ax));
-  const c0 = ax - Math.PI / 4, c1 = ax - 3 * Math.PI / 4;
-  const J0 = a * (P0 * Math.cos(c0) - Q0 * Math.sin(c0));
-  const J1 = a * (P1 * Math.cos(c1) - Q1 * Math.sin(c1));
-  return [J0, x < 0 ? -J1 : J1];
-}
-
-/* The first n positive zeros of J0: McMahon's expansion polished by Newton */
-function besselZerosJ0(n) {
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const b = (i + 0.75) * Math.PI, b8 = 8 * b;
-    let x = b + 1 / b8 - 124 / (3 * b8 ** 3) + 120928 / (15 * b8 ** 5);
-    for (let it = 0; it < 6; it++) {
-      const [j0, j1] = besselJ01(x);
-      const dx = j0 / j1;                  // J0' = -J1, so Newton adds J0/J1
-      x += dx;
-      if (Math.abs(dx) < 1e-14 * x) break;
-    }
-    out[i] = x;
-  }
-  return out;
-}
-
 /* Transform kernel for N points, cached: C[m][n] = J0(j_m j_n / S) */
 const qdhtCache = new Map();
 function qdht(N) {
@@ -29532,17 +29590,8 @@ function QOverlap(Q1, Q2, lam0) {
   const dG = ccDet(G);
   return Math.sqrt(Math.max(0, d2(A(P1)) * d2(A(P2)))) / Math.hypot(dG[0], dG[1]);
 }
-/* A small real linear system A x = b, by elimination with partial pivoting; null if singular */
-function solveLin(A0, b0) {
-  const n = b0.length, A = A0.map((r, i) => r.concat([b0[i]]));
-  for (let c = 0; c < n; c++) {
-    let p = c; for (let i = c + 1; i < n; i++) if (Math.abs(A[i][c]) > Math.abs(A[p][c])) p = i;
-    if (!(Math.abs(A[p][c]) > 1e-14)) return null;
-    [A[c], A[p]] = [A[p], A[c]];
-    for (let i = 0; i < n; i++) if (i !== c) { const f = A[i][c] / A[c][c]; for (let j = c; j <= n; j++) A[i][j] -= f * A[c][j]; }
-  }
-  return A.map((r, i) => r[n] / r[i]);
-}
+// a small real linear system, null when singular (core/numeric.js), at the threshold a round trip's (I - M) needs
+const solveLin = (A, b) => solveLinear(A, b, 1e-14);
 /* The power coupling of two beams given as Q's at one plane, the first (a loop's mode) sitting
    off the second by a (mm, across and up) and tilted against it by t (radians): the overlap of
    the two fields, summed on a grid wide enough for both */
@@ -30358,7 +30407,7 @@ function polMatrix(coef, d, nrm, d2, eIn, eOut, cIn) {
   polMatrixTo(M, coef, d[0], d[1], d[2], nrm[0], nrm[1], nrm[2], d2[0], d2[1], d2[2], eIn, eOut, cIn[0], cIn[1], cIn[2]);
   return [[M[0], M[1]], [M[2], M[3]], [M[4], M[5]], [M[6], M[7]]];
 }
-const dot3 = (a0, a1, a2, b0, b1, b2) => a0 * b0 + a1 * b1 + a2 * b2;
+const dot3s = (a0, a1, a2, b0, b1, b2) => a0 * b0 + a1 * b1 + a2 * b2;
 /* The same, into M as [ss, sp, ps, pp], each re then im, from the vectors' components: no
    arrays, as the 2D surface step works it out for every sample */
 function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2) {
@@ -30370,7 +30419,7 @@ function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0,
   const gi = eIn.sg, go = eOut.sg;
   const pi0 = (s1 * d2 - s2 * d1) * gi, pi1 = (s2 * d0 - s0 * d2) * gi, pi2 = (s0 * d1 - s1 * d0) * gi;
   const po0 = (s1 * e2 - s2 * e1) * go, po1 = (s2 * e0 - s0 * e2) * go, po2 = (s0 * e1 - s1 * e0) * go;
-  const c = coef(Math.abs(dot3(d0, d1, d2, n0, n1, n2)));
+  const c = coef(Math.abs(dot3s(d0, d1, d2, n0, n1, n2)));
   const cs0 = c[0], cs1 = -c[1], cp0 = c[2], cp1 = -c[3];          // conjugated into the field's convention
   // The field is stored as its two components across the beam's axis; a ray tilted to that
   // axis carries a small part along it too, fixed by the field being square to the ray. Put
@@ -30378,15 +30427,15 @@ function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0,
   // tilt is not lost twice; after it, only the two components across are kept again.
   // (s stored along the beam's up axis, u: straight up but where the beam rises or goes up itself)
   const ui = eIn.u || [0, 0, 1], uo = eOut.u || [0, 0, 1];
-  const cd = dot3(c0, c1, c2, d0, d1, d2) || 1;
-  const zd = dot3(ui[0], ui[1], ui[2], d0, d1, d2) / cd, v = eIn.v, vd = dot3(v[0], v[1], v[2], d0, d1, d2) / cd;
+  const cd = dot3s(c0, c1, c2, d0, d1, d2) || 1;
+  const zd = dot3s(ui[0], ui[1], ui[2], d0, d1, d2) / cd, v = eIn.v, vd = dot3s(v[0], v[1], v[2], d0, d1, d2) / cd;
   const bS0 = ui[0] - zd * c0, bS1 = ui[1] - zd * c1, bS2 = ui[2] - zd * c2;
   const bP0 = v[0] - vd * c0, bP1 = v[1] - vd * c1, bP2 = v[2] - vd * c2;
   const w = eOut.v;
-  const slz = dot3(s0, s1, s2, uo[0], uo[1], uo[2]), poz = dot3(po0, po1, po2, uo[0], uo[1], uo[2]);
-  const slw = dot3(s0, s1, s2, w[0], w[1], w[2]), pow = dot3(po0, po1, po2, w[0], w[1], w[2]);
-  const slS = dot3(s0, s1, s2, bS0, bS1, bS2), piS = dot3(pi0, pi1, pi2, bS0, bS1, bS2);
-  const slP = dot3(s0, s1, s2, bP0, bP1, bP2), piP = dot3(pi0, pi1, pi2, bP0, bP1, bP2);
+  const slz = dot3s(s0, s1, s2, uo[0], uo[1], uo[2]), poz = dot3s(po0, po1, po2, uo[0], uo[1], uo[2]);
+  const slw = dot3s(s0, s1, s2, w[0], w[1], w[2]), pow = dot3s(po0, po1, po2, w[0], w[1], w[2]);
+  const slS = dot3s(s0, s1, s2, bS0, bS1, bS2), piS = dot3s(pi0, pi1, pi2, bS0, bS1, bS2);
+  const slP = dot3s(s0, s1, s2, bP0, bP1, bP2), piP = dot3s(pi0, pi1, pi2, bP0, bP1, bP2);
   let aS = slz * slS, aP = poz * piS;
   M[0] = cs0 * aS + cp0 * aP; M[1] = cs1 * aS + cp1 * aP;
   aS = slz * slP; aP = poz * piP;
@@ -33348,20 +33397,6 @@ function closeupCompute(vkey, srcs, step) {
    and the tangential MTF, which is what the 1D kernel gives. */
 
 /* Bessel J0, Abramowitz and Stegun 9.4.1 and 9.4.3 */
-function besselJ0(x) {
-  x = Math.abs(x);
-  if (x < 3) {
-    const y = (x / 3) ** 2;
-    return 1 - 2.2499997 * y + 1.2656208 * y * y - 0.3163866 * y ** 3
-      + 0.0444479 * y ** 4 - 0.0039444 * y ** 5 + 0.00021 * y ** 6;
-  }
-  const y = 3 / x;
-  const f = 0.79788456 - 0.00000077 * y - 0.0055274 * y * y - 0.00009512 * y ** 3
-    + 0.00137237 * y ** 4 - 0.00072805 * y ** 5 + 0.00014476 * y ** 6;
-  const t = x - 0.78539816 - 0.04166397 * y - 0.00003954 * y * y + 0.00262573 * y ** 3
-    - 0.00054125 * y ** 4 - 0.00029333 * y ** 5 + 0.00013558 * y ** 6;
-  return f * Math.cos(t) / Math.sqrt(x);
-}
 
 const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 
@@ -34574,8 +34609,7 @@ function lensSystem(P, nm, opts) {
    to the axis after the last surface, the image distance along it. A surface's dtilt turns its face
    alone, the axis folding as without it: a fold mirror made tilted, the parts after it where they were. */
 const ladd3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
-const ldot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const lrefl3 = (v, m) => { const k = 2 * ldot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
+const lrefl3 = (v, m) => { const k = 2 * dot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
 function geometry(S, P) {
   let p = [0, 0, 0], e1 = [1, 0, 0], e2 = [0, 1, 0], d = [0, 0, 1];
   S.fr = []; S.ax = [];
@@ -34600,8 +34634,8 @@ function geometry(S, P) {
    distance along the axis (the image plane at S.imageZ) */
 function toImageFrame(S, R) {
   const I = S.img, v = [R[0] - I.p[0], R[1] - I.p[1], R[2] - I.p[2]], q = [R[3], R[4], R[5]];
-  R[0] = ldot3(v, I.e1); R[1] = ldot3(v, I.e2); R[2] = S.imageZ + ldot3(v, I.d);
-  R[3] = ldot3(q, I.e1); R[4] = ldot3(q, I.e2); R[5] = ldot3(q, I.d);
+  R[0] = dot3(v, I.e1); R[1] = dot3(v, I.e2); R[2] = S.imageZ + dot3(v, I.d);
+  R[3] = dot3(q, I.e1); R[4] = dot3(q, I.e2); R[5] = dot3(q, I.d);
   return R;
 }
 
@@ -34655,17 +34689,7 @@ function paraxialOf(S) {
 // a diffractive face's power at the system's wavelength (0 for any other)
 const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
-function sag(S, i, r2) {
-  const c = S.c[i];
-  let v = 0;
-  if (c !== 0) v = c * r2 / (1 + Math.sqrt(Math.max(0, 1 - (1 + S.k[i]) * c * c * r2)));
-  v += S.a2[i] * r2;
-  const A = S.A[i];
-  if (A) { let p = r2 * r2; for (let j = 0; j < A.length; j++) { v += A[j] * p; p *= r2; } }
-  const o = S.odd[i];
-  if (o) { const r = Math.sqrt(r2); let q = r; for (let j = 0; j < o.length; j++) { v += o[j] * q; q *= r; } }
-  return v;
-}
+const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true);
 /* d sag / d rho, divided by rho (finite on the axis) */
 function dsagOverR(S, i, r2) {
   const c = S.c[i];
@@ -35144,21 +35168,8 @@ function setV(P, at, v) {
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
 }
-/* a surface's sag at height h (NaN beyond a sphere's edge) */
-function surfSag(s, h) {
-  // (in the plane of the fields: a cylinder curved out of it is flat there)
-  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = h * h;
-  if (s.cyl === 'x') { let v = 0; if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]); return v; }
-  let v = c ? c * r2 / (1 + Math.sqrt(1 - (1 + (s.k || 0)) * c * c * r2)) : 0;
-  v += (s.a2 || 0) * r2;
-  let p = r2 * r2;
-  for (const a of s.A || []) { v += a * p; p *= r2; }
-  let q = h;
-  for (const o of s.odd || []) { v += o * q; q *= h; }
-  // a freeform's terms in the plane of the fields (x = 0)
-  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
-  return v;
-}
+/* a surface's sag at height h in the plane of the fields (core/sag.js; NaN beyond a sphere's edge) */
+const surfSag = sagInPlane;
 
 /* ---------- Conditions and first order ---------- */
 const primaryNm = c => c.waves[c.primary].nm;
@@ -35868,19 +35879,6 @@ function meritReport(prob) {
 }
 
 /* ---------- Damped least squares ---------- */
-function solveSym(A, b, n) {
-  // Cholesky; null if A is not positive definite
-  const L = new Float64Array(n * n);
-  for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) {
-    let s = A[i * n + j];
-    for (let k = 0; k < j; k++) s -= L[i * n + k] * L[j * n + k];
-    if (i === j) { if (!(s > 0)) return null; L[i * n + i] = Math.sqrt(s); } else L[i * n + j] = s / L[j * n + j];
-  }
-  const y = new Float64Array(n), x = new Float64Array(n);
-  for (let i = 0; i < n; i++) { let s = b[i]; for (let k = 0; k < i; k++) s -= L[i * n + k] * y[k]; y[i] = s / L[i * n + i]; }
-  for (let i = n - 1; i >= 0; i--) { let s = y[i]; for (let k = i + 1; k < n; k++) s -= L[k * n + i] * x[k]; x[i] = s / L[i * n + i]; }
-  return x;
-}
 function evalAt(prob, V, x) { const P = designAt(prob, V, x), T = meritTerms(prob, P); return T; }
 function dls(prob, V, x0, iters, lambda0) {
   const Lm = limitsX(prob, V);
@@ -35913,7 +35911,7 @@ function dls(prob, V, x0, iters, lambda0) {
       // a variable that does nothing yet (an interface between two like glasses) still gets a little damping, so the step exists
       let dmax = 0; for (let a = 0; a < n; a++) dmax = Math.max(dmax, A[a * n + a]);
       for (let a = 0; a < n; a++) Ad[a * n + a] += lambda * Math.max(A[a * n + a], 1e-6 * dmax) + 1e-12 * dmax + 1e-300;
-      const d = solveSym(Ad, g, n);
+      const d = solveCholesky(Ad, g, n);
       if (d) {
         // no step longer than each variable's reach: a sixth of a radius's curvature, 30% of a thickness, a conic by 0.5, a glass by 0.02 in nd and 3 in Vd
         let sc = 1;
@@ -35943,10 +35941,9 @@ function dls(prob, V, x0, iters, lambda0) {
    From the best design yet, each trial shakes every variable (radii by about 30% of their
    curvature, thicknesses by about 30%, conics by 0.3, a model glass along both its nd and Vd), then
    damped least squares takes it to its own minimum; the best is kept. Seeded, so a run repeats. */
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const gauss = R => Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
 function globalSearch(prob, V, best, trials, seed) {
-  const R = rng(seed || 1);
+  const R = seededRng(seed || 1);
   let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0, found: [] };
   for (let t = 0; t < trials; t++) {
     const x = Float64Array.from(out.x);
@@ -36377,19 +36374,6 @@ function zernike(j, r, t) {
   }
   return 0;
 }
-function solveDense(A, b, n) {
-  // Gaussian elimination with partial pivoting
-  const M = A.map((row, i) => row.concat([b[i]]));
-  for (let k = 0; k < n; k++) {
-    let p = k; for (let i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i;
-    [M[k], M[p]] = [M[p], M[k]];
-    if (Math.abs(M[k][k]) < 1e-300) return null;
-    for (let i = k + 1; i < n; i++) { const f = M[i][k] / M[k][k]; for (let j = k; j <= n; j++) M[i][j] -= f * M[k][j]; }
-  }
-  const x = new Array(n).fill(0);
-  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
-  return x;
-}
 /* the wavefront's statistics and its Zernike fit by least squares over the points that came through */
 function wavefrontMap(A, deg, wi, N) {
   N = N || 48;
@@ -36409,26 +36393,13 @@ function wavefrontMap(A, deg, wi, N) {
     const z = []; for (let k = 1; k <= J; k++) z.push(zernike(k, r, t));
     for (let a = 0; a < J; a++) { Atb[a] += z[a] * v; for (let b = 0; b < J; b++) AtA[a][b] += z[a] * z[b]; }
   }
-  const coef = cnt > J ? solveDense(AtA, Atb, J) : null;
+  const coef = cnt > J ? solveLinear(AtA, Atb) : null;
   return { deg, nm: S.nm, N, W, mean, rms: cnt ? Math.sqrt(s2 / cnt) : NaN, pv: cnt ? mx - mn : NaN, coef, lost: 0 };
 }
 
 /* ---------- The FFT ---------- */
-function fft1(re, im, inv) {
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
-  for (let len = 2; len <= n; len <<= 1) {
-    const a = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
-    for (let i = 0; i < n; i += len) {
-      let cr = 1, ci = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const ur = re[i + k], ui = im[i + k], vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci, vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
-        re[i + k] = ur + vr; im[i + k] = ui + vi; re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
-        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
-      }
-    }
-  }
-}
+// the field engine's (its twiddles cached), forward as e^{-2πi mn/N}
+const fft1 = (re, im, inv) => fft(re, im, inv ? 1 : -1);
 function fft2(re, im, M, inv) {
   const r = new Float64Array(M), i = new Float64Array(M);
   for (let y = 0; y < M; y++) { for (let x = 0; x < M; x++) { r[x] = re[y * M + x]; i[x] = im[y * M + x]; } fft1(r, i, inv); for (let x = 0; x < M; x++) { re[y * M + x] = r[x]; im[y * M + x] = i[x]; } }
@@ -37027,11 +36998,6 @@ function imsimRun(A, src, o) {
    in the bases x and y each side (the double-pole basis: the axis's x turned along the great circle to the ray): its transmission for any polarisation in, its
    diattenuation (from the eigenvalues of J†J) and its retardance (from the unitary part of its polar decomposition).
    ========================================================================== */
-const plCmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
-const plAbs2 = a => a[0] * a[0] + a[1] * a[1];
-const plDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const plCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const plUnit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /* 3 x 3 complex matrices, row-major, [re, im] pairs */
 const plEye = () => Array.from({ length: 9 }, (_, k) => [k % 4 === 0 ? 1 : 0, 0]);
@@ -37039,10 +37005,10 @@ const plMul = (A, B) => { const C = []; for (let i = 0; i < 3; i++) for (let j =
 const plMv = (A, v) => [0, 1, 2].map(i => { let re = 0, im = 0; for (let k = 0; k < 3; k++) { const a = A[i * 3 + k], b = v[k]; re += a[0] * b[0] - a[1] * b[1]; im += a[0] * b[1] + a[1] * b[0]; } return [re, im]; });
 // the face's matrix: τs s sᵀ + τp p' pᵀ + k' kᵀ
 function faceMatrix(kIn, kOut, nrm, ts, tp) {
-  let s = plCross(kIn, nrm);
-  if (Math.hypot(s[0], s[1], s[2]) < 1e-9) s = plCross(kIn, Math.abs(kIn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
-  s = plUnit(s);
-  const p = plCross(kIn, s), q = plCross(kOut, s), P = [];
+  let s = cross3(kIn, nrm);
+  if (Math.hypot(s[0], s[1], s[2]) < 1e-9) s = cross3(kIn, Math.abs(kIn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+  s = unit3(s);
+  const p = cross3(kIn, s), q = cross3(kOut, s), P = [];
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) P.push([ts[0] * s[i] * s[j] + tp[0] * q[i] * p[j] + kOut[i] * kIn[j], ts[1] * s[i] * s[j] + tp[1] * q[i] * p[j]]);
   return P;
 }
@@ -37058,25 +37024,25 @@ function polRay(S, P, coats, th, px, py) {
   for (let i = 0; i < S.N; i++) {
     const r = rec[i];
     let ts, tp, Rs, Rp;
-    const c1 = Math.abs(plDot(r.kIn, r.n));
+    const c1 = Math.abs(dot3(r.kIn, r.n));
     // the face's amplitudes as the bench takes them (core/face-pol.js); this trace's p is k × s on each side, not the
     // bench's parity convention, so a reflection's p is the bench's turned over
     const c = coats && coats[i];
-    if (r.mirror) { const F = mirrorAmps(c && c.mode === 'mirror' ? c.R / 100 : 1, false); ts = F.rs; tp = [-F.rp[0], -F.rp[1]]; Rs = Rp = plAbs2(F.rs); }
-    else { const F = faceAmps({ coat: c }, r.nIn, r.nOut, Math.min(1, c1), S.nm); ts = F.ts; tp = F.tp; Rs = plAbs2(F.rs); Rp = plAbs2(F.rp); }
+    if (r.mirror) { const F = mirrorAmps(c && c.mode === 'mirror' ? c.R / 100 : 1, false); ts = F.rs; tp = [-F.rp[0], -F.rp[1]]; Rs = Rp = cabs2(F.rs); }
+    else { const F = faceAmps({ coat: c }, r.nIn, r.nOut, Math.min(1, c1), S.nm); ts = F.ts; tp = F.tp; Rs = cabs2(F.rs); Rp = cabs2(F.rp); }
     // the glass after this face, up to the next: its absorption over the ray's path in it
     let a = 1;
     if (i < S.N - 1 && P.materials[i]) { const al = absorbAt(P.materials[i], S.nm); if (al > 0) { const q = rec[i + 1].at, o = r.at; a = Math.exp(-al * Math.hypot(q[0] - o[0], q[1] - o[1], q[2] - o[2]) / 2); } }
     Mx = plMul(faceMatrix(r.kIn, r.kOut, r.n, [ts[0] * a, ts[1] * a], [tp[0] * a, tp[1] * a]), Mx);
-    faces.push({ T: (plAbs2(ts) + plAbs2(tp)) / 2, Ts: plAbs2(ts), Tp: plAbs2(tp), Rs, Rp, absorbed: 1 - a * a, mirror: r.mirror });
+    faces.push({ T: (cabs2(ts) + cabs2(tp)) / 2, Ts: cabs2(ts), Tp: cabs2(tp), Rs, Rp, absorbed: 1 - a * a, mirror: r.mirror });
   }
   // each side's x and y: the axis's own (the image's, after a fold) turned along the great circle from the axis to the
   // ray (the double-pole basis: round about the axis, and an ideal lens's matrix the identity)
   const kN = rec[S.N - 1].kOut, I = S.img || { e1: [1, 0, 0], d: [0, 0, 1] };
   const basis = (k, ex, ez) => {
-    const w = plCross(ez, k), c = plDot(ez, k), wx = plCross(w, ex), wwx = plCross(w, wx), f = 1 / (1 + c);
-    const x = plUnit([ex[0] + wx[0] + wwx[0] * f, ex[1] + wx[1] + wwx[1] * f, ex[2] + wx[2] + wwx[2] * f]);
-    return [x, plCross(k, x)];
+    const w = cross3(ez, k), c = dot3(ez, k), wx = cross3(w, ex), wwx = cross3(w, wx), f = 1 / (1 + c);
+    const x = unit3([ex[0] + wx[0] + wwx[0] * f, ex[1] + wx[1] + wwx[1] * f, ex[2] + wx[2] + wwx[2] * f]);
+    return [x, cross3(k, x)];
   };
   const [xi, yi] = basis(k0, [1, 0, 0], [0, 0, 1]), [xo, yo] = basis(kN, I.e1, I.d);
   const cvec = v => v.map(c => [c, 0]), cdot = (u, w) => [u[0] * w[0][0] + u[1] * w[1][0] + u[2] * w[2][0], u[0] * w[0][1] + u[1] * w[1][1] + u[2] * w[2][1]];
@@ -37089,27 +37055,27 @@ function polRay(S, P, coats, th, px, py) {
 function jonesFigures(J, E) {
   const [a, b, c, d] = J;
   // J†J: Hermitian [[p, q], [q*, r]]
-  const p = plAbs2(a) + plAbs2(c), r = plAbs2(b) + plAbs2(d);
+  const p = cabs2(a) + cabs2(c), r = cabs2(b) + cabs2(d);
   const q = [a[0] * b[0] + a[1] * b[1] + c[0] * d[0] + c[1] * d[1], a[0] * b[1] - a[1] * b[0] + c[0] * d[1] - c[1] * d[0]];
-  const tr = p + r, det = p * r - plAbs2(q), disc = Math.sqrt(Math.max(0, tr * tr / 4 - det)), lmax = tr / 2 + disc, lmin = Math.max(0, tr / 2 - disc);
+  const tr = p + r, det = p * r - cabs2(q), disc = Math.sqrt(Math.max(0, tr * tr / 4 - det)), lmax = tr / 2 + disc, lmin = Math.max(0, tr / 2 - disc);
   const D = lmax + lmin > 0 ? (lmax - lmin) / (lmax + lmin) : 0;
   // the unitary part U = J H⁻¹, H = √(J†J) = (J†J + √det I) / √(tr + 2√det)
   const sd = Math.sqrt(Math.max(0, det)), k = Math.sqrt(tr + 2 * sd);
   let ret = 0;
   if (sd > 1e-30 && k > 0) {
     // H = [[h11, h12], [h12*, h22]]; H⁻¹ = [[h22, -h12], [-h12*, h11]] / det H, det H = sd (as √det(J†J))
-    const h11 = (p + sd) / k, h22 = (r + sd) / k, h12 = [q[0] / k, q[1] / k], dh = h11 * h22 - plAbs2(h12);
+    const h11 = (p + sd) / k, h22 = (r + sd) / k, h12 = [q[0] / k, q[1] / k], dh = h11 * h22 - cabs2(h12);
     const i11 = [h22 / dh, 0], i12 = [-h12[0] / dh, -h12[1] / dh], i21 = [-h12[0] / dh, h12[1] / dh], i22 = [h11 / dh, 0];
-    const u11 = [plCmul(a, i11)[0] + plCmul(b, i21)[0], plCmul(a, i11)[1] + plCmul(b, i21)[1]], u22 = [plCmul(c, i12)[0] + plCmul(d, i22)[0], plCmul(c, i12)[1] + plCmul(d, i22)[1]];
+    const u11 = [cmul(a, i11)[0] + cmul(b, i21)[0], cmul(a, i11)[1] + cmul(b, i21)[1]], u22 = [cmul(c, i12)[0] + cmul(d, i22)[0], cmul(c, i12)[1] + cmul(d, i22)[1]];
     const trU = Math.hypot(u11[0] + u22[0], u11[1] + u22[1]);
     ret = 2 * Math.acos(Math.min(1, trU / 2));
   }
   let T = tr / 2, out = null;
   if (E) {
-    const ex = [plCmul(a, E[0])[0] + plCmul(b, E[1])[0], plCmul(a, E[0])[1] + plCmul(b, E[1])[1]], ey = [plCmul(c, E[0])[0] + plCmul(d, E[1])[0], plCmul(c, E[0])[1] + plCmul(d, E[1])[1]];
-    T = plAbs2(ex) + plAbs2(ey);
+    const ex = [cmul(a, E[0])[0] + cmul(b, E[1])[0], cmul(a, E[0])[1] + cmul(b, E[1])[1]], ey = [cmul(c, E[0])[0] + cmul(d, E[1])[0], cmul(c, E[0])[1] + cmul(d, E[1])[1]];
+    T = cabs2(ex) + cabs2(ey);
     // the polarisation out: its Stokes parameters, the ellipse's tilt and ellipticity
-    const S0 = T, S1 = plAbs2(ex) - plAbs2(ey), S2 = 2 * (ex[0] * ey[0] + ex[1] * ey[1]), S3 = 2 * (ex[0] * ey[1] - ex[1] * ey[0]);
+    const S0 = T, S1 = cabs2(ex) - cabs2(ey), S2 = 2 * (ex[0] * ey[0] + ex[1] * ey[1]), S3 = 2 * (ex[0] * ey[1] - ex[1] * ey[0]);
     out = { ex, ey, psi: 0.5 * Math.atan2(S2, S1), chi: S0 > 0 ? 0.5 * Math.asin(Math.max(-1, Math.min(1, S3 / S0))) : 0 };
   }
   return { T, D, ret, out, Tmax: lmax, Tmin: lmin };
@@ -37370,13 +37336,12 @@ function stockTry(prob, d, s, flip, iters) {
    the beam's profile), and the power past each aperture (spillover, exp(-2 a²/w²)).
    ========================================================================== */
 const rfNm = ghz => C_NM_GHZ / ghz;
-const rfCdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 /* the reduced beam parameter across a gap g of index n: straight, or through a graded glass (a graded-index disc's)
    by its r² term's matrix, on (y, n u): [[A, B/n], [n C, D]] */
 function rfGap(q, g, n, GR) {
   if (!GR || !GR.G || !GR.G[0]) return [q[0] + g / n, q[1]];
   const m = grMatrix(GR.G[0], n, g), A = m[0], B = m[1] / n, C = m[2] * n, D = m[3];
-  return rfCdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
+  return cdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
 }
 const rfGR = (S, i) => S.GR ? S.GR[i] : null;
 /* a beam parameter's radius and phase radius (mm; R Infinity at a waist) */
@@ -37465,7 +37430,7 @@ function rfTrace(asm, P, ghz, opts) {
     const pc = S.c[i] + 2 * S.a2[i];
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     // 1/q' = 1/q - phi, in reduced form
-    const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
+    const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     if (i < N - 1) {
       const g = P.gaps[i], n = S.n[i + 1], n2 = 12, GR = rfGR(S, i);
       for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR)); }
@@ -37551,7 +37516,6 @@ function rfBand(asm, P) {
   return { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
 }
 /* the indices the trace used at nm for a material (exported for the lens table) */
-const rfIndex = (m, ghz) => refIndex(m, rfNm(ghz));
 
 /* ---------- Design from a spec ----------
    A lens of the system made to suit the beam that reaches it and what it is for, as a millimetre-wave lens is
@@ -37573,7 +37537,7 @@ function rfQBefore(asm, P, ghz, idx, feedD) {
   let q = [(feedD === undefined ? R.feed.d : feedD) + B.dz, B.zR];
   for (let i = 0; i < idx; i++) {
     const pc = S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
-    const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
+    const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }
   return q;
@@ -37634,9 +37598,9 @@ function rfSynth(asm, P, spec) {
     const want = -d2 / (d2 * d2 + zRt * zRt);
     const miss = c => {
       const sc = { R: 1 / c, k: s1.k }, t = Math.max(0, spec.edge) + sag(sc);
-      let iq = rfCdiv([1, 0], q); let qq = rfCdiv([1, 0], [iq[0] - (n - 1) * c, iq[1]]);
+      let iq = cdiv([1, 0], q); let qq = cdiv([1, 0], [iq[0] - (n - 1) * c, iq[1]]);
       qq = [qq[0] + t / n, qq[1]];
-      iq = rfCdiv([1, 0], qq);
+      iq = cdiv([1, 0], qq);
       // the flat back: 1/q̂ unchanged in reduced form
       return isFinite(t) ? iq[0] - want : NaN;
     };
@@ -37671,7 +37635,7 @@ function rfSynthGrin(spec, M, q, i0, o) {
     const G = grinSlab(grin(f), spec.D);
     if (!G) return NaN;
     const n = G.n0, qq = rfGap(q, G.T, n, { G: G.grad });
-    return rfCdiv([1, 0], qq)[0] - want;
+    return cdiv([1, 0], qq)[0] - want;
   };
   let f0 = 1 / (1 / F1 + (isFinite(F2) ? 1 / F2 : 0));
   if (!(f0 > 0) || !isFinite(f0)) return { error: 'The beam reaching it and the goal after it need no focusing a disc can give.' };
@@ -37756,7 +37720,7 @@ function rfSlabR(layers, nm) {
 }
 
 /* ---------- Optimise ----------
-   Damped least squares on the system's own figures: at five frequencies across the band, the efficiency short of
+   Quasi-Newton (BFGS, below) on the system's own figures: at five frequencies across the band, the efficiency short of
    1 (for a collimated beam that is the gain at its diameter; for the others the coupling and the losses), and, if
    asked, how far each is from their mean (flatness). Each lens keeps its centre no thicker than a limit (if set),
    its edge no thinner than one, and the air between parts open. The variables: each face's curvature (so a face
@@ -37940,9 +37904,8 @@ function rfSensitivity(asm, P, T) {
 /* Monte Carlo, a batch of builds at a time: plan (its state), run(n) to go on, the builds so far */
 function rfMcPlan(asm, P, T) {
   const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
-  let s = tol.seed >>> 0 || 1;
-  const rnd = () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; s ^= s >>> 13; return ((s >>> 0) + 0.5) / 4294967296; };
-  const draw = v => tol.dist === 'normal' ? (v / 2) * Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd()) : v * (2 * rnd() - 1);
+  const rnd = seededRng(tol.seed >>> 0 || 1);
+  const draw = v => tol.dist === 'normal' ? (v / 2) * randn(rnd) : v * (2 * rnd() - 1);
   const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 })), done: false };
   plan.run = n => {
     for (let k = 0; k < n && plan.builds.length < tol.trials; k++) {
@@ -38133,7 +38096,7 @@ function compensatedMany(prob, P, comp, C) {
     let took = false;
     for (let tries = 0; tries < 8 && !took; tries++) {
       const M = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => A[a * n + b] + (a === b ? lambda * (A[a * n + a] || 1e-12) + 1e-18 : 0)));
-      const d = gaussSolve(M, Array.from(g));
+      const d = solveLinear(M, Array.from(g));
       if (d) {
         const xn = x.map((v, j) => Math.min(hi[j], Math.max(lo[j], v + d[j]))), rn = res(xn), fn = ss(rn);
         if (fn < f) { took = (f - fn) > 1e-12 * f; x = xn; r = rn; f = fn; lambda = Math.max(1e-9, lambda / 3); break; }
@@ -38146,18 +38109,6 @@ function compensatedMany(prob, P, comp, C) {
   const fin = withComps(P, C, c, dz, pv);
   P.image = P.image + dz;
   return { crit: Math.sqrt(f), dz, cv: c, fin };
-}
-function gaussSolve(M, b) {
-  const n = b.length;
-  for (let i = 0; i < n; i++) {
-    let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
-    if (Math.abs(M[p][i]) < 1e-300) return null;
-    [M[i], M[p]] = [M[p], M[i]]; [b[i], b[p]] = [b[p], b[i]];
-    for (let k = i + 1; k < n; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < n; j++) M[k][j] -= f * M[i][j]; b[k] -= f * b[i]; }
-  }
-  const x = new Array(n);
-  for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < n; j++) t -= M[i][j] * x[j]; x[i] = t / M[i][i]; }
-  return x;
 }
 
 /* ---------- Sensitivity ---------- */
@@ -38209,12 +38160,11 @@ function tolInverse(prob, T, from, to) {
 }
 
 /* ---------- Monte Carlo ---------- */
-function tolRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 /* trials from..to-1: each its own seed, so the result does not depend on how the run is cut up */
 function tolMonteCarlo(prob, T, from, to) {
   const ops = tolOps(prob.P, T), out = [];
   for (let j = from; j < to; j++) {
-    const R = tolRng(T.seed * 1000003 + j * 7919 + 1);
+    const R = seededRng(T.seed * 1000003 + j * 7919 + 1);
     const vals = ops.map(o => {
       if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
       return (2 * R() - 1) * o.lim;
@@ -38285,20 +38235,7 @@ function tolRun(prob, args) {
    ========================================================================== */
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
 
-function drawSag(s, y) {
-  // (the section drawn is in the plane of the fields: a cylinder curved out of it is flat there)
-  const c = s.R && s.cyl !== 'x' ? 1 / s.R : 0, r2 = y * y;
-  const q = 1 - (1 + (s.k || 0)) * c * c * r2;
-  if (q < 0) return NaN;
-  let v = c ? c * r2 / (1 + Math.sqrt(q)) : 0;
-  v += (s.a2 || 0) * r2;
-  let p = r2 * r2;
-  for (const a of s.A || []) { v += a * p; p *= r2; }
-  if (s.odd) { let r = Math.abs(y); for (const a of s.odd) { v += a * r; r *= Math.abs(y); } }
-  // a freeform's terms along the section drawn (the plane of the fields)
-  if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(y, +k[1]);
-  return v;
-}
+const drawSag = sagInPlane;      // the section drawn is in the plane of the fields (core/sag.js)
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
 
 /* the parts of P a drawing can be made of: its lenses and windows, by index into P.parts */
@@ -41809,15 +41746,7 @@ async function zmxIntoMine(files, mode) {
 /* a face's sag (mm, along its axis) at radius r, and its slope, as the lens engine has it */
 function cadSagOf(s) {
   const c = s.R === null || s.R === undefined || !isFinite(s.R) || !s.R ? 0 : 1 / s.R, k = s.k || 0, a2 = s.a2 || 0, A = s.A || [], odd = s.odd || null;
-  const f = r => {
-    const r2 = r * r, d = 1 - (1 + k) * c * c * r2;
-    if (d < 0) return NaN;
-    let v = c ? c * r2 / (1 + Math.sqrt(d)) : 0;
-    v += a2 * r2;
-    let p = r2 * r2; for (let j = 0; j < A.length; j++) { v += A[j] * p; p *= r2; }
-    if (odd) { let q = r; for (let j = 0; j < odd.length; j++) { v += odd[j] * q; q *= r; } }
-    return v;
-  };
+  const f = r => sagR2(c, k, a2, A, odd, r * r, false);
   const df = r => { const h = 1e-6 * Math.max(1, r); return (f(r + h) - f(Math.max(0, r - h))) / (r + h - Math.max(0, r - h)); };
   const plain = !A.some(v => v) && !a2 && !(odd && odd.some(v => v));
   return { f, df, c, k, flat: !c && plain, sphere: c && !k && plain, R: c ? 1 / c : null };
@@ -44586,6 +44515,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The bench\u2019s <b>Tolerance the bench</b> study is now seeded by the number of builds asked for, so running it again gives the same spread; the lens designer\u2019s and the RF designer\u2019s Monte Carlo draw from the same seeded source. Under the surface, one copy each of the surface sag, the Bessel functions, the small linear solvers and the complex arithmetic now serves the bench, both designers and the drawings, and the RF designer\u2019s gain is checked against the bench\u2019s closed form for a lens antenna.',
     '<b>One set of numbers for every face</b>: the bench\u2019s rays, its diffracted field and focus, the lens designer\u2019s polarisation trace and the RF designer\u2019s reflections now take a face\u2019s s and p amplitudes from one place, so they agree exactly. Light through a <b>coated face</b> now keeps the coating\u2019s own phase, so a beamsplitter or AR stack met at a slant retards p against s on the way through, as a real one does; a coated face now reflects s and p with the same sign square on (p was turned over before); the lens designer\u2019s mirrors reflect their own reflectance; and the RF designer counts any coating stack on a lens, not only a single matching layer.',
     'A tidier interface: <b>three kinds of button</b> (one solid button for the main action, outlined ones for the others, and plain words for menus and toggles), <b>Save</b> marked with a dot when the bench has changed since it was opened or saved, and the designers\u2019 tabs drawn as tabs. On a <b>phone</b> the top bar is one row: the bench\u2019s name, <b>+</b>, <b>Save</b> and <b>\u22ef</b>, a menu holding the rest. The <b>RF designer</b> lists its system down the left as the beam meets it (the frequency, the feed horn, each lens, the goal) and edits the one chosen beside the beam; <b>Add a lens</b> puts another after the last and designs it, and a lens can be taken out again.',
     '<b>Quote now</b>: an RF lens or disc that can be made has an orange <b>Quote now</b> button, which puts it in your quote cart and opens the cart in a new tab, ready to send; <b>Add to quote cart</b> gathers several first. <b>Cart</b>, at the top beside your account, opens the cart and shows how many are in it. Your JEKray account now works across the JEK Systems site: sign in from any page, see it on <b>Your account</b>, and the quote form fills in your name and email.',

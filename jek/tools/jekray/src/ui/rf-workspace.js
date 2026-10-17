@@ -18,6 +18,7 @@ import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
 import { openLensDesign } from './lens-workspace.js';
+import { fmtWs } from '../core/format.js';
 
 /* ==========================================================================
    The RF designer
@@ -33,7 +34,7 @@ import { openLensDesign } from './lens-workspace.js';
    ========================================================================== */
 let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
 export const rfDesignOpen = () => !!RW;
-const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
+const rwFmt = (v, p) => fmtWs(v, p || 5, 1e-9);
 /* where a waist sits from the last vertex, in words rather than a signed distance */
 const rwAt = v => Math.abs(v) < 1e-6 ? 'at the last face' : v < 0 ? rwFmt(-v, 4) + ' mm before the last face' : rwFmt(v, 4) + ' mm after the last face';
 const rwPct = v => isFinite(v) ? (100 * v).toFixed(1) + ' %' : '—';

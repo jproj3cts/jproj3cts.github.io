@@ -48,10 +48,7 @@ import { pinBoxes, pins, renderPanel, setPins, syncPanel, togglePin, viewState, 
 import { portPower } from './panels.js';
 import { materialOptions, partAssumptions } from './plots.js';
 import { cavityLater } from './panel-cavity.js';
-import {
-  besselJ01, besselZerosJ0, hankel, ihankel, popFieldSeries, popGaussian, popLeg, popPower, popRadii,
-  popStats, popSurface, popW, qdht, setBAB_N
-} from '../engines/field.js';
+import { hankel, ihankel, popFieldSeries, popGaussian, popLeg, popPower, popRadii, popStats, popSurface, popW, qdht, setBAB_N } from '../engines/field.js';
 import { cavEventABCD, cavModes, cavRunCache, cavSolved, findCavities, laserState } from '../engines/cavity.js';
 import { vfPupil } from '../engines/vector-focus.js';
 import { popScreen } from '../engines/phase-screen.js';
@@ -98,6 +95,7 @@ import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesi
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
+import { besselJ01, besselZerosJ0 } from '../core/special.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)

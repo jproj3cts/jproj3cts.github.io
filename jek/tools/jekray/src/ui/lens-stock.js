@@ -5,6 +5,7 @@ import { designLenses, stockBaseline, stockCandidates, stockNominal, stockOf, st
 import { parseZmx, readZmxFile } from '../io/zmx-import.js';
 import { zmxPart } from '../io/zmx-export.js';
 import { helpLine, h } from './panel.js';
+import { fmtSig } from '../core/format.js';
 
 /* ---------- Stock lenses: the user's own lens files, matched to the lenses of a design ----------
    The lens files are the user's: chosen here, read in the browser, kept in this browser only (its local storage),
@@ -36,7 +37,7 @@ export async function stockAdd(files) {
 export function stockClear() { LIB = []; keep(); }
 export const stockLibrary = () => lib();
 
-const stFmt = (v, p) => (isFinite(v) ? String(+(+v).toPrecision(p || 4)) : '—');
+const stFmt = (v, p) => fmtSig(v, p || 4);
 let RUN = null;
 /* the card: the stock kept, and for each lens of the design its matches, tried in the design */
 export function stockCard({ asm, P, redraw, edit, toast }) {

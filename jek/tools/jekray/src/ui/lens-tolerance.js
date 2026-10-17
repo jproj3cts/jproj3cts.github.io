@@ -7,6 +7,7 @@ import { compensated, compsFor, mcStats, opValues, rssEstimate, tolOps, tolRun, 
 import { surfaceParts } from '../engines/lens-design.js';
 import { helpLine, h } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
+import { fmtSig } from '../core/format.js';
 
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
@@ -24,7 +25,7 @@ const KIND_ROWS = [['rad', 'Radius', 'fringes', 'Each lens surface’s sag at it
   ['irr', 'Surface irregularity', 'fringes', 'Each lens surface’s form error beyond its radius: a fourth-order departure this many fringes peak to valley at 632.8 nm, with none at its clear radius'],
   ['wedge', 'Surface wedge', 'arcmin', 'Each lens surface tilted on its own about its vertex, about x and about y: its lens wedged, its faces no longer square to one axis (at a cemented interface, the cement wedged)'],
   ['sdec', 'Surface decentre', 'mm', 'Each lens surface moved across the axis on its own, in x and in y: in a cemented lens, its parts glued off one another\u2019s axis']];
-const tolFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+const tolFmt = (v, p) => fmtSig(v, p || 4);
 let TOL = null;
 export const lensTolState = () => TOL && { running: TOL.running, mode: TOL.mode, sens: TOL.sens, inv: TOL.inv, mc: TOL.mc && { n: TOL.mc.trials.length, stats: mcStats(TOL.mc.trials.map(t => t.crit)) }, note: TOL.note };
 export function tolStop(note) { if (TOL && TOL.running) { TOL.running = false; TOL.note = note || 'Stopped.'; } }

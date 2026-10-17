@@ -10,6 +10,7 @@ import { popInside, popLeg, popRadii, popSurface, qdht } from './field.js';
 import { beamAxes, popScreen } from './phase-screen.js';
 import { fft, fieldComps, popLeg2, popSurface2 } from './field2d.js';
 import { popClear } from './beam-tree.js';
+import { solveLinear } from '../core/numeric.js';
 
 /* ---------- Cavities ----------
    A cavity is found from the light's own path: along the pilot ray's tree of branches, the
@@ -309,17 +310,8 @@ function QOverlap(Q1, Q2, lam0) {
   const dG = ccDet(G);
   return Math.sqrt(Math.max(0, d2(A(P1)) * d2(A(P2)))) / Math.hypot(dG[0], dG[1]);
 }
-/* A small real linear system A x = b, by elimination with partial pivoting; null if singular */
-function solveLin(A0, b0) {
-  const n = b0.length, A = A0.map((r, i) => r.concat([b0[i]]));
-  for (let c = 0; c < n; c++) {
-    let p = c; for (let i = c + 1; i < n; i++) if (Math.abs(A[i][c]) > Math.abs(A[p][c])) p = i;
-    if (!(Math.abs(A[p][c]) > 1e-14)) return null;
-    [A[c], A[p]] = [A[p], A[c]];
-    for (let i = 0; i < n; i++) if (i !== c) { const f = A[i][c] / A[c][c]; for (let j = c; j <= n; j++) A[i][j] -= f * A[c][j]; }
-  }
-  return A.map((r, i) => r[n] / r[i]);
-}
+// a small real linear system, null when singular (core/numeric.js), at the threshold a round trip's (I - M) needs
+const solveLin = (A, b) => solveLinear(A, b, 1e-14);
 /* The power coupling of two beams given as Q's at one plane, the first (a loop's mode) sitting
    off the second by a (mm, across and up) and tilted against it by t (radians): the overlap of
    the two fields, summed on a grid wide enough for both */

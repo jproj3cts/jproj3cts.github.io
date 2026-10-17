@@ -1,5 +1,7 @@
 import { aimRay, lensLaunch, lensSystem, pupilGrid, rayAt, traceField, traceRay } from './lens-engine.js';
 import { designEpd, objOpts, primaryNm } from './lens-design.js';
+import { solveLinear } from '../core/numeric.js';
+import { fft } from './field2d.js';
 
 /* ==========================================================================
    Analyses of a lens design
@@ -245,19 +247,6 @@ export function zernike(j, r, t) {
   }
   return 0;
 }
-function solveDense(A, b, n) {
-  // Gaussian elimination with partial pivoting
-  const M = A.map((row, i) => row.concat([b[i]]));
-  for (let k = 0; k < n; k++) {
-    let p = k; for (let i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i;
-    [M[k], M[p]] = [M[p], M[k]];
-    if (Math.abs(M[k][k]) < 1e-300) return null;
-    for (let i = k + 1; i < n; i++) { const f = M[i][k] / M[k][k]; for (let j = k; j <= n; j++) M[i][j] -= f * M[k][j]; }
-  }
-  const x = new Array(n).fill(0);
-  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
-  return x;
-}
 /* the wavefront's statistics and its Zernike fit by least squares over the points that came through */
 export function wavefrontMap(A, deg, wi, N) {
   N = N || 48;
@@ -277,26 +266,13 @@ export function wavefrontMap(A, deg, wi, N) {
     const z = []; for (let k = 1; k <= J; k++) z.push(zernike(k, r, t));
     for (let a = 0; a < J; a++) { Atb[a] += z[a] * v; for (let b = 0; b < J; b++) AtA[a][b] += z[a] * z[b]; }
   }
-  const coef = cnt > J ? solveDense(AtA, Atb, J) : null;
+  const coef = cnt > J ? solveLinear(AtA, Atb) : null;
   return { deg, nm: S.nm, N, W, mean, rms: cnt ? Math.sqrt(s2 / cnt) : NaN, pv: cnt ? mx - mn : NaN, coef, lost: 0 };
 }
 
 /* ---------- The FFT ---------- */
-export function fft1(re, im, inv) {
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
-  for (let len = 2; len <= n; len <<= 1) {
-    const a = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
-    for (let i = 0; i < n; i += len) {
-      let cr = 1, ci = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const ur = re[i + k], ui = im[i + k], vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci, vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
-        re[i + k] = ur + vr; im[i + k] = ui + vi; re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
-        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
-      }
-    }
-  }
-}
+// the field engine's (its twiddles cached), forward as e^{-2πi mn/N}
+export const fft1 = (re, im, inv) => fft(re, im, inv ? 1 : -1);
 export function fft2(re, im, M, inv) {
   const r = new Float64Array(M), i = new Float64Array(M);
   for (let y = 0; y < M; y++) { for (let x = 0; x < M; x++) { r[x] = re[y * M + x]; i[x] = im[y * M + x]; } fft1(r, i, inv); for (let x = 0; x < M; x++) { re[y * M + x] = r[x]; im[y * M + x] = i[x]; } }

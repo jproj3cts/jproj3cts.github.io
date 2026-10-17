@@ -2,6 +2,7 @@ import { DOVE_RATIO, deg } from '../state/project.js';
 import { rollFrame } from '../engines/trace.js';
 import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
+import { sagR2 } from './sag.js';
 
 /* ==========================================================================
    Geometry
@@ -17,19 +18,7 @@ export function sagFn(s, y) {
 }
 export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
-export function rawSag(s, y) {
-  const y2 = y * y;
-  let v = 0;
-  if (s.c !== 0) {
-    const arg = 1 - (1 + s.k) * s.c * s.c * y2;
-    v = s.c * y2 / (1 + Math.sqrt(Math.max(0, arg)));
-  }
-  v += s.a2 * y2;
-  let p = y2 * y2;
-  for (let j = 0; j < s.A.length; j++) { v += s.A[j] * p; p *= y2; }
-  if (s.odd) { const r = Math.abs(y); let q = r; for (let j = 0; j < s.odd.length; j++) { v += s.odd[j] * q; q *= r; } }
-  return v;
-}
+export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true);
 export function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;

@@ -2,6 +2,9 @@
 import './core/constants.js';
 import './core/hooks.js';
 import './core/maths.js';
+import './core/numeric.js';
+import './core/special.js';
+import './core/sag.js';
 import './core/format.js';
 import './core/glass-catalog.js';
 import './core/glass-thermal.js';

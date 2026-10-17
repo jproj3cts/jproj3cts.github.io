@@ -2,6 +2,7 @@ import { getEl } from '../state/elements.js';
 import { designPrescription } from '../engines/lens-design.js';
 import { lensSystem } from '../engines/lens-engine.js';
 import { downloadFile, safeFileName, toast } from '../ui/actions.js';
+import { sagR2 } from '../core/sag.js';
 
 /* ==========================================================================
    CAD export: a design's parts as solids, placed as the design has them
@@ -18,15 +19,7 @@ import { downloadFile, safeFileName, toast } from '../ui/actions.js';
 /* a face's sag (mm, along its axis) at radius r, and its slope, as the lens engine has it */
 function cadSagOf(s) {
   const c = s.R === null || s.R === undefined || !isFinite(s.R) || !s.R ? 0 : 1 / s.R, k = s.k || 0, a2 = s.a2 || 0, A = s.A || [], odd = s.odd || null;
-  const f = r => {
-    const r2 = r * r, d = 1 - (1 + k) * c * c * r2;
-    if (d < 0) return NaN;
-    let v = c ? c * r2 / (1 + Math.sqrt(d)) : 0;
-    v += a2 * r2;
-    let p = r2 * r2; for (let j = 0; j < A.length; j++) { v += A[j] * p; p *= r2; }
-    if (odd) { let q = r; for (let j = 0; j < odd.length; j++) { v += odd[j] * q; q *= r; } }
-    return v;
-  };
+  const f = r => sagR2(c, k, a2, A, odd, r * r, false);
   const df = r => { const h = 1e-6 * Math.max(1, r); return (f(r + h) - f(Math.max(0, r - h))) / (r + h - Math.max(0, r - h)); };
   const plain = !A.some(v => v) && !a2 && !(odd && odd.some(v => v));
   return { f, df, c, k, flat: !c && plain, sphere: c && !k && plain, R: c ? 1 / c : null };

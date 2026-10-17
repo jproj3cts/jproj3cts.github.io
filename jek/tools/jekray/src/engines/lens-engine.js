@@ -2,6 +2,8 @@ import { dpBend, dpOn, dpPhase, dpPower, dpSlopeOverR, normOrder } from '../core
 import { ffGrad, ffList, ffSag } from '../core/freeform.js';
 import { GR_REACH, grDelta, grMatrix, grSlopeOverR, grStep } from '../core/gradient.js';
 import { refIndex } from '../core/glass.js';
+import { sagR2 } from '../core/sag.js';
+import { dot3 } from '../core/numeric.js';
 
 /* ==========================================================================
    The lens engine: a prescription traced as a lens designer traces it
@@ -80,8 +82,7 @@ export function lensSystem(P, nm, opts) {
    to the axis after the last surface, the image distance along it. A surface's dtilt turns its face
    alone, the axis folding as without it: a fold mirror made tilted, the parts after it where they were. */
 const ladd3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
-const ldot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const lrefl3 = (v, m) => { const k = 2 * ldot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
+const lrefl3 = (v, m) => { const k = 2 * dot3(v, m); return [v[0] - k * m[0], v[1] - k * m[1], v[2] - k * m[2]]; };
 function geometry(S, P) {
   let p = [0, 0, 0], e1 = [1, 0, 0], e2 = [0, 1, 0], d = [0, 0, 1];
   S.fr = []; S.ax = [];
@@ -106,8 +107,8 @@ function geometry(S, P) {
    distance along the axis (the image plane at S.imageZ) */
 function toImageFrame(S, R) {
   const I = S.img, v = [R[0] - I.p[0], R[1] - I.p[1], R[2] - I.p[2]], q = [R[3], R[4], R[5]];
-  R[0] = ldot3(v, I.e1); R[1] = ldot3(v, I.e2); R[2] = S.imageZ + ldot3(v, I.d);
-  R[3] = ldot3(q, I.e1); R[4] = ldot3(q, I.e2); R[5] = ldot3(q, I.d);
+  R[0] = dot3(v, I.e1); R[1] = dot3(v, I.e2); R[2] = S.imageZ + dot3(v, I.d);
+  R[3] = dot3(q, I.e1); R[4] = dot3(q, I.e2); R[5] = dot3(q, I.d);
   return R;
 }
 
@@ -161,17 +162,7 @@ export function paraxialOf(S) {
 // a diffractive face's power at the system's wavelength (0 for any other)
 const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
-function sag(S, i, r2) {
-  const c = S.c[i];
-  let v = 0;
-  if (c !== 0) v = c * r2 / (1 + Math.sqrt(Math.max(0, 1 - (1 + S.k[i]) * c * c * r2)));
-  v += S.a2[i] * r2;
-  const A = S.A[i];
-  if (A) { let p = r2 * r2; for (let j = 0; j < A.length; j++) { v += A[j] * p; p *= r2; } }
-  const o = S.odd[i];
-  if (o) { const r = Math.sqrt(r2); let q = r; for (let j = 0; j < o.length; j++) { v += o[j] * q; q *= r; } }
-  return v;
-}
+const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true);
 /* d sag / d rho, divided by rho (finite on the axis) */
 function dsagOverR(S, i, r2) {
   const c = S.c[i];

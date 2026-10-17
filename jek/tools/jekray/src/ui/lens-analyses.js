@@ -11,6 +11,7 @@ import { checkpoint } from './tabs.js';
 import { getEl } from '../state/elements.js';
 import { helpLine, h } from './panel.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
+import { fmtSig } from '../core/format.js';
 
 /* ==========================================================================
    The workspace's Analyses: each view of the design, chosen by a row of chips, with the field
@@ -22,7 +23,7 @@ export const WAVE_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba
 const waveColour = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 const VIEWS = [['spot', 'Spot diagram'], ['fans', 'Ray fans'], ['opd', 'OPD fans'], ['field', 'Field curvature and distortion'], ['long', 'Longitudinal and colour'],
   ['wave', 'Wavefront'], ['psf', 'PSF'], ['mtf', 'MTF'], ['tfm', 'Through-focus MTF'], ['ri', 'Relative illumination'], ['foot', 'Footprints'], ['seidel', 'Seidel'], ['ghost', 'Ghosts'], ['pol', 'Polarisation'], ['therm', 'Thermal'], ['imsim', 'Image simulation']];
-const anFmt = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 4));
+const anFmt = (v, p) => fmtSig(v, p || 4);
 const um = v => anFmt(1000 * v, 4) + ' µm';
 
 const anaCache = new Map();

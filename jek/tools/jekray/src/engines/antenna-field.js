@@ -10,8 +10,9 @@ import { beamAt } from '../core/beams-hom.js';
 import { lastTrace, paraxial, setLastTraceKey, traceScene } from './trace.js';
 import { rfCoupling } from './fibre-face.js';
 import { popRun, segW } from './beam-tree.js';
-import { besselJ01, popInside, popPower, popRadii, qdht } from './field.js';
+import { popInside, popPower, popRadii, qdht } from './field.js';
 import { fieldComps, popStats2 } from './field2d.js';
+import { besselJ01 } from '../core/special.js';
 
 /* ---------- An RF lens as an antenna, from the bench's own diffracted field ----------
    The field engine carries the horn's field (its modes, as launched) through the lens: each face

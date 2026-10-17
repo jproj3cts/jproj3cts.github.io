@@ -11,6 +11,11 @@ export const fmtDbm = mw => mw > 0 ? (10 * Math.log10(mw)).toFixed(2) + ' dBm' :
 
 export const fmtTime = t => t >= 60 ? (+(t / 60).toPrecision(3)) + ' min' : t >= 1 ? (+t.toPrecision(3)) + ' s' : t >= 1e-3 ? (+(t * 1e3).toPrecision(3)) + ' ms' : t >= 1e-6 ? (+(t * 1e6).toPrecision(3)) + ' µs' : (+(t * 1e9).toPrecision(3)) + ' ns';
 
+/* a figure to p significant figures, a dash where there is none (the analyses' tables) */
+export const fmtSig = (v, p = 4) => v === null || v === undefined || !isFinite(v) ? '\u2014' : String(+(+v).toPrecision(p));
+/* the same for a workspace's fields: blank where there is none, ∞ for an infinite one, and 0 under a floor */
+export const fmtWs = (v, p = 6, zero = 0) => v === null || v === undefined ? '' : !isFinite(v) ? '\u221e' : Math.abs(v) < zero ? '0' : String(+(+v).toPrecision(p));
+
 export function fmtNum(v) {
   if (v === null || v === undefined || !isFinite(v)) return '';
   return String(+(+v).toPrecision(8));

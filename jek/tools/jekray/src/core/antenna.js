@@ -1,4 +1,4 @@
-import { besselJ01 } from '../engines/field.js';
+import { besselJ01 } from '../core/special.js';
 
 /* ---------- Closed forms for a lens antenna, to check the bench's against ----------
    The panels' figures come from the bench's own diffracted field (engines/antenna-field.js). These

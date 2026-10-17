@@ -2,6 +2,7 @@ import { lensSystem, pupilRings, rayAt, seidel, traceField } from './lens-engine
 import { asphGet, asphSet, cfgApply, cfgCond, designEpd, designOf, objOpts, editable, getV, mcOf, posOf, setV, primaryNm, solveDesign, surfSag, surfaceParts } from './lens-design.js';
 import { glassInfo, glassSearch } from '../core/glass.js';
 import { mtfAt, paraxHeight } from './lens-analysis.js';
+import { seededRng, solveCholesky } from '../core/numeric.js';
 
 /* ==========================================================================
    Optimising a lens design: its merit function, damped least squares and a global search
@@ -269,19 +270,6 @@ export function meritReport(prob) {
 }
 
 /* ---------- Damped least squares ---------- */
-function solveSym(A, b, n) {
-  // Cholesky; null if A is not positive definite
-  const L = new Float64Array(n * n);
-  for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) {
-    let s = A[i * n + j];
-    for (let k = 0; k < j; k++) s -= L[i * n + k] * L[j * n + k];
-    if (i === j) { if (!(s > 0)) return null; L[i * n + i] = Math.sqrt(s); } else L[i * n + j] = s / L[j * n + j];
-  }
-  const y = new Float64Array(n), x = new Float64Array(n);
-  for (let i = 0; i < n; i++) { let s = b[i]; for (let k = 0; k < i; k++) s -= L[i * n + k] * y[k]; y[i] = s / L[i * n + i]; }
-  for (let i = n - 1; i >= 0; i--) { let s = y[i]; for (let k = i + 1; k < n; k++) s -= L[k * n + i] * x[k]; x[i] = s / L[i * n + i]; }
-  return x;
-}
 function evalAt(prob, V, x) { const P = designAt(prob, V, x), T = meritTerms(prob, P); return T; }
 export function dls(prob, V, x0, iters, lambda0) {
   const Lm = limitsX(prob, V);
@@ -314,7 +302,7 @@ export function dls(prob, V, x0, iters, lambda0) {
       // a variable that does nothing yet (an interface between two like glasses) still gets a little damping, so the step exists
       let dmax = 0; for (let a = 0; a < n; a++) dmax = Math.max(dmax, A[a * n + a]);
       for (let a = 0; a < n; a++) Ad[a * n + a] += lambda * Math.max(A[a * n + a], 1e-6 * dmax) + 1e-12 * dmax + 1e-300;
-      const d = solveSym(Ad, g, n);
+      const d = solveCholesky(Ad, g, n);
       if (d) {
         // no step longer than each variable's reach: a sixth of a radius's curvature, 30% of a thickness, a conic by 0.5, a glass by 0.02 in nd and 3 in Vd
         let sc = 1;
@@ -344,10 +332,9 @@ export function dls(prob, V, x0, iters, lambda0) {
    From the best design yet, each trial shakes every variable (radii by about 30% of their
    curvature, thicknesses by about 30%, conics by 0.3, a model glass along both its nd and Vd), then
    damped least squares takes it to its own minimum; the best is kept. Seeded, so a run repeats. */
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const gauss = R => Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
 export function globalSearch(prob, V, best, trials, seed) {
-  const R = rng(seed || 1);
+  const R = seededRng(seed || 1);
   let out = { x: Float64Array.from(best.x), ss: best.ss, Wt: best.Wt, tried: 0, better: 0, found: [] };
   for (let t = 0; t < trials; t++) {
     const x = Float64Array.from(out.x);

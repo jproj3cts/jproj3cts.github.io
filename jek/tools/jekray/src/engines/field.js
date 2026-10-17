@@ -1,6 +1,7 @@
 import { MASK_EDGE_SHARE, maskFootprint, maskJumps } from '../core/mask.js';
 import { popScreen } from './phase-screen.js';
 import { fieldComps, interp2 } from './field2d.js';
+import { besselJ01, besselZerosJ0 } from '../core/special.js';
 
 /* ---------- Physical optics propagation ----------
    The bench is the meridional slice of a round system, so a beam on axis is a
@@ -18,58 +19,6 @@ import { fieldComps, interp2 } from './field2d.js';
    Sign convention: fields go as exp(-ikz) (Siegman), so a Gaussian is
    exp(-ik r^2 / 2q) with q = z + i zR, and a diverging reference is
    exp(-ik r^2 / 2z). Lengths are in mm. */
-
-/* J0 and J1 to about 1e-12: power series below 12, Hankel asymptotics above */
-export function besselJ01(x) {
-  const ax = Math.abs(x);
-  if (ax < 12) {
-    const q = -0.25 * ax * ax;
-    let t0 = 1, s0 = 1, t1 = 0.5 * ax, s1 = t1;
-    for (let k = 1; k < 60; k++) {
-      t0 *= q / (k * k); s0 += t0;
-      t1 *= q / (k * (k + 1)); s1 += t1;
-      if (Math.abs(t0) < 1e-17 * Math.abs(s0) && Math.abs(t1) < 1e-17 * (Math.abs(s1) + 1e-300)) break;
-    }
-    return [s0, x < 0 ? -s1 : s1];
-  }
-  // P and Q for orders 0 and 1, summed until the terms stop shrinking
-  const z8 = 8 * ax;
-  const pq = mu => {
-    let P = 1, Q = 0, term = 1, k = 1;
-    for (; k < 40; k++) {
-      term *= (mu - (2 * k - 1) ** 2) / (k * z8);
-      const next = Math.abs(term);
-      if (k % 2) Q += term * (k % 4 === 1 ? 1 : -1);
-      else P += term * (k % 4 === 2 ? -1 : 1);
-      if (next < 1e-17) break;
-      if (k > 2 && next > Math.abs(term / ((mu - (2 * k - 1) ** 2) / (k * z8)))) break;
-    }
-    return [P, Q];
-  };
-  const [P0, Q0] = pq(0), [P1, Q1] = pq(4);
-  const a = Math.sqrt(2 / (Math.PI * ax));
-  const c0 = ax - Math.PI / 4, c1 = ax - 3 * Math.PI / 4;
-  const J0 = a * (P0 * Math.cos(c0) - Q0 * Math.sin(c0));
-  const J1 = a * (P1 * Math.cos(c1) - Q1 * Math.sin(c1));
-  return [J0, x < 0 ? -J1 : J1];
-}
-
-/* The first n positive zeros of J0: McMahon's expansion polished by Newton */
-export function besselZerosJ0(n) {
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const b = (i + 0.75) * Math.PI, b8 = 8 * b;
-    let x = b + 1 / b8 - 124 / (3 * b8 ** 3) + 120928 / (15 * b8 ** 5);
-    for (let it = 0; it < 6; it++) {
-      const [j0, j1] = besselJ01(x);
-      const dx = j0 / j1;                  // J0' = -J1, so Newton adds J0/J1
-      x += dx;
-      if (Math.abs(dx) < 1e-14 * x) break;
-    }
-    out[i] = x;
-  }
-  return out;
-}
 
 /* Transform kernel for N points, cached: C[m][n] = J0(j_m j_n / S) */
 const qdhtCache = new Map();

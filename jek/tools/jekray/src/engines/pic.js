@@ -3,6 +3,7 @@ import { nextName, num, project } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from './trace.js';
 import { pkey } from './fibre.js';
+import { cabs2 } from '../core/numeric.js';
 
 export const LAM0 = 1550;                               // nm: where the indices are given
 export const C_NM = 299792458e9;                        // light, nm/s
@@ -17,10 +18,8 @@ export const PIC_WG = {
 /* ---------- complex numbers, [re, im] ---------- */
 const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 const cadd = (a, b) => [a[0] + b[0], a[1] + b[1]];
-const cabs2 = a => a[0] * a[0] + a[1] * a[1];
 const cexp = ph => [Math.cos(ph), Math.sin(ph)];
 const csc = (a, s) => [a[0] * s, a[1] * s];
-const picCdiv = (a, b) => { const d = cabs2(b) || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 const Z = [0, 0];
 /* matrices: n x n complex as one Float64Array, row by row, re and im side by side; entry
    (r, c) at 2 (r n + c) */

@@ -1,5 +1,6 @@
 import { surfaceParts } from './lens-design.js';
 import { cloneP, meritTerms } from './lens-opt.js';
+import { seededRng, solveLinear } from '../core/numeric.js';
 
 /* ==========================================================================
    Tolerancing a lens design: how much worse it gets as it is made
@@ -172,7 +173,7 @@ function compensatedMany(prob, P, comp, C) {
     let took = false;
     for (let tries = 0; tries < 8 && !took; tries++) {
       const M = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => A[a * n + b] + (a === b ? lambda * (A[a * n + a] || 1e-12) + 1e-18 : 0)));
-      const d = gaussSolve(M, Array.from(g));
+      const d = solveLinear(M, Array.from(g));
       if (d) {
         const xn = x.map((v, j) => Math.min(hi[j], Math.max(lo[j], v + d[j]))), rn = res(xn), fn = ss(rn);
         if (fn < f) { took = (f - fn) > 1e-12 * f; x = xn; r = rn; f = fn; lambda = Math.max(1e-9, lambda / 3); break; }
@@ -185,18 +186,6 @@ function compensatedMany(prob, P, comp, C) {
   const fin = withComps(P, C, c, dz, pv);
   P.image = P.image + dz;
   return { crit: Math.sqrt(f), dz, cv: c, fin };
-}
-function gaussSolve(M, b) {
-  const n = b.length;
-  for (let i = 0; i < n; i++) {
-    let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
-    if (Math.abs(M[p][i]) < 1e-300) return null;
-    [M[i], M[p]] = [M[p], M[i]]; [b[i], b[p]] = [b[p], b[i]];
-    for (let k = i + 1; k < n; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < n; j++) M[k][j] -= f * M[i][j]; b[k] -= f * b[i]; }
-  }
-  const x = new Array(n);
-  for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < n; j++) t -= M[i][j] * x[j]; x[i] = t / M[i][i]; }
-  return x;
 }
 
 /* ---------- Sensitivity ---------- */
@@ -248,12 +237,11 @@ export function tolInverse(prob, T, from, to) {
 }
 
 /* ---------- Monte Carlo ---------- */
-function tolRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 /* trials from..to-1: each its own seed, so the result does not depend on how the run is cut up */
 export function tolMonteCarlo(prob, T, from, to) {
   const ops = tolOps(prob.P, T), out = [];
   for (let j = from; j < to; j++) {
-    const R = tolRng(T.seed * 1000003 + j * 7919 + 1);
+    const R = seededRng(T.seed * 1000003 + j * 7919 + 1);
     const vals = ops.map(o => {
       if (T.dist === 'normal') { let g; do { g = Math.sqrt(-2 * Math.log(R() + 1e-15)) * Math.cos(2 * Math.PI * R()); } while (Math.abs(g) > 2); return g * o.lim / 2; }
       return (2 * R() - 1) * o.lim;

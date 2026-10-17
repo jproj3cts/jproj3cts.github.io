@@ -9,7 +9,7 @@ import {
   beamReach, beamShape, cellPlanFor, evalPlan, gratingOrders, nlcConv, nlcConvert, nlcSources,
   setCellPlanMemo, setNlcConv
 } from '../core/nlc.js';
-import { MODS, aomOrders, cmul, eomSidebands, famAt, jonesAt, linesPerMm } from '../core/modulators.js';
+import { MODS, aomOrders, eomSidebands, famAt, jonesAt, linesPerMm } from '../core/modulators.js';
 import { splitOffset, splitRoot } from '../core/coherence.js';
 import { gddPath, isLaserLike, m2Of, pulseGrid, pulseOf, syncLine, syncSplit } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
@@ -35,6 +35,7 @@ import { jonesOf, jonesRoll, rollJones } from './polarisation.js';
 import { diffCache } from './diffraction.js';
 import { statsCache } from './pd-cavity.js';
 import { binCache } from './screen-stats.js';
+import { cmul } from '../core/numeric.js';
 
 /* ==========================================================================
    Ray tracing

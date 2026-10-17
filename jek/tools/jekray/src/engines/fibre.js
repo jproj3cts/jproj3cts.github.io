@@ -1,6 +1,6 @@
 import { clamp } from '../core/constants.js';
 import { C_SI, HPL } from '../core/cells.js';
-import { C_MM, MODS, cmul, eomSidebands, famAt } from '../core/modulators.js';
+import { C_MM, MODS, eomSidebands, famAt } from '../core/modulators.js';
 import { FIBRE_NG, cohGamma, splitRoot } from '../core/coherence.js';
 import { fibreGDD, fibreSPMLater } from '../core/pulses.js';
 import { fanFromGauss } from '../core/beams-hom.js';
@@ -12,6 +12,7 @@ import { arrivalField, faceArrivals, fanFromFibre, fibreMode, mmShare } from './
 import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
 import { modS } from './mods.js';
+import { cmul } from '../core/numeric.js';
 
 /* ==========================================================================
    Fibre subsystems

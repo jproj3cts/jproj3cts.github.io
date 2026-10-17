@@ -10,7 +10,7 @@ import { V3D } from './view3d.js';
 import { h } from './panel.js';
 import { addElement } from './actions.js';
 import {
-  PALETTE_NAMES, PALETTE_SHORT, PART_DRAG, addPart, assignPalette, exp, palette, palettesOn,
+  PALETTE_NAMES, PART_DRAG, addPart, assignPalette, exp, palette, palettesOn,
   partGroups, partIcon, partTile
 } from './experimental.js';
 import { fillPicker, picker, pickerShown, setPickTab } from './picker.js';
@@ -44,7 +44,7 @@ export function fillRail() {
   if (!railOn) return;
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
   const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), ...(V3D.active() ? [] : ['draw'])].map(pal => {   // drawings are 2D only
-    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_SHORT[pal]);
+    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_NAMES[pal].replace('Electronics', 'Elec\u00adtronics'));   // the picker's names, two lines where they need them
     b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
     return b;
   }));

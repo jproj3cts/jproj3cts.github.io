@@ -9236,7 +9236,7 @@ const TESTS = [
         btn('Use this disc').click();
         const el = lensEl(), disc = el.type === 'mask' && !!el.grin && el.grin.mat === 'PLA' && el.grin.match === true;
         const fig = ws().querySelector('.rt-lfig').textContent;
-        const m = /waist [\d.]+ mm, (-?[\d.e+-]+) mm after/.exec(fig), flat = !!m && Math.abs(+m[1]) < 1e-6;
+        const m = /waist [\d.]+ mm, (at the last face|[\d.e+-]+ mm (before|after))/.exec(fig), flat = !!m && m[1] === 'at the last face';
         const ap = /Aperture efficiency([\d.]+) %/.exec(fig), apOk = !!ap && +ap[1] > 78;
         tab('Lenses');
         const f0 = el.grin.f;

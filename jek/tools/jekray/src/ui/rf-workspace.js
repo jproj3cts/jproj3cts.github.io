@@ -31,7 +31,9 @@ import { openLensDesign } from './lens-workspace.js';
    ========================================================================== */
 let RW = null;                     // { asm, tab, draft, synth }
 export const rfDesignOpen = () => !!RW;
-const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : String(+(+v).toPrecision(p || 5));
+const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
+/* where a waist sits from the last vertex, in words rather than a signed distance */
+const rwAt = v => Math.abs(v) < 1e-6 ? 'at the last face' : v < 0 ? rwFmt(-v, 4) + ' mm before the last face' : rwFmt(v, 4) + ' mm after the last face';
 const rwPct = v => isFinite(v) ? (100 * v).toFixed(1) + ' %' : '—';
 const rwDb = v => isFinite(v) && v > 0 ? (10 * Math.log10(v)).toFixed(2) + ' dB' : '—';
 const RW_HORN_NAMES = { corrugated: 'Corrugated conical', smooth: 'Smooth-wall conical', diagonal: 'Diagonal', gauss: 'Ideal Gaussian' };
@@ -339,13 +341,13 @@ function rwFigures(asm, T) {
     items.push(row('Gain', rwFmt(m.gain, 4) + ' dBi', 'On the axis, from the last lens’s aperture: its aperture efficiency and the losses before it'),
       row('Over the band', band(t => t.gain, v => rwFmt(v, 4)) + ' dBi'),
       row('Aperture efficiency', rwPct(m.apEff), 'The last lens’s Gaussian field, with its curvature, against a uniform one over its aperture'),
-      row('Beam leaving', 'waist ' + rwFmt(m.waist.w, 4) + ' mm, ' + rwFmt(m.waist.at, 4) + ' mm after', 'The Gaussian beam the last lens sends on: its waist and where it is from the last vertex (negative: behind it)'),
+      row('Beam leaving', 'waist ' + rwFmt(m.waist.w, 4) + ' mm, ' + rwAt(m.waist.at), 'The Gaussian beam the last lens sends on: its waist and where it is from the last vertex'),
       row('Divergence', rwFmt(m.theta, 3) + '° (1/e²)', 'The far-field half-angle of that Gaussian beam'));
   } else {
     items.push(row('Coupling', rwPct(m.coupling), R.goal.kind === 'couple' ? 'The beam’s Gaussian coupling to the receiving horn’s beam' : 'The beam’s coupling to a Gaussian of the target waist'),
       row('Over the band', band(t => t.coupling, rwPct)),
-      row('Waist made', rwFmt(m.waist.w, 4) + ' mm, ' + rwFmt(m.waist.at, 4) + ' mm after', 'The waist of the beam leaving the last lens, and its distance from the last vertex'),
-      row('Waist wanted', rwFmt(m.target.w, 4) + ' mm, ' + rwFmt(m.target.at, 4) + ' mm after'));
+      row('Waist made', rwFmt(m.waist.w, 4) + ' mm, ' + rwAt(m.waist.at), 'The waist of the beam leaving the last lens, and its distance from the last vertex'),
+      row('Waist wanted', rwFmt(m.target.w, 4) + ' mm, ' + rwAt(m.target.at)));
   }
   items.push(row('Efficiency', rwPct(m.eff) + ' (' + rwDb(m.eff) + ')', 'All of it: the feed’s Gaussian share, reflections, absorption, spillover' + (R.goal.kind === 'collimate' ? ' and the aperture efficiency' : ', the coupling and the receiver’s share')),
     row('Over the band', band(t => t.eff, rwPct)),

@@ -8,7 +8,7 @@ description: Quasi-optics from 1 GHz to 3 THz in JEKray. Feed horns launch and r
 
 <p class="dx-lead">At millimetre and sub-millimetre wavelengths a beam is only a few wavelengths across. It is guided by lenses and mirrors as light is, but it spreads by diffraction within the bench, and it is sent and taken in by horns. The RF tab has the parts of such a bench. Its beams are Gaussian beams, traced as any other is.</p>
 
-The RF parts are on the **RF** tab of parts, in yellow, beside Free, Fibre and Elec.
+The RF parts are on the **RF** tab of parts, in yellow, beside Free space, Fibre and Electronics.
 
 ## Frequency and wavelength
 

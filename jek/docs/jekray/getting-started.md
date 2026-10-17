@@ -25,9 +25,10 @@ Every example in the **Examples** gallery is a working bench. Open one, change i
 
 **The parts rail** runs down the left edge of the bench. Its coloured buttons choose a palette of parts:
 
-- **Free** (orange): free-space optics;
+- **Free space** (orange): free-space optics;
 - **Fibre** (red): fibre components;
-- **Elec** (amber): electronics;
+- **Electronics** (amber): electronics;
+- **RF** (yellow): millimetre-wave horns, lenses and mesh filters;
 - **Draw** (purple): drawing tools for figures.
 
 The buttons below the palette open groups of parts.

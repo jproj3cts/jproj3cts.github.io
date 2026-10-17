@@ -741,8 +741,8 @@ export function mountSection(el) {
 /* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
    (H-plane) dashed beside it, both against their own peak (core/antenna.js) */
 export function rfLensPatternSection(el) {
-  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
-  panel.append(head, cv, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
+  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' }), leg = h('div', { class: 'rt-plotleg' });
+  panel.append(head, cv, leg, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
   bindSync(cv, () => {
     const { A } = antennaLater(el, 'ant'), sec = cv.closest('section');
     if (sec) sec.style.display = A ? '' : 'none';
@@ -771,9 +771,9 @@ export function rfLensPatternSection(el) {
     }
     c.restore();
     drawAxes(c, P, [lo, hi], [-50, 0], sx, sy);
-    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
-    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.round ? [] : [['(dashed: across the bench)', '#e0a030']]), ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
-      .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
+    // the key under the plot, clear of its curves
+    leg.replaceChildren(...[['Horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030', 'solid'], ...(A.round ? [] : [['Across the bench', '#e0a030', 'dashed']]), ...(A.horn ? [['Horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c', 'dotted']] : [])]
+      .map(([t, col, st]) => h('span', null, h('i', { style: 'border-top: 2px ' + st + ' ' + col, 'aria-hidden': 'true' }), t)));
     plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'bench_plane_dB', 'across_dB'], () => X.th.map((t, i) => [t + off, X.db[i], Y.db[i]]));
   });
   rfLensSteerSection(el);

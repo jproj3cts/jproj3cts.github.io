@@ -68,6 +68,14 @@ export function helpLine(short, long, cls, style) {
     onclick: () => { const open = more.hidden; more.hidden = !open; btn.setAttribute('aria-expanded', String(open)); } }, '\u24d8');
   return h('p', { class: cls || 'rt-lsub', ...(style ? { style } : {}) }, ...(Array.isArray(short) ? short : [short]), ' ', btn, more);
 }
+/* a setting whose list has a long choice: its label on a line of its own and the list across the panel, so the choice
+   shown is never cut short */
+export function stackLongSelects(root) {
+  for (const sel of root.querySelectorAll('.rt-rows > .rt-f > select, .rt-rows > .rt-f > .rt-lab ~ select')) {
+    const long = [...sel.options].some(o => o.textContent.length > 17);
+    sel.parentElement.classList.toggle('rt-fstack', long);
+  }
+}
 export function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
@@ -405,6 +413,7 @@ export function renderPanel() {
     renderInto(box, getEl(id));
     if (scrolls.has(id)) holdScroll(box, scrolls.get(id));
   }
+  stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
   const gear = document.getElementById('btnBenchGear');

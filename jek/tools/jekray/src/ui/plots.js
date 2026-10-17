@@ -432,7 +432,8 @@ function drawDiff(cv, D, el) {
     const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
     const [xa, xb] = zoomRange(Z, 'x', -half, half), [ya, yb] = zoomRange(Z, 'y', -vh, vh);
     const sx = { kind: 'len', title: 'along' }, sy = { kind: 'len', title: 'out of the plane' };
-    const A0 = plotArea(c, w, 100, [ya, yb], sy);
+    // its margin measured at about its own height, where the axis has as many labels as it will be drawn with
+    const A1 = plotArea(c, w, 100, [ya, yb], sy), A0 = plotArea(c, w, Math.max(40, w - A1.l - 6) + A1.t + 18, [ya, yb], sy);
     const side = Math.max(40, w - A0.l - 6), hgt = side + A0.t + 18;
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };

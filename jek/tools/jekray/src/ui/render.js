@@ -651,6 +651,10 @@ function drawLabels() {
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
+    // a plate of the bench's own colour under the name, so a beam or a part passing under it never runs through the letters
+    ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
+    ctx.fill(); ctx.restore();
     ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);

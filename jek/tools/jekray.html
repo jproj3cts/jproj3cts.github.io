@@ -433,6 +433,9 @@
   .rt-rows > .rt-f:not(:has(.rt-sweep-toggle)):not(.rt-pair) > :nth-child(2) { grid-column: 2 / 4; }
   .rt-rows > .rt-f > :nth-child(n+3) { grid-column: 1 / -1; }
   .rt-rows > .rt-f.rt-pair > .rt-pairbox { grid-column: 2 / 4; }
+  /* a list with a long choice: its label above it, the list across the row (panel.js stackLongSelects) */
+  .rt-rows > .rt-f.rt-fstack > label, .rt-rows > .rt-f.rt-fstack > .rt-lab > label { grid-column: 1 / -1; }
+  .rt-rows > .rt-f.rt-fstack.rt-fstack > select:nth-child(n) { grid-column: 1 / -1; grid-row: 2; }
   .rt-pairbox { display: grid; grid-template-columns: minmax(0, 1fr) 1.35rem minmax(0, 1fr) 1.35rem; align-items: center; column-gap: 0.4rem; }
   .rt-plab { font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
   .rt-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -1147,7 +1150,7 @@
     overflow-y: auto; scrollbar-width: none; background: rgba(16,21,24,0.82); border: 1px solid rgba(255,255,255,0.12); border-left: 0; border-radius: 0 2px 2px 0; }
   .rt-rail[hidden] { display: none; }
   .rt-rpals { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid rgba(255,255,255,0.14); }
-  .rt-rpal { height: 18px; padding: 0; font: 700 0.6rem var(--jek-sans); letter-spacing: 0.02em; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
+  .rt-rpal { min-height: 18px; padding: 2px 1px; font: 700 0.56rem/1.1 var(--jek-sans); letter-spacing: 0.01em; hyphens: manual; overflow-wrap: normal; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
   .rt-rpal.free { border-color: var(--jek-orange); } .rt-rpal.fibre { border-color: var(--jek-red); } .rt-rpal.pic { border-color: #3a9d5d; } .rt-rpal.elec { border-color: #c08a12; } .rt-rpal.rf { border-color: var(--jek-amber); }
   .rt-rpal.on.free { background: var(--jek-orange); color: #fff; } .rt-rpal.on.fibre { background: var(--jek-red); color: #fff; }
   .rt-rpal.on.pic { background: #3a9d5d; color: #fff; } .rt-rpal.on.elec { background: #c08a12; color: #fff; } .rt-rpal.on.rf { background: var(--jek-amber); color: #1a1a1a; }
@@ -1458,6 +1461,10 @@
   .rt-helpbtn:hover, .rt-helpbtn[aria-expanded="true"] { color: var(--jek-orange, #f07e26); }
   .rt-helpmore { display: block; margin-top: 0.3rem; }
   .rt-helpmore[hidden] { display: none; }
+  /* a plot's key, under it (rfLensPatternSection) */
+  .rt-plotleg { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; margin: 0.25rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
+  .rt-plotleg span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .rt-plotleg i { display: inline-block; width: 1.4rem; }
 </style>
 </head>
 <body>
@@ -11579,6 +11586,10 @@ function drawLabels() {
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
+    // a plate of the bench's own colour under the name, so a beam or a part passing under it never runs through the letters
+    ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
+    ctx.fill(); ctx.restore();
     ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
@@ -22073,6 +22084,14 @@ function helpLine(short, long, cls, style) {
     onclick: () => { const open = more.hidden; more.hidden = !open; btn.setAttribute('aria-expanded', String(open)); } }, '\u24d8');
   return h('p', { class: cls || 'rt-lsub', ...(style ? { style } : {}) }, ...(Array.isArray(short) ? short : [short]), ' ', btn, more);
 }
+/* a setting whose list has a long choice: its label on a line of its own and the list across the panel, so the choice
+   shown is never cut short */
+function stackLongSelects(root) {
+  for (const sel of root.querySelectorAll('.rt-rows > .rt-f > select, .rt-rows > .rt-f > .rt-lab ~ select')) {
+    const long = [...sel.options].some(o => o.textContent.length > 17);
+    sel.parentElement.classList.toggle('rt-fstack', long);
+  }
+}
 function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
@@ -22410,6 +22429,7 @@ function renderPanel() {
     renderInto(box, getEl(id));
     if (scrolls.has(id)) holdScroll(box, scrolls.get(id));
   }
+  stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
   const gear = document.getElementById('btnBenchGear');
@@ -23311,8 +23331,8 @@ function mountSection(el) {
 /* An RF lens as an antenna: its far-field pattern with the horn that feeds it, the horn's own
    (H-plane) dashed beside it, both against their own peak (core/antenna.js) */
 function rfLensPatternSection(el) {
-  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
-  panel.append(head, cv, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
+  const head = h('h3', null, 'As an antenna'), cv = h('canvas', { height: '200', style: 'width:100%;display:block' }), leg = h('div', { class: 'rt-plotleg' });
+  panel.append(head, cv, leg, plotSaveRow(cv));                    // a section of its own (panel.js sectionise)
   bindSync(cv, () => {
     const { A } = antennaLater(el, 'ant'), sec = cv.closest('section');
     if (sec) sec.style.display = A ? '' : 'none';
@@ -23341,9 +23361,9 @@ function rfLensPatternSection(el) {
     }
     c.restore();
     drawAxes(c, P, [lo, hi], [-50, 0], sx, sy);
-    c.font = '11px system-ui, sans-serif'; c.textAlign = 'left';
-    [['horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030'], ...(A.round ? [] : [['(dashed: across the bench)', '#e0a030']]), ...(A.horn ? [['the horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c']] : [])]
-      .forEach(([t, col], k) => { c.fillStyle = col; c.fillText(t, P.l + 8, P.t + 14 + 13 * k); });
+    // the key under the plot, clear of its curves
+    leg.replaceChildren(...[['Horn and lens, ' + A.Gdbi.toFixed(1) + ' dBi', '#e0a030', 'solid'], ...(A.round ? [] : [['Across the bench', '#e0a030', 'dashed']]), ...(A.horn ? [['Horn alone, ' + A.hornDbi.toFixed(1) + ' dBi', '#8a929c', 'dotted']] : [])]
+      .map(([t, col, st]) => h('span', null, h('i', { style: 'border-top: 2px ' + st + ' ' + col, 'aria-hidden': 'true' }), t)));
     plotCsv(cv, el.name + ' antenna pattern', ['angle_deg', 'bench_plane_dB', 'across_dB'], () => X.th.map((t, i) => [t + off, X.db[i], Y.db[i]]));
   });
   rfLensSteerSection(el);
@@ -25452,7 +25472,9 @@ function r3show(T, el, box) {
    ========================================================================== */
 let RW = null;                     // { asm, tab, draft, synth }
 const rfDesignOpen = () => !!RW;
-const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : String(+(+v).toPrecision(p || 5));
+const rwFmt = (v, p) => v === null || v === undefined ? '' : !isFinite(v) ? '∞' : Math.abs(v) < 1e-9 ? '0' : String(+(+v).toPrecision(p || 5));
+/* where a waist sits from the last vertex, in words rather than a signed distance */
+const rwAt = v => Math.abs(v) < 1e-6 ? 'at the last face' : v < 0 ? rwFmt(-v, 4) + ' mm before the last face' : rwFmt(v, 4) + ' mm after the last face';
 const rwPct = v => isFinite(v) ? (100 * v).toFixed(1) + ' %' : '—';
 const rwDb = v => isFinite(v) && v > 0 ? (10 * Math.log10(v)).toFixed(2) + ' dB' : '—';
 const RW_HORN_NAMES = { corrugated: 'Corrugated conical', smooth: 'Smooth-wall conical', diagonal: 'Diagonal', gauss: 'Ideal Gaussian' };
@@ -25760,13 +25782,13 @@ function rwFigures(asm, T) {
     items.push(row('Gain', rwFmt(m.gain, 4) + ' dBi', 'On the axis, from the last lens’s aperture: its aperture efficiency and the losses before it'),
       row('Over the band', band(t => t.gain, v => rwFmt(v, 4)) + ' dBi'),
       row('Aperture efficiency', rwPct(m.apEff), 'The last lens’s Gaussian field, with its curvature, against a uniform one over its aperture'),
-      row('Beam leaving', 'waist ' + rwFmt(m.waist.w, 4) + ' mm, ' + rwFmt(m.waist.at, 4) + ' mm after', 'The Gaussian beam the last lens sends on: its waist and where it is from the last vertex (negative: behind it)'),
+      row('Beam leaving', 'waist ' + rwFmt(m.waist.w, 4) + ' mm, ' + rwAt(m.waist.at), 'The Gaussian beam the last lens sends on: its waist and where it is from the last vertex'),
       row('Divergence', rwFmt(m.theta, 3) + '° (1/e²)', 'The far-field half-angle of that Gaussian beam'));
   } else {
     items.push(row('Coupling', rwPct(m.coupling), R.goal.kind === 'couple' ? 'The beam’s Gaussian coupling to the receiving horn’s beam' : 'The beam’s coupling to a Gaussian of the target waist'),
       row('Over the band', band(t => t.coupling, rwPct)),
-      row('Waist made', rwFmt(m.waist.w, 4) + ' mm, ' + rwFmt(m.waist.at, 4) + ' mm after', 'The waist of the beam leaving the last lens, and its distance from the last vertex'),
-      row('Waist wanted', rwFmt(m.target.w, 4) + ' mm, ' + rwFmt(m.target.at, 4) + ' mm after'));
+      row('Waist made', rwFmt(m.waist.w, 4) + ' mm, ' + rwAt(m.waist.at), 'The waist of the beam leaving the last lens, and its distance from the last vertex'),
+      row('Waist wanted', rwFmt(m.target.w, 4) + ' mm, ' + rwAt(m.target.at)));
   }
   items.push(row('Efficiency', rwPct(m.eff) + ' (' + rwDb(m.eff) + ')', 'All of it: the feed’s Gaussian share, reflections, absorption, spillover' + (R.goal.kind === 'collimate' ? ' and the aperture efficiency' : ', the coupling and the receiver’s share')),
     row('Over the band', band(t => t.eff, rwPct)),
@@ -27745,7 +27767,8 @@ function drawDiff(cv, D, el) {
     const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
     const [xa, xb] = zoomRange(Z, 'x', -half, half), [ya, yb] = zoomRange(Z, 'y', -vh, vh);
     const sx = { kind: 'len', title: 'along' }, sy = { kind: 'len', title: 'out of the plane' };
-    const A0 = plotArea(c, w, 100, [ya, yb], sy);
+    // its margin measured at about its own height, where the axis has as many labels as it will be drawn with
+    const A1 = plotArea(c, w, 100, [ya, yb], sy), A0 = plotArea(c, w, Math.max(40, w - A1.l - 6) + A1.t + 18, [ya, yb], sy);
     const side = Math.max(40, w - A0.l - 6), hgt = side + A0.t + 18;
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };
@@ -41932,7 +41955,7 @@ function assignPalette(v) { return (palette = v); }
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', rf: 'RF', pic: 'Photonic', draw: 'Draw' }, PALETTE_SHORT = { free: 'Free', fibre: 'Fibre', elec: 'Elec', rf: 'RF', pic: 'Chip', draw: 'Draw' };
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
 const PART_GROUPS = {
   get free() { return FREE_GROUPS; },
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
@@ -42140,7 +42163,7 @@ function fillRail() {
   if (!railOn) return;
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
   const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), ...(V3D.active() ? [] : ['draw'])].map(pal => {   // drawings are 2D only
-    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_SHORT[pal]);
+    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_NAMES[pal].replace('Electronics', 'Elec\u00adtronics'));   // the picker's names, two lines where they need them
     b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
     return b;
   }));
@@ -44488,7 +44511,7 @@ const NEWS = [
     'Less waiting on the page while the field is worked out: a photodiode that samples the field reads it from the background worker; a photodiode behind a cavity opens four times as fast (its beat notes pair each sideband\u2019s light as one beam, not every round trip with every other, and its figure while the cavity\u2019s field is on its way is worked out more coarsely).',
     'A sweep that renders the field now plays smoothly with a screen open on its Diffraction tab, and after a pause: each step was asked for a field it had not been rendered for, and worked out again on the spot. Played again with every step rendered, it starts at once, and the time left counts only the steps still to work out.',
     '<b>STL objects</b> are kept compactly with the bench, so a CAD part now saves to the cloud too (a mesh of more than 40 000 triangles is simplified as it comes in, to its outline\u2019s detail, and the panel says so); and <b>\u2605 Save to My parts</b> in its panel keeps it in your parts library.',
-    'An <b>electrical feedthrough</b> (Elec \u2192 Feedthrough): a pair on two tabs carries signals between them, both ways, as a bulkhead connector does. A photodiode on the optical bench can feed a lock-in on an electronics tab, and a generator there drive a modulator back on the bench.',
+    'An <b>electrical feedthrough</b> (Electronics \u2192 Feedthrough): a pair on two tabs carries signals between them, both ways, as a bulkhead connector does. A photodiode on the optical bench can feed a lock-in on an electronics tab, and a generator there drive a modulator back on the bench.',
     'Fibre tips send their rays out as a line, a cross, a grid or hexapolar rings, as a source does, so in 3D the light leaving a fibre fills its cone. A Gaussian beam wider than a lens now shows the share of it that goes round the rim as faint bands outside it, not as a whole beam passing by.',
     'Moving and turning parts in the <b>3D view</b> is now smooth: each step of a drag no longer compiles the view\u2019s shaders again, which made it stutter.',
     'An <b>eye</b> beside each part in the Bench panel\u2019s list hides it in the 3D view (click it again to show it): handy to see past a housing, a mount or a big optic. The light still meets the part exactly as before, and the choice is saved with the bench.',
